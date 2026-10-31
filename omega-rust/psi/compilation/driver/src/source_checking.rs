@@ -21,11 +21,7 @@ pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedChec
 /// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
-    pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
-    pub layout_selection_authority:
-        Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
-    pub catalogues: validation::source_catalogues::SourceCatalogueAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
@@ -105,7 +101,6 @@ impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
         let mut program = self.program;
-        validation::execution_projection::trace_generated_call_membership(&program, "source_input");
         // A retained language judgment cannot bypass final application custody.
         // Reclosure also derives copy properties; callers cannot supply them.
         let representations = self.admission.representations.admit(&program)?;
@@ -115,17 +110,6 @@ impl CheckRequest<'_> {
                 self.admission.completion,
             )
         })?;
-        phase_profile::scope("05.a.source_catalogues", || {
-            validation::source_catalogues::prepare_source_catalogues(
-                &mut program,
-                &self.admission.catalogues,
-            )
-        })?;
-        build_time_evaluation::evaluate_fixed_layout_applications(
-            &mut program,
-            self.admission.layout_scopes,
-            self.admission.layout_selection_authority.clone(),
-        )?;
         constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(&representations.copy_properties)
@@ -159,10 +143,6 @@ impl CheckRequest<'_> {
             let (program, preparation) = phase_profile::scope("05.c.prepare_typed_trees", || {
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)
             })?;
-            validation::execution_projection::trace_generated_call_membership(
-                &program,
-                "prepared_output",
-            );
             // Whole-value lifecycle demands become concrete through the same
             // specialization as ordinary calls. Add geometry only: preparation's
             // executable bodies and mathematical judgments remain unchanged.

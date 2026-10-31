@@ -2,27 +2,36 @@
 // Invalid: operand is bounded to 24u64, so 24 << 2 is 96, underflowing subtraction by 100u64. Place: another target body.
 // Expected exit: 0
 
-boundary trait SelectedShiftTarget {
-    machine shift_target(val: u64, shift: u32) -> u64 reaches
-requires val >= 24 && val <= 24 && shift == 2;
-}
-CheckedShiftTarget satisfies SelectedShiftTarget {
-    machine shift_target(val: u64, shift: u32) -> u64
+linux_x86_64 machine shift_target(val: u64, shift: u32) -> u64
 requires val >= 24 && val <= 24 && shift == 2
 {
     let shifted: u64 = val << shift;
     shifted - 100u64
 }
+
+linux_arm64 machine shift_target(val: u64, shift: u32) -> u64
+requires val >= 24 && val <= 24 && shift == 2
+{
+    let shifted: u64 = val << shift;
+    shifted - 100u64
 }
 
+macos_arm64 machine shift_target(val: u64, shift: u32) -> u64
+requires val >= 24 && val <= 24 && shift == 2
+{
+    let shifted: u64 = val << shift;
+    shifted - 100u64
+}
 
-
-
-
-
+windows_x86_64 machine shift_target(val: u64, shift: u32) -> u64
+requires val >= 24 && val <= 24 && shift == 2
+{
+    let shifted: u64 = val << shift;
+    shifted - 100u64
+}
 
 machine probe() -> u64 {
-    SelectedShiftTarget::shift_target(24u64, 2)
+    shift_target(24u64, 2)
 }
 
 machine main() crashes Trap {

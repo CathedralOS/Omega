@@ -1,10 +1,10 @@
-// Checked IEEE guard value == value && value >= 0.0 && value < 1000000000.0 proves I32FromF64::from_f64(value) is finite and in range.
+// Checked IEEE guard value == value && value >= 0.0 && value < 1000000000.0 proves I32::from_f64(value) is finite and in range.
 // Expected exit: 0
 use omega::language::core::float_operations;
 machine bounded_choice(value: f64, flag: bool) -> i32 {
     let chosen: f64 = match flag { true -> value, false -> value };
     transition value == value && value >= 0.0 && value < 1000000000.0 {
-        true -> finish(I32FromF64::from_f64(chosen))
+        true -> finish(I32::from_f64(chosen))
         false -> zero()
     }
     machine finish(observed: i32) -> i32 { observed }

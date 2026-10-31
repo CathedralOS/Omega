@@ -2,14 +2,14 @@ use omega::language::core::float_operations;
 
 // The public slot's exact Boolean guarantee must survive caller import.
 machine finite(value: f32) -> bool
-ensures result == F32IsFinite::is_finite(value) {
-    F32IsFinite::is_finite(value)
+ensures result == F32::is_finite(value) {
+    F32::is_finite(value)
 }
 
 // The second primitive format retains its own selected public slot.
 machine finite_f64(value: f64) -> bool
-ensures result == F64IsFinite::is_finite(value) {
-    F64IsFinite::is_finite(value)
+ensures result == F64::is_finite(value) {
+    F64::is_finite(value)
 }
 
 machine main() crashes Trap {

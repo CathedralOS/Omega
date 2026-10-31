@@ -302,8 +302,8 @@ machine seed_grid(observations: &Observations, query: &Profile, seed: &Candidate
                t_count: i32 in Wrapping, h_count: i32 in Wrapping,
                t_position: i32 in Wrapping, h_position: i32 in Wrapping) {
         let t: f64 = observations.lower_log_half + (observations.upper_log_half - observations.lower_log_half)
-            * F64FromI32::from_i32(t_position as i32) / F64FromI32::from_i32(t_count as i32);
-        let h: f64 = 0.2 + 4.8 * F64FromI32::from_i32(h_position as i32) / F64FromI32::from_i32(h_count as i32);
+            * F64::from_i32(t_position as i32) / F64::from_i32(t_count as i32);
+        let h: f64 = 0.2 + 4.8 * F64::from_i32(h_position as i32) / F64::from_i32(h_count as i32);
         let mut candidate: Candidate;
         sample_shape(observations, query, t, h, &mut candidate);
         transition candidate.sse < best.sse {
@@ -416,7 +416,7 @@ machine golden(observations: &Observations, query: &Profile, best: &mut Candidat
     transition { _ -> scan(observations, query, best, lower, upper, 0, 0) }
     machine scan(observations: &Observations, query: &Profile, best: &mut Candidate,
                lower: f64, upper: f64, position: i32 in Wrapping, best_position: i32 in Wrapping) {
-        let axis: f64 = lower + (upper - lower) * F64FromI32::from_i32(position as i32) / 16.0;
+        let axis: f64 = lower + (upper - lower) * F64::from_i32(position as i32) / 16.0;
         let mut candidate: Candidate;
         axis_score(observations, query, axis, &mut candidate);
         transition candidate.sse < best.sse {
@@ -438,7 +438,7 @@ machine golden(observations: &Observations, query: &Profile, best: &mut Candidat
     }
     machine begin(observations: &Observations, query: &Profile, best: &mut Candidate,
                 lower: f64, upper: f64, position: i32 in Wrapping) {
-        let center: f64 = lower + (upper - lower) * F64FromI32::from_i32(position as i32) / 16.0;
+        let center: f64 = lower + (upper - lower) * F64::from_i32(position as i32) / 16.0;
         let spacing: f64 = (upper - lower) / 16.0;
         let mut search: AxisSearch;
         search.lower = clamp(center - spacing, lower, upper);
@@ -707,7 +707,7 @@ public machine fit_curve(observations: &mut Observations, fit: &mut Fit) {
         }
     }
     machine direction(observations: &Observations, fit: &mut Fit) {
-        let signed_amplitude: f64 = (fit.candidate.high - fit.candidate.low) * F64FromI32::from_i32(observations.direction);
+        let signed_amplitude: f64 = (fit.candidate.high - fit.candidate.low) * F64::from_i32(observations.direction);
         transition signed_amplitude > 0.0 {
             true -> profiles(observations, fit, 0, 0)
             _ -> wrong_direction(fit)

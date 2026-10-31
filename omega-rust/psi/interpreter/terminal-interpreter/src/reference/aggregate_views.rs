@@ -95,13 +95,12 @@ pub(crate) fn translate_aggregate_view_path(
             selected.byte_length,
             &mut candidate,
         )?;
-        let (path, stored, byte_offset) = candidate?;
+        let (path, stored) = candidate?;
         Some((
             path,
             AggregateViewTip::Scalar {
                 view: scalar,
                 backing: stored,
-                byte_offset,
             },
         ))
     } else {
@@ -131,7 +130,6 @@ fn find_scalar_path(
     selected: &mut Option<(
         Vec<StructuralPathSegment>,
         terminal_semantics::ReferenceStorageProjection,
-        Option<u8>,
     )>,
 ) -> Option<()> {
     if path.len() >= 128 {
@@ -145,23 +143,12 @@ fn find_scalar_path(
         return Some(());
     }
     if let Some(scalar) = region.scalar {
-        // A contiguous scalar owns every byte in its stored image. Immutable
-        // observations may select a subwindow without inventing a smaller cell
-        // or losing the original codec. Fragmented/overlapping storage still
-        // has no unique scalar endpoint here.
-        if u64::from(terminal_semantics::reference_storage_byte_width(
-            scalar.stored_scalar,
-        )?) != region.byte_length
-            || selected.is_some()
-        {
-            return None;
+        if byte_offset == region.byte_offset && byte_length == region.byte_length {
+            if selected.is_some() {
+                return None;
+            }
+            *selected = Some((path.clone(), scalar));
         }
-        let window = if byte_offset == region.byte_offset && byte_length == region.byte_length {
-            None
-        } else {
-            Some(u8::try_from(byte_offset.checked_sub(region.byte_offset)?).ok()?)
-        };
-        *selected = Some((path.clone(), scalar, window));
         return Some(());
     }
     match &types.get(&carrier)?.shape {

@@ -169,8 +169,8 @@ impl PreparedBuildExecution {
         let native_binding_evaluation = if completed.native_bindings.is_empty() {
             None
         } else {
-            Some(std::sync::Arc::new(
-                package_compilation::NativeBuildEvaluation::from_execution(
+            Some(Arc::new(
+                provider_planning::native_bindings::NativeBuildEvaluation::from_execution(
                     completed.identity.semantic(),
                     usage,
                     &observation_summary,
@@ -188,9 +188,9 @@ impl PreparedBuildExecution {
             root_binding_requests: completed.root_bindings,
             declared_product_selections: completed.declared_product_selections,
             product_selection_requests: completed.product_selections,
-            behavior_exclusion_requests: completed.exclusions,
             native_binding_requests: completed.native_bindings,
             native_formations: completed.native_formations,
+            behavior_exclusion_requests: completed.exclusions,
             project_declaration: Some(completed.declaration),
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),

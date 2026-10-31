@@ -343,7 +343,26 @@ fn machine_groups(
             {
                 continue;
             }
-            let callees = [callee];
+            // Keep every authored family body in the same dependency group.
+            // Each body is checked under its declared premises; grouping grants
+            // no selected-case or scalar assumption from a caller.
+            let mut callees = vec![callee];
+            let machine_symbol = machines[callee].symbol;
+            if let Some(family) = program.target_machine_families.iter().find(|family| {
+                family.canonical == machine_symbol
+                    || family
+                        .members
+                        .iter()
+                        .any(|member| member.machine == machine_symbol)
+            }) {
+                for member in std::iter::once(family.canonical)
+                    .chain(family.members.iter().map(|member| member.machine))
+                {
+                    if let Some(position) = program.machine_position_by_symbol(member) {
+                        crate::collections::push_unique(&mut callees, position);
+                    }
+                }
+            }
             for callee in callees {
                 if callee != caller {
                     let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));

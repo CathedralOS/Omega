@@ -159,6 +159,26 @@ pub(in crate::function_fragments) fn validate_function(
                 && completion_claim_sources == wanted_sources
                 && completion_receipts == wanted_receipts => {}
             (
+                InternalUnitCallSource::TargetFamily {
+                    boundary,
+                    member,
+                    target,
+                    completion_claim_sources,
+                    completion_receipts,
+                },
+                NativeCallOrigin::TargetFamily {
+                    boundary: wanted_boundary,
+                    member: wanted_member,
+                    target: wanted_target,
+                    completion_claim_sources: wanted_sources,
+                    completion_receipts: wanted_receipts,
+                },
+            ) if boundary == wanted_boundary
+                && member == wanted_member
+                && target == wanted_target
+                && completion_claim_sources == wanted_sources
+                && completion_receipts == wanted_receipts => {}
+            (
                 InternalUnitCallSource::InstalledProvider {
                     boundary,
                     provider,

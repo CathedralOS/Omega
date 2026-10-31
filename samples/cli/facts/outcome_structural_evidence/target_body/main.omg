@@ -17,24 +17,32 @@ machine failure_arm() -> bool {
   _ -> (true)
  }
 }
-boundary trait SelectedProbe {
-    machine probe(gate: Gate) -> bool reaches
-;
-}
-CheckedProbe satisfies SelectedProbe {
-    machine probe(gate: Gate) -> bool
-{
+windows_x86_64 machine probe(gate: Gate) -> bool {
  transition pick(gate) {
   Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
   _ -> (false)
  }
 }
+linux_x86_64 machine probe(gate: Gate) -> bool {
+ transition pick(gate) {
+  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+  _ -> (false)
+ }
 }
-
-
-
+macos_arm64 machine probe(gate: Gate) -> bool {
+ transition pick(gate) {
+  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+  _ -> (false)
+ }
+}
+linux_arm64 machine probe(gate: Gate) -> bool {
+ transition pick(gate) {
+  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+  _ -> (false)
+ }
+}
 machine main() crashes Trap {
- transition (SelectedProbe::probe(Gate { threshold: 5 })) && failure_arm() { true -> done() _ -> bad() }
+ transition (probe(Gate { threshold: 5 })) && failure_arm() { true -> done() _ -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

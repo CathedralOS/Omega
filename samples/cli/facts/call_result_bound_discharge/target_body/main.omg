@@ -12,23 +12,29 @@ requires scale <= 5
 
 machine opaque() -> u64 { 4u64 }
 
-boundary trait SelectedTake {
-    machine take(scale: u64) -> u64 reaches
-requires scale <= 5;
-}
-CheckedTake satisfies SelectedTake {
-    machine take(scale: u64) -> u64
+linux_x86_64 machine take(scale: u64) -> u64
 requires scale <= 5
 {
     echo(scale)
 }
+
+linux_arm64 machine take(scale: u64) -> u64
+requires scale <= 5
+{
+    echo(scale)
 }
 
+macos_arm64 machine take(scale: u64) -> u64
+requires scale <= 5
+{
+    echo(scale)
+}
 
-
-
-
-
+windows_x86_64 machine take(scale: u64) -> u64
+requires scale <= 5
+{
+    echo(scale)
+}
 
 data Main { hits: i32 in Wrapping; }
 
@@ -36,7 +42,7 @@ machine Main::main(main: &mut Main) crashes Trap {
     main.hits = 0;
 
     let s: u64 = opaque();
-    let r: u64 = SelectedTake::take(s);
+    let r: u64 = take(s);
     transition r == 4 {
         true -> pass(main)
         _ -> fail(main)

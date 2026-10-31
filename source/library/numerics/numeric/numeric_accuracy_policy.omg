@@ -29,15 +29,15 @@ public data SymmetricAnyTolerance64 [copy] { absolute: f64; relative: f64; }
 public data ReferenceAdditiveTolerance32 [copy] { atol: f32; rtol: f32; }
 public data ReferenceAdditiveTolerance64 [copy] { atol: f64; rtol: f64; }
 
-public machine widen_f32_to_f64(value: f32) -> f64 { F64FromF32::from_f32(value) }
-public machine round_f64_to_f32(value: f64) -> f32 { F32FromF64::from_f64(value) }
-public machine round_i32_to_f32(value: i32) -> f32 { F32FromI32::from_i32(value) }
-public machine round_i32_to_f64(value: i32) -> f64 { F64FromI32::from_i32(value) }
+public machine widen_f32_to_f64(value: f32) -> f64 { F64::from_f32(value) }
+public machine round_f64_to_f32(value: f64) -> f32 { F32::from_f64(value) }
+public machine round_i32_to_f32(value: i32) -> f32 { F32::from_i32(value) }
+public machine round_i32_to_f64(value: i32) -> f64 { F64::from_i32(value) }
 
 public machine classify_f32(value: f32) -> NumericClass {
     transition {
-        F32IsNan::is_nan(value) -> (NumericClass::NaN)
-        F32IsInfinite::is_infinite(value) -> infinity(value)
+        F32::is_nan(value) -> (NumericClass::NaN)
+        F32::is_infinite(value) -> infinity(value)
         value == 0.0f32 -> zero(value)
         _ -> (NumericClass::Finite)
     }
@@ -57,7 +57,7 @@ public machine classify_f32(value: f32) -> NumericClass {
 
 machine magnitude_f32(value: f32) -> f32 {
     transition value < 0.0f32 {
-        true -> (F32Negate::negate(value))
+        true -> (F32::negate(value))
         _ -> (value)
     }
 }
@@ -65,23 +65,23 @@ machine magnitude_f32(value: f32) -> f32 {
 public machine compare_symmetric_any_f32(left: f32, right: f32, tolerance: SymmetricAnyTolerance32) -> AccuracyComparison {
     // Validate first: even equal values must not hide a malformed policy.
     transition {
-        !F32IsFinite::is_finite(tolerance.absolute) || !F32IsFinite::is_finite(tolerance.relative)
+        !F32::is_finite(tolerance.absolute) || !F32::is_finite(tolerance.relative)
             || tolerance.absolute < 0.0f32 || tolerance.relative < 0.0f32
             -> (AccuracyComparison::InvalidTolerance)
-        F32IsNan::is_nan(left) || F32IsNan::is_nan(right) -> (AccuracyComparison::Different)
+        F32::is_nan(left) || F32::is_nan(right) -> (AccuracyComparison::Different)
         left == right -> (AccuracyComparison::Close)
-        !F32IsFinite::is_finite(left) || !F32IsFinite::is_finite(right) -> (AccuracyComparison::Different)
+        !F32::is_finite(left) || !F32::is_finite(right) -> (AccuracyComparison::Different)
         _ -> finite(left, right, tolerance)
     }
     machine finite(left: f32, right: f32, tolerance: SymmetricAnyTolerance32) -> AccuracyComparison {
         let difference: f32 = magnitude_f32(left - right);
-        transition F32IsFinite::is_finite(difference) && difference <= tolerance.absolute {
+        transition F32::is_finite(difference) && difference <= tolerance.absolute {
             true -> (AccuracyComparison::Close)
             _ -> relative(left, right, tolerance)
         }
     }
     machine relative(left: f32, right: f32, tolerance: SymmetricAnyTolerance32) -> AccuracyComparison {
-        let scale: f32 = F32Maximum::maximum(magnitude_f32(left), magnitude_f32(right));
+        let scale: f32 = F32::maximum(magnitude_f32(left), magnitude_f32(right));
         // Equal zeros have already returned. The remaining finite pair has a
         // positive scale, and each quotient has magnitude at most one.
         let normalized_difference: f32 = magnitude_f32(left / scale - right / scale);
@@ -94,8 +94,8 @@ public machine compare_symmetric_any_f32(left: f32, right: f32, tolerance: Symme
 
 public machine classify_f64(value: f64) -> NumericClass {
     transition {
-        F64IsNan::is_nan(value) -> (NumericClass::NaN)
-        F64IsInfinite::is_infinite(value) -> infinity(value)
+        F64::is_nan(value) -> (NumericClass::NaN)
+        F64::is_infinite(value) -> infinity(value)
         value == 0.0f64 -> zero(value)
         _ -> (NumericClass::Finite)
     }
@@ -115,7 +115,7 @@ public machine classify_f64(value: f64) -> NumericClass {
 
 machine magnitude_f64(value: f64) -> f64 {
     transition value < 0.0f64 {
-        true -> (F64Negate::negate(value))
+        true -> (F64::negate(value))
         _ -> (value)
     }
 }
@@ -123,23 +123,23 @@ machine magnitude_f64(value: f64) -> f64 {
 public machine compare_symmetric_any_f64(left: f64, right: f64, tolerance: SymmetricAnyTolerance64) -> AccuracyComparison {
     // Validate first: even equal values must not hide a malformed policy.
     transition {
-        !F64IsFinite::is_finite(tolerance.absolute) || !F64IsFinite::is_finite(tolerance.relative)
+        !F64::is_finite(tolerance.absolute) || !F64::is_finite(tolerance.relative)
             || tolerance.absolute < 0.0f64 || tolerance.relative < 0.0f64
             -> (AccuracyComparison::InvalidTolerance)
-        F64IsNan::is_nan(left) || F64IsNan::is_nan(right) -> (AccuracyComparison::Different)
+        F64::is_nan(left) || F64::is_nan(right) -> (AccuracyComparison::Different)
         left == right -> (AccuracyComparison::Close)
-        !F64IsFinite::is_finite(left) || !F64IsFinite::is_finite(right) -> (AccuracyComparison::Different)
+        !F64::is_finite(left) || !F64::is_finite(right) -> (AccuracyComparison::Different)
         _ -> finite(left, right, tolerance)
     }
     machine finite(left: f64, right: f64, tolerance: SymmetricAnyTolerance64) -> AccuracyComparison {
         let difference: f64 = magnitude_f64(left - right);
-        transition F64IsFinite::is_finite(difference) && difference <= tolerance.absolute {
+        transition F64::is_finite(difference) && difference <= tolerance.absolute {
             true -> (AccuracyComparison::Close)
             _ -> relative(left, right, tolerance)
         }
     }
     machine relative(left: f64, right: f64, tolerance: SymmetricAnyTolerance64) -> AccuracyComparison {
-        let scale: f64 = F64Maximum::maximum(magnitude_f64(left), magnitude_f64(right));
+        let scale: f64 = F64::maximum(magnitude_f64(left), magnitude_f64(right));
         // Equal zeros have already returned. The remaining finite pair has a
         // positive scale, and each quotient has magnitude at most one.
         let normalized_difference: f64 = magnitude_f64(left / scale - right / scale);
@@ -161,16 +161,16 @@ public machine compare_reference_additive_f32(
     tolerance: ReferenceAdditiveTolerance32
 ) -> AccuracyComparison {
     transition {
-        !F32IsFinite::is_finite(tolerance.atol) || !F32IsFinite::is_finite(tolerance.rtol)
+        !F32::is_finite(tolerance.atol) || !F32::is_finite(tolerance.rtol)
             || tolerance.atol < 0.0f32 || tolerance.rtol < 0.0f32
             -> (AccuracyComparison::InvalidTolerance)
-        !F32IsFinite::is_finite(actual) || !F32IsFinite::is_finite(reference)
+        !F32::is_finite(actual) || !F32::is_finite(reference)
             -> (AccuracyComparison::Different)
         _ -> finite(actual, reference, tolerance)
     }
     machine finite(actual: f32, reference: f32, tolerance: ReferenceAdditiveTolerance32) -> AccuracyComparison {
         let difference: f32 = magnitude_f32(actual - reference);
-        transition F32IsFinite::is_finite(difference) {
+        transition F32::is_finite(difference) {
             true -> direct(difference, reference, tolerance)
             _ -> halved(actual, reference, tolerance)
         }
@@ -208,16 +208,16 @@ public machine compare_reference_additive_f64(
     tolerance: ReferenceAdditiveTolerance64
 ) -> AccuracyComparison {
     transition {
-        !F64IsFinite::is_finite(tolerance.atol) || !F64IsFinite::is_finite(tolerance.rtol)
+        !F64::is_finite(tolerance.atol) || !F64::is_finite(tolerance.rtol)
             || tolerance.atol < 0.0f64 || tolerance.rtol < 0.0f64
             -> (AccuracyComparison::InvalidTolerance)
-        !F64IsFinite::is_finite(actual) || !F64IsFinite::is_finite(reference)
+        !F64::is_finite(actual) || !F64::is_finite(reference)
             -> (AccuracyComparison::Different)
         _ -> finite(actual, reference, tolerance)
     }
     machine finite(actual: f64, reference: f64, tolerance: ReferenceAdditiveTolerance64) -> AccuracyComparison {
         let difference: f64 = magnitude_f64(actual - reference);
-        transition F64IsFinite::is_finite(difference) {
+        transition F64::is_finite(difference) {
             true -> direct(difference, reference, tolerance)
             _ -> halved(actual, reference, tolerance)
         }

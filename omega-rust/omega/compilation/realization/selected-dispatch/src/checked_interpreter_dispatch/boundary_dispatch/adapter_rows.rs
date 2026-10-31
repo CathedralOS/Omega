@@ -833,7 +833,8 @@ fn sole_boundary_conformance(
         .machine_trait_conformances(adapter)
         .iter()
         .filter(|conformance| {
-            conformance.symbol == requirement.symbol
+            conformance.external_binding.is_none()
+                && conformance.symbol == requirement.symbol
                 && conformance.requirement_symbol == requirement.symbol
         })
         .count();

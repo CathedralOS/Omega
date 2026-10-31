@@ -70,8 +70,8 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
         transition main.x >= 0 && main.x < 48 { true -> pixel_init(main) _ -> emit_row(main) }
     }
     machine pixel_init(main: &mut Main) {
-        main.cr = (F64FromI32::from_i32(main.x) / 48.0 - 0.5) * main.span - 0.743644;
-        main.ci = (F64FromI32::from_i32(main.y) / 22.0 - 0.5) * main.span * 0.5 + 0.131826;
+        main.cr = (F64::from_i32(main.x) / 48.0 - 0.5) * main.span - 0.743644;
+        main.ci = (F64::from_i32(main.y) / 22.0 - 0.5) * main.span * 0.5 + 0.131826;
         main.zr = 0.0;
         main.zi = 0.0;
         main.k = 0;

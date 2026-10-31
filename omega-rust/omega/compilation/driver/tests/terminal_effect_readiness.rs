@@ -274,7 +274,7 @@ fn synchronous_host_computation_retains_the_invocation_without_guest_suspension(
                 entry: None,
                 x86_flags: None,
                 memory_ordering: None,
-                target_context: None,
+                target_machines: None,
                 target_layouts: None,
             })
             .unwrap();
@@ -452,7 +452,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                     entry: None,
                     x86_flags: None,
                     memory_ordering: None,
-                    target_context: None,
+                    target_machines: None,
                     target_layouts: None,
                 })
                 .unwrap();
@@ -475,7 +475,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                         entry: None,
                         x86_flags: None,
                         memory_ordering: None,
-                        target_context: None,
+                        target_machines: None,
                         target_layouts: None,
                     })
                     .unwrap();
@@ -550,12 +550,12 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                     .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                         host_imports: &[],
                         installation: Some(admitted.selection()),
-                        entry: Some(terminal_psi::TerminalCallable::Machine(
+                        entry: Some(terminal_psi::TargetMachineCallable::Machine(
                             admitted.candidate(),
                         )),
                         x86_flags: None,
                         memory_ordering: None,
-                        target_context: None,
+                        target_machines: None,
                         target_layouts: None,
                     })
                     .unwrap();
@@ -765,7 +765,7 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
                     entry: None,
                     x86_flags: None,
                     memory_ordering: None,
-                    target_context: None,
+                    target_machines: None,
                     target_layouts: None,
                 })
                 .unwrap();

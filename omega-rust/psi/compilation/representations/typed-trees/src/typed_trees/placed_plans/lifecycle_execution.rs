@@ -266,6 +266,9 @@ impl PlacementExecutionDeclaration {
             || machine.spelling.is_some()
             || machine.suspends
             || machine.blocks
+            || machine.target.is_some()
+            || machine.authored_target.is_some()
+            || machine.target_family_interface
             || !program.machine_trait_conformances(machine).is_empty()
             || !machine.invokes.is_empty()
             || machine.service_reach_is_installation_bound

@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedReadElement, CheckedReadElement>(builder, linux_x86_64);
-    Build::select_provider<SelectedReadElement, CheckedReadElement>(builder, linux_arm64);
-    Build::select_provider<SelectedReadElement, CheckedReadElement>(builder, macos_arm64);
-    Build::select_provider<SelectedReadElement, CheckedReadElement>(builder, windows_x86_64);
-
     Build::application(builder, "fixed_array_onetwentyeight_elem_index_bound_target_body_invalid");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

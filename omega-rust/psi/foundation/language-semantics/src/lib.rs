@@ -44,7 +44,9 @@ pub mod type_identity;
 pub mod value_domain;
 pub mod wire;
 
-pub use external_bindings::ExternalBindingMechanism;
+pub use external_bindings::{
+    ExternalBindingIdentity, ExternalBindingMechanism, ExternalBindingTable,
+};
 pub use language_core::{
     CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin, CarryAddress, CarryCpu,
     CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension, DataSupplyMode,
@@ -63,7 +65,9 @@ pub use semantic_domains::{
     BoundaryQualificationIssuer, DomainEstablishmentRoute, DomainSemanticRole, DomainSemanticRoles,
     QualificationEvidenceOrigin, SemanticDomainTable,
 };
-pub use semantic_identities::{RankingViewId, SemanticDomainId, ServiceReachId, ServiceReachRowId};
+pub use semantic_identities::{
+    ExternalBindingId, RankingViewId, SemanticDomainId, ServiceReachId, ServiceReachRowId,
+};
 pub use service_reach::{
     BlockingInterface, BlockingPlan, BlockingSummary, ServiceReachDefinition,
     ServiceReachInterface, ServiceReachPlan, ServiceReachRowTable, ServiceReachSummary,

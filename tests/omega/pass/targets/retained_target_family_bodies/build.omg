@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedHelperDelta, LinuxX8664HelperDelta>(builder, linux_x86_64);
-    Build::select_provider<SelectedHelperDelta, MacosArm64HelperDelta>(builder, macos_arm64);
-    Build::select_provider<SelectedHelperValue, LinuxX8664HelperValue>(builder, linux_x86_64);
-    Build::select_provider<SelectedHelperValue, MacosArm64HelperValue>(builder, macos_arm64);
-
     Build::application(builder, "retained_target_family_bodies");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

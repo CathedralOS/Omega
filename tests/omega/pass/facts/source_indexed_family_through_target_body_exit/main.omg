@@ -47,22 +47,24 @@ ensures result <= 80
     vector_bound<NextLength, NextTotal>(next);
     NextTotal
 }
-boundary trait SelectedProduced {
-    machine produced() -> u64 reaches
-ensures result <= 80;
-}
-CheckedProduced satisfies SelectedProduced {
-    machine produced() -> u64 ensures result <= 80
-{
+windows_x86_64 machine produced() -> u64 ensures result <= 80 {
     let nil [erased]: Vector<0, 0> = Vector::Nil;
     open_total<0, 0, 1, 7>(nil)
 }
+linux_x86_64 machine produced() -> u64 ensures result <= 80 {
+    let nil [erased]: Vector<0, 0> = Vector::Nil;
+    open_total<0, 0, 1, 7>(nil)
 }
-
-
-
+macos_arm64 machine produced() -> u64 ensures result <= 80 {
+    let nil [erased]: Vector<0, 0> = Vector::Nil;
+    open_total<0, 0, 1, 7>(nil)
+}
+linux_arm64 machine produced() -> u64 ensures result <= 80 {
+    let nil [erased]: Vector<0, 0> = Vector::Nil;
+    open_total<0, 0, 1, 7>(nil)
+}
 machine main() crashes Trap {
-    let remaining: u64 = 80u64 - SelectedProduced::produced();
+    let remaining: u64 = 80u64 - produced();
     transition remaining == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

@@ -14,6 +14,76 @@ use target::{Architecture, NativeTarget};
 use target_operations::{ProviderExecutionBinding, ProviderPlanReportIdentity};
 use terminal_psi::OperationKind;
 
+/// Rejoin a selected family alias to this artifact before using its provider
+/// requirement for a physical ledger lookup. The boundary occurrence and its
+/// head contract remain unchanged; only the provider-row address is transported.
+pub(crate) fn validate_family_provider_custody(
+    terminal: terminal_psi::TerminalPsiIdentity,
+    module: &terminal_psi::TerminalModule,
+    target: NativeTarget,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    identity: &str,
+    plan: &NativeSelectedProviderPlan,
+) -> Result<(), &'static str> {
+    plan.validate_external_requirement_applications()?;
+    let Some(row) = plan.family_realization_rows().iter().find(|row| {
+        plan.family_realization_identities().text(row.head_identity) == Some(identity)
+            || plan
+                .family_realization_identities()
+                .text(row.member_identity)
+                == Some(identity)
+    }) else {
+        return Ok(());
+    };
+    if row.terminal != terminal
+        || row.provider_plan_report_identity != plan.report_identity()
+        || row.provider_plan_digest.as_bytes() != plan.plan_digest().as_bytes()
+        || !target::TargetProfile::from_canonical_target_name(&row.target)
+            .is_ok_and(|profile| profile.native_realization() == Some(target))
+        || !((row.head == boundary
+            && plan.family_realization_identities().text(row.head_identity) == Some(identity))
+            || (row.member == boundary
+                && plan
+                    .family_realization_identities()
+                    .text(row.member_identity)
+                    == Some(identity)))
+    {
+        return Err("physical family provider changed its artifact, target, or selected plan");
+    }
+    for (boundary, identity) in [
+        (
+            row.head,
+            plan.family_realization_identities().text(row.head_identity),
+        ),
+        (
+            row.member,
+            plan.family_realization_identities()
+                .text(row.member_identity),
+        ),
+    ] {
+        if !terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
+            .is_some_and(|declaration| module.identities.text(declaration.identity) == identity)
+        {
+            return Err("physical family provider changed its exact callable declaration");
+        }
+    }
+    let family = module
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == terminal_psi::TargetMachineCallable::Boundary(row.head))
+        .ok_or("physical family provider has no canonical family")?;
+    if family.head_contract == [0; 32]
+        || !family.members.iter().any(|member| {
+            member.target == row.target
+                && member.callable == terminal_psi::TargetMachineCallable::Boundary(row.member)
+                && member.supply != terminal_psi::TargetMachineSupply::CheckedBody
+        })
+    {
+        return Err("physical family provider changed its selected member or head contract");
+    }
+    Ok(())
+}
+
 /// Rejoin the one retained provider execution an installed settlement names.
 /// The record must identify the selected plan and match exactly one retained
 /// execution on every compact coordinate.

@@ -218,12 +218,11 @@ impl TypedTreeTables {
     /// Remap lexical symbols in a copied statement graph. Expression and type
     /// payloads are delegated to their owning tables so no arena internals
     /// escape this representation layer.
-    pub fn remap_statement_symbols<'scope>(
+    pub fn remap_statement_symbols(
         &mut self,
         statements: HandleSpan<StatementNode>,
-        symbols: impl Into<crate::SymbolRebinding<'scope>>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
     ) {
-        let symbols = symbols.into();
         let statement_handles: Vec<_> = statements.handles().collect();
         for handle in statement_handles {
             let statement = self.statement_table.statement(handle).clone();
@@ -281,7 +280,7 @@ impl TypedTreeTables {
                     let mut arguments = std::mem::take(&mut current.machine_arguments);
                     for argument in &mut arguments {
                         self.expression_table
-                            .remap_static_argument_symbols(argument, symbols.authored());
+                            .remap_static_argument_symbols(argument, symbols);
                     }
                     let StatementNode::Call(current) =
                         self.statement_table.statements.get_mut(handle)
@@ -464,7 +463,7 @@ impl TypedTreeTables {
     fn remap_proof_fact_symbols(
         &mut self,
         handle: Handle<ProofFact>,
-        symbols: crate::SymbolRebinding<'_>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
     ) {
         for expression in self.proof_fact_expression_roots(handle) {
             self.expression_table.remap_symbols_in(expression, symbols);
@@ -488,7 +487,7 @@ impl TypedTreeTables {
             ProofFact::Proposition(application) => {
                 application.proposition = remapped(application.proposition, symbols);
                 for argument in &mut application.binder_arguments {
-                    argument.symbol = remapped(argument.symbol, symbols.authored());
+                    argument.symbol = remapped(argument.symbol, symbols);
                 }
             }
         }

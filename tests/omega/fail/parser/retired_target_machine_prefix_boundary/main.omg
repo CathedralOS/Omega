@@ -1,2 +1,0 @@
-// Target selection belongs to evaluated Build rows.
-windows_x86_64 boundary machine native(value: i32) -> i32;

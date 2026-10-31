@@ -6,11 +6,11 @@ boundary trait Callback {
     machine call(value: u64) -> u64 reaches;
 }
 
+data Spread {}
 
-CallbackSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, Callback::call> { }
+CallbackSlot satisfies PrivateCallbackSlot<Spread, Callback::call> { }
 
-Spread satisfies FixedLayout<ForeignRecord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+machine Spread::plan(schema: Schema) -> Plan {
     transition {
         false -> with_private(schema)
         _ -> plain(schema)
@@ -47,8 +47,7 @@ Spread satisfies FixedLayout<ForeignRecord> {
         }
     }
 }
-}
 
 data ForeignRecord { payload: u64; }
-data Main { value: LayoutStorage<ForeignRecord, Spread>; }
+data Main { value: Spread<ForeignRecord>; }
 machine Main::main() { }

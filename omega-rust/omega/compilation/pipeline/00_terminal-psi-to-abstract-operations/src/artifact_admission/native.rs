@@ -39,7 +39,7 @@ pub struct NativeExecutionSelection<'request> {
 pub(crate) struct NativeScopePreparation {
     profile: target::TargetProfile,
     entry: semantic_vocabulary::MachineId,
-    pub(crate) targets: terminal_installation::TerminalTargetContext,
+    pub(crate) targets: terminal_installation::AdmittedTargetMachineSelections,
     pub(crate) layouts: terminal_installation::AdmittedTargetLayouts,
     pub(crate) scope: crate::native_execution_scope::NativeExecutionScope,
     pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
@@ -49,45 +49,39 @@ impl NativeScopePreparation {
     pub(crate) fn prepare(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
-        root: terminal_psi::TerminalCallable,
+        root: terminal_psi::TargetMachineCallable,
         selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
         profile
             .admit_address_representation()
-            .map_err(ArtifactLoweringError::ExecutionSelection)?;
+            .map_err(ArtifactLoweringError::TargetFamily)?;
         let module = artifact.semantic_module();
-        let selections =
-            terminal_installation::target_context(artifact.view(), profile.target_name());
+        let selections = terminal_installation::admit_target_machine_selections(
+            artifact.view(),
+            profile.target_name(),
+        );
         let entry = selections
             .entry(artifact.view().identity(), module, root)
-            .map_err(|error| ArtifactLoweringError::ExecutionSelection(error.to_string()))?;
-        let layout_target = profile.layout_target_facts().ok_or_else(|| {
-            ArtifactLoweringError::ExecutionSelection(
-                "selected profile has no admitted target layout facts".into(),
-            )
-        })?;
-        let layouts = terminal_installation::admit_target_layouts(
-            artifact.view(),
-            &selections,
-            &layout_target,
-        )
-        .map_err(|error| ArtifactLoweringError::ExecutionSelection(error.to_string()))?;
+            .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
+            .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
         let assumptions = selection
             .plans
             .assumed_binding_coordinates(module)
-            .map_err(ArtifactLoweringError::ExecutionSelection)?;
+            .map_err(ArtifactLoweringError::TargetFamily)?;
         let scope = crate::native_execution_scope::NativeExecutionScope::derive(
             module,
             entry,
+            &selections,
             selection.entry_call,
             selection.providers,
             &assumptions,
             selection.callbacks,
         )
-        .map_err(|error| ArtifactLoweringError::ExecutionSelection(error.to_string()))?;
+        .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
         let scalar_demand = scope
-            .scalar_application_demand(module, &layouts)
-            .map_err(ArtifactLoweringError::ExecutionSelection)?;
+            .scalar_application_demand(module, &selections, &layouts)
+            .map_err(ArtifactLoweringError::TargetFamily)?;
         Ok(Self {
             profile,
             entry,
@@ -127,7 +121,7 @@ impl NativeScopePreparation {
                 )
             })
             .transpose()
-            .map_err(ArtifactLoweringError::ExecutionSelection)?;
+            .map_err(ArtifactLoweringError::TargetFamily)?;
         let mut structural_types = module.structural_types.clone();
         let geometry = scalar_applications.map_or_else(
             || layouts.resolved_records(),
@@ -138,7 +132,7 @@ impl NativeScopePreparation {
                 .iter_mut()
                 .find(|row| row.id == resolved.id)
                 .ok_or_else(|| {
-                    ArtifactLoweringError::ExecutionSelection(
+                    ArtifactLoweringError::TargetFamily(
                         "selected layout lost its executable structural declaration".into(),
                     )
                 })?;
@@ -164,7 +158,7 @@ impl NativeScopePreparation {
 impl VerifiedNativeArtifactInput {
     pub fn target_machine_selections(
         &self,
-    ) -> Option<&terminal_installation::TerminalTargetContext> {
+    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
         self.optimization_input.target_machine_selections.as_ref()
     }
 
@@ -182,7 +176,7 @@ impl VerifiedNativeArtifactInput {
     pub fn prepare(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
-        root: terminal_psi::TerminalCallable,
+        root: terminal_psi::TargetMachineCallable,
         establishments: &[TerminalPlacedViewEstablishment],
         selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
@@ -202,7 +196,7 @@ impl VerifiedNativeArtifactInput {
     pub fn prepare_with_private_entry_ram(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
-        root: terminal_psi::TerminalCallable,
+        root: terminal_psi::TargetMachineCallable,
         recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
         selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
@@ -226,7 +220,7 @@ impl NativeScopePreparation {
             .iter()
             .any(|recipe| recipe.terminal() != artifact.view().identity())
         {
-            return Err(ArtifactLoweringError::ExecutionSelection(
+            return Err(ArtifactLoweringError::TargetFamily(
                 "private entry RAM recipe belongs to another Terminal artifact".into(),
             ));
         }
@@ -235,7 +229,7 @@ impl NativeScopePreparation {
                 .iter()
                 .any(|recipe| recipe.layouts() != &self.layouts)
             {
-                return Err(ArtifactLoweringError::ExecutionSelection(
+                return Err(ArtifactLoweringError::TargetFamily(
                     "private entry RAM recipe belongs to another target or selected geometry"
                         .into(),
                 ));
@@ -250,7 +244,7 @@ impl NativeScopePreparation {
                     index,
                 )
                 .ok_or_else(|| {
-                    ArtifactLoweringError::ExecutionSelection(
+                    ArtifactLoweringError::TargetFamily(
                         "private entry RAM identity namespace is exhausted".into(),
                     )
                 })?;
@@ -276,8 +270,42 @@ impl VerifiedNativeArtifactInput {
     /// source-authenticated roster the proposal already derived.
     pub(crate) fn bind_selected_provider_coordinates(
         mut self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
         selected: &effects::SelectedProviderPlanFacts,
     ) -> Result<Self, String> {
+        let selections = self
+            .optimization_input
+            .target_machine_selections
+            .as_ref()
+            .ok_or_else(|| "selected family providers require target selection".to_owned())?;
+        for row in selected.family_realization_rows() {
+            let member = selections
+                .member(terminal_psi::TargetMachineCallable::Boundary(row.head))
+                .map_err(|error| error.to_string())?;
+            let module = artifact.semantic_module();
+            if row.terminal != artifact.manifest().semantic()
+                || row.terminal != selections.terminal_psi()
+                || row.target != selections.target()
+                || member.callable() != terminal_psi::TargetMachineCallable::Boundary(row.member)
+                || terminal_psi::find_boundary_machine(&module.boundary_machines, row.head)
+                    .is_none_or(|head| {
+                        module.identities.text(head.identity)
+                            != selected.identities().text(row.head_identity)
+                    })
+                || terminal_psi::find_boundary_machine(&module.boundary_machines, row.member)
+                    .is_none_or(|member| {
+                        module.identities.text(member.identity)
+                            != selected.identities().text(row.member_identity)
+                    })
+            {
+                return Err(
+                    "selected family provider row disagrees with the exact artifact member"
+                        .to_owned(),
+                );
+            }
+        }
+        self.optimization_input.target_family_realizations =
+            selected.family_realization_rows().to_vec();
         self.optimization_input.external_requirement_applications =
             selected.external_requirement_applications().to_vec();
         self.optimization_input
@@ -386,7 +414,7 @@ impl AdmittedNativeArtifact {
 pub(super) fn lower_decoded_native_module(
     module: &terminal_psi::TerminalModule,
     entry: semantic_vocabulary::MachineId,
-    selections: Option<terminal_installation::TerminalTargetContext>,
+    selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
     let plan = lower_decoded_module(module, entry).map_err(ArtifactLoweringError::Lowering)?;
     Ok(retain_native_plan(module, plan, selections))
@@ -395,7 +423,7 @@ pub(super) fn lower_decoded_native_module(
 fn retain_native_plan(
     module: &terminal_psi::TerminalModule,
     plan: AbstractOperationPlan,
-    selections: Option<terminal_installation::TerminalTargetContext>,
+    selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
 ) -> AdmittedNativeArtifact {
     let context = retain_optimization_context(module);
     AdmittedNativeArtifact {
@@ -408,6 +436,7 @@ fn retain_native_plan(
             admitted_assumed_bindings: Vec::new(),
             target_machine_selections: selections,
             target_layout_selections: None,
+            target_family_realizations: Vec::new(),
             external_requirement_applications: Vec::new(),
             selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::from(
                 Vec::new(),
@@ -430,7 +459,8 @@ mod private_entry_target_tests {
         let bytes = std::fs::read(path).expect("read actual retained canonical bytes");
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
             .expect("independent canonical admission");
-        let Some(terminal_psi::TerminalCallable::Machine(entry)) = artifact.semantic_module().entry
+        let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =
+            artifact.semantic_module().entry
         else {
             panic!("fixture must select an ordinary machine")
         };
@@ -441,16 +471,10 @@ mod private_entry_target_tests {
             .find(|row| row.machine == entry)
             .expect("actual direct placed row")
             .clone();
-        let selections = terminal_installation::target_context(artifact.view(), "linux_x86_64");
-        let layout_target = target::TargetProfile::LinuxX64
-            .layout_target_facts()
-            .expect("Linux layout facts");
-        let layouts = terminal_installation::admit_target_layouts(
-            artifact.view(),
-            &selections,
-            &layout_target,
-        )
-        .expect("actual Linux selected geometry");
+        let selections =
+            terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
+        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
+            .expect("actual Linux selected geometry");
         // Public receiving data controls use the actual canonical entry row.
         // A fresh private allocation cannot answer a stale or changed demand.
         let mut wrong_schema = row.clone();
@@ -502,24 +526,18 @@ mod private_entry_target_tests {
         assert_eq!(recipe.layouts(), &layouts);
         assert_eq!(recipe.target(), "linux_x86_64");
         for profile in [target::TargetProfile::MacosArm64] {
-            let other_selections =
-                terminal_installation::target_context(artifact.view(), profile.target_name());
-            let other = terminal_installation::admit_target_layouts(
+            let other_selections = terminal_installation::admit_target_machine_selections(
                 artifact.view(),
-                &other_selections,
-                &profile
-                    .layout_target_facts()
-                    .expect("other target layout facts"),
-            )
-            .expect("other target has independently admitted geometry");
+                profile.target_name(),
+            );
+            let other =
+                terminal_installation::admit_target_layouts(artifact.view(), &other_selections)
+                    .expect("other target has independently admitted geometry");
             assert_ne!(recipe.layouts(), &other);
             let failure = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
                 &artifact,
                 profile,
-                artifact
-                    .semantic_module()
-                    .entry
-                    .expect("fixture program entry"),
+                terminal_psi::TargetMachineCallable::Machine(entry),
                 std::slice::from_ref(&recipe),
                 &NativeExecutionSelection {
                     scalar_applications: None,

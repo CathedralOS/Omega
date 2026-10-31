@@ -8,7 +8,7 @@ use crate::preparation::generic_data::PendingRewrite;
 use crate::preparation::generic_data::canonicalize_closed_domain_indices;
 use crate::preparation::generic_data::capture_machine_runtime_template_names;
 use crate::preparation::generic_data::uses::{
-    closed_constructor_carrier, infer_constructor_types, relabel_closed_data_uses_in_constants,
+    closed_constructor_carrier, relabel_closed_data_uses_in_constants,
     relabel_closed_data_uses_in_exact_assignments,
     relabel_closed_data_uses_in_exact_calls_and_returns,
     relabel_closed_sum_memberships_from_local_types,
@@ -135,7 +135,7 @@ pub(crate) fn desugar_generic_data_instances_in(
         // quotient fences reject representation literals; synthesizing an
         // empty record with `quotient: None` would make the class freely
         // constructible.
-        if definition.quotient.is_some() || !definition.conformance_bounds.is_empty() {
+        if definition.quotient.is_some() {
             continue;
         }
         // These compiler-owned proof algebras never acquire runtime layout.
@@ -326,14 +326,6 @@ pub(crate) fn desugar_generic_data_instances_in(
     if generic_data.is_empty() {
         return Ok(());
     }
-    let inferred_constructors = infer_constructor_types(
-        syntax,
-        &generic_data,
-        &const_values,
-        selection,
-        warnings,
-        &work.declarations(syntax),
-    );
     // FIXPOINT. Each round scans every type-reference position for a
     // `Base<Args..>` spelling, synthesizes one concrete record per new distinct
     // spelling, and rewrites the spellings to the instances' plain names. A
@@ -361,9 +353,8 @@ pub(crate) fn desugar_generic_data_instances_in(
         else {
             return Err(vec![
                 Diagnostic::error(format!(
-                    "existing generic instance `{}` lost its exact template and argument identity: {}",
+                    "existing generic instance `{}` lost its exact template and argument identity",
                     definition.name.as_str(syntax),
-                    super::arguments::closed_application_unavailability(syntax, selection, origin),
                 ))
                 .with_source_span(definition.name.source_span()),
             ]);
@@ -396,29 +387,13 @@ pub(crate) fn desugar_generic_data_instances_in(
             canonicalize_closed_domain_indices(syntax, &const_values, selection, warnings, &work)
                 .map_err(|diagnostic| vec![diagnostic])?;
         }
-        let mut storage_positions =
-            work.type_positions(syntax, TypePositionPurpose::Materialization, false);
-        let mut identity_positions =
-            work.type_positions(syntax, TypePositionPurpose::Identity, false);
-        for constructor in &inferred_constructors {
-            super::collect_type_positions(
-                syntax,
-                constructor.reference,
-                &mut storage_positions,
-                false,
-            );
-            super::collect_type_positions(
-                syntax,
-                constructor.reference,
-                &mut identity_positions,
-                false,
-            );
-        }
-        let storage_positions: std::collections::HashSet<_> =
-            storage_positions.into_iter().collect();
+        let storage_positions: std::collections::HashSet<TypeReferenceHandle> = work
+            .type_positions(syntax, TypePositionPurpose::Materialization, false)
+            .into_iter()
+            .collect();
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
         let mut instantiations: Vec<Instantiation> = Vec::new();
-        for position in identity_positions {
+        for position in work.type_positions(syntax, TypePositionPurpose::Identity, false) {
             let Some(application) = prepare_closed_application(
                 syntax,
                 &generic_data,
@@ -550,9 +525,6 @@ pub(crate) fn desugar_generic_data_instances_in(
     }
 
     let declarations = work.declarations(syntax);
-    for constructor in &inferred_constructors {
-        constructor.relabel(syntax, &synthesized, selection);
-    }
     relabel_closed_data_uses_in_constants(syntax, &synthesized, selection, &declarations);
     relabel_closed_data_uses_in_exact_assignments(syntax, &synthesized, selection, &declarations);
     relabel_closed_data_uses_in_exact_calls_and_returns(
@@ -925,7 +897,6 @@ fn synthesize_instance(
         supply_mode: base_info.supply_mode,
         lifetime_parameters: base_info.lifetime_parameters.clone(),
         type_parameters: HandleSpan::default(),
-        conformance_bounds: Vec::new(),
         generic_instance: Some(generic_instance),
         cleanup_selection,
         properties,

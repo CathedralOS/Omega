@@ -71,7 +71,9 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         let (machine, state) = self
             .resolve_entry_state_symbol(realization_state)
-            .ok_or_else(|| Halt::Trap("selected realization lost its exact entry state".into()))?;
+            .ok_or_else(|| {
+                Halt::Trap("selected realization lost its exact entry state".into())
+            })?;
         // Providers receive exactly the requirement's authored arguments.
         // Checking rejects any satisfier parameter its requirement lacks, so
         // no provider instance or receiver is allocated or inserted here.
@@ -119,19 +121,19 @@ impl<'program> Evaluator<'program> {
         // A named `satisfies` conformance carries the exact checked
         // requirement→realization rows; its row's `realization_state` is the
         // same authority `static_requirement_dispatch` supplies.
-        let selected_state =
-            self.program
-                .conformance_by_symbol(type_symbol)
-                .and_then(|conformance| {
-                    conformance
-                        .rows
-                        .iter()
-                        .find(|row| {
-                            row.requirement == slot.requirement
-                                || row.requirement == slot.call_requirement
-                        })
-                        .map(|row| row.realization_state)
-                });
+        let selected_state = self
+            .program
+            .conformance_by_symbol(type_symbol)
+            .and_then(|conformance| {
+                conformance
+                    .rows
+                    .iter()
+                    .find(|row| {
+                        row.requirement == slot.requirement
+                            || row.requirement == slot.call_requirement
+                    })
+                    .map(|row| row.realization_state)
+            });
         if let Some(realization_state) = selected_state {
             return self.run_selected_realization(realization_state, arguments, frame);
         }
@@ -165,7 +167,9 @@ impl<'program> Evaluator<'program> {
             })
             .map(|name| name.as_str().to_owned())
             .ok_or_else(|| {
-                Halt::Trap("dynamic selector's implementation names no realizing state".into())
+                Halt::Trap(
+                    "dynamic selector's implementation names no realizing state".into(),
+                )
             })?;
         let state = self.find_state(machine, &state_name).ok_or_else(|| {
             Halt::Trap(format!(

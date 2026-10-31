@@ -206,7 +206,6 @@ pub(in crate::encoding::recovery) fn operator_meaning(
     Ok(super::tag!(reader => {
         0 => PackageReviewContractOperatorMeaning::Builtin,
         1 => PackageReviewContractOperatorMeaning::Declared(operator_coordinate(reader)?),
-        2 => PackageReviewContractOperatorMeaning::TraitRequirement(operator_coordinate(reader)?),
     }))
 }
 

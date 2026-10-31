@@ -7,23 +7,16 @@
 data Cell { value: i64; }
 data Held { target: &Cell; stamp: i64; }
 
-boundary trait SelectedLend {
-    machine lend(slot: &write Held) -> &write Held reaches
-;
-}
-CheckedLend satisfies SelectedLend {
-    machine lend(slot: &write Held) -> &write Held
-{ &write slot }
-}
-
-
-
-
+linux_x86_64 machine lend(slot: &write Held) -> &write Held { &write slot }
+linux_arm64 machine lend(slot: &write Held) -> &write Held { &write slot }
+macos_x86_64 machine lend(slot: &write Held) -> &write Held { &write slot }
+macos_arm64 machine lend(slot: &write Held) -> &write Held { &write slot }
+windows_x86_64 machine lend(slot: &write Held) -> &write Held { &write slot }
 machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };
     let right: Cell = Cell { value: 85 };
     let mut held: Held = Held { target: &left, stamp: 17 };
-    let slot: &write Held = SelectedLend::lend(&write held);
+    let slot: &write Held = lend(&write held);
     slot.target = &right;
     transition held.target.value == 85 && held.stamp == 17 && left.value == 11 {
         true -> done()

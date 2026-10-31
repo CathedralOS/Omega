@@ -9,7 +9,16 @@ public data Division {
 public boundary trait IntegerDivision {
     machine divide(numerator: i64, denominator: i64) -> Division reaches;
 }
-
+macos_arm64 machine division_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_lldiv",
+        },
+    }
+}
+macos_arm64 machine divide(numerator: i64, denominator: i64) -> Division
+    satisfies IntegerDivision::divide via division_binding();
 
 data Main {
     negative: Division;

@@ -7,11 +7,6 @@ public boundary trait ProgramImage {
     machine retained_suffix_start() -> addr reaches;
 }
 
-boundary machine program_image_retained_suffix_start() -> addr
+public data ProgramImageNativeProvider {}
+public uefi_x86_64 boundary machine ProgramImageNativeProvider::retained_suffix_start() -> addr
 satisfies ProgramImage::retained_suffix_start;
-
-public ProgramImageNativeProvider satisfies ProgramImage {
-    machine retained_suffix_start() -> addr reaches {
-        program_image_retained_suffix_start()
-    }
-}

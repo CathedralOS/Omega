@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedRead, CheckedRead>(builder, linux_x86_64);
-    Build::select_provider<SelectedRead, CheckedRead>(builder, linux_arm64);
-    Build::select_provider<SelectedRead, CheckedRead>(builder, macos_arm64);
-    Build::select_provider<SelectedRead, CheckedRead>(builder, windows_x86_64);
-
     Build::application(builder, "computed_subslice_extent_target_body");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

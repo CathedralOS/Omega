@@ -41,7 +41,7 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    BuildProviderProductionRequest, PortableTerminalProgram, PreparedDeclarationCatalog,
+    BuildProviderProductionRequest, PortableTerminalProgram, PreparedExternalProviderDeclarations,
     PreparedProviderInventory, PreparedTerminalRoots, ProducedBuildProvider,
     ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
     PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,

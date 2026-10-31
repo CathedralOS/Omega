@@ -199,7 +199,7 @@ impl TerminalBuildHost {
                 entry: None,
                 x86_flags: None,
                 memory_ordering: None,
-                target_context: None,
+                target_machines: None,
                 target_layouts: None,
             })
             .map_err(describe)?;
@@ -486,9 +486,9 @@ impl TerminalBuildActivation {
         let mut native_bindings = Vec::new();
         for selection in self.host.bindings.take_executed()? {
             match selection {
-                ExecutedBuildSelection::Native(binding) => native_bindings.push(binding),
                 ExecutedBuildSelection::Entry(binding) => root_bindings.push(binding),
                 ExecutedBuildSelection::Exclusion(selection) => exclusions.push(selection),
+                ExecutedBuildSelection::Native(selection) => native_bindings.push(selection),
                 ExecutedBuildSelection::Declaration(selection) => {
                     product_selections.push(selection)
                 }

@@ -7,26 +7,32 @@ crashes Trap value == false
     machine bad() -> bool { crash Trap; }
 }
 public data Byte where value >= 0 && value <= 1 { value: u8; }
-boundary trait SelectedForward {
-    machine forward(value: bool) -> bool reaches
-crashes Trap value == false;
-}
-CheckedForward satisfies SelectedForward {
-    machine forward(value: bool) -> bool
+windows_x86_64 machine forward(value: bool) -> bool
 crashes Trap value == false
 {
     maybe_clear(value)
 }
+linux_x86_64 machine forward(value: bool) -> bool
+crashes Trap value == false
+{
+    maybe_clear(value)
 }
-
-
-
+macos_arm64 machine forward(value: bool) -> bool
+crashes Trap value == false
+{
+    maybe_clear(value)
+}
+linux_arm64 machine forward(value: bool) -> bool
+crashes Trap value == false
+{
+    maybe_clear(value)
+}
 public machine read_flag(byte: &Byte) -> bool
 requires byte.value == 1
 {
     let view: &bool = &byte.value as &bool;
     let observed: bool = view;
-    SelectedForward::forward(observed)
+    forward(observed)
 }
 machine main() crashes Trap {
     let byte: Byte = Byte { value: 1 };

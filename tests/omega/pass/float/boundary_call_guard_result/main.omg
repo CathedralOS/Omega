@@ -4,9 +4,9 @@ use omega_language_std::console;
 data Main { integer: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.integer = 7;
-    transition F64FromI32::from_i32(main.integer) == 7.0 { true -> second(main) _ -> bad(main) }
+    transition F64::from_i32(main.integer) == 7.0 { true -> second(main) _ -> bad(main) }
     machine second(main: &mut Main) {
-        transition 7.0 == F32FromI32::from_i32(main.integer) { true -> helper(main) _ -> bad(main) }
+        transition 7.0 == F32::from_i32(main.integer) { true -> helper(main) _ -> bad(main) }
     }
     machine helper(main: &mut Main) {
         transition converted(main.integer) == 7.0 { true -> {} _ -> bad(main) }
@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine bad(main: &mut Main) { Console::exit_process(77); }
 }
 machine converted(value: i32) -> f64 {
-    transition F64FromI32::from_i32(value) >= 7.0 { true -> (F64FromI32::from_i32(value)) _ -> 0.0 }
+    transition F64::from_i32(value) >= 7.0 { true -> (F64::from_i32(value)) _ -> 0.0 }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

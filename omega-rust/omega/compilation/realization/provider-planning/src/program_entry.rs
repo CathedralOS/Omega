@@ -350,14 +350,7 @@ impl SelectedCompilerProgramEntry {
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                if selected
-                    .replace(implementation.authored().ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "physical arrival requires an authored checked adapter",
-                        )]
-                    })?)
-                    .is_some()
-                {
+                if selected.replace(machine.symbol).is_some() {
                     return Err(vec![Diagnostic::error(
                         "physical arrival has more than one selected adapter",
                     )]);
@@ -390,8 +383,8 @@ impl SelectedCompilerProgramEntry {
 /// carries the same source obligations whether or not its target is selected:
 /// the bound machine must exist, own an executable entry state, and satisfy
 /// its slot's source compatibility. What stays per target is absence, not
-/// malformation. An unbound required slot waits for that target's selection;
-/// every supplied ordinary declaration retains its full source obligations.
+/// malformation — a family with no body for an unselected target and an
+/// unbound required slot wait for that target's own selection.
 fn check_unrequested_program_entry_rows(
     typed: &TypedTrees,
     root_bindings: &[RootBinding],
@@ -414,11 +407,31 @@ fn check_unrequested_program_entry_rows(
         let Some(slot) = required_slot.program_entry() else {
             continue;
         };
+        // Mirror the selected path's family resolution: the binding names the
+        // family, and only the body authored for its own target answers the
+        // source-shape check.
+        let mut machine_symbol = binding.implementation_symbol;
+        if let Some(family) = typed.target_machine_families.iter().find(|family| {
+            family.canonical == machine_symbol
+                || family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == machine_symbol)
+        }) {
+            let Some(member) = family
+                .members
+                .iter()
+                .find(|member| member.target.as_str() == profile.target_name())
+            else {
+                continue;
+            };
+            machine_symbol = member.machine;
+        }
         if let Err(mut rejected) = validate_selected_program_entry_shape(
             typed,
             SelectedProgramEntry {
                 machine_name: binding.implementation.as_str(),
-                machine_symbol: binding.implementation_symbol,
+                machine_symbol,
                 slot,
             },
         ) {
@@ -445,9 +458,33 @@ pub fn select_compiler_program_entry(
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
     let selected = selected_program_entry_machine(root_bindings, selected_profile)?;
     check_unrequested_program_entry_rows(typed, root_bindings, selected_profile)?;
-    let Some(selected) = selected else {
+    let Some(mut selected) = selected else {
         return Ok(None);
     };
+    // A root binding names the family, not the body that happens to own its
+    // canonical spelling. Select the exact entry handle without changing the
+    // source graph; every body still undergoes the ordinary Psi checks.
+    if let Some(family) = typed.target_machine_families.iter().find(|family| {
+        family.canonical == selected.machine_symbol
+            || family
+                .members
+                .iter()
+                .any(|member| member.machine == selected.machine_symbol)
+    }) {
+        let profile = selected.slot.owner;
+        let member = family
+            .members
+            .iter()
+            .find(|member| member.target.as_str() == profile.target_name())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "entry family `{}` has no body for target `{}`",
+                    family.name,
+                    profile.target_name(),
+                ))]
+            })?;
+        selected.machine_symbol = member.machine;
+    }
     let source_signature = validate_selected_program_entry_shape(typed, selected)?;
     // Only an exact selected target activates an entry. Resolve its physical
     // contract's accepted package role here, never from the host or a caller-

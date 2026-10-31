@@ -9,9 +9,7 @@
 //! compiles that root through its own product request, stops after joining the
 //! dependencies' generated source into the root request.
 
-mod continuation;
 pub(crate) mod source_resolution;
-pub(crate) use continuation::execute_builds;
 
 use build_declarations::DependencyPurpose;
 use compiler::{CheckedCompileRequest, CompileFailure, PackageBuild};
@@ -123,7 +121,8 @@ pub(crate) fn execute_returned_build(
     request: CheckedCompileRequest,
 ) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
-    let returned = execute_builds(&mut invocation)?;
+    let mut queries = invocation.product_queries();
+    let returned = execute_build(invocation.execution(), Some(&mut queries))?;
     Ok(ReturnedPackageBuild {
         invocation,
         returned,
@@ -294,24 +293,10 @@ pub(super) fn prepare_packages<Owner>(
                     ));
                 }
                 Ok(build) => {
-                    let generated = match compiler.prepare_package_build_handoff(&build) {
-                        Ok(generated) => generated,
-                        Err(failure) => {
-                            outcomes.push((
-                                frontier.position,
-                                frontier.owner,
-                                Err(PackageCompileFailure {
-                                    occurrence: frontier.products.len(),
-                                    failure,
-                                }),
-                            ));
-                            continue;
-                        }
-                    };
                     frontier.products.push(OccurrenceProduct {
                         package: build.package_inputs().root(),
                         purpose: build.package_inputs().compilation_purpose(),
-                        generated,
+                        generated: build.build_handoff().clone(),
                         prepared: Some(build),
                         description: None,
                     });

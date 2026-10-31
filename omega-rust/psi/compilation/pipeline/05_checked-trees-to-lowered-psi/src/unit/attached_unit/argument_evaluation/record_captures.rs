@@ -79,7 +79,6 @@ impl Evaluation {
             // observation is unsupported. Locating that home grants no store.
             if let checked_trees::CheckedPlaceLoanRoot::Local { symbol } = loan.loan.root {
                 self.prepare_immutable_local_borrow(
-                    identities,
                     checked,
                     state,
                     Some(facts::PlaceRoot::Symbol(symbol)),

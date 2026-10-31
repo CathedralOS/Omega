@@ -2,28 +2,36 @@
 // Place: another target body. Each hosted target body computes and verifies the zero-extended value.
 // Expected exit: 0
 
-boundary trait SelectedEvaluate {
-    machine evaluate() -> i32 reaches
-;
-}
-CheckedEvaluate satisfies SelectedEvaluate {
-    machine evaluate() -> i32
-{
+linux_x86_64 machine evaluate() -> i32 {
     let narrow: u8 = 100u8;
     let extended: u64 = ((narrow as u16) as u32) as u64;
     let sub: u64 = extended - 100u64;
     sub as i32
 }
+
+linux_arm64 machine evaluate() -> i32 {
+    let narrow: u8 = 100u8;
+    let extended: u64 = ((narrow as u16) as u32) as u64;
+    let sub: u64 = extended - 100u64;
+    sub as i32
 }
 
+macos_arm64 machine evaluate() -> i32 {
+    let narrow: u8 = 100u8;
+    let extended: u64 = ((narrow as u16) as u32) as u64;
+    let sub: u64 = extended - 100u64;
+    sub as i32
+}
 
-
-
-
-
+windows_x86_64 machine evaluate() -> i32 {
+    let narrow: u8 = 100u8;
+    let extended: u64 = ((narrow as u16) as u32) as u64;
+    let sub: u64 = extended - 100u64;
+    sub as i32
+}
 
 machine main() crashes Trap {
-    let res: i32 = SelectedEvaluate::evaluate();
+    let res: i32 = evaluate();
     transition res == 0 {
         true -> done()
         _ -> bad()

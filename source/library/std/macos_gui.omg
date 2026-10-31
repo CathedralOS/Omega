@@ -167,7 +167,7 @@ public data Window {
 // Title borrows the first byte of a live NUL-terminated UTF-8 buffer, matching
 // ObjectiveC::send_byte_string. NSString copies it before this call returns;
 // Window retains no title loan. The buffer length is not a window API limit.
-public machine macos_window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+public macos_arm64 machine macos_window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -175,113 +175,110 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes AppKit;
-invokes ObjectiveC;
-invokes CoreGraphics;
 {
-    let loaded: bool = AppKit::load();
-    let rx: f64 = F64FromI32::from_i32(x);
-    let ry: f64 = F64FromI32::from_i32(y);
-    let mut rw: f64 = F64FromI32::from_i32(width);
-    let mut rh: f64 = F64FromI32::from_i32(height);
+    let loaded: bool = appkit_load();
+    let rx: f64 = F64::from_i32(x);
+    let ry: f64 = F64::from_i32(y);
+    let mut rw: f64 = F64::from_i32(width);
+    let mut rh: f64 = F64::from_i32(height);
     rw = rw - 16.0;
     rh = rh - 39.0;
     let cbuf1: [u8; 14] = "NSApplication\0";
-    let mut cls: u64 = ObjectiveC::get_class(&cbuf1[0]);
+    let mut cls: u64 = objc_get_class(&cbuf1[0]);
     let cbuf2: [u8; 18] = "sharedApplication\0";
-    let mut sel: u64 = ObjectiveC::register_selector(&cbuf2[0]);
-    let app: u64 = ObjectiveC::send(cls, sel);
+    let mut sel: u64 = objc_register_selector(&cbuf2[0]);
+    let app: u64 = objc_send(cls, sel);
     let cbuf3: [u8; 21] = "setActivationPolicy:\0";
-    sel = ObjectiveC::register_selector(&cbuf3[0]);
-    let mut rc: u64 = ObjectiveC::send_scalar(app, sel, 0);
+    sel = objc_register_selector(&cbuf3[0]);
+    let mut rc: u64 = objc_send_scalar(app, sel, 0);
     let cbuf4: [u8; 9] = "NSWindow\0";
-    cls = ObjectiveC::get_class(&cbuf4[0]);
+    cls = objc_get_class(&cbuf4[0]);
     let cbuf5: [u8; 6] = "alloc\0";
-    sel = ObjectiveC::register_selector(&cbuf5[0]);
-    let mut tmp: u64 = ObjectiveC::send(cls, sel);
+    sel = objc_register_selector(&cbuf5[0]);
+    let mut tmp: u64 = objc_send(cls, sel);
     let cbuf6: [u8; 45] = "initWithContentRect:styleMask:backing:defer:\0";
-    sel = ObjectiveC::register_selector(&cbuf6[0]);
-    let window: u64 = ObjectiveC::send_rect(tmp, sel, rx, ry, rw, rh, 15, 2, 0);
+    sel = objc_register_selector(&cbuf6[0]);
+    let window: u64 = objc_send_rect(tmp, sel, rx, ry, rw, rh, 15, 2, 0);
     // Closing hides the window; the explicit owner releases it exactly once.
     let release_on_close_name: [u8; 23] = "setReleasedWhenClosed:\0";
-    sel = ObjectiveC::register_selector(&release_on_close_name[0]);
-    rc = ObjectiveC::send_scalar(window, sel, 0);
+    sel = objc_register_selector(&release_on_close_name[0]);
+    rc = objc_send_scalar(window, sel, 0);
     let cbuf7: [u8; 12] = "NSImageView\0";
-    cls = ObjectiveC::get_class(&cbuf7[0]);
+    cls = objc_get_class(&cbuf7[0]);
     let cbuf8: [u8; 6] = "alloc\0";
-    sel = ObjectiveC::register_selector(&cbuf8[0]);
-    tmp = ObjectiveC::send(cls, sel);
+    sel = objc_register_selector(&cbuf8[0]);
+    tmp = objc_send(cls, sel);
     let cbuf9: [u8; 15] = "initWithFrame:\0";
-    sel = ObjectiveC::register_selector(&cbuf9[0]);
-    let view: u64 = ObjectiveC::send_rect(tmp, sel, rx, ry, rw, rh, 0, 0, 0);
+    sel = objc_register_selector(&cbuf9[0]);
+    let view: u64 = objc_send_rect(tmp, sel, rx, ry, rw, rh, 0, 0, 0);
     let cbuf10: [u8; 17] = "setImageScaling:\0";
-    sel = ObjectiveC::register_selector(&cbuf10[0]);
-    rc = ObjectiveC::send_scalar(view, sel, 1);
+    sel = objc_register_selector(&cbuf10[0]);
+    rc = objc_send_scalar(view, sel, 1);
     let cbuf11: [u8; 16] = "setContentView:\0";
-    sel = ObjectiveC::register_selector(&cbuf11[0]);
-    rc = ObjectiveC::send_scalar(window, sel, view);
+    sel = objc_register_selector(&cbuf11[0]);
+    rc = objc_send_scalar(window, sel, view);
     let cbuf12: [u8; 8] = "release\0";
-    let relsel: u64 = ObjectiveC::register_selector(&cbuf12[0]);
+    let relsel: u64 = objc_register_selector(&cbuf12[0]);
     let cbuf13: [u8; 9] = "NSString\0";
-    cls = ObjectiveC::get_class(&cbuf13[0]);
+    cls = objc_get_class(&cbuf13[0]);
     let cbuf14: [u8; 6] = "alloc\0";
-    sel = ObjectiveC::register_selector(&cbuf14[0]);
-    tmp = ObjectiveC::send(cls, sel);
+    sel = objc_register_selector(&cbuf14[0]);
+    tmp = objc_send(cls, sel);
     let cbuf15: [u8; 20] = "initWithUTF8String:\0";
-    sel = ObjectiveC::register_selector(&cbuf15[0]);
-    tmp = ObjectiveC::send_byte_string(tmp, sel, title);
+    sel = objc_register_selector(&cbuf15[0]);
+    tmp = objc_send_byte_string(tmp, sel, title);
     let cbuf16: [u8; 10] = "setTitle:\0";
-    sel = ObjectiveC::register_selector(&cbuf16[0]);
-    rc = ObjectiveC::send_scalar(window, sel, tmp);
-    rc = ObjectiveC::send(tmp, relsel);
+    sel = objc_register_selector(&cbuf16[0]);
+    rc = objc_send_scalar(window, sel, tmp);
+    rc = objc_send(tmp, relsel);
     let cbuf17: [u8; 7] = "center\0";
-    sel = ObjectiveC::register_selector(&cbuf17[0]);
-    rc = ObjectiveC::send(window, sel);
+    sel = objc_register_selector(&cbuf17[0]);
+    rc = objc_send(window, sel);
     let cbuf18: [u8; 22] = "makeKeyAndOrderFront:\0";
-    sel = ObjectiveC::register_selector(&cbuf18[0]);
-    rc = ObjectiveC::send_scalar(window, sel, 0);
+    sel = objc_register_selector(&cbuf18[0]);
+    rc = objc_send_scalar(window, sel, 0);
     let cbuf19: [u8; 27] = "activateIgnoringOtherApps:\0";
-    sel = ObjectiveC::register_selector(&cbuf19[0]);
-    rc = ObjectiveC::send_scalar(app, sel, 1);
+    sel = objc_register_selector(&cbuf19[0]);
+    rc = objc_send_scalar(app, sel, 1);
     let finish_name: [u8; 16] = "finishLaunching\0";
-    let finish_selector: u64 = ObjectiveC::register_selector(&finish_name[0]);
-    rc = ObjectiveC::send(app, finish_selector);
+    let finish_selector: u64 = objc_register_selector(&finish_name[0]);
+    rc = objc_send(app, finish_selector);
     let stop_name: [u8; 6] = "stop:\0";
-    let stop_selector: u64 = ObjectiveC::register_selector(&stop_name[0]);
+    let stop_selector: u64 = objc_register_selector(&stop_name[0]);
     let schedule_name: [u8; 39] = "performSelector:withObject:afterDelay:\0";
-    let schedule_selector: u64 = ObjectiveC::register_selector(&schedule_name[0]);
-    ObjectiveC::send_delayed(app, schedule_selector, stop_selector, 0, 0.001);
+    let schedule_selector: u64 = objc_register_selector(&schedule_name[0]);
+    objc_send_delayed(app, schedule_selector, stop_selector, 0, 0.001);
     let run_name: [u8; 4] = "run\0";
-    let run_selector: u64 = ObjectiveC::register_selector(&run_name[0]);
-    rc = ObjectiveC::send(app, run_selector);
-    let space: u64 = CoreGraphics::color_space_rgb();
+    let run_selector: u64 = objc_register_selector(&run_name[0]);
+    rc = objc_send(app, run_selector);
+    let space: u64 = cg_color_space_rgb();
     // Pump scratch, once: the distantPast date, the run-loop-mode NSString, the
     // nextEvent/sendEvent:/isVisible/keyWindow selectors, and the event mask.
     let cbuf20: [u8; 7] = "NSDate\0";
-    cls = ObjectiveC::get_class(&cbuf20[0]);
+    cls = objc_get_class(&cbuf20[0]);
     let cbuf21: [u8; 12] = "distantPast\0";
-    sel = ObjectiveC::register_selector(&cbuf21[0]);
-    let date: u64 = ObjectiveC::send(cls, sel);
+    sel = objc_register_selector(&cbuf21[0]);
+    let date: u64 = objc_send(cls, sel);
     let cbuf22: [u8; 9] = "NSString\0";
-    cls = ObjectiveC::get_class(&cbuf22[0]);
+    cls = objc_get_class(&cbuf22[0]);
     let cbuf23: [u8; 6] = "alloc\0";
-    sel = ObjectiveC::register_selector(&cbuf23[0]);
-    tmp = ObjectiveC::send(cls, sel);
+    sel = objc_register_selector(&cbuf23[0]);
+    tmp = objc_send(cls, sel);
     let cbuf24: [u8; 20] = "initWithUTF8String:\0";
-    sel = ObjectiveC::register_selector(&cbuf24[0]);
+    sel = objc_register_selector(&cbuf24[0]);
     let cbuf25: [u8; 22] = "kCFRunLoopDefaultMode\0";
-    let mode: u64 = ObjectiveC::send_string(tmp, sel, &cbuf25[0]);
+    let mode: u64 = objc_send_string(tmp, sel, &cbuf25[0]);
     let cbuf26: [u8; 48] = "nextEventMatchingMask:untilDate:inMode:dequeue:\0";
-    let psel: u64 = ObjectiveC::register_selector(&cbuf26[0]);
+    let psel: u64 = objc_register_selector(&cbuf26[0]);
     let mask: u64 = 0xFFFF_FFFF;
     let cbuf27: [u8; 11] = "sendEvent:\0";
-    let dsel: u64 = ObjectiveC::register_selector(&cbuf27[0]);
+    let dsel: u64 = objc_register_selector(&cbuf27[0]);
     let cbuf28: [u8; 10] = "isVisible\0";
-    let vsel: u64 = ObjectiveC::register_selector(&cbuf28[0]);
+    let vsel: u64 = objc_register_selector(&cbuf28[0]);
     let cbuf29: [u8; 10] = "keyWindow\0";
-    let ksel: u64 = ObjectiveC::register_selector(&cbuf29[0]);
+    let ksel: u64 = objc_register_selector(&cbuf29[0]);
     // Open the pool carried between explicit event-pump calls.
-    let pool: u64 = ObjectiveC::pool_push();
+    let pool: u64 = objc_pool_push();
     Window {
         window: window,
         view: view,
@@ -299,7 +296,7 @@ invokes CoreGraphics;
         pool: pool,
     }
 }
-public machine macos_window_destroy(window: Window)
+public macos_arm64 machine macos_window_destroy(window: Window)
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -307,24 +304,22 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC;
-invokes CoreGraphics;
 {
     let close_name: [u8; 6] = "close\0";
-    let close_selector: u64 = ObjectiveC::register_selector(&close_name[0]);
-    let mut ignored: u64 = ObjectiveC::send(window.window, close_selector);
-    ignored = ObjectiveC::send(window.window, window.relsel);
-    ignored = ObjectiveC::send(window.view, window.relsel);
-    ignored = ObjectiveC::send(window.mode, window.relsel);
-    CoreGraphics::color_space_release(window.space);
-    ignored = ObjectiveC::pool_pop(window.pool);
+    let close_selector: u64 = objc_register_selector(&close_name[0]);
+    let mut ignored: u64 = objc_send(window.window, close_selector);
+    ignored = objc_send(window.window, window.relsel);
+    ignored = objc_send(window.view, window.relsel);
+    ignored = objc_send(window.mode, window.relsel);
+    cg_color_space_release(window.space);
+    ignored = objc_pool_pop(window.pool);
 }
-public machine macos_window_get_dc(window_state: &Window, window: u64) -> u64
+public macos_arm64 machine macos_window_get_dc(window_state: &Window, window: u64) -> u64
 {
     transition { _ -> ret(window) }
     machine ret(window: u64) -> u64 { window }
 }
-public machine macos_window_msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32
+public macos_arm64 machine macos_window_msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -332,27 +327,26 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC;
 {
     // Cycle the rolling autorelease pool opened at window_create: the pop
     // drains the PREVIOUS peek's autoreleased NSEvent (already dispatched by
     // then), the push opens the scope this peek's event lands in. The date,
     // mode string, selector, and mask are window_create-cached — this machine
     // used to rebuild all four (and leak the NSString) on every single peek.
-    let rc: u64 = ObjectiveC::pool_pop(window_state.pool);
-    window_state.pool = ObjectiveC::pool_push();
-    window_state.evt = ObjectiveC::send_scalar4(window_state.app, window_state.psel, window_state.mask, window_state.date, window_state.mode, 1);
+    let rc: u64 = objc_pool_pop(window_state.pool);
+    window_state.pool = objc_pool_push();
+    window_state.evt = objc_send_scalar4(window_state.app, window_state.psel, window_state.mask, window_state.date, window_state.mode, 1);
     // Return whether this pump captured an event for the following dispatch.
     transition window_state.evt != 0 { true -> got() _ -> ret() }
     machine got() -> u32 { 1 }
     machine ret() -> u32 { 0 }
 }
-public machine macos_window_msg_translate(window_state: &Window, message: [u64; 6]) -> u32
+public macos_arm64 machine macos_window_msg_translate(window_state: &Window, message: [u64; 6]) -> u32
 {
     let r32: u32 = 1;
     r32
 }
-public machine macos_window_msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64
+public macos_arm64 machine macos_window_msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -360,12 +354,11 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC;
 {
-    let rc: u64 = ObjectiveC::send_scalar(window_state.app, window_state.dsel, window_state.evt);
+    let rc: u64 = objc_send_scalar(window_state.app, window_state.dsel, window_state.evt);
     rc
 }
-public machine macos_window_is_window(window_state: &Window, window: u64) -> u32
+public macos_arm64 machine macos_window_is_window(window_state: &Window, window: u64) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -373,16 +366,13 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC;
 {
-    let rc: u64 = ObjectiveC::send(window, window_state.vsel);
+    let rc: u64 = objc_send(window, window_state.vsel);
     let r32: u32 = narrow_u64_to_u32_wrapping(rc);
     r32
 }
-public machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
-invokes CoreGraphics;
-    invokes ObjectiveC;
-    reaches
+public macos_arm64 machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
+reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
@@ -393,7 +383,7 @@ invokes CoreGraphics;
     macos_window_present(window_state, source_width, source_height, &mut pixels[0..4096])
 }
 
-public machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
+public macos_arm64 machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -401,8 +391,6 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC;
-invokes CoreGraphics;
 {
     let count: u64 = (source_width as u64) * (source_height as u64);
     transition source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192 && pixels.len == count && pixels.len > 0 {
@@ -416,27 +404,27 @@ invokes CoreGraphics;
     let fbw: i64 = source_width_wide;
     let fbh: i64 = source_height_wide;
     let stride: i64 = source_width_wide << 2;
-    let fbwf: f64 = F64FromU32::from_u32(source_width);
-    let fbhf: f64 = F64FromU32::from_u32(source_height);
-    let ctx: u64 = CoreGraphics::bitmap_context(&mut pixels[0], fbw, fbh, 8, stride, window_state.space, 8198);
-    let cgimg: u64 = CoreGraphics::bitmap_context_image(ctx);
+    let fbwf: f64 = F64::from_u32(source_width);
+    let fbhf: f64 = F64::from_u32(source_height);
+    let ctx: u64 = cg_bitmap_context(&mut pixels[0], fbw, fbh, 8, stride, window_state.space, 8198);
+    let cgimg: u64 = cg_bitmap_context_image(ctx);
     let cbuf30: [u8; 8] = "NSImage\0";
-    let cls: u64 = ObjectiveC::get_class(&cbuf30[0]);
+    let cls: u64 = objc_get_class(&cbuf30[0]);
     let cbuf31: [u8; 6] = "alloc\0";
-    let mut sel: u64 = ObjectiveC::register_selector(&cbuf31[0]);
-    let tmp: u64 = ObjectiveC::send(cls, sel);
+    let mut sel: u64 = objc_register_selector(&cbuf31[0]);
+    let tmp: u64 = objc_send(cls, sel);
     let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
-    sel = ObjectiveC::register_selector(&cbuf32[0]);
-    let nsimg: u64 = ObjectiveC::send_image_size(tmp, sel, cgimg, fbwf, fbhf);
+    sel = objc_register_selector(&cbuf32[0]);
+    let nsimg: u64 = objc_send_image_size(tmp, sel, cgimg, fbwf, fbhf);
     let cbuf33: [u8; 10] = "setImage:\0";
-    sel = ObjectiveC::register_selector(&cbuf33[0]);
-    let mut rc: u64 = ObjectiveC::send_scalar(window_state.view, sel, nsimg);
+    sel = objc_register_selector(&cbuf33[0]);
+    let mut rc: u64 = objc_send_scalar(window_state.view, sel, nsimg);
     // Per-frame lifecycle: the context and CGImage are Create-rule owned, and
     // setImage: retains the NSImage, so drop our +1 on all three — without
     // these releases every presented frame leaked ~3 objects at ~60fps.
-    rc = CoreGraphics::context_release(ctx);
-    rc = CoreGraphics::image_release(cgimg);
-    rc = ObjectiveC::send(nsimg, window_state.relsel);
+    rc = cg_context_release(ctx);
+    rc = cg_image_release(cgimg);
+    rc = objc_send(nsimg, window_state.relsel);
     // The samples assert `blit == source_height` (every source scanline copied).
     let r32: u32 = source_height;
     r32
@@ -444,7 +432,7 @@ invokes CoreGraphics;
 }
 
 // Global key polling is meaningful only while this application's window is key.
-public machine macos_window_foreground_window(window_state: &Window) -> u64
+public macos_arm64 machine macos_window_foreground_window(window_state: &Window) -> u64
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -452,15 +440,14 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC;
 {
-    let current: u64 = ObjectiveC::send(window_state.app, window_state.ksel);
+    let current: u64 = objc_send(window_state.app, window_state.ksel);
     current
 }
 
 // Win32 virtual-key to macOS ANSI keycode mapping. Unknown keys retain the
 // 65535 sentinel and macos_key_state reports them as not down.
-public machine macos_map_keycode(virtual_key: u32) -> u64 {
+public macos_arm64 machine macos_map_keycode(virtual_key: u32) -> u64 {
     transition virtual_key == 8 { true -> k51() _ -> t13(virtual_key) }
     machine t13(virtual_key: u32) -> u64 { transition virtual_key == 13 { true -> k36() _ -> t27(virtual_key) } }
     machine t27(virtual_key: u32) -> u64 { transition virtual_key == 27 { true -> k53() _ -> t32(virtual_key) } }
@@ -524,12 +511,11 @@ public machine macos_map_keycode(virtual_key: u32) -> u64 {
     machine unmapped() -> u64 { 65535 }
 }
 
-public machine macos_key_state(virtual_key: u32) -> u64
+public macos_arm64 machine macos_key_state(virtual_key: u32) -> u64
 reaches GlobalInputObservation
-invokes CoreGraphics;
 {
     let keycode: u64 = macos_map_keycode(virtual_key);
-    let result: u64 = CoreGraphics::event_source_key_state(1, keycode);
+    let result: u64 = cg_event_source_key_state(1, keycode);
     transition keycode == 65535 { true -> not_down() _ -> ret(result) }
     machine not_down() -> u64 { 0 }
     machine ret(result: u64) -> u64 { result }
@@ -545,29 +531,26 @@ public boundary trait DarwinClock {
 
 // Millisecond pacing through poll(NULL, 0, timeout). The conversion retains
 // the former u32-to-i32 wrapping contract.
-public machine macos_sleep(milliseconds: u32)
+public macos_arm64 machine macos_sleep(milliseconds: u32)
 reaches ExecutionDelay
-invokes DarwinClock;
 {
     let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
-    let result: i32 = DarwinClock::poll(0, 0, timeout);
+    let result: i32 = darwin_poll(0, 0, timeout);
 }
 
 // CLOCK_MONOTONIC milliseconds since boot, retaining the low 32 bits.
-public machine macos_get_tick_count() -> u32
+public macos_arm64 machine macos_get_tick_count() -> u32
 reaches ClockObservation
-invokes DarwinClock;
 {
-    let nanoseconds: u64 = DarwinClock::clock_ns(6);
+    let nanoseconds: u64 = darwin_clock_ns(6);
     let milliseconds: u64 = nanoseconds / 1000000;
     narrow_u64_to_u32_wrapping(milliseconds)
 }
 
-public machine macos_perf_counter() -> u64
+public macos_arm64 machine macos_perf_counter() -> u64
 reaches ClockObservation
-invokes DarwinClock;
 {
-    DarwinClock::clock_ns(6)
+    darwin_clock_ns(6)
 }
 
-public machine macos_perf_frequency() -> u64 { 1000000000 }
+public macos_arm64 machine macos_perf_frequency() -> u64 { 1000000000 }

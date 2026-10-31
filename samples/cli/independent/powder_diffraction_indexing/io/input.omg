@@ -27,7 +27,7 @@ public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; bloc
         }
     }
     machine digit(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
-        let next_accumulator: f64 = accumulator * 10.0 + F64FromI32::from_i32(character) - 48.0;
+        let next_accumulator: f64 = accumulator * 10.0 + F64::from_i32(character) - 48.0;
         transition fraction {
             true -> next(raw, bytes + 1, next_accumulator, scale * 10.0, negative, true, true, digits + 1, decimals + 1)
             false -> next(raw, bytes + 1, next_accumulator, scale, negative, true, false, digits + 1, decimals)

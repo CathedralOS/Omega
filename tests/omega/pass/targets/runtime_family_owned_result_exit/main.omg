@@ -4,20 +4,13 @@ use omega::language::core::drop;
 data Receipt [linear] { code: u64; }
 machine Receipt::drop(receipt: &mut Receipt) {}
 
-boundary trait SelectedProduce {
-    machine produce(code: u64) -> Receipt reaches
-;
-}
-CheckedProduce satisfies SelectedProduce {
-    machine produce(code: u64) -> Receipt
-{ Receipt { code: code } }
-}
-
-
-
+linux_x86_64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+windows_x86_64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+linux_arm64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+macos_arm64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
 
 machine main() crashes Trap {
-    let receipt: Receipt = SelectedProduce::produce(42);
+    let receipt: Receipt = produce(42);
     let correct: bool = receipt.code == 42;
     drop(receipt);
     transition correct { true -> done() _ -> bad() }

@@ -1,5 +1,4 @@
 //! Typed source signatures are retained even without a selected calling plan.
-use super::application::ApplicationSource;
 use crate::capture::semantics::services::calling;
 use crate::capture::semantics::services::rejected;
 use crate::capture::semantics::signatures::SignatureProjection;
@@ -31,7 +30,7 @@ pub(super) fn project_declaration(
         return project(
             projection,
             ProviderSchemaDeclaration::BoundaryTrait(schema),
-            ApplicationSource::Provider(None),
+            None,
             requirement,
             identity,
             calling,
@@ -74,7 +73,7 @@ fn from_application(
 pub(super) fn project(
     projection: &mut SignatureProjection<'_>,
     schema: ProviderSchemaDeclaration,
-    application: ApplicationSource<'_>,
+    provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
     identity: &PackageReviewNominalIdentity,
     calling: Option<&crate::record::PackagePolicyCallingPlan>,
@@ -106,21 +105,6 @@ pub(super) fn project(
             result: calling.semantic_result.clone(),
         });
     }
-    if let (
-        ProviderSchemaDeclaration::BoundaryTrait(symbol),
-        ApplicationSource::Requirement(source),
-    ) = (schema, application)
-    {
-        let projected =
-            crate::capture::calling::application::signature::project_requirement_application(
-                projection,
-                symbol,
-                requirement,
-                source,
-            )?;
-        return from_application(projected, identity);
-    }
-    let provider_type = application.provider();
     if let ProviderSchemaDeclaration::BoundaryTrait(symbol) = schema {
         let arguments = calling::boundary_arguments(compilation, schema, provider_type)?;
         let projected = crate::capture::calling::application::signature::project_application(

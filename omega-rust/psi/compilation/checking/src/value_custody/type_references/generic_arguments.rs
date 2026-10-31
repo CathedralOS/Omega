@@ -71,27 +71,6 @@ pub(crate) fn validate_machine_data_argument(
         return;
     };
 
-    if let Some(definition) = program.data_definition_by_symbol(base_symbol)
-        && !program
-            .proof_only_classification()
-            .is_proof_only(definition.symbol)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "finite-layout data `{base_name}` cannot be indexed by static machine parameters; machine indexes belong to proof-only data families",
-        )));
-        return;
-    }
-    if matches!(contract, MachineParameterContract::RequirementIdentity) {
-        crate::machine_calls::static_arguments::validate_declaration_identity_argument(
-            program,
-            parameter,
-            argument,
-            &format!("proof data `{base_name}`"),
-            diagnostics,
-        );
-        return;
-    }
-
     // Recursive references inside the family (`CauchySeq<S>`) forward the
     // family parameter governed by this exact declaration-site contract.
     if *symbol == parameter.symbol {
@@ -611,23 +590,6 @@ pub(crate) fn validate_const_data_argument(
         // other mode rejects surviving marks before reaching this argument.
         if program.pending_const_range_endpoints.contains(root) {
             return;
-        }
-        // A derived application may already consume a normalized tuple, but
-        // its retained source reference still owns this recipe. Judge its
-        // formation and complete carrier independently, without borrowing the
-        // receiving declaration's desired predicates as premises.
-        match check_closed_const_expression(
-            program,
-            type_parameter_scope.lexical_owner,
-            *root,
-            parameter_type,
-        ) {
-            Ok(Some(_)) => return,
-            Err(mut failures) => {
-                diagnostics.append(&mut failures);
-                return;
-            }
-            Ok(None) => {}
         }
     }
     let TypeReferenceNode::Named { symbol, name } =

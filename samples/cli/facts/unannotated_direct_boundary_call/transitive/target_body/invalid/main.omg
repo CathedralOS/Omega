@@ -10,20 +10,20 @@ MarkerMark satisfies Mark {
 public machine read_service() -> u64 invokes Mark; { Mark::read() }
 machine call_mark() -> u64 { read_service() }
 
-boundary trait SelectedReadMark {
-    machine read_mark() -> u64 reaches;
-}
-CheckedReadMark satisfies SelectedReadMark {
-    machine read_mark() -> u64 reaches
-{
+linux_x86_64 machine read_mark() -> u64 reaches {
     call_mark()
 }
+linux_arm64 machine read_mark() -> u64 reaches {
+    call_mark()
 }
-
-
-
+macos_arm64 machine read_mark() -> u64 reaches {
+    call_mark()
+}
+windows_x86_64 machine read_mark() -> u64 reaches {
+    call_mark()
+}
 machine main() crashes Trap {
-    transition SelectedReadMark::read_mark() == 7 { true -> done() _ -> bad() }
+    transition read_mark() == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

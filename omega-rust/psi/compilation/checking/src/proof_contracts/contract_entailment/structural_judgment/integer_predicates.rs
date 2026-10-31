@@ -644,61 +644,6 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
-    /// Deny one simultaneous assignment to already captured operands. Prefix
-    /// premises admit every projected child before the denied values enter the
-    /// query; the operation whose inputs these are contributes no equation.
-    pub(in crate::proof_contracts::contract_entailment) fn observed_integer_values_exclude(
-        &self,
-        values: &[(typed_trees::types::TypeReferenceHandle, StructuralTerm, i64)],
-    ) -> bool {
-        if !self.runtime_body_values || self.case_facts_only || values.is_empty() {
-            return false;
-        }
-        let mut observations = IntegerObservations {
-            engine: Engine::for_explicit_bindings(self.program),
-            atoms: Vec::new(),
-            operations: Vec::new(),
-            carrier_bounds: Vec::new(),
-            installed_carrier_bounds: 0,
-            next_operation_id: 0,
-            operand_resolutions: None,
-        };
-        let mut denied = Vec::with_capacity(values.len());
-        for (reference, value, excluded) in values {
-            let predicate = StructuralTerm::MathematicalBinary {
-                operator: BinaryOperator::Equal,
-                left: Box::new(StructuralTerm::IntegerEmbedding {
-                    reference: *reference,
-                    value: Box::new(value.clone()),
-                }),
-                right: Box::new(StructuralTerm::Integer(BigInt::from_i128(i128::from(
-                    *excluded,
-                )))),
-            };
-            let Some(comparison) = self.integer_comparison(&predicate, &mut observations) else {
-                return false;
-            };
-            denied.push(comparison);
-        }
-        let goal_operations = 0..observations.operations.len();
-        let mut premises = self.observed_integer_premises(&mut observations);
-        let retained = premises.clone();
-        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
-        {
-            return false;
-        }
-        denied.extend(retained.into_iter().filter_map(|(comparison, operations)| {
-            (matches!(
-                comparison.0,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) && observations.admitted(operations))
-            .then_some(comparison)
-        }));
-        observations
-            .engine
-            .integer_comparisons_unsatisfiable(denied)
-    }
-
     pub(in crate::proof_contracts::contract_entailment) fn judge_observed_predicate(
         &self,
         predicate: StructuralTerm,

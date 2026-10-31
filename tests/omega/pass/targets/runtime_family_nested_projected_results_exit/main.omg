@@ -16,17 +16,10 @@ machine package() -> Holder<ReceiptBox> {
     Holder { value: ReceiptBox { receipts: [first, second] } }
 }
 
-boundary trait SelectedProduce {
-    machine produce() -> Holder<ReceiptBox> reaches
-;
-}
-CheckedProduce satisfies SelectedProduce {
-    machine produce() -> Holder<ReceiptBox>
-{ package() }
-}
-
-
-
+linux_x86_64 machine produce() -> Holder<ReceiptBox> { package() }
+windows_x86_64 machine produce() -> Holder<ReceiptBox> { package() }
+linux_arm64 machine produce() -> Holder<ReceiptBox> { package() }
+macos_arm64 machine produce() -> Holder<ReceiptBox> { package() }
 
 machine consume(receipt: Receipt in Receipt::Ready & Receipt::Issued) -> u64 {
     let code: u64 = receipt.code;
@@ -35,7 +28,7 @@ machine consume(receipt: Receipt in Receipt::Ready & Receipt::Issued) -> u64 {
 }
 
 machine main() crashes Trap {
-    let holder: Holder<ReceiptBox> = SelectedProduce::produce();
+    let holder: Holder<ReceiptBox> = produce();
     let first: u64 = consume(holder.value.receipts[0]);
     let second: u64 = consume(holder.value.receipts[1]);
     transition first == 12 && second == 30 { true -> done() _ -> bad() }

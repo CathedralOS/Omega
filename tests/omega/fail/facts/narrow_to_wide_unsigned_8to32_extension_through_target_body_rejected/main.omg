@@ -2,29 +2,40 @@
 // Invalid: target bodies compute with narrow 161u8, causing 160u32 - wide to underflow. Place: target_body.
 // Expected diagnostic: may overflow `u32`
 
-boundary trait SelectedVerifyTarget {
-    machine verify_target() -> i32 reaches
-;
-}
-CheckedVerifyTarget satisfies SelectedVerifyTarget {
-    machine verify_target() -> i32
-{
+linux_x86_64 machine verify_target() -> i32 {
     let narrow: u8 = 161u8;
     let wide: u32 = narrow as u32;
     let headroom: u32 = 160u32 - wide;
     let margin: u32 = wide - 40u32;
     0i32
 }
+
+linux_arm64 machine verify_target() -> i32 {
+    let narrow: u8 = 161u8;
+    let wide: u32 = narrow as u32;
+    let headroom: u32 = 160u32 - wide;
+    let margin: u32 = wide - 40u32;
+    0i32
 }
 
+macos_arm64 machine verify_target() -> i32 {
+    let narrow: u8 = 161u8;
+    let wide: u32 = narrow as u32;
+    let headroom: u32 = 160u32 - wide;
+    let margin: u32 = wide - 40u32;
+    0i32
+}
 
-
-
-
-
+windows_x86_64 machine verify_target() -> i32 {
+    let narrow: u8 = 161u8;
+    let wide: u32 = narrow as u32;
+    let headroom: u32 = 160u32 - wide;
+    let margin: u32 = wide - 40u32;
+    0i32
+}
 
 machine probe() -> i32 {
-    SelectedVerifyTarget::verify_target()
+    verify_target()
 }
 
 machine main() crashes Trap {

@@ -1,9 +1,7 @@
 use console;
-use native::hosted;
 
-// Checked Windows Console adapters over the package's explicit DLL bindings.
-// Exit uses the canonical Console semantic leaf and its public requirement's
-// native backing, preserving completion rather than inventing a private promise.
+// Exact windows_x86_64 Console leaves. The named NativeConsole implementation
+// in std/console.omg forwards to these target declarations.
 //
 // Windows has no stable syscall ABI, so every leaf realizes through DLL
 // linkage. Byte I/O uses the MSVCRT descriptor calls, which are unbuffered:
@@ -17,9 +15,15 @@ use native::hosted;
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 
+data WindowsConsoleIo { }
+
+boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+reaches Console;
 
 // A console read waits for host input, so the import publishes `blocks`.
-
+boundary requirement WindowsConsoleIo::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+reaches Console
+blocks;
 
 // MSVCRT descriptors open in text mode, which translates CR LF pairs to a
 // single LF on reads, maps LF to CR LF on writes, and ends input at Ctrl+Z.
@@ -28,76 +32,103 @@ use omega::language::core::numeric_conversion;
 // moving data. `_setmode` is idempotent; calling it per operation keeps the
 // guarantee local to this provider with no separate descriptor-init hook.
 //   `int _setmode(int fd, int mode)`
+boundary requirement WindowsConsoleIo::set_mode(descriptor: i32, mode: i32) -> i32
+reaches Console;
 
+data WindowsConsoleImports { }
+
+windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_write",
+        },
+    }
+}
+
+windows_x86_64 machine console_read_binding() -> ForeignBinding<10, 5, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_read",
+        },
+    }
+}
+
+windows_x86_64 machine WindowsConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies WindowsConsoleIo::write
+    via console_write_binding();
+
+windows_x86_64 machine WindowsConsoleImports::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies WindowsConsoleIo::read
+    via console_read_binding();
+
+windows_x86_64 machine console_set_mode_binding() -> ForeignBinding<10, 8, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_setmode",
+        },
+    }
+}
+
+windows_x86_64 machine WindowsConsoleImports::set_mode(descriptor: i32, mode: i32) -> i32
+    satisfies WindowsConsoleIo::set_mode
+    via console_set_mode_binding();
 
 // Descriptor 0 is stdin. One byte is a Byte, zero bytes is end of input, and
 // -1 is a failed host read. The named trapping conversion rejects that
 // negative status under the published `crashes Trap` contract.
+windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+    satisfies Console::read_byte
+reaches Console
+blocks;
+crashes Trap
+{
+    let mut cell: i32 = 0;
+    let mode: i32 = WindowsConsoleIo::set_mode(0, 32768);
+    let count: i32 = block WindowsConsoleIo::read(0, &mut cell, 1);
+    transition count {
+        1 -> byte(cell)
+        0 -> end()
+        _ -> failed(count)
+    }
 
+    machine byte(cell: i32) -> ByteRead {
+        let value: u8 = narrow_i32_to_u8_wrapping(cell);
+        ByteRead::Byte { value: value as i32 }
+    }
 
-// Descriptor 1 is stdout.
+    machine end() -> ByteRead { ByteRead::Eof }
 
-
-boundary trait WindowsConsoleIo {
-    machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-    reaches Console;
-    machine read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-    reaches Console
-    blocks;
-    machine set_mode(descriptor: i32, mode: i32) -> i32
-    reaches Console;
+    machine failed(count: i32) -> ByteRead {
+        let trapped: u8 = narrow_i32_to_u8_trapping(count);
+        ByteRead::Eof
+    }
 }
 
-WindowsConsole satisfies Console {
-    machine write_line(text: &[u8]) reaches Console {
-        console_write_bytes<WindowsConsole::write_byte>(text, true);
+// Descriptor 1 is stdout.
+windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let mode: i32 = WindowsConsoleIo::set_mode(1, 32768);
+    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+}
+
+windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
     }
+}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via exit_process_binding();
 
-    machine write(text: &[u8]) reaches Console {
-        console_write_bytes<WindowsConsole::write_byte>(text, false);
-    }
-
-    machine read_line(out_line: &mut [u8]) -> LineReadResult
-    reaches Console blocks; crashes Trap {
-        block console_read_line<WindowsConsole::read_byte>(out_line)
-    }
-
-    machine read_byte() -> ByteRead
-    reaches Console
-    blocks;
-    crashes Trap
-    {
-        let mut cell: i32 = 0;
-        let mode: i32 = WindowsConsoleIo::set_mode(0, 32768);
-        let count: i32 = block WindowsConsoleIo::read(0, &mut cell, 1);
-        transition count {
-            1 -> byte(cell)
-            0 -> end()
-            _ -> failed(count)
-        }
-
-        machine byte(cell: i32) -> ByteRead {
-            let value: u8 = narrow_i32_to_u8_wrapping(cell);
-            ByteRead::Byte { value: value as i32 }
-        }
-
-        machine end() -> ByteRead { ByteRead::Eof }
-
-        machine failed(count: i32) -> ByteRead {
-            let trapped: u8 = narrow_i32_to_u8_trapping(count);
-            ByteRead::Eof
-        }
-    }
-
-    machine write_byte(byte: i32)
-    reaches Console
-    {
-        let mut cell: i32 = byte;
-        let mode: i32 = WindowsConsoleIo::set_mode(1, 32768);
-        let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
-    }
-
-    machine exit_process(return_code: i32) reaches Console {
-        native::hosted::console_exit_process(return_code);
-    }
+windows_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
+    ConsoleNativeProvider::select_provider<Console, NativeConsole>(defaults);
 }

@@ -547,7 +547,6 @@ pub(in crate::symbols) fn assign_call_machine_argument_symbols(
     state_symbol: SymbolHandle,
     target: &symbol_resolved_trees::name::DiagnosticName,
     target_symbol: SymbolHandle,
-    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
     machine_arguments: &mut [symbol_resolved_trees::expression::StaticMachineArgument],
 ) {
     let operand_route = build_operand_route(target.as_str(), target_symbol);
@@ -601,39 +600,6 @@ pub(in crate::symbols) fn assign_call_machine_argument_symbols(
                 }
             }
         }
-        if operand_route.is_some() {
-            assign_designated_argument_children(symbols, machine, expression_table, argument);
-        }
-    }
-}
-
-/// Applied Product names stay inert; their supplied arguments retain ordinary
-/// lexical declaration identity. In particular an applied owner's member leaf
-/// is not a lexical name, while that member's own arguments still are.
-fn assign_designated_argument_children(
-    symbols: &SymbolTable,
-    machine: &super::super::scope::MachineScope<'_>,
-    expressions: &mut symbol_resolved_trees::expression::ExpressionTable,
-    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
-) {
-    let Some(application) = &mut argument.application else {
-        return;
-    };
-    for nested in &mut application.arguments {
-        assign_static_argument_symbols(
-            symbols,
-            machine.symbol,
-            machine.type_parameters,
-            nested,
-            true,
-        );
-        assign_designated_argument_children(symbols, machine, expressions, nested);
-    }
-    if let Some(mut member) = expressions.static_member(application.member).cloned() {
-        assign_designated_argument_children(symbols, machine, expressions, &mut member);
-        *expressions
-            .static_member_mut(application.member)
-            .expect("exact member read above") = member;
     }
 }
 

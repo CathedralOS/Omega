@@ -1,9 +1,8 @@
 use omega::language::core::layout;
 // An unaligned `FieldPlan::IntegerAt` placement: offset 1 with stored_width
 // 16 inside a size_fixed:4, align:1 plan.
-
-OffsetWord satisfies FixedLayout<PortableWord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+data OffsetWord {}
+machine OffsetWord::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -21,9 +20,8 @@ OffsetWord satisfies FixedLayout<PortableWord> {
         align: 1,
     }
 }
-}
 data PortableWord [copy] { value: u64; }
-data Main { word: LayoutStorage<PortableWord, OffsetWord>; }
+data Main { word: OffsetWord<PortableWord>; }
 machine Main::main(main: &mut Main) {
     main.word.value = 44444;
     transition main.word.value == 44444 {

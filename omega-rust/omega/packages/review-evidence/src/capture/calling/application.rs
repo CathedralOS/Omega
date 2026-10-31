@@ -18,23 +18,7 @@ pub(crate) fn project_checked_calling_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     realization: &BoundaryCallingPlanRealization,
 ) -> Result<PackagePolicyCallingPlan, Vec<Diagnostic>> {
-    project_checked_calling_policy_inner(input.into(), realization, None)
-}
-
-pub(crate) fn project_checked_calling_policy_with_source(
-    input: &PackageReviewInput<'_>,
-    realization: &BoundaryCallingPlanRealization,
-    semantic: signature::CallingSignatureProjection,
-) -> Result<PackagePolicyCallingPlan, Vec<Diagnostic>> {
-    project_checked_calling_policy_inner(*input, realization, Some(semantic))
-}
-
-fn project_checked_calling_policy_inner(
-    input: PackageReviewInput<'_>,
-    realization: &BoundaryCallingPlanRealization,
-    semantic: Option<signature::CallingSignatureProjection>,
-) -> Result<PackagePolicyCallingPlan, Vec<Diagnostic>> {
-    let compilation = &input;
+    let compilation = &input.into();
     let candidates = compilation
         .custody
         .providers()
@@ -78,11 +62,7 @@ fn project_checked_calling_policy_inner(
     {
         return Err(super::rejected("stale calling application custody"));
     }
-    let semantic = match semantic {
-        Some(semantic) => semantic,
-        None => signature::project(compilation, realization)?,
-    };
-    signature::validate_realization_source(&semantic, realization)?;
+    let semantic = signature::project(compilation, realization)?;
     let semantic_parameters = semantic
         .semantic_parameters
         .iter()

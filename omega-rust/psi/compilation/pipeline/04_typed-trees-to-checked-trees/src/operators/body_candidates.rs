@@ -58,6 +58,7 @@ fn declarations(
     };
     for machine in typed.machines().iter().filter(|machine| {
         machine.supply_mode.is_checked_body()
+            && !machine.target_family_interface
             && !typed
                 .machine_specializations
                 .iter()
@@ -70,7 +71,10 @@ fn declarations(
             && conformances
                 .iter()
                 .all(|edge| in_product(edge.symbol) && in_product(edge.requirement_symbol));
-        for conformance in conformances.iter() {
+        for conformance in conformances
+            .iter()
+            .filter(|edge| edge.external_binding.is_none())
+        {
             let Some(operator) =
                 typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                     typed,
@@ -111,7 +115,7 @@ fn declarations(
                     // silently acquire them from this declaration.
                     provider_application: None,
                     requirement_lifetime_partition: Vec::new(),
-
+                    target: typed.source_target_context(machine).map(str::to_owned),
                     is_product,
                 },
             });
@@ -204,7 +208,7 @@ fn candidates_for_application(
                     == typed.symbols.symbol_package_identity(selection.symbol),
             selection: selection.symbol,
             selection_identity: typed.machine_callable_identity(selection),
-
+            target: typed.source_target_context(machine).map(str::to_owned),
             machine: machine.symbol,
             entry: entry.symbol,
             contract: contract.commitment.as_bytes(),

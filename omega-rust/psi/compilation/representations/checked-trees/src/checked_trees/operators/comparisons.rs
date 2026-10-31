@@ -47,22 +47,10 @@ impl CheckedOperatorFacts {
     )> {
         use semantic_vocabulary::IeeeFloatComparisonOperation as Comparison;
         use typed_trees::expression::BinaryOperator;
-        if !self.uses.is_valid(handle) {
-            return None;
-        }
-        let selected = self.uses.get(handle);
-        if selected.status != CheckedOperatorResolutionStatus::Resolved
-            || selected.operands(program)?.len() != 2
-            || !self.selected_candidate(selected)?.is_boundary
-        {
-            return None;
-        }
-        let (operation, format) = typed_trees::operator::primitive_float_semantics(
-            program,
-            selected.selected_operator_symbol,
-        )?;
-        if typed_trees::operator::comparison_operator_spelling(operation) != Some(selected.spelling)
-        {
+        let (selected, operator) = self.resolved_boundary_binary_operator(program, handle)?;
+        let (operation, format) =
+            typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
+        if operator.spelling != Some(selected.spelling) {
             return None;
         }
         occurrence_carries_operation(program, selected, operation)?;

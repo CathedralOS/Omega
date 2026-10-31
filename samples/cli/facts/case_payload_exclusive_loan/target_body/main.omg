@@ -10,14 +10,7 @@ requires counter == 0
     true
 }
 
-boundary trait SelectedApply {
-    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 reaches
-requires chosen in Slot::Present
-requires other in Slot::Present
-requires visits == 0;
-}
-CheckedApply satisfies SelectedApply {
-    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+linux_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
 requires chosen in Slot::Present
 requires other in Slot::Present
 requires visits == 0
@@ -29,19 +22,51 @@ requires visits == 0
     selected = 41;
     selected
 }
+
+linux_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present
+requires other in Slot::Present
+requires visits == 0
+{
+    let selected: &mut i64 = match choose(visits) {
+        true -> &mut chosen.value
+        false -> &mut other.value
+    };
+    selected = 41;
+    selected
 }
 
+macos_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present
+requires other in Slot::Present
+requires visits == 0
+{
+    let selected: &mut i64 = match choose(visits) {
+        true -> &mut chosen.value
+        false -> &mut other.value
+    };
+    selected = 41;
+    selected
+}
 
-
-
-
-
+windows_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present
+requires other in Slot::Present
+requires visits == 0
+{
+    let selected: &mut i64 = match choose(visits) {
+        true -> &mut chosen.value
+        false -> &mut other.value
+    };
+    selected = 41;
+    selected
+}
 
 machine main() crashes Trap {
     let mut chosen: Slot = Slot::Present { value: 17 };
     let mut other: Slot = Slot::Present { value: 0 };
     let mut visits: u64 = 0;
-    let observed: i64 = SelectedApply::apply(&mut chosen, &mut other, &mut visits);
+    let observed: i64 = apply(&mut chosen, &mut other, &mut visits);
     transition observed == 41 && visits == 1 {
         true -> done()
         false -> wrong()

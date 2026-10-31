@@ -73,8 +73,7 @@ pub(crate) fn collect_value_roots(
                 collect_value_roots(checked, *source_value, roots)?;
             }
         }
-        checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
-        | checked_trees::CheckedStructuralValueKind::FixedByteArrayLiteral { .. } => {
+        checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. } => {
             roots.push(validation::structural_type_identity(
                 &checked.typed,
                 node.type_reference,

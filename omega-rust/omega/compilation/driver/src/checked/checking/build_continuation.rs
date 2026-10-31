@@ -15,11 +15,7 @@ use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::Arc;
 
-mod prerequisites;
-pub use prerequisites::BuildExecutionProgress;
-pub(crate) use prerequisites::{BuildCompilationContext, BuildSourceInvocation};
-
-pub(in crate::checked) struct PreparedBuildSourceInvocation {
+pub(super) struct BuildSourceInvocation {
     execution_contract: package_compilation::build_execution::BuildExecutionContract,
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
@@ -33,14 +29,14 @@ pub(in crate::checked) struct PreparedBuildSourceInvocation {
 
 /// Consume a prepared typed program. Source preparation owns any reuse;
 /// declaration authority and Build effects are admitted for this activation.
-pub(super) fn prepare_admitted_build_invocation(
+pub(super) fn prepare_build_invocation(
     root_path: &Path,
     child: CheckedExecutionRequest<'_>,
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<PreparedBuildSourceInvocation, CompileFailure> {
+) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
     let CheckedExecutionRequest {
         selected_target_profile,
@@ -52,10 +48,9 @@ pub(super) fn prepare_admitted_build_invocation(
     let build_execution_profile = build.profile;
     let execution_contract = build.contract();
     let TypedCompilationFrontier {
-        build_handoffs,
         preparation,
         mut source,
-        captured_source,
+        anonymous_source,
         product_sources,
         build_source_id,
         source_file_count,
@@ -72,8 +67,7 @@ pub(super) fn prepare_admitted_build_invocation(
             build_source_id,
             sources: &base_sources,
             package_inputs,
-            captured_source: captured_source.as_ref(),
-            build_handoffs: &build_handoffs,
+            anonymous_source: anonymous_source.as_ref(),
             generated_source_custody: &generated_source_custody,
             execution: build,
             artifact_only: false,
@@ -88,14 +82,13 @@ pub(super) fn prepare_admitted_build_invocation(
         },
         &mut timings,
     )?;
-    Ok(PreparedBuildSourceInvocation {
+    Ok(BuildSourceInvocation {
         execution_contract,
         parsed,
         frontier: TypedCompilationFrontier {
-            build_handoffs,
             preparation,
             source,
-            captured_source,
+            anonymous_source,
             product_sources,
             build_source_id,
             source_file_count,
@@ -111,7 +104,7 @@ pub(super) fn prepare_admitted_build_invocation(
     })
 }
 
-impl PreparedBuildSourceInvocation {
+impl BuildSourceInvocation {
     pub(super) fn product_queries(&self) -> super::ProductQueries {
         super::ProductQueries::new(
             &self.frontier,
@@ -298,10 +291,9 @@ fn complete_build_source(
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
     let TypedCompilationFrontier {
-        mut build_handoffs,
         preparation,
         mut source,
-        captured_source: _,
+        anonymous_source: _,
         product_sources,
         build_source_id: _,
         mut source_file_count,
@@ -356,7 +348,6 @@ fn complete_build_source(
             Some(selected) => Some(product.source.rejoin_machine(&source, selected)?),
             None => None,
         };
-        build_handoffs = product.build_handoffs;
         source = product.source;
         base_sources = product.base_sources;
         source_file_count = product.source_file_count;
@@ -380,7 +371,6 @@ fn complete_build_source(
         &mut source,
         Arc::make_mut(&mut computed_build_config),
         package_inputs,
-        &build_handoffs,
     )?;
     let sources = BuildSourceCustody {
         source_file_count,
@@ -422,6 +412,9 @@ pub(super) fn lower_typed_frontier(
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
+    // Only build helpers select an execution target here. Product families
+    // retain a canonical frontend shared by every requested product target.
+    let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
     let execution = execution_profile
         .or_else(target::TargetProfile::host_if_supported)
         .ok_or_else(|| vec![Diagnostic::error(
@@ -435,6 +428,11 @@ pub(super) fn lower_typed_frontier(
             execution.target_name(),
         ))]);
     }
+    build_evaluation::select_build_helpers(
+        &mut syntax.syntax_trees,
+        execution,
+        &build_scope_sources,
+    );
     let build_source_id = syntax.build_source_id;
     let request = psi_compiler::SourceCompilationRequest {
         source_items: syntax.source_items,
@@ -450,10 +448,9 @@ pub(super) fn lower_typed_frontier(
     };
     let source = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
-        build_handoffs: syntax.build_handoffs,
         preparation,
         source,
-        captured_source: syntax.captured_source,
+        anonymous_source: syntax.anonymous_owner,
         product_sources: syntax
             .product_sources
             .map(compilation_products::DeferredProductCompilation::new),

@@ -1,8 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedCountdown, CheckedCountdown>(builder, linux_x86_64);
-    Build::select_provider<SelectedCountdown, CheckedCountdown>(builder, windows_x86_64);
-    Build::select_provider<SelectedCountdown, CheckedCountdown>(builder, macos_x86_64);
-
  Build::application(builder, "checked_asm_zero_branch_target_body_invalid");
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

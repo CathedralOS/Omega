@@ -1,13 +1,5 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "callback_synchronous_registration_cycle");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-
- Build::bind<Registration::register>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_pthread_key_create",
-        },
-    });
 }

@@ -13,7 +13,7 @@ use language_semantics::boundary_provider_review::{
 pub struct BoundaryProviderAdmission<'facts> {
     pub review: &'facts BoundaryProviderReview<'facts>,
     pub identities: &'facts terminal_psi::TerminalIdentityTable,
-    pub numeric_realizations: &'facts [terminal_psi::NumericRealization],
+    pub external_providers: &'facts [terminal_psi::ExternalProviderConformance],
 }
 
 impl BoundaryProviderAdmission<'_> {
@@ -145,8 +145,8 @@ impl BoundaryProviderAdmission<'_> {
     ) -> Result<(), Diagnostic> {
         let join = || -> Result<(), String> {
             let nominal = requirement.numeric_requirement?;
-            crate::numeric_execution::selected_execution_for_identity(
-                self.numeric_realizations,
+            crate::external_execution::selected_execution_for_identity(
+                self.external_providers,
                 self.identities,
                 nominal,
                 plan,

@@ -2,12 +2,7 @@
 // Place: another target body. Target-scoped implementations across all four platforms verify the bounds.
 // Expected exit: 0
 
-boundary trait SelectedRemainderTarget {
-    machine remainder_target(dividend: u64, divisor: u64) -> i32 reaches
-requires divisor >= 64u64 && divisor <= 64u64;
-}
-CheckedRemainderTarget satisfies SelectedRemainderTarget {
-    machine remainder_target(dividend: u64, divisor: u64) -> i32
+linux_x86_64 machine remainder_target(dividend: u64, divisor: u64) -> i32
     requires divisor >= 64u64 && divisor <= 64u64;
 {
     let rem: u64 = dividend % divisor;
@@ -19,16 +14,48 @@ CheckedRemainderTarget satisfies SelectedRemainderTarget {
     machine pass() -> i32 { 0 }
     machine fail() -> i32 { 1 }
 }
+
+linux_arm64 machine remainder_target(dividend: u64, divisor: u64) -> i32
+    requires divisor >= 64u64 && divisor <= 64u64;
+{
+    let rem: u64 = dividend % divisor;
+    let headroom: u64 = 63u64 - rem;
+    transition rem == 13u64 && headroom == 50u64 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
+macos_arm64 machine remainder_target(dividend: u64, divisor: u64) -> i32
+    requires divisor >= 64u64 && divisor <= 64u64;
+{
+    let rem: u64 = dividend % divisor;
+    let headroom: u64 = 63u64 - rem;
+    transition rem == 13u64 && headroom == 50u64 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
+}
 
-
-
-
-
+windows_x86_64 machine remainder_target(dividend: u64, divisor: u64) -> i32
+    requires divisor >= 64u64 && divisor <= 64u64;
+{
+    let rem: u64 = dividend % divisor;
+    let headroom: u64 = 63u64 - rem;
+    transition rem == 13u64 && headroom == 50u64 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
+}
 
 machine main() crashes Trap {
-    let res: i32 = SelectedRemainderTarget::remainder_target(205u64, 64u64);
+    let res: i32 = remainder_target(205u64, 64u64);
     transition res == 0 {
         true -> done()
         _ -> bad()

@@ -20,8 +20,6 @@
 #[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub enum BuildTimeValue {
     Unit,
-    /// Compiler-issued opaque context; ordinary source constructors cannot issue it.
-    LayoutTarget(layout_plans::LayoutTargetFacts),
     Int(i64),
     Bool(bool),
     Float(f64),
@@ -58,8 +56,7 @@ impl BuildTimeValue {
             Self::Array(elements) => elements.iter().try_fold(0u64, |count, value| {
                 count.checked_add(value.retained_cell_count()?)
             })?,
-            Self::LayoutTarget(_)
-            | Self::Unit
+            Self::Unit
             | Self::Int(_)
             | Self::Bool(_)
             | Self::Float(_)
@@ -75,7 +72,6 @@ impl BuildTimeValue {
     pub fn retained_text_byte_count(&self) -> Option<u64> {
         match self {
             Self::Text(bytes) => u64::try_from(bytes.len()).ok(),
-            Self::LayoutTarget(facts) => u64::try_from(facts.profile.len()).ok(),
             Self::Struct { fields, .. }
             | Self::Case {
                 payload: fields, ..

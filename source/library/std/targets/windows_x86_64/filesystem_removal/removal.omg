@@ -12,7 +12,7 @@ use targets::windows_x86_64::filesystem_removal::attributes;
 use targets::windows_x86_64::filesystem_removal::completion;
 use targets::windows_x86_64::filesystem_removal::traversal;
 
-machine windows_remove_tree(path: &[u8] in Path) -> i32
+windows_x86_64 machine windows_remove_tree(path: &[u8] in Path) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
     let root: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_removal_open_root(path);
     transition root != 0 { true -> block inspect(root) false -> failed() }

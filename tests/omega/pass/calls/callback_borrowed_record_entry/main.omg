@@ -170,6 +170,21 @@ satisfies Comparator::compare
     compare_values(first, second)
 }
 
+macos_arm64 machine sort_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_qsort",
+        },
+    }
+}
+macos_arm64 machine sort_leaf<machine Handler>(
+    elements: &mut Elements, count: u64, width: u64
+)
+requires machine Handler satisfies Comparator::compare;
+satisfies SortRegistrar::sort
+via sort_binding()
+requires count == 2 && width == 16;
 
 data Main { elements: Elements; }
 machine Main::main(main: &mut Main) reaches SortRegistrar + Comparator + Console
@@ -250,6 +265,21 @@ machine LinuxSortPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResu
     BoundaryPlanResult::Accepted { plan: plan }
 }
 
+linux_x86_64 machine linux_sort_binding() -> ForeignBinding<9, 5, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "qsort", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+linux_x86_64 machine sort_leaf<machine Handler>(
+    elements: &mut Elements, count: u64, width: u64
+)
+requires machine Handler satisfies Comparator::compare;
+satisfies SortRegistrar::sort
+via linux_sort_binding()
+requires count == 2 && width == 16;
 
 linux_x86_64 machine SortPolicies::comparator(signature: BoundarySignature) -> BoundaryPlanResult
 {

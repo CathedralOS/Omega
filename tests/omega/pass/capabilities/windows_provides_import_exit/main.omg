@@ -16,8 +16,15 @@ use omega::language::core::external_binding;
 use omega_language_std::console;
 public boundary trait Beeper { machine beep(value: i32) -> i32 reaches; }
 data Main { m: i32; v: i32; }
-
-
+windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    }
+}
+machine beeper_abs(value: i32) -> i32 satisfies Beeper::beep via beeper_binding();
 machine Main::main(main: &mut Main) reaches Beeper + Console {
     main.v = 0 - 42;
     main.m = Beeper::beep(main.v);

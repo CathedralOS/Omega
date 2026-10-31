@@ -535,15 +535,6 @@ pub(crate) fn selected_float_operation_retains_argument_policy(
     program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
 ) -> bool {
-    if let Some(requirement) = program.sealed_numeric_requirement_by_symbol(symbol) {
-        // The same closed catalogue moved from free declarations to ordinary
-        // trait requirements. Preserve the selected public result's policy;
-        // ordinary same-shaped traits receive no catalogue classification.
-        return matches!(
-            program.primitive_type_reference(requirement.signature.return_type),
-            Some(PrimitiveType::F32 | PrimitiveType::F64)
-        );
-    }
     let Some(operator) = typed_trees::operator::declaration_by_symbol(program, symbol) else {
         return false;
     };
@@ -911,6 +902,7 @@ fn validate_value_call_arguments(
 }
 
 mod topology;
+pub use topology::target_family_members;
 pub(crate) use topology::target_normal_completion_possible;
 pub use topology::{
     CompletingTransfer, call_target_entry_symbol, call_target_has_checked_body_contract,

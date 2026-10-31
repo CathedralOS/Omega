@@ -1294,7 +1294,21 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             return Err("constant dependency machine is ambiguous".to_owned());
         }
         self.contracts(machine.contracts)?;
-
+        if machine.target_family_interface {
+            self.dependencies.pending_target_observation = true;
+            // A portable head selects no deployment's private body. Dependency
+            // discovery retains every exact family member; this grants no
+            // permission to interpret one member as a shared constant value.
+            self.machines.extend(
+                program
+                    .machines
+                    .iter()
+                    .filter(|member| {
+                        member.target_family == symbol && !member.target_family_interface
+                    })
+                    .map(|member| member.symbol),
+            );
+        }
         self.type_parameters(machine.type_parameters)?;
         self.expressions.extend(
             program

@@ -8,7 +8,7 @@ machine repair(slot: &mut FloatSlot) -> bool {
 }
 
 machine finite_captured(value: f32, repaired: bool)
-requires F32IsFinite::is_finite(value) {}
+requires F32::is_finite(value) {}
 
 // The first actual is an unconstrained Float snapshot. Repairing its source
 // during the second actual cannot supply that earlier value's classification.

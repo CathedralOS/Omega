@@ -9,27 +9,36 @@ machine verify_combined(res: u32) -> u32
     head + tail
 }
 
-boundary trait SelectedComputeTargetBody {
-    machine compute_target_body(base: u32) -> u32 reaches
-requires base >= 64 && base <= 64;
-}
-CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
-    machine compute_target_body(base: u32) -> u32
+linux_x86_64 machine compute_target_body(base: u32) -> u32
     requires base >= 64 && base <= 64
 {
     let combined: u32 = base | 32;
     verify_combined(combined)
 }
+
+linux_arm64 machine compute_target_body(base: u32) -> u32
+    requires base >= 64 && base <= 64
+{
+    let combined: u32 = base | 32;
+    verify_combined(combined)
 }
 
+macos_arm64 machine compute_target_body(base: u32) -> u32
+    requires base >= 64 && base <= 64
+{
+    let combined: u32 = base | 32;
+    verify_combined(combined)
+}
 
-
-
-
-
+windows_x86_64 machine compute_target_body(base: u32) -> u32
+    requires base >= 64 && base <= 64
+{
+    let combined: u32 = base | 32;
+    verify_combined(combined)
+}
 
 machine evaluate() -> u32 {
-    SelectedComputeTargetBody::compute_target_body(64)
+    compute_target_body(64)
 }
 
 machine main() crashes Trap {

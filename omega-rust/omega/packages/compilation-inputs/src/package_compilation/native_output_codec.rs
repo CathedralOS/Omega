@@ -1,32 +1,108 @@
-//! Complete checked source intent and original Build observation in one facet.
-//! The compiler-private frame preserves immutable graphs/maps; semantic identity
-//! uses source occurrence commitments and exact captured actual identities.
-use super::{NativeBuildEvaluation, PackageBuildHandoff, native_bindings::NativeBuildOutputs};
+//! Framed native output data for the complete package handoff. Decoding never
+//! grants source visibility, host backing, or native execution authority.
+use super::{NativeBuildEvaluation, PackageBuildHandoff};
 use crate::build_execution::build_record_codec;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use language_semantics::declaration_selection::{CapturedNativeDeclaration, CapturedNativeIntent};
+use language_semantics::declaration_selection::{
+    CapturedNativeDeclaration, CapturedNativeIntent, NativeBindingProducer, ProductTarget,
+};
+use semantic_vocabulary::{ForeignLocatorCandidate, NativeBindingLocator, PackageKeyIdentity};
 use std::sync::Arc;
 
-fn owned<T: compiler_storage::Record>(value: &T) -> Vec<u8> {
-    compiler_storage::encode(
-        value,
-        compiler_storage::RecordLimits {
-            bytes: usize::MAX,
-            allocation: usize::MAX,
-            elements: usize::MAX,
-            depth: usize::MAX,
-        },
-    )
-    .expect("owned native graph encoding has no external resource limits")
+fn number(output: &mut Vec<u8>, value: u64) {
+    output.extend_from_slice(&value.to_le_bytes());
+}
+fn string(output: &mut Vec<u8>, value: &str) {
+    push_framed(output, value.as_bytes());
+}
+fn read_string(cursor: &mut ObservationCursor<'_>) -> Option<String> {
+    std::str::from_utf8(cursor.framed()?)
+        .ok()
+        .map(str::to_owned)
+}
+fn count(cursor: &mut ObservationCursor<'_>) -> Option<usize> {
+    let length = cursor.u64()?;
+    (length <= (1 << 20)).then_some(usize::try_from(length).ok()?)
 }
 
-pub(super) fn encode_parts(outputs: &NativeBuildOutputs) -> Vec<u8> {
-    let mut output = b"OMGNBO01".to_vec();
-    push_framed(
-        &mut output,
-        &owned(&(outputs.declarations.clone(), outputs.intents.clone())),
-    );
-    match outputs.evaluation.as_ref() {
+fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
+    number(output, bundle.native_declarations().len() as u64);
+    for declaration in bundle.native_declarations() {
+        output.extend_from_slice(&declaration.producer.package.digest());
+        string(output, &declaration.producer.declaration_path);
+        string(output, &declaration.producer.callable_identity);
+        string(output, &declaration.requirement_path);
+        output.extend_from_slice(&declaration.source_occurrence_digest);
+        output.push(match declaration.resolution_stratum {
+            source::SourceResolutionStratum::Base => 0,
+            source::SourceResolutionStratum::CurrentActivationExtension => 1,
+            source::SourceResolutionStratum::DependencyActivationExtension => 2,
+        });
+    }
+    number(output, bundle.native_intents().len() as u64);
+    for intent in bundle.native_intents() {
+        number(output, intent.declaration as u64);
+        number(output, intent.target.code());
+        match &intent.locator {
+            NativeBindingLocator::Import(ForeignLocatorCandidate::PeByName { library, export }) => {
+                output.push(0);
+                push_framed(output, library);
+                push_framed(output, export);
+            }
+            NativeBindingLocator::Import(ForeignLocatorCandidate::PeByOrdinal {
+                library,
+                ordinal,
+            }) => {
+                output.push(1);
+                push_framed(output, library);
+                number(output, *ordinal as u64);
+            }
+            NativeBindingLocator::Import(ForeignLocatorCandidate::ElfVersioned {
+                object,
+                symbol,
+                version,
+            }) => {
+                output.push(2);
+                push_framed(output, object);
+                push_framed(output, symbol);
+                push_framed(output, version);
+            }
+            NativeBindingLocator::Import(ForeignLocatorCandidate::MachODylibSymbol {
+                install_name,
+                symbol,
+            }) => {
+                output.push(3);
+                push_framed(output, install_name);
+                push_framed(output, symbol);
+            }
+            NativeBindingLocator::Syscall { number: syscall } => {
+                output.push(4);
+                number(output, *syscall);
+            }
+        }
+    }
+}
+
+pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v1\0");
+    let mut bytes = Vec::new();
+    choices(bundle, &mut bytes);
+    digest.bytes(&bytes);
+    match bundle.native_evaluation() {
+        None => digest.byte(0),
+        Some(evaluation) => {
+            digest.byte(1);
+            digest.raw(&evaluation.identity_digest());
+        }
+    }
+    digest.finish()
+}
+
+pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
+    let mut output = b"OMG-NATIVE-OUTPUTS\x01".to_vec();
+    choices(bundle, &mut output);
+    match bundle.native_evaluation() {
         None => output.push(0),
         Some(evaluation) => {
             output.push(1);
@@ -47,14 +123,69 @@ pub(super) fn encode_parts(outputs: &NativeBuildOutputs) -> Vec<u8> {
     output
 }
 
-pub(super) fn decode_parts(bytes: &[u8]) -> Option<NativeBuildOutputs> {
+pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuildHandoff> {
     let mut cursor = ObservationCursor::new(bytes);
-    if cursor.bytes(8)? != b"OMGNBO01" {
+    let magic = b"OMG-NATIVE-OUTPUTS\x01";
+    if cursor.bytes(magic.len())? != magic {
         return None;
     }
-    let (declarations, intents): (Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>) =
-        compiler_storage::decode(cursor.framed()?, compiler_storage::RecordLimits::default())
-            .ok()?;
+    let mut declarations = Vec::new();
+    for _ in 0..count(&mut cursor)? {
+        let package = PackageKeyIdentity::from_digest(cursor.bytes(32)?.try_into().ok()?)?;
+        let declaration_path = read_string(&mut cursor)?;
+        let callable_identity = read_string(&mut cursor)?;
+        let requirement_path = read_string(&mut cursor)?;
+        let source_occurrence_digest = cursor.bytes(32)?.try_into().ok()?;
+        let resolution_stratum = match cursor.u8()? {
+            0 => source::SourceResolutionStratum::Base,
+            1 => source::SourceResolutionStratum::CurrentActivationExtension,
+            2 => source::SourceResolutionStratum::DependencyActivationExtension,
+            _ => return None,
+        };
+        declarations.push(CapturedNativeDeclaration {
+            producer: NativeBindingProducer {
+                package,
+                declaration_path,
+                callable_identity,
+            },
+            requirement_path,
+            source_occurrence_digest,
+            resolution_stratum,
+        });
+    }
+    let mut intents = Vec::new();
+    for _ in 0..count(&mut cursor)? {
+        let declaration = u32::try_from(cursor.u64()?).ok()?;
+        let target = ProductTarget::from_code(cursor.u64()?)?;
+        let locator = match cursor.u8()? {
+            0 => NativeBindingLocator::Import(ForeignLocatorCandidate::PeByName {
+                library: cursor.framed()?.to_vec(),
+                export: cursor.framed()?.to_vec(),
+            }),
+            1 => NativeBindingLocator::Import(ForeignLocatorCandidate::PeByOrdinal {
+                library: cursor.framed()?.to_vec(),
+                ordinal: u16::try_from(cursor.u64()?).ok()?,
+            }),
+            2 => NativeBindingLocator::Import(ForeignLocatorCandidate::ElfVersioned {
+                object: cursor.framed()?.to_vec(),
+                symbol: cursor.framed()?.to_vec(),
+                version: cursor.framed()?.to_vec(),
+            }),
+            3 => NativeBindingLocator::Import(ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: cursor.framed()?.to_vec(),
+                symbol: cursor.framed()?.to_vec(),
+            }),
+            4 => NativeBindingLocator::Syscall {
+                number: cursor.u64()?,
+            },
+            _ => return None,
+        };
+        intents.push(CapturedNativeIntent {
+            declaration,
+            target,
+            locator,
+        });
+    }
     let evaluation = match cursor.u8()? {
         0 => None,
         1 => {
@@ -78,60 +209,10 @@ pub(super) fn decode_parts(bytes: &[u8]) -> Option<NativeBuildOutputs> {
         }
         _ => return None,
     };
-
     if !cursor.exhausted() {
         return None;
     }
-    Some(NativeBuildOutputs {
-        declarations,
-        intents,
-        evaluation,
-    })
-}
-
-pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
-    encode_parts(&NativeBuildOutputs {
-        declarations: bundle.native_declarations().to_vec(),
-        intents: bundle.native_intents().to_vec(),
-        evaluation: bundle.native_evaluation().cloned(),
-    })
-}
-pub fn decode(bytes: &[u8], bundle: PackageBuildHandoff) -> Option<PackageBuildHandoff> {
-    let outputs = decode_parts(bytes)?;
-    bundle
-        .with_native_binding_outputs(outputs.declarations, outputs.intents, outputs.evaluation)
+    handoff
+        .with_native_binding_outputs(declarations, intents, evaluation)
         .ok()
-}
-
-pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v12\0");
-    digest.u64(bundle.native_declarations().len() as u64);
-    for declaration in bundle.native_declarations() {
-        digest.raw(&declaration.producer.package.digest());
-        digest.bytes(declaration.producer.declaration_path.as_bytes());
-        digest.bytes(declaration.producer.callable_identity.as_bytes());
-        digest.raw(&declaration.source_occurrence_digest);
-    }
-    digest.u64(bundle.native_intents().len() as u64);
-    for intent in bundle.native_intents() {
-        digest.u64(u64::from(intent.declaration));
-        digest.u64(intent.target.code());
-        digest.bytes(&owned(&intent.intent));
-        match &intent.static_environment {
-            None => digest.byte(0),
-            Some(environment) => {
-                digest.byte(1);
-                digest.bytes(&environment.identity);
-            }
-        }
-    }
-    match bundle.native_evaluation() {
-        None => digest.byte(0),
-        Some(evaluation) => {
-            digest.byte(1);
-            digest.raw(&evaluation.identity_digest());
-        }
-    }
-    digest.finish()
 }

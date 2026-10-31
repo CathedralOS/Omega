@@ -74,14 +74,9 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     let allow_proposition_parameters = matches!(syntax, GenericParameterSyntax::TraitRequirements);
     let allow_conformance_binders = matches!(
         syntax,
-        GenericParameterSyntax::TraitRequirements
-            | GenericParameterSyntax::MachineDeclaration
-            | GenericParameterSyntax::DataDeclaration
+        GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::MachineDeclaration
     );
-    let trait_requirement_parameters = matches!(
-        syntax,
-        GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::DataDeclaration
-    );
+    let trait_requirement_parameters = matches!(syntax, GenericParameterSyntax::TraitRequirements);
     let allow_value_parameters = matches!(
         syntax,
         GenericParameterSyntax::RequirementSignature

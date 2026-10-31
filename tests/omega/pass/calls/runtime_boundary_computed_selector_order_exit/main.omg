@@ -1,8 +1,28 @@
 use omega_language_std::console;
 use omega::language::core::external_binding;
 public boundary trait CText { machine length(text: &u8, limit: u64) -> u64 reaches; }
+macos_arm64 machine binding() -> ForeignBinding<26, 8, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_strnlen",
+        },
+    }
+}
 
+linux_x86_64 machine linux_x86_64_binding() -> ForeignBinding<9, 7, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "strnlen", version: "GLIBC_2.2.5",
+        },
+    }
+}
+macos_arm64 machine c_strnlen(text: &u8, limit: u64) -> u64
+satisfies CText::length via binding();
 
+linux_x86_64 machine c_strnlen(text: &u8, limit: u64) -> u64
+satisfies CText::length via linux_x86_64_binding();
 data Cursor where position < 4 { position: u64; calls: u64 in Wrapping; }
 machine choose(cursor: &mut Cursor) -> u64 ensures result < 4 {
     cursor.calls = cursor.calls + 1;
@@ -23,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console + CText {
     let mut cursor: Cursor;
     cursor.position = 0;
     cursor.calls = 0;
-    let mut result: u64 = CText::length(&bytes[choose(&mut cursor)], advance(&mut cursor));
+    let mut result: u64 = c_strnlen(&bytes[choose(&mut cursor)], advance(&mut cursor));
     transition result == 3 && cursor.calls == 11 && cursor.position == 2 {
         true -> done(main)
         _ -> bad(main)

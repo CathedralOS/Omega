@@ -2,32 +2,43 @@
 // Place: target body. Each hosted target body executes the bounded shift and exact subtraction.
 // Expected exit: 0
 
-boundary trait SelectedShiftRightTarget {
-    machine shift_right_target(val: u64, shift: u64) -> u64 reaches
-requires val >= 400 && val <= 400 && shift >= 2 && shift <= 2
-ensures result == 0;
-}
-CheckedShiftRightTarget satisfies SelectedShiftRightTarget {
-    machine shift_right_target(val: u64, shift: u64) -> u64
+linux_x86_64 machine shift_right_target(val: u64, shift: u64) -> u64
 requires val >= 400 && val <= 400 && shift >= 2 && shift <= 2
 ensures result == 0
 {
     let shifted: u64 = val >> shift;
     shifted - 100
 }
+
+linux_arm64 machine shift_right_target(val: u64, shift: u64) -> u64
+requires val >= 400 && val <= 400 && shift >= 2 && shift <= 2
+ensures result == 0
+{
+    let shifted: u64 = val >> shift;
+    shifted - 100
 }
 
+macos_arm64 machine shift_right_target(val: u64, shift: u64) -> u64
+requires val >= 400 && val <= 400 && shift >= 2 && shift <= 2
+ensures result == 0
+{
+    let shifted: u64 = val >> shift;
+    shifted - 100
+}
 
-
-
-
-
+windows_x86_64 machine shift_right_target(val: u64, shift: u64) -> u64
+requires val >= 400 && val <= 400 && shift >= 2 && shift <= 2
+ensures result == 0
+{
+    let shifted: u64 = val >> shift;
+    shifted - 100
+}
 
 machine probe(val: u64, shift: u64) -> u64
 requires val >= 400 && val <= 400 && shift >= 2 && shift <= 2
 ensures result == 0
 {
-    SelectedShiftRightTarget::shift_right_target(val, shift)
+    shift_right_target(val, shift)
 }
 
 machine main() crashes Trap {

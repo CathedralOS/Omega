@@ -242,6 +242,8 @@ pub(crate) struct Evaluator<'program> {
     pub(super) selected_product_float_comparisons:
         Option<&'program [checked_trees::CheckedSelectedFloatComparisonExecution]>,
     pub(super) selected_build_time_operators: &'program [crate::SelectedBuildTimeBinaryOperator],
+    pub(super) selected_build_time_machine_bodies:
+        &'program [crate::SelectedBuildTimeMachineBody],
     /// The realization owner's supplied x86 processor flags environment.
     /// `pushfq` observes it and `popfq` restores its arithmetic bits; both
     /// decline without it rather than fabricate instruction semantics.

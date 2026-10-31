@@ -1,1 +1,0 @@
-must select a complete `FixedLayout` implementation with the instantiated trait arguments

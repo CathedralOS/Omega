@@ -35,9 +35,6 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         if let Some(value) = self.try_source_selection_call(call, frame)? {
             return Ok(value);
         }
-        if let Some(value) = self.try_layout_target_facts(call, frame)? {
-            return Ok(self.guard_subject_value(handle, frame, value));
-        }
         if call.native_code_layout.is_some() {
             return unsupported(
                 "late native code-layout metadata is unavailable to interpreted or same-product semantic constant, type, layout, or optimization evaluation",

@@ -101,10 +101,10 @@ public machine validate(raw: &Raw, input: &mut Input) -> bool {
     }
     machine initialize(raw: &Raw, input: &mut Input) -> bool {
         input.stages = raw.values[1];
-        input.hot_capacity = F64FromU32::from_u32(raw.values[2]) * F64FromU32::from_u32(raw.values[3]);
-        input.cold_capacity = F64FromU32::from_u32(raw.values[4]) * F64FromU32::from_u32(raw.values[5]);
-        input.hot_in = F64FromU32::from_u32(raw.values[6]);
-        input.cold_in = F64FromU32::from_u32(raw.values[7]);
+        input.hot_capacity = F64::from_u32(raw.values[2]) * F64::from_u32(raw.values[3]);
+        input.cold_capacity = F64::from_u32(raw.values[4]) * F64::from_u32(raw.values[5]);
+        input.hot_in = F64::from_u32(raw.values[6]);
+        input.cold_in = F64::from_u32(raw.values[7]);
         transition { _ -> scan(raw, input, 0) }
     }
     machine scan(raw: &Raw, input: &mut Input, position: u32) -> bool {
@@ -114,7 +114,7 @@ public machine validate(raw: &Raw, input: &mut Input) -> bool {
         }
     }
     machine load(raw: &Raw, input: &mut Input, position: u32) -> bool requires position < 8 {
-        let conductance: f64 = F64FromU32::from_u32(raw.values[position + 8]);
+        let conductance: f64 = F64::from_u32(raw.values[position + 8]);
         transition conductance <= input.hot_capacity && conductance <= input.cold_capacity {
             true -> store(input, raw, position, conductance)
             false -> bad()

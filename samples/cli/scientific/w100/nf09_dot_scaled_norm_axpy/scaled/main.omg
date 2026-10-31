@@ -18,10 +18,10 @@ machine main() crashes Trap {
     let zero_ok: bool = try_scaled_norm_f64(&zero[..], &mut zero_norm);
     let large_difference: f64 = large_norm / 5.0e200 - 1.0;
     let small_difference: f64 = small_norm / 5.0e-200 - 1.0;
-    let large_error: f64 = F64Maximum::maximum(large_difference, F64Negate::negate(large_difference));
-    let small_error: f64 = F64Maximum::maximum(small_difference, F64Negate::negate(small_difference));
-    let naive_large: f64 = F64SquareRoot::square_root(large[0] * large[0] + large[1] * large[1]);
-    let naive_small: f64 = F64SquareRoot::square_root(small[0] * small[0] + small[1] * small[1]);
+    let large_error: f64 = F64::maximum(large_difference, F64::negate(large_difference));
+    let small_error: f64 = F64::maximum(small_difference, F64::negate(small_difference));
+    let naive_large: f64 = F64::square_root(large[0] * large[0] + large[1] * large[1]);
+    let naive_small: f64 = F64::square_root(small[0] * small[0] + small[1] * small[1]);
     let mut untouched: [f64; 2] = [8.0, 9.0];
     let late_overflow: [f64; 2] = [1.0, 4.0e200];
     let overflow: bool = try_axpy_f64(1.0e200, &late_overflow[..], &mut untouched[..]);

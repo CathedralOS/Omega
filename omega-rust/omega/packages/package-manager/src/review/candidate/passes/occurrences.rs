@@ -501,9 +501,9 @@ impl<'pass> PackageReviewRound<'pass> {
                     )?;
                 let bundle = review.build_handoff();
                 if review.resolution() != custody.resolution()
-                    || bundle.package() != Some(dependency.identity())
+                    || bundle.package() != dependency.identity()
                     || bundle.source_consumption_commitment()
-                        != Some(review.source_consumption_commitment())
+                        != review.source_consumption_commitment()
                 {
                     return Err(CompileResolvedPackageReviewsError::CompilationInputs {
                         package: key.clone(),
@@ -819,9 +819,7 @@ impl<'pass> PackageReviewRound<'pass> {
             policy,
             policy_canonical_bytes,
         } = evidence;
-        if build_handoff.package() != Some(key.identity())
-            || build_handoff.target() != Some(checked_target)
-        {
+        if build_handoff.package() != key.identity() || build_handoff.target() != checked_target {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: key.clone(),
             });

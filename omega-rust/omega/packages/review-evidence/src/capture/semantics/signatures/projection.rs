@@ -63,10 +63,9 @@ impl<'a> SignatureProjection<'a> {
                 projected.plan_laid_layouts = previous.plan_laid_layouts;
                 projected.plan_laid_target_layouts = previous.plan_laid_target_layouts;
                 projected.plan_laid_schema_fields = previous.plan_laid_schema_fields;
-                projected.plan_laid_retired_field_identities =
-                    previous.plan_laid_retired_field_identities;
                 projected.placed_view_plans = previous.placed_view_plans;
                 projected.semantic_domains = previous.semantic_domains;
+                projected.external_bindings = previous.external_bindings;
                 projected.machine_specializations = previous.machine_specializations;
                 projected
             }
@@ -86,8 +85,6 @@ fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
     tables.propositions = source.tables.propositions.clone();
     tables.proposition_binders = source.tables.proposition_binders.clone();
     tables.state_parameters = source.tables.state_parameters.clone();
-    tables.machines = source.tables.machines.clone();
-    tables.conformances = source.tables.conformances.clone();
     tables.traits = source.tables.traits.clone();
     tables.trait_requirements = source.tables.trait_requirements.clone();
     tables.trait_machine_signatures = source.tables.trait_machine_signatures.clone();
@@ -104,10 +101,9 @@ fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
     projected.plan_laid_layouts = source.plan_laid_layouts.clone();
     projected.plan_laid_target_layouts = source.plan_laid_target_layouts.clone();
     projected.plan_laid_schema_fields = source.plan_laid_schema_fields.clone();
-    projected.plan_laid_retired_field_identities =
-        source.plan_laid_retired_field_identities.clone();
     projected.placed_view_plans = source.placed_view_plans.clone();
     projected.semantic_domains = source.semantic_domains.clone();
+    projected.external_bindings = source.external_bindings.clone();
     projected.machine_specializations = source.machine_specializations.clone();
     projected
 }

@@ -38,7 +38,7 @@ pub use compiler_builtins::{
 };
 pub(crate) use compiler_builtins::{
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
-    selected_execution, validate_numeric_realization_owners,
+    validate_external_provider_owners,
 };
 pub use diagnostics::realization_error;
 
@@ -124,7 +124,7 @@ pub(crate) fn admit_native_providers<'request>(
         settlements::settle_provider_executions(input, request, artifact.view().identity())?;
     let mut settlements = settlements;
     let (builtin_settlements, builtin_mechanisms) =
-        compiler_builtins::settle_compiler_builtins(input, request, installation.as_ref())?;
+        compiler_builtins::settle_compiler_builtins(input, request)?;
     settlements.extend(builtin_settlements);
     mechanisms.extend(builtin_mechanisms);
     for settlement in &settlements {

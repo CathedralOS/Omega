@@ -108,7 +108,6 @@ pub fn project_build_program(
 /// diagnostic location. The source/typing owner must project its resolver roots
 /// with this same declaration selection before appending another cohort.
 pub fn project_source_program(original: &TypedTrees, sources: &source::SourceMap) -> TypedTrees {
-    trace_generated_call_membership(original, "source_activation.before");
     let instances = instantiated_declarations(original);
     let derived = |symbol| is_derived_declaration(original, &instances, symbol);
     let generated_methods = original
@@ -164,83 +163,7 @@ pub fn project_source_program(original: &TypedTrees, sources: &source::SourceMap
                 .any(|occurrence| !excluded.contains(&occurrence))
     });
     program.excluded_authored_selection_occurrences = excluded.into();
-    trace_generated_call_membership(&program, "source_activation.after");
     program
-}
-
-/// Temporary lifecycle observation shared with the source checking entrance.
-/// Backing declarations and receipts are printed without promoting them into
-/// executable roots or supplying a missing call signature.
-pub fn trace_generated_call_membership(program: &TypedTrees, stage: &str) {
-    if std::env::var_os("OMEGA_CALL_SIGNATURE_TRACE").is_none() {
-        return;
-    }
-    let references = typed_trees::references::collect_program_references(program);
-    let mut missing = references
-        .callable_uses
-        .into_iter()
-        .filter_map(|target| {
-            let symbol = program.symbols.get(target);
-            let owner = match symbol.kind {
-                symbols::SymbolKind::Machine if program.machine_by_symbol(target).is_none() => {
-                    target
-                }
-                symbols::SymbolKind::State
-                    if program.state_by_symbol(target).is_none()
-                        && program.symbols.get(symbol.parent).kind
-                            == symbols::SymbolKind::Machine =>
-                {
-                    symbol.parent
-                }
-                _ => return None,
-            };
-            (symbol.generated_from.is_valid()
-                || program.symbols.get(owner).generated_from.is_valid())
-            .then_some((target, owner))
-        })
-        .collect::<Vec<_>>();
-    missing.sort_unstable_by_key(|(target, _)| (target.arena_index(), target.generation()));
-    eprintln!(
-        "CALL_CLOSURE stage={stage} machines={} specializations={} captures={} missing={}",
-        program.machines().len(),
-        program.machine_specializations.len(),
-        program.captured_machine_applications.len(),
-        missing.len(),
-    );
-    for (target, owner) in missing.into_iter().take(16) {
-        let backing = program
-            .tables
-            .machines
-            .iter()
-            .filter(|(_, machine)| machine.symbol == owner)
-            .map(|(_, machine)| {
-                (
-                    program.machine_states(machine).len(),
-                    program
-                        .machine_states(machine)
-                        .iter()
-                        .find(|state| state.symbol == target)
-                        .map(|state| (program.state_parameters(state).len(), state.return_type)),
-                )
-            })
-            .take(2)
-            .collect::<Vec<_>>();
-        eprintln!(
-            "CALL_CLOSURE stage={stage} target={target:?} kind={:?} origin={:?} owner={owner:?} owner_origin={:?} root_owner={} backing={backing:?} specialization={} capture={}",
-            program.symbols.get(target).kind,
-            program.symbols.get(target).generated_from,
-            program.symbols.get(owner).generated_from,
-            program.machine_by_symbol(owner).is_some(),
-            program
-                .machine_specializations
-                .iter()
-                .any(|row| row.instance == owner),
-            program
-                .captured_machine_applications
-                .iter()
-                .any(|(_, row)| row.instance == owner),
-        );
-    }
 }
 
 fn instantiated_declarations(program: &dyn crate::CheckingInput) -> HashSet<SymbolHandle> {
@@ -337,26 +260,18 @@ pub fn project_selected_program(
     if selection.is_all() {
         return original.typed_program().clone();
     }
-    // A selection can precede ordinary specialization. A newly emitted
-    // dependency keeps its template's source span for diagnostics, so absence
-    // of source provenance cannot be the test for retaining its exact use.
-    let instances = instantiated_declarations(original);
-    trace_generated_call_membership(original, "selected_execution.before");
-    let program = project_declarations(
+    project_declarations(
         original,
         |symbol| selection.contains(symbol),
         |symbol| {
-            is_derived_declaration(original, &instances, symbol)
-                || original
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .is_none()
+            original
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .is_none()
         },
         &[],
         None,
-    );
-    trace_generated_call_membership(&program, "selected_execution.after");
-    program
+    )
 }
 
 fn project_declarations(
@@ -415,16 +330,11 @@ fn project_declarations(
 
         // Generated declarations may lack a location or retain their template's
         // location. Exact inbound references carry their work ownership.
-        // A call can retain its exact source path before selecting one
-        // overload. Resolve those candidate dependencies in the original
-        // declaration environment: masking candidates first would make the
-        // reference walk unable to discover them. Only the current roots
-        // supply work; unrelated original bodies remain excluded.
-        let selection = DeclarationSelection::from_symbols(
-            typed_trees::references::collect_program_declarations(&program),
+        let references = collect_program_references_with_roles(
+            &program,
+            &DeclarationSelection::all(),
+            classify_static_arguments,
         );
-        let references =
-            collect_program_references_with_roles(original, &selection, classify_static_arguments);
         let before = synthesized.len();
         for mut symbol in references.symbols {
             while symbol.is_valid() && retain_reference(symbol) {
@@ -519,6 +429,12 @@ fn project_declarations(
         .collect::<HashSet<_>>();
     program.expression_table.retain_expression_roots(|handle| {
         expressions.contains(&handle) || orphan_obligations.contains(&handle)
+    });
+    program.target_machine_families.retain_mut(|family| {
+        family
+            .members
+            .retain(|member| retained.contains(&member.machine));
+        !family.members.is_empty()
     });
     program
 }

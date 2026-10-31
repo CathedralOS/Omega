@@ -13,29 +13,37 @@ ensures result == 7
 {
     value
 }
-boundary trait SelectedReceive {
-    machine receive(first: u64, ignored: u64) -> u64 reaches
-requires first == 7
-ensures result == 7;
-}
-CheckedReceive satisfies SelectedReceive {
-    machine receive(first: u64, ignored: u64) -> u64
+windows_x86_64 machine receive(first: u64, ignored: u64) -> u64
 requires first == 7
 ensures result == 7
 {
     seven(first)
 }
+
+linux_x86_64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
+ensures result == 7
+{
+    seven(first)
 }
 
+macos_arm64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
+ensures result == 7
+{
+    seven(first)
+}
 
-
-
-
-
+linux_arm64 machine receive(first: u64, ignored: u64) -> u64
+requires first == 7
+ensures result == 7
+{
+    seven(first)
+}
 
 machine main() crashes Trap {
     let mut source: u64 = 7;
-    let observed: u64 = SelectedReceive::receive(source, overwrite(&mut source));
+    let observed: u64 = receive(source, overwrite(&mut source));
     let difference: u64 = observed - 7;
     transition difference == 0 && source == 9 {
         true -> done()

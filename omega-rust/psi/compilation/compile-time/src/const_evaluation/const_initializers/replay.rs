@@ -158,18 +158,11 @@ pub(crate) fn validate(
             continue;
         }
         let has_calls = retained_call || authored_call;
-        if !has_calls
-            && !declaration.requires_value_replay
-            && !contains_floating_component(typed, declaration.declared_type)
-        {
+        if !has_calls && !contains_floating_component(typed, declaration.declared_type) {
             continue;
         }
-        validate_replay_roots(
-            typed,
-            declaration,
-            has_calls || declaration.requires_value_replay,
-        )
-        .map_err(|reason| super::failure(reference, reason))?;
+        validate_replay_roots(typed, declaration, has_calls)
+            .map_err(|reason| super::failure(reference, reason))?;
         let first_leaf = leaves.len();
         let identity = CanonicalConstIdentity {
             type_name: String::new(),
@@ -350,7 +343,7 @@ pub(crate) fn validate(
                     .is_some_and(|selection| selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call))
                 || crate::const_evaluation::const_generic_expressions::initializer_contains_call(program, owner.authored_initializer)
                     .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
-            if (has_calls || owner.requires_value_replay)
+            if has_calls
                 && !replay_declarations
                     .iter()
                     .any(|candidate| candidate.symbol == owner.symbol)

@@ -1,12 +1,11 @@
-// Inclusive f64 0.0 <= value <= 0.25 entails admit's 0.0 <= value <= 0.5.
 // Canonical float ranges as parameter and return contracts:
 // every delivery is proven from the delivered value's facts —
 // literals, a narrower declared range widening into a wider
 // one, and entry contracts.
 //
 //   * machine admit(value: f64) -> f64 requires value >= 0.0 && value <= 0.5
-//   * forward(value: f64) -> f64 requires value >= 0.0 && value <= 0.25
-//     delivers to admit — narrower contract satisfies wider.
+//   * orward(value: f64) -> f64 requires value >= 0.0 && value <= 0.25
+//     delivers to dmit — narrower contract satisfies wider.
 //   * let bounded: f64 = value — local delivery.
 //
 // Expected exit: 0
@@ -26,7 +25,7 @@ requires value >= 0.0 && value <= 0.25
 
 data Main { hits: i32 in Wrapping; }
 
-machine observe(main: &mut Main) crashes Trap {
+machine Main::main(main: &mut Main) crashes Trap {
     main.hits = 0;
     let forwarded: f64 = forward(0.25);
     let literal: f64 = admit(0.125);
@@ -41,5 +40,5 @@ machine observe(main: &mut Main) crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
-    observe(&mut entry_storage);
+    Main::main(&mut entry_storage);
 }

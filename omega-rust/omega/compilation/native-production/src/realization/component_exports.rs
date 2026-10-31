@@ -150,7 +150,7 @@ pub fn emit_component_exports<'input>(
         )]);
     }
     for (export, work) in inputs.exports().iter().zip(works) {
-        let entry = terminal_psi::TerminalCallable::Machine(export.candidate.candidate);
+        let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
         let (input, execution) = work.lower(scalars.as_ref().map(|scalars| {
             terminal_psi_to_abstract_operations::NativeScalarApplications {
                 completed: scalars.completed,

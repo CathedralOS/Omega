@@ -37,9 +37,8 @@ pub use language_semantics::type_identity::{
 };
 pub use lifetime_parameters::{
     LifetimeParameterIdentity, applied_lifetime_parameter_identity,
-    applied_lifetime_parameter_identity_with_supplier, apply_resolved_lifetime_parameter_identity,
-    declaration_lifetime_parameters, lifetime_parameter_identity, lifetime_parameter_name,
-    portable_lifetime_parameter_identity,
+    applied_lifetime_parameter_identity_with_supplier, lifetime_parameter_identity,
+    lifetime_parameter_name, portable_lifetime_parameter_identity,
 };
 pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
@@ -493,20 +492,6 @@ pub struct ExactOwnerTypeIdentityRequest<'a> {
 }
 
 impl TypedTrees {
-    /// Read the retained field declaration of a qualified value carrier.
-    /// The caller retains the complete qualified type for identity, validity,
-    /// access and custody judgments; this query supplies no establishment.
-    /// References are not crossed, since their storage is a descriptor.
-    pub fn closed_data_field_definition(
-        &self,
-        reference: TypeReferenceHandle,
-    ) -> Option<&crate::data::DataDefinition> {
-        self.closed_data_definition(
-            self.type_reference_table
-                .unconstrained_type_reference(reference),
-        )
-    }
-
     /// Resolve an unwrapped nominal carrier to its uniquely retained closed
     /// declaration. Named carriers may retain erased lifetime binders, but
     /// neither route returns a declaration with open type parameters.

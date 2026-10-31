@@ -1,14 +1,6 @@
-use omega::language::core::external_binding;
 // Darwin import provider canary: the supported target selects its exact entry.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "external_leaf_dllimport_compile");
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-
- Build::bind<Leaf::exit>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libSystem.B.dylib",
-            symbol: "_exit",
-        },
-    });
 }

@@ -1,13 +1,5 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "native_provider_unoffered_read");
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-
- Build::bind<Probe::read>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "read", version: "GLIBC_2.2.5",
-    } });
- Build::bind<Probe::read>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "read", version: "GLIBC_2.17",
-    } });
 }

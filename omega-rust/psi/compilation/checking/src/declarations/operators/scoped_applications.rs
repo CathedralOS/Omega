@@ -255,12 +255,6 @@ pub fn scoped_operator_application<'program>(
                     crate::value_custody::literals::has_anonymous_numeric_results(program, operand)
                 })
         });
-    let canonical = typed_trees::operator::canonical_primitive_operator_meanings(
-        program,
-        spelling,
-        operand_types,
-        program.expression_table.source_span(expression),
-    );
     let builtin_indexed = program.expression_table.indexed_node(expression).is_some()
         && matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range)
         && operand_types
@@ -278,29 +272,28 @@ pub fn scoped_operator_application<'program>(
         && if spelling == OperatorSpelling::Index {
             typed_trees::operator::builtin_index_read_is_spelled(
                 program,
-                scope.owner,
+                machine,
                 expression,
                 operand_types,
             )
         } else {
             typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,
-                scope.owner,
+                machine,
                 expression,
                 spelling,
                 operand_types,
             )
         };
-    let builtin = canonical.is_empty()
-        && (builtin_indexed
-            || (carriers
-                && typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    program,
-                    scope.owner,
-                    expression,
-                    spelling,
-                    operand_types,
-                )));
+    let builtin = builtin_indexed
+        || (carriers
+            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                scope.owner,
+                expression,
+                spelling,
+                operand_types,
+            ));
     let domain_builtin = carriers
         && typed_trees::closed_numeric::has_builtin_anonymous_operands(
             program, expression, spelling,
@@ -315,11 +308,6 @@ pub fn scoped_operator_application<'program>(
                     .map_or_else(SymbolHandle::invalid, |domain| domain.symbol),
             )
         })
-        .chain(
-            canonical
-                .iter()
-                .map(|meaning| (meaning.requirement.symbol, SymbolHandle::invalid())),
-        )
         .collect::<Vec<_>>();
     let (status, selected_symbol) = super::selection::select_scoped_candidates(
         &identities,
@@ -341,7 +329,6 @@ pub fn scoped_operator_application<'program>(
             });
         }
     }
-    candidates.extend(canonical.into_iter().map(ScopedOperatorApplication::Trait));
     ScopedOperatorResolution {
         candidates,
         status,

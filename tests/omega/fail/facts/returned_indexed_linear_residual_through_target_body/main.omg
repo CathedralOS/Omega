@@ -20,23 +20,34 @@ ensures result == 7
 {
     receipt.code
 }
-boundary trait SelectedAcross {
-    machine across() reaches
-crashes Trap;
-}
-CheckedAcross satisfies SelectedAcross {
-    machine across() crashes Trap
-{
+windows_x86_64 machine across() crashes Trap {
     let seed: Seed = Seed { code: SEED_CODE };
     let difference: u64 = consume(issue(seed.code).items[0]) - 7;
     transition difference == 0 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
+linux_x86_64 machine across() crashes Trap {
+    let seed: Seed = Seed { code: SEED_CODE };
+    let difference: u64 = consume(issue(seed.code).items[0]) - 7;
+    transition difference == 0 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
-
-
-
+linux_arm64 machine across() crashes Trap {
+    let seed: Seed = Seed { code: SEED_CODE };
+    let difference: u64 = consume(issue(seed.code).items[0]) - 7;
+    transition difference == 0 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+macos_arm64 machine across() crashes Trap {
+    let seed: Seed = Seed { code: SEED_CODE };
+    let difference: u64 = consume(issue(seed.code).items[0]) - 7;
+    transition difference == 0 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
 machine main() crashes Trap {
-    SelectedAcross::across();
+    across();
 }

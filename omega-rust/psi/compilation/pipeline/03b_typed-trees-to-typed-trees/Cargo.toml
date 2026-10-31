@@ -9,7 +9,6 @@ name = "typed_trees_to_typed_trees"
 path = "src/lib.rs"
 
 [dependencies]
-source = { path = "../../../foundation/source" }
 compiler-storage = { path = "../../../foundation/compiler-storage" }
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
@@ -20,6 +19,7 @@ language-semantics = { path = "../../../foundation/language-semantics" }
 numerics = { path = "../../../foundation/numerics" }
 proof = { path = "../../proof" }
 representation-selections = { path = "../../checking/representation-planning/selections" }
+source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 typed-trees = { path = "../../representations/typed-trees" }
 validation = { path = "../../checking" }

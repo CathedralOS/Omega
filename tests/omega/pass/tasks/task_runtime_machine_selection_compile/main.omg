@@ -7,19 +7,19 @@ use omega::language::core::task;
 // concrete activation target; no runtime callable or inferred capture exists.
 data CanaryTaskRuntime { }
 
-boundary machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
+machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> Task<T>
 requires machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::start
-;
+via ForeignBinding::CompilerIntrinsic;
 
-boundary machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
+machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> StartOutcome<T, Arguments>
 requires machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
-;
+via ForeignBinding::CompilerIntrinsic;
 
 CanaryTaskRuntimeProvider satisfies TaskRuntime {
     TaskRuntime::start = CanaryTaskRuntime::start;
@@ -27,18 +27,15 @@ CanaryTaskRuntimeProvider satisfies TaskRuntime {
 }
 
 data TargetProviders {}
-boundary trait SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders) reaches
-;
-}
-CheckedTargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders)
-{
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
 }
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
 }
-
-
+windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
+}
 
 public boundary data Sleeper;
 boundary machine Sleeper::park(token: u64) suspends;

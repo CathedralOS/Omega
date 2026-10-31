@@ -55,9 +55,6 @@ pub(in crate::symbols::symbol_table) fn type_parameter_seed<'name>(
     has_sources: bool,
 ) -> SymbolSeed<'name> {
     let kind = match parameter.kind {
-        symbol_resolved_trees::data::TypeParameterKind::Implementation => {
-            SymbolKind::ConformanceParameter
-        }
         symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
             SymbolKind::MachineParameter
         }
@@ -80,6 +77,13 @@ pub(super) fn machine_symbol_seed<'name>(
     machine: &'name symbol_resolved_trees::machine::Machine,
     has_sources: bool,
 ) -> SymbolSeed<'name> {
+    if machine.target.is_some() {
+        return symbol_seed(
+            SymbolKind::Machine,
+            &machine.target_symbol_name,
+            has_sources,
+        );
+    }
     if has_sources
         && !machine.name.is_source_backed()
         && let Some(attached) = machine

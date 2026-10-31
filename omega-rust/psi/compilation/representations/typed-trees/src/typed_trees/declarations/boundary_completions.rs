@@ -47,6 +47,24 @@ pub fn boundary_requirement_completion(
     program: &TypedTrees,
     requirement: SymbolHandle,
 ) -> semantic_vocabulary::BoundaryCompletion {
+    // A portable family head has no satisfaction edges of its own. Its
+    // completion must hold for every retained target member, independently
+    // of which target Omega will select. Never inherit one prototype's
+    // promise or turn a checked body into an external leaf.
+    if let Some(family) = program
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == requirement)
+    {
+        let mut members = family.members.iter();
+        if let Some(first) = members.next() {
+            let completion = machine_completion(program, first.machine);
+            if members.all(|member| machine_completion(program, member.machine) == completion) {
+                return completion;
+            }
+        }
+        return semantic_vocabulary::BoundaryCompletion::NormalReturn;
+    }
     machine_completion(program, requirement)
 }
 

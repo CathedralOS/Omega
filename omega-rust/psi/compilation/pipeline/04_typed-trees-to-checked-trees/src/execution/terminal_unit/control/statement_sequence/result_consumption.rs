@@ -471,13 +471,10 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             .chain(prepared_calls.operations_for(machine, state))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .any(|operation| {
-                // Every materialized descriptor has a retirement owner,
-                // including an exact, proven-empty source loan roster.
-                // Calls, stored values and direct formations share that join.
-                captured_reference_result(
-                    program, facts, machine, state, results, operation, operations,
-                )
-                .is_some()
+                operation
+                    .call()
+                    .and_then(|call| call.structural_custody())
+                    .is_some()
             })
     {
         return Some(());
@@ -967,13 +964,10 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             .chain(prepared_calls.operations_for(machine, state))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .any(|operation| {
-                // Every materialized descriptor has a retirement owner,
-                // including an exact, proven-empty source loan roster.
-                // Calls, stored values and direct formations share that join.
-                captured_reference_result(
-                    program, facts, machine, state, results, operation, operations,
-                )
-                .is_some()
+                operation
+                    .call()
+                    .and_then(|call| call.structural_custody())
+                    .is_some()
             })
     {
         return Some(());
@@ -1802,7 +1796,6 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
             | checked_trees::CheckedStructuralValueKind::Scalar { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
             | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
-            | checked_trees::CheckedStructuralValueKind::FixedByteArrayLiteral { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}
         }
     }

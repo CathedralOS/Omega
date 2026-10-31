@@ -1,13 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedTargetProvidersProviderDefaults, LinuxX8664TargetProvidersProviderDefaults>(builder, linux_x86_64);
-    Build::select_provider<SelectedTargetProvidersProviderDefaults, WindowsX8664TargetProvidersProviderDefaults>(builder, windows_x86_64);
-    Build::select_provider<SelectedTargetProvidersProviderDefaults, LinuxX8664TargetProvidersProviderDefaults>(builder, linux_arm64);
-    Build::select_provider<SelectedTargetProvidersProviderDefaults, WindowsX8664TargetProvidersProviderDefaults>(builder, macos_arm64);
-    Build::select_provider<SelectedExpected, LinuxX8664Expected>(builder, linux_x86_64);
-    Build::select_provider<SelectedExpected, WindowsX8664Expected>(builder, windows_x86_64);
-    Build::select_provider<SelectedExpected, LinuxX8664Expected>(builder, linux_arm64);
-    Build::select_provider<SelectedExpected, WindowsX8664Expected>(builder, macos_arm64);
-
     Build::application(builder, "target_scoped_constant_realization_parameter_invalid");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

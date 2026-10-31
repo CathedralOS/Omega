@@ -1,6 +1,6 @@
 use omega::language::core::float_operations;
 
-const NAN: f32 = F32SquareRoot::square_root(-1.0f32);
+const NAN: f32 = F32::square_root(-1.0f32);
 
 // Reading the representation requests bytes, unlike compile-time classification.
 machine bits(value: f32) -> u32 {

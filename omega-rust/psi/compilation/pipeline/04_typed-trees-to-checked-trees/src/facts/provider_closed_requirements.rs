@@ -26,6 +26,9 @@ pub(crate) fn record_provider_closed_requirements(
             && program.machine_type_parameters(machine).is_empty()
     }) {
         for conformance in program.machine_trait_conformances(provider) {
+            if conformance.external_binding.is_some() {
+                continue;
+            }
             // A closed provider keeps the original authored satisfaction edge.
             // Rejoin its entire trait application before its local const tuple.
             if let Some(scope) = AppliedTraitScope::from_machine_conformance(

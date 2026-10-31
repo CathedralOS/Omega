@@ -16,7 +16,7 @@ public machine contact(a:Disk,b:Disk)->f64 {
   true -> root(speed,radial,discriminant) _ -> absent()
  }
  machine root(speed:f64,radial:f64,discriminant:f64)->f64 {
-  let time:f64=(0.0-radial-F64SquareRoot::square_root(discriminant))/speed;
+  let time:f64=(0.0-radial-F64::square_root(discriminant))/speed;
   transition time >= -0.000000001 {true -> found(time) _ -> absent()}
  }
  machine found(time:f64)->f64 {max_f64(0.0,time)}
@@ -66,7 +66,7 @@ public machine resolve(lab:&mut Lab) {
  transition lab.first < 4 && lab.second < 4 {true -> impulse(lab) _ -> done()}
  machine impulse(lab:&mut Lab) requires lab.first < 4 && lab.second < 4 {
   let a:Disk=lab.disks[lab.first]; let b:Disk=lab.disks[lab.second];
-  let dx:f64=b.x-a.x; let dy:f64=b.y-a.y; let distance:f64=F64SquareRoot::square_root(dx*dx+dy*dy);
+  let dx:f64=b.x-a.x; let dy:f64=b.y-a.y; let distance:f64=F64::square_root(dx*dx+dy*dy);
   lab.normal_x=dx/distance; lab.normal_y=dy/distance;
   lab.contact_error=distance-a.radius-b.radius;
   let radial:f64=(b.vx-a.vx)*lab.normal_x+(b.vy-a.vy)*lab.normal_y;

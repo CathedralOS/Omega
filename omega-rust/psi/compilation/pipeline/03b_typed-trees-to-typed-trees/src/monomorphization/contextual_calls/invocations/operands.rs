@@ -142,19 +142,5 @@ pub(super) fn derive(
     {
         return None;
     }
-    // The derived telescope leaves this invocation's lexical scope. Carry the
-    // supplying region declarations with each operand, including inferred
-    // nested types, before it enters a public or selected callable signature.
-    for (_, actual) in &mut types {
-        *actual = program
-            .static_operand_type_reference_in_scope(
-                &StaticMachineArgument {
-                    type_reference: *actual,
-                    ..StaticMachineArgument::default()
-                },
-                scope.owner(),
-            )
-            .ok()?;
-    }
     Some(types)
 }

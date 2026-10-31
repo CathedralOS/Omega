@@ -29,10 +29,6 @@ pub(crate) fn encode_contract_operator_meaning(
             encoder.tag("declared", 1);
             encoder.field_by("coordinate", coordinate, encode_operator_coordinate)?;
         }
-        PackageReviewContractOperatorMeaning::TraitRequirement(coordinate) => {
-            encoder.tag("trait_requirement", 2);
-            encoder.field_by("coordinate", coordinate, encode_operator_coordinate)?;
-        }
     }
     Ok(())
 }

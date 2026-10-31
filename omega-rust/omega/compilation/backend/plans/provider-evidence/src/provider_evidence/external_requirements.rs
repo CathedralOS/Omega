@@ -89,6 +89,7 @@ impl SelectedProviderPlanFacts {
             }
             let requirement = self.identity_text(row.requirement_identity);
             if self.specialized_requirement_row(requirement).is_some()
+                || self.family_realization_row(requirement).is_some()
                 || self.plans.iter().any(|candidate| {
                     candidate.rows.iter().any(|selected| {
                         candidate.identities.text(selected.requirement_identity) == requirement

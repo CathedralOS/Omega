@@ -5,8 +5,20 @@ public boundary trait NativeBytes {
     machine release(pointer: addr) reaches;
 }
 public data LibSystemBytes {}
-
-
+public macos_arm64 machine calloc_binding() -> ForeignBinding<17, 7, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_calloc",
+    } }
+}
+public macos_arm64 machine free_binding() -> ForeignBinding<17, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_free",
+    } }
+}
+macos_arm64 boundary machine LibSystemBytes::allocate(count: u64, width: u64) -> addr
+satisfies NativeBytes::allocate via calloc_binding();
+macos_arm64 boundary machine LibSystemBytes::release(pointer: addr)
+satisfies NativeBytes::release via free_binding();
 data Main {}
 machine Main::main(context: &mut Main) reaches NativeBytes crashes Trap {
     let overflow: addr = NativeBytes::allocate(18446744073709551615u64, 2u64);

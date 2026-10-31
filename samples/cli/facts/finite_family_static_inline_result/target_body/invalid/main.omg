@@ -30,15 +30,8 @@ machine check(first: Prepared<16>, second: Prepared<32>) crashes Trap {
 }
 
 data Holder { first: Prepared<16>; second: Prepared<32>; }
-boundary trait SelectedPair {
-    machine pair() -> Holder reaches
-;
-}
-CheckedPair satisfies SelectedPair {
-    machine pair() -> Holder
-{ Holder { first: Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] }, second: Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] } } }
-}
-
-
-
-machine main() crashes Trap { let holder: Holder = SelectedPair::pair(); check(holder.first, holder.second); }
+linux_x86_64 machine pair() -> Holder { Holder { first: Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] }, second: Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] } } }
+linux_arm64 machine pair() -> Holder { Holder { first: Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] }, second: Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] } } }
+macos_arm64 machine pair() -> Holder { Holder { first: Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] }, second: Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] } } }
+windows_x86_64 machine pair() -> Holder { Holder { first: Prepared { bytes: [11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23] }, second: Prepared { bytes: [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29] } } }
+machine main() crashes Trap { let holder: Holder = pair(); check(holder.first, holder.second); }

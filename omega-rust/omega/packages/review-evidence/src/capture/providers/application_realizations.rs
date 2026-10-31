@@ -31,7 +31,7 @@ pub(crate) fn project_boundary_application_realizations(
     // an inactive generic demand must not require an active specialization plan.
     let mut applications = Vec::new();
     for application in &compilation.facts.operators.boundary_applications {
-        if application_is_selected(compilation, application)? {
+        if application_is_selected(compilation, application.site)? {
             applications.push(application);
         }
     }
@@ -225,28 +225,34 @@ fn project_specialized_checked_body_applications(
     Ok(())
 }
 
-/// Filter only using immutable selected-closure custody. An independently
-/// supplied review candidate cannot invent an inactive origin to omit a use.
+/// Closed realization rows describe the selected activation, not all checked
+/// bodies. Inactive members retain callable contracts and external-supply
+/// disclosure; they must neither demand nor borrow this activation's plan.
 fn application_is_selected(
     compilation: &PackageReviewInput<'_>,
-    application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
+    site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
 ) -> Result<bool, Vec<Diagnostic>> {
-    let origin = match application.site {
+    let origin = match site {
         checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { origin, .. }
         | checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
             origin, ..
         } => origin,
+        // No known machine origin means no proof of inactive scope: keep the
+        // ordinary exact application/plan checks, rather than omit the use.
         checked_trees::CheckedBoundaryOperatorApplicationUseSite::Statement(_) => return Ok(true),
     };
     let Some(machine) = origin.machine_symbol() else {
         return Ok(true);
     };
     let selected = compilation
-        .custody
-        .execution()
-        .provider_source
-        .application_declarations()
-        .contains(machine);
+        .authored_machine_target(machine)?
+        .is_none_or(|authored| {
+            compilation
+                .custody
+                .execution()
+                .selected_target_profile
+                .is_some_and(|selected| selected.target_name() == authored)
+        });
     if !selected
         && !compilation
             .custody
@@ -254,10 +260,12 @@ fn application_is_selected(
             .operators
             .boundary_applications
             .iter()
-            .any(|original| original == application)
+            .any(|original| original.site == site)
     {
+        // A supplied fact cannot invent an inactive caller origin to hide an
+        // active use. The exact expression/arm and origin were checked together.
         return Err(vec![Diagnostic::error(
-            "inactive boundary application differs from exact checked occurrence custody",
+            "inactive boundary application differs from checked occurrence custody",
         )]);
     }
     Ok(selected)

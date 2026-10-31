@@ -13,7 +13,6 @@ use language_core::data_layout_queries::DataLayoutQueryKind;
 /// Target/representation inputs stay outside Psi's evaluation sequence.
 pub struct TargetLayoutQueries<'selection> {
     pub target: target::TargetProfile,
-    pub applications: Option<&'selection [build_time_evaluation::LayoutApplicationTargetInput]>,
     pub opaque_representations:
         &'selection [representation_planning::OpaqueRepresentationSelection],
 }
@@ -29,27 +28,6 @@ pub struct TargetLayoutMeasurements<'selection> {
 impl<'selection> LayoutQueryProvider for TargetLayoutQueries<'selection> {
     type Measurements = TargetLayoutMeasurements<'selection>;
 
-    fn layout_target_inputs(&self) -> Vec<layout_plans::LayoutTargetFacts> {
-        match self.applications {
-            Some(inputs) => {
-                let mut targets = Vec::new();
-                for input in inputs {
-                    if !targets.contains(&input.target) {
-                        targets.push(input.target.clone());
-                    }
-                }
-                targets
-            }
-            None => self.target.layout_target_facts().into_iter().collect(),
-        }
-    }
-
-    fn layout_application_inputs(
-        &self,
-    ) -> Option<&[build_time_evaluation::LayoutApplicationTargetInput]> {
-        self.applications
-    }
-
     fn prepare(&self, program: &TypedTrees) -> Self::Measurements {
         let target = self.target;
         // The physical backend consumes invariant geometry. A family needs one
@@ -61,7 +39,7 @@ impl<'selection> LayoutQueryProvider for TargetLayoutQueries<'selection> {
             .any(|plan| {
                 matches!(
                     plan.realizations,
-                    checked_trees::typed_trees::PlanLaidRealizations::TargetInputs(_)
+                    checked_trees::typed_trees::PlanLaidRealizations::TargetFamily(_)
                 )
             })
             .then(|| {

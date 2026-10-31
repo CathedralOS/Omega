@@ -417,16 +417,9 @@ pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnosti
                 if local.role == LocalBindingRole::DispatchSubject {
                     errors.push(
                         diagnostics::Diagnostic::error(format!(
-                            "cannot determine the dispatch subject storage type in `{}::{}`{}",
+                            "cannot determine the dispatch subject storage type in `{}::{}`",
                             machine.name.as_str(),
                             state.name.as_str(),
-                            unresolved_subject_context(
-                                program,
-                                machine,
-                                state,
-                                local.initial_value,
-                                &mut Vec::new()
-                            ),
                         ))
                         .with_source_span(
                             program.expression_table.source_span(local.initial_value),
@@ -451,66 +444,5 @@ pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnosti
         } else {
             Err(formation_errors)
         }
-    }
-}
-
-// Explain the producing operation without inventing a type from its consumer.
-fn unresolved_subject_context(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: ExpressionHandle,
-    visited: &mut Vec<ExpressionHandle>,
-) -> String {
-    if !expression.is_valid() || visited.contains(&expression) {
-        return String::new();
-    }
-    visited.push(expression);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => path
-            .resolved_symbol()
-            .and_then(|symbol| program.state_local_declaration(state, symbol))
-            .map(|(_, local)| {
-                unresolved_subject_context(program, machine, state, local.initial_value, visited)
-            })
-            .unwrap_or_default(),
-        ExpressionNode::Indexed(indexed) => {
-            let operands = [indexed.collection, indexed.index].map(|operand| {
-                validation::expression_result_type_reference(program, machine, state, operand)
-            });
-            let labels = operands.map(|reference| {
-                reference
-                    .map(|reference| program.display_type_reference(reference))
-                    .unwrap_or_else(|| "unresolved".into())
-            });
-            format!(
-                " (indexing collection `{}` with selector `{}`)",
-                labels[0], labels[1]
-            )
-        }
-        ExpressionNode::Binary(binary) => {
-            let operands = [binary.left, binary.right].map(|operand| {
-                validation::expression_result_type_reference(program, machine, state, operand)
-            });
-            let mut context = format!(
-                " (operator {:?}, operands {} and {})",
-                binary.operator,
-                operands[0]
-                    .map(|reference| program.display_type_reference(reference))
-                    .unwrap_or_else(|| "unresolved".into()),
-                operands[1]
-                    .map(|reference| program.display_type_reference(reference))
-                    .unwrap_or_else(|| "unresolved".into())
-            );
-            for (operand, actual) in [binary.left, binary.right].into_iter().zip(operands) {
-                if actual.is_none() {
-                    context.push_str(&unresolved_subject_context(
-                        program, machine, state, operand, visited,
-                    ));
-                }
-            }
-            context
-        }
-        node => format!(" (producing expression: {node:?})"),
     }
 }

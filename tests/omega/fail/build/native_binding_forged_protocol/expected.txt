@@ -1,1 +1,0 @@
-Build binding protocol requires source-issued designated product operands

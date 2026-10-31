@@ -1,1 +1,0 @@
-leaf fact implication in BOTH directions

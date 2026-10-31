@@ -535,7 +535,7 @@ pub(crate) fn derive_normalized_foreign_child(
         || !foreign.binding.has_valid_entry_mechanism()
         || foreign
             .binding
-            .requirement_identity(selected_plan.requirement_application_identities())
+            .requirement_identity(selected_plan.family_realization_identities())
             != Some(selected_requirement)
         || foreign.binding.provider_plan_report_identity() != selected_plan.report_identity()
     {

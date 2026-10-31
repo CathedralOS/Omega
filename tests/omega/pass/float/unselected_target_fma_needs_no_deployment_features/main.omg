@@ -3,19 +3,10 @@
 // A fused operation in the unselected Windows body supplies no Linux ISA demand.
 use omega::language::core::float_operations;
 
-boundary trait SelectedSelectedValue {
-    machine selected_value() -> i32 reaches
-;
-}
-LinuxX8664SelectedValue satisfies SelectedSelectedValue {
-    machine selected_value() -> i32
-{ 7 }
-}
+linux_x86_64 machine selected_value() -> i32 { 7 }
 
-WindowsX8664SelectedValue satisfies SelectedSelectedValue {
-    machine selected_value() -> i32
-{
-    let value: f64 = F64FusedMultiplyAdd::fused_multiply_add(2.0, 3.0, 1.0);
+windows_x86_64 machine selected_value() -> i32 {
+    let value: f64 = F64::fused_multiply_add(2.0, 3.0, 1.0);
     transition value == 7.0 {
         true -> correct()
         false -> incorrect()
@@ -23,10 +14,9 @@ WindowsX8664SelectedValue satisfies SelectedSelectedValue {
     machine correct() -> i32 { 7 }
     machine incorrect() -> i32 { 9 }
 }
-}
 
 machine main() crashes Trap {
-    transition SelectedSelectedValue::selected_value() == 7 {
+    transition selected_value() == 7 {
         true -> done()
         false -> bad()
     }

@@ -387,11 +387,14 @@ crashes Trap
 }
 
 // The head of a trait or conformance member machine, starting at its
-// `machine` keyword: no visibility or `boundary` of its own.
+// `machine` keyword: no visibility, target or `boundary` of its own.
 machine Parser::member_machine_head(start: u64 in Trapping, container: MachineContainer) -> MachineHead {
     MachineHead {
         start: start,
         is_public: false,
+        has_target: false,
+        target_start: 0,
+        target_end: 0,
         is_boundary: false,
         container: container
     }
@@ -503,6 +506,8 @@ crashes Trap
             has_body: false,
             first_expression: parser.machine_first_expression,
             expression_count: (parser.output.expression_count as u64 in Trapping) - parser.machine_first_expression,
+            has_target: false,
+            target: Parser::identifier_span(parser, 0, 0),
             is_boundary: false,
             container: MachineContainer::Refinement,
             is_public: false,

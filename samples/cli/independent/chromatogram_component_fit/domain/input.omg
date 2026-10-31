@@ -128,7 +128,7 @@ crashes Trap
     machine validate(reader: &mut InputReader, chromatogram: &mut Chromatogram,
                    position: i32 in Wrapping, value: i32) -> bool {
         transition position >= 0 && position < 15 && (position >= 10 || value >= 0) {
-            true -> select(reader, chromatogram, position, F64FromI32::from_i32(value))
+            true -> select(reader, chromatogram, position, F64::from_i32(value))
             _ -> false
         }
     }

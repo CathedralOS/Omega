@@ -7,6 +7,45 @@ use arena::HandleSpan;
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 
+impl crate::TypedTrees {
+    /// Authored target membership, including the canonical member whose source
+    /// spelling has no sibling suffix. Selection never changes this identity.
+    pub fn machine_authored_target<'program>(
+        &'program self,
+        machine: &'program Machine,
+    ) -> Option<&'program str> {
+        machine.authored_target.as_ref().map(Identifier::as_str)
+    }
+
+    /// Source target context follows semantic lexical containment, including
+    /// retained specialization/capture correspondence. A nested body inherits
+    /// that context without becoming an authored member of the family roster.
+    pub fn source_target_context<'program>(
+        &'program self,
+        machine: &Machine,
+    ) -> Option<&'program str> {
+        let mut owner = machine.symbol;
+        let mut visited = Vec::new();
+        while owner.is_valid() {
+            owner = self.lifetime_declaration_owner(owner);
+            if !owner.is_valid() || visited.contains(&owner) {
+                return None;
+            }
+            if let Some(declaration) = self.machine_declaration_for_lexical_scope(owner) {
+                if let Some(target) = self.machine_authored_target(declaration) {
+                    return Some(target);
+                }
+            } else if self.symbols.get(owner).kind == symbols::SymbolKind::Machine {
+                // Conflicting or missing retained headers cannot lend context.
+                return None;
+            }
+            visited.push(owner);
+            owner = self.declaration_scope_parent(owner);
+        }
+        None
+    }
+}
+
 /// Whether this declaration's implementation has entered typed storage.
 /// Deferred states retain their real interfaces, not executable empty bodies.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -68,6 +107,16 @@ pub struct Machine {
     /// Normalized by typing together with declaration-call custody. Later
     /// stages consume this purpose rather than recognize a source name.
     pub purpose: MachinePurpose,
+    /// Copied from symbol-resolved trees: the target of a sibling body that
+    /// is checked here and retained through product lowering; `None` for the selected
+    /// declaration and every ordinary machine.
+    pub target: Option<Identifier>,
+    /// Authored target identity, independent of canonical family naming or
+    /// Build execution selection. Consumers never reconstruct it from names.
+    pub authored_target: Option<Identifier>,
+    /// Independent generated Requirement of a product target family. Its
+    /// callable contract has no executable body or provider authority.
+    pub target_family_interface: bool,
     /// Exact source-body presence copied from symbol-resolved trees. Boundary
     /// supply can be either bodyless or a checked adapter.
     pub body_is_present: bool,
@@ -85,6 +134,10 @@ pub struct Machine {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
+    /// Authored same-stack demand of a bodyless external realization, in bytes.
+    /// Zero means the source wrote no `stack N bytes` clause. Copied from
+    /// symbol-resolved trees; later stages must not remeasure the callee.
+    pub admitted_same_stack_bytes: u64,
     /// Exact authored operational-clause keyword occurrences, retained for
     /// package-review source custody and excluded from semantic identity.
     pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
@@ -140,6 +193,54 @@ impl Machine {
     pub fn has_bodyless_signature(&self) -> bool {
         !self.supplies_checked_body() && !self.body_is_present
     }
+
+    /// The spelling of this machine's symbol in the symbol table: the
+    /// authored name, or `<name>::<target>` for a target sibling, whose
+    /// symbol is kept apart from the realized declaration's.
+    pub fn symbol_spelling(&self) -> std::borrow::Cow<'_, str> {
+        match &self.target {
+            Some(target) => {
+                std::borrow::Cow::Owned(format!("{}::{}", self.name.as_str(), target.as_str()))
+            }
+            None => std::borrow::Cow::Borrowed(self.name.as_str()),
+        }
+    }
+}
+
+/// One target-scoped machine family: the authored contract path plus every
+/// target's checked body.
+///
+/// The frontend places one canonical member at the authored path and gives
+/// siblings distinct symbols. Those roles remain stable across realizations.
+/// This roster, not the presence of a sibling suffix, owns target membership.
+/// A canonical body is not a portable contract: direct portable references
+/// remain unsupported until checking carries that independent contract.
+/// Families also retain deployment tags unknown to the native target catalog.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct TargetMachineFamily {
+    /// The authored contract path every member implements
+    /// (`StatLayout::plan`); equal to each member machine's `name`.
+    pub name: Identifier,
+    /// The machine the frontend placed at the family path: the canonical
+    /// body, selected in target-name order independently of the native catalog.
+    /// Portable references initially resolve here, but that resolution alone
+    /// never authorizes using this member's body as a family-wide guarantee.
+    pub canonical: SymbolHandle,
+    /// All members share the declaration's execution phase.
+    pub purpose: MachinePurpose,
+    /// Every authored body keyed by its authored target name, ordered by
+    /// target name. The canonical body appears under its own authored
+    /// target.
+    pub members: Vec<TargetMachineFamilyMember>,
+}
+
+/// One target's body within a [`TargetMachineFamily`].
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct TargetMachineFamilyMember {
+    /// The authored target name (`linux_x86_64`, `demo_target`, ...).
+    pub target: Identifier,
+    /// The typed machine declaration holding this target's body.
+    pub machine: SymbolHandle,
 }
 
 impl Default for Machine {
@@ -159,12 +260,16 @@ impl Default for Machine {
             interface_exposure: Default::default(),
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
             purpose: MachinePurpose::Runtime,
+            target: None,
+            authored_target: None,
+            target_family_interface: false,
             body_is_present: true,
             body_status: MachineBodyStatus::Complete,
             structural_type_equations_pending: false,
             termination_plan: language_semantics::MachineTerminationPlan::default(),
             service_reach_row: language_semantics::ServiceReachRowId::NULL,
             service_reach_is_installation_bound: false,
+            admitted_same_stack_bytes: 0,
             suspends_keyword_source_spans: Vec::new(),
             blocks_keyword_source_spans: Vec::new(),
             lifetime_parameters: Vec::new(),
@@ -227,6 +332,17 @@ pub struct TraitConformance {
     /// identifiers deliberately own text only.
     pub requirement_source_span: Option<source::SourceSpan>,
     pub alias: Option<Identifier>,
+    /// Exact interned identity of the external leaf's structured `via`
+    /// bootstrap binding. New source instead retains `via_expression` until
+    /// hermetic evaluation produces the normalized Omega-owned binding.
+    pub external_binding: Option<language_semantics::ExternalBindingId>,
+    /// Ordinary typed expression after `via`. The admitted source-evaluation
+    /// rung accepts one exact zero-argument direct machine call. Invalid for
+    /// bootstrap bindings and ordinary checked satisfiers.
+    pub via_expression: crate::expression::ExpressionHandle,
+    /// Exact authored `via` keyword occurrence retained separately from the
+    /// semantic binding identity for package-review source custody.
+    pub external_binding_source_span: Option<source::SourceSpan>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -269,26 +385,11 @@ pub fn resolve_satisfied_declaration<'program>(
         let matching = if named.len() == 1 {
             named
         } else {
-            let application = crate::trait_definition::AppliedTraitScope::from_machine_conformance(
-                program,
-                machine,
-                conformance,
-            )?;
-            let actuals = program.state_parameters(entry);
             named
                 .into_iter()
                 .filter(|requirement| {
-                    let formals = program.state_signature_parameters(requirement);
                     program.normalized_result_dispatch_set(requirement.return_type)
                         == implementation_dispatch
-                        && formals.len() == actuals.len()
-                        && formals.iter().zip(actuals).all(|(formal, actual)| {
-                            formal.is_const == actual.is_const
-                                && formal.relevance == actual.relevance
-                                && formal.is_mutable == actual.is_mutable
-                                && application.type_identity(program, formal.type_reference)
-                                    == program.normalized_type_identity(actual.type_reference)
-                        })
                 })
                 .collect()
         };

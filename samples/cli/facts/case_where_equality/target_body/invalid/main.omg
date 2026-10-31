@@ -6,13 +6,7 @@ data Interval [copy] {
 }
 data Main { interval: Interval; width: u64; flag: bool; }
 
-boundary trait SelectedMainMain {
-    machine main(main: &mut Main) reaches
-;
-}
-CheckedMainMain satisfies SelectedMainMain {
-    machine main(main: &mut Main)
-{
+linux_x86_64 machine Main::main(main: &mut Main) {
     transition main.interval {
         Interval::Point { lo, hi } -> take(lo, hi, main)
         Interval::Empty -> done()
@@ -22,4 +16,36 @@ CheckedMainMain satisfies SelectedMainMain {
     }
     machine done() { }
 }
+
+linux_arm64 machine Main::main(main: &mut Main) {
+    transition main.interval {
+        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Empty -> done()
+    }
+    machine take(lo: u64, hi: u64, main: &mut Main) {
+        main.width = hi - lo;
+    }
+    machine done() { }
+}
+
+macos_arm64 machine Main::main(main: &mut Main) {
+    transition main.interval {
+        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Empty -> done()
+    }
+    machine take(lo: u64, hi: u64, main: &mut Main) {
+        main.width = hi - lo;
+    }
+    machine done() { }
+}
+
+windows_x86_64 machine Main::main(main: &mut Main) {
+    transition main.interval {
+        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Empty -> done()
+    }
+    machine take(lo: u64, hi: u64, main: &mut Main) {
+        main.width = hi - lo;
+    }
+    machine done() { }
 }

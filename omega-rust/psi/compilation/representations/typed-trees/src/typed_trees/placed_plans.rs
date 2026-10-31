@@ -269,11 +269,6 @@ pub(crate) fn named_type_reference_through_shells(
 /// target-family alternatives remain guarded until target closure.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidLayout {
-    /// Complete core constructor application; semantic T remains independently named.
-    pub application: crate::types::TypeReferenceHandle,
-    pub semantic_type: crate::types::TypeReferenceHandle,
-    pub policy_application: crate::typed_trees::ClosedConformanceApplication,
-    pub target_inputs: Vec<layout_plans::LayoutTargetFacts>,
     /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
     /// Diagnostic/source-oriented presentation only.
     pub data_name: String,
@@ -295,19 +290,12 @@ pub struct PlanLaidLayout {
     pub realizations: PlanLaidRealizations,
 }
 
-/// Versioned record input of the compiler-owned Schema ABI. Version 3
-/// canonically orders numbered fields and retired identities independently of
-/// the semantic declaration/geometry roster; unused rows are padded.
+/// Versioned active rows of the compiler-owned Schema ABI. Version 1 has a
+/// record shape, no cases or retired identities, and fixed unused-row padding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidSchemaArgument {
     pub abi_version: u16,
     pub fields: arena::HandleSpan<PlanLaidSchemaField>,
-    pub retired_field_identities: arena::HandleSpan<PlanLaidRetiredFieldIdentity>,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
-pub struct PlanLaidRetiredFieldIdentity {
-    pub identity: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -325,20 +313,17 @@ pub enum PlanLaidSchemaFieldKind {
     #[default]
     Scalar,
     Nested,
-    Repeated,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum PlanLaidRealizations {
     Invariant(PlanLaidGeometry),
-    TargetInputs(arena::HandleSpan<PlanLaidTargetLayout>),
+    TargetFamily(arena::HandleSpan<PlanLaidTargetLayout>),
 }
 
 /// Exact member identity accompanies its geometry even for literal-only policies.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidTargetLayout {
-    pub schema_argument: Option<PlanLaidSchemaArgument>,
-    pub target_facts: layout_plans::LayoutTargetFacts,
     pub target: crate::name::Identifier,
     pub machine: symbols::SymbolHandle,
     pub geometry: PlanLaidGeometry,
@@ -349,7 +334,7 @@ impl PlanLaidLayout {
     pub fn invariant_geometry(&self) -> Option<&PlanLaidGeometry> {
         match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetInputs(_) => None,
+            PlanLaidRealizations::TargetFamily(_) => None,
         }
     }
 
@@ -362,7 +347,7 @@ impl PlanLaidLayout {
     ) -> Option<&'a PlanLaidGeometry> {
         match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetInputs(span) => {
+            PlanLaidRealizations::TargetFamily(span) => {
                 let target = target?;
                 typed
                     .plan_laid_target_layouts
@@ -381,7 +366,7 @@ impl PlanLaidLayout {
     ) -> impl Iterator<Item = &'a PlanLaidGeometry> {
         let invariant = match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetInputs(_) => None,
+            PlanLaidRealizations::TargetFamily(_) => None,
         };
         invariant
             .into_iter()
@@ -393,7 +378,7 @@ impl PlanLaidLayout {
     pub fn target_layouts<'a>(&self, typed: &'a crate::TypedTrees) -> &'a [PlanLaidTargetLayout] {
         match self.realizations {
             PlanLaidRealizations::Invariant(_) => &[],
-            PlanLaidRealizations::TargetInputs(span) => {
+            PlanLaidRealizations::TargetFamily(span) => {
                 typed.plan_laid_target_layouts.span_or_empty(span)
             }
         }

@@ -86,7 +86,7 @@ pub(crate) fn resolve_accepted_service_binding(
 /// identity exists.
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     candidates: &[provider_planning::ProviderPlanCandidate],
-    numeric_realizations: &psi_terminal_production::DeclarationCatalog,
+    external_providers: &psi_terminal_production::ExternalProviderDeclarations,
     services: &ServiceDeclarations,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
@@ -233,8 +233,8 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             };
             let numeric = crate::compiler_intrinsic::numeric_execution(
                 crate::NumericProviderSelection {
-                    candidate: numeric_realizations,
-                    custody: numeric_realizations,
+                    candidate: external_providers,
+                    custody: external_providers,
                     provider: retained.provider.provider_type,
                 },
                 plan,
@@ -349,7 +349,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
 /// Declaration facts already came from their source owner: this operation
 /// joins target/accepted custody without querying checked trees again.
 pub(crate) fn produce_direct_boundary_leaves(
-    numeric_realizations: &psi_terminal_production::DeclarationCatalog,
+    external_providers: &psi_terminal_production::ExternalProviderDeclarations,
     selected: &[SelectedProviderReviewProvenance],
     candidates: &[provider_planning::ProviderPlanCandidate],
     services: &ServiceDeclarations,
@@ -403,8 +403,8 @@ pub(crate) fn produce_direct_boundary_leaves(
                     };
                     let numeric = crate::compiler_intrinsic::numeric_execution(
                         crate::NumericProviderSelection {
-                            candidate: numeric_realizations,
-                            custody: numeric_realizations,
+                            candidate: external_providers,
+                            custody: external_providers,
                             provider: source.provider,
                         },
                         source.plan,

@@ -1,13 +1,4 @@
 machine build(builder: &mut Build) {
- Build::select_provider<SelectedApply, LinuxArm64Apply>(builder, linux_arm64);
- Build::select_provider<SelectedApply, LinuxX8664Apply>(builder, linux_x86_64);
- Build::select_provider<SelectedApply, MacosArm64Apply>(builder, macos_arm64);
- Build::select_provider<SelectedApply, WindowsX8664Apply>(builder, windows_x86_64);
- Build::select_provider<SelectedVerify, WindowsX8664Verify>(builder, windows_x86_64);
- Build::select_provider<SelectedVerify, WindowsX8664Verify>(builder, linux_x86_64);
- Build::select_provider<SelectedVerify, WindowsX8664Verify>(builder, macos_arm64);
- Build::select_provider<SelectedVerify, WindowsX8664Verify>(builder, linux_arm64);
-
     Build::application(builder, "target_family_const_callback_guarantee");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

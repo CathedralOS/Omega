@@ -11,8 +11,9 @@ use checked_trees::{CheckedTrees, ClosedConformanceConstArgument};
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceCallableResult,
     ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
-    ClosedConformanceRealizationCallable, ClosedConformanceRow, TerminalCallable, TerminalModule,
-    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, TargetMachineCallable,
+    TerminalModule, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint,
 };
 
 use super::LoweringError;
@@ -57,7 +58,7 @@ pub(crate) fn lower_closed_conformance_applications(
                     ClosedConformanceCallableResult::Structural(result.structural_type)
                 }
             };
-            (*source, TerminalCallable::Machine(*machine), result)
+            (*source, TargetMachineCallable::Machine(*machine), result)
         })
         .collect::<Vec<_>>();
     for (source, boundary) in source_boundaries {
@@ -75,7 +76,7 @@ pub(crate) fn lower_closed_conformance_applications(
                 ClosedConformanceCallableResult::Structural(result.structural_type)
             }
         };
-        callables.push((*source, TerminalCallable::Boundary(*boundary), result));
+        callables.push((*source, TargetMachineCallable::Boundary(*boundary), result));
     }
     module.closed_conformance_applications = collect_closed_conformance_applications(
         identities,
@@ -99,7 +100,7 @@ fn collect_closed_conformance_applications<'checked>(
     )],
     emitted_callables: &[(
         symbols::SymbolHandle,
-        TerminalCallable,
+        TargetMachineCallable,
         ClosedConformanceCallableResult,
     )],
     selected_applications: impl IntoIterator<

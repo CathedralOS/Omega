@@ -14,11 +14,30 @@ public boundary trait ParseNumber {
     requires base == 10;
 }
 
+macos_arm64 machine parse_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_strtol",
+        },
+    }
+}
+linux_x86_64 machine linux_parse_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "strtol", version: "GLIBC_2.2.5",
+        },
+    }
+}
 
 // The terminated input guarantees strtol writes a nonnull end pointer within
 // the input storage. The safe contract retains its lifetime but promises no
 // caller-relative geometry. Native lowering must load the pointer it wrote.
-
+macos_arm64 machine parse<'source>(source: &'source TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+satisfies ParseNumber::parse via parse_binding()
+requires base == 10;
+linux_x86_64 machine parse<'source>(source: &'source TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+satisfies ParseNumber::parse via linux_parse_binding()
+requires base == 10;
 
 machine refresh<'source>(source: &'source TerminatedInput, output: &mut Output<'source>) -> i64
 reaches ParseNumber {

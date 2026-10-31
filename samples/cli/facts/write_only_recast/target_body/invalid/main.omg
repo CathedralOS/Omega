@@ -2,26 +2,28 @@
 // Fact: a write-only representation view writes 73 to the original record without granting observation.
 data Original { value: u32; }
 data Viewed { value: u32; }
-boundary trait SelectedOverwrite {
-    machine overwrite(storage: &write Original) reaches
-;
-}
-CheckedOverwrite satisfies SelectedOverwrite {
-    machine overwrite(storage: &write Original)
-{
+windows_x86_64 machine overwrite(storage: &write Original) {
     let view: &mut Viewed = storage as &mut Viewed;
     view.value = 73;
 }
+
+linux_x86_64 machine overwrite(storage: &write Original) {
+    let view: &mut Viewed = storage as &mut Viewed;
+    view.value = 73;
 }
 
+macos_arm64 machine overwrite(storage: &write Original) {
+    let view: &mut Viewed = storage as &mut Viewed;
+    view.value = 73;
+}
 
-
-
-
-
+linux_arm64 machine overwrite(storage: &write Original) {
+    let view: &mut Viewed = storage as &mut Viewed;
+    view.value = 73;
+}
 machine main() crashes Trap {
     let mut original: Original = Original { value: 0 };
-    SelectedOverwrite::overwrite(&write original);
+    overwrite(&write original);
     transition original.value == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

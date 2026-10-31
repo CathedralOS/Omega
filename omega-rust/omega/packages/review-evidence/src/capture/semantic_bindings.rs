@@ -101,10 +101,6 @@ pub fn candidate_service_bindings(
             AcceptedSemanticBindingRole::FilesystemHostService,
         ),
         ("TimeHost", AcceptedSemanticBindingRole::TimeHostService),
-        (
-            "UefiOsHandoffTermination",
-            AcceptedSemanticBindingRole::UefiHandoffService,
-        ),
     ];
     let mut bindings = Vec::new();
     let referenced = checked_callable_service_references(checked, consumer)?;

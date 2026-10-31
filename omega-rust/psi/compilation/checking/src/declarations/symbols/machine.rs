@@ -187,7 +187,7 @@ impl<'program> MachineSymbols<'program> {
 /// the authored derivation. Their generated field, owned-data, and state
 /// children still resolve under the machine symbol itself.
 fn retained_machine_symbol(program: &dyn crate::CheckingInput, machine: &Machine) -> SymbolHandle {
-    let spelling = machine.name.as_str();
+    let spelling = machine.symbol_spelling();
     let authored =
         retained_child_symbol(program, program.symbols.root(), machine.symbol, &spelling);
     if authored.is_valid() {

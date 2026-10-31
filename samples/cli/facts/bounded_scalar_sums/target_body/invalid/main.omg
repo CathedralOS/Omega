@@ -1,25 +1,24 @@
 // Bounded u64 operands a <= 50 and b <= 50 make the exact sum
 // a + b fit result <= 100; no Wrapping domain and no as.
 // Place: another target body (invalid twin). Plain u64 parameters leave the exact sum unproved.
-boundary trait SelectedAdd {
-    machine add(a: u64, b: u64) -> u64 reaches
-;
-}
-CheckedAdd satisfies SelectedAdd {
-    machine add(a: u64, b: u64) -> u64
-{
+linux_x86_64 machine add(a: u64, b: u64) -> u64 {
     a + b
 }
+
+linux_arm64 machine add(a: u64, b: u64) -> u64 {
+    a + b
 }
 
+macos_arm64 machine add(a: u64, b: u64) -> u64 {
+    a + b
+}
 
-
-
-
-
+windows_x86_64 machine add(a: u64, b: u64) -> u64 {
+    a + b
+}
 
 machine probe(a: u64, b: u64) -> u64 {
-    SelectedAdd::add(a, b)
+    add(a, b)
 }
 
 machine main() crashes Trap {

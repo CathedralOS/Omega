@@ -334,7 +334,6 @@ fn select_checked_providers(
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let provider_planning::CheckedProviderSelection {
-        application_declarations,
         settlement: providers,
         selected_provider_plan_facts,
         selected_provider_provenance,
@@ -350,6 +349,17 @@ fn select_checked_providers(
     if let Some(entry) = &mut selected_program_entry {
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
     }
+    provider_planning::target_machines::reject_reached_inert_sibling_calls(
+        source
+            .provider_inventory
+            .direct_calls_for(&source.program)
+            .map_err(|error| vec![error])?,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+        selected_program_entry
+            .as_ref()
+            .map(|entry| entry.machine_symbol()),
+        &selected_provider_provenance,
+    )?;
     let root_grants = build_config.root_grant_selectors();
     let providers =
         providers.prepare_row_declarations(typed, source.sources.exact_toolchain_sources())?;
@@ -357,7 +367,6 @@ fn select_checked_providers(
         Arc::clone(&source.program),
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
-            application_declarations,
             provider_inventory: &source.provider_inventory,
             external_declarations: source.external_declarations.as_ref(),
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
@@ -377,43 +386,6 @@ fn select_checked_providers(
     Ok((execution, providers))
 }
 
-/// One entry/recipe root policy shared by provider demand and value closure.
-/// Provider nominations add their exact members after ordinary admission.
-fn product_application_roots(
-    source: &CheckedProductSource,
-    profile: target::TargetProfile,
-) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
-    let build = &source.computed_build_config.config;
-    if build.root_bindings.is_empty() {
-        // A reusable library describes every body, but executing its pending
-        // values starts only from their actual retained recipe callees.
-        return Ok(source
-            .program
-            .typed
-            .constant_recipes
-            .iter()
-            .map(|(_, recipe)| recipe.machine)
-            .filter(|machine| machine.is_valid())
-            .collect());
-    }
-    if !build.root_bindings.iter().any(|binding| {
-        binding.slot.rsplit_once("::").is_some_and(|(owner, _)| {
-            target::TargetProfile::from_root_slot_owner(owner).ok() == Some(profile)
-        })
-    }) {
-        return Ok(Vec::new());
-    }
-    Ok(
-        provider_planning::program_entry::selected_program_entry_machine(
-            &build.root_bindings,
-            Some(profile),
-        )?
-        .into_iter()
-        .map(|entry| entry.machine_symbol)
-        .collect(),
-    )
-}
-
 /// Prepare the exact provider and ABI inputs for either a product or an
 /// authored-target proof application. Neither use bypasses provider admission;
 /// only executable products need a ProgramEntry and deployment claim.
@@ -424,6 +396,9 @@ fn prepare_target_provider_selection(
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
     let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
+    let selected_native_target = selected_target_profile
+        .map(target::TargetProfile::native_target)
+        .unwrap_or_else(target::NativeTarget::host);
     let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &source.program,
@@ -436,25 +411,34 @@ fn prepare_target_provider_selection(
     // otherwise nominal placements retain no private materialization and a
     // later closure would invalidate the already-captured plan commitment.
     // This consumes the shared source judgment, never another Psi check.
-    if let Some(profile) = selected_target_profile {
+    if selected_target_profile.is_some() {
         provider_planning::calling_policy_plans::close_outbound_callback_materializations(
             typed,
             &mut boundary_calling_plan_realizations,
-            profile,
+            selected_native_target,
             &build_config.opaque_representation_selections,
             package_inputs,
         )?;
     }
-    let settled_provider_defaults = provider_planning::target_machines::settle_provider_defaults(
+    let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
+        source
+            .provider_inventory
+            .origins_for(&source.program)
+            .map_err(|error| vec![error])?,
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
-    let profile = selected_target_profile.unwrap_or_else(target::TargetProfile::host);
-    let application_roots = product_application_roots(source, profile)?;
     provider_planning::settle_checked_providers(
         &source.program,
-        &source.provider_inventory,
-        settled_provider_defaults,
+        source
+            .provider_inventory
+            .uses_for(&source.program)
+            .map_err(|error| vec![error])?,
+        source
+            .provider_inventory
+            .direct_calls_for(&source.program)
+            .map_err(|error| vec![error])?,
+        settled_target_machines,
         selected_target_profile,
         package_inputs,
         &build_config.provider_selections,
@@ -464,7 +448,6 @@ fn prepare_target_provider_selection(
         boundary_calling_plan_realizations,
         &build_config.opaque_representation_selections,
         &source.program.facts.synchronous_invocations,
-        &application_roots,
     )
 }
 

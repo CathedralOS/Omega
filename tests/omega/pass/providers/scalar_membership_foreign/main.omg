@@ -7,8 +7,16 @@ public boundary trait Magnitude {
         reaches
         requires 6 in MagnitudeInput;
 }
-
-
+macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs",
+        },
+    }
+}
+macos_arm64 machine absolute(value: i32 in MagnitudeInput) -> i32
+    satisfies Magnitude::absolute via absolute_binding()
+    requires 6 in MagnitudeInput;
 data Main { }
 machine Main::main(main: &mut Main) reaches Magnitude crashes Trap {
     let result: i32 = Magnitude::absolute(-128);

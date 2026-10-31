@@ -10,20 +10,13 @@ Factory satisfies Issuer {
 machine issue<I satisfies Issuer>(value: u64) -> Token in Issued { Issuer::issue<I>(value) }
 machine forward(token: Token in Issued) -> Token in Issued { token }
 machine consume(token: Token in Issued) -> u64 { token.value }
-boundary trait SelectedRelay {
-    machine relay(token: Token in Issued) -> Token in Issued reaches
-;
-}
-CheckedRelay satisfies SelectedRelay {
-    machine relay(token: Token in Issued) -> Token in Issued
-{ forward(token) }
-}
-
-
-
+windows_x86_64 machine relay(token: Token in Issued) -> Token in Issued { forward(token) }
+linux_x86_64 machine relay(token: Token in Issued) -> Token in Issued { forward(token) }
+macos_arm64 machine relay(token: Token in Issued) -> Token in Issued { forward(token) }
+linux_arm64 machine relay(token: Token in Issued) -> Token in Issued { forward(token) }
 machine main() crashes Trap {
     let token: Token in Issued = issue<Factory>(17);
-    let value: u64 = consume(SelectedRelay::relay(token));
+    let value: u64 = consume(relay(token));
     transition value == 17 { true -> done() _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }

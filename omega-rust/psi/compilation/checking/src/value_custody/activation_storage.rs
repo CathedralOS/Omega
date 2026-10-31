@@ -431,9 +431,13 @@ fn common_boundary_state<'a>(
         || machine.blocks
         || !machine.conformance_bounds.is_empty()
         || !machine.invokes.is_empty()
+        || machine.target.is_some()
+        || machine.authored_target.is_some()
+        || machine.target_family_interface
         || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
         || !machine.owned_data.is_empty()
         || machine.service_reach_is_installation_bound
+        || machine.admitted_same_stack_bytes != 0
     {
         return None;
     }

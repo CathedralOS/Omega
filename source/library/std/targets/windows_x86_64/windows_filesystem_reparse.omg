@@ -21,14 +21,14 @@ reaches FilesystemMetadataQuery {
     let handle: i64 = block windows_open_reparse_handle(path);
     handle
 }
-machine windows_open_reparse_handle(path: &[u16; 4096] in WindowsNativePath) -> i64
+windows_x86_64 machine windows_open_reparse_handle(path: &[u16; 4096] in WindowsNativePath) -> i64
 ensures result != -1
 reaches FilesystemMetadataQuery {
     let handle: i64 = block WindowsFilesystemMetadataIo::open_attributes(path, 128, 7, 0, 3, 36700160, 0);
     transition handle != 0 && handle != -1 { true -> (handle) false -> 0 }
 }
 
-machine windows_filesystem_native_read_link(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64
+windows_x86_64 machine WindowsFilesystemNativeProvider::read_link(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64
 satisfies WindowsFilesystemHost::read_link
 reaches FilesystemMetadataQuery {
     transition count > 0 && count <= output.len { true -> block path(path, output, count) false -> (-87) }
@@ -42,13 +42,13 @@ reaches FilesystemMetadataQuery {
         let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_open_reparse(&path);
         transition handle != 0 {
             true -> block query(handle, output, count)
-            false -> (windows_filesystem_native_failure_i64())
+            false -> (WindowsFilesystemNativeProvider::failure_i64())
         }
     }
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
     requires handle != 0 {
         let result: i64 = block windows_reparse_query(handle, output, count);
-        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as i64));
+        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle as i64));
         transition result < 0 { true -> (result) false -> complete(result, released) }
     }
     machine complete(result: i64, released: i32) -> i64 {
@@ -56,7 +56,7 @@ reaches FilesystemMetadataQuery {
     }
 }
 
-machine windows_reparse_query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
+windows_x86_64 machine windows_reparse_query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
 requires handle != 0
 reaches FilesystemMetadataQuery {
     let mut data: WindowsNativeReparseData;
@@ -64,7 +64,7 @@ reaches FilesystemMetadataQuery {
     let succeeded: i32 = block WindowsFilesystemReparseIo::query(handle, 589992, 0, 0, &mut data, 16384, &mut returned, 0);
     transition succeeded != 0 {
         true -> decode(data, returned, output, count)
-        false -> (windows_filesystem_native_failure_i64())
+        false -> (WindowsFilesystemNativeProvider::failure_i64())
     }
     machine decode(data: WindowsNativeReparseData, returned: u32, output: &mut [u8], count: u64) -> i64 {
         let mut target: [u16; 8192];
@@ -81,7 +81,7 @@ reaches FilesystemMetadataQuery {
         let written: i32 = WindowsFilesystemUtf8Io::utf8<8192, 24576>(65001, 128, &target, native_units, &mut encoded, 24576, 0, 0);
         transition written > 0 {
             true -> extent(&encoded, written, output, count)
-            false -> (windows_filesystem_native_failure_i64())
+            false -> (WindowsFilesystemNativeProvider::failure_i64())
         }
     }
     machine extent(encoded: &[u8; 24576], written: i32, output: &mut [u8], count: u64) -> i64

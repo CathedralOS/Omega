@@ -13,27 +13,29 @@ ActualEvaluator satisfies PayloadEvaluator {
     }
 }
 
-boundary trait SelectedComputeTarget {
-    machine compute_target(sel: dyn PayloadEvaluator, val: u64) -> u64 reaches
-;
-}
-CheckedComputeTarget satisfies SelectedComputeTarget {
-    machine compute_target(sel: dyn PayloadEvaluator, val: u64) -> u64
-{
+linux_x86_64 machine compute_target(sel: dyn PayloadEvaluator, val: u64) -> u64 {
     let result: u64 = PayloadEvaluator::compute(sel, val);
     88u64 - result
 }
+
+linux_arm64 machine compute_target(sel: dyn PayloadEvaluator, val: u64) -> u64 {
+    let result: u64 = PayloadEvaluator::compute(sel, val);
+    88u64 - result
 }
 
+windows_x86_64 machine compute_target(sel: dyn PayloadEvaluator, val: u64) -> u64 {
+    let result: u64 = PayloadEvaluator::compute(sel, val);
+    88u64 - result
+}
 
-
-
-
-
+macos_arm64 machine compute_target(sel: dyn PayloadEvaluator, val: u64) -> u64 {
+    let result: u64 = PayloadEvaluator::compute(sel, val);
+    88u64 - result
+}
 
 machine main() crashes Trap {
     let selector: dyn PayloadEvaluator = ActualEvaluator as dyn PayloadEvaluator;
-    let diff: u64 = SelectedComputeTarget::compute_target(selector, 10u64);
+    let diff: u64 = compute_target(selector, 10u64);
     transition diff == 0u64 {
         true -> done()
         false -> bad()

@@ -38,13 +38,7 @@ machine step_two(y: u64) -> u64
     sum
 }
 
-boundary trait SelectedRun {
-    machine run() -> i32 reaches
-;
-}
-CheckedRun satisfies SelectedRun {
-    machine run() -> i32
-{
+linux_x86_64 machine run() -> i32 {
     let saved: u64 = 40u64;
     let r1: u64 = step_one(10u64);
     let r2: u64 = step_two(r1);
@@ -53,16 +47,39 @@ CheckedRun satisfies SelectedRun {
     let diff: u64 = remaining - calls_sum;
     diff as i32
 }
+
+linux_arm64 machine run() -> i32 {
+    let saved: u64 = 40u64;
+    let r1: u64 = step_one(10u64);
+    let r2: u64 = step_two(r1);
+    let remaining: u64 = 70u64 - saved;
+    let calls_sum: u64 = r1 + r2;
+    let diff: u64 = remaining - calls_sum;
+    diff as i32
 }
 
+macos_arm64 machine run() -> i32 {
+    let saved: u64 = 40u64;
+    let r1: u64 = step_one(10u64);
+    let r2: u64 = step_two(r1);
+    let remaining: u64 = 70u64 - saved;
+    let calls_sum: u64 = r1 + r2;
+    let diff: u64 = remaining - calls_sum;
+    diff as i32
+}
 
-
-
-
-
+windows_x86_64 machine run() -> i32 {
+    let saved: u64 = 40u64;
+    let r1: u64 = step_one(10u64);
+    let r2: u64 = step_two(r1);
+    let remaining: u64 = 70u64 - saved;
+    let calls_sum: u64 = r1 + r2;
+    let diff: u64 = remaining - calls_sum;
+    diff as i32
+}
 
 machine probe() -> i32 {
-    SelectedRun::run()
+    run()
 }
 
 machine main() crashes Trap {

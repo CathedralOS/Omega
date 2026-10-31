@@ -1,4 +1,3 @@
-use omega::language::core::external_binding;
 // Every hosted target selects its exact entry and the sink as the slot's provider.
 
 machine build(builder: &mut Build) {
@@ -16,31 +15,4 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-
- Build::bind<Acknowledgement::ack>(builder, windows_x86_64, ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "msvcrt.dll",
-            export: "abs",
-        },
-    });
- Build::bind<Acknowledgement::ack>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "abs",
-            version: "GLIBC_2.2.5",
-        },
-    });
- Build::bind<Acknowledgement::ack>(builder, linux_arm64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "abs",
-            version: "GLIBC_2.17",
-        },
-    });
- Build::bind<Acknowledgement::ack>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libSystem.B.dylib",
-            symbol: "_abs",
-        },
-    });
 }

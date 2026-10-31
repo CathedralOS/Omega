@@ -1,44 +1,5 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_clock_shared_import_slots_exit");
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
-
- Build::bind<ClockProbe::read>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
-        }
-    });
- Build::bind<ClockProbe::read_other>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
-        }
-    });
- Build::bind<ClockProbe::wait_unit>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
-        }
-    });
- Build::bind<ClockProbe::wait_narrow>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
-        }
-    });
- Build::bind<ClockProbe::wait_wide>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
-        }
-    });
- Build::bind<LinuxClockRead::read>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
-    } });
- Build::bind<ClockProbe::wait_unit>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5"
-    } });
- Build::bind<ClockProbe::wait_narrow>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5"
-    } });
- Build::bind<ClockProbe::wait_wide>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5"
-    } });
 }

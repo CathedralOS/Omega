@@ -32,7 +32,6 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone)]
 pub struct AssembledSyntax {
-    pub build_handoffs: crate::BuildHandoffInventory,
     pub root_sources: Vec<source::SourceId>,
     pub syntax_trees: SyntaxTrees,
     /// Parser-issued source ownership for authored item roots. Later synthesis
@@ -41,7 +40,7 @@ pub struct AssembledSyntax {
     pub sources: Arc<source::SourceMap>,
     /// Anonymous ownership inputs. Initial Build leaves these unbound; the
     /// joined Product context establishes ownership before resolution/typing.
-    pub captured_source: Option<crate::CapturedBuildSource>,
+    pub anonymous_owner: Option<crate::AnonymousSourceCapture>,
     /// Product roots remain unopened until the authored Build has returned and
     /// its dependencies have joined. Both phases retain the same captured bytes.
     pub product_sources: Option<DeferredProductSources>,
@@ -187,12 +186,11 @@ impl DeferredProductSources {
             .map(|file| file.source_id)
             .collect();
         Ok(AssembledSyntax {
-            build_handoffs: storage.build_handoffs,
             root_sources,
             source_items,
             syntax_trees: storage.syntax_trees,
             sources: Arc::new(storage.sources),
-            captured_source: None,
+            anonymous_owner: None,
             product_sources: None,
             build_source_id,
             source_scoped_top_level_bindings: bindings,
@@ -237,13 +235,9 @@ impl DeferredProductSources {
             imports.seed(root.clone(), source::DependencyScope::Product);
         }
         if let Some(inputs) = package_inputs {
-            storage.build_handoffs.extend_packages(inputs)?;
-        }
-        for path in storage
-            .build_handoffs
-            .selection_source_seeds(package_inputs, source::DependencyScope::Product)?
-        {
-            imports.seed(path, source::DependencyScope::Product);
+            for source in inputs.product_selection_source_seeds()? {
+                imports.seed(source, source::DependencyScope::Product);
+            }
         }
         let mut package_imports = checkpoint.package_imports.to_vec();
         package_imports.extend(load_imports(
@@ -374,34 +368,6 @@ impl ImmutableSourceParseCheckpoint {
         &self.root_path
     }
 
-    pub fn with_build_handoffs(
-        mut self,
-        handoffs: crate::BuildHandoffInventory,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        handoffs.admit_core(&self.captured_core_source()?)?;
-        let storage = Arc::make_mut(&mut self.source_storage);
-        for (scope, handoff) in handoffs.handoffs() {
-            storage
-                .build_handoffs
-                .insert(scope, handoff.clone())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        }
-        Ok(self)
-    }
-
-    pub fn captured_core_source(&self) -> Result<crate::CapturedCoreSource, Vec<Diagnostic>> {
-        self.source_storage.captured_core_source()
-    }
-
-    pub fn prepare_captured_core(
-        input: &crate::CapturedCoreSource,
-        timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let storage = SourceStorage::for_captured_core(input, catalogue)?;
-        Self::prepare_storage(&input.build_path(), None, storage, timings, catalogue)
-    }
-
     /// Prepare shared physical sources without Product imports or a child's
     /// target attachments when an authored Build exists. Target-local generated
     /// bundles join their respective scope during assembly.
@@ -437,24 +403,8 @@ impl ImmutableSourceParseCheckpoint {
         timings: &mut CompileTimings,
         catalogue: &mut source::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let source_storage =
+        let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
-        Self::prepare_storage(
-            root_path,
-            package_inputs,
-            source_storage,
-            timings,
-            catalogue,
-        )
-    }
-
-    fn prepare_storage(
-        root_path: &Path,
-        package_inputs: Option<&PackageCompilationInputs>,
-        mut source_storage: SourceStorage,
-        timings: &mut CompileTimings,
-        catalogue: &mut source::SourceCatalogue,
-    ) -> Result<Self, Vec<Diagnostic>> {
         let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
         let has_build = project
@@ -510,15 +460,6 @@ impl ImmutableSourceParseCheckpoint {
         let mut imports = ImportQueue::default();
         for source in source_storage.sources.selected_files() {
             imports.mark_loaded(&source.path, source.dependency_scope);
-        }
-        if let Some(inputs) = package_inputs {
-            source_storage.build_handoffs.extend_packages(inputs)?;
-        }
-        for path in source_storage
-            .build_handoffs
-            .selection_source_seeds(package_inputs, source_scope)?
-        {
-            imports.seed(path, source_scope);
         }
         let mut generated_source_custody = match package_inputs {
             Some(package_inputs) => append_dependency_build_handoffs_to_storage(
@@ -761,19 +702,11 @@ impl ImmutableSourceParseCheckpoint {
         // sealed its source owner before parsing, after the dependency join.
         // Supplied graph owners remain authoritative in either case.
         let capture = source_storage.retain_anonymous_owner(&generated_source_custody)?;
-        let captured_source = match &capture {
-            Some(capture) => Some(
-                crate::CapturedBuildSource::anonymous(capture)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
-            ),
-            None => source_storage.build_source_custody.clone(),
-        };
-        let sources = match capture {
-            Some(capture) => capture.sources().clone(),
-            None => Arc::new(source_storage.sources),
+        let (sources, anonymous_owner) = match capture {
+            Some(capture) => (capture.sources().clone(), Some(capture)),
+            None => (Arc::new(source_storage.sources), None),
         };
         let syntax = AssembledSyntax {
-            build_handoffs: source_storage.build_handoffs,
             root_sources,
             source_items: source_storage
                 .source_roots
@@ -782,7 +715,7 @@ impl ImmutableSourceParseCheckpoint {
                 .collect(),
             syntax_trees: source_storage.syntax_trees,
             sources,
-            captured_source,
+            anonymous_owner,
             product_sources,
             build_source_id: self.build_source_id,
             source_scoped_top_level_bindings,

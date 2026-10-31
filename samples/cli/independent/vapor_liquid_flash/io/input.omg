@@ -99,7 +99,7 @@ public machine validate(raw: &Raw, feed: &mut Feed) -> bool {
         false -> bad()
     }
     machine count(raw: &Raw, feed: &mut Feed) -> bool {
-        let converted: i32 in Saturating = I32FromF64::from_f64(raw.values[0]);
+        let converted: i32 in Saturating = I32::from_f64(raw.values[0]);
         transition { _ -> narrowed(raw, feed, converted as i32) }
     }
     machine narrowed(raw: &Raw, feed: &mut Feed, count: i32) -> bool {

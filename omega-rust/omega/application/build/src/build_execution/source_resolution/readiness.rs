@@ -219,22 +219,11 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     completed = Some(CompletedWork::Source(position));
                 }
                 Work::Build { acquired, request } => {
-                    let invocation = self
+                    let mut invocation = self
                         .session
                         .compiler
                         .begin_package_build(request)
                         .map_err(Compilation)?;
-                    pending.push(Work::StartBuild {
-                        acquired,
-                        invocation,
-                        dependencies: Vec::new(),
-                    });
-                }
-                Work::StartBuild {
-                    acquired,
-                    mut invocation,
-                    dependencies,
-                } => {
                     let queries = invocation.product_queries();
                     let activation = match invocation.execution() {
                         Some(execution) => Some(
@@ -252,27 +241,16 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             invocation,
                             queries,
                             activation,
-                            dependencies,
+                            dependencies: Vec::new(),
                         })));
                     } else {
-                        match invocation.advance_build(Ok(None)) {
-                            compiler::BuildExecutionProgress::More => {
-                                pending.push(Work::StartBuild {
-                                    acquired,
-                                    invocation,
-                                    dependencies,
-                                })
-                            }
-                            compiler::BuildExecutionProgress::Complete(returned) => {
-                                completed = Some(CompletedWork::Build(ExecutedSourceBuild {
-                                    build: ReturnedPackageBuild {
-                                        invocation,
-                                        returned: returned.map_err(Compilation)?,
-                                    },
-                                    dependencies,
-                                }));
-                            }
-                        }
+                        completed = Some(CompletedWork::Build(ExecutedSourceBuild {
+                            build: ReturnedPackageBuild {
+                                invocation,
+                                returned: None,
+                            },
+                            dependencies: Vec::new(),
+                        }));
                     }
                 }
                 Work::Run(mut build) => {
@@ -291,31 +269,18 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         )));
                     } else if step.returned {
                         let LiveBuild {
-                            acquired,
-                            mut invocation,
+                            invocation,
                             activation,
                             dependencies,
                             ..
                         } = *build;
-                        let returned = Some(activation.complete().map_err(Source)?);
-                        match invocation.advance_build(Ok(returned)) {
-                            compiler::BuildExecutionProgress::More => {
-                                pending.push(Work::StartBuild {
-                                    acquired,
-                                    invocation,
-                                    dependencies,
-                                })
-                            }
-                            compiler::BuildExecutionProgress::Complete(returned) => {
-                                completed = Some(CompletedWork::Build(ExecutedSourceBuild {
-                                    build: ReturnedPackageBuild {
-                                        invocation,
-                                        returned: returned.map_err(Compilation)?,
-                                    },
-                                    dependencies,
-                                }));
-                            }
-                        }
+                        completed = Some(CompletedWork::Build(ExecutedSourceBuild {
+                            build: ReturnedPackageBuild {
+                                invocation,
+                                returned: Some(activation.complete().map_err(Source)?),
+                            },
+                            dependencies,
+                        }));
                     } else if let Some(request) = step.awaiting_provider {
                         let (alias, declaration) =
                             request.backing.path.split_once("::").ok_or_else(|| {
@@ -708,12 +673,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     .position(|source| source.declared.identity() == package)
                     .ok_or_else(|| Source("helper dependency has no retained Build".into()))?;
                 if let Some(prepared) = self.prepared_product(dependency, purpose)? {
-                    current.generated.push(
-                        self.session
-                            .compiler
-                            .prepare_package_build_handoff(&prepared)
-                            .map_err(Compilation)?,
-                    );
+                    current.generated.push(prepared.build_handoff().clone());
                 } else {
                     pending.push(self.pending_product(dependency, purpose)?);
                 }
@@ -725,12 +685,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 .ok_or_else(|| Source("helper preparation lost its pending Product".into()))?;
             let prepared = self.complete_product(current)?;
             match pending.last_mut() {
-                Some(parent) => parent.generated.push(
-                    self.session
-                        .compiler
-                        .prepare_package_build_handoff(&prepared)
-                        .map_err(Compilation)?,
-                ),
+                Some(parent) => parent.generated.push(prepared.build_handoff().clone()),
                 None => return Ok(prepared),
             }
         }
@@ -925,11 +880,6 @@ enum Work {
     Build {
         acquired: AcquiredBuildSource,
         request: CheckedCompileRequest,
-    },
-    StartBuild {
-        acquired: AcquiredBuildSource,
-        invocation: compiler::PackageBuildInvocation,
-        dependencies: Vec<Arc<ResolvedBuildSources>>,
     },
     Run(Box<LiveBuild>),
     Dependencies(PendingDependencies),

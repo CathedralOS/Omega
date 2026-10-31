@@ -22,7 +22,6 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildRowOrigin {
     pub requirement: symbols::SymbolHandle,
-    pub selection: build_time_evaluation::native_bindings::NativeBindingSelection,
     pub origin: package_compilation::PackageNativeBindingOrigin,
 }
 
@@ -40,72 +39,58 @@ pub(crate) fn derive(
         let fail = |reason: String| {
             vec![Diagnostic::error(reason).with_source_span(selection.source_span)]
         };
+        let owner = typed
+            .trait_definition_by_symbol(selection.subject)
+            .filter(|owner| owner.is_boundary)
+            .ok_or_else(|| fail("native Build requirement lost its boundary owner".into()))?;
+        let signature = typed
+            .trait_machine_signature_by_symbol(owner, selection.requirement)
+            .ok_or_else(|| {
+                fail("native Build requirement lost its exact declared signature".into())
+            })?;
         let target =
             target::TargetProfile::from_canonical_target_name(selection.target.canonical_name())
                 .map_err(|error| fail(error.to_string()))?;
-        // Psi formed every authored target's complete request. Physical backing
-        // is demanded only by the realization consuming that target's choice.
+        let requirement = typed.trait_requirement_callable_identity_text(owner, signature);
+        let evaluated = evaluate(typed, supply, &requirement, target, identities).map_err(fail)?;
+        let producer = selection.producer.clone();
+        let production = package_compilation::NativeBindingProduction {
+            producer,
+            evaluated,
+        };
+        // Every authored target's locator is checked under that target. Only
+        // the requested realization consumes this compilation's evaluated
+        // calling geometry; another target must never inherit its ABI plan.
         if selected_target != Some(target) {
             continue;
         }
-        let application = selection.application;
-        let application_identity = application.identity(typed).map_err(fail)?;
-        let schema = crate::service_schema::from_typed_requirement_application(
-            context,
-            calling,
-            application.requirement,
-            application.trait_scope,
-            application.closed_requirement,
-        )
-        .ok_or_else(|| {
-            fail("native Build requirement lost its exact callable application schema".into())
-        })?;
-        let [method] = schema.methods.as_slice() else {
-            return Err(fail(
-                "native binding does not own one exact callable requirement".into(),
-            ));
-        };
-        let requirement = schema.identity_text(method.requirement_identity).to_owned();
-        let method_name = method.name.clone();
-        let declaration =
-            if let Some((owner, _)) = typed.trait_machine_signature(application.requirement) {
-                ProviderSchemaDeclaration::BoundaryTrait(owner.symbol)
-            } else {
-                ProviderSchemaDeclaration::BoundaryRequirement(application.requirement)
-            };
-        let evaluated = evaluate(typed, supply, &requirement, target, identities).map_err(fail)?;
-        let production = package_compilation::NativeBindingProduction {
-            producer: selection.producer.clone(),
-            evaluated,
-        };
-        let supplier = selection
-            .supplier_package
-            .digest()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        let provider = format!("native-build:{supplier}:{}", application_identity);
-        let name = crate::satisfies_plan_name(
-            target.target_name(),
-            schema.identity_text(schema.trait_name),
-            &provider,
-        );
-        let index = match plans.iter().position(|candidate| {
-            candidate.plan.schema == schema
+        let schema =
+            crate::service_schema::from_typed(context, calling, owner).ok_or_else(|| {
+                fail("native Build requirement has no complete service schema".into())
+            })?;
+        let group = plans.iter().position(|candidate| {
+            candidate.provenance.schema.symbol() == owner.symbol
                 && candidate.plan.target == target.target_name()
                 && candidate.plan.origin_package_identity == Some(selection.supplier_package)
-                && candidate
-                    .provenance
-                    .row_realizations
-                    .first()
-                    .and_then(|origin| origin.native())
-                    .is_some_and(|origin| {
-                        origin.selection.application.identity(typed).ok().as_ref()
-                            == Some(&application_identity)
-                    })
-        }) {
+        });
+        let index = match group {
             Some(index) => index,
             None => {
+                let supplier = selection
+                    .supplier_package
+                    .digest()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>();
+                let provider = format!(
+                    "native-build:{supplier}:{}",
+                    schema.identity_text(schema.trait_name)
+                );
+                let name = crate::satisfies_plan_name(
+                    target.target_name(),
+                    schema.identity_text(schema.trait_name),
+                    &provider,
+                );
                 plans.push(DerivedProviderPlan {
                     plan: ProviderPlan {
                         name,
@@ -121,12 +106,12 @@ pub(crate) fn derive(
                         digest_memo: Default::default(),
                     },
                     provenance: ProviderPlanProvenance {
-                        schema: declaration,
+                        schema: ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
                         provider_type: None,
                         named_application: None,
                         row_requirements: Vec::new(),
                         row_realizations: Vec::new(),
-
+                        row_target_machine_origins: Vec::new(),
                         row_placed_accessors: Vec::new(),
                     },
                 });
@@ -142,53 +127,41 @@ pub(crate) fn derive(
             let ProviderRowRealization::BuildNative(origin) =
                 &mut candidate.provenance.row_realizations[prior]
             else {
-                return Err(fail("native Build row changed realization owner".into()));
-            };
-            if origin.selection.application.identity(typed).map_err(fail)? != application_identity
-                || origin.selection.supply != selection.supply
-                || origin.selection.same_stack_demand != selection.same_stack_demand
-            {
                 return Err(fail(
-                    "native Build supplier installed conflicting full applications".into(),
+                    "native Build candidate has a different realization owner".into(),
                 ));
+            };
+            if origin.origin.primary.evaluated.identity_digest()
+                != production.evaluated.identity_digest()
+            {
+                return Err(fail("native Build supplier binds one requirement to conflicting normalized locators".into()));
             }
+            // Equal bindings are one semantic choice. Keep every reached
+            // source/evaluation origin without installing another provider row.
             Arc::make_mut(origin).origin.equivalents.push(production);
             continue;
         }
-        let lifetime_partition = typed
-            .trait_machine_signature(application.requirement)
-            .map_or_else(Vec::new, |(owner, _)| {
-                (0..owner.lifetime_parameters.len())
-                    .map(|ordinal| ordinal as u32)
-                    .collect()
-            });
         candidate.plan.rows.push(ProviderPlanRow {
-            method: method_name,
+            method: signature.name.as_str().to_owned(),
             requirement_identity: candidate.plan.identities.intern(&requirement),
-            requirement_lifetime_partition: lifetime_partition,
-            admitted_same_stack_bytes: selection
-                .same_stack_demand
-                .as_ref()
-                .map_or(0, |demand| demand.bytes),
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
             binding: production.evaluated.provider_binding(),
         });
-        candidate
-            .provenance
-            .row_requirements
-            .push(application.requirement);
+        candidate.provenance.row_requirements.push(signature.symbol);
         candidate
             .provenance
             .row_realizations
             .push(ProviderRowRealization::BuildNative(Arc::new(
                 NativeBuildRowOrigin {
-                    requirement: application.requirement,
-                    selection: selection.clone(),
+                    requirement: signature.symbol,
                     origin: package_compilation::PackageNativeBindingOrigin {
                         primary: production,
                         equivalents: Vec::new(),
                     },
                 },
             )));
+        candidate.provenance.row_target_machine_origins.push(None);
         candidate.provenance.row_placed_accessors.push(None);
     }
     for candidate in &plans {
@@ -210,23 +183,19 @@ fn evaluate(
     requirement: &str,
     target: target::TargetProfile,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-) -> Result<effects::provider_plan::EvaluatedNativeBinding, String> {
-    use effects::provider_plan::EvaluatedNativeBinding;
+) -> Result<crate::evaluated_via_bindings::EvaluatedNativeBinding, String> {
+    use crate::evaluated_via_bindings::EvaluatedNativeBinding;
     let selection = &supply.selection;
     let author_identity = &selection.producer.callable_identity;
     let source_occurrence_digest = selection.source_occurrence_digest;
-    let (locator, binding_digest) = match &selection.supply {
-        build_time_evaluation::native_bindings::NativeBindingSupply::Locator(
-            NativeBindingLocator::Import(raw),
-        ) => {
+    let (locator, binding_digest) = match &selection.locator {
+        NativeBindingLocator::Import(raw) => {
             let locator = target::normalize_foreign_locator(raw.clone(), target)
                 .map_err(|reason| format!("native Build locator: {reason}"))?;
             let digest = locator.identity_digest();
             (Some(locator), digest)
         }
-        build_time_evaluation::native_bindings::NativeBindingSupply::Locator(
-            NativeBindingLocator::Syscall { number },
-        ) => {
+        NativeBindingLocator::Syscall { number } => {
             if !matches!(
                 target,
                 target::TargetProfile::LinuxArm64 | target::TargetProfile::LinuxX64
@@ -240,23 +209,9 @@ fn evaluate(
                 effects::provider_plan::evaluated_syscall_identity_digest(target, number),
             )
         }
-        build_time_evaluation::native_bindings::NativeBindingSupply::Table(table) => {
-            let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-                b"omega.native-table-designation.v1\0",
-            );
-            digest.bytes(target.target_name().as_bytes());
-            digest.bytes(requirement.as_bytes());
-            digest.bytes(_typed.symbols.display_path(table.table, "::").as_bytes());
-            digest.bytes(_typed.symbols.display_path(table.field, "::").as_bytes());
-            digest.byte(u8::from(table.drops_receiver));
-            (
-                None,
-                target::ForeignLocatorIdentityDigest::from_digest(digest.finish()),
-            )
-        }
     };
     let mut closure = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.native-build-producer-closure.v2\0",
+        b"omega.native-build-producer-closure.v1\0",
     );
     closure.raw(
         supply
@@ -266,15 +221,6 @@ fn evaluate(
             .as_bytes(),
     );
     closure.raw(&source_occurrence_digest);
-    closure.bytes(requirement.as_bytes());
-    closure.raw(&binding_digest.as_bytes());
-    if let Some(demand) = &selection.same_stack_demand {
-        closure.byte(1);
-        closure.u64(demand.bytes);
-        closure.raw(&demand.source_occurrence_digest);
-    } else {
-        closure.byte(0);
-    }
     let closure = EvaluatedBindingProducerClosureDigest::from_bytes(closure.finish())?;
     let usage = supply.evaluation.usage;
     let (fuel_schedule, storage_schedule) = match usage.measurement {
@@ -330,27 +276,13 @@ fn evaluate(
         storage_schedule,
         observation_digest: supply.evaluation.observation_digest,
     })?;
-    Ok(match (locator, &selection.supply) {
+    Ok(match (locator, &selection.locator) {
         (Some(locator), _) => EvaluatedNativeBinding::Import(
             EvaluatedForeignImport::from_retained_evidence(locator, receipt)?,
         ),
-        (
-            None,
-            build_time_evaluation::native_bindings::NativeBindingSupply::Locator(
-                NativeBindingLocator::Syscall { number },
-            ),
-        ) => EvaluatedNativeBinding::Syscall(EvaluatedForeignSyscall::from_retained_evidence(
-            target, *number, receipt,
-        )?),
-        (None, build_time_evaluation::native_bindings::NativeBindingSupply::Table(table)) => {
-            EvaluatedNativeBinding::Table {
-                target,
-                table: _typed.symbols.display_path(table.table, "::"),
-                field: _typed.symbols.name(table.field).to_owned(),
-                drops_receiver: table.drops_receiver,
-                receipt,
-            }
-        }
+        (None, NativeBindingLocator::Syscall { number }) => EvaluatedNativeBinding::Syscall(
+            EvaluatedForeignSyscall::from_retained_evidence(target, *number, receipt)?,
+        ),
         _ => return Err("native Build materialization changed locator mechanism".into()),
     })
 }

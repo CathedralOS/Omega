@@ -1,11 +1,5 @@
 // Expected exit: 0.
-boundary trait SelectedCompare {
-    machine compare(seed: u32) -> u32 reaches
-requires seed == 37 ensures result == 37;
-}
-LinuxX8664Compare satisfies SelectedCompare {
-    machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37
-{
+linux_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
  let mut output: u32 = 0;
  asm where clobbers rax, rflags {
  entry requires seed == 37 ensures output == 37:
@@ -16,11 +10,18 @@ LinuxX8664Compare satisfies SelectedCompare {
  }
  output
 }
+windows_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
+ let mut output: u32 = 0;
+ asm where clobbers rax, rflags {
+ entry requires seed == 37 ensures output == 37:
+  mov eax, seed;
+  mov output, eax;
+  cmp eax, eax;
+  jnz entry
+ }
+ output
 }
-
-LinuxArm64Compare satisfies SelectedCompare {
-    machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37
-{
+linux_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
  let mut output: u32 = 0;
  asm where clobbers x0, nzcv {
  entry requires seed == 37 ensures output == 37:
@@ -31,10 +32,19 @@ LinuxArm64Compare satisfies SelectedCompare {
  }
  output
 }
+macos_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
+ let mut output: u32 = 0;
+ asm where clobbers x0, nzcv {
+ entry requires seed == 37 ensures output == 37:
+  mov w0, seed;
+  mov output, w0;
+  cmp w0, w0;
+  b.ne entry
+ }
+ output
 }
-
 machine main() crashes Trap {
- let value: u32 = SelectedCompare::compare(37);
+ let value: u32 = compare(37);
  transition value == 37 { true -> finished() false -> failed() }
 }
 machine finished() {}

@@ -27,6 +27,7 @@ use crate::proof_contracts::default_domains::call_summaries::{
 #[derive(Debug, Clone)]
 struct MachineWork {
     symbol: SymbolHandle,
+    family_members: Vec<SymbolHandle>,
     published: Vec<InvocationTarget>,
     uses_published: bool,
     direct: Vec<InvocationTarget>,
@@ -43,30 +44,14 @@ struct CallWork {
     declared: Vec<InvocationTarget>,
 }
 
-/// Keep resolved receiver roles independent from inferred invocation origins.
-#[derive(Clone, Copy)]
-struct InvocationReceiver {
-    binding: Option<InvocationTarget>,
-    declaration: Option<SymbolHandle>,
-}
-
-/// Prepare immutable target coordinates once; inference changes only target sets.
+/// Resolve the immutable invocation roster once. Inference changes target sets,
+/// never machine identities, family membership or the captured actuals.
 struct MachineInvocationLinks {
+    family_targets: Vec<usize>,
     call_targets: Vec<Option<usize>>,
 }
 
 pub fn infer_synchronous_invocations(
-    program: &dyn crate::CheckingInput,
-) -> InvocationInferencePlan {
-    let plan = crate::frozen_program::frozen_memo(
-        program,
-        |memos| &memos.synchronous_invocations,
-        || infer_synchronous_invocations_uncached(program),
-    );
-    (*plan).clone()
-}
-
-fn infer_synchronous_invocations_uncached(
     program: &dyn crate::CheckingInput,
 ) -> InvocationInferencePlan {
     let state_to_machine = state_to_machine_index(program);
@@ -99,6 +84,11 @@ fn infer_synchronous_invocations_uncached(
     let links = work
         .iter()
         .map(|machine| MachineInvocationLinks {
+            family_targets: machine
+                .family_members
+                .iter()
+                .filter_map(|member| machine_indices.get(member).copied())
+                .collect(),
             call_targets: machine
                 .calls
                 .iter()
@@ -115,6 +105,18 @@ fn infer_synchronous_invocations_uncached(
         for index in 0..work.len() {
             let mut transitive = work[index].direct.clone();
             let mut realized = work[index].realized_direct.clone();
+            for &member in &links[index].family_targets {
+                let callee = &work[member];
+                let effective = if callee.uses_published {
+                    &callee.published
+                } else {
+                    &callee.transitive
+                };
+                // Invocation parameters are positional, so the family
+                // signature already supplies their shared identity.
+                extend_targets(&mut transitive, effective);
+                extend_realized(&mut realized, &callee.realized);
+            }
             for (call, callee) in work[index].calls.iter().zip(&links[index].call_targets) {
                 extend_targets(&mut transitive, &call.declared);
                 let Some(callee) = callee.map(|callee| &work[callee]) else {
@@ -160,6 +162,15 @@ fn infer_synchronous_invocations_uncached(
             })
         {
             break;
+        }
+    }
+
+    // Publish virtual interfaces only after the shared fixed point completes.
+    // Member contracts remain unchanged, and membership adds no call edges.
+    for machine in &mut work {
+        if !machine.family_members.is_empty() {
+            machine.published = machine.transitive.clone();
+            machine.uses_published = true;
         }
     }
 
@@ -281,7 +292,15 @@ fn build_machine_work(
     machine: &Machine,
     state_to_machine: &StateToMachine,
 ) -> MachineWork {
-    let published = declared_machine_invocations(program, machine);
+    let family_members = super::family_interface_members(program, machine)
+        .iter()
+        .map(|member| member.machine)
+        .collect::<Vec<_>>();
+    let published = if family_members.is_empty() {
+        declared_machine_invocations(program, machine)
+    } else {
+        Vec::new()
+    };
     let mut direct = Vec::new();
     let mut realized_direct =
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
@@ -308,9 +327,11 @@ fn build_machine_work(
     }
     MachineWork {
         symbol: machine.symbol,
-        uses_published: machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-            || machine.is_public
-            || !program.machine_invokes(machine).is_empty(),
+        uses_published: family_members.is_empty()
+            && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || machine.is_public
+                || !program.machine_invokes(machine).is_empty()),
+        family_members,
         published: published.clone(),
         direct: direct.clone(),
         transitive: direct,
@@ -338,10 +359,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
         self.resolved_call(
             call.target_symbol,
             call.static_machine_parameter,
-            InvocationReceiver {
-                binding: receiver,
-                declaration: static_call_receiver(self.program, call.receiver_symbol),
-            },
+            receiver,
             self.program
                 .statement_table
                 .expression_handles(call.arguments),
@@ -371,10 +389,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
         self.resolved_call(
             call.target_symbol,
             call.static_machine_parameter,
-            InvocationReceiver {
-                binding: receiver,
-                declaration: expression_static_call_receiver(self.program, call.receiver),
-            },
+            receiver,
             self.program
                 .expression_table
                 .expression_handles(call.arguments),
@@ -424,10 +439,7 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
             self.program,
             target,
             static_machine_parameter,
-            InvocationReceiver {
-                binding: receiver,
-                declaration: static_call_receiver(self.program, path.receiver_symbol),
-            },
+            receiver,
             arguments,
             direct,
             self.realized,
@@ -445,7 +457,7 @@ impl InvocationCallSites<'_> {
         &mut self,
         target_symbol: SymbolHandle,
         static_machine_parameter: SymbolHandle,
-        receiver: InvocationReceiver,
+        receiver: Option<InvocationTarget>,
         argument_handles: &[ExpressionHandle],
     ) {
         let arguments = argument_handles
@@ -468,37 +480,6 @@ impl InvocationCallSites<'_> {
             self.state_to_machine,
         );
     }
-}
-
-// Resolution owns declaration role. A runtime binding may have a trait type,
-// but its local/parameter/field symbol is neither that trait nor a named map.
-// Do not reconstruct this fact from a collapsed InvocationTarget::Service.
-fn static_call_receiver(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<SymbolHandle> {
-    program
-        .trait_definition_by_symbol(symbol)
-        .map(|owner| owner.symbol)
-        .or_else(|| {
-            program
-                .product_declarations()
-                .conformance_by_symbol(symbol)
-                .map(|owner| owner.symbol)
-        })
-}
-
-fn expression_static_call_receiver(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<SymbolHandle> {
-    if !expression.is_valid() {
-        return None;
-    }
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    static_call_receiver(program, path.symbol)
 }
 
 fn origin_for_statement_receiver(
@@ -588,47 +569,14 @@ fn push_call(
     program: &dyn crate::CheckingInput,
     target: SymbolHandle,
     static_machine_parameter: SymbolHandle,
-    receiver: InvocationReceiver,
+    receiver: Option<InvocationTarget>,
     arguments: Vec<Option<InvocationTarget>>,
     direct: &mut Vec<InvocationTarget>,
     realized: &mut Vec<RealizedInvocationTarget>,
     calls: &mut Vec<CallWork>,
     state_to_machine: &StateToMachine,
 ) {
-    // A source-qualified named map is an ordinary static call even when its
-    // syntax still names the requirement. Retained evaluation validates the
-    // authored graph before executable routing; recover only the exact owned
-    // member, never a shape, trait default or runtime binding's receiver type.
-    let target = receiver
-        .declaration
-        .and_then(|implementation| {
-            program.direct_named_implementation_member(implementation, target)
-        })
-        .unwrap_or(target);
-    // A direct request for an exact Core catalogue arithmetic meaning is a
-    // compiler semantic primitive, rather than a user-selected component
-    // invocation. Ordinary copies and same-shaped traits do not authenticate.
-    // Keep machine/dyn binding parameters as actual invocation edges even when
-    // their interface happens to be a numeric catalogue requirement. Traversal
-    // already retained all ordinary calls within the argument expressions.
-    let catalogue_primitive = !static_machine_parameter.is_valid()
-        && program
-            .trait_machine_signature(target)
-            .is_some_and(|(owner, signature)| {
-                let directly_named = receiver.declaration == Some(owner.symbol);
-                directly_named
-                    && program
-                        .sealed_numeric_requirement(owner, signature)
-                        .is_some()
-            });
-    let receiver = if catalogue_primitive {
-        None
-    } else {
-        receiver.binding
-    };
-    let boundary_signature = (!catalogue_primitive)
-        .then(|| boundary_trait_for_signature(program, target))
-        .flatten();
+    let boundary_signature = boundary_trait_for_signature(program, target);
     let crosses_boundary = receiver.is_some() || boundary_signature.is_some();
     if boundary_signature.is_some() {
         extend_realized(realized, &[RealizedInvocationTarget::Requirement(target)]);

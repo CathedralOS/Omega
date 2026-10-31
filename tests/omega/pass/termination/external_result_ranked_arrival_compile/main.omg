@@ -5,8 +5,13 @@ terminates;
 requires value >= 0 && value <= 9;
 ensures result == value;
 data ForeignProvider {}
-
-
+macos_arm64 machine abs_binding() -> ForeignBinding<17, 4, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_abs"
+    } }
+}
+macos_arm64 machine ForeignProvider::absolute(value: i32) -> i32
+satisfies ForeignMath::absolute via abs_binding();
 machine require_identity(actual: i32, expected: i32) -> i32
 requires actual == expected;
 { actual }

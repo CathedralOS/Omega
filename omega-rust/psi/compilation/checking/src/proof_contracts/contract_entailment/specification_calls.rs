@@ -148,16 +148,6 @@ impl<'program> SpecificationCaller<'program> {
     }
 }
 
-/// Operator meaning belongs to the declaration's own public entry facts.
-/// Readers of substituted guarantees may reuse those source-selection facts;
-/// post-call caller observations never select a different operator for them.
-pub fn declaration_operator_selection_requirements(
-    program: &dyn crate::CheckingInput,
-    owner: SymbolHandle,
-) -> Vec<&ProofFact> {
-    SpecificationCaller::Declaration(owner, &[]).selection_requirements(program)
-}
-
 /// Type-bound constant recipes use their real declaration telescope. Result
 /// typing alone cannot establish an application's argument formation. This
 /// checks owned operands and selected contracts without executing open binders.
@@ -946,20 +936,9 @@ fn validate_specification_expression_in_scope(
                 }
                 return;
             }
-            let status = resolution.status;
             let Some(selected) = resolution.into_selected() else {
-                let operands = types
-                    .iter()
-                    .map(|reference| {
-                        reference.map_or_else(
-                            || "unresolved".to_owned(),
-                            |reference| program.display_type_reference(reference),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot form specification operator `{}` in {owner}: no exact selected meaning (operands: {operands}; {status:?})",
+                    "cannot form specification operator `{}` in {owner}: no exact selected meaning",
                     spelling.symbol(),
                 )).with_source_span(program.expression_table.source_span(expression)));
                 return;

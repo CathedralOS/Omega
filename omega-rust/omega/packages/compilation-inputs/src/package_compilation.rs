@@ -15,17 +15,18 @@ mod dependency_graph;
 mod errors;
 mod native_bindings;
 mod native_evaluation;
-pub mod native_receipts;
-pub use native_bindings::{NativeBindingProduction, PackageNativeBindingOrigin};
-pub use native_evaluation::NativeBuildEvaluation;
 pub mod native_output_codec;
 pub mod provider_selection_codec;
 mod provider_selections;
+pub use native_bindings::{
+    NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
+};
+pub use native_evaluation::NativeBuildEvaluation;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,
 };
-pub use build_handoffs::{PackageBuildHandoff, PackageBuildSource};
+pub use build_handoffs::PackageBuildHandoff;
 pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
 pub use errors::PackageCompilationInputError;

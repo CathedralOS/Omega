@@ -1,31 +1,6 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "private_callback_call_closure");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-
- Build::bind<ProcessId::current>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_getpid",
-        },
-    });
- Build::bind<ProcessId::current>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "getpid", version: "GLIBC_2.2.5",
-        },
-    });
-
- Build::bind<OnceRegistrar::execute>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_pthread_once",
-        },
-    });
- Build::bind<OnceRegistrar::execute>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "pthread_once", version: "GLIBC_2.34",
-        },
-    });
 }

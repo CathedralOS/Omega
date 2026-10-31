@@ -14,9 +14,18 @@ use validation::contract_structure::is_true_crash_route;
 
 pub(crate) struct PreparedCrashSummaryGraph {
     nodes: Vec<SummaryNode>,
+    family_potential_causes: Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)>,
 }
 
-/// Prepare one viable dependency graph for
+impl PreparedCrashSummaryGraph {
+    pub(crate) fn family_potential_crash_causes(
+        &self,
+    ) -> &[(SymbolHandle, Vec<checked_trees::CrashCause>)] {
+        &self.family_potential_causes
+    }
+}
+
+/// Prepare one viable dependency graph for public potential causes and later
 /// invocation refinement. Public causes never consume call-site proof pruning.
 pub(crate) fn prepare_crash_summary_graph(
     program: &dyn ::validation::CheckingInput,
@@ -24,9 +33,46 @@ pub(crate) fn prepare_crash_summary_graph(
     flow: &checked_trees::FlowFacts,
     crash_capsules: &[checked_trees::CrashContractCapsule],
     plans: &[checked_trees::MachineContractPlan],
-) -> PreparedCrashSummaryGraph {
+) -> Result<PreparedCrashSummaryGraph, Vec<diagnostics::Diagnostic>> {
     let nodes = prepare_summary_nodes(program, operators, flow, crash_capsules, plans);
-    PreparedCrashSummaryGraph { nodes }
+    let incomplete = program
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.target_family_interface
+                && !nodes.iter().any(|node| node.machine == machine.symbol)
+        })
+        .map(|machine| {
+            let reason = match complete_family_members(program, machine, plans) {
+                Err(reason) => reason,
+                Ok(members) => unviable_member_dependency(
+                    program,
+                    operators,
+                    flow,
+                    crash_capsules,
+                    plans,
+                    &nodes,
+                    &members,
+                )
+                .unwrap_or_else(|| {
+                    "incomplete or unresolved member invocation dependencies".to_owned()
+                }),
+            };
+            diagnostics::Diagnostic::error(format!(
+                "cannot publish target-family crash envelope for `{}`: {reason}",
+                machine.name,
+            ))
+        })
+        .collect::<Vec<_>>();
+    if !incomplete.is_empty() {
+        return Err(incomplete);
+    }
+    let family_potential_causes =
+        super::potential_causes::infer(program, &nodes, crash_capsules, plans);
+    Ok(PreparedCrashSummaryGraph {
+        nodes,
+        family_potential_causes,
+    })
 }
 
 type NamedOperatorUseMap<'a> = symbols::SymbolKeyMap<
@@ -50,6 +96,56 @@ fn build_named_operator_use_map(
     by_expression
 }
 
+/// Name the first member dependency that kept a family out of the viable
+/// summary graph, so the refusal points at the authored call that caused it.
+fn unviable_member_dependency(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    flow: &checked_trees::FlowFacts,
+    crash_capsules: &[checked_trees::CrashContractCapsule],
+    plans: &[checked_trees::MachineContractPlan],
+    nodes: &[SummaryNode],
+    members: &[SymbolHandle],
+) -> Option<String> {
+    let named_uses_by_expression = build_named_operator_use_map(operators);
+    let viable = |machine: SymbolHandle| nodes.iter().any(|node| node.machine == machine);
+    members.iter().find_map(|member| {
+        let plan = checked_trees::contract_plan_by_machine(plans, *member)?;
+        let machine = program.machine_by_symbol(*member)?;
+        if !needs_inferred_summary(machine, plan) || viable(*member) {
+            return None;
+        }
+        let member_name = program.symbols.display_path(*member, "::");
+        let sites = match machine_invocation_sites(program, &named_uses_by_expression, flow, plan) {
+            Ok(sites) => sites,
+            Err(reason) => return Some(format!("retained member `{member_name}` {reason}")),
+        };
+        sites.iter().find_map(|site| {
+            let target = program.symbols.display_path(site.target_machine, "::");
+            let Some(target_plan) =
+                checked_trees::contract_plan_by_machine(plans, site.target_machine)
+            else {
+                let pinned = crash_capsules.iter().any(|capsule| {
+                    capsule.target_machine() == site.target_machine
+                        && capsule.target_state() == site.target_state
+                });
+                return (!pinned).then(|| {
+                    format!("retained member `{member_name}` calls `{target}` without a pinned crash capsule")
+                });
+            };
+            program
+                .machine_by_symbol(site.target_machine)
+                .filter(|target_machine| {
+                    needs_inferred_summary(target_machine, target_plan)
+                        && !viable(site.target_machine)
+                })
+                .map(|_| {
+                    format!("retained member `{member_name}` calls `{target}`, whose crash summary is unresolved")
+                })
+        })
+    })
+}
+
 fn prepare_summary_nodes(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
@@ -68,9 +164,20 @@ fn prepare_summary_nodes(
                     .is_some_and(|machine| needs_inferred_summary(machine, target))
             })
             .filter_map(|target| {
-                program.machine_by_symbol(target.machine)?;
+                let machine = program.machine_by_symbol(target.machine)?;
+                let family_members = if machine.target_family_interface {
+                    complete_family_members(program, machine, plans).ok()?
+                } else {
+                    Vec::new()
+                };
                 Some(SummaryNode {
                     machine: target.machine,
+                    direct: if machine.target_family_interface {
+                        summary_published_crash_buckets(target.crash.published())
+                    } else {
+                        inferred_direct_body_crash_buckets(target, operators, None)
+                    },
+                    family_members,
                     invocations: machine_invocation_sites(
                         program,
                         &named_uses_by_expression,
@@ -106,7 +213,14 @@ fn prepare_summary_nodes(
             nodes.iter().map(|node| (node.machine, ())).collect();
         let before = nodes.len();
         nodes.retain(|node| {
-            node.invocations.iter().all(|invocation| {
+            node.family_members.iter().all(|member| {
+                plan_by_machine(*member).is_some_and(|plan| {
+                    program.machine_by_symbol(*member).is_some_and(|machine| {
+                        !needs_inferred_summary(machine, plan)
+                            || viable_machines.contains_key(member)
+                    })
+                })
+            }) && node.invocations.iter().all(|invocation| {
                 if let Some(plan) = plan_by_machine(invocation.target_machine) {
                     program
                         .machine_by_symbol(plan.machine)
@@ -181,7 +295,28 @@ pub(crate) fn infer_private_body_summaries(
                 let source_paths = entry_conditions.for_machine(machine.symbol);
                 let mut private_dependencies = Vec::new();
                 let mut published_dependencies = Vec::new();
-
+                for member in &node.family_members {
+                    let target_plan = plan_by_machine(*member)
+                        .expect("a viable family member has its local contract plan");
+                    let target_machine = program
+                        .machine_by_symbol(*member)
+                        .expect("a viable family member has its typed declaration");
+                    if needs_inferred_summary(target_machine, target_plan) {
+                        private_dependencies.push(PrivateSummaryDependency {
+                            machine: *member,
+                            // All guards already use entry-parameter positions. Family
+                            // signature admission pins the positional correspondence;
+                            // no invocation actual or source-name substitution exists.
+                            substitution: None,
+                            path_guard: SummaryCrashRouteGuard::Truth,
+                            recursive: false,
+                        });
+                    } else {
+                        published_dependencies.extend(summary_published_crash_buckets(
+                            target_plan.crash.published(),
+                        ));
+                    }
+                }
                 for invocation in &node.invocations {
                     let state_flow = flow
                         .control
@@ -302,7 +437,16 @@ pub(crate) fn infer_private_body_summaries(
                 }
                 PrivateSummaryEquation {
                     machine: node.machine,
-                    direct: {
+                    direct: if program
+                        .machine_by_symbol(node.machine)
+                        .is_some_and(|machine| machine.target_family_interface)
+                    {
+                        // Publication precedes call refinement. Its conservative
+                        // potential causes cannot disappear through proof pruning.
+                        plan_by_machine(node.machine)
+                            .map(|plan| summary_published_crash_buckets(plan.crash.published()))
+                            .unwrap_or_else(|| node.direct.clone())
+                    } else {
                         inferred_direct_body_crash_buckets(
                             plan_by_machine(node.machine)
                                 .expect("a retained summary node has its contract plan"),
@@ -321,6 +465,8 @@ pub(crate) fn infer_private_body_summaries(
 
 pub(super) struct SummaryNode {
     pub(super) machine: SymbolHandle,
+    direct: Vec<SummaryCrashBucket>,
+    pub(super) family_members: Vec<SymbolHandle>,
     pub(super) invocations: Vec<SummaryInvocationSite>,
 }
 
@@ -666,6 +812,18 @@ fn private_dependency_reaches(
             continue;
         };
         let node = &nodes[node_index];
+        pending.extend(
+            node.family_members
+                .iter()
+                .filter(|member| {
+                    plan_by_machine(**member).is_some_and(|plan| {
+                        program
+                            .machine_by_symbol(**member)
+                            .is_some_and(|machine| needs_inferred_summary(machine, plan))
+                    })
+                })
+                .copied(),
+        );
         pending.extend(node.invocations.iter().filter_map(|invocation| {
             plan_by_machine(invocation.target_machine)
                 .filter(|plan| {
@@ -683,12 +841,83 @@ pub(super) fn needs_inferred_summary(
     machine: &typed_trees::machine::Machine,
     plan: &checked_trees::MachineContractPlan,
 ) -> bool {
-    machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-        && plan.crash.published().is_empty()
+    machine.target_family_interface
+        || (machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            && plan.crash.published().is_empty())
 }
 
 /// Missing or unfinished members invalidate the summary rather than supplying
 /// an empty crash envelope. The family itself has no executable body.
+fn complete_family_members(
+    program: &dyn ::validation::CheckingInput,
+    interface: &typed_trees::machine::Machine,
+    plans: &[checked_trees::MachineContractPlan],
+) -> Result<Vec<SymbolHandle>, String> {
+    let mut families = program
+        .target_machine_families
+        .iter()
+        .filter(|family| family.canonical == interface.symbol);
+    let family = families
+        .next()
+        .ok_or_else(|| "generated interface has no retained family roster".to_owned())?;
+    if families.next().is_some() {
+        return Err("generated interface has multiple retained family rosters".to_owned());
+    }
+    if family.members.is_empty() {
+        return Err("retained family roster has no members".to_owned());
+    }
+    let parameters = program
+        .machine_states(interface)
+        .first()
+        .map(|entry| program.state_parameters(entry))
+        .ok_or_else(|| "generated interface has no entry telescope".to_owned())?;
+    let mut members = Vec::with_capacity(family.members.len());
+    for member in &family.members {
+        let member_name = program.symbols.display_path(member.machine, "::");
+        let machine = program
+            .machine_by_symbol(member.machine)
+            .ok_or_else(|| format!("retained member `{member_name}` has no typed declaration"))?;
+        let entry = program
+            .machine_states(machine)
+            .first()
+            .ok_or_else(|| format!("retained member `{member_name}` has no entry telescope"))?;
+        let mut member_plans = plans.iter().filter(|plan| plan.machine == member.machine);
+        member_plans
+            .next()
+            .ok_or_else(|| format!("retained member `{member_name}` has no owned crash plan"))?;
+        if member_plans.next().is_some() {
+            return Err(format!(
+                "retained member `{member_name}` has multiple owned crash plans"
+            ));
+        }
+        let failure = if machine.target_family_interface {
+            Some("is itself a generated interface")
+        } else if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            && !machine.body_is_present
+        {
+            Some("claims checked supply without a present body")
+        } else if !machine.supplies_checked_body()
+            && !program.machine_publishes_crash_ceiling(machine)
+        {
+            Some("has opaque supply without a published crash ceiling")
+        } else if machine.body_status != typed_trees::machine::MachineBodyStatus::Complete {
+            Some("has an incomplete declaration/body status")
+        } else if machine.structural_type_equations_pending {
+            Some("has pending structural type equations")
+        } else if program.state_parameters(entry).len() != parameters.len() {
+            Some("has a different entry parameter count")
+        } else if members.contains(&member.machine) {
+            Some("occurs twice in the retained roster")
+        } else {
+            None
+        };
+        if let Some(failure) = failure {
+            return Err(format!("retained member `{member_name}` {failure}"));
+        }
+        members.push(member.machine);
+    }
+    Ok(members)
+}
 
 fn summary_published_crash_buckets(
     buckets: &[checked_trees::CrashRouteBucket],

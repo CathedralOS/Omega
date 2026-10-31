@@ -2622,15 +2622,6 @@ pass/facts/fixed_array_twofiftysix_elem_index_bound_through_other_machine_exit b
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_other_state_exit built 18992ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_parameter_exit built 19000ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
 pass/facts/fixed_array_twofiftysix_elem_index_bound_through_target_body_exit built 21258ms exit:0 interpreter-exit:0 interpreter:agrees @9d9ba4fb6251+wt
-pass/facts/fixed_layout_storage_through_call_result_exit built 3948ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
-pass/facts/fixed_layout_storage_through_const_name_exit built 5252ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
-pass/facts/fixed_layout_storage_through_field_exit built 3497ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
-pass/facts/fixed_layout_storage_through_local_exit built 2218ms exit:0 interpreter-exit:0 interpreter:agrees @ada800b9313e+wt
-pass/facts/fixed_layout_storage_through_match_join_exit built 3593ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
-pass/facts/fixed_layout_storage_through_other_machine_exit built 3402ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
-pass/facts/fixed_layout_storage_through_other_state_exit built 3678ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
-pass/facts/fixed_layout_storage_through_parameter_exit built 3861ms exit:0 interpreter-exit:0 interpreter:agrees @50285e49318d
-pass/facts/fixed_layout_storage_through_target_body_exit built 1864ms exit:0 interpreter-exit:0 interpreter:agrees @1abd71057ea2+wt
 pass/facts/float_comparison_route_through_call_result_exit built 28838ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/float_comparison_route_through_const_name_exit built 26029ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/float_comparison_route_through_field_exit built 21884ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
@@ -5513,7 +5504,6 @@ pass/host/std_clock_sleep_exit built 14521ms exit:70 interpreter-exit:70 interpr
 pass/inline_asm/target_family_instruction_exit built 837ms exit:0 interpreter-exit:0 interpreter:agrees @a8fbfdfa4d11
 pass/layouts/completed_integer_at_result_snapshot_exit built 2680ms exit:0 interpreter-exit:0 interpreter:agrees @6bbc0c024e25+wt
 pass/layouts/direct_encoded_assignment_preserves_descriptor_exit built 880ms exit:0 interpreter-exit:0 interpreter:agrees @477082ca1580
-pass/layouts/fixed_layout_target_facts_exit built 2111ms exit:0 interpreter-exit:0 interpreter:agrees @ada800b9313e+wt
 pass/layouts/placed_primitive_aligned_backing built 60162ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_authored_name built 19716ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_callback built 50141ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt

@@ -23,14 +23,9 @@ boundary trait Mixed {
     machine via_vtable() reaches Mixed;
 }
 
+macos_arm64 machine syscall_leaf() satisfies Mixed::via_syscall via ForeignBinding::Syscall(1);
 
-boundary trait SelectedImportBinding {
-    machine import_binding() -> ForeignBinding<17, 5, 0> reaches
-;
-}
-CheckedImportBinding satisfies SelectedImportBinding {
-    machine import_binding() -> ForeignBinding<17, 5, 0>
-{
+macos_arm64 machine import_binding() -> ForeignBinding<17, 5, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
@@ -38,11 +33,12 @@ CheckedImportBinding satisfies SelectedImportBinding {
         },
     }
 }
-}
 
+macos_arm64 machine import_leaf() satisfies Mixed::via_import via import_binding();
 
 data NativeTable { reserved0: addr; reserved1: addr; via_vtable: addr; }
 
+macos_arm64 machine NativeTable::vtable_leaf() satisfies Mixed::via_vtable via ForeignBinding::VtableField(via_vtable);
 
 data Main { hits: i32 in Wrapping; }
 

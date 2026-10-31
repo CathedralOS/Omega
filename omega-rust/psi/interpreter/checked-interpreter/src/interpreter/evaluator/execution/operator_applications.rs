@@ -23,7 +23,7 @@
 //!
 //! When the roster holds exactly one checked body, that body is the only
 //! realization a Build can select, and it runs as an ordinary call. When every
-//! realization is an authenticated sealed numeric catalog declaration (one
+//! realization is a bodyless `ForeignBinding::CompilerIntrinsic` leaf (one
 //! per target), the meaning is compiler-known and target-independent, and
 //! the requirement's typed signature identifies it:
 //!
@@ -60,7 +60,7 @@ use crate::interpreter::evaluator::{
     PrimitiveType, SemanticFloatFormat, State, SymbolHandle, TypeReferenceHandle, Value, trap,
 };
 use checked_trees::CheckedArithmeticPolicyAdapter;
-use language_semantics::MachineSupplyMode;
+use language_semantics::{ExternalBindingIdentity, ExternalBindingMechanism, MachineSupplyMode};
 use typed_trees::operator::OperatorDefinition;
 
 /// The requirement a call names, with the signature view its meaning and
@@ -302,17 +302,20 @@ impl<'program> Evaluator<'program> {
         if machine.body_is_present && machine.supply_mode.is_checked_body() {
             return RealizationKind::CheckedBody(machine);
         }
-        let [conformance] = self.program.machine_trait_conformances(machine) else {
-            return RealizationKind::Other;
-        };
-        if self
-            .program
-            .sealed_numeric_realization(machine.symbol, conformance.requirement_symbol)
-            .is_some()
-        {
-            RealizationKind::CompilerIntrinsic
-        } else {
-            RealizationKind::Other
+        // The same machine-level intrinsic identity checking admits: an
+        // authored `via ForeignBinding::CompilerIntrinsic` whose evaluated
+        // binding is the compiler intrinsic.
+        match machine.supply_mode {
+            MachineSupplyMode::ExternalRealization {
+                binding: Some(binding),
+                mechanism: Some(ExternalBindingMechanism::CompilerIntrinsic),
+            } if !machine.body_is_present
+                && self.program.external_bindings.identity(binding)
+                    == Some(&ExternalBindingIdentity::CompilerIntrinsic) =>
+            {
+                RealizationKind::CompilerIntrinsic
+            }
+            _ => RealizationKind::Other,
         }
     }
 

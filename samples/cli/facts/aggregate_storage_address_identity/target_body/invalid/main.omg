@@ -2,13 +2,7 @@
 // Expected exit: 0.
 data Pair [copy] { left: u64; right: u64; }
 machine expose(value: &Pair) -> addr { address_of(value) }
-boundary trait SelectedProbe {
-    machine probe() -> bool reaches
-;
-}
-CheckedProbe satisfies SelectedProbe {
-    machine probe() -> bool
-{
+linux_x86_64 machine probe() -> bool {
     let mut value: Pair = Pair { left: 7, right: 11 };
     let original: addr = address_of(value);
     let forwarded: addr = expose(&value);
@@ -16,12 +10,32 @@ CheckedProbe satisfies SelectedProbe {
     let current: addr = address_of(value);
     original != 0 && original == forwarded && original == current && value.left == 13
 }
+linux_arm64 machine probe() -> bool {
+    let mut value: Pair = Pair { left: 7, right: 11 };
+    let original: addr = address_of(value);
+    let forwarded: addr = expose(&value);
+    value.left = 13;
+    let current: addr = address_of(value);
+    original != 0 && original == forwarded && original == current && value.left == 13
 }
-
-
-
+macos_arm64 machine probe() -> bool {
+    let mut value: Pair = Pair { left: 7, right: 11 };
+    let original: addr = address_of(value);
+    let forwarded: addr = expose(&value);
+    value.left = 13;
+    let current: addr = address_of(value);
+    original != 0 && original == forwarded && original == current && value.left == 13
+}
+windows_x86_64 machine probe() -> bool {
+    let mut value: Pair = Pair { left: 7, right: 11 };
+    let original: addr = address_of(value);
+    let forwarded: addr = expose(&value);
+    value.left = 13;
+    let current: addr = address_of(value);
+    original != 0 && original == forwarded && original == current && value.left == 13
+}
 machine main() crashes Trap {
-    transition SelectedProbe::probe() { true -> done() false -> bad() }
+    transition probe() { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

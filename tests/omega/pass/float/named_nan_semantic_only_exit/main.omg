@@ -2,11 +2,11 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
 
-const NAN32: f32 = F32SquareRoot::square_root(-1.0f32);
-const NAN64: f64 = F64SquareRoot::square_root(-1.0f64);
+const NAN32: f32 = F32::square_root(-1.0f32);
+const NAN64: f64 = F64::square_root(-1.0f64);
 const ALIAS: f32 = NAN32;
-machine classify(value: f32) -> bool { F32IsNan::is_nan(value) }
-const CLASSIFIED: bool = classify(ALIAS) && F64IsNan::is_nan(NAN64);
+machine classify(value: f32) -> bool { F32::is_nan(value) }
+const CLASSIFIED: bool = classify(ALIAS) && F64::is_nan(NAN64);
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

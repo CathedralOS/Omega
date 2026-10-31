@@ -687,19 +687,8 @@ pub fn reference_storage_source_compatible<'types>(
                     || plain_storage(types.clone(), source, &mut Vec::new())
                         && crate::reference_storage_layout(types.clone(), source).is_some_and(
                             |layout| {
-                                let target_layout =
-                                    crate::reference_storage_layout(types.clone(), *referent);
-                                Some(layout) == target_layout
-                                    || storage_scalars_satisfy(
-                                        types.clone(),
-                                        *referent,
-                                        &mut Vec::new(),
-                                        &is_byte_scalar,
-                                    ) && target_layout.is_some_and(|target| {
-                                        layout.0 == target.0
-                                            && target.1 != 0
-                                            && layout.1 % target.1 == 0
-                                    })
+                                Some(layout)
+                                    == crate::reference_storage_layout(types.clone(), *referent)
                             },
                         ))
         }
@@ -715,25 +704,6 @@ fn plain_storage<'types>(
     root: StructuralTypeId,
     active: &mut Vec<StructuralTypeId>,
 ) -> bool {
-    storage_scalars_satisfy(types, root, active, &|scalar| {
-        reference_storage_byte_width(scalar).is_some()
-    })
-}
-
-fn is_byte_scalar(scalar: ScalarType) -> bool {
-    matches!(scalar, ScalarType::Integer(integer) if !integer.is_address()
-        && integer.bits() == 8 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
-}
-
-// Both ordinary aggregate views and byte observations exclude atomic and
-// descriptor carriers. Psi separately establishes initialized bytes and the
-// appropriate one-way or two-way validity relation; this is geometry only.
-fn storage_scalars_satisfy<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    root: StructuralTypeId,
-    active: &mut Vec<StructuralTypeId>,
-    accepts: &impl Fn(ScalarType) -> bool,
-) -> bool {
     if active.len() >= 128 || active.contains(&root) {
         return false;
     }
@@ -742,20 +712,25 @@ fn storage_scalars_satisfy<'types>(
     };
     active.push(root);
     let valid = match shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => accepts(*scalar),
+        StructuralTypeShape::PrimitiveScalar(scalar) => {
+            reference_storage_byte_width(*scalar).is_some()
+        }
         StructuralTypeShape::FixedArray { element, .. } => {
-            storage_scalars_satisfy(types.clone(), *element, active, accepts)
+            plain_storage(types.clone(), *element, active)
         }
         StructuralTypeShape::Record { fields, .. } => fields
             .iter()
             .filter(|field| !field.relevance.is_erased())
             .all(|field| match field.field_type {
                 terminal_psi::StructuralFieldType::Structural(child) => {
-                    storage_scalars_satisfy(types.clone(), child, active, accepts)
+                    plain_storage(types.clone(), child, active)
                 }
                 terminal_psi::StructuralFieldType::Atomic(_)
                 | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_) => false,
-                _ => field.field_type.scalar_type().is_some_and(accepts),
+                _ => field
+                    .field_type
+                    .scalar_type()
+                    .is_some_and(|scalar| reference_storage_byte_width(scalar).is_some()),
             }),
         _ => false,
     };

@@ -24,7 +24,7 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
                    index: i32 in Wrapping) -> bool {
         // All accepted values are integers. Multiplying by fifteen keeps
         // linear-baseline residuals exact, including an inclusive threshold.
-        let offset: f64 = F64FromI32::from_i32(index as i32);
+        let offset: f64 = F64::from_i32(index as i32);
         let weight: f64 = max_f64(0.0, spectrum.samples[index] * 15.0 -
             spectrum.baseline_start * (15.0 - offset) - spectrum.baseline_end * offset);
         transition weight >= spectrum.threshold * 15.0 {
@@ -60,7 +60,7 @@ public machine find_regions(spectrum: &Spectrum, regions: &mut Regions) -> bool 
     machine add(spectrum: &Spectrum, regions: &mut Regions,
               index: i32 in Wrapping, weight: f64,
               region: i32 in Wrapping) -> bool {
-        let coordinate: f64 = spectrum.origin + spectrum.spacing * F64FromI32::from_i32(index as i32);
+        let coordinate: f64 = spectrum.origin + spectrum.spacing * F64::from_i32(index as i32);
         regions.ends[region] = index;
         regions.area_fifteenths[region] = regions.area_fifteenths[region] + weight;
         regions.moment_fifteenths[region] = regions.moment_fifteenths[region] + weight * coordinate;

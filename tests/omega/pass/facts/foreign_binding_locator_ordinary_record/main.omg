@@ -1,3 +1,0 @@
-data Bytes<const Count: u64> { bytes: [u8; Count]; }
-machine consume<const N: u64>(value: Bytes<N>) -> u64 { 0 }
-public machine probe() -> u64 { consume(Bytes { bytes: "a\xff" }) }

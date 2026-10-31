@@ -62,36 +62,36 @@ macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: &mut
     LoopbackDeviceLoanProvider::select_provider<DeviceLoanProvider, LoopbackDeviceLoanProvider>(defaults);
 }
 
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::reserve(length: u64) -> Extent
+macos_arm64 machine LoopbackDeviceLoanProvider::reserve(length: u64) -> Extent
     satisfies DeviceLoanProvider::reserve
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::release(range: Extent in Granted)
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::release(range: Extent in Granted)
     satisfies DeviceLoanProvider::release
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::lend_for_read(range: Extent in Granted) -> DeviceLoan
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::lend_for_read(range: Extent in Granted) -> DeviceLoan
     satisfies DeviceLoanProvider::lend_for_read
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::lend_for_write(range: Extent in Granted) -> DeviceLoan
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::lend_for_write(range: Extent in Granted) -> DeviceLoan
     satisfies DeviceLoanProvider::lend_for_write
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::publish(loan: &DeviceLoan) -> DeviceOrderingEvent
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::publish(loan: &DeviceLoan) -> DeviceOrderingEvent
     satisfies DeviceLoanProvider::publish
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::maintain_cache(loan: &DeviceLoan) -> DeviceOrderingEvent
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::maintain_cache(loan: &DeviceLoan) -> DeviceOrderingEvent
     satisfies DeviceLoanProvider::maintain_cache
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::notify(publication: DeviceOrderingEvent in DeviceOrderingEvent::Publication) -> DeviceOrderingEvent
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::notify(publication: DeviceOrderingEvent in DeviceOrderingEvent::Publication) -> DeviceOrderingEvent
     satisfies DeviceLoanProvider::notify
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::settle(event: DeviceOrderingEvent)
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::settle(event: DeviceOrderingEvent)
     satisfies DeviceLoanProvider::settle
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::complete(loan: DeviceLoan) -> DeviceCompletionAttempt
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::complete(loan: DeviceLoan) -> DeviceCompletionAttempt
     satisfies DeviceLoanProvider::complete
-    ;
-macos_arm64 boundary machine LoopbackDeviceLoanProvider::acquire(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) -> DeviceAcquisitionAttempt
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::acquire(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) -> DeviceAcquisitionAttempt
     satisfies DeviceLoanProvider::acquire
-    ;
+    via ForeignBinding::CompilerIntrinsic;
 
 data DmaHarness {
 }

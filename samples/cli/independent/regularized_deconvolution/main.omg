@@ -21,11 +21,11 @@ machine Application::main(application: &mut Application) reaches Console crashes
         _ -> invalid(application)
     }
     machine configure(application: &mut Application, length: f64, width: f64, regularization: f64) {
-        let count: i32 in Saturating = I32FromF64::from_f64(length);
-        let taps: i32 in Saturating = I32FromF64::from_f64(width);
+        let count: i32 in Saturating = I32::from_f64(length);
+        let taps: i32 in Saturating = I32::from_f64(width);
         application.length = count as i32 in Wrapping; application.width = taps as i32 in Wrapping; application.regularization = regularization;
         application.index = 0; application.kernel_sum = 0.0;
-        let recovered: f64 = F64FromI32::from_i32(count as i32);
+        let recovered: f64 = F64::from_i32(count as i32);
         transition recovered == length { true -> kernel(application) _ -> invalid(application) }
     }
     machine kernel(application: &mut Application) {
@@ -68,7 +68,7 @@ machine Application::main(application: &mut Application) reaches Console crashes
         transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> initial_value(application) _ -> iterate_start(application) }
     }
     machine initial_value(application: &mut Application) {
-        let mean: f64 = application.sum / F64FromI32::from_i32(application.length as i32) / (application.kernel_sum * application.kernel_sum);
+        let mean: f64 = application.sum / F64::from_i32(application.length as i32) / (application.kernel_sum * application.kernel_sum);
         let value: f64 = application.right[application.index] - mean * application.kernel_sum * application.kernel_sum;
         application.solution[application.index] = mean; application.residual[application.index] = value; application.direction[application.index] = value;
         application.squared = application.squared + value * value; application.index = application.index + 1;

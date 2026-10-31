@@ -11,11 +11,20 @@ public boundary trait UnusedProcedure {
 
 data Spread {}
 
-WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, WindowProcedure::call> { }
+WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<
+    Spread,
+    WindowProcedure::call
+> { }
 
-SecondaryWndClassWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, WindowProcedure::call> { }
+SecondaryWndClassWindowProcedureSlot satisfies PrivateCallbackSlot<
+    Spread,
+    WindowProcedure::call
+> { }
 
-UnusedWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, UnusedProcedure::call> { }
+UnusedWindowProcedureSlot satisfies PrivateCallbackSlot<
+    Spread,
+    UnusedProcedure::call
+> { }
 
 machine Spread::plan(schema: Schema) -> Plan {
     let mut owned_entries: [FieldEntry; 64];

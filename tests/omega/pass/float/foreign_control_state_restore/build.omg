@@ -1,24 +1,8 @@
-use omega::language::core::external_binding;
 // Darwin floating-control-state canary: the hosted macOS target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedUpwardRoundingMode, MacosArm64UpwardRoundingMode>(builder, macos_arm64);
-    Build::select_provider<SelectedUpwardRoundingMode, LinuxX8664UpwardRoundingMode>(builder, linux_x86_64);
-
     Build::application(builder, "foreign_control_state_restore");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-
- Build::bind<FloatingEnvironment::set_rounding>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libSystem.B.dylib",
-            symbol: "_fesetround",
-        },
-    });
- Build::bind<FloatingEnvironment::set_rounding>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libm.so.6", symbol: "fesetround", version: "GLIBC_2.2.5",
-        },
-    });
 }

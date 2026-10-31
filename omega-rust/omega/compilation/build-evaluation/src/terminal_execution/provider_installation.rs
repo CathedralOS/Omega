@@ -51,13 +51,12 @@ pub(super) fn prepare<'host, 'code>(
     // Keep freshly produced code alive after helper preparation is released;
     // decoding is an external-byte ingress, not a same-session ownership transfer.
     let program = TerminalProgram::retain(artifact.retain_code());
-    let targets = terminal_installation::target_context(artifact.view(), profile.target_name());
-    let layout_target = profile
-        .layout_target_facts()
-        .ok_or("Build helper has no admitted target layout facts")?;
-    let layouts =
-        terminal_installation::admit_target_layouts(artifact.view(), &targets, &layout_target)
-            .map_err(|error| format!("Build helper layouts: {error:?}"))?;
+    let targets = terminal_installation::admit_target_machine_selections(
+        artifact.view(),
+        profile.target_name(),
+    );
+    let layouts = terminal_installation::admit_target_layouts(artifact.view(), &targets)
+        .map_err(|error| format!("Build helper layouts: {error:?}"))?;
     let mut bindings = Vec::new();
     for boundary in &request.requirement.boundaries {
         let receiving = receiver
@@ -116,10 +115,10 @@ pub(super) fn prepare<'host, 'code>(
                 let scope_profile = target::TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(build_time_evaluation::ScalarScopeEvaluation {
-                    layout_target: scope_profile
-                        .layout_target_facts()
-                        .ok_or("scalar evaluation target has no immutable layout catalogue")?,
-                    targets: terminal_installation::target_context(artifact.view(), scope),
+                    targets: terminal_installation::admit_target_machine_selections(
+                        artifact.view(),
+                        scope,
+                    ),
                     providers: admitted.selection().clone(),
                     address_model: Ok(target::TargetSemantics::close_address_model(scope_profile)
                         .map(|model| terminal_installation::ScalarAddressModel {
@@ -154,19 +153,19 @@ pub(super) fn prepare<'host, 'code>(
 fn runtime_supplies(
     program: &TerminalProgram<'_>,
     admitted: &terminal_installation::AdmittedComponentProvider,
-    targets: &terminal_installation::TerminalTargetContext,
+    targets: &terminal_installation::AdmittedTargetMachineSelections,
     layouts: &terminal_installation::AdmittedTargetLayouts,
 ) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
     program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             installation: Some(admitted.selection()),
-            entry: Some(terminal_psi::TerminalCallable::Machine(
+            entry: Some(terminal_psi::TargetMachineCallable::Machine(
                 admitted.candidate(),
             )),
             host_imports: &[],
             x86_flags: None,
             memory_ordering: None,
-            target_context: Some(targets),
+            target_machines: Some(targets),
             target_layouts: Some(layouts),
         })
         .map_err(|error| format!("Build helper closure admission: {error:?}"))

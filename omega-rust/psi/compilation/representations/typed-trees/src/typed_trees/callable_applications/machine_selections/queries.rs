@@ -12,43 +12,6 @@ use crate::{
 use symbols::SymbolHandle;
 
 impl TypedTrees {
-    fn machine_selection_lifetimes_are_current(&self, owner: &AppliedCallableOwner) -> bool {
-        let AppliedCallableOwner::MachineSelection {
-            invocation,
-            provider,
-            caller_lifetimes,
-            caller_lifetime_declaration,
-            caller_lifetime_owner,
-            provider_lifetime_declaration,
-            provider_lifetime_owner,
-            provider_lifetimes,
-            ..
-        } = owner
-        else {
-            return false;
-        };
-        let caller = self
-            .expression_table
-            .static_machine_application(*invocation);
-        let selected = self.expression_table.static_machine_application(*provider);
-        *caller_lifetime_declaration == caller.lifetime_binding_declaration
-            && *caller_lifetime_owner == caller.lexical_owner
-            && *provider_lifetime_declaration == selected.lifetime_binding_declaration
-            && *provider_lifetime_owner == selected.lexical_owner
-            && self
-                .callable_lifetime_substitutions
-                .span_or_empty(*caller_lifetimes)
-                == self
-                    .expression_table
-                    .static_machine_application_lifetimes(*invocation)
-            && self
-                .callable_lifetime_substitutions
-                .span_or_empty(*provider_lifetimes)
-                == self
-                    .expression_table
-                    .static_machine_application_lifetimes(*provider)
-    }
-
     /// A retained tuple needs its exact demand view, never the executable
     /// clone's erased contract as a substitute when that view is missing.
     pub fn has_applied_machine_selection(
@@ -98,7 +61,6 @@ impl TypedTrees {
                     && *prepared_demand == demand
                     && source_required == expected)
                     .then_some(AppliedMachineCallable {
-                        invocation,
                         lexical_owner: self
                             .expression_table
                             .static_machine_application(*provider)
@@ -142,11 +104,6 @@ impl TypedTrees {
                     source_required,
                     caller_operands,
                     caller_lifetimes,
-                    caller_lifetime_declaration,
-                    caller_lifetime_owner,
-                    provider_lifetime_declaration,
-                    provider_lifetime_owner,
-                    provider_lifetimes: prepared_provider_lifetimes,
                     ..
                 } = &prepared.owner
                 else {
@@ -160,32 +117,11 @@ impl TypedTrees {
                 let previous_bindings = self
                     .expression_table
                     .static_machine_application_bindings(*provider);
-                self.machine_selection_lifetimes_are_current(&prepared.owner)
-                    && *source == invocation
+                *source == invocation
                     && *position == ordinal
                     && *entry == selected
                     && *prepared_demand == demand
                     && source_required == required
-                    && *caller_lifetime_declaration
-                        == self
-                            .expression_table
-                            .static_machine_application(invocation)
-                            .lifetime_binding_declaration
-                    && *caller_lifetime_owner == owner
-                    && *provider_lifetime_declaration
-                        == self
-                            .expression_table
-                            .static_machine_application(*provider)
-                            .lifetime_binding_declaration
-                    && *provider_lifetime_owner
-                        == self
-                            .expression_table
-                            .static_machine_application(*provider)
-                            .lexical_owner
-                    && self
-                        .callable_lifetime_substitutions
-                        .span_or_empty(*prepared_provider_lifetimes)
-                        == provider_lifetimes
                     && self
                         .callable_lifetime_substitutions
                         .span_or_empty(*caller_lifetimes)
@@ -270,7 +206,6 @@ impl TypedTrees {
                     return None;
                 };
                 (*source == invocation).then_some(AppliedMachineCallable {
-                    invocation,
                     lexical_owner: self
                         .expression_table
                         .static_machine_application(*provider)

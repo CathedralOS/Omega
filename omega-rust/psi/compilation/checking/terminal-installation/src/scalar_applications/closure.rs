@@ -7,7 +7,7 @@
 //! artifact-ingress or guest-accessible operation.
 
 use super::{ScalarApplicationObservations, ScalarApplicationValues, ScalarConditionSelection};
-use crate::{AdmittedProviderSelections, AdmittedTargetLayouts, TerminalTargetContext};
+use crate::{AdmittedProviderSelections, AdmittedTargetLayouts, AdmittedTargetMachineSelections};
 use numerics::bignum::BigInt;
 use semantic_vocabulary::IntegerType;
 use terminal_codec::TerminalArtifactView;
@@ -27,7 +27,7 @@ pub struct ScalarAddressModel {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarScopeInputs {
-    targets: TerminalTargetContext,
+    targets: AdmittedTargetMachineSelections,
     providers: AdmittedProviderSelections,
     layouts: AdmittedTargetLayouts,
     address_model: Option<ScalarAddressModel>,
@@ -35,7 +35,7 @@ pub struct ScalarScopeInputs {
 }
 
 impl ScalarScopeInputs {
-    pub fn targets(&self) -> &TerminalTargetContext {
+    pub fn targets(&self) -> &AdmittedTargetMachineSelections {
         &self.targets
     }
     pub fn providers(&self) -> &AdmittedProviderSelections {
@@ -105,9 +105,44 @@ pub struct ScalarApplicationClosure<'artifact> {
 impl<'artifact> ScalarApplicationClosure<'artifact> {
     pub fn new(artifact: TerminalArtifactView<'artifact>, primary: &str) -> Self {
         let catalog = &artifact.module().scalar_applications;
-        // Target meaning is supplied by this realization's explicit catalog
-        // context. Source declarations have no deployment tags or family scopes.
-        let scopes = vec![(primary.to_owned(), false)];
+        let applications = catalog.proof_scope.applications();
+        let mut owners = Vec::new();
+        let mut unscoped = false;
+        let subjects = catalog
+            .conditions
+            .ranges()
+            .iter()
+            .filter_map(|condition| match condition {
+                ScalarRangeCondition::Range { subject, .. } => Some(*subject),
+                _ => None,
+            })
+            .chain(
+                catalog
+                    .conditions
+                    .predicates()
+                    .iter()
+                    .map(|condition| condition.subject),
+            )
+            .chain(catalog.conditions.completions().iter().filter_map(
+                |condition| match condition {
+                    ScalarCompletionCondition::Complete { subject, .. } => Some(*subject),
+                    ScalarCompletionCondition::Missing => None,
+                },
+            ));
+        for subject in subjects {
+            match subject {
+                ScalarConditionSubject::Module => unscoped = true,
+                ScalarConditionSubject::Declaration(owner) if !owners.contains(&owner) => {
+                    owners.push(owner)
+                }
+                _ => {}
+            }
+        }
+        let scopes = applications
+            .required_scopes(primary, &owners, unscoped)
+            .into_iter()
+            .map(|scope| (scope.to_owned(), false))
+            .collect();
         Self {
             artifact,
             primary: primary.to_owned(),

@@ -132,6 +132,7 @@ pub(super) fn prepare_normal_exits<'program>(
             };
             (owner.supply_mode.is_checked_body()
                 && owner.body_is_present
+                && !owner.target_family_interface
                 && static_context_unchanged)
                 .then_some((owner, transfer.state))
         });

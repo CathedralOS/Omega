@@ -8,27 +8,29 @@ crashes Trap items[index] == 0
     transition items[index] == 0 { true -> bad() false -> (items[index]) }
     machine bad() -> u64 { crash Trap; }
 }
-boundary trait SelectedForward {
-    machine forward(items: &[u64; 2], index: u64) -> u64 reaches
-requires index < 2
-crashes Trap items[index] == 0;
-}
-CheckedForward satisfies SelectedForward {
-    machine forward(items: &[u64; 2], index: u64) -> u64
+windows_x86_64 machine forward(items: &[u64; 2], index: u64) -> u64
 requires index < 2
 crashes Trap items[index] == 0
 { maybe_zero(items, index) }
-}
 
+linux_x86_64 machine forward(items: &[u64; 2], index: u64) -> u64
+requires index < 2
+crashes Trap items[index] == 0
+{ maybe_zero(items, index) }
 
+macos_arm64 machine forward(items: &[u64; 2], index: u64) -> u64
+requires index < 2
+crashes Trap items[index] == 0
+{ maybe_zero(items, index) }
 
-
-
-
+linux_arm64 machine forward(items: &[u64; 2], index: u64) -> u64
+requires index < 2
+crashes Trap items[index] == 0
+{ maybe_zero(items, index) }
 public machine read_seven(items: &[u64; 2], index: u64) -> u64
 requires index < 2
 requires items[index] == 7
-{ SelectedForward::forward(items, index) }
+{ forward(items, index) }
 machine main() crashes Trap {
     let items: [u64; 2] = [7, 11];
     transition items[0] == 7 { true -> finish(read_seven(&items, 0)) _ -> bad() }

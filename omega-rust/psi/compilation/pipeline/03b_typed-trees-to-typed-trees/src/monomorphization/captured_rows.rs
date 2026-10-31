@@ -47,14 +47,6 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
         .trait_implementation_applications
         .iter()
         .map(|(_, selected)| (selected.supplying_application, selected.application.clone()))
-        .chain(
-            program
-                .data_implementation_applications
-                .iter()
-                .map(|(_, selected)| {
-                    (selected.supplying_application, selected.application.clone())
-                }),
-        )
         .collect::<Vec<_>>();
     // Source formation also retains applications in unexecuted helpers. Only
     // a reached Build choice demands its owned realization's capture tuple.
@@ -498,7 +490,7 @@ fn realize_capture(
                 .collect::<Vec<_>>();
             program
                 .expression_table
-                .set_static_machine_application_lifetimes(binding, conformance.symbol, &lifetimes);
+                .set_static_machine_application_lifetimes(binding, &lifetimes);
             program
                 .expression_table
                 .set_static_machine_application_selected_machines(binding, &selected_callbacks);

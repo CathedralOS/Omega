@@ -556,15 +556,6 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueHandle> {
-        let result = self.build_structural_value(expression, expected);
-        result
-    }
-
-    fn build_structural_value(
-        &mut self,
-        expression: ExpressionHandle,
-        expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueHandle> {
         // Normalization can share an evaluated operand with a later projection.
         // Preserve that occurrence's value identity, not another producer for
         // the same source. Different authored handles never share this root.
@@ -682,12 +673,6 @@ impl Builder<'_, '_> {
                 quotient: cast.target_type,
                 license: checked_trees::CheckedQuotientAdaptationLicense::Mint,
             }
-        } else if let Some(bytes) =
-            validation::fixed_byte_array_literal(self.program, expression, expected)
-        {
-            CheckedStructuralValueKind::FixedByteArrayLiteral {
-                bytes: bytes.to_vec(),
-            }
         } else if matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::String(_)
@@ -698,6 +683,9 @@ impl Builder<'_, '_> {
                 expression,
             )?;
             match argument.access {
+                checked_trees::CheckedStructuralAccess::Owned => {
+                    CheckedStructuralValueKind::Place(argument)
+                }
                 checked_trees::CheckedStructuralAccess::SharedBorrow => {
                     // A shared literal produces an immutable image-backed
                     // descriptor in every value position. Its destination's

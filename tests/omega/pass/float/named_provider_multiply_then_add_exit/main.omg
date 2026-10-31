@@ -20,12 +20,12 @@ machine Main::main(main: &mut Main) reaches Console {
     let cancel32: f32 = 0.0f32 - 1.0000002384185791015625;
     // Exercise MTA below another arithmetic root as well as in the direct
     // f64/overflow writes below.
-    main.result32 = F32MultiplyThenAdd::multiply_then_add(next32, next32, cancel32) + 0.0f32;
+    main.result32 = F32::multiply_then_add(next32, next32, cancel32) + 0.0f32;
 
     let next64: f64 = 1.0000000000000002220446049250313080847263336181640625;
     let cancel64: f64 =
         0.0 - 1.000000000000000444089209850062616169452667236328125;
-    main.result64 = F64MultiplyThenAdd::multiply_then_add(next64, next64, cancel64);
+    main.result64 = F64::multiply_then_add(next64, next64, cancel64);
 
     main.maximum32 = 340282346638528859811704183484516925440.0;
     main.two32 = 2.0;
@@ -33,7 +33,7 @@ machine Main::main(main: &mut Main) reaches Console {
     // The named requirement declares bare f32 operands/result. Erase operand
     // policy explicitly; neither those fields nor the destination can request
     // a different provider contract. Finite-input overflow remains infinity.
-    main.overflow32 = F32MultiplyThenAdd::multiply_then_add(
+    main.overflow32 = F32::multiply_then_add(
         main.maximum32 as f32, main.two32 as f32, main.zero32 as f32
     );
 

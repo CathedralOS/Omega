@@ -2,8 +2,8 @@ use omega::language::core::float_operations;
 
 // The return observes other, while the published relation names value.
 machine finite(value: f32, other: f32) -> bool
-ensures result == F32IsFinite::is_finite(value) {
-    F32IsFinite::is_finite(other)
+ensures result == F32::is_finite(value) {
+    F32::is_finite(other)
 }
 
 machine main() crashes Trap {

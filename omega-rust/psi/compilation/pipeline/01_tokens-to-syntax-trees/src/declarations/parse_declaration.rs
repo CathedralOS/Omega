@@ -41,7 +41,7 @@ pub(crate) fn starts_following_item(syntax_trees: &mut SyntaxTrees, input: Input
         || input.at_keyword(KeywordKind::Use)
         || input.at_keyword(KeywordKind::Let)
         || input.at_keyword(KeywordKind::Capability)
-        || input.at_retired_target_machine()
+        || target_machine_prefix(input).is_some()
         || named_implementation_prefix(input).is_some()
     {
         return true;
@@ -100,7 +100,7 @@ pub(crate) fn starts_boundary_item(input: Input<'_, '_>) -> bool {
 /// binder validity and diagnostics. Parenthesized/array type operands may
 /// contain comparisons or shifts, so their punctuation does not close the
 /// outer telescope. No syntax nodes are allocated during contract lookahead.
-pub(crate) fn named_implementation_prefix<'tokens, 'source>(
+fn named_implementation_prefix<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Option<(Identifier, Input<'tokens, 'source>)> {
     let (name, rest) = input.take_identifier().ok()?;
@@ -141,6 +141,25 @@ pub(crate) fn named_implementation_prefix<'tokens, 'source>(
     None
 }
 
+/// Shared by declaration dispatch and contract lookahead. Consume only the
+/// target/modifier prefix; the machine parser still owns the complete head.
+fn target_machine_prefix<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Option<(Identifier, bool, Input<'tokens, 'source>)> {
+    if !input.at_identifier_then_contextual("machine")
+        && !input.at_identifier_then_contextual("boundary")
+    {
+        return None;
+    }
+    let (target, mut rest) = input.take_identifier().ok()?;
+    let boundary = rest.at_contextual("boundary");
+    if boundary {
+        rest = rest.take_contextual("boundary").ok()?;
+    }
+    rest.at_keyword(KeywordKind::Machine)
+        .then_some((target, boundary, rest))
+}
+
 /// The same machine introducers are legal at module and lexical scope. This
 /// lookahead only finds the statement/declaration boundary; `parse_item` owns
 /// the full head and its diagnostics.
@@ -150,7 +169,7 @@ pub(crate) fn starts_machine_declaration(input: Input<'_, '_>) -> bool {
             input.restarted(input.tokens.get(1..).unwrap_or_default()),
         );
     }
-    input.at_keyword(KeywordKind::Machine) || input.at_retired_target_machine()
+    input.at_keyword(KeywordKind::Machine) || target_machine_prefix(input).is_some()
 }
 
 pub(crate) fn parse_item<'tokens, 'source>(
@@ -340,11 +359,26 @@ fn parse_declared_item<'tokens, 'source>(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
             ));
         }
-        // Only explicit boundary declarations or exact sealed catalog signatures
-        // can be bodyless. Native locators are selected by the owning Build.
-        if item.bodyless && !item.satisfies.is_empty() {
+        // A bodyless machine is legal as an EXTERNAL LEAF -- `satisfies
+        // Requirement via <Binding>;` -- whose realization is the binding, or
+        // as a bare tokenless signature that symbol resolution admits only
+        // when it is an exact compiler-catalog primitive declared by the
+        // sealed toolchain source (executable supply: "Exact compiler-owned
+        // bodyless machine ... its authorized closed-catalog realization").
+        // Any other bodyless machine rejects there with the boundary-form
+        // guidance; the grammar itself stays neutral about which source
+        // owns a name.
+        let has_via = syntax_trees
+            .items
+            .satisfies_clauses(item.satisfies)
+            .iter()
+            .any(|clause| clause.via.is_some() || clause.via_expression.is_valid());
+        if item.bodyless && !has_via && !item.satisfies.is_empty() {
             return Err(rest.error_here(
-                "a machine without a body must use the accepted `boundary machine ...;` form; native bindings belong to the owning package Build",
+                "a machine without a body is the ACCEPTED boundary form -- spell it \
+                 `boundary machine ...;` (chapter 10: bodyless contracts are trust \
+                 rows, not ordinary machines) -- or an EXTERNAL LEAF \
+                 (`satisfies Requirement via <Binding>;`)",
             ));
         }
         return Ok((Item::Machine(item), rest));
@@ -374,7 +408,7 @@ fn parse_declared_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Library) {
         return Err(input.error_here(
-            "the legacy `library \"...\" calling_convention ... { entry ... }` block is retired; declare an exact boundary-trait requirement and bind it in the owning package Build with `Build::bind<Requirement>(builder, target, ForeignBinding::DllImport { ... })`",
+            "the legacy `library \"...\" calling_convention ... { entry ... }` block is retired; declare an exact boundary-trait requirement and realize it with `satisfies ... via` one producer machine returning `ForeignBinding::DllImport { ... }`",
         ));
     }
 
@@ -394,16 +428,16 @@ fn parse_declared_item<'tokens, 'source>(
         return Err(input.error_here(
             "authored `provides` declarations are retired (including `host ... provides`): \
              implement a boundary-trait \
-             requirement with a checked `satisfies` adapter or bind its native implementation using \
-             `Build::bind<Requirement>(builder, target, locator)`",
+             requirement with a checked `satisfies` adapter or a bodyless external leaf using \
+             `satisfies Trait::method via Binding::Case(...)`",
         ));
     }
 
     if input.at_identifier_then_contextual("provides") {
         return Err(input.error_here(
             "authored `provides` declarations are retired: implement a boundary-trait \
-             requirement with a checked `satisfies` adapter or bind its native implementation using \
-             `Build::bind<Requirement>(builder, target, locator)`",
+             requirement with a checked `satisfies` adapter or a bodyless external leaf using \
+             `satisfies Trait::method via Binding::Case(...)`",
         ));
     }
 
@@ -426,10 +460,22 @@ fn parse_declared_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
-    if input.at_retired_target_machine() {
-        return Err(input.error_here(
-            "target-prefixed machine declarations are retired; declare ordinary named implementations and select them with target-keyed Build::select_provider rows",
-        ));
+    // Target-scoped ordinary and boundary machines share the same head grammar.
+    // Dispatch uses the same prefix probe as a preceding contract's terminator.
+    if let Some((target, boundary, input)) = target_machine_prefix(input) {
+        let input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let (mut machine, rest) = parse_machine(syntax_trees, input)?;
+        machine.boundary = boundary;
+        machine.authored_target = Some(target.clone());
+        machine.target = Some(target);
+        if machine.service_reach_is_installation_bound
+            && (!boundary || !machine.bodyless || !machine.satisfies.is_empty())
+        {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement, not on a checked body or realization",
+            ));
+        }
+        return Ok((Item::Machine(machine), rest));
     }
 
     // A named implementation owns its complete requirement map and telescope.

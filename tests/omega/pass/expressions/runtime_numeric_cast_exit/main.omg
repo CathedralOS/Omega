@@ -22,7 +22,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.real_value = main.real_value / 2.0; // 4.5
 
     // float -> int truncates toward zero (4.5 -> 4).
-    let converted: i32 in Saturating = I32FromF64::from_f64(main.real_value);
+    let converted: i32 in Saturating = I32::from_f64(main.real_value);
     main.truncated = converted as i32;
     transition main.truncated == 4 {
         true -> check_int_to_float(main)

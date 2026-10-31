@@ -6,6 +6,7 @@ use super::super::{
     CodecError,
     wire::{Reader, Writer, decode_counted},
 };
+use super::target_family_wire::{decode_callable, encode_callable};
 use terminal_psi::*;
 
 pub(super) fn encode(
@@ -16,21 +17,31 @@ pub(super) fn encode(
     writer.id(application.record);
     writer.id(application.schema);
     writer.u32(application.policy_identity.0);
-    writer.u32(application.plan_identity.0);
-    writer.len("layout target inputs", application.target_inputs.len())?;
-    for input in &application.target_inputs {
-        writer.string("layout input target", &input.target)?;
-        writer.u64(input.pointer_size);
-        writer.u64(input.pointer_alignment);
-        writer.boolean(input.little_endian);
+    encode_callable(writer, application.family);
+    writer.u16(application.schema_argument.abi_version);
+    writer.len(
+        "layout schema fields",
+        application.schema_argument.fields.len(),
+    )?;
+    for field in &application.schema_argument.fields {
+        writer.id(field.record_field);
+        writer.id(field.schema_field);
+        writer.u64(field.key);
+        writer.boolean(field.identity.is_some());
+        if let Some(identity) = field.identity {
+            writer.u64(identity);
+        }
+        writer.u64(field.byte_size);
+        writer.u64(field.byte_alignment);
+        writer.u8(match field.kind {
+            TargetLayoutSchemaFieldKind::Scalar => 0,
+            TargetLayoutSchemaFieldKind::Nested => 1,
+        });
     }
     writer.len("layout realizations", application.realizations.len())?;
     for realization in &application.realizations {
-        encode_schema_argument(writer, &realization.schema_argument)?;
         writer.string("layout target", &realization.target)?;
-        writer.u64(realization.pointer_size);
-        writer.u64(realization.pointer_alignment);
-        writer.boolean(realization.little_endian);
+        writer.id(realization.member);
         writer.u64(realization.storage.byte_size);
         writer.u64(realization.storage.byte_alignment);
         writer.len("layout field storage", realization.fields.len())?;
@@ -48,22 +59,35 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TargetLayoutApplication,
         record: reader.id("StructuralTypeId")?,
         schema: reader.id("StructuralTypeId")?,
         policy_identity: TerminalIdentityIndex(reader.u32()?),
-        plan_identity: TerminalIdentityIndex(reader.u32()?),
-        target_inputs: decode_counted(reader, |reader| {
-            Ok(TargetLayoutInput {
-                target: reader.string("layout input target")?,
-                pointer_size: reader.u64()?,
-                pointer_alignment: reader.u64()?,
-                little_endian: reader.boolean()?,
-            })
-        })?,
+        family: decode_callable(reader)?,
+        schema_argument: TargetLayoutSchemaArgument {
+            abi_version: reader.u16()?,
+            fields: decode_counted(reader, |reader| {
+                Ok(TargetLayoutSchemaField {
+                    record_field: reader.id("StructuralFieldId")?,
+                    schema_field: reader.id("StructuralFieldId")?,
+                    key: reader.u64()?,
+                    identity: if reader.boolean()? {
+                        Some(reader.u64()?)
+                    } else {
+                        None
+                    },
+                    byte_size: reader.u64()?,
+                    byte_alignment: reader.u64()?,
+                    kind: match reader.u8()? {
+                        0 => TargetLayoutSchemaFieldKind::Scalar,
+                        1 => TargetLayoutSchemaFieldKind::Nested,
+                        tag => {
+                            return Err(CodecError::InvalidTag("TargetLayoutSchemaFieldKind", tag));
+                        }
+                    },
+                })
+            })?,
+        },
         realizations: decode_counted(reader, |reader| {
             Ok(TargetLayoutRealization {
-                schema_argument: decode_schema_argument(reader)?,
                 target: reader.string("layout target")?,
-                pointer_size: reader.u64()?,
-                pointer_alignment: reader.u64()?,
-                little_endian: reader.boolean()?,
+                member: reader.id("MachineId")?,
                 storage: semantic_vocabulary::AuthoredRecordStorage {
                     byte_size: reader.u64()?,
                     byte_alignment: reader.u64()?,
@@ -80,68 +104,5 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TargetLayoutApplication,
                 })?,
             })
         })?,
-    })
-}
-
-fn encode_schema_argument(
-    writer: &mut Writer,
-    argument: &TargetLayoutSchemaArgument,
-) -> Result<(), CodecError> {
-    writer.u16(argument.abi_version);
-    writer.len("layout schema fields", argument.fields.len())?;
-    for field in &argument.fields {
-        writer.id(field.record_field);
-        writer.id(field.schema_field);
-        writer.u64(field.key);
-        writer.boolean(field.identity.is_some());
-        if let Some(identity) = field.identity {
-            writer.u64(identity);
-        }
-        writer.u64(field.byte_size);
-        writer.u64(field.byte_alignment);
-        writer.u8(match field.kind {
-            TargetLayoutSchemaFieldKind::Scalar => 0,
-            TargetLayoutSchemaFieldKind::Nested => 1,
-            TargetLayoutSchemaFieldKind::Repeated => 2,
-        });
-    }
-    writer.len(
-        "layout retired field identities",
-        argument.retired_field_identities.len(),
-    )?;
-    for identity in &argument.retired_field_identities {
-        writer.u64(*identity);
-    }
-    Ok(())
-}
-
-fn decode_schema_argument(
-    reader: &mut Reader<'_>,
-) -> Result<TargetLayoutSchemaArgument, CodecError> {
-    Ok(TargetLayoutSchemaArgument {
-        abi_version: reader.u16()?,
-        fields: decode_counted(reader, |reader| {
-            Ok(TargetLayoutSchemaField {
-                record_field: reader.id("StructuralFieldId")?,
-                schema_field: reader.id("StructuralFieldId")?,
-                key: reader.u64()?,
-                identity: if reader.boolean()? {
-                    Some(reader.u64()?)
-                } else {
-                    None
-                },
-                byte_size: reader.u64()?,
-                byte_alignment: reader.u64()?,
-                kind: match reader.u8()? {
-                    0 => TargetLayoutSchemaFieldKind::Scalar,
-                    1 => TargetLayoutSchemaFieldKind::Nested,
-                    2 => TargetLayoutSchemaFieldKind::Repeated,
-                    tag => {
-                        return Err(CodecError::InvalidTag("TargetLayoutSchemaFieldKind", tag));
-                    }
-                },
-            })
-        })?,
-        retired_field_identities: decode_counted(reader, |reader| reader.u64())?,
     })
 }

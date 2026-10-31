@@ -74,6 +74,9 @@ impl PlacedAccessPrimitive {
             || !state.contracts.is_empty()
             || !machine.invokes.is_empty()
             || !machine.owned_data.is_empty()
+            || machine.admitted_same_stack_bytes != 0
+            || machine.target.is_some()
+            || machine.authored_target.is_some()
             || machine.attached_data_symbol.is_valid()
             || machine.spelling.is_some()
             || !program
@@ -160,6 +163,8 @@ impl PlacedAccessPrimitive {
             || conformance.requirement.as_ref().map(|name| name.as_str())
                 != Some(operation.operation())
             || conformance.alias.is_some()
+            || conformance.external_binding.is_some()
+            || conformance.via_expression.is_valid()
             || !matches!(arguments, [first, second]
                 if names_parameter(*first, accessor.symbol) && names_parameter(*second, value.symbol))
         {

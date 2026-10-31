@@ -7,9 +7,7 @@ mod accessors;
 mod authority;
 mod baseline;
 pub use baseline::PackagePolicyBaseline;
-pub(crate) use baseline::{
-    PackagePolicyNativeApplication, PackagePolicyNativeBinding, PackagePolicyNativeLocalApplication,
-};
+pub(crate) use baseline::PackagePolicyNativeBinding;
 mod authority_expressions;
 mod behavior_policy;
 pub(crate) use behavior_policy::{
@@ -43,6 +41,7 @@ pub use policy_rows::{
     PackagePolicyRowUsage,
 };
 pub(crate) mod signatures;
+mod target_context;
 pub(in crate::record) use public_policy::validation;
 pub(crate) use public_policy::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
@@ -50,6 +49,7 @@ pub(crate) use public_policy::{
     PackagePolicyOperatorShape, PackagePolicyPublicApi, PackagePolicyTraitRequirement,
     PackagePolicyTraitShape, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
 };
+pub(crate) use target_context::PackagePolicyTargetContext;
 
 pub use authority::PackageReviewDangerousAuthorityClass;
 pub(crate) use authority::{

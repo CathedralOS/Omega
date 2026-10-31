@@ -383,13 +383,13 @@ pub fn prepare_const_qualification_selection<'authored>(
         top_level_bindings,
         retained_base,
     } = request;
-    let constant_selection =
-        preparation::declaration_selection::ConstantSelection::with_shared_base(
-            &syntax,
-            sources.clone(),
-            top_level_bindings.clone(),
-            retained_base.clone(),
-        )?;
+    preparation::target_families::normalize(&mut syntax, sources.as_deref())?;
+    let constant_selection = preparation::declaration_selection::ConstantSelection::with_shared_base(
+        &syntax,
+        sources.clone(),
+        top_level_bindings.clone(),
+        retained_base.clone(),
+    )?;
     preparation::generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
     let mut demanded = false;
     for definition in destinations {
@@ -685,7 +685,14 @@ fn finish_resolved_tables(
         inputs,
         machines,
     );
+    crate::symbols::target_machine_families::bind(&mut lowerer.symbol_resolved_trees)?;
+    crate::symbols::target_siblings::bind_sibling_calls(
+        &mut lowerer.symbol_resolved_trees,
+        inputs,
+        machines,
+    );
     crate::symbols::recursive_tail_calls::normalize(&mut lowerer.symbol_resolved_trees, machines);
+    crate::symbols::target_machine_families::prepare_premises(&mut lowerer.symbol_resolved_trees)?;
     // Rejoin declaration-owned initializer targets after ordinary source
     // resolution and named-implementation routing, before typing saved recipes.
     let expressions = lowerer

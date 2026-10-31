@@ -69,7 +69,6 @@ pub enum PackageCompilationInputError {
     DependencyCycle {
         cycle: Vec<PackageKeyIdentity>,
     },
-    ToolchainBuildHandoffRequiresSourceContext,
     RootBuildHandoff {
         package: PackageKeyIdentity,
     },
@@ -223,10 +222,6 @@ impl fmt::Display for PackageCompilationInputError {
                 }
                 Ok(())
             }
-            Self::ToolchainBuildHandoffRequiresSourceContext => write!(
-                formatter,
-                "Toolchain Core Build handoff requires its captured source admission, not an ordinary package graph slot"
-            ),
             Self::RootBuildHandoff { package } => write!(
                 formatter,
                 "root package {} cannot inject a generated-source bundle before its own build",

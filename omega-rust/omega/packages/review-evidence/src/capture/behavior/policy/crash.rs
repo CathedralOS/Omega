@@ -35,11 +35,7 @@ pub(crate) fn crash(
         machine,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    if derived != plan.crash.published() {
-        return Err(rejected(
-            "authored crash routes do not equal their exact checked publication",
-        ));
-    }
+    validate_crash_publication(compilation, machine, plan, &derived)?;
     if envelope.machine != machine.symbol
         || compilation
             .machine_states(machine)
@@ -124,6 +120,67 @@ pub(crate) fn crash(
             }
         }),
     })
+}
+
+/// Authored declarations retain their own buckets. A virtual head additionally
+/// carries the complete checked family envelope: verify its exact source and
+/// compiler custody instead of rebuilding or flattening its guarded routes.
+fn validate_crash_publication(
+    compilation: &PackageReviewInput<'_>,
+    machine: &Machine,
+    plan: &checked_trees::MachineContractPlan,
+    authored: &[checked_trees::CrashRouteBucket],
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(members) = crate::capture::source::family_interfaces::members(compilation, machine)?
+    else {
+        if authored != plan.crash.published() {
+            return Err(rejected(
+                "authored crash routes do not equal their exact checked publication",
+            ));
+        }
+        return Ok(());
+    };
+    let original_machine = exactly_one(
+        compilation
+            .custody
+            .machines()
+            .iter()
+            .filter(|candidate| candidate.symbol == machine.symbol),
+        machine.name.as_str(),
+        "family head declaration custody",
+    )?;
+    let original_head = machine_contract_plan(compilation.custody, original_machine)?;
+    let original_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
+        compilation.custody_checking_input,
+        original_machine,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    if plan.crash != original_head.crash
+        || plan.commitment != original_head.commitment
+        || authored != original_authored
+    {
+        return Err(rejected(
+            "derived family crash routes differ from their exact checked custody",
+        ));
+    }
+    for member in members {
+        let checked = machine_contract_plan(compilation.program, member)?;
+        let original = machine_contract_plan(compilation.custody, member)?;
+        let member_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
+            compilation.checking_input,
+            member,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        if member_authored != checked.crash.published()
+            || checked.crash != original.crash
+            || checked.commitment != original.commitment
+        {
+            return Err(rejected(
+                "family member authored crash routes differ from their exact checked custody",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn machine_contract_plan<'a>(

@@ -145,6 +145,18 @@ public boundary trait Registration: Calling<RegistrationCalling> {
     reaches;
 }
 
+macos_arm64 machine registration_binding() -> ForeignBinding<26, 19, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_pthread_key_create",
+        },
+    }
+}
+macos_arm64 machine registration_leaf<machine Handler>(key: &mut ThreadKey) -> i32
+requires machine Handler satisfies Initializer::call;
+satisfies Registration::register
+via registration_binding();
 
 public data Initialization { }
 public machine Initialization::call(context: u64) satisfies Initializer::call
@@ -239,6 +251,18 @@ machine LinuxCallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlan
     BoundaryPlanResult::Accepted { plan: plan }
 }
 
+linux_x86_64 machine linux_registration_binding() -> ForeignBinding<9, 18, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "pthread_key_create", version: "GLIBC_2.34",
+        },
+    }
+}
+
+linux_x86_64 machine registration_leaf<machine Handler>(key: &mut ThreadKey) -> i32
+requires machine Handler satisfies Initializer::call;
+satisfies Registration::register
+via linux_registration_binding();
 
 linux_x86_64 machine CallbackPolicies::initializer(signature: BoundarySignature) -> BoundaryPlanResult
 {

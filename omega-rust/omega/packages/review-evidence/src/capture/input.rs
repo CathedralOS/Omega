@@ -22,7 +22,8 @@ pub struct PackageReviewInput<'a> {
     pub(crate) custody_checking_input: &'a dyn validation::CheckingInput,
     pub(crate) service_declarations:
         Option<&'a provider_planning::service_declarations::ServiceDeclarations>,
-    pub(crate) numeric_realizations: Option<&'a psi_terminal_production::DeclarationCatalog>,
+    pub(crate) external_providers:
+        Option<&'a psi_terminal_production::ExternalProviderDeclarations>,
 }
 
 impl<'a> PackageReviewInput<'a> {
@@ -34,17 +35,18 @@ impl<'a> PackageReviewInput<'a> {
             custody,
             checking_input: program,
             custody_checking_input: &**custody,
-            numeric_realizations: None,
+            external_providers: None,
             service_declarations: None,
         }
     }
 
     /// Prepare one independent candidate projection at review ingress. Custody
     /// already owns its projection from checked-provider binding.
-    pub(super) fn project_numeric_realizations(
+    pub(super) fn project_external_providers(
         &self,
-    ) -> Result<psi_terminal_production::DeclarationCatalog, Vec<diagnostics::Diagnostic>> {
-        psi_terminal_production::project_declaration_catalog(
+    ) -> Result<psi_terminal_production::ExternalProviderDeclarations, Vec<diagnostics::Diagnostic>>
+    {
+        psi_terminal_production::project_external_provider_declarations(
             self.program,
             self.custody.sources().exact_toolchain_sources(),
         )
@@ -68,6 +70,36 @@ impl<'a> PackageReviewInput<'a> {
             &self.custody.providers().boundary_calling_plan_realizations,
             self.custody.sources().exact_toolchain_sources(),
         )
+    }
+
+    /// Authored deployment scope must agree with immutable compiler custody.
+    /// A selected member's cleared marker cannot establish portability, and
+    /// a supplied candidate cannot hide a member by deleting its family row.
+    pub(super) fn authored_machine_target(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Result<Option<&str>, Vec<diagnostics::Diagnostic>> {
+        let rejected = |reason: &str| {
+            vec![diagnostics::Diagnostic::error(format!(
+                "package target context rejects {reason}"
+            ))]
+        };
+        let target = self
+            .program
+            .typed
+            .authored_machine_target(symbol)
+            .map_err(rejected)?;
+        let original = self
+            .custody
+            .typed
+            .authored_machine_target(symbol)
+            .map_err(rejected)?;
+        if target != original {
+            return Err(rejected(
+                "authored target context differs from checked source custody",
+            ));
+        }
+        Ok(target)
     }
 }
 

@@ -149,8 +149,8 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     machine recompute(main: &mut Main) {
         // Named saturating conversions truncate the float positions; the policy
         // then erases.
-        let column: i32 in Saturating = I32FromF64::from_f64(main.bx);
-        let row: i32 in Saturating = I32FromF64::from_f64(main.by);
+        let column: i32 in Saturating = I32::from_f64(main.bx);
+        let row: i32 in Saturating = I32::from_f64(main.by);
         main.ball_x = column as i32;
         main.ball_y = row as i32;
         Clock::sleep(40);

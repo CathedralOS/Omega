@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedDivideTarget, CheckedDivideTarget>(builder, linux_x86_64);
-    Build::select_provider<SelectedDivideTarget, CheckedDivideTarget>(builder, linux_arm64);
-    Build::select_provider<SelectedDivideTarget, CheckedDivideTarget>(builder, macos_arm64);
-    Build::select_provider<SelectedDivideTarget, CheckedDivideTarget>(builder, windows_x86_64);
-
     Build::application(builder, "unsigned_32bit_division_quotient_bound_target_body_invalid");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

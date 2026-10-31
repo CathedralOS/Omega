@@ -54,26 +54,25 @@ requires
 ensures representative(left, amount) == representative(right, amount)
 {}
 
-boundary trait SelectedLifted {
-    machine lifted(value: EquivalenceClass) -> i32 reaches
-;
-}
-CheckedLifted satisfies SelectedLifted {
-    machine lifted(value: EquivalenceClass) -> i32
-{
+linux_x86_64 machine lifted(value: EquivalenceClass) -> i32 {
     Quotient::lift<representative, representative_respects>(value, 3i32)
 }
+
+linux_arm64 machine lifted(value: EquivalenceClass) -> i32 {
+    Quotient::lift<representative, representative_respects>(value, 3i32)
 }
 
+macos_arm64 machine lifted(value: EquivalenceClass) -> i32 {
+    Quotient::lift<representative, representative_respects>(value, 3i32)
+}
 
-
-
-
-
+windows_x86_64 machine lifted(value: EquivalenceClass) -> i32 {
+    Quotient::lift<representative, representative_respects>(value, 3i32)
+}
 
 machine main() crashes Trap {
     let item: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
-    transition SelectedLifted::lifted(item) == 3 { true -> done() _ -> bad() }
+    transition lifted(item) == 3 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

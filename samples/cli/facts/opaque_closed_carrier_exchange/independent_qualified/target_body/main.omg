@@ -12,19 +12,13 @@ machine consume(first: InternetAddress in Classified, second: InternetAddress) -
     let replacement_host: u32 = AddressBridge::host(pair.first as InternetAddress);
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
-boundary trait SelectedObserve {
-    machine observe() -> bool reaches AddressParts, AddressBridge;
-}
-CheckedObserve satisfies SelectedObserve {
-    machine observe() -> bool reaches AddressParts, AddressBridge
-{ consume(classify(AddressBridge::make(10, 66051)), AddressBridge::make(44048, 513)) }
-}
-
-
-
+linux_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(classify(AddressBridge::make(10, 66051)), AddressBridge::make(44048, 513)) }
+linux_arm64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(classify(AddressBridge::make(10, 66051)), AddressBridge::make(44048, 513)) }
+windows_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(classify(AddressBridge::make(10, 66051)), AddressBridge::make(44048, 513)) }
+macos_arm64 machine observe() -> bool reaches AddressParts, AddressBridge { consume(classify(AddressBridge::make(10, 66051)), AddressBridge::make(44048, 513)) }
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
- transition SelectedObserve::observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done() _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

@@ -49,7 +49,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     machine hinge(application: &mut Application) {
-        application.gamma = F64FromI64::from_i64(application.reader.value as i64);
+        application.gamma = F64::from_i64(application.reader.value as i64);
         block Reader::next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> begin_nodes(application)
@@ -57,7 +57,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     machine begin_nodes(application: &mut Application) {
-        application.hinge = (F64FromI64::from_i64(application.reader.value as i64)) / 1000.0;
+        application.hinge = (F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition { _ -> node(application, 0) }
     }
     machine node(application: &mut Application, index: u64 in Wrapping) {
@@ -68,7 +68,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine elevation(application: &mut Application, index: u64 in Wrapping) {
         block Reader::next(&mut application.reader);
-        let node_elevation: f64 = F64FromI64::from_i64(application.reader.value as i64) / 1000.0;
+        let node_elevation: f64 = F64::from_i64(application.reader.value as i64) / 1000.0;
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> width(application, index, node_elevation)
             false -> invalid()
@@ -83,7 +83,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine store_node(application: &mut Application, index: u64 in Wrapping, elevation: f64) {
         application.profile.nodes[index].elevation = elevation;
-        application.profile.nodes[index].width = (F64FromI64::from_i64(application.reader.value as i64)) / 1000.0;
+        application.profile.nodes[index].width = (F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition index > 0 {
             true -> validate_order(application, index, elevation)
             false -> node(application, index + 1)
@@ -110,7 +110,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     machine store_level(application: &mut Application, index: u64 in Wrapping) {
-        application.levels[index] = (F64FromI64::from_i64(application.reader.value as i64)) / 1000.0;
+        application.levels[index] = (F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition { _ -> level(application, index + 1) }
     }
     machine trailing(application: &mut Application) {

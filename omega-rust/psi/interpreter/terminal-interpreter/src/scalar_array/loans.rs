@@ -252,17 +252,6 @@ impl TerminalExecution<'_> {
                 &argument.path,
                 argument.access,
             )?;
-            if fixed_array_formal
-                && projected.collection_home.is_none()
-                && projected
-                    .aggregate_presentation()
-                    .is_some_and(|view| view.structural_type == collection_type)
-            {
-                // The ordinary aggregate transport retains this exact re-view
-                // and resident home. A packed-array loan cannot replace that
-                // association with an allocation in its logical presentation.
-                return Ok(None);
-            }
             (projected.value, projected.collection_home)
         };
         if referent.structural_type != collection_type

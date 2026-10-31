@@ -122,7 +122,6 @@ pub enum TerminalRuntimeError {
         reason: String,
     },
     InvalidProvision(&'static str),
-    InvalidProviderSelection(String),
     Artifact(TerminalArtifactInterpretError),
     Requirements(TerminalInterpretError),
     Binding(TerminalBindingRejection),
@@ -166,7 +165,6 @@ impl std::fmt::Display for TerminalRuntimeError {
                 write!(formatter, "{capability}: {reason}")
             }
             Self::InvalidProvision(reason) => formatter.write_str(reason),
-            Self::InvalidProviderSelection(reason) => formatter.write_str(reason),
             Self::Artifact(error) => std::fmt::Display::fmt(error, formatter),
             Self::Requirements(error) => std::fmt::Display::fmt(error, formatter),
             Self::Binding(error) => write!(formatter, "runtime binding rejected: {error:?}"),
@@ -254,14 +252,11 @@ pub fn execute_sliced(
         .transpose()?;
     if let (Some(retained), Some(proposed)) =
         (retained_installation, proposed_installation.as_ref())
+        && retained != proposed
     {
-        retained
-            .validate_projection_of(proposed)
-            .map_err(|reason| {
-                TerminalRuntimeError::InvalidProviderSelection(format!(
-                    "runtime provisions and explicit provider proposal disagree: {reason}"
-                ))
-            })?;
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "runtime provisions and explicit provider proposal disagree",
+        ));
     }
     let checked_installation = proposed_installation.as_ref().or(retained_installation);
     let execution_target = request.target.or_else(|| {
@@ -269,14 +264,11 @@ pub fn execute_sliced(
             .provisions
             .map(|provisions| provisions.target_slot().owner.target_name())
     });
-    let target_context =
-        execution_target.map(|target| terminal_interpreter::target_context(artifact, target));
-    let target_layouts = target_context
+    let target_machines = execution_target
+        .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));
+    let target_layouts = target_machines
         .as_ref()
-        .map(|selected| {
-            let facts = layout_target_facts(selected.target())?;
-            terminal_interpreter::admit_target_layouts(artifact, selected, &facts)
-        })
+        .map(|selected| terminal_interpreter::admit_target_layouts(artifact, selected))
         .transpose()
         .map_err(|error| {
             TerminalRuntimeError::Requirements(
@@ -323,10 +315,10 @@ pub fn execute_sliced(
                 .entry
                 .map(|entry| entry.terminal_entry())
                 .or_else(|| request.provisions.map(TerminalRuntimeProvisions::entry))
-                .map(terminal_psi::TerminalCallable::Machine),
+                .map(terminal_psi::TargetMachineCallable::Machine),
             installation: checked_installation,
             host_imports: &host_imports,
-            target_context: target_context.as_ref(),
+            target_machines: target_machines.as_ref(),
             target_layouts: target_layouts.as_ref(),
         })
         .map_err(TerminalRuntimeError::Requirements)?;
@@ -498,26 +490,4 @@ pub fn capture_host_x86_flags(
     terminal_interpreter::TerminalX86FlagsEnvironment::new(image)
         .map(Some)
         .map_err(TerminalRuntimeError::Requirements)
-}
-
-/// Rejoin portable layout inputs to the receiving compiler target catalogue.
-/// A retained artifact cannot choose the pointer geometry used to validate it.
-fn layout_target_facts(
-    name: &str,
-) -> Result<
-    terminal_installation::LayoutTargetFacts,
-    terminal_installation::TargetLayoutSelectionError,
-> {
-    target::TargetProfile::from_canonical_target_name(name)
-        .map_err(|reason| {
-            terminal_installation::TargetLayoutSelectionError::InvalidTargetInput(
-                reason.to_string(),
-            )
-        })?
-        .layout_target_facts()
-        .ok_or_else(|| {
-            terminal_installation::TargetLayoutSelectionError::InvalidTargetInput(
-                "selected target has no representation context".into(),
-            )
-        })
 }

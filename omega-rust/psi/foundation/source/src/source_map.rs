@@ -26,9 +26,6 @@ pub struct SourceMap {
     /// Invocation-local routing before Build has a final declaration owner.
     /// This never assigns a package identity to the captured source.
     query_dependencies: Option<(PathBuf, BTreeMap<String, PackageKeyIdentity>)>,
-    /// Pure byte digests follow the exact immutable text allocation retained
-    /// by this owner. Source selection, metadata and authority stay separate.
-    content_digests: arena::OwnedIndex<BTreeMap<usize, (Arc<str>, [u8; 32])>, ()>,
 }
 
 /// Backing coordinates survive across requests; activation does not. Ordinary
@@ -58,7 +55,6 @@ impl SourceCatalogue {
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
             query_dependencies: None,
-            content_digests: Default::default(),
         }
     }
 
@@ -204,31 +200,7 @@ impl SourceMap {
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
             query_dependencies: None,
-            content_digests: Default::default(),
         }
-    }
-
-    /// Authenticate byte content once for each retained immutable source.
-    /// A replaced source cannot inherit a digest: the cache retains the old
-    /// Arc and rejoins its allocation before reusing the derived hash.
-    pub fn content_digest(&self, source: SourceId) -> Option<[u8; 32]> {
-        use sha2::{Digest, Sha256};
-        let file = self.get(source)?;
-        Some(self.content_digests.with_mut((), BTreeMap::new, |digests| {
-            let entry = digests.entry(source.0).or_insert_with(|| {
-                (
-                    file.source.clone(),
-                    Sha256::digest(file.source.as_bytes()).into(),
-                )
-            });
-            if !Arc::ptr_eq(&entry.0, &file.source) {
-                *entry = (
-                    file.source.clone(),
-                    Sha256::digest(file.source.as_bytes()).into(),
-                );
-            }
-            entry.1
-        }))
     }
 
     /// Current activation membership, independent of retained payload lookup.

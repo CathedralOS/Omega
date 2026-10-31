@@ -16,20 +16,20 @@ terminates by count;
 machine second(count: u64) -> u64 terminates by count; {
     transition count > 0 { true -> first(count - 1) false -> checked_mark() }
 }
-boundary trait SelectedReadMark {
-    machine read_mark() -> u64 reaches;
-}
-CheckedReadMark satisfies SelectedReadMark {
-    machine read_mark() -> u64 reaches
-{
+linux_x86_64 machine read_mark() -> u64 reaches {
     first(2)
 }
+linux_arm64 machine read_mark() -> u64 reaches {
+    first(2)
 }
-
-
-
+macos_arm64 machine read_mark() -> u64 reaches {
+    first(2)
+}
+windows_x86_64 machine read_mark() -> u64 reaches {
+    first(2)
+}
 machine main() crashes Trap {
-    transition SelectedReadMark::read_mark() == 7 { true -> done() _ -> bad() }
+    transition read_mark() == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

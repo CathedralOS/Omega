@@ -10,27 +10,36 @@ machine verify_diff(diff: i32) -> i32
     sum - 60
 }
 
-boundary trait SelectedComputeTargetBody {
-    machine compute_target_body(lhs: i32, rhs: i32) -> i32 reaches
-requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40;
-}
-CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
-    machine compute_target_body(lhs: i32, rhs: i32) -> i32
+linux_x86_64 machine compute_target_body(lhs: i32, rhs: i32) -> i32
     requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
 {
     let diff: i32 = lhs - rhs;
     verify_diff(diff)
 }
+
+linux_arm64 machine compute_target_body(lhs: i32, rhs: i32) -> i32
+    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+{
+    let diff: i32 = lhs - rhs;
+    verify_diff(diff)
 }
 
+macos_arm64 machine compute_target_body(lhs: i32, rhs: i32) -> i32
+    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+{
+    let diff: i32 = lhs - rhs;
+    verify_diff(diff)
+}
 
-
-
-
-
+windows_x86_64 machine compute_target_body(lhs: i32, rhs: i32) -> i32
+    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
+{
+    let diff: i32 = lhs - rhs;
+    verify_diff(diff)
+}
 
 machine evaluate() -> i32 {
-    SelectedComputeTargetBody::compute_target_body(100, 30)
+    compute_target_body(100, 30)
 }
 
 machine main() crashes Trap {

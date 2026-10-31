@@ -9,21 +9,17 @@ public boundary trait Value {
 
 public SelectedValue satisfies Value {
     machine read(input: i32) -> i32 ensures result == input {
-        SelectedTargetValue::target_value(input)
+        target_value(input)
     }
 }
-boundary trait SelectedTargetValue {
-    machine target_value(input: i32) -> i32 reaches
-ensures result == input;
-}
-CheckedTargetValue satisfies SelectedTargetValue {
-    machine target_value(input: i32) -> i32
-ensures result == input
-{ input }
-}
-
-
-
+linux_x86_64 machine target_value(input: i32) -> i32
+ensures result == input { input }
+linux_arm64 machine target_value(input: i32) -> i32
+ensures result == input { input }
+macos_arm64 machine target_value(input: i32) -> i32
+ensures result == input { input }
+windows_x86_64 machine target_value(input: i32) -> i32
+ensures result == input { input }
 reserved_target machine target_value(input: i32) -> i32
 ensures result == input { input }
 

@@ -142,7 +142,10 @@ pub(in crate::proof_contracts::contract_entailment) fn body_can_be_observed(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     preserve_runtime_values: bool,
 ) -> bool {
-    if !machine.body_is_present || !machine.supply_mode.is_checked_body() {
+    if !machine.body_is_present
+        || !machine.supply_mode.is_checked_body()
+        || machine.target_family_interface
+    {
         return false;
     }
     if preserve_runtime_values || classification.is_proof_machine(program, machine) {

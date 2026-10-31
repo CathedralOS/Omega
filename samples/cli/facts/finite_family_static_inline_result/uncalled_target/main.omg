@@ -3,7 +3,7 @@
 data Prepared<const Width: u64> { bytes: [u8; Width]; }
 trait Family { machine row<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> where Width == 16 || Width == 32; }
 machine produce<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> satisfies Family::row {
-    transition Width == 16 { true -> value false -> SelectedTargetOnly::target_only<Width>(value) }
+    transition Width == 16 { true -> value false -> target_only<Width>(value) }
 }
 Selected satisfies Family { Family::row = produce; }
 machine main() crashes Trap {
@@ -12,11 +12,7 @@ machine main() crashes Trap {
     transition result.bytes[0] == 11 && result.bytes[15] == 23 { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
-boundary trait SelectedTargetOnly {
-    machine target_only<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> reaches
-;
-}
-CheckedTargetOnly satisfies SelectedTargetOnly {
-    machine target_only<const Width: u64>(value: Prepared<Width>) -> Prepared<Width>
-{ value }
-}
+linux_x86_64 machine target_only<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> { value }
+linux_arm64 machine target_only<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> { value }
+macos_arm64 machine target_only<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> { value }
+windows_x86_64 machine target_only<const Width: u64>(value: Prepared<Width>) -> Prepared<Width> { value }

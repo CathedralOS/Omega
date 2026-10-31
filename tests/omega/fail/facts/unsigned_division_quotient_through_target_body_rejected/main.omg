@@ -2,28 +2,36 @@
 // Invalid: quotient is 99, so subtracting 100u64 underflows. Place: target_body.
 // Expected diagnostic: may overflow `u64`
 
-boundary trait SelectedVerifyTarget {
-    machine verify_target() -> i32 reaches
-;
-}
-CheckedVerifyTarget satisfies SelectedVerifyTarget {
-    machine verify_target() -> i32
-{
+linux_x86_64 machine verify_target() -> i32 {
     let q: u64 = 396u64 / 4u64;
     let quotient: u64 = q;
     let diff: u64 = quotient - 100u64;
     diff as i32
 }
+
+linux_arm64 machine verify_target() -> i32 {
+    let q: u64 = 396u64 / 4u64;
+    let quotient: u64 = q;
+    let diff: u64 = quotient - 100u64;
+    diff as i32
 }
 
+macos_arm64 machine verify_target() -> i32 {
+    let q: u64 = 396u64 / 4u64;
+    let quotient: u64 = q;
+    let diff: u64 = quotient - 100u64;
+    diff as i32
+}
 
-
-
-
-
+windows_x86_64 machine verify_target() -> i32 {
+    let q: u64 = 396u64 / 4u64;
+    let quotient: u64 = q;
+    let diff: u64 = quotient - 100u64;
+    diff as i32
+}
 
 machine probe() -> i32 {
-    SelectedVerifyTarget::verify_target()
+    verify_target()
 }
 
 machine main() crashes Trap {

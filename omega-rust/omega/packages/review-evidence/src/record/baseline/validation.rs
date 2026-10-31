@@ -5,6 +5,7 @@ use crate::record::PackagePolicyCallable;
 use crate::record::PackagePolicyCallableRole;
 use crate::record::PackagePolicyExternalBinding;
 use crate::record::PackagePolicySemanticDependencyConsumer;
+use crate::record::PackagePolicyTargetContext;
 use crate::record::PackagePolicyTypeParameterKind;
 use crate::record::PackageReviewCallableSupply;
 use crate::record::PackageReviewNominalIdentity;
@@ -61,7 +62,13 @@ impl PackagePolicyBaseline {
             if supply.callable().owner() != PackageReviewNominalOwner::Package(self.package) {
                 return Err("external policy callable belongs to another package");
             }
-            let expected_target = self.target;
+            let expected_target = match supply.target_context() {
+                PackagePolicyTargetContext::TargetIndependent => self.target,
+                PackagePolicyTargetContext::TargetMember { target } => {
+                    target::TargetProfile::from_canonical_target_name(target)
+                        .map_err(|_| "external policy has an uncatalogued authored target")?
+                }
+            };
             match supply.binding() {
                 PackagePolicyExternalBinding::NormalizedImport { target, .. }
                 | PackagePolicyExternalBinding::NormalizedSyscall { target, .. }

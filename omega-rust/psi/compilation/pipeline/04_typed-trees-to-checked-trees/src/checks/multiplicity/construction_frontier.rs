@@ -257,10 +257,6 @@ pub(super) fn transparent_storage(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    // Source copying and establishment of stored descriptor occurrences are
-    // independent. A copyable record can still contain an unestablished loan
-    // carrier or a gated field, so its partial receiving writes need the same
-    // authoritative frontier as an affine record's writes.
     program.type_multiplicity(reference) == Multiplicity::Affine
         || program
             .unwrapped_type_reference(reference)
@@ -270,15 +266,6 @@ pub(super) fn transparent_storage(
                     TypeReferenceNode::FixedArray { .. }
                 )
             })
-        || (program.type_multiplicity(reference) == Multiplicity::Unrestricted
-            && validation::reference_shell(program, reference).is_none()
-            && program.primitive_type_reference(reference).is_none()
-            && program
-                .closed_data_definition(reference)
-                .is_some_and(|data| {
-                    data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-                        && data.quotient.is_none()
-                }))
 }
 
 /// Default-domain validity and owned establishment are separate judgments.
@@ -297,9 +284,8 @@ fn record_children(
     reference: TypeReferenceHandle,
 ) -> Option<Vec<Vec<PlaceSegment>>> {
     let reference = program.unwrapped_type_reference(reference)?;
-    // The complete application supplies its authorized field telescope,
-    // including value/lifetime substitution and representation-selected T.
-    let definition = program.closed_data_definition(reference)?;
+    let symbol = program.type_reference_table.type_head_symbol(reference)?;
+    let definition = program.data_definition_by_symbol(symbol)?;
     let mut children = Vec::new();
     for member in program.data_members(definition) {
         if let Some(field) = member.as_field() {

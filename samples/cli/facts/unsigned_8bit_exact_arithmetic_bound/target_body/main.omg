@@ -2,13 +2,7 @@
 // Place: target_body. Each of four target bodies performs exact 8-bit addition and discharges subtractions.
 // Expected exit: 0
 
-boundary trait SelectedVerifyTarget {
-    machine verify_target() -> i32 reaches
-;
-}
-CheckedVerifyTarget satisfies SelectedVerifyTarget {
-    machine verify_target() -> i32
-{
+linux_x86_64 machine verify_target() -> i32 {
     let lhs: u8 = 50u8;
     let rhs: u8 = 70u8;
     let sum: u8 = lhs + rhs;
@@ -20,16 +14,48 @@ CheckedVerifyTarget satisfies SelectedVerifyTarget {
         false -> 1i32,
     }
 }
+
+linux_arm64 machine verify_target() -> i32 {
+    let lhs: u8 = 50u8;
+    let rhs: u8 = 70u8;
+    let sum: u8 = lhs + rhs;
+    let headroom: u8 = 180u8 - sum;
+    let margin: u8 = sum - 70u8;
+    let total: u8 = headroom + margin;
+    match total == 110u8 {
+        true -> 0i32,
+        false -> 1i32,
+    }
 }
 
+macos_arm64 machine verify_target() -> i32 {
+    let lhs: u8 = 50u8;
+    let rhs: u8 = 70u8;
+    let sum: u8 = lhs + rhs;
+    let headroom: u8 = 180u8 - sum;
+    let margin: u8 = sum - 70u8;
+    let total: u8 = headroom + margin;
+    match total == 110u8 {
+        true -> 0i32,
+        false -> 1i32,
+    }
+}
 
-
-
-
-
+windows_x86_64 machine verify_target() -> i32 {
+    let lhs: u8 = 50u8;
+    let rhs: u8 = 70u8;
+    let sum: u8 = lhs + rhs;
+    let headroom: u8 = 180u8 - sum;
+    let margin: u8 = sum - 70u8;
+    let total: u8 = headroom + margin;
+    match total == 110u8 {
+        true -> 0i32,
+        false -> 1i32,
+    }
+}
 
 machine probe() -> i32 {
-    SelectedVerifyTarget::verify_target()
+    verify_target()
 }
 
 machine main() crashes Trap {

@@ -14,8 +14,8 @@ use symbols::SymbolHandle;
 pub struct PreparedProviderInventory {
     checked: Arc<CheckedTrees>,
     uses: OnceLock<HashSet<SymbolHandle>>,
+    origins: OnceLock<Vec<language_semantics::provider_declarations::SelectedTargetMachineOrigin>>,
     direct_calls: OnceLock<DirectCallDeclarations<SymbolHandle>>,
-    requirements: OnceLock<Vec<DeclarationProviderRequirements>>,
 }
 
 impl PreparedProviderInventory {
@@ -23,8 +23,8 @@ impl PreparedProviderInventory {
         Self {
             checked,
             uses: OnceLock::new(),
+            origins: OnceLock::new(),
             direct_calls: OnceLock::new(),
-            requirements: OnceLock::new(),
         }
     }
 
@@ -49,6 +49,26 @@ impl PreparedProviderInventory {
         })
     }
 
+    pub fn origins_for(
+        &self,
+        checked: &CheckedTrees,
+    ) -> Result<&[language_semantics::provider_declarations::SelectedTargetMachineOrigin], Diagnostic>
+    {
+        self.require_owner(checked)?;
+        Ok(self.origins())
+    }
+
+    pub fn origins(
+        &self,
+    ) -> &[language_semantics::provider_declarations::SelectedTargetMachineOrigin] {
+        self.origins.get_or_init(|| {
+            typed_trees::provider_declarations::provider_target_declarations(
+                &self.checked.typed,
+                source::DependencyScope::Product,
+            )
+        })
+    }
+
     fn require_owner(&self, checked: &CheckedTrees) -> Result<(), Diagnostic> {
         if !std::ptr::eq(self.checked.as_ref(), checked) {
             return Err(Diagnostic::error(
@@ -58,155 +78,51 @@ impl PreparedProviderInventory {
         Ok(())
     }
 
-    /// Project exact demand into an already selected declaration roster.
-    /// Preparing all-body references is independent of choosing these roots;
-    /// this query neither discovers provider edges nor grants execution.
-    pub fn requirements_for_declarations(
-        &self,
-        checked: &CheckedTrees,
-        declarations: &typed_trees::references::DeclarationSelection,
-    ) -> Result<ProviderApplicationRequirements, Diagnostic> {
-        self.require_owner(checked)?;
-        let mut result = ProviderApplicationRequirements::default();
-        for row in self
-            .requirements()
-            .iter()
-            .filter(|row| declarations.contains(row.owner))
-        {
-            for &(coordinate, template) in &row.requirements {
-                result.coordinates.insert(coordinate);
-                result.templates.insert(template);
-            }
-        }
-        Ok(result)
-    }
-
-    /// Complete all-body uses remain distinct from an application projection.
+    /// Bind this private coordinate inventory to its original checked owner.
+    /// Equal-looking source in another arena cannot reuse these coordinates.
     pub fn uses_for(&self, checked: &CheckedTrees) -> Result<&HashSet<SymbolHandle>, Diagnostic> {
         self.require_owner(checked)?;
         Ok(self.uses.get_or_init(|| {
-            self.requirements()
-                .iter()
-                .flat_map(|row| row.requirements.iter().map(|(_, template)| *template))
-                .collect()
-        }))
-    }
-
-    fn requirements(&self) -> &[DeclarationProviderRequirements] {
-        self.requirements.get_or_init(|| {
-            let mut rows = Vec::new();
-            let template = |coordinate| {
+            let template = |symbol| {
                 self.checked
                     .typed
-                    .closed_requirement_application(coordinate)
-                    .map_or(coordinate, |application| application.template)
+                    .closed_requirement_application(symbol)
+                    .map_or(symbol, |application| application.template)
             };
-            // Associate each implicit operation with its exact generational
-            // arena site once, rather than scanning all operations per owner.
-            let mut expression_requirements = Vec::new();
-            let mut statement_requirements = Vec::new();
-            use crate::operators::CheckedBoundaryOperatorApplicationUseSite;
-            for (site, requirement) in self
-                .checked
-                .facts
-                .operators
-                .boundary_applications
-                .iter()
-                .map(|application| (&application.site, application.requirement_symbol))
-                .chain(
-                    self.checked
-                        .facts
-                        .operators
-                        .symbolic_boundary_applications
-                        .iter()
-                        .map(|application| (&application.site, application.requirement_symbol)),
-                )
-            {
-                match site {
-                    CheckedBoundaryOperatorApplicationUseSite::Expression {
-                        expression, ..
-                    }
-                    | CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
-                        expression, ..
-                    } => {
-                        expression_requirements.push((
-                            (expression.arena_index(), expression.generation()),
-                            requirement,
-                        ));
-                    }
-                    CheckedBoundaryOperatorApplicationUseSite::Statement(statement) => {
-                        statement_requirements.push((
-                            (statement.arena_index(), statement.generation()),
-                            requirement,
-                        ));
-                    }
-                }
-            }
-            expression_requirements.sort_unstable_by_key(|(site, _)| *site);
-            statement_requirements.sort_unstable_by_key(|(site, _)| *site);
-            typed_trees::references::for_each_declaration_references(
-                &self.checked.typed,
-                |owner, references| {
-                    let mut coordinates = references.callable_uses;
-                    for expression in &references.expressions {
-                        coordinates.extend(requirements_at_site(
-                            &expression_requirements,
-                            (expression.arena_index(), expression.generation()),
-                        ));
-                    }
-                    for statement in &references.statements {
-                        coordinates.extend(requirements_at_site(
-                            &statement_requirements,
-                            (statement.arena_index(), statement.generation()),
-                        ));
-                    }
-                    let mut requirements = coordinates
-                        .into_iter()
-                        .map(|coordinate| (coordinate, template(coordinate)))
-                        .collect::<Vec<_>>();
-                    requirements.sort_unstable_by_key(|(coordinate, _)| {
-                        (coordinate.arena_index(), coordinate.generation())
-                    });
-                    if !requirements.is_empty() {
-                        rows.push(DeclarationProviderRequirements {
-                            owner,
-                            requirements,
-                        });
-                    }
-                },
+            // A conformance's nominal reference is not an invocation. Keep the
+            // same complete all-body callable inventory, not entry reachability.
+            let mut uses =
+                crate::typed_trees::references::collect_program_references(&self.checked.typed)
+                    .callable_uses
+                    .into_iter()
+                    .map(template)
+                    .collect::<HashSet<_>>();
+            uses.extend(
+                self.checked
+                    .facts
+                    .operators
+                    .boundary_applications
+                    .iter()
+                    .map(|application| template(application.requirement_symbol)),
             );
-            // Descriptor operations may have no callable source expression.
-            // Their exact checked provider owner determines scoped membership.
-            for row in self.checked.facts.provider_closed_requirements.iter() {
-                rows.push(DeclarationProviderRequirements {
-                    owner: row.provider,
-                    requirements: vec![(row.closed_requirement, template(row.closed_requirement))],
-                });
-            }
-            rows
-        })
+            uses.extend(
+                self.checked
+                    .facts
+                    .operators
+                    .symbolic_boundary_applications
+                    .iter()
+                    .map(|application| template(application.requirement_symbol)),
+            );
+            // Implicit descriptor operations (including Slice index/range)
+            // need not have a callable name in the source reference inventory.
+            uses.extend(
+                self.checked
+                    .facts
+                    .provider_closed_requirements
+                    .iter()
+                    .map(|row| row.template),
+            );
+            uses
+        }))
     }
-}
-
-struct DeclarationProviderRequirements {
-    owner: SymbolHandle,
-    /// Each complete coordinate stays paired with its declaration template.
-    requirements: Vec<(SymbolHandle, SymbolHandle)>,
-}
-
-#[derive(Default)]
-pub struct ProviderApplicationRequirements {
-    pub coordinates: HashSet<SymbolHandle>,
-    pub templates: HashSet<SymbolHandle>,
-}
-
-fn requirements_at_site<Key: Ord + Copy>(
-    requirements: &[(Key, SymbolHandle)],
-    site: Key,
-) -> impl Iterator<Item = SymbolHandle> + '_ {
-    let start = requirements.partition_point(|(candidate, _)| *candidate < site);
-    requirements[start..]
-        .iter()
-        .take_while(move |(candidate, _)| *candidate == site)
-        .map(|(_, requirement)| *requirement)
 }

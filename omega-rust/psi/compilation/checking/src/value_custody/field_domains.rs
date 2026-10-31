@@ -15,7 +15,9 @@ use symbols::SymbolHandle;
 pub use typed_trees::byte_predicates::{ByteSequencePredicate, domain_byte_predicate};
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 mod declared_fields;
 pub(crate) use declared_fields::DeclaredTypeDomainQueries;
@@ -808,10 +810,21 @@ fn declared_domain_constraints(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<&typed_trees::types::DomainConstraint> {
-    typed_trees::operator::declared_domain_constraints(program.typed_program(), type_reference)
-        .into_iter()
-        .filter(|domain| domain.symbol.is_valid())
-        .collect()
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            declared_domain_constraints(program, *referee)
+        }
+        TypeReferenceNode::Constrained { constraints, .. } => program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .filter_map(|constraint| match constraint {
+                TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => Some(domain),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// The predicate-bearing subset of [`domain_constraint_symbols`]. Bodyless

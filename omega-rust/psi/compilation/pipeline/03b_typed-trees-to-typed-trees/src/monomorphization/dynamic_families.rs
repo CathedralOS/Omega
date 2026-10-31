@@ -66,6 +66,9 @@ pub(crate) fn generate_dynamic_family_specializations(
             continue;
         }
         for conformance in program.machine_trait_conformances(realization) {
+            if conformance.external_binding.is_some() || conformance.via_expression.is_valid() {
+                continue;
+            }
             let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
                 definition,
                 requirement,

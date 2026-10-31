@@ -50,13 +50,8 @@ pub fn lower_machine(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
     publication: terminal_codec::TerminalPublication,
-    external_declarations: Option<&crate::PreparedDeclarationCatalog>,
+    external_declarations: Option<&crate::PreparedExternalProviderDeclarations>,
 ) -> Result<LoweredPsi, LoweringError> {
-    if !checked.facts.deferred_layout_applications.is_empty() {
-        return unsupported(
-            "physical layout applications require strict target closure before Terminal production",
-        );
-    }
     if checked
         .facts
         .flow
@@ -137,7 +132,7 @@ pub fn lower_machine(
             &mut identities,
             &mut lowered.semantic_module,
         )?,
-        None => crate::retention::numeric_realizations::retain(
+        None => crate::retention::external_providers::retain(
             &mut identities,
             checked,
             exact_toolchain_sources,
@@ -335,6 +330,11 @@ fn lower_terminal_selection(
             },
         )),
     })?;
+    if lowered.semantic_module.target_machine_families.len()
+        != crate::unit::attached_unit::target_families::runtime_families(checked)?.len()
+    {
+        return unsupported("entry lowering did not retain the complete target-family catalog");
+    }
     let source_machines = source_machine_ids
         .iter()
         .map(|(source, _)| *source)

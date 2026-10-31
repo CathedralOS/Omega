@@ -100,7 +100,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let a: f64 = fit(&main.study, index, 0, alpha); let b: f64 = fit(&main.study, index, 1, alpha);
         let first: f64 = information(&main.study, index, 0, a, alpha); let second: f64 = information(&main.study, index, 1, b, alpha);
         let fold: f64 = logarithm(b / a) / 0.6931471805599453;
-        let error: f64 = F64SquareRoot::square_root(1.0 / first + 1.0 / second) / 0.6931471805599453;
+        let error: f64 = F64::square_root(1.0 / first + 1.0 / second) / 0.6931471805599453;
         main.study.dispersion[index] = alpha; main.study.mean_a[index] = a; main.study.mean_b[index] = b;
         main.study.fold[index] = fold; main.study.error[index] = error;
         main.study.likelihood[index] = log_likelihood(&main.study, index, a, b, alpha);

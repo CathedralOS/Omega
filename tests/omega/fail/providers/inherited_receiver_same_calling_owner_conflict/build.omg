@@ -1,6 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedProvidersProviderDefaults, CheckedProvidersProviderDefaults>(builder, linux_x86_64);
-
     Build::application(builder, "inherited_receiver_same_calling_owner_conflict");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

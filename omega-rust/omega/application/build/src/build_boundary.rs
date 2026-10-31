@@ -194,7 +194,7 @@ fn source_and_package_execution_have_one_application_owner() {
         "compiler.begin_source_compilation(",
         "compiler.complete_source_check(",
         "compiler.complete_source_product(",
-        "crate::build_execution::execute_builds(",
+        "crate::build_execution::execute_build(",
     ] {
         // rustfmt may put a receiver and its method on different lines.
         assert!(
@@ -223,12 +223,7 @@ fn source_and_package_execution_have_one_application_owner() {
         }
     }
     let package = include_str!("build_execution.rs");
-    assert!(package.contains("execute_builds(&mut invocation)"));
-    let continuation = include_str!("build_execution/continuation.rs");
-    assert!(
-        continuation.contains("super::execute_build(continuation.execution(), queries.as_mut())")
-    );
-    assert!(continuation.contains("continuation.advance(returned)"));
+    assert!(package.contains("execute_build(invocation.execution(), Some(&mut queries))"));
 }
 
 #[test]

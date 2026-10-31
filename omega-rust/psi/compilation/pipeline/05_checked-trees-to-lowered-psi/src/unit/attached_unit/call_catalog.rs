@@ -53,7 +53,7 @@ pub(super) fn discover(
             ),
         )?;
     }
-    // Authored roots are portable product surface, not
+    // Authored roots and target families are portable product surface, not
     // reachability from whichever application happens to be requested first.
     // Discover each contract head and implementation before allocating shared
     // namespaces. An independent head retains its opaque checked plan even
@@ -77,7 +77,25 @@ pub(super) fn discover(
             validation::find_machine_by_entry_state(&checked.typed, selected_state)
                 .map(|(machine, _)| machine.symbol)
         });
-    for callable in program_roots.machines.iter().copied().chain(native_roots) {
+    for callable in program_roots
+        .machines
+        .iter()
+        .copied()
+        .chain(native_roots)
+        .chain(
+            super::target_families::runtime_families(checked)?
+                .into_iter()
+                .flat_map(|family| {
+                    std::iter::once(family.canonical).chain(
+                        family
+                            .members
+                            .iter()
+                            .filter(|member| member.machine != family.canonical)
+                            .map(|member| member.machine),
+                    )
+                }),
+        )
+    {
         let machine =
             checked
                 .typed

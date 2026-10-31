@@ -45,7 +45,7 @@ machine decay(argument: f64) -> f64 {
         transition degree <= 16 { true -> add(argument, squares, degree, term, total) false -> restore(total, squares) }
     }
     machine add(argument: f64, squares: u64, degree: u64, term: f64, total: f64) -> f64 {
-        let next: f64 = term * (0.0 - argument) / F64FromU64::from_u64(degree);
+        let next: f64 = term * (0.0 - argument) / F64::from_u64(degree);
         transition { _ -> series(argument, squares, degree + 1, next, total + next) }
     }
     machine restore(value: f64, squares: u64) -> f64 {
@@ -55,7 +55,7 @@ machine decay(argument: f64) -> f64 {
 }
 machine kernel(x1: f64, y1: f64, x2: f64, y2: f64, range: f64) -> f64 {
     let x: f64 = x1 - x2; let y: f64 = y1 - y2;
-    decay(F64SquareRoot::square_root(x * x + y * y) / range)
+    decay(F64::square_root(x * x + y * y) / range)
 }
 machine diagonal(value: f64, noise: f64, row: u64, column: u64) -> f64 {
     transition row == column { true -> add(value, noise) false -> plain(value) }

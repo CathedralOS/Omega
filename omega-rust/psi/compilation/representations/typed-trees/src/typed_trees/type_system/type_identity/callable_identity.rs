@@ -659,6 +659,9 @@ impl TypedTrees {
         // runs before the lock is taken.
         let mut derived = Vec::with_capacity(self.machines().len());
         for (position, machine) in self.machines().iter().enumerate() {
+            if machine.target.is_some() {
+                continue;
+            }
             let Some(parts) = self.machine_callable_identity_parts(machine) else {
                 continue;
             };

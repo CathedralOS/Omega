@@ -14,6 +14,13 @@ public boundary trait DescriptorIo {
 public data DescriptorImports {}
 data Main { cell: Cell; }
 
+public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+    } }
+}
+macos_arm64 boundary machine DescriptorImports::read(descriptor: i32, packet: &mut Packet, count: u32) -> i64
+    satisfies DescriptorIo::read via read_binding();
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     main.cell.value = 31;

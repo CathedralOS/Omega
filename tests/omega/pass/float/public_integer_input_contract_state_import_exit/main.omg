@@ -5,17 +5,17 @@ data Choice { case First; case Second; }
 // Calls in separate state arrivals retain the actual value passed to that path.
 machine rounded(value: i32, choice: Choice) -> f32
 ensures
-    F32Classify::classify(result) == F32Classify::classify(F32FromI32::from_i32(value)) &&
-    (F32IsNan::is_nan(result) || result == F32FromI32::from_i32(value)) {
+    F32::classify(result) == F32::classify(F32::from_i32(value)) &&
+    (F32::is_nan(result) || result == F32::from_i32(value)) {
     transition choice {
         Choice::First -> first(value)
         Choice::Second -> second(value)
     }
     machine first(value: i32) -> f32 {
-        transition { _ -> (F32FromI32::from_i32(value)) }
+        transition { _ -> (F32::from_i32(value)) }
     }
     machine second(value: i32) -> f32 {
-        transition { _ -> (F32FromI32::from_i32(value)) }
+        transition { _ -> (F32::from_i32(value)) }
     }
 }
 

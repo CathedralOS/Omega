@@ -28,12 +28,12 @@ pub(crate) fn project_compiler_intrinsic_execution(
     let derived = derive_selected_compiler_intrinsic_execution_identity_for_row(
         compilation,
         selected_dispatch::NumericProviderSelection {
-            candidate: compilation.numeric_realizations.ok_or_else(|| {
+            candidate: compilation.external_providers.ok_or_else(|| {
                 vec![Diagnostic::error(
                     "package review has no candidate external-provider projection",
                 )]
             })?,
-            custody: &compilation.custody.execution().declaration_catalog,
+            custody: &compilation.custody.execution().external_providers,
             provider,
         },
         compilation.service_declarations.ok_or_else(|| {

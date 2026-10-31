@@ -20,9 +20,9 @@ crashes Trap
         }
     }
     machine store(application: &mut Main, value: i32, index: i32 in Wrapping) {
-        application.values[index] = F64FromI32::from_i32(value);
+        application.values[index] = F64::from_i32(value);
         application.values[index] = application.values[index] + 1.0;
-        let observed: i32 in Saturating = I32FromF64::from_f64(application.values[index]);
+        let observed: i32 in Saturating = I32::from_f64(application.values[index]);
         transition observed == 66 { true -> done(application) false -> bad(application) }
     }
     machine done(application: &mut Main) {

@@ -69,6 +69,7 @@ pub(super) fn retain<'a>(
             application: application.clone(),
             selection_identity,
             selection_package: checked.symbols.symbol_package_identity(candidate.selection),
+            target: candidate.target.clone(),
             body: CheckedMachineDeclaration {
                 semantic_declaration: identities.intern(
                     &checked

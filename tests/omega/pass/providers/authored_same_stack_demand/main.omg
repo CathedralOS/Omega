@@ -9,10 +9,16 @@ public boundary trait TextOutput {
 }
 
 data Protocol { reset: addr; output_string: addr; }
-
+uefi_x86_64 machine Protocol::output(this: addr)
+    satisfies TextOutput::output_string
+    via ForeignBinding::VtableField(output_string)
+    stack 4096 bytes;
 
 data BootServices { query: addr; }
-
+uefi_x86_64 machine BootServices::query_leaf(table: addr)
+    satisfies TextOutput::query
+    via ForeignBinding::TableFunction(query)
+    stack 8192 bytes;
 
 data Main { protocol: addr; services: addr; }
 

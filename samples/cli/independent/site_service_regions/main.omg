@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
         false -> invalid()
     }
     machine count(main: &mut Main) {
-        main.partition.boundary.count = U64FromF64::from_f64(main.reader.value) as u64;
+        main.partition.boundary.count = U64::from_f64(main.reader.value) as u64;
         transition { _ -> boundary(main, 0) }
     }
     machine boundary(main: &mut Main, index: u64) {
@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     machine sites(main: &mut Main) {
-        main.partition.site_count = U64FromF64::from_f64(main.reader.value) as u64;
+        main.partition.site_count = U64::from_f64(main.reader.value) as u64;
         transition { _ -> site(main, 0) }
     }
     machine site(main: &mut Main, index: u64) {

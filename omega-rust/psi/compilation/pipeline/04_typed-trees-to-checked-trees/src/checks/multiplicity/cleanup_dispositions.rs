@@ -382,15 +382,6 @@ impl RemainingCustody {
                 })
     }
 
-    /// Actual spatial exclusions, without the synthetic exit-only retirement
-    /// marker for a reserved home whose established children need no cleanup.
-    pub(super) fn excluded_paths(&self, root: PlaceRoot) -> impl Iterator<Item = &[PlaceSegment]> {
-        self.excluded
-            .iter()
-            .filter(move |entry| entry.root == root)
-            .map(|entry| entry.path.as_slice())
-    }
-
     pub(super) fn removed_paths<'a>(
         &'a self,
         program: &dyn ::validation::CheckingInput,

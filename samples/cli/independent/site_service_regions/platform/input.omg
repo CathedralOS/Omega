@@ -43,7 +43,7 @@ crashes Trap
         }
     }
     machine accumulate(reader: &mut Reader, value: i32, sign: f64) {
-        reader.value = reader.value * 10.0 + F64FromI32::from_i32(value) - 48.0;
+        reader.value = reader.value * 10.0 + F64::from_i32(value) - 48.0;
         transition reader.value <= 100.0 {
             true -> next(reader, sign, true)
             false -> bad(reader)

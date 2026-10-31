@@ -7,8 +7,8 @@ use super::{
 use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
 use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
-// v11 removes retired target-family alias coordinates.
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v11\0";
+// v10 commits closed Import coordinates independently of unchanged Terminal bytes.
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v10\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) terminal_artifact_identity: [u8; 32],
@@ -146,18 +146,49 @@ pub(super) fn derive_native_artifact_identity(
             digest.raw(row.provider_plan_digest.as_bytes());
             hash_bytes(
                 &mut digest,
-                plan.requirement_application_identities
+                plan.family_realization_identities
                     .text(row.selected_requirement_identity)
                     .unwrap_or_default()
                     .as_bytes(),
             );
             hash_bytes(
                 &mut digest,
-                plan.requirement_application_identities
+                plan.family_realization_identities
                     .text(row.requirement_identity)
                     .unwrap_or_default()
                     .as_bytes(),
             );
+        }
+        digest.raw(&canonical_usize(plan.family_realization_rows.len()));
+        for row in &plan.family_realization_rows {
+            digest.raw(&row.terminal.vocabulary_marker.get().to_le_bytes());
+            digest.raw(row.terminal.program_fingerprint.as_bytes());
+            hash_bytes(&mut digest, row.target.as_bytes());
+            digest.raw(&row.head.get().to_le_bytes());
+            digest.raw(&row.member.get().to_le_bytes());
+            hash_bytes(
+                &mut digest,
+                plan.family_realization_identities
+                    .text(row.head_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            hash_bytes(
+                &mut digest,
+                plan.family_realization_identities
+                    .text(row.member_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            hash_bytes(
+                &mut digest,
+                plan.family_realization_identities
+                    .text(row.selected_requirement_identity)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            digest.raw(&row.provider_plan_report_identity.to_le_bytes());
+            digest.raw(row.provider_plan_digest.as_bytes());
         }
     }
     digest.raw(&canonical_usize(fields.provider_executions.len()));

@@ -129,7 +129,11 @@ pub(crate) fn build_blocking_facts(
             let checked_may_block = blocking_row.is_some_and(|row| row.transitive_may_block);
             // A virtual family head publishes the completed member envelope,
             // while every authored member retains its own operational contract.
-            let published_may_block = { machine.blocks };
+            let published_may_block = if machine.target_family_interface {
+                checked_may_block
+            } else {
+                machine.blocks
+            };
             let publishes_operational_contract = machine.is_public
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
             checked_trees::MachineBlockingFact {
@@ -160,7 +164,11 @@ pub(crate) fn build_suspension_facts(
         .map(|machine| {
             let suspension_row = suspensions.iter().find(|row| row.symbol == machine.symbol);
             let checked_may_suspend = suspension_row.is_some_and(|row| row.transitive_may_suspend);
-            let published_may_suspend = { machine.suspends };
+            let published_may_suspend = if machine.target_family_interface {
+                checked_may_suspend
+            } else {
+                machine.suspends
+            };
             let publishes_operational_contract = machine.is_public
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
             checked_trees::MachineSuspensionFact {

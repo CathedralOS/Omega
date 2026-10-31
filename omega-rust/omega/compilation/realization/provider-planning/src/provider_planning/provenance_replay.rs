@@ -75,9 +75,15 @@ pub struct ProviderPlanProvenance {
     pub named_application: Option<checked_trees::provider_declarations::NamedProviderApplication>,
     pub row_requirements: Vec<symbols::SymbolHandle>,
     pub row_realizations: Vec<ProviderRowRealization>,
-    /// Compiler-catalog custody remains distinct from authored ordinary bodies.
+    /// Exact pre-resolution target-scoped declaration custody for catalog-
+    /// inferred rows. `None` is mandatory for ordinary checked, legacy
+    /// external, and evaluated-payload rows.
+    pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>,
+    /// Compiler-catalog custody is distinct from authored target-machine origins.
     pub row_placed_accessors: Vec<Option<crate::SealedPlacedAccessor>>,
 }
+
+pub use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DerivedProviderPlan {
@@ -85,18 +91,25 @@ pub struct DerivedProviderPlan {
     pub provenance: ProviderPlanProvenance,
 }
 
-/// Derive source-owned candidates from exact scoped declarations and target
-/// coordinates. Native Build rows enter separately; this operation neither
-/// evaluates source nor reconstructs a forwarding machine.
+/// One provider-plan derivation request: the selected target, and when the
+/// program's `via` bindings were evaluated, that table with the target-machine
+/// origins it selected. Build the evaluated form through
+/// [`ProviderPlanDerivation::evaluated`] with the table this compile just
+/// evaluated for the same typed program and target.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
     context: ProviderPlanningContext<'a>,
     body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
     calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&'a str>,
+    evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
+    target_machine_origins: &'a [SelectedTargetMachineOrigin],
 }
+
 impl<'a> ProviderPlanDerivation<'a> {
-    pub const fn new(
+    /// Derive from retained conformance alone, before `via` bindings are
+    /// evaluated.
+    pub const fn unevaluated(
         context: ProviderPlanningContext<'a>,
         body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
@@ -107,6 +120,29 @@ impl<'a> ProviderPlanDerivation<'a> {
             body_declarations,
             calling_plans,
             selected_target,
+            evaluated_bindings: None,
+            target_machine_origins: &[],
+        }
+    }
+
+    /// Derive with the evaluated `via` binding table this compile produced for
+    /// the same typed program and target. The table is not replayed against
+    /// the program it was just evaluated from.
+    pub fn evaluated(
+        context: ProviderPlanningContext<'a>,
+        body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
+        calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
+        selected_target: Option<&'a str>,
+        evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
+        target_machine_origins: &'a [SelectedTargetMachineOrigin],
+    ) -> Self {
+        Self {
+            context,
+            body_declarations,
+            calling_plans,
+            selected_target,
+            evaluated_bindings: Some(evaluated_bindings),
+            target_machine_origins,
         }
     }
 }
@@ -121,5 +157,7 @@ pub fn derive_satisfies_plans(
         derivation.body_declarations,
         derivation.calling_plans,
         derivation.selected_target,
+        derivation.evaluated_bindings,
+        derivation.target_machine_origins,
     )
 }

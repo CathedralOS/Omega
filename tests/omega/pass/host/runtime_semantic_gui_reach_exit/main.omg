@@ -2,7 +2,7 @@
 use omega_language_std::macos_gui;
 use omega_language_std::console;
 
-machine main()
+macos_arm64 machine main()
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +

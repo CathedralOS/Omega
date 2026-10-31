@@ -49,10 +49,10 @@ public machine baseline_ready() -> bool {
         let selected: &mut [f64] = window(trace, 1);
         let trailing: Held = hold(selected);
         scale_peak(trailing.values);
-        let baseline: i32 in Saturating = I32FromF64::from_f64(trace[0]);
-        let neighbor: i32 in Saturating = I32FromF64::from_f64(trace[1]);
-        let peak_value: i32 in Saturating = I32FromF64::from_f64(trace[2]);
-        let tail: i32 in Saturating = I32FromF64::from_f64(trace[3]);
+        let baseline: i32 in Saturating = I32::from_f64(trace[0]);
+        let neighbor: i32 in Saturating = I32::from_f64(trace[1]);
+        let peak_value: i32 in Saturating = I32::from_f64(trace[2]);
+        let tail: i32 in Saturating = I32::from_f64(trace[3]);
         transition baseline == 0 && neighbor == 0 && peak_value == 4 && tail == 5 {
             true -> true
             _ -> false

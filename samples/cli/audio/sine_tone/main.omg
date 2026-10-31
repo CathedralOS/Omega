@@ -84,10 +84,10 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
 
     main.i = 0;
     main.phase = 0;
-    transition { _ -> block fill(main) }
+    transition { _ -> fill(main) }
 
     machine fill(main: &mut Main) {
-        transition main.i >= 0 && main.i < 8000 { true -> block sample(main) _ -> block write_file(main) }
+        transition main.i >= 0 && main.i < 8000 { true -> sample(main) _ -> write_file(main) }
     }
     machine sample(main: &mut Main) {
         main.phase = main.phase + 115343;
@@ -129,12 +129,12 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
         };
         main.buffer[main.i + 44] = main.byte;
         main.i = main.i + 1;
-        transition { _ -> block fill(main) }
+        transition { _ -> fill(main) }
     }
 
     machine write_file(main: &mut Main) {
         main.n = block WavOutput::write_wav("sine_tone.wav", &main.buffer);
-        transition main.n == 8044 { true -> block play_it(main) _ -> bad(main) }
+        transition main.n == 8044 { true -> play_it(main) _ -> bad(main) }
     }
     machine play_it(main: &mut Main) {
         main.rc = block AudioPlayback::play(&main.buffer[0], 8044, &main.buffer[44], 8000);

@@ -2,12 +2,7 @@
 // Place: another target body. Each of four target-scoped machine bodies masks the bounded 32-bit operand and performs exact subtractions.
 // Expected exit: 0
 
-boundary trait SelectedMaskTarget {
-    machine mask_target(raw: u32, mask: u32) -> i32 reaches
-requires raw >= 116u32 && raw <= 116u32 && mask == 63u32;
-}
-CheckedMaskTarget satisfies SelectedMaskTarget {
-    machine mask_target(raw: u32, mask: u32) -> i32
+linux_x86_64 machine mask_target(raw: u32, mask: u32) -> i32
 requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
 {
     let masked: u32 = raw & mask;
@@ -19,16 +14,48 @@ requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
     machine pass() -> i32 { 0 }
     machine fail() -> i32 { 1 }
 }
+
+linux_arm64 machine mask_target(raw: u32, mask: u32) -> i32
+requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
+{
+    let masked: u32 = raw & mask;
+    let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
+    transition masked == 52u32 && check == 0u32 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
+macos_arm64 machine mask_target(raw: u32, mask: u32) -> i32
+requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
+{
+    let masked: u32 = raw & mask;
+    let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
+    transition masked == 52u32 && check == 0u32 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
+}
 
-
-
-
-
+windows_x86_64 machine mask_target(raw: u32, mask: u32) -> i32
+requires raw >= 116u32 && raw <= 116u32 && mask == 63u32
+{
+    let masked: u32 = raw & mask;
+    let check: u32 = (63u32 - masked) + (masked - 40u32) - 23u32;
+    transition masked == 52u32 && check == 0u32 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
+}
 
 machine probe() -> i32 {
-    SelectedMaskTarget::mask_target(116u32, 63u32)
+    mask_target(116u32, 63u32)
 }
 
 machine main() crashes Trap {

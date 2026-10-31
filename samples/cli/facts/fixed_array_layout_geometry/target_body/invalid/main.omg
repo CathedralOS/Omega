@@ -2,25 +2,24 @@
 // Invalid: querying narrower array [u64; 3] (size == 24u64, align == 8u64), so target-scoped compute_geometry() underflows u64.
 // Expected exit: 0
 
-boundary trait SelectedComputeGeometry {
-    machine compute_geometry() -> u64 reaches
-;
-}
-CheckedComputeGeometry satisfies SelectedComputeGeometry {
-    machine compute_geometry() -> u64
-{
+linux_x86_64 machine compute_geometry() -> u64 {
     size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
 }
+
+linux_arm64 machine compute_geometry() -> u64 {
+    size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
 }
 
+macos_arm64 machine compute_geometry() -> u64 {
+    size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
+}
 
-
-
-
-
+windows_x86_64 machine compute_geometry() -> u64 {
+    size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
+}
 
 machine probe() -> u64 {
-    SelectedComputeGeometry::compute_geometry()
+    compute_geometry()
 }
 
 machine main() crashes Trap {

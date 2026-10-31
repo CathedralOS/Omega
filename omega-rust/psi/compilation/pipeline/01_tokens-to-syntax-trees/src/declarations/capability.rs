@@ -26,7 +26,7 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
             let (_, after_entry) = input.take_identifier()?;
             if !after_entry.at_punctuation(PunctuationKind::Colon) {
                 return Err(input.error_here(
-                    "the legacy `capability { entry ... }` host scaffold is retired; declare a `boundary trait` requirement and realize it with an exact `Build::bind<Requirement>(builder, target, locator)` machine",
+                    "the legacy `capability { entry ... }` host scaffold is retired; declare a `boundary trait` requirement and realize it with an exact `satisfies Trait::requirement via Binding::...` machine",
                 ));
             }
         }
@@ -152,7 +152,7 @@ fn parse_capability_contract<'tokens, 'source>(
 
     if input.at_contextual("boundary") {
         return Err(input.error_here(
-            "trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `Build::bind<Requirement>(builder, target, locator)`",
+            "trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `satisfies Trait::requirement via Binding::...`",
         ));
     }
 

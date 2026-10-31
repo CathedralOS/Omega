@@ -54,11 +54,11 @@ invokes Console;
     }
     machine negative(value: f64) {
         Console::write("-");
-        let rounded: i64 in Saturating = I64FromF64::from_f64((0.0 - value) * 1000000.0 + 0.5);
+        let rounded: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
         write_integer(rounded as i64 in Wrapping);
     }
     machine positive(value: f64) {
-        let rounded: i64 in Saturating = I64FromF64::from_f64(value * 1000000.0 + 0.5);
+        let rounded: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
         write_integer(rounded as i64 in Wrapping);
     }
 }

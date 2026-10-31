@@ -389,23 +389,13 @@ pub(crate) fn bind_selected_operator_calls(
         let arguments = program
             .expression_table
             .insert_expression_handles(operands.iter().copied());
-        // A requirement keeps its ordinary declaration namespace after token
-        // binding. Dropping that qualifier creates a receiverless free call,
-        // which cannot carry the selected trait's argument and contract frame.
-        let receiver_symbol = if target.binder.is_valid() {
-            target.binder
-        } else {
-            program
-                .trait_machine_signature(target.entry)
-                .map_or_else(SymbolHandle::invalid, |(owner, _)| owner.symbol)
-        };
-        let receiver = if receiver_symbol.is_valid() {
-            let receiver_name =
-                typed_trees::name::Identifier::generated(program.symbols.name(receiver_symbol));
+        let receiver = if target.binder.is_valid() {
+            let binder_name =
+                typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
             crate::monomorphization::insert_subject_name(
                 &mut program.expression_table,
-                receiver_name,
-                receiver_symbol,
+                binder_name,
+                target.binder,
             )
         } else {
             ExpressionHandle::invalid()
@@ -755,32 +745,6 @@ fn selected_call_target(
         return Ok(None);
     };
     let selected = operator_use.selected_operator_symbol;
-    if operator_use.status == CheckedOperatorResolutionStatus::Resolved
-        && let Some((owner, requirement)) = program.trait_machine_signature(selected)
-        && program
-            .sealed_numeric_requirement(owner, requirement)
-            .is_some()
-    {
-        return Ok(Some(SelectedOperatorCall {
-            entry: requirement.symbol,
-            name: requirement.name.clone(),
-            binder: SymbolHandle::invalid(),
-            collection_parameter: program
-                .state_signature_parameters(requirement)
-                .first()
-                .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                    parameter.type_reference
-                }),
-            start_parameter: program
-                .state_signature_parameters(requirement)
-                .get(1)
-                .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                    parameter.type_reference
-                }),
-            dispatch: None,
-            arguments: Box::default(),
-        }));
-    }
     if operator_use.status != CheckedOperatorResolutionStatus::Resolved
         || program.machine_token_binding_by_symbol(selected).is_none()
     {

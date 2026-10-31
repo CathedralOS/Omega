@@ -30,6 +30,7 @@ struct StaticDeclaration<'program> {
     symbol: SymbolHandle,
     name: &'program Identifier,
     parameters: &'program [TypeParameter],
+    lifetime_parameters: &'program [Identifier],
     conformance_bounds: &'program [GenericConformanceBound],
 }
 
@@ -42,6 +43,7 @@ impl<'program> StaticDeclaration<'program> {
                 name: &source.name,
                 parameters: program
                     .requirement_invocation_contract_parameters(application.signature),
+                lifetime_parameters: &source.lifetime_parameters,
                 conformance_bounds: &[],
             });
         }
@@ -50,6 +52,7 @@ impl<'program> StaticDeclaration<'program> {
                 symbol: machine.symbol,
                 name: &machine.name,
                 parameters: program.machine_type_parameters(machine),
+                lifetime_parameters: &machine.lifetime_parameters,
                 conformance_bounds: &machine.conformance_bounds,
             });
         }
@@ -58,6 +61,7 @@ impl<'program> StaticDeclaration<'program> {
                 symbol,
                 name: &data.name,
                 parameters: program.data_type_parameters(data),
+                lifetime_parameters: &data.lifetime_parameters,
                 conformance_bounds: &[],
             });
         }
@@ -66,6 +70,7 @@ impl<'program> StaticDeclaration<'program> {
                 symbol,
                 name: &domain.name,
                 parameters: program.domain_type_parameters(domain),
+                lifetime_parameters: &[],
                 conformance_bounds: &[],
             });
         }
@@ -81,6 +86,7 @@ impl<'program> StaticDeclaration<'program> {
             symbol: signature.symbol,
             name: &signature.name,
             parameters: program.state_signature_type_parameters(signature),
+            lifetime_parameters: &signature.lifetime_parameters,
             conformance_bounds: &[],
         })
     }
@@ -435,68 +441,30 @@ pub fn validate_static_machine_bindings(
         } else {
             application.binding_declaration
         };
-        let lifetimes = match program
-            .static_application_lifetimes_for_declaration(handle, declaration_symbol)
-        {
-            Ok(lifetimes) => lifetimes,
-            Err(reason) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "static lifetime tuple lost its declaration-owned region correspondence: {reason}; receiving `{}` from `{}`",
-                    program.symbols.name(declaration_symbol), program.symbols.name(application.lexical_owner),
-                )));
-                continue;
-            }
-        };
         if !lifetimes.is_empty() {
-            // Lifetime custody follows the shared authored-region owner, not
-            // the narrower Type/Const/evidence declaration classifier below.
-            // In particular, inline members capture their implementation's
-            // region telescope without turning that implementation into a
-            // callable static declaration.
-            let declaration = program.lifetime_declaration_owner(declaration_symbol);
-            let parameters =
-                typed_trees::type_identity::declaration_lifetime_parameters(program, declaration);
-            let failure = if let Some(parameters) = parameters {
-                // Ordinary inference may retain only used slots. Explicit
-                // provider application admission separately requires all slots.
-                lifetimes.iter().enumerate().find_map(|(ordinal, binding)| {
-                    if !parameters.contains(&binding.parameter) {
-                        Some(format!(
-                            "receiving declaration has no own lifetime `{}`",
-                            binding.parameter
-                        ))
-                    } else if lifetimes[..ordinal]
+            let declared = StaticDeclaration::find(program, declaration_symbol);
+            let owner = StaticDeclaration::find(program, application.lexical_owner);
+            if declared.zip(owner).is_none_or(|(declared, owner)| {
+                // Ordinary calls may infer only the used part of a lifetime
+                // telescope. Applied provider views separately require a
+                // complete explicitly selected tuple, including unused slots.
+                lifetimes.iter().enumerate().any(|(ordinal, binding)| {
+                    !declared
+                        .lifetime_parameters
                         .iter()
-                        .any(|previous| previous.parameter == binding.parameter)
-                    {
-                        Some(format!(
-                            "receiving lifetime `{}` is bound more than once",
-                            binding.parameter
-                        ))
-                    } else if typed_trees::type_identity::lifetime_parameter_identity(
-                        program,
-                        application.lexical_owner,
-                        binding.argument.as_str(),
-                    )
-                    .is_none()
-                    {
-                        Some(format!(
-                            "supplied lifetime `{}` has no identity in its lexical scope",
-                            binding.argument
-                        ))
-                    } else {
-                        None
-                    }
+                        .any(|parameter| parameter == &binding.parameter)
+                        || lifetimes[..ordinal]
+                            .iter()
+                            .any(|previous| previous.parameter == binding.parameter)
+                        || typed_trees::type_identity::lifetime_parameter_identity(
+                            program,
+                            owner.symbol,
+                            binding.argument.as_str(),
+                        )
+                        .is_none()
                 })
-            } else {
-                Some("receiving declaration has no authenticated lifetime telescope".to_owned())
-            };
-            if let Some(failure) = failure {
-                diagnostics.push(Diagnostic::error(format!(
-                    "static lifetime tuple does not retain its complete declaration and lexical region custody: {failure}; receiving `{}` from `{}`",
-                    program.symbols.name(declaration_symbol),
-                    program.symbols.name(application.lexical_owner),
-                )));
+            }) {
+                diagnostics.push(Diagnostic::error("static lifetime tuple does not retain its complete declaration and lexical region custody"));
                 continue;
             }
         }
@@ -522,11 +490,6 @@ pub fn validate_static_machine_bindings(
                     .expression_table
                     .static_machine_application_bindings(*previous)
                     == bindings
-                && program
-                    .expression_table
-                    .static_machine_application(*previous)
-                    .lifetime_binding_declaration
-                    == application.lifetime_binding_declaration
                 && program
                     .expression_table
                     .static_machine_application_lifetimes(*previous)
@@ -652,7 +615,9 @@ pub fn validate_static_machine_bindings(
             &machine,
             application,
             bindings,
-            &lifetimes,
+            program
+                .expression_table
+                .static_machine_application_lifetimes(handle),
             &mut diagnostics,
         );
         if complete {
@@ -661,7 +626,9 @@ pub fn validate_static_machine_bindings(
                 &machine,
                 application,
                 bindings,
-                &lifetimes,
+                program
+                    .expression_table
+                    .static_machine_application_lifetimes(handle),
                 &mut diagnostics,
             );
         }

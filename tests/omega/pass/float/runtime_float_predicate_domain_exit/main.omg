@@ -10,7 +10,7 @@ domain f64::AdmissibleTotal
 requires self >= 0.01;
 
 machine corrected(gross: f64, tare: f64) -> f64 in NonnegativeMass
-requires F64IsFinite::is_finite(gross) && F64IsFinite::is_finite(tare) && gross >= tare
+requires F64::is_finite(gross) && F64::is_finite(tare) && gross >= tare
 {
     gross - tare
 }

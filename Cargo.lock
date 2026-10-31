@@ -268,7 +268,6 @@ name = "build-time-values"
 version = "0.1.0"
 dependencies = [
  "compiler-storage",
- "layout-plans",
  "numerics",
 ]
 
@@ -1586,7 +1585,6 @@ name = "package-evidence"
 version = "0.1.0"
 dependencies = [
  "arena",
- "build-time-evaluation",
  "calling-conventions",
  "checked-trees",
  "compilation-products",
@@ -2438,7 +2436,6 @@ version = "0.1.0"
 dependencies = [
  "compiler-storage",
  "diagnostics",
- "layout-plans",
  "optimization-core",
  "semantic-vocabulary",
  "sha2",
@@ -2533,7 +2530,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "compiler-storage",
- "layout-plans",
  "numerics",
  "semantic-vocabulary",
  "terminal-codec",

@@ -22,7 +22,7 @@ use crate::unit::attached_unit::checked_unit_boundary_identity;
 
 pub(crate) mod closed_reach_applications;
 pub(crate) mod conformance_applications;
-pub(crate) mod numeric_realizations;
+pub(crate) mod external_providers;
 pub(crate) mod operation_crash_contracts;
 pub(crate) mod payload_memberships;
 pub(crate) mod placed_view_inputs;

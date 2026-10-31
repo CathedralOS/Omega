@@ -15,7 +15,7 @@ machine guarded(value: i32) -> i32 {
 machine main() crashes Trap {
     let classified: i32 in Three = classified();
     let observed: i32 = observe(classified);
-    let inline: i32 = observe(I32FromF64::from_f64(3.75f64) as i32 in Three);
+    let inline: i32 = observe(I32::from_f64(3.75f64) as i32 in Three);
     let anonymous: i32 = observe((1 + 2) as i32 in Three);
     let stored: i32 = 2;
     let computed: i32 in Positive = (stored + 1) as i32 in Positive;

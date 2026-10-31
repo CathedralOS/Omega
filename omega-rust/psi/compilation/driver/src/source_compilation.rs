@@ -101,19 +101,17 @@ impl SourceCompilationRequest {
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<SourceContinuation, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("psi.source.prepare");
-        let mut context = SourceContext {
+        let context = SourceContext {
             declaration_syntax: Arc::new(self.syntax.clone()),
-            normalization_context: None,
             bindings: self.top_level_bindings.clone(),
             authority: self.selection_authority.clone(),
             build_helper_identity: self.build_helper_identity.into(),
             recorded_authority: None,
         };
         let activation = activation::select_retained_source(&self, &context, observer)?;
-        let template_context = activation.as_ref().map(|activation| {
-            Arc::new(activation.remove_retained_syntax(&mut self.syntax, &self.source_items))
-        });
-        context.normalization_context = template_context.clone();
+        if let Some(activation) = &activation {
+            activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
+        }
         let retained_program = activation
             .as_ref()
             .map(|activation| activation.typing.typed().clone());
@@ -134,7 +132,6 @@ impl SourceCompilationRequest {
                     source_scoped_top_level_bindings: &self.top_level_bindings,
                     selection_authority: self.selection_authority,
                     predecessor: retained.clone(),
-                    template_context: template_context.as_deref(),
                     declaration_syntax: Some(&context.declaration_syntax),
                 },
             },
@@ -355,39 +352,12 @@ impl SourceContinuation {
         static_environment: Option<
             &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
         >,
-        demand: typed_trees::product_operand::ProductApplicationDemand,
     ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
         typed_trees_to_typed_trees::prepare_product_requirement_operand(
             Arc::make_mut(&mut self.input).typing.typed_mut(),
             operand,
             author,
             static_environment,
-            demand,
-        )
-    }
-
-    /// Prepare an inert nominal application in the same ordinary typing owner.
-    /// The demand records reached selection separately from source formation.
-    pub fn prepare_product_operand_application(
-        &mut self,
-        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
-        role: language_semantics::declaration_selection::ProductOperandRole,
-        author: symbols::SymbolHandle,
-        static_environment: Option<
-            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
-        >,
-        demand: typed_trees::product_operand::ProductApplicationDemand,
-    ) -> Result<
-        Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
-        Vec<Diagnostic>,
-    > {
-        typed_trees_to_typed_trees::prepare_product_operand_application(
-            Arc::make_mut(&mut self.input).typing.typed_mut(),
-            operand,
-            role,
-            author,
-            static_environment,
-            demand,
         )
     }
 
@@ -557,7 +527,6 @@ impl CompletedSource {
                     source_scoped_top_level_bindings: &[],
                     selection_authority: Some(extension.selection_authority),
                     predecessor: Some(self.typing.clone()),
-                    template_context: None,
                     declaration_syntax: Some(&self.declaration_syntax),
                 },
             )?;

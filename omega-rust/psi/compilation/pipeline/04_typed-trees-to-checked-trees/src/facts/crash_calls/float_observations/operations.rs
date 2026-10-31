@@ -37,11 +37,12 @@ impl FloatObservations<'_> {
         {
             return None;
         }
-        let requirement = self
-            .program
-            .sealed_numeric_requirement_by_symbol(selected)?;
+        let operator = typed_trees::operator::declaration_by_symbol(self.program, selected)?;
+        if !typed_trees::operator::is_sealed_toolchain_float_operator(self.program, operator) {
+            return None;
+        }
         let (operation, format) =
-            typed_trees::operator::primitive_float_semantics(self.program, selected)?;
+            typed_trees::operator::primitive_float_binary_semantics(self.program, operator)?;
         if !matches!(
             operation,
             BinaryOperator::Add
@@ -51,7 +52,7 @@ impl FloatObservations<'_> {
         ) {
             return None;
         }
-        let parameters = requirement.parameters;
+        let parameters = self.program.operator_parameters(operator);
         let operands = if let Some(use_fact) = use_fact {
             use_fact.operands(self.program)?
         } else {

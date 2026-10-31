@@ -7,25 +7,33 @@ machine Mark::drop(mark: &mut Mark) requires mark.code == 7 {
     mark.slot.total = mark.code;
 }
 machine settle(mark: &Mark) {}
-boundary trait SelectedFinish {
-    machine finish(tally: &mut Tally, code: u64) reaches
-requires code == 7 crashes Trap;
-}
-CheckedFinish satisfies SelectedFinish {
-    machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap
-{
+linux_x86_64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
     settle(&Mark { slot: tally, code: code });
     transition tally.total == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
+linux_arm64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
+    settle(&Mark { slot: tally, code: code });
+    transition tally.total == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
-
-
-
+macos_arm64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
+    settle(&Mark { slot: tally, code: code });
+    transition tally.total == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+windows_x86_64 machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
+    settle(&Mark { slot: tally, code: code });
+    transition tally.total == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
 machine start(unprovided: &mut Unprovided) crashes Trap {
     let mut tally: Tally = Tally { total: 0 };
-    SelectedFinish::finish(&mut tally, 7);
+    finish(&mut tally, 7);
 }
 
 // A hosted shape alone cannot establish this ordinary mutable argument.

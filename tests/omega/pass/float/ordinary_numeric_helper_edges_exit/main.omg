@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 data Main { zero: f64; zero32: f32; }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let negative_zero: f64 = F64Negate::negate(main.zero);
+    let negative_zero: f64 = F64::negate(main.zero);
     let nan: f64 = main.zero / main.zero;
     let absolute_zero: f64 = abs_f64(negative_zero);
     let absolute_nan: f64 = abs_f64(nan);
@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let selected_nan: f64 = min_f64(1.0, nan);
     let selected_number: f64 = max_f64(nan, 1.0);
     let clamped_nan: f64 = clamp_f64(nan, 2.0, 4.0);
-    let negative_zero32: f32 = F32Negate::negate(main.zero32);
+    let negative_zero32: f32 = F32::negate(main.zero32);
     let nan32: f32 = main.zero32 / main.zero32;
     let absolute_zero32: f32 = abs_f32(negative_zero32);
     let root_zero32: f32 = sqrt_f32(negative_zero32);

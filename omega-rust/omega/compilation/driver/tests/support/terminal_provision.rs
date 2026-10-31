@@ -69,7 +69,7 @@ pub(super) fn admitted_supplies(
             entry: None,
             installation: Some(&installed),
             host_imports: &[],
-            target_context: None,
+            target_machines: None,
             target_layouts: None,
         })
         .unwrap()

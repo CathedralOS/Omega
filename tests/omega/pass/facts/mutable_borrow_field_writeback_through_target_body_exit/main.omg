@@ -7,28 +7,27 @@ data Counter [copy] where used <= 80u64 {
     limit: u64;
 }
 
-boundary trait SelectedCompute {
-    machine compute(c: Counter) -> u64 reaches
-;
-}
-CheckedCompute satisfies SelectedCompute {
-    machine compute(c: Counter) -> u64
-{
+linux_x86_64 machine compute(c: Counter) -> u64 {
     80u64 - c.used
 }
+
+linux_arm64 machine compute(c: Counter) -> u64 {
+    80u64 - c.used
 }
 
+windows_x86_64 machine compute(c: Counter) -> u64 {
+    80u64 - c.used
+}
 
-
-
-
-
+macos_arm64 machine compute(c: Counter) -> u64 {
+    80u64 - c.used
+}
 
 machine main() crashes Trap {
     let mut c: Counter = Counter { used: 0u64, limit: 80u64 };
     let r: &mut Counter = &mut c;
     r.used = 50u64;
-    let diff: u64 = SelectedCompute::compute(c);
+    let diff: u64 = compute(c);
     transition diff == 30u64 && c.limit == 80u64 {
         true -> done()
         false -> bad()

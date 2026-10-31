@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedOverwrite, CheckedOverwrite>(builder, windows_x86_64);
-    Build::select_provider<SelectedOverwrite, CheckedOverwrite>(builder, linux_x86_64);
-    Build::select_provider<SelectedOverwrite, CheckedOverwrite>(builder, macos_arm64);
-    Build::select_provider<SelectedOverwrite, CheckedOverwrite>(builder, linux_arm64);
-
     Build::application(builder, "write_only_recast");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

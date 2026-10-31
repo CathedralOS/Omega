@@ -36,7 +36,6 @@ pub fn prepare_product_requirement_operand(
     operand: &ProductDeclarationOperand,
     author: SymbolHandle,
     static_environment: Option<&ProductStaticEnvironment>,
-    demand: typed_trees::product_operand::ProductApplicationDemand,
 ) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
     let refuse =
         |reason: &str| vec![Diagnostic::error(reason).with_source_span(operand.source_span)];
@@ -56,7 +55,6 @@ pub fn prepare_product_requirement_operand(
             refuse("native binding must name one exact visible package-owned requirement")
         });
     };
-    let source_owner = author;
     let author = environment::supplier_owner(program, static_environment, author)?;
     let mut lower = Lower::new(program, graph, author, static_environment);
     if !graph.operands.is_valid(graph.root) {
@@ -67,12 +65,6 @@ pub fn prepare_product_requirement_operand(
         return Err(refuse("designated requirement has no owned application"));
     }
     let root_application = graph.applications.get(root.application).clone();
-    lower
-        .input_path
-        .push(typed_trees::product_operand::ProductArgumentStep::Argument(
-            0,
-        ));
-    let mut source_argument = None;
     let (requirement, environment, method) = if root_application.member.is_valid() {
         let path = lower.path(root.path)?;
         let owner = typed_trees::product_operand::resolve_product_path(
@@ -97,32 +89,15 @@ pub fn prepare_product_requirement_operand(
             .as_mut()
             .expect("created above")
             .member = Handle::invalid();
-        source_argument = Some(owner_argument.clone());
-        let definition = lower
+        let reference = lower
             .program
-            .trait_definition_by_symbol(owner)
-            .ok_or_else(|| refuse("applied requirement owner lost its trait declaration"))?;
-        let outer_parameters = lower.program.trait_type_parameters(definition).to_vec();
-        let outer_arguments = &owner_argument
-            .application
-            .as_ref()
-            .expect("created above")
-            .arguments;
-        // Const recipes belong to the independent static-input checker, never
-        // to runtime Type roots. Keep only the exact Type-kind actuals here.
-        for (parameter, argument) in outer_parameters.iter().zip(outer_arguments.iter()) {
-            if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
-                let reference = lower
-                    .program
-                    .static_operand_type_reference_in_scope(argument, author)
-                    .map_err(refuse)?;
-                lower.program.retain_designated_static_type_argument(
-                    author,
-                    reference,
-                    operand.source_span,
-                );
-            }
-        }
+            .static_operand_type_reference_in_scope(&owner_argument, author)
+            .map_err(refuse)?;
+        lower.program.retain_designated_static_type_argument(
+            author,
+            reference,
+            operand.source_span,
+        );
         // Closure consumes a derived tuple. Keep the source reference above
         // intact so immutable checking still judges every supplying recipe.
         crate::monomorphization::normalize_const_arguments(
@@ -135,11 +110,19 @@ pub fn prepare_product_requirement_operand(
             .program
             .static_operand_type_reference_in_scope(&owner_argument, author)
             .map_err(refuse)?;
+        lower.program.retain_designated_static_type_argument(
+            author,
+            reference,
+            operand.source_span,
+        );
         let scope = AppliedTraitScope::from_type_reference(lower.program, reference, author)
             .ok_or_else(|| {
                 refuse("native requirement has an invalid or incomplete outer application")
             })?;
-        nominal::require_trait_inputs(lower.program, &scope, demand).map_err(refuse)?;
+        lower
+            .program
+            .require_receiving_trait_operands(&scope)
+            .map_err(refuse)?;
         let environment = scope.environment();
         let member = lower.graph.operands.get(root_application.member).clone();
         let member_path = lower.path(member.path)?;
@@ -203,41 +186,12 @@ pub fn prepare_product_requirement_operand(
         .materialize_trait_application_arguments(&environment)
         .map_err(refuse)?;
 
-    let has_outer = root_application.member.is_valid();
-    if has_outer {
-        lower
-            .input_path
-            .push(typed_trees::product_operand::ProductArgumentStep::Member);
-    }
     let supplied = if method.is_valid() {
         Some(lower.application(method)?)
     } else {
         None
     };
-    if has_outer {
-        lower.input_path.pop();
-    }
-    lower.input_path.pop();
-    let member_argument = expr::StaticMachineArgument {
-        symbol: requirement,
-        path: Box::from([Identifier::generated(&operand.path)]),
-        application: supplied.clone().map(Box::new),
-        ..Default::default()
-    };
-    let source_argument = if let Some(mut owner) = source_argument {
-        let member = lower
-            .program
-            .expression_table
-            .insert_static_member(member_argument);
-        owner
-            .application
-            .as_mut()
-            .expect("retained applied owner")
-            .member = member;
-        owner
-    } else {
-        member_argument
-    };
+    let has_outer = root_application.member.is_valid();
     // An absent method tuple keeps the method's own universal telescope. An
     // explicitly supplied tuple must close completely, including unused args.
     if let Some(supplied) = &supplied {
@@ -254,38 +208,6 @@ pub fn prepare_product_requirement_operand(
         .then(|| environment.retain(lower.program))
         .transpose()
         .map_err(refuse)?;
-    if demand == typed_trees::product_operand::ProductApplicationDemand::FormationOnly {
-        // Formation retains the original tuple and its declared obligations.
-        // It does not demand a closed executable member from an unused helper.
-        let source_application = lower
-            .program
-            .expression_table
-            .retain_static_machine_application(
-                requirement,
-                name,
-                std::slice::from_ref(&source_argument),
-            );
-        lower
-            .program
-            .expression_table
-            .static_machine_application_mut(source_application)
-            .lexical_owner = source_owner;
-        let input_scope = environment.retain(lower.program).map_err(refuse)?;
-        lower.retain_requirement_inputs(
-            operand,
-            source_owner,
-            requirement,
-            source_argument,
-            input_scope,
-            source_application,
-            demand,
-        );
-        return Ok(PreparedProductRequirement {
-            requirement,
-            closed_requirement: None,
-            trait_scope: retained_scope,
-        });
-    }
     if supplied.is_some() || (has_outer && parameters.is_empty()) {
         let mut supplied = supplied.unwrap_or(expr::StaticSymbolApplication {
             lifetime_arguments: Box::new([]),
@@ -301,7 +223,6 @@ pub fn prepare_product_requirement_operand(
         .map_err(|reason| refuse(&reason))?;
         let bindings = crate::monomorphization::requirement_applications::invocation_bindings(
             lower.program,
-            author,
             &parameters,
             &supplied.arguments,
         )?;
@@ -332,7 +253,7 @@ pub fn prepare_product_requirement_operand(
         lower
             .program
             .expression_table
-            .set_static_machine_application_lifetimes(application, requirement, &lifetimes);
+            .set_static_machine_application_lifetimes(application, &lifetimes);
         let instance = lower
             .program
             .instantiate_requirement_application(
@@ -342,41 +263,12 @@ pub fn prepare_product_requirement_operand(
                 application,
             )
             .map_err(refuse)?;
-        let input_scope = environment.retain(lower.program).map_err(refuse)?;
-        lower.retain_requirement_inputs(
-            operand,
-            source_owner,
-            requirement,
-            source_argument,
-            input_scope,
-            application,
-            demand,
-        );
         return Ok(PreparedProductRequirement {
             requirement,
             closed_requirement: Some(instance),
             trait_scope: retained_scope,
         });
     }
-    let source_application = lower
-        .program
-        .expression_table
-        .retain_static_machine_application(requirement, name, &[]);
-    lower
-        .program
-        .expression_table
-        .static_machine_application_mut(source_application)
-        .lexical_owner = author;
-    let input_scope = environment.retain(lower.program).map_err(refuse)?;
-    lower.retain_requirement_inputs(
-        operand,
-        source_owner,
-        requirement,
-        source_argument,
-        input_scope,
-        source_application,
-        demand,
-    );
     Ok(PreparedProductRequirement {
         requirement,
         closed_requirement: None,
@@ -435,37 +327,6 @@ impl<'a> Lower<'a> {
     }
 }
 impl Lower<'_> {
-    fn retain_requirement_inputs(
-        &mut self,
-        operand: &ProductDeclarationOperand,
-        owner: SymbolHandle,
-        declaration: SymbolHandle,
-        argument: expr::StaticMachineArgument,
-        scope: RetainedTraitScope,
-        supplying_application: typed_trees::static_applications::StaticMachineApplicationHandle,
-        demand: typed_trees::product_operand::ProductApplicationDemand,
-    ) {
-        let input_selections = self
-            .program
-            .product_input_selections
-            .insert_many(std::mem::take(&mut self.input_selections));
-        self.program.retain_product_operand_application(
-            typed_trees::product_operand::ProductOperandApplication {
-                operand: operand.clone(),
-                environment: self.static_environment.cloned().map(std::sync::Arc::new),
-                owner,
-                role: Some(ProductOperandRole::Requirement),
-                declaration,
-                demand,
-                argument,
-                input_selections,
-                scope,
-                supplying_application,
-                implementation: None,
-            },
-        );
-    }
-
     fn error(&self, reason: &str) -> Vec<Diagnostic> {
         vec![Diagnostic::error(reason)]
     }

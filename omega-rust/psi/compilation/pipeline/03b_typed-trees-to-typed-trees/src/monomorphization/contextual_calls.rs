@@ -12,6 +12,7 @@ mod closed_requirements;
 pub(super) use closed_requirements::retain as retain_closed_requirement_demands;
 mod conformance_demands;
 pub(super) use conformance_demands::prepare as prepare_conformance_machine_demands;
+mod demands;
 mod invocations;
 mod providers;
 mod static_operands;
@@ -24,6 +25,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
     let invocations = invocations::collect(program)?;
     let mut changed = Vec::new();
     for invocation in invocations {
+        let member_demands = demands::members(program, invocation.target, &invocation.types)?;
         // Capture source scope before a provider clone can retain its tuple.
         // Standalone specialization callers need the same custody as the
         // enclosing preparation pass, which normally already retained it.
@@ -95,6 +97,17 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
                 &invocation.types,
                 application,
                 ordinal,
+            )?;
+            // A cache hit keeps its executable selection, but later typed
+            // closure can update a member's demanded nominal application.
+            // Refresh only its checking views; it is not another rewrite.
+            demands::retain(
+                program,
+                application,
+                ordinal,
+                closed_entry.unwrap_or(argument.symbol),
+                expected,
+                &member_demands,
             )?;
             let Some(entry) = closed_entry else {
                 continue;

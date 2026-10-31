@@ -17,7 +17,7 @@ pub(crate) fn project_selected_installation_reach(
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
-    realization_symbol: Option<SymbolHandle>,
+    realization_symbol: SymbolHandle,
     requirement_identity: &PackageReviewNominalIdentity,
 ) -> Result<Option<PackageReviewSelectedInstallationReach>, Vec<Diagnostic>> {
     let requirement_reach = match provider_requirement_schema(
@@ -119,11 +119,6 @@ pub(crate) fn project_selected_installation_reach(
         ))]);
     }
 
-    let realization_symbol = realization_symbol.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "native binding cannot manufacture a checked installation reach refinement",
-        )]
-    })?;
     let reach_facts = compilation
         .facts
         .service_reaches

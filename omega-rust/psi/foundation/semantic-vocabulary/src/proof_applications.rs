@@ -15,8 +15,18 @@ pub struct ProofApplicationMachine<Declaration: 'static> {
     pub machine: Declaration,
     pub states: HandleSpan<Declaration>,
     pub binders: HandleSpan<Declaration>,
+    pub authored_target: Option<String>,
+    pub source_target: Option<String>,
+    pub family_interface: bool,
+    pub family_members: HandleSpan<ProofApplicationTargetMember<Declaration>>,
     pub dynamic_realizations: HandleSpan<Declaration>,
     pub product_selected: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct ProofApplicationTargetMember<Declaration> {
+    pub target: String,
+    pub machine: Declaration,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -31,6 +41,7 @@ pub struct ProofDeclarationDependencies<Declaration: 'static> {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProofApplicationPlan<Declaration: 'static> {
     pub machines: Arena<ProofApplicationMachine<Declaration>>,
+    pub target_members: Arena<ProofApplicationTargetMember<Declaration>>,
     pub symbols: Arena<Declaration>,
     pub declaration_dependencies: Arena<ProofDeclarationDependencies<Declaration>>,
     pub declarations: HandleSpan<Declaration>,
@@ -58,6 +69,26 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
                     row.product_selected && self.symbols.span_or_empty(row.states).contains(&symbol)
                 })
             })
+    }
+
+    fn target_machine<'a>(
+        &'a self,
+        machine: &'a ProofApplicationMachine<Declaration>,
+        target: &str,
+    ) -> Option<&'a ProofApplicationMachine<Declaration>> {
+        if machine.family_interface {
+            let member = self
+                .target_members
+                .span_or_empty(machine.family_members)
+                .iter()
+                .find(|member| member.target == target)?;
+            return self.called_machine(member.machine);
+        }
+        machine
+            .authored_target
+            .as_deref()
+            .is_none_or(|declared| declared == target)
+            .then_some(machine)
     }
 
     fn declaration_membership(&self, machines: &[Declaration]) -> Vec<Declaration> {
@@ -106,13 +137,6 @@ pub struct ProofApplications<'a, Declaration: 'static, Calls> {
     operational: &'a Calls,
 }
 
-/// Executable declaration owners and invoked coordinates from the same walk.
-/// A boundary requirement can be called without an executable machine body.
-pub struct ProofApplicationReachability<Declaration> {
-    pub machines: Vec<Declaration>,
-    pub calls: Vec<Declaration>,
-}
-
 impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCalls<Declaration>>
     ProofApplications<'a, Declaration, Calls>
 {
@@ -120,45 +144,98 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         Self { plan, operational }
     }
 
+    pub fn scopes<'request>(&'request self, primary: &'request str) -> Vec<&'request str> {
+        let mut scopes = vec![primary];
+        if self.plan.has_obligations {
+            for (_, machine) in self.plan.machines.iter() {
+                if machine.product_selected
+                    && let Some(scope) = machine.authored_target.as_deref()
+                    && !scopes.contains(&scope)
+                {
+                    scopes.push(scope);
+                }
+            }
+        }
+        scopes
+    }
+
+    pub fn needs_scope(&self, scope: &str, primary: &str) -> bool {
+        if scope == primary || self.plan.unscoped_recipe {
+            return true;
+        }
+        let owners = self.plan.symbols.span_or_empty(self.plan.obligation_owners);
+        let (machines, declarations) =
+            self.membership(scope, false, self.plan.provider_candidates.storage_slice());
+        machines
+            .iter()
+            .chain(&declarations)
+            .any(|owner| owners.contains(owner))
+    }
+
     pub fn declarations(&self) -> &[Declaration] {
         self.plan.symbols.span_or_empty(self.plan.declarations)
     }
 
-    pub fn membership(
-        &self,
-        providers: &[(Declaration, Declaration)],
-    ) -> (Vec<Declaration>, Vec<Declaration>) {
-        self.membership_from_roots(providers, None)
+    /// Discover required authored scopes from the actual condition owners.
+    /// Portable consumers supply those owners directly instead of trusting a
+    /// separately serialized obligation-presence or owner-list summary.
+    pub fn required_scopes<'request>(
+        &'request self,
+        primary: &'request str,
+        owners: &[Declaration],
+        unscoped: bool,
+    ) -> Vec<&'request str> {
+        let mut scopes = vec![primary];
+        if owners.is_empty() && !unscoped {
+            return scopes;
+        }
+        for (_, machine) in self.plan.machines.iter() {
+            let Some(scope) = machine.authored_target.as_deref() else {
+                continue;
+            };
+            if !machine.product_selected || scopes.contains(&scope) {
+                continue;
+            }
+            let (machines, declarations) =
+                self.membership(scope, false, self.plan.provider_candidates.storage_slice());
+            if unscoped
+                || machines
+                    .iter()
+                    .chain(&declarations)
+                    .any(|owner| owners.contains(owner))
+            {
+                scopes.push(scope);
+            }
+        }
+        scopes
     }
 
-    /// None checks the retained product surface; explicit roots describe only
-    /// the supplied invocation context without promoting retained candidates.
-    pub fn membership_from_roots(
+    pub fn membership(
         &self,
+        scope: &str,
+        selected_product: bool,
         providers: &[(Declaration, Declaration)],
-        roots: Option<&[Declaration]>,
     ) -> (Vec<Declaration>, Vec<Declaration>) {
-        let machines = self.reachability(providers, roots).machines;
+        let machines = self.application_machines(scope, selected_product, providers);
         let mut declarations = self.plan.declaration_membership(&machines);
         declarations.sort_unstable_by_key(|declaration| Calls::declaration_order(*declaration));
         declarations.dedup();
         (machines, declarations)
     }
 
-    pub fn reachability(
+    fn application_machines(
         &self,
+        target: &str,
+        selected_product: bool,
         provider_edges: &[(Declaration, Declaration)],
-        roots: Option<&[Declaration]>,
-    ) -> ProofApplicationReachability<Declaration> {
+    ) -> Vec<Declaration> {
         let mut pending = Vec::new();
-        if let Some(roots) = roots {
-            pending.extend(roots.iter().map(|root| Application {
-                machine: *root,
-                bindings: Vec::new(),
-            }));
-        }
         for (_, machine) in self.plan.machines.iter() {
-            if roots.is_none() && machine.product_selected {
+            let authored = machine.source_target.as_deref();
+            if machine.product_selected
+                && (authored.is_some_and(|name| name == target)
+                    || (selected_product && authored.is_none()))
+            {
                 pending.push(Application {
                     machine: machine.machine,
                     bindings: Vec::new(),
@@ -167,16 +244,27 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         }
         let mut visited = Vec::new();
         let mut machines = Vec::new();
-        let mut calls = Vec::new();
         while let Some(mut application) = pending.pop() {
-            if application.machine != Declaration::default()
-                && !calls.contains(&application.machine)
-            {
-                calls.push(application.machine);
-            }
-            let Some(machine) = self.plan.called_machine(application.machine) else {
+            let Some(declaration) = self.plan.called_machine(application.machine) else {
                 continue;
             };
+            let Some(machine) = self.plan.target_machine(declaration, target) else {
+                continue;
+            };
+            if declaration.machine != machine.machine {
+                for binding in &mut application.bindings {
+                    if let Some((_, selected)) = self
+                        .plan
+                        .symbols
+                        .span_or_empty(declaration.binders)
+                        .iter()
+                        .zip(self.plan.symbols.span_or_empty(machine.binders))
+                        .find(|(declared, _)| **declared == binding.parameter)
+                    {
+                        binding.parameter = *selected;
+                    }
+                }
+            }
             application.machine = machine.machine;
             if visited.contains(&application) {
                 continue;
@@ -186,11 +274,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 machines.push(machine.machine);
             }
             let has_summary = self.operational.visit_calls(machine.machine, |call| {
-                for coordinate in [call.state, call.operator] {
-                    if coordinate != Declaration::default() && !calls.contains(&coordinate) {
-                        calls.push(coordinate);
-                    }
-                }
                 let selected = application
                     .bindings
                     .iter()
@@ -242,7 +325,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                     }),
             );
         }
-        ProofApplicationReachability { machines, calls }
+        machines
     }
 }
 
@@ -412,11 +495,27 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
                 &mut result.symbols,
                 &mut map,
             )?;
+            let members = self
+                .target_members
+                .span_or_empty(machine.family_members)
+                .iter()
+                .map(|member| {
+                    Ok(ProofApplicationTargetMember {
+                        target: member.target.clone(),
+                        machine: map(member.machine)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            let family_members = result.target_members.insert_many(members);
             result.machines.insert(ProofApplicationMachine {
                 machine: map(machine.machine)?,
                 states,
                 binders,
                 dynamic_realizations,
+                family_members,
+                authored_target: machine.authored_target.clone(),
+                source_target: machine.source_target.clone(),
+                family_interface: machine.family_interface,
                 product_selected: machine.product_selected,
             });
         }

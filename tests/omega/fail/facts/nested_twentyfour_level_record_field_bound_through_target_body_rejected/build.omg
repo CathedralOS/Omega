@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedCheckTarget, CheckedCheckTarget>(builder, linux_x86_64);
-    Build::select_provider<SelectedCheckTarget, CheckedCheckTarget>(builder, linux_arm64);
-    Build::select_provider<SelectedCheckTarget, CheckedCheckTarget>(builder, macos_arm64);
-    Build::select_provider<SelectedCheckTarget, CheckedCheckTarget>(builder, windows_x86_64);
-
     Build::application(builder, "nested_twentyfour_level_record_field_bound_through_target_body_rejected");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

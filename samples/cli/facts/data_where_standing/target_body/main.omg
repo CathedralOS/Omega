@@ -14,21 +14,14 @@ requires replacement <= 60
     counter
 }
 
-boundary trait SelectedCompute {
-    machine compute(counter: &Counter) -> i32 reaches
-;
-}
-CheckedCompute satisfies SelectedCompute {
-    machine compute(counter: &Counter) -> i32
-{ 70 + counter.value }
-}
-
-
-
+linux_x86_64 machine compute(counter: &Counter) -> i32 { 70 + counter.value }
+linux_arm64 machine compute(counter: &Counter) -> i32 { 70 + counter.value }
+macos_arm64 machine compute(counter: &Counter) -> i32 { 70 + counter.value }
+windows_x86_64 machine compute(counter: &Counter) -> i32 { 70 + counter.value }
 machine main() crashes Trap {
     let counter: Counter = produce(60);
     let low: Counter = produce(-2147483648);
-    transition SelectedCompute::compute(&counter) == 130 && SelectedCompute::compute(&low) == -2147483578 { true -> done() _ -> bad() }
+    transition compute(&counter) == 130 && compute(&low) == -2147483578 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

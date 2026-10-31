@@ -192,28 +192,9 @@ impl<'program> TopLevelSymbols<'program> {
                         && program.callable_identities_share_path(previous_identity, identity)
                         && !program.callable_identities_share_family(previous_identity, identity)
                 });
-            // Closed implementation members own distinct inherited overload
-            // slots even when their ordinary callable leaf names agree. This
-            // is exact map/requirement ownership, not general name-based
-            // overloading or a referenced callee acquiring map membership.
-            let typed = program.typed_program();
-            let is_owned_requirement_roster = typed
-                .owned_conformance_realization(machine.symbol)
-                .is_some_and(|(owner, row)| {
-                    same_named.iter().all(|previous| {
-                        typed
-                            .owned_conformance_realization(previous.symbol)
-                            .is_some_and(|(previous_owner, previous_row)| {
-                                previous_owner.symbol == owner.symbol
-                                    && (previous_row.declaring_trait, previous_row.requirement)
-                                        != (row.declaring_trait, row.requirement)
-                            })
-                    })
-                });
             if !same_named.is_empty()
                 && !is_named_overload_family
                 && !is_boundary_token_overload_family
-                && !is_owned_requirement_roster
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate machine `{}`",

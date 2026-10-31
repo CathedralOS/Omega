@@ -57,7 +57,7 @@ crashes Trap
     requires value >= 48 && value <= 57 && digits >= 0 && digits < 24
     {
         reader.fractional = reader.fractional || (decimal && value != 48);
-        let numeric: f64 = F64FromI32::from_i32(value - 48);
+        let numeric: f64 = F64::from_i32(value - 48);
         let next: f64 = accumulated * 10.0 + numeric;
         let observed: i32 = block character(reader);
         transition { _ -> digit(reader, observed, sign, next, digits + 1, decimal, next_place(decimal, place)) }

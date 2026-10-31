@@ -10,27 +10,36 @@ machine verify_wide(wide: i64) -> i32 requires wide >= 300i64 && wide <= 500i64 
     check as i32
 }
 
-boundary trait SelectedExtTarget {
-    machine ext_target(narrow: i16) -> i32 reaches
-requires narrow >= 300 && narrow <= 501;
-}
-CheckedExtTarget satisfies SelectedExtTarget {
-    machine ext_target(narrow: i16) -> i32
+linux_x86_64 machine ext_target(narrow: i16) -> i32
 requires narrow >= 300 && narrow <= 501
 {
     let wide: i64 = narrow as i64;
     verify_wide(wide)
 }
+
+linux_arm64 machine ext_target(narrow: i16) -> i32
+requires narrow >= 300 && narrow <= 501
+{
+    let wide: i64 = narrow as i64;
+    verify_wide(wide)
 }
 
+macos_arm64 machine ext_target(narrow: i16) -> i32
+requires narrow >= 300 && narrow <= 501
+{
+    let wide: i64 = narrow as i64;
+    verify_wide(wide)
+}
 
-
-
-
-
+windows_x86_64 machine ext_target(narrow: i16) -> i32
+requires narrow >= 300 && narrow <= 501
+{
+    let wide: i64 = narrow as i64;
+    verify_wide(wide)
+}
 
 machine probe() -> i32 {
-    SelectedExtTarget::ext_target(400i16)
+    ext_target(400i16)
 }
 
 machine main() crashes Trap {

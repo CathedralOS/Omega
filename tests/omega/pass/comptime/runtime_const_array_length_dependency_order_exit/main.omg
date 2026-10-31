@@ -24,7 +24,7 @@ machine other_size() -> u64 {
 
 machine leaf_size() -> u64 {
     let half: f32 in Saturating = 0.5f32;
-    let whole: f32 = FloatAdd::add(half, half) as f32;
+    let whole: f32 = Float::add(half, half) as f32;
     transition whole == 1.0f32 { true -> 4 _ -> 0 }
 }
 

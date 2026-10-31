@@ -10,26 +10,25 @@ data Main where 0 <= k, k <= 4 {
     hits: i32 in Wrapping;
 }
 
-boundary trait SelectedReadTarget {
-    machine read_target(main: &Main) -> i32 in Wrapping reaches
-;
-}
-CheckedReadTarget satisfies SelectedReadTarget {
-    machine read_target(main: &Main) -> i32 in Wrapping
-{
+linux_x86_64 machine read_target(main: &Main) -> i32 in Wrapping {
     main.arr[main.k + 1]
 }
+linux_arm64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
 }
-
-
-
+macos_arm64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
+windows_x86_64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
 
 machine Main::main(main: &mut Main) {
     main.k = 2;
-    main.r = SelectedReadTarget::read_target(main);
+    main.r = read_target(main);
     transition { _ -> successor(main) }
     machine successor(main: &mut Main) {
-        main.r = SelectedReadTarget::read_target(main);
+        main.r = read_target(main);
         main.hits = main.r;
     }
 }

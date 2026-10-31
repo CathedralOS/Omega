@@ -634,12 +634,7 @@ fn validate_type_reference_node(
             referee, lifetime, ..
         } => {
             if let Some(lifetime) = lifetime
-                && !type_parameter_scope.contains_operand_lifetime(
-                    program,
-                    type_reference,
-                    0,
-                    lifetime.as_str(),
-                )
+                && !type_parameter_scope.contains_lifetime(program, lifetime.as_str())
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses undeclared lifetime `'{}'; declare it in the owner's generic parameter list",
@@ -720,13 +715,8 @@ fn validate_type_reference_node(
                 )));
             }
 
-            for (slot, lifetime) in lifetime_arguments.iter().enumerate() {
-                if !type_parameter_scope.contains_operand_lifetime(
-                    program,
-                    type_reference,
-                    slot,
-                    lifetime.as_str(),
-                ) {
+            for lifetime in lifetime_arguments {
+                if !type_parameter_scope.contains_lifetime(program, lifetime.as_str()) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} uses undeclared lifetime argument `'{}' in `{base_name}`; declare it in the owner's generic parameter list",
                         lifetime.as_str()
@@ -759,6 +749,15 @@ fn validate_type_reference_node(
                     )));
                 }
                 let parameters = program.data_type_parameters(definition);
+                // A zero-parameter data declaration can still appear in the
+                // `Policy<Schema>` layout-application form. Its argument is a
+                // schema, not a data-generic argument.
+                if parameters.is_empty() {
+                    for argument in argument_handles {
+                        validate_generic_argument(*argument, diagnostics, formation_obligations);
+                    }
+                    return;
+                }
                 if parameters.len() != argument_handles.len() {
                     diagnostics.push(Diagnostic::error(format!(
                         "generic data `{base_name}` expected {} arguments but got {}",
@@ -766,29 +765,13 @@ fn validate_type_reference_node(
                         argument_handles.len()
                     )));
                 }
-                crate::declarations::traits::validate_implementation_application(
-                    program,
-                    definition.symbol,
-                    parameters,
-                    &definition.lifetime_parameters,
-                    &definition.conformance_bounds,
-                    argument_handles,
-                    lifetime_arguments,
-                    // The complete tuple belongs to its retained supplier,
-                    // including regions nested below this constructor. A
-                    // specialization's receiving machine cannot bind them.
-                    if type_parameter_scope.operand_lifetime_owner.is_valid() {
-                        type_parameter_scope.operand_lifetime_owner
-                    } else {
-                        type_parameter_scope.lexical_owner
-                    },
-                    &format!("data `{base_name}`"),
-                    diagnostics,
-                );
                 for (parameter, argument) in parameters.iter().zip(argument_handles) {
                     match &parameter.kind {
                         TypeParameterKind::Implementation => {
-                            // The complete data evidence telescope is checked below.
+                            diagnostics.push(Diagnostic::error(format!(
+                                "data `{base_name}` declares implementation binder `{}`; implementation parameters belong to trait or machine contracts, not stored data",
+                                parameter.name
+                            )));
                         }
                         TypeParameterKind::Const { type_reference }
                         | TypeParameterKind::Value { type_reference } => {
@@ -1013,44 +996,6 @@ impl<'program> TypeParameterScope<'program> {
         self.type_parameters
             .iter()
             .any(|parameter| parameter.name.as_str() == name)
-    }
-
-    fn contains_operand_lifetime(
-        self,
-        program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
-        slot: usize,
-        name: &str,
-    ) -> bool {
-        let retained = program.type_reference_table.operand_lifetimes(reference);
-        if !retained.is_empty() {
-            let expected = match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Generic {
-                    lifetime_arguments, ..
-                } => lifetime_arguments.len(),
-                TypeReferenceNode::Reference {
-                    lifetime: Some(_), ..
-                } => 1,
-                _ => 0,
-            };
-            if retained.len() != expected {
-                return false;
-            }
-            if let Some(region) = retained
-                .get(slot)
-                .filter(|region| region.declaration.is_valid())
-            {
-                // This checks the retained supplier's declaration only, just
-                // as the previous single-owner query did. It grants no loan,
-                // active-frame substitution or outlives relationship.
-                return typed_trees::type_identity::lifetime_parameter_name(
-                    program.typed_program(),
-                    *region,
-                )
-                .is_some_and(|parameter| parameter.as_str() == name);
-            }
-        }
-        self.contains_lifetime(program, name)
     }
 
     fn contains_lifetime(self, program: &dyn crate::CheckingInput, name: &str) -> bool {

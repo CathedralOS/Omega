@@ -15,5 +15,3 @@ use windows_filesystem_host;
 use time;
 use units;
 use wire;
-use windows_gui_host;
-use targets::uefi_x86_64::handoff;

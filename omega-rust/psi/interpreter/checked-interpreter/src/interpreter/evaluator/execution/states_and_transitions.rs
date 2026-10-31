@@ -46,6 +46,7 @@ impl<'program> Evaluator<'program> {
             boundary_adapter_dispatch: &[],
             selected_product_float_comparisons: None,
             selected_build_time_operators: &[],
+            selected_build_time_machine_bodies: &[],
             x86_flags: None,
             semantic_float_evaluation: false,
             stdout: Vec::new(),
@@ -386,14 +387,12 @@ impl<'program> Evaluator<'program> {
 
         let argument_cells = arguments
             .into_iter()
-            .zip(self.program.state_parameters(entry_state))
-            .map(|(argument, parameter)| {
-                let mut value = crate::build_time::materialize_build_time_value(
+            .map(|argument| {
+                let value = crate::build_time::materialize_build_time_value(
                     argument,
                     &|value| self.allocate_cell(value),
                     &|bytes| self.allocate_text(bytes),
                 )?;
-                self.bind_build_time_argument(&mut value, parameter.type_reference)?;
                 Ok(EvaluatedArgument::plain(self.allocate_cell(value)?))
             })
             .collect::<EvalResult<Vec<_>>>()?;
@@ -567,13 +566,11 @@ impl<'program> Evaluator<'program> {
                 .type_reference(type_reference)
             {
                 let program = self.program;
-                let definition = program.closed_data_definition(type_reference).or_else(|| {
-                    validation::field_domains::data_definition_by_symbol_or_name(
-                        program,
-                        *base_symbol,
-                        base_name,
-                    )
-                });
+                let definition = validation::field_domains::data_definition_by_symbol_or_name(
+                    program,
+                    *base_symbol,
+                    base_name,
+                );
                 if let Some(definition) = definition
                     && matches!(
                         DataDefinition::shape_kind_from_members(

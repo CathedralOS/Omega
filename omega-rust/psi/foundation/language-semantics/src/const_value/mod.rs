@@ -99,16 +99,6 @@ impl CanonicalConstIdentity {
         }
     }
 
-    /// Retain a complete checked declaration value without granting index eligibility.
-    pub fn from_declaration_value(value: &DecodedCanonicalConstValue) -> Option<Self> {
-        let encoding = encoding::encode_declaration(value)?;
-        let identity = Self {
-            type_name: String::new(),
-            encoding,
-        };
-        (identity.decode_declaration_encoding().as_ref() == Some(value)).then_some(identity)
-    }
-
     pub fn decode_encoding(&self) -> Option<DecodedCanonicalConstValue> {
         decode_canonical_encoding(self.encoding.as_str(), false)
     }

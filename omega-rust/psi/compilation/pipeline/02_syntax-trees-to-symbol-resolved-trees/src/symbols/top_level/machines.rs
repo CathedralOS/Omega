@@ -376,6 +376,17 @@ pub(super) fn assign_machine_symbols(
                 symbols, child_type_references, &local_type_parameters,
                 conformance.symbol, conformance.arguments,
             );
+            if conformance.via_expression.is_valid() {
+                assign_expression_table_symbols(
+                    symbols,
+&expression_scope,
+                    &[],
+                    SymbolHandle::invalid(),
+                    expression_table,
+                    child_type_references,
+                    conformance.via_expression,
+                );
+            }
             if target_is_trait
                 && let Some((_, proposition_slots)) = trait_proposition_slots
                     .iter()
@@ -467,9 +478,10 @@ pub(super) fn assign_machine_symbols(
                     .template_source
                     .is_source_backed()
                     && template.name.source_span() == origin.template_source.source_span()
-                // The generated contract and its authored prototype share
-                // provenance, not declaration identity. A closed clone
-                // retains the exact role of the declaration it instantiates.
+                    // The generated contract and its authored prototype share
+                    // provenance, not declaration identity. A closed clone
+                    // retains the exact role of the declaration it instantiates.
+                    && template.target_family_interface == machine.target_family_interface
             });
             match (candidates.next(), candidates.next()) {
                 (Some(template), None) => Some((template.symbol, machine.attached_data_symbol)),

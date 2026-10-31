@@ -2,27 +2,36 @@
 // Place: another target body. Each of four target-scoped machine bodies divides bounded 16-bit operands and subtracts 50u16.
 // Expected exit: 0
 
-boundary trait SelectedDivTarget {
-    machine div_target(dividend: u16, divisor: u16) -> u16 reaches
-requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 8;
-}
-CheckedDivTarget satisfies SelectedDivTarget {
-    machine div_target(dividend: u16, divisor: u16) -> u16
+linux_x86_64 machine div_target(dividend: u16, divisor: u16) -> u16
 requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 8
 {
     let quotient: u16 = dividend / divisor;
     quotient - 50u16
 }
+
+linux_arm64 machine div_target(dividend: u16, divisor: u16) -> u16
+requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 8
+{
+    let quotient: u16 = dividend / divisor;
+    quotient - 50u16
 }
 
+macos_arm64 machine div_target(dividend: u16, divisor: u16) -> u16
+requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 8
+{
+    let quotient: u16 = dividend / divisor;
+    quotient - 50u16
+}
 
-
-
-
-
+windows_x86_64 machine div_target(dividend: u16, divisor: u16) -> u16
+requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 8
+{
+    let quotient: u16 = dividend / divisor;
+    quotient - 50u16
+}
 
 machine probe() -> u16 {
-    SelectedDivTarget::div_target(400u16, 8u16)
+    div_target(400u16, 8u16)
 }
 
 machine main() crashes Trap {

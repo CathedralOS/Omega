@@ -1,19 +1,6 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "callback_scalar_loan_permutation");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-
- Build::bind<SortRegistrar::sort>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_qsort_r",
-        },
-    });
- Build::bind<SortRegistrar::sort>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "qsort_r", version: "GLIBC_2.8",
-        },
-    });
 }

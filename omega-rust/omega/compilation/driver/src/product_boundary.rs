@@ -1066,7 +1066,7 @@ fn selected_numeric_admission_consumes_retained_declarations() {
     assert!(!evidence.contains(".execution_identity(typed)"));
     assert!(!evidence.contains(".intrinsic_realization_matches(typed,"));
     let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
-    assert!(preparation.contains("review: &declaration_catalog.boundary_provider_review()"));
+    assert!(preparation.contains("review: &external_providers.boundary_provider_review()"));
     assert!(
         preparation.find(".require_owner(").unwrap()
             < preparation
@@ -1110,7 +1110,7 @@ fn selected_boundary_admission_reads_checked_classification() {
     assert!(admission.contains("BoundaryOperatorApplication::GenericTemplate"));
     assert!(admission.contains("crate::select_checked_body(plan,"));
     let projection = include_str!(
-        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/declaration_catalog/boundary_review.rs"
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/boundary_review.rs"
     );
     assert!(projection.contains("provider_requirements"));
     assert!(projection.contains("usage.is_generic_template"));
@@ -1404,7 +1404,7 @@ fn callback_root_policy_consumes_prepared_source_correspondence() {
     assert!(preparation.contains("adapters.machine(plan, row)"));
     let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains("realization.boundary_arguments.is_empty()"));
-    assert!(binding.contains("declaration_catalog.callbacks.calling_requirements("));
+    assert!(binding.contains("external_providers.callbacks.calling_requirements("));
     let policy = include_str!("../../realization/provider-selection/src/callback_roots.rs");
     assert!(policy.contains("declarations.declaration(usage)"));
     assert!(policy.contains("self.selected.as_ref()?.selected_requirement_row(identity)"));
@@ -1501,7 +1501,7 @@ fn provider_demand_is_prepared_by_psi_not_each_target_settlement() {
         "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
     );
     for source in [
-        "for_each_declaration_references(",
+        "collect_program_references(",
         ".boundary_applications",
         ".symbolic_boundary_applications",
         ".provider_closed_requirements",
@@ -1518,13 +1518,6 @@ fn provider_demand_is_prepared_by_psi_not_each_target_settlement() {
     assert!(settlement.contains("provider_selection::is_candidate_demanded("));
     assert!(!settlement.contains("collect_program_references("));
     assert!(!settlement.contains("provider_closed_requirements"));
-    assert!(
-        settlement
-            .split_whitespace()
-            .collect::<String>()
-            .contains("provider_inventory.requirements_for_declarations(")
-    );
-    assert!(!settlement.contains("collect_selected_program_references("));
     let demand = include_str!("../../realization/provider-selection/src/provider_demands.rs");
     for forbidden in ["TypedTrees", "checked_trees", "CheckFacts", "SymbolHandle"] {
         assert!(!demand.contains(forbidden));
@@ -1538,47 +1531,96 @@ fn provider_demand_is_prepared_by_psi_not_each_target_settlement() {
 }
 
 #[test]
-fn build_target_defaults_preserve_the_shared_checked_owner() {
-    let selection = include_str!("../../realization/provider-planning/src/target_machines.rs");
-    assert!(selection.contains("retained: &[crate::TargetProviderDefaults]"));
-    assert!(!selection.contains("SelectedTargetMachineOrigin"));
-    assert!(!selection.contains("target_machine_families"));
+fn target_defaults_consume_one_psi_authored_origin_inventory() {
+    let target_selection =
+        include_str!("../../realization/provider-planning/src/target_machines.rs");
+    let selection = target_selection
+        .split("pub fn settle_provider_defaults(")
+        .nth(1)
+        .expect("target-default selection")
+        .split("///")
+        .next()
+        .expect("target-default body");
+    assert!(selection.contains("origins: &[crate::SelectedTargetMachineOrigin]"));
+    assert!(!selection.contains(".machines()"));
+    assert!(!selection.contains("ProviderPlanningContext"));
+    let origins = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/provider_declarations.rs"
+    );
+    assert!(origins.contains("symbol_is_in_dependency_scope(machine.symbol, scope)"));
+    assert!(
+        origins.contains("scope == source::DependencyScope::Product || machine.target.is_none()")
+    );
+    assert!(!origins.contains("TargetProfile"));
+    let build = include_str!("../../build-evaluation/src/admission/checking.rs");
+    assert!(build.contains("typed_trees::provider_declarations::provider_target_declarations("));
+    let inventory = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
+    );
+    assert!(
+        inventory.contains("typed_trees::provider_declarations::provider_target_declarations(")
+    );
     let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
     assert!(binding.contains("Arc::ptr_eq(settlement.provider_inventory.program(), &program)"));
     let production = include_str!("terminal/terminal_artifact.rs");
-    assert!(production.contains("body_declarations: source.provider_inventory.direct_calls()"));
-    assert!(!production.contains("origins: source.provider_inventory.origins()"));
+    assert!(production.contains("origins: source.provider_inventory.origins()"));
+    let publication = include_str!(
+        "../../realization/provider-planning/src/target_machines/authored_providers.rs"
+    );
+    assert!(
+        publication
+            .contains("super::settle_provider_defaults(self.origins, self.defaults, profile)")
+    );
 }
 
 #[test]
-fn declaration_scope_policy_consumes_psi_direct_call_declarations() {
+fn target_body_policy_consumes_psi_direct_call_declarations() {
     let projection =
         include_str!("../../../../psi/compilation/representations/typed-trees/src/direct_calls.rs");
-    assert!(projection.contains("ExplicitStateCallees"));
-    assert!(projection.contains("symbol_is_in_dependency_scope"));
-    assert!(!projection.contains("TargetProfile"));
-    for retired in [
-        "family_interface",
-        "authored_target",
-        "source_target_context",
-        "target_machine_families",
+    for retained in [
+        "ExplicitStateCallees",
+        "called_machine_position(typed,",
+        "machine_authored_target(machine)",
+        "source_target_context(machine)",
+        "target: machine",
+        "symbol_is_in_dependency_scope",
     ] {
         assert!(
-            !projection.contains(retired),
-            "retained source family policy {retired}"
+            projection.contains(retained),
+            "missing direct-call declaration {retained}"
         );
     }
-    let absence = include_str!(
-        "../../realization/provider-planning/src/target_machines/direct_declaration_absences.rs"
+    assert!(!projection.contains("TargetProfile"));
+    let policy = include_str!("../../realization/provider-selection/src/target_bodies.rs");
+    for forbidden in [
+        "TypedTrees",
+        "checked_trees",
+        "SymbolHandle",
+        "ExplicitStateCallees",
+        "typed.",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "target-body policy reopens {forbidden}"
+        );
+    }
+    assert!(policy.contains("fn explicit_body"));
+    assert!(policy.contains("fn realizes_provider_body"));
+    let bridge = include_str!("../../realization/provider-planning/src/target_machines.rs");
+    assert!(!bridge.contains("ExplicitStateCallees"));
+    assert!(!bridge.contains(".machine_states("));
+    assert!(!bridge.contains("fn called_machine("));
+    assert!(bridge.contains("provider_selection::reject_reached_inert_calls("));
+    let derivation = include_str!(
+        "../../realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs"
     );
-    assert!(!absence.contains("TypedTrees"));
-    assert!(!absence.contains("ExplicitStateCallees"));
-    assert!(absence.contains("DirectCallDeclarations"));
+    assert!(derivation.contains("provider_selection::DirectTargetBodyAbsences::derive("));
     let inventory = include_str!(
         "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
     );
     assert!(inventory.contains("direct_calls: OnceLock<"));
     assert!(inventory.contains("self.require_owner(checked)?"));
+    assert!(inventory.contains("typed_trees::direct_calls::collect("));
     let build = include_str!("../../build-evaluation/src/admission/checking.rs");
     assert!(build.contains("typed_trees::direct_calls::collect(context.typed, context.scope)"));
 }
@@ -1599,7 +1641,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     assert!(!preparation.contains("symbols::SymbolHandle"));
     assert!(preparation.contains("declaration.same_identity_as("));
     let declarations = include_str!(
-        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/declaration_catalog/callbacks.rs"
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
     );
     assert!(declarations.contains("checked.callback_declaration(usage)"));
     assert!(declarations.contains("declarations::identity("));

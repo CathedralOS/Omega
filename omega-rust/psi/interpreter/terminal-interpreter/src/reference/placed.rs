@@ -877,7 +877,6 @@ impl TerminalExecution<'_> {
                         encoding: Some(crate::primitive_storage::PrimitiveStorageEncoding {
                             source: source.stored_scalar,
                             view: source.stored_scalar,
-                            byte_offset: None,
                         }),
                     }
                 };

@@ -18,15 +18,9 @@ impl ExpressionMarks for HashSet<ExpressionHandle> {
 
 /// Construction-order inventory; no lexical selection is performed here.
 #[derive(Default)]
-pub(in crate::preparation::generic_data) struct ExpressionInventory {
+struct ExpressionInventory {
     seen: ConcreteExpressions,
     handles: Vec<ExpressionHandle>,
-}
-
-impl ExpressionInventory {
-    pub(in crate::preparation::generic_data) fn into_handles(self) -> Vec<ExpressionHandle> {
-        self.handles
-    }
 }
 
 impl ExpressionMarks for ExpressionInventory {

@@ -13,7 +13,7 @@ machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> shared(main,value) _ -> fail(main)}
  machine shared(main:&mut Main,value:i32) {
-  main.values.value=F64FromI32::from_i32(value)-49.0;
+  main.values.value=F64::from_i32(value)-49.0;
   let result:f64=abs_f64(tick(&mut main.values));
   transition result == 1.0 && main.values.value == 1.0 {
    true -> distinct(main) _ -> fail(main)

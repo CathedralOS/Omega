@@ -66,6 +66,7 @@ pub struct SymbolResolvedTrees {
     /// interner (declared-name identity, declaration order).
     pub semantic_domains: language_semantics::SemanticDomainTable,
     /// PRV4: normalized `via` bindings, interned once at lowering.
+    pub external_bindings: language_semantics::ExternalBindingTable,
     /// Erased evidence assignments removed from runtime statement spans.
     pub evidence_forwardings: Vec<statement::EvidenceForwarding>,
     /// Lookup indexes owned by this program — resolution's roster scans
@@ -491,6 +492,7 @@ impl SymbolResolvedTrees {
             service_reach_rows: language_semantics::ServiceReachRowTable::default(),
             authored_service_reach_rows: Vec::new(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
+            external_bindings: language_semantics::ExternalBindingTable::default(),
             evidence_forwardings: Vec::new(),
             resolution_indexes: lookup_indexes::ResolvedIndexes::default(),
         }

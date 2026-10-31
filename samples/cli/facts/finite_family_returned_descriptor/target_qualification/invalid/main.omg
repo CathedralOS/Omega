@@ -5,7 +5,7 @@ trait Windowing {
 }
 Header satisfies Windowing {
  machine window<Width: u32>(source: &[u8]) -> &[u8]
- where Width == 16 || Width == 32 { SelectedTargetOnly::target_only(source) }
+ where Width == 16 || Width == 32 { target_only(source) }
 }
 machine dispatch(selected: dyn Windowing, source: &[u8], width: u32) -> &[u8]
 requires width == 16 || width == 32 {
@@ -24,11 +24,4 @@ machine main() crashes Trap {
  machine bad() { crash Trap; }
 }
 
-boundary trait SelectedTargetOnly {
-    machine target_only(source: &[u8]) -> &[u8] reaches
-;
-}
-CheckedTargetOnly satisfies SelectedTargetOnly {
-    machine target_only(source: &[u8]) -> &[u8]
-{ source }
-}
+linux_arm64 machine target_only(source: &[u8]) -> &[u8] { source }

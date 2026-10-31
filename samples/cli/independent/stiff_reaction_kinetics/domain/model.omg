@@ -41,12 +41,12 @@ public machine valid(input: &Input) -> bool {
 }
 public machine problem(input: &Input) -> Problem {
     Problem {
-        first: Reaction { a: input.values[6] as u64, b: input.values[7] as u64, c: input.values[8] as u64, p: input.values[9] as u64, q: input.values[10] as u64, r: input.values[11] as u64, rate: F64FromU64::from_u64(input.values[0] as u64) / F64FromU64::from_u64(input.values[1] as u64) },
-        second: Reaction { a: input.values[12] as u64, b: input.values[13] as u64, c: input.values[14] as u64, p: input.values[15] as u64, q: input.values[16] as u64, r: input.values[17] as u64, rate: F64FromU64::from_u64(input.values[2] as u64) / F64FromU64::from_u64(input.values[3] as u64) },
-        third: Reaction { a: input.values[18] as u64, b: input.values[19] as u64, c: input.values[20] as u64, p: input.values[21] as u64, q: input.values[22] as u64, r: input.values[23] as u64, rate: F64FromU64::from_u64(input.values[4] as u64) / F64FromU64::from_u64(input.values[5] as u64) },
-        initial: Vector { a: F64FromU64::from_u64(input.values[24] as u64) / F64FromU64::from_u64(input.values[25] as u64), b: F64FromU64::from_u64(input.values[26] as u64) / F64FromU64::from_u64(input.values[27] as u64), c: F64FromU64::from_u64(input.values[28] as u64) / F64FromU64::from_u64(input.values[29] as u64) },
-        end: F64FromU64::from_u64(input.values[30] as u64) / F64FromU64::from_u64(input.values[31] as u64), step: F64FromU64::from_u64(input.values[32] as u64) / F64FromU64::from_u64(input.values[33] as u64),
-        absolute: F64FromU64::from_u64(input.values[34] as u64) / F64FromU64::from_u64(input.values[35] as u64), relative: F64FromU64::from_u64(input.values[36] as u64) / F64FromU64::from_u64(input.values[37] as u64),
+        first: Reaction { a: input.values[6] as u64, b: input.values[7] as u64, c: input.values[8] as u64, p: input.values[9] as u64, q: input.values[10] as u64, r: input.values[11] as u64, rate: F64::from_u64(input.values[0] as u64) / F64::from_u64(input.values[1] as u64) },
+        second: Reaction { a: input.values[12] as u64, b: input.values[13] as u64, c: input.values[14] as u64, p: input.values[15] as u64, q: input.values[16] as u64, r: input.values[17] as u64, rate: F64::from_u64(input.values[2] as u64) / F64::from_u64(input.values[3] as u64) },
+        third: Reaction { a: input.values[18] as u64, b: input.values[19] as u64, c: input.values[20] as u64, p: input.values[21] as u64, q: input.values[22] as u64, r: input.values[23] as u64, rate: F64::from_u64(input.values[4] as u64) / F64::from_u64(input.values[5] as u64) },
+        initial: Vector { a: F64::from_u64(input.values[24] as u64) / F64::from_u64(input.values[25] as u64), b: F64::from_u64(input.values[26] as u64) / F64::from_u64(input.values[27] as u64), c: F64::from_u64(input.values[28] as u64) / F64::from_u64(input.values[29] as u64) },
+        end: F64::from_u64(input.values[30] as u64) / F64::from_u64(input.values[31] as u64), step: F64::from_u64(input.values[32] as u64) / F64::from_u64(input.values[33] as u64),
+        absolute: F64::from_u64(input.values[34] as u64) / F64::from_u64(input.values[35] as u64), relative: F64::from_u64(input.values[36] as u64) / F64::from_u64(input.values[37] as u64),
         trials: input.values[38] as u64, iterations: input.values[39] as u64
     }
 }

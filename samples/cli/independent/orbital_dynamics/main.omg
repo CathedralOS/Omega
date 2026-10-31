@@ -31,8 +31,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine count(main: &mut Main, count: f64)
     requires count == count && count >= 1.0 && count <= 4096.0 {
-        let steps: i32 = I32FromF64::from_f64(count);
-        transition F64FromI32::from_i32(steps) == count { true -> configure(main, steps) false -> range(main) }
+        let steps: i32 = I32::from_f64(count);
+        transition F64::from_i32(steps) == count { true -> configure(main, steps) false -> range(main) }
     }
     machine configure(main: &mut Main, steps: i32) {
         main.steps = steps as i32 in Wrapping;

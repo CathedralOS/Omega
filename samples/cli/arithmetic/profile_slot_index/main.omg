@@ -41,8 +41,8 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let mirrored: i32 = slot_mirrored(1, 0);
     let low_value: f64 = main.endpoints.values[2];
     let high_value: f64 = main.endpoints.values[7];
-    let low_scaled: i64 in Saturating = I64FromF64::from_f64(low_value);
-    let high_scaled: i64 in Saturating = I64FromF64::from_f64(high_value);
+    let low_scaled: i64 in Saturating = I64::from_f64(low_value);
+    let high_scaled: i64 in Saturating = I64::from_f64(high_value);
     let low_code: i64 = low_scaled as i64;
     let high_code: i64 = high_scaled as i64;
     transition low_code == 2 {

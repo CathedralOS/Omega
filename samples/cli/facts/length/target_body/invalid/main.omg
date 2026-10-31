@@ -1,25 +1,31 @@
 // Invalid: the transported length names the backing view, not the runtime window,
 // so the last-byte index is no longer proved.
 // Expected exit: 0
-boundary trait SelectedReadAt {
-    machine read_at(window: &[u8], length: u64) -> u8 reaches
-requires length >= window.len && length > 0;
-}
-CheckedReadAt satisfies SelectedReadAt {
-    machine read_at(window: &[u8], length: u64) -> u8
+linux_x86_64 machine read_at(window: &[u8], length: u64) -> u8
 requires length >= window.len && length > 0
 {
     window[length - 1]
 }
+linux_arm64 machine read_at(window: &[u8], length: u64) -> u8
+requires length >= window.len && length > 0
+{
+    window[length - 1]
 }
-
-
-
+macos_arm64 machine read_at(window: &[u8], length: u64) -> u8
+requires length >= window.len && length > 0
+{
+    window[length - 1]
+}
+windows_x86_64 machine read_at(window: &[u8], length: u64) -> u8
+requires length >= window.len && length > 0
+{
+    window[length - 1]
+}
 
 machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let window: &[u8] = &items[0..3];
-    transition SelectedReadAt::read_at(window, items.len) == 8 { true -> done() _ -> bad() }
+    transition read_at(window, items.len) == 8 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

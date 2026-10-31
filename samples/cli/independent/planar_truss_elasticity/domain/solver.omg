@@ -18,7 +18,7 @@ public machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes 
         let horizontal: f64 = truss.coordinates[2 * second] - truss.coordinates[2 * first];
         let vertical: f64 = truss.coordinates[2 * second + 1] - truss.coordinates[2 * first + 1];
         let squared_length: f64 = horizontal * horizontal + vertical * vertical;
-        let length: f64 = F64SquareRoot::square_root(squared_length);
+        let length: f64 = F64::square_root(squared_length);
         transition length > 0.0 { true -> direction(truss, result, index, first, second, horizontal / length, vertical / length, truss.rigidity[index] / length, 0) false -> done() }
     }
     machine direction(truss: &Truss, result: &mut Solution, index: u64, first: u64, second: u64, horizontal: f64, vertical: f64, stiffness: f64, coordinate: u64)  requires truss.nodes <= 8 requires truss.bars <= 16 requires index < 16 requires first < 8 requires second < 8 {
@@ -115,7 +115,7 @@ public machine solve(truss: &Truss, result: &mut Solution) requires truss.nodes 
         let horizontal: f64 = truss.coordinates[2 * second] - truss.coordinates[2 * first];
         let vertical: f64 = truss.coordinates[2 * second + 1] - truss.coordinates[2 * first + 1];
         let squared_length: f64 = horizontal * horizontal + vertical * vertical;
-        let length: f64 = F64SquareRoot::square_root(squared_length);
+        let length: f64 = F64::square_root(squared_length);
         let extension: f64 = (horizontal * (result.displacement[2 * second] - result.displacement[2 * first]) + vertical * (result.displacement[2 * second + 1] - result.displacement[2 * first + 1])) / length;
         let force: f64 = truss.rigidity[index] * extension / length;
         result.extension[index] = extension;

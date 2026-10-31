@@ -19,9 +19,9 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Combined prepared source evidence and Build-owned native catalogue custody.
-// Reject both predecessor private companion interpretations.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI10";
+// Provider plans retain complete applications and exact numeric realization declarations.
+// Reject older private records before reading their differently shaped payload.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI06";
 
 #[cfg(test)]
 mod tests {
@@ -69,6 +69,7 @@ fn capture(
         direct_boundary_leaves,
         provider_declarations,
         target_profile,
+        family_realizations,
         boundaries,
         native_target,
         program_entry,
@@ -92,6 +93,7 @@ fn capture(
     }
     write_values(provider_declarations, &mut output)?;
     target_profile.write(&mut output)?;
+    write_values(family_realizations, &mut output)?;
     // Canonical Terminal owns checked-body associations. Persist only the
     // independent source selections; recovery closes their instances normally.
     boundaries
@@ -108,12 +110,7 @@ fn capture(
     } in &boundaries.selected_provider_provenance
     {
         plan.write(&mut output)?;
-        if *semantic_schema == &plan.schema {
-            0u8.write(&mut output)?;
-        } else {
-            1u8.write(&mut output)?;
-            semantic_schema.write(&mut output)?;
-        }
+        semantic_schema.write(&mut output)?;
         output.sequence(row_executions.len())?;
         for execution in *row_executions {
             execution
@@ -147,7 +144,7 @@ fn capture(
 
 struct IntrinsicPlanRecord {
     plan: effects::provider_plan::ProviderPlan,
-    semantic_schema: Option<effects::provider_plan::ServiceSchema>,
+    semantic_schema: effects::provider_plan::ServiceSchema,
     row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
     row_numeric_realizations: Vec<Option<String>>,
 }
@@ -166,6 +163,7 @@ struct DerivationInputs {
     leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     provider_declarations: Vec<backend_plan::TerminalTargetProviderPlan>,
     profile: Option<target::TargetProfile>,
+    families: Vec<backend_plan::SelectedFamilyRealizationSource>,
     selected: effects::SelectedProviderPlanFacts,
     intrinsic_provenance: Vec<IntrinsicPlanRecord>,
     calling: Vec<calling_conventions::BoundaryCallingApplication>,
@@ -197,6 +195,7 @@ impl DerivationInputs {
             leaves: RecordValue::read(input)?,
             provider_declarations: RecordValue::read(input)?,
             profile: RecordValue::read(input)?,
+            families: RecordValue::read(input)?,
             selected: RecordValue::read(input)?,
             intrinsic_provenance: RecordValue::read(input)?,
             calling: RecordValue::read(input)?,
@@ -241,6 +240,7 @@ pub fn recover_native_derivation_inputs(
         leaves,
         provider_declarations,
         profile,
+        families,
         selected,
         intrinsic_provenance,
         calling,
@@ -275,6 +275,7 @@ pub fn recover_native_derivation_inputs(
         direct_boundary_leaves: leaves.iter().collect(),
         provider_declarations: &provider_declarations,
         target_profile: profile,
+        family_realizations: &families,
         boundaries: crate::BoundaryApplicationSettlement {
             selected_provider_plans: &selected,
             selected_provider_provenance: intrinsic_provenance
@@ -282,7 +283,7 @@ pub fn recover_native_derivation_inputs(
                 .map(
                     |row| crate::provider_admission::CompilerIntrinsicPlanProvenance {
                         plan: &row.plan,
-                        semantic_schema: row.semantic_schema.as_ref().unwrap_or(&row.plan.schema),
+                        semantic_schema: &row.semantic_schema,
                         row_executions: &row.row_executions,
                         row_numeric_realizations: &row.row_numeric_realizations,
                     },

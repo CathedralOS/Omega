@@ -53,16 +53,12 @@ pub fn collect_pre_specialization_operator_selections(
     let mut diagnostic = None;
     program.for_each_machine_state_contract_frame(|machine, state, contracts, _| {
         let mut expressions = Vec::new();
-        for contract in &contracts {
+        for contract in contracts {
             crate::expression_traversal::collect_contract_facts(program, contract.facts, &mut expressions);
         }
         for statement in program.statement_table.statements(state.statement_nodes) {
             crate::expression_traversal::collect_statement_expression_trees(program, statement, &mut expressions);
         }
-        let requirements = contracts.iter()
-            .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-            .collect::<Vec<_>>();
         for expression in expressions {
             let Some(binary) = program.expression_table.binary_node(expression) else {
                 continue;
@@ -97,33 +93,10 @@ pub fn collect_pre_specialization_operator_selections(
                     if !resolve_spelling_for_operands(
                         program, spelling, &operand_types,
                         program.expression_table.source_span(expression),
-                    ).is_empty() {
+                    ).is_empty() || !typed_trees::closed_numeric::has_builtin_anonymous_operands(program, expression, spelling) {
                         continue;
                     }
-                    // Absence of a free declaration does not establish
-                    // builtin meaning: ordinary Core requirements use the
-                    // same trait route as other operator applications. Freeze
-                    // the shared source selection, including anonymous-value
-                    // eligibility, before specialization copies this ledger.
-                    let expression_type = |operand| crate::expression_result_type_reference(program, machine, state, operand);
-                    let scope = crate::OperatorApplicationScope {
-                        owner: state.symbol,
-                        origin: None,
-                        requires: &requirements,
-                        expression_type: &expression_type,
-                    };
-                    let resolution = crate::scoped_operator_application(
-                        program, &scope, expression, spelling, &operand_types,
-                    );
-                    match resolution.status {
-                        CheckedOperatorResolutionStatus::Resolved => {
-                            AuthoredSelectionResolutionTarget::Declaration(resolution.selected_symbol)
-                        }
-                        CheckedOperatorResolutionStatus::BuiltinFallback => {
-                            AuthoredSelectionResolutionTarget::Intrinsic(AuthoredDeclarationSelectionIntrinsic::BuiltinOperator)
-                        }
-                        _ => continue,
-                    }
+                    AuthoredSelectionResolutionTarget::Intrinsic(AuthoredDeclarationSelectionIntrinsic::BuiltinOperator)
                 }
                 _ => {
                     diagnostic.get_or_insert_with(|| diagnostics::Diagnostic::error(format!(

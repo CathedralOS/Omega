@@ -2,7 +2,7 @@
 //! `bounds.rs` checks conformance bounds, `machine_conformance.rs` validates
 //! each machine's conformances, `trait_applications.rs` their application
 //! obligations, `signature_matching.rs` the signature match and
-//! `generic_operator.rs`
+//! `external_shapes.rs` the external native shapes; `generic_operator.rs`
 //! stays as it was.
 
 /// The provider's effectively-reached services outside `allowed_services`,
@@ -39,6 +39,7 @@ fn disallowed_reached_service_names<'program>(
 }
 
 mod bounds;
+mod external_shapes;
 mod generic_operator;
 mod machine_conformance;
 mod signature_matching;
@@ -48,6 +49,9 @@ pub use bounds::GenericBoundRequirement;
 pub(crate) use bounds::{
     named_conformance_argument_matches, validate_generic_conformance_bounds,
     validate_trait_conformance_bounds,
+};
+pub(crate) use external_shapes::{
+    validate_external_leaf_native_shapes, validate_external_via_expression,
 };
 pub use generic_operator::generic_bound_operator_requirement;
 pub(crate) use machine_conformance::validate_machine_trait_conformances;

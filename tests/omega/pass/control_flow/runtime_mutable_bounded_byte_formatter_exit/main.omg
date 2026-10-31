@@ -11,11 +11,11 @@ machine number(value: f64) crashes Trap {
     }
     machine negative(bytes: &mut [u8; 21], value: f64) {
         bytes[0] = 45;
-        let scaled: i64 in Saturating = I64FromF64::from_f64((0.0 - value) * 1000000.0 + 0.5);
+        let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
     machine positive(bytes: &mut [u8; 21], value: f64) {
-        let scaled: i64 in Saturating = I64FromF64::from_f64(value * 1000000.0 + 0.5);
+        let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
     machine digits(bytes: &mut [u8; 21],

@@ -309,7 +309,8 @@ impl TerminalExecution<'_> {
                     ..
                 }) => Some(match claim_origin {
                     crate::execution::ResultClaimOrigin::CalleeReturn
-                    | crate::execution::ResultClaimOrigin::CheckedProvider => {
+                    | crate::execution::ResultClaimOrigin::CheckedProvider
+                    | crate::execution::ResultClaimOrigin::TargetFamilyReturn { .. } => {
                         let mut active_result = result.clone();
                         active_result.claims =
                             self.active_structural_claims(*source, &result.claims)?;
@@ -325,6 +326,37 @@ impl TerminalExecution<'_> {
                 Some(_) => return Err(malformed()),
                 None => None,
             };
+            // The member's returning edge authenticated these domains and
+            // claims. Weakening reveals only the head contract; it changes no
+            // placed identity, reference backing, ownership path or debt.
+            if let Some(SuspendedCall {
+                result:
+                    SuspendedCallResult::Structural {
+                        result,
+                        claim_origin:
+                            crate::execution::ResultClaimOrigin::TargetFamilyReturn { head, member },
+                        ..
+                    },
+                ..
+            }) = self.call_stack.last()
+            {
+                if *member != self.current_machine || !self.program.is_target_family_head(*head) {
+                    return Err(malformed());
+                }
+                if result
+                    .projected_qualifications
+                    .iter()
+                    .any(|row| !value.projected_qualifications.contains(row))
+                {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "family result projected qualification lacks transported member evidence",
+                    ));
+                }
+                value.qualifications.clone_from(&result.qualifications);
+                value
+                    .projected_qualifications
+                    .clone_from(&result.projected_qualifications);
+            }
             // A checked provider can retain stronger projected memberships.
             // Its own returning edge already authenticated them. Reveal only
             // the public boundary roster, without adding any membership or

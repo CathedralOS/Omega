@@ -30,7 +30,7 @@ ensures
 {
     transition {
         value == 0.0 -> (0.0)
-        value < 0.0 -> (F32Negate::negate(value))
+        value < 0.0 -> (F32::negate(value))
         _ -> (value)
     }
 }
@@ -43,7 +43,7 @@ ensures
 {
     transition {
         value == 0.0 -> (0.0)
-        value < 0.0 -> (F64Negate::negate(value))
+        value < 0.0 -> (F64::negate(value))
         _ -> (value)
     }
 }

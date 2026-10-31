@@ -227,8 +227,6 @@ pub struct DataDefinitionSnapshot {
     pub predicate_subject: Option<DataPredicateSubjectSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generic_instance: Option<TypeReferenceSnapshot>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub conformance_bounds: Vec<super::machine_snapshots::GenericConformanceBoundSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cleanup_selection: Option<CleanupSelectionSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -411,11 +409,6 @@ pub(crate) fn data_definition_snapshot(
                 && program.symbols.get(data.predicate_subject_symbol).kind
                     == symbols::SymbolKind::Parameter,
         }),
-        conformance_bounds: data
-            .conformance_bounds
-            .iter()
-            .map(|bound| super::machine_snapshots::conformance_bound_snapshot(program, bound))
-            .collect(),
         generic_instance: data
             .generic_instance
             .map(|origin| type_reference_snapshot(program, origin)),

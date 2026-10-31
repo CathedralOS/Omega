@@ -29,16 +29,16 @@ pub(super) struct NativeBuildOutputs {
 
 impl NativeBuildOutputs {
     pub fn checked(
-        package: Option<PackageKeyIdentity>,
+        package: PackageKeyIdentity,
         declarations: Vec<CapturedNativeDeclaration>,
         intents: Vec<CapturedNativeIntent>,
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, String> {
         if declarations.iter().any(|declaration| {
-            Some(declaration.producer.package) != package
+            declaration.producer.package != package
                 || declaration.producer.declaration_path.is_empty()
                 || declaration.producer.callable_identity.is_empty()
-                || declaration.request.validate_shape().is_err()
+                || declaration.requirement_path.is_empty()
         }) {
             return Err(
                 "native output changes its exact checked package or source declaration".into(),

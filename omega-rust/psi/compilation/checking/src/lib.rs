@@ -28,7 +28,6 @@ pub use declarations::traits::{
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};
-pub use proof_contracts::contract_entailment::specification_calls::declaration_operator_selection_requirements;
 pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{
     BoundaryQualificationObligation, CallQualificationContract, CallQualificationSource,
@@ -56,19 +55,20 @@ pub use value_custody::static_inline_storage::{
 };
 
 pub use declarations::selection_resolution;
+pub use declarations::source_completion;
 pub use declarations::standard_declarations::{
     boundary_has_explicit_calling_policy, standard_calling_vocabularies,
 };
 use declarations::state_signatures::StateSignatureOwner;
-pub use declarations::{source_catalogues, source_completion};
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
     SelectedCallArgument, call_target_has_checked_body_contract, call_type_arguments,
     closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
-    selected_requirement_signature, unit_result_initializer_call_is_admitted,
-    unit_return_call_is_admitted, unit_statement_call_is_admitted,
+    selected_requirement_signature, target_family_members,
+    unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
+    unit_statement_call_is_admitted,
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
@@ -322,9 +322,8 @@ pub use declarations::operators::{
 };
 pub use declarations::traits::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
-    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, describe_dynamic_conformances,
-    dynamic_call_demand, dynamic_expression_call_demand, generic_bound_operator_requirement,
-    normalized_dynamic_row_identities, qualified_trait_scope,
+    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, dynamic_call_demand,
+    dynamic_expression_call_demand, generic_bound_operator_requirement, qualified_trait_scope,
     resolve_closed_requirement_application, resolve_dynamic_call_targets,
     resolve_selected_dynamic_call_targets, revalidate_machine_trait_conformances,
     revalidate_named_implementation, revalidate_top_level_requirement_realization,
@@ -338,12 +337,12 @@ pub use machine_calls::effect_inference::{
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
 };
+pub use machine_calls::machine_parameters::infer_call_type_arguments;
 pub use machine_calls::machine_parameters::{
     PreparedStaticMachineSelections, StaticMachineContractObligation, ValidatedNominalMachineUse,
     ValidatedNominalMachineUseSite, ValidatedRequirementCallMachineSelection,
     ValidatedRequirementCallSpecialization, ValidatedRequirementCallTypeBinding,
-    closed_static_call_type_bindings, infer_call_type_arguments,
-    validate_static_machine_selections,
+    closed_static_call_type_bindings, validate_static_machine_selections,
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
 pub use machine_calls::result_overloads::{
@@ -397,7 +396,6 @@ pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;
 pub use value_custody::literals::evaluate_anonymous_numeric_comparison;
 pub use value_custody::literals::evaluate_anonymous_numeric_expression;
-pub use value_custody::literals::fixed_byte_array_literal;
 pub use value_custody::literals::has_anonymous_numeric_results;
 pub use value_custody::literals::has_anonymous_operator_meaning;
 pub use value_custody::literals::land_anonymous_integer_expression;

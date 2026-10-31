@@ -70,7 +70,9 @@ fn lower_item_with_exposure(
         // other such signature rejects with the body/boundary/external-leaf
         // guidance.
         syntax::item::Item::Machine(machine)
-            if crate::lowering::operator::is_bare_bodyless_signature(machine) =>
+            if machine.target.is_none()
+                && !machine.target_family_interface
+                && crate::lowering::operator::is_bare_bodyless_signature(machine) =>
         {
             let operator = crate::lowering::operator::lower_bare_bodyless_signature(
                 lowerer,
@@ -311,7 +313,6 @@ fn lower_item_with_exposure(
                 symbol_resolved_trees::constant::ConstDeclaration {
                     symbol: symbols::SymbolHandle::invalid(),
                     is_public: definition.is_public,
-                    requires_value_replay: definition.normalization.is_some(),
                     declared_type,
                     initializer,
                     authored_initializer: lowerer

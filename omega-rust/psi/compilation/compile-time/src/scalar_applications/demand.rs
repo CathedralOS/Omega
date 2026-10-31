@@ -61,7 +61,7 @@ pub(super) fn discover(
                         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
                             entry: Some(*entry),
                             installation: Some(observations.providers()),
-                            target_context: Some(observations.targets()),
+                            target_machines: Some(observations.targets()),
                             target_layouts: Some(observations.layouts()),
                             host_imports: &[],
                             x86_flags: None,

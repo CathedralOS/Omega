@@ -1,7 +1,13 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::application(builder, "runtime_provider_reference_deep_exit");
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, linux_arm64);
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, linux_x86_64);
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, macos_arm64);
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, macos_x86_64);
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, windows_x86_64);
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, uefi_x86_64);
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, cross_platform_cli);
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, local_unchecked);
+ Build::select_provider<LocaleAccess, NativeLocale>(builder, alpha_bootstrap);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
-
- Build::bind<LocaleAccess::locate>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "localeconv", version: "GLIBC_2.2.5" } });
 }

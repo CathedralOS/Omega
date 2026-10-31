@@ -1608,19 +1608,12 @@ impl<'program> StructuralJudge<'program> {
         // just the final argument: a projected local could otherwise hide
         // where its constructor came from before the call-site gate sees it.
         if !self.resolve_applications && !self.runtime_body_values {
-            // Disabling application evaluation does not erase a formed
-            // hypothesis. Only match this exact observed term; do not inspect
-            // a call body or manufacture premises from the current goal.
-            if !self.case_facts_only
-                && !super::structural_terms::term_is_unobserved_descriptor(self.program, &term)
-                && let Some((_, replacement)) = self.rewrites.find(&term)
-                && replacement != &term
-            {
-                return self.resolve_at(replacement.clone(), depth + 1);
-            }
             return self
                 .resolve_case_subject(term.clone(), depth)
                 .unwrap_or(term);
+        }
+        if depth >= 32 {
+            return term;
         }
         for _ in 0..32 {
             match term {
@@ -1854,10 +1847,6 @@ impl<'program> StructuralJudge<'program> {
                     }
                     if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();
-                        continue;
-                    }
-                    if let Some(normalized) = self.resolved_float_comparison(&resolved, depth + 1) {
-                        term = normalized;
                         continue;
                     }
                     if let Some(folded) = fold_scalar_binary(operator, meaning, &left, &right) {
@@ -2508,7 +2497,7 @@ impl<'program> StructuralJudge<'program> {
     /// the same current-storage observation environment for every operand.
     fn specification_call_candidate(
         &self,
-        target: SymbolHandle,
+        lexical_owner: SymbolHandle,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
         if !self.specification_terms {
@@ -2517,7 +2506,7 @@ impl<'program> StructuralJudge<'program> {
         let candidate = specification_application_candidate(
             self.program,
             self.machine_symbol,
-            target,
+            super::structural_terms::structural_call_target(self.program, lexical_owner, call),
             &call.machine_arguments,
             self.frame_resolver(),
         );
@@ -2868,30 +2857,22 @@ impl<'program> StructuralJudge<'program> {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
-                // Choose the public semantic overload once under this exact
-                // declaration telescope. Eligibility and the resulting term
-                // retain that same nominal owner, including unbound source
-                // calls with several integer-carrier catalog overloads.
-                let frame = scope
-                    .map(|(machine, state, _)| (machine.symbol, program.state_parameters(state)))
-                    .or_else(|| self.declaration_scope())?;
-                let source_target = super::structural_terms::structural_call_target_in_frame(
-                    program,
-                    call,
-                    Some(frame),
-                );
                 let refusal = if self.runtime_body_values
                     && !normal_returns::call_has_mathematical_denotation(
-                        program, frame.0, frame.1, call,
+                        program,
+                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
+                        call,
                     )
-                    && !self.specification_call_candidate(source_target, call)
-                {
+                    && !self.specification_call_candidate(
+                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
+                        call,
+                    ) {
                     Some("value-identity")
                 } else if call.receiver.is_valid()
-                    && !super::structural_terms::static_call_receiver_for_target(
+                    && !super::structural_terms::static_call_receiver(
                         program,
+                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
                         call,
-                        source_target,
                     )
                 {
                     Some("runtime-receiver")
@@ -2961,7 +2942,18 @@ impl<'program> StructuralJudge<'program> {
                 Some(StructuralTerm::Application {
                     result_type,
                     target: realization.clone().unwrap_or_else(|| {
-                        selected_target.map_or_else(|| source_target, |selected| selected.symbol)
+                        selected_target.map_or_else(
+                            || {
+                                super::structural_terms::structural_call_target(
+                                    program,
+                                    scope.map_or(self.machine_symbol, |(machine, _, _)| {
+                                        machine.symbol
+                                    }),
+                                    call,
+                                )
+                            },
+                            |selected| selected.symbol,
+                        )
                     }),
                     selections: if realization.is_some() {
                         Vec::new()
@@ -3297,7 +3289,7 @@ impl<'program> StructuralJudge<'program> {
                     return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
                 }
                 if !self.has_identity_equality_meaning(fact) {
-                    if super::struct_trace() || self.published_contract_tracing() {
+                    if super::struct_trace() {
                         eprintln!(
                             "STRUCT equality-refused caller={:?} fact={} reason=identity-authority",
                             self.machine_symbol,
@@ -3307,7 +3299,7 @@ impl<'program> StructuralJudge<'program> {
                     return StructuralJudgment::Unknown;
                 }
                 let Some(terms) = self.declaration_term_pair(binary) else {
-                    if super::struct_trace() || self.published_contract_tracing() {
+                    if super::struct_trace() {
                         eprintln!(
                             "STRUCT equality-refused caller={:?} fact={} reason=term-formation",
                             self.machine_symbol,
@@ -3321,7 +3313,7 @@ impl<'program> StructuralJudge<'program> {
                 // not resolve the result again or memoize by term equality,
                 // which deliberately ignores some observation metadata.
                 let [left, right] = terms.resolved;
-                if super::struct_trace() || self.published_contract_tracing() {
+                if super::struct_trace() {
                     eprintln!(
                         "STRUCT equality caller={:?} left={left:?} right={right:?} rewrites={:?}",
                         self.machine_symbol, self.rewrites,

@@ -452,15 +452,6 @@ impl SyntaxCopy<'_> {
             supply_mode: data.supply_mode,
             lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
-            conformance_bounds: data
-                .conformance_bounds
-                .iter()
-                .map(|bound| crate::item::GenericConformanceBound {
-                    binder: bound.binder.clone(),
-                    trait_name: bound.trait_name.clone(),
-                    arguments: self.copy_type_reference_handle_span(other, bound.arguments),
-                })
-                .collect(),
             generic_instance: data
                 .generic_instance
                 .map(|origin| self.copy_type_reference_handle(other, origin)),
@@ -559,6 +550,7 @@ impl SyntaxCopy<'_> {
             nested_machines.push_contiguous(handle);
         }
         Machine {
+            target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),
             default_body_trait: machine.default_body_trait.clone(),
@@ -566,7 +558,8 @@ impl SyntaxCopy<'_> {
             attached_data: machine.attached_data.clone(),
             spelling: machine.spelling,
             is_public: machine.is_public,
-
+            target: machine.target.clone(),
+            authored_target: machine.authored_target.clone(),
             boundary: machine.boundary,
             is_top_level_boundary_requirement: machine.is_top_level_boundary_requirement,
             bodyless: machine.bodyless,
@@ -580,6 +573,13 @@ impl SyntaxCopy<'_> {
                     arguments: this.copy_type_reference_handle_span(other, clause.arguments),
                     requirement: clause.requirement,
                     alias: clause.alias,
+                    via: clause.via,
+                    via_expression: if clause.via_expression.is_valid() {
+                        this.copy_expression_handle(other, clause.via_expression)
+                    } else {
+                        crate::expression::ExpressionHandle::invalid()
+                    },
+                    via_keyword_source_span: clause.via_keyword_source_span,
                 },
                 |this, clause| this.items.append_satisfies_clause(clause),
             ),
@@ -610,6 +610,7 @@ impl SyntaxCopy<'_> {
             blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
             suspends: machine.suspends,
             blocks: machine.blocks,
+            admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
             nested_machines,

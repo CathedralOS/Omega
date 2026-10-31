@@ -56,15 +56,17 @@ pub fn validate_native_program_entry_settlement(
     {
         return Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution);
     }
-    let selections =
-        terminal_installation::target_context(artifact.view(), slot.owner.target_name());
+    let selections = terminal_installation::admit_target_machine_selections(
+        artifact.view(),
+        slot.owner.target_name(),
+    );
     let entry = selections
         .entry(
             artifact.view().identity(),
             module,
-            terminal_psi::TerminalCallable::Machine(checked_entry.terminal_entry()),
+            terminal_psi::TargetMachineCallable::Machine(checked_entry.terminal_entry()),
         )
-        .map_err(|error| NativeProgramEntrySettlementError::EntrySelection(error.to_string()))?;
+        .map_err(|error| NativeProgramEntrySettlementError::TargetFamily(error.to_string()))?;
     let entry_count = module
         .machines
         .iter()

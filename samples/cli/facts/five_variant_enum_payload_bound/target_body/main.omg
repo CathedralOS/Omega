@@ -30,26 +30,28 @@ requires res >= 40 && res <= 80
     headroom + margin
 }
 
-boundary trait SelectedPayloadTarget {
-    machine payload_target(p: Packet) -> u64 reaches
-;
-}
-CheckedPayloadTarget satisfies SelectedPayloadTarget {
-    machine payload_target(p: Packet) -> u64
-{
+linux_x86_64 machine payload_target(p: Packet) -> u64 {
     let res: u64 = extract_payload(p);
     verify_payload(res)
 }
+
+linux_arm64 machine payload_target(p: Packet) -> u64 {
+    let res: u64 = extract_payload(p);
+    verify_payload(res)
 }
 
+macos_arm64 machine payload_target(p: Packet) -> u64 {
+    let res: u64 = extract_payload(p);
+    verify_payload(res)
+}
 
-
-
-
-
+windows_x86_64 machine payload_target(p: Packet) -> u64 {
+    let res: u64 = extract_payload(p);
+    verify_payload(res)
+}
 
 machine probe() -> u64 {
-    SelectedPayloadTarget::payload_target(Packet::Epsilon { v: 60u64 })
+    payload_target(Packet::Epsilon { v: 60u64 })
 }
 
 machine main() crashes Trap {

@@ -10,7 +10,7 @@ use super::wire::{Reader, bounded_count, decode_bytes};
 use super::{CodecError, decode_module, encode_module};
 use crate::{decode_crash_route_buckets, encode_crash_route_buckets};
 
-use super::declaration_catalog_tests::unit_machine;
+use super::target_family_tests::unit_machine;
 
 #[test]
 fn bounded_count_refuses_a_count_the_remaining_input_cannot_hold() {

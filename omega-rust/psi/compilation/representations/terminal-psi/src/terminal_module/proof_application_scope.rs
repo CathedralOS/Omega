@@ -33,7 +33,7 @@ pub enum ProofCallableAssociation {
     Missing,
     Callable {
         declaration: ProofDeclarationId,
-        callable: super::TerminalCallable,
+        callable: super::TargetMachineCallable,
     },
 }
 
@@ -50,7 +50,7 @@ pub struct ProofApplicationScope {
 impl ProofApplicationScope {
     pub fn callable_declaration(
         &self,
-        callable: super::TerminalCallable,
+        callable: super::TargetMachineCallable,
     ) -> Option<ProofDeclarationId> {
         self.callables.iter().find_map(|(_, row)| match row {
             ProofCallableAssociation::Callable {

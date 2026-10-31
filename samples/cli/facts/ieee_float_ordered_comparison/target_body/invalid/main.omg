@@ -12,26 +12,25 @@ requires reading >= 1.0 && reading <= 3.0
     0i32
 }
 
-boundary trait SelectedProbe {
-    machine probe(reading: Reading) -> i32 reaches
-;
-}
-CheckedProbe satisfies SelectedProbe {
-    machine probe(reading: Reading) -> i32
-{
+linux_x86_64 machine probe(reading: Reading) -> i32 {
     verify_window(reading.value)
 }
+
+linux_arm64 machine probe(reading: Reading) -> i32 {
+    verify_window(reading.value)
 }
 
+macos_arm64 machine probe(reading: Reading) -> i32 {
+    verify_window(reading.value)
+}
 
-
-
-
-
+windows_x86_64 machine probe(reading: Reading) -> i32 {
+    verify_window(reading.value)
+}
 
 machine main() crashes Trap {
     let reading: Reading = Reading { value: 2.0 };
-    transition SelectedProbe::probe(reading) == 0 {
+    transition probe(reading) == 0 {
         true -> done()
         _ -> bad()
     }

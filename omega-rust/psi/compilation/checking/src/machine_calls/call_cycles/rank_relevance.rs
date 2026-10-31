@@ -60,7 +60,15 @@ pub fn rank_relevance(
         // A generated interface carries no executable body. Its topology is
         // the union of all retained members, never the current host's member
         // or the interface's deliberately empty authored invocation roster.
-        let callees = {
+        let callees = if machine.target_family_interface {
+            match super::super::calls::target_family_members(program, machine) {
+                Some(members) => members.iter().map(|member| member.machine).collect(),
+                None => {
+                    has_opaque_call = true;
+                    Vec::new()
+                }
+            }
+        } else {
             program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -84,7 +92,7 @@ pub fn rank_relevance(
             };
             // A bodyless interface's implementation is not an empty body.
             // Generated family nodes expand their complete roster above.
-            if !owner.body_is_present {
+            if !owner.body_is_present && !owner.target_family_interface {
                 has_opaque_call = true;
                 continue;
             }
@@ -173,6 +181,7 @@ fn boundary_excludes_synchronous_entry(
             machine.supply_mode,
             language_semantics::MachineSupplyMode::Boundary
                 | language_semantics::MachineSupplyMode::TopLevelRequirement
+                | language_semantics::MachineSupplyMode::ExternalRealization { .. }
         )
         || !machine.invokes.is_empty()
     {
@@ -181,23 +190,27 @@ fn boundary_excludes_synchronous_entry(
     // A directly named external satisfier retains every pinned requirement's
     // ceiling; a narrower declaration cannot erase an inherited callback edge.
     let requirements = program.machine_trait_conformances(machine);
-    requirements.iter().all(
-        |conformance| match typed_trees::machine::resolve_satisfied_declaration(
-            program.typed_program(),
-            machine,
-            conformance,
-        ) {
-            Some(typed_trees::machine::SatisfiedDeclaration::Trait {
-                definition,
-                requirement,
-            }) => definition.is_boundary && requirement.invokes.is_empty(),
-            Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(requirement)) => {
-                requirement.invokes.is_empty()
+    (!matches!(
+        machine.supply_mode,
+        language_semantics::MachineSupplyMode::ExternalRealization { .. }
+    ) || !requirements.is_empty())
+        && requirements.iter().all(|conformance| {
+            match typed_trees::machine::resolve_satisfied_declaration(
+                program.typed_program(),
+                machine,
+                conformance,
+            ) {
+                Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                    definition,
+                    requirement,
+                }) => definition.is_boundary && requirement.invokes.is_empty(),
+                Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                    requirement,
+                )) => requirement.invokes.is_empty(),
+                Some(typed_trees::machine::SatisfiedDeclaration::Operator(operator)) => {
+                    operator.is_boundary
+                }
+                _ => false,
             }
-            Some(typed_trees::machine::SatisfiedDeclaration::Operator(operator)) => {
-                operator.is_boundary
-            }
-            _ => false,
-        },
-    )
+        })
 }

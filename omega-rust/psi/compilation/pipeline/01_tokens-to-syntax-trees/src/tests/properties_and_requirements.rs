@@ -26,7 +26,7 @@ fn retired_capability_entry_names_the_boundary_provider_migration() {
             && error.message.contains("`boundary trait`")
             && error
                 .message
-                .contains("Build::bind<Requirement>(builder, target, locator)"),
+                .contains("satisfies Trait::requirement via Binding::..."),
         "got: {}",
         error.message
     );
@@ -120,7 +120,7 @@ fn retired_trailing_boundary_contracts_name_current_boundary_surfaces() {
                 && error.message.contains("`boundary operator`")
                 && error
                     .message
-                    .contains("`Build::bind<Requirement>(builder, target, locator)`"),
+                    .contains("`satisfies Trait::requirement via Binding::...`"),
             "got for {retired:?}: {}",
             error.message
         );
@@ -741,7 +741,7 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
             items
         }
         boundary machine == Vec2::equal(left: Vec2, right: Vec2) -> bool;
-        machine - subtract(left: u64, right: u64) -> u64 {
+        linux_x86_64 machine - subtract(left: u64, right: u64) -> u64 {
             left
         }
         machine ordinary(value: u64) -> u64 { value }
@@ -780,6 +780,13 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
         machines[4].spelling,
         Some(language_core::OperatorSpelling::Subtract)
     );
+    assert_eq!(
+        machines[4]
+            .target
+            .as_ref()
+            .map(|target| target.as_str(&parsed)),
+        Some("linux_x86_64")
+    );
     assert_eq!(machines[5].spelling, None);
 }
 
@@ -812,6 +819,10 @@ fn rejects_malformed_operator_tokens_on_machine_declarations() {
         // owns the token binding and realizations never redeclare it.
         (
             "machine + add(left: i32, right: i32) -> i32 satisfies Math::add { left }",
+            "cannot declare an operator token",
+        ),
+        (
+            "machine + add(left: i32, right: i32) -> i32 satisfies Math::add via ForeignBinding::CompilerIntrinsic;",
             "cannot declare an operator token",
         ),
         // `boundary requirement` is the tokenless requirement form; a
@@ -1471,7 +1482,7 @@ fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
 }
 
 #[test]
-fn bare_bodyless_signature_parses_and_ordinary_bodyless_satisfaction_rejects() {
+fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rejects() {
     // The grammar admits a bare bodyless signature; whether a source may own
     // it as a compiler-catalog primitive is symbol resolution's decision.
     let tokens = Lexer::new("machine Float::meaning32(value: f32) -> FloatMeaning;")
@@ -1485,11 +1496,10 @@ fn bare_bodyless_signature_parses_and_ordinary_bodyless_satisfaction_rejects() {
     let tokens = Lexer::new("machine realize(value: f32) -> f32 satisfies Math::identity;")
         .tokenize()
         .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("a bodyless satisfaction needs an explicit boundary declaration");
+    let error = parse_syntax_trees(&tokens).expect_err("a bodyless realization needs `via`");
     super::expect_error(
         &error,
-        "a machine without a body must use the accepted `boundary machine ...;` form",
+        "a machine without a body is the ACCEPTED boundary form",
     );
 }
 

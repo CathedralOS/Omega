@@ -101,6 +101,7 @@ pub fn declared_termination_commitment(
 
 pub fn contract_identity(
     supply_mode: MachineSupplyMode,
+    external_binding: Option<&language_semantics::ExternalBindingIdentity>,
     published_service_names: &[String],
     invocation_interface: SynchronousInvocationInterface,
     published_invocations: &[String],
@@ -111,16 +112,23 @@ pub fn contract_identity(
     declaration: &DeclaredContractStructure,
     type_identities: &TypeIdentityTable,
 ) -> MachineContractIdentity {
-    let mut identity = ContractHasher::new(b"omega.checked-machine-public-contract.v4\0");
+    let mut identity = ContractHasher::new(b"omega.checked-machine-public-contract.v3\0");
     let supply = match supply_mode {
         MachineSupplyMode::CheckedBody => 1_u8,
         MachineSupplyMode::Requirement => 2,
         MachineSupplyMode::Boundary => 3,
         MachineSupplyMode::AdmissionClaim => 4,
+        MachineSupplyMode::ExternalRealization { .. } => 5,
         MachineSupplyMode::TopLevelRequirement => 6,
-        MachineSupplyMode::CompilerPrimitive => 7,
     };
     supply.hash(&mut identity);
+    if let MachineSupplyMode::ExternalRealization { mechanism, .. } = supply_mode {
+        (
+            external_binding,
+            mechanism.map(|mechanism| mechanism.identity_tag()),
+        )
+            .hash(&mut identity);
+    }
     let mut services = published_service_names.iter().collect::<Vec<_>>();
     services.sort_unstable();
     services.dedup();
@@ -325,6 +333,9 @@ impl Hasher for ContractHasher {
 #[cfg(test)]
 mod binding_projection_tests {
     use super::*;
+    use language_semantics::{
+        ExternalBindingIdentity, ExternalBindingMechanism, ExternalBindingTable,
+    };
 
     #[test]
     fn membership_clause_hash_uses_content_order_after_minting() {
@@ -403,5 +414,42 @@ mod binding_projection_tests {
             crate::CrashPredicateIdentity::from_declared_fact(&fact(alpha), &first),
             crate::CrashPredicateIdentity::from_declared_fact(&fact(beta), &different)
         );
+    }
+
+    #[test]
+    fn external_contract_hash_uses_owned_binding_content_across_mint_orders() {
+        let mut first = ExternalBindingTable::default();
+        let binding = first.intern(ExternalBindingIdentity::Syscall { number: 39 });
+        let mut reordered = ExternalBindingTable::default();
+        reordered.intern(ExternalBindingIdentity::Syscall { number: 60 });
+        let same = reordered.intern(ExternalBindingIdentity::Syscall { number: 39 });
+        let mut different = ExternalBindingTable::default();
+        let other = different.intern(ExternalBindingIdentity::Syscall { number: 60 });
+        assert_ne!(binding, same);
+        assert_eq!(binding, other);
+        let commitment = |table: &ExternalBindingTable, binding| {
+            contract_identity(
+                MachineSupplyMode::ExternalRealization {
+                    binding: Some(binding),
+                    mechanism: Some(ExternalBindingMechanism::Syscall),
+                },
+                table.identity(binding),
+                &[],
+                SynchronousInvocationInterface::PublishedCeiling,
+                &[],
+                SuspensionInterface::PublishedMaySuspend(false),
+                BlockingInterface::PublishedMayBlock(false),
+                CrashInterface::PublishedCeiling,
+                &DeclaredTermination::NoGuarantee,
+                &DeclaredContractStructure {
+                    callables: Vec::new(),
+                    clauses: Vec::new(),
+                },
+                &TypeIdentityTable::default(),
+            )
+            .commitment
+        };
+        assert_eq!(commitment(&first, binding), commitment(&reordered, same));
+        assert_ne!(commitment(&first, binding), commitment(&different, other));
     }
 }

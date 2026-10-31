@@ -11,7 +11,7 @@
 //     policy result.
 //   * Learning: `value as u8` (unqualified cast) cannot
 //     be proved even under `requires value == 3.0` —
-//     "cannot prove unqualified `U8FromF64::from_f64` operand is
+//     "cannot prove unqualified `U8::from_f64` operand is
 //     finite and truncates into u8". The abstract ensures
 //     is the only route that claims the fact.
 //

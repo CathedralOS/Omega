@@ -19,9 +19,9 @@ machine accumulate(reaction: &Reaction, value: &Vector, field: &mut Field) {
     let da: f64 = reaction.rate * derivative(value.a, reaction.a) * b * c;
     let db: f64 = reaction.rate * a * derivative(value.b, reaction.b) * c;
     let dc: f64 = reaction.rate * a * b * derivative(value.c, reaction.c);
-    let first: f64 = F64FromU64::from_u64(reaction.p) - F64FromU64::from_u64(reaction.a);
-    let second: f64 = F64FromU64::from_u64(reaction.q) - F64FromU64::from_u64(reaction.b);
-    let third: f64 = F64FromU64::from_u64(reaction.r) - F64FromU64::from_u64(reaction.c);
+    let first: f64 = F64::from_u64(reaction.p) - F64::from_u64(reaction.a);
+    let second: f64 = F64::from_u64(reaction.q) - F64::from_u64(reaction.b);
+    let third: f64 = F64::from_u64(reaction.r) - F64::from_u64(reaction.c);
     field.a = field.a + first * rate;
     field.aa = field.aa + first * da;
     field.ab = field.ab + first * db;

@@ -59,15 +59,13 @@ pub(super) fn retained(
                 root.carrier,
                 &source.path,
             );
-            projected_qualifications = terminal_semantics::reference_carrier_memberships(
+            projected_qualifications = terminal_semantics::reference_source_memberships(
                 module.structural_types.iter(),
                 root.carrier,
                 &root.qualifications,
                 &root.projected_qualifications,
                 path,
                 source.access,
-                result.structural_type,
-                storage.as_ref(),
             )
             .ok()?;
             // Private arrivals can predate late producer-membership completion.

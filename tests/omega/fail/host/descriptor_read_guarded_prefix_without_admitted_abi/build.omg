@@ -1,9 +1,4 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "descriptor_read_guarded_prefix_without_admitted_abi");
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-
- Build::bind<DescriptorIo::read>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
-    } });
 }

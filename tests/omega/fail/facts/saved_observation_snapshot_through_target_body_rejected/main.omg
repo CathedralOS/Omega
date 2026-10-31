@@ -8,27 +8,39 @@ requires observed == current && observed == 7
     observed
 }
 
-boundary trait SelectedObserve {
-    machine observe(items: &mut [u64; 2], marker: &mut u64) -> u64 reaches
-requires items[0] == 7;
-}
-CheckedObserve satisfies SelectedObserve {
-    machine observe(items: &mut [u64; 2], marker: &mut u64) -> u64
+linux_x86_64 machine observe(items: &mut [u64; 2], marker: &mut u64) -> u64
 requires items[0] == 7
 {
     let saved: u64 = capture<&u64>(&items[0], marker, 11);
     items[0] = 4;
     agree(saved, items[0])
 }
+linux_arm64 machine observe(items: &mut [u64; 2], marker: &mut u64) -> u64
+requires items[0] == 7
+{
+    let saved: u64 = capture<&u64>(&items[0], marker, 11);
+    items[0] = 4;
+    agree(saved, items[0])
 }
-
-
-
+macos_arm64 machine observe(items: &mut [u64; 2], marker: &mut u64) -> u64
+requires items[0] == 7
+{
+    let saved: u64 = capture<&u64>(&items[0], marker, 11);
+    items[0] = 4;
+    agree(saved, items[0])
+}
+windows_x86_64 machine observe(items: &mut [u64; 2], marker: &mut u64) -> u64
+requires items[0] == 7
+{
+    let saved: u64 = capture<&u64>(&items[0], marker, 11);
+    items[0] = 4;
+    agree(saved, items[0])
+}
 
 machine main() crashes Trap {
     let mut marker: u64 = 0;
     let mut items: [u64; 2] = [7, 1];
-    transition SelectedObserve::observe(&mut items, &mut marker) == 7 && items[1] == 4 && marker == 11 { true -> done() _ -> bad() }
+    transition observe(&mut items, &mut marker) == 7 && items[1] == 4 && marker == 11 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

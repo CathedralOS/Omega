@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedTransport, CheckedTransport>(builder, linux_x86_64);
-    Build::select_provider<SelectedTransport, CheckedTransport>(builder, linux_arm64);
-    Build::select_provider<SelectedTransport, CheckedTransport>(builder, windows_x86_64);
-    Build::select_provider<SelectedTransport, CheckedTransport>(builder, macos_arm64);
-
     Build::application(builder, "boundary_zero_origin_target_body");
     Build::select_provider<Io, Actual>(builder, linux_arm64);
     Build::select_provider<Io, Actual>(builder, linux_x86_64);

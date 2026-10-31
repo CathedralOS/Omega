@@ -25,3 +25,19 @@ pub use service_reach::{
     boundary_signature_service_reach, fixed_installation_boundary_service_reach,
     infer_service_reaches,
 };
+
+/// Family interfaces derive effects from every member without adding executable
+/// call edges. Build families still have an ordinary canonical body.
+fn family_interface_members<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> &'program [typed_trees::machine::TargetMachineFamilyMember] {
+    if machine.body_is_present {
+        return &[];
+    }
+    program
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == machine.symbol)
+        .map_or(&[], |family| family.members.as_slice())
+}

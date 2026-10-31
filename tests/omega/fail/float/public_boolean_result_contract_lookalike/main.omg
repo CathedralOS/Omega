@@ -8,7 +8,7 @@ machine Counterfeit::is_finite(value: f32) -> bool {
 }
 
 machine finite(value: f32) -> bool
-ensures result == F32IsFinite::is_finite(value) {
+ensures result == F32::is_finite(value) {
     Counterfeit::is_finite(value)
 }
 

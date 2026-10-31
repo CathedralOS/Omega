@@ -8,7 +8,10 @@ boundary trait Reports {
     requires protocol in Guid::Selected
     ensures result.code == 0;
 }
-
+uefi_x86_64 machine Table::read(table: &Table, protocol: &Guid, token: u64) -> Status
+satisfies Reports::read via ForeignBinding::TableFunction(read)
+requires protocol in Guid::Selected
+ensures result.code == 0;
 
 machine clear(protocol: &mut Guid) -> u64 {
     protocol.value = 0;
@@ -19,5 +22,5 @@ machine clear(protocol: &mut Guid) -> u64 {
 machine wrong(table: &Table, protocol: &mut Guid) -> Status
 requires protocol in Guid::Selected
 ensures result.code == 0; {
-    Reports::read(table, protocol, clear(protocol))
+    Table::read(table, protocol, clear(protocol))
 }

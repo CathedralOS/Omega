@@ -18,22 +18,15 @@ machine select(choice: Choice, counter: &mut u64) -> Packet {
 machine consume(packet: Packet) -> u64 {
     transition packet { Packet::Value { payload } -> (7u64 - payload) }
 }
-boundary trait SelectedEvaluate {
-    machine evaluate(packet: Packet) -> u64 reaches
-;
-}
-CheckedEvaluate satisfies SelectedEvaluate {
-    machine evaluate(packet: Packet) -> u64
-{ consume(packet) }
-}
-
-
-
+windows_x86_64 machine evaluate(packet: Packet) -> u64 { consume(packet) }
+linux_x86_64 machine evaluate(packet: Packet) -> u64 { consume(packet) }
+macos_arm64 machine evaluate(packet: Packet) -> u64 { consume(packet) }
+linux_arm64 machine evaluate(packet: Packet) -> u64 { consume(packet) }
 machine main() crashes Trap {
     let mut counter: u64 = 0;
-    let first: u64 = SelectedEvaluate::evaluate(select(Choice::First, &mut counter));
-    let second: u64 = SelectedEvaluate::evaluate(select(Choice::Second, &mut counter));
-    let stopped: u64 = SelectedEvaluate::evaluate(select(Choice::Stop, &mut counter));
+    let first: u64 = evaluate(select(Choice::First, &mut counter));
+    let second: u64 = evaluate(select(Choice::Second, &mut counter));
+    let stopped: u64 = evaluate(select(Choice::Stop, &mut counter));
     transition first == 0 && second == 0 && stopped == 7 && counter == 2 {
         true -> done()
         false -> bad()

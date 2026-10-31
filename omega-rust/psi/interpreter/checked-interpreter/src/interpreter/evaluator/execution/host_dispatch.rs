@@ -518,11 +518,53 @@ impl<'program> Evaluator<'program> {
         &self,
         target_symbol: SymbolHandle,
     ) -> Option<&'static str> {
-        let (requirement_symbol, owner) =
+        let (requirement_symbol, provider_symbol) =
             validation::exact_compiler_intrinsic_boundary_requirement(self.program, target_symbol)?;
-        let machine = self.program.machine_holding_state(target_symbol)?;
-        let catalogue = self.program.hosted_intrinsic_declaration(machine.symbol)?;
-        (catalogue.requirement.symbol == requirement_symbol && catalogue.code_owner == owner)
-            .then_some(catalogue.role.requirement())
+        let realization = self.program.machines().iter().find(|machine| {
+            machine.attached_data_symbol == provider_symbol
+                && typed_trees::state::state_by_symbol(
+                    self.program.machine_states(machine),
+                    target_symbol,
+                )
+                .is_some()
+        })?;
+        let (provider_name, trait_name) = match realization.name.as_str() {
+            "ConsoleNativeProvider::read_byte"
+            | "ConsoleNativeProvider::write_byte"
+            | "ConsoleNativeProvider::exit_process" => ("ConsoleNativeProvider", "Console"),
+            "ProcessExitNativeProvider::exit_process" => {
+                ("ProcessExitNativeProvider", "ProcessExit")
+            }
+            _ => return None,
+        };
+        if realization.attached_data.as_ref().map(|name| name.as_str()) != Some(provider_name) {
+            return None;
+        }
+        let requirement = self
+            .program
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary && definition.name.as_str() == trait_name)
+            .flat_map(|definition| self.program.trait_machine_signatures(definition))
+            .find(|requirement| requirement.symbol == requirement_symbol)?;
+        match (realization.name.as_str(), requirement.name.as_str()) {
+            ("ConsoleNativeProvider::read_byte", "read_byte")
+                if self
+                    .program
+                    .state_signature_parameters(requirement)
+                    .is_empty()
+                    && validation::exact_byte_read_result_type(
+                        self.program,
+                        requirement.return_type,
+                    )
+                    .is_some() =>
+            {
+                Some("read_byte")
+            }
+            ("ConsoleNativeProvider::write_byte", "write_byte") => Some("write_byte"),
+            ("ConsoleNativeProvider::exit_process", "exit_process") => Some("exit_process"),
+            ("ProcessExitNativeProvider::exit_process", "exit_process") => Some("exit_process"),
+            _ => None,
+        }
     }
 }

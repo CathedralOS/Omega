@@ -4,31 +4,17 @@
 // build binds exactly those entries: a bound profile without a body for a
 // called machine is refused, which is the scoping rule this probe relies on.
 data Helper { seed: i32; }
-boundary trait SelectedHelperPick {
-    machine pick(helper: &Helper) -> i32 reaches
-;
-}
-CheckedHelperPick satisfies SelectedHelperPick {
-    machine pick(helper: &Helper) -> i32
-{ 63 }
-}
-
-
-
-boundary trait SelectedHelperDelta {
-    machine delta(helper: &Helper) -> i32 reaches
-;
-}
-CheckedHelperDelta satisfies SelectedHelperDelta {
-    machine delta(helper: &Helper) -> i32
-{ 7 }
-}
-
+windows_x86_64 machine Helper::pick(helper: &Helper) -> i32 { 63 }
+macos_arm64 machine Helper::pick(helper: &Helper) -> i32 { 63 }
+linux_x86_64 machine Helper::pick(helper: &Helper) -> i32 { 63 }
+linux_arm64 machine Helper::pick(helper: &Helper) -> i32 { 63 }
+windows_x86_64 machine Helper::delta(helper: &Helper) -> i32 { 7 }
+linux_x86_64 machine Helper::delta(helper: &Helper) -> i32 { 7 }
 data Main { helper: Helper; }
 machine Main::main(main: &mut Main) {
     main.helper = Helper { seed: 1 };
-    let picked: i32 = SelectedHelperPick::pick(&main.helper);
-    let delta: i32 = SelectedHelperDelta::delta(&main.helper);
+    let picked: i32 = Helper::pick(&main.helper);
+    let delta: i32 = Helper::delta(&main.helper);
     transition picked == 63 && delta == 7 {
         (true) -> good(main, picked)
         _ -> bad(main)

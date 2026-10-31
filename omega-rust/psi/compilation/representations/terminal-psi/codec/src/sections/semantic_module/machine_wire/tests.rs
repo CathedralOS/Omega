@@ -1,5 +1,5 @@
-use super::super::declaration_catalog_tests::{identity_table, unit_machine};
 use super::super::module_wire::encode_raw;
+use super::super::target_family_tests::{identity_table, unit_machine};
 use crate::{decode_module, encode_module, semantic_fingerprint};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, MachineId, PlaceId, ScalarType, StructuralPlaceKind,

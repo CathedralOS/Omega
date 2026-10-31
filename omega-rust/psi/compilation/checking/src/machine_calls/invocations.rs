@@ -9,7 +9,6 @@ pub(crate) fn validate_invocation_contracts(
 ) {
     validate_declared_targets(program, diagnostics);
     let plan = crate::infer_synchronous_invocations(program);
-    let mut requirements = Vec::new();
 
     for machine in program.machines() {
         let Some(summary) = plan.for_machine(machine.symbol) else {
@@ -38,81 +37,8 @@ pub(crate) fn validate_invocation_contracts(
                 diagnostics,
             );
         }
-        collect_machine_requirements(program, machine, &mut requirements);
+        validate_conformance_refinement(program, machine, summary, diagnostics);
     }
-    for conformance in program.conformances() {
-        collect_named_requirements(conformance, &mut requirements);
-    }
-    validate_requirement_refinements(program, &plan, &requirements, diagnostics);
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct RequirementInvocation {
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    requirement: symbols::SymbolHandle,
-}
-
-fn retain_requirement(
-    requirements: &mut Vec<RequirementInvocation>,
-    target: RequirementInvocation,
-) {
-    if !requirements.contains(&target) {
-        requirements.push(target);
-    }
-}
-
-fn collect_named_requirements(
-    conformance: &typed_trees::trait_definition::Conformance,
-    requirements: &mut Vec<RequirementInvocation>,
-) {
-    for row in &conformance.rows {
-        retain_requirement(
-            requirements,
-            RequirementInvocation {
-                machine: row.realization_machine,
-                state: row.realization_state,
-                requirement: row.requirement,
-            },
-        );
-    }
-}
-
-/// Semantic revalidation uses the same exact row correspondence as normal
-/// checking. The caller prepares one invocation plan for the entire judgment;
-/// a row never infers a replacement promise from its receiving contract.
-pub(crate) fn validate_named_conformance_refinement(
-    program: &dyn crate::CheckingInput,
-    plan: &flow_effects::InvocationInferencePlan,
-    conformance: &typed_trees::trait_definition::Conformance,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let mut requirements = Vec::new();
-    collect_named_requirements(conformance, &mut requirements);
-    for target in &requirements {
-        if let Some(machine) = program.machine(target.machine)
-            && let Some(state) = program.state_in_machine(machine, target.state)
-        {
-            validate_target_names(
-                program,
-                machine.name.as_str(),
-                program.machine_invokes(machine),
-                program.state_parameters(state),
-                diagnostics,
-            );
-        }
-        if let Some((definition, requirement)) = program.trait_machine_signature(target.requirement)
-        {
-            validate_target_names(
-                program,
-                &format!("{}::{}", definition.name, requirement.name),
-                program.state_signature_invokes(requirement),
-                program.state_signature_parameters(requirement),
-                diagnostics,
-            );
-        }
-    }
-    validate_requirement_refinements(program, plan, &requirements, diagnostics);
 }
 
 fn validate_declared_targets(
@@ -202,135 +128,97 @@ fn validate_target_names(
     }
 }
 
-fn collect_machine_requirements(
+fn validate_conformance_refinement(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    requirements: &mut Vec<RequirementInvocation>,
-) {
-    let Some(state) = program.machine_states(machine).first() else {
-        return;
-    };
-    for conformance in program.machine_trait_conformances(machine) {
-        let Some(definition) = program.trait_definition_by_symbol(conformance.symbol) else {
-            continue;
-        };
-        // Legacy machine-level satisfaction retains its authored member name.
-        // Named maps below already own exact requirement/state coordinates.
-        for requirement in program.trait_machine_signatures(definition) {
-            let matches = conformance.requirement.as_ref().map_or_else(
-                || {
-                    machine
-                        .name
-                        .as_str()
-                        .rsplit("::")
-                        .next()
-                        .is_some_and(|name| name == requirement.name.as_str())
-                },
-                |name| name.as_str() == requirement.name.as_str(),
-            );
-            if matches {
-                retain_requirement(
-                    requirements,
-                    RequirementInvocation {
-                        machine: machine.symbol,
-                        state: state.symbol,
-                        requirement: requirement.symbol,
-                    },
-                );
-            }
-        }
-    }
-}
-
-fn validate_requirement_refinements(
-    program: &dyn crate::CheckingInput,
-    plan: &flow_effects::InvocationInferencePlan,
-    requirements: &[RequirementInvocation],
+    summary: &flow_effects::MachineInvocationInference,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for target in requirements {
-        let Some((machine, state)) = program.machine(target.machine).and_then(|machine| {
-            program
-                .state_in_machine(machine, target.state)
-                .map(|state| (machine, state))
-        }) else {
-            diagnostics.push(Diagnostic::error(
-                "invocation conformance retains no exact realization machine and state",
-            ));
+    for conformance in program.machine_trait_conformances(machine) {
+        let Some(trait_definition) = program.trait_definition_by_symbol(conformance.symbol) else {
             continue;
         };
-        let Some((trait_definition, requirement)) =
-            program.trait_machine_signature(target.requirement)
-        else {
-            diagnostics.push(Diagnostic::error(
-                "invocation conformance retains no exact declaring trait and requirement",
-            ));
-            continue;
-        };
-        let Some(summary) = plan.for_machine(machine.symbol) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` conformance has no inferred synchronous-invocation summary",
-                machine.name,
-            )));
-            continue;
-        };
-        let parameters = program.state_signature_parameters(requirement);
-        let allowed = crate::declared_signature_invocations(program, requirement)
-            .into_iter()
-            .map(|target| full_parameter_invocation(target, parameters))
-            .collect::<Option<Vec<_>>>();
-        let actual_parameters = program.state_parameters(state);
-        let self_forwarded = trait_definition.is_boundary
-            && crate::has_self_forwarded_boundary_parameter(
-                program,
-                machine,
-                trait_definition.symbol,
-                parameters.iter().count(),
-            );
-        let actual = summary
-            .inferred_transitive
+        let requirements = program.trait_machine_signatures(trait_definition);
+        let matching = requirements
             .iter()
-            .filter_map(|target| match *target {
-                flow_effects::InvocationTarget::Parameter(0) if self_forwarded => None,
-                flow_effects::InvocationTarget::Parameter(index) if self_forwarded => {
-                    Some(flow_effects::InvocationTarget::Parameter(index - 1))
-                }
-                target => Some(target),
+            .filter(|requirement| {
+                conformance
+                    .requirement
+                    .as_ref()
+                    .map(|name| name.as_str() == requirement.name.as_str())
+                    .unwrap_or_else(|| {
+                        machine
+                            .name
+                            .as_str()
+                            .rsplit("::")
+                            .next()
+                            .is_some_and(|name| name == requirement.name.as_str())
+                    })
             })
-            .map(|target| {
-                // The boundary adapter's extra receiver was removed above,
-                // so its remaining ordinals already name requirement
-                // parameters. Ordinary satisfiers retain their own roster.
-                full_parameter_invocation(
-                    target,
-                    if self_forwarded {
-                        parameters
-                    } else {
-                        actual_parameters
-                    },
-                )
-            })
-            .collect::<Option<Vec<_>>>();
-        let (Some(actual), Some(allowed)) = (actual, allowed) else {
-            diagnostics.push(Diagnostic::error(format!(
+            .collect::<Vec<_>>();
+        for requirement in matching {
+            let parameters = program.state_signature_parameters(requirement);
+            let allowed = crate::declared_signature_invocations(program, requirement)
+                .into_iter()
+                .map(|target| full_parameter_invocation(target, parameters))
+                .collect::<Option<Vec<_>>>();
+            let actual_parameters = program
+                .machine_states(machine)
+                .first()
+                .map(|state| program.state_parameters(state))
+                .unwrap_or_default();
+            let self_forwarded = trait_definition.is_boundary
+                && crate::has_self_forwarded_boundary_parameter(
+                    program,
+                    machine,
+                    trait_definition.symbol,
+                    parameters.iter().count(),
+                );
+            let actual = summary
+                .inferred_transitive
+                .iter()
+                .filter_map(|target| match *target {
+                    flow_effects::InvocationTarget::Parameter(0) if self_forwarded => None,
+                    flow_effects::InvocationTarget::Parameter(index) if self_forwarded => {
+                        Some(flow_effects::InvocationTarget::Parameter(index - 1))
+                    }
+                    target => Some(target),
+                })
+                .map(|target| {
+                    // The boundary adapter's extra receiver was removed above,
+                    // so its remaining ordinals already name requirement
+                    // parameters. Ordinary satisfiers retain their own roster.
+                    full_parameter_invocation(
+                        target,
+                        if self_forwarded {
+                            parameters
+                        } else {
+                            actual_parameters
+                        },
+                    )
+                })
+                .collect::<Option<Vec<_>>>();
+            let (Some(actual), Some(allowed)) = (actual, allowed) else {
+                diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` conformance to `{}::{}` retains an invocation outside its declared parameter roster",
                     machine.name, trait_definition.name, requirement.name,
                 )));
-            continue;
-        };
-        report_missing_targets(
-            program,
-            parameters,
-            &actual,
-            &allowed,
-            |binding, ceiling| {
-                format!(
-                    "machine `{}` does not refine `{}::{}`: its body may synchronously invoke binding `{binding}`, but the requirement omits `invokes {binding};` (requirement invokes: [{ceiling}])",
-                    machine.name, trait_definition.name, requirement.name,
-                )
-            },
-            diagnostics,
-        );
+                continue;
+            };
+            report_missing_targets(
+                program,
+                parameters,
+                &actual,
+                &allowed,
+                |binding, ceiling| {
+                    format!(
+                        "machine `{}` does not refine `{}::{}`: its body may synchronously invoke binding `{binding}`, but the requirement omits `invokes {binding};` (requirement invokes: [{ceiling}])",
+                        machine.name, trait_definition.name, requirement.name,
+                    )
+                },
+                diagnostics,
+            );
+        }
     }
 }
 

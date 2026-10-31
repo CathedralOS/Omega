@@ -3,5 +3,6 @@ data Packet<'a> { bytes: &'a [u8]; }
 boundary trait NativePacket {
     machine send(value: &Packet) reaches;
 }
-
+machine send(value: &Packet)
+satisfies NativePacket::send via ForeignBinding::Syscall(60);
 machine main() { }

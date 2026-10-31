@@ -11,6 +11,7 @@
 //! routes and `private_summaries.rs` solves private body summaries;
 //! `tests.rs` holds the crash call tests.
 
+mod potential_causes;
 mod private_summaries;
 mod route_substitution;
 mod summary_predicates;
@@ -344,7 +345,15 @@ pub(super) fn attach_checked_crash_calls(
                             else {
                                 continue;
                             };
-                            let target_routes = if !target_plan.crash.published().is_empty() {
+                            let target_routes = if target_machine.target_family_interface {
+                                let Some(&summary) = summary_by_machine.get(&target_machine_symbol)
+                                else {
+                                    // Authored clauses alone do not close a family's private
+                                    // inferred body causes or unresolved member dependencies.
+                                    continue;
+                                };
+                                SelectedTargetCrashRoutes::Private(summary)
+                            } else if !target_plan.crash.published().is_empty() {
                                 SelectedTargetCrashRoutes::Published {
                                     buckets: target_plan.crash.published(),
                                     contracts: program.machine_contracts(target_machine),

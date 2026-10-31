@@ -73,6 +73,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let state = self.program.state_by_symbol(row.realization_state)?;
         if !machine.body_is_present
             || !machine.supply_mode.is_checked_body()
+            || machine.target_family_interface
             || self.program.machine_states(machine).first()?.symbol != state.symbol
             || !self.program.machine_type_parameters(machine).is_empty()
         {

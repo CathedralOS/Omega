@@ -221,6 +221,19 @@ pub struct SatisfiesClause {
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
+    /// Transitional bootstrap spelling parsed as the old compiler-known
+    /// closed sum. New source uses `via_expression`; keeping the carriers
+    /// distinct prevents a string pair from masquerading as an evaluated
+    /// locator.
+    pub via: Option<ExternalBinding>,
+    /// Ordinary expression authored after `via`. The first production rung
+    /// admits one exact zero-argument direct machine call whose closed
+    /// compiler-owned `Binding` result is evaluated hermetically. Invalid
+    /// means this clause used no ordinary expression (or used `via`).
+    pub via_expression: crate::expression::ExpressionHandle,
+    /// Exact authored `via` keyword occurrence. This is explanatory custody
+    /// for package review, independent from the interned binding identity.
+    pub via_keyword_source_span: Option<source::SourceSpan>,
 }
 
 /// A generic evidence binder `Order satisfies Ranked<Element>`: an

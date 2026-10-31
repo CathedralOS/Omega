@@ -313,7 +313,6 @@ fn expression_places_resolve_attached_data_members() {
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
-        conformance_bounds: Vec::new(),
         generic_instance: None,
         members: HandleSpan::empty(),
     });
@@ -332,7 +331,6 @@ fn expression_places_resolve_attached_data_members() {
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
-        conformance_bounds: Vec::new(),
         generic_instance: None,
         members: HandleSpan::empty(),
     };
@@ -352,14 +350,15 @@ fn expression_places_resolve_attached_data_members() {
         assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability::Any,
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
-
+        target: None,
         supply_mode: Default::default(),
-
+        target_family_interface: false,
         interface_exposure: Default::default(),
         purpose: Default::default(),
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        admitted_same_stack_bytes: 0,
         suspends_keyword_source_spans: Vec::new(),
         blocks_keyword_source_spans: Vec::new(),
         body_is_present: true,
@@ -383,7 +382,7 @@ fn expression_places_resolve_attached_data_members() {
         blocks: false,
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),
-
+        authored_target: None,
         lexical_region_origin: None,
     };
     let mut state = typed_trees::state::State {

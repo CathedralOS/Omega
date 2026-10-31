@@ -860,9 +860,7 @@ impl OpenWindows {
         produced: &CheckedUnitStructuralResultBindingPlan,
         displaced_ordinal: u32,
         value: CheckedUnitStructuralArgumentPlan,
-        trace: &super::control::LocalConstructionTrace,
     ) -> Option<ValueReplacement> {
-        trace.phase("structural replacement: destination identity");
         let ordinal = usize::try_from(statement_index).ok()?;
         let mut parts = Vec::new();
         let range = program
@@ -948,7 +946,6 @@ impl OpenWindows {
                     vec![CheckedUnitStructuralPathSegment::FixedIndex(
                         element_ordinal,
                     )],
-                    trace,
                 )?;
                 next_displacement =
                     next_displacement.checked_add(u32::from(replacement.move_out.is_some()))?;
@@ -975,7 +972,6 @@ impl OpenWindows {
                 displaced_ordinal,
                 value.clone(),
                 Vec::new(),
-                trace,
             )?);
         }
         // Commit restoration only once the entire region is representable.
@@ -1016,9 +1012,7 @@ impl OpenWindows {
         displaced_ordinal: u32,
         value: CheckedUnitStructuralArgumentPlan,
         receiver_path: Vec<CheckedUnitStructuralPathSegment>,
-        trace: &super::control::LocalConstructionTrace,
     ) -> Option<FieldReplacement> {
-        trace.phase("structural replacement: owned destination");
         let index = usize::try_from(statement_index).ok()?;
         let access_place = destination_place.clone();
         let owned_source = owned_assignment_source(
@@ -1053,7 +1047,6 @@ impl OpenWindows {
         let owned_rebind = owned_source.is_some();
         let (source, mut path, opening_binding, needs_displacement, needs_cleanup) =
             if let Some(source) = owned_source {
-                trace.phase("structural replacement: owned assignment path");
                 let path = assignment_path(
                     program,
                     facts,
@@ -1138,7 +1131,6 @@ impl OpenWindows {
                     )
                     .is_some()
                 });
-                trace.phase("structural replacement: exact receiving establishment");
                 if !occupied
                     && opening.is_none()
                     && produced.multiplicity != Multiplicity::Unrestricted
@@ -1164,7 +1156,6 @@ impl OpenWindows {
                 }
                 (source, path, opening, false, occupied)
             } else {
-                trace.phase("structural replacement: borrowed selectors");
                 let selectors = TargetSelectors::resolve(
                     program,
                     facts,
@@ -1173,7 +1164,6 @@ impl OpenWindows {
                     statement_index,
                     selector_target,
                 )?;
-                trace.phase("structural replacement: borrowed window");
                 let place = window_place(
                     program,
                     state,
@@ -1210,7 +1200,6 @@ impl OpenWindows {
                     needs_displacement && produced.multiplicity == Multiplicity::Affine,
                 )
             };
-        trace.phase("structural replacement: receiving carrier");
         let declared = validation::canonical_place_type_reference(
             program,
             state.symbol,

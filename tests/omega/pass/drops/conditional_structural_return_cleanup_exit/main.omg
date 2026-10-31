@@ -22,7 +22,7 @@ public NativeConsole satisfies Console {
         ConsoleNativeProvider::write_byte(byte);
     }
     machine exit_process(return_code: i32) reaches Console {
-        Console::exit_process(return_code);
+        ConsoleNativeProvider::exit_process(return_code);
     }
 }
 
@@ -33,8 +33,11 @@ boundary requirement PosixConsoleIo::write(descriptor: i32, buffer: &mut i32, co
 terminates;
 reaches Console;
 data PosixConsoleImports {}
-
-
+macos_arm64 machine macos_arm64_write_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write" } }
+}
+macos_arm64 machine PosixConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    satisfies PosixConsoleIo::write via macos_arm64_write_binding();
 macos_arm64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
 reaches Console
@@ -44,8 +47,11 @@ reaches Console
 }
 macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process;
-
-
+linux_x86_64 machine linux_x86_64_write_binding() -> ForeignBinding<9, 5, 11> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5" } }
+}
+linux_x86_64 machine PosixConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    satisfies PosixConsoleIo::write via linux_x86_64_write_binding();
 linux_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
 reaches Console
@@ -55,8 +61,11 @@ reaches Console
 }
 linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process;
-
-
+linux_arm64 machine linux_arm64_write_binding() -> ForeignBinding<9, 5, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "write", version: "GLIBC_2.17" } }
+}
+linux_arm64 machine PosixConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    satisfies PosixConsoleIo::write via linux_arm64_write_binding();
 linux_arm64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
 reaches Console
@@ -75,8 +84,17 @@ boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, 
 terminates;
 reaches Console;
 data WindowsConsoleImports { }
-
-
+windows_x86_64 machine console_write_binding() -> ForeignBinding<10, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "_write",
+        },
+    }
+}
+windows_x86_64 machine WindowsConsoleImports::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies WindowsConsoleIo::write
+    via console_write_binding();
 windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
 reaches Console
@@ -84,7 +102,17 @@ reaches Console
     let mut cell: i32 = byte;
     let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
 }
-
+windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    }
+}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via exit_process_binding();
 
 data Token { ready: bool; byte: i32; }
 

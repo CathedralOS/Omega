@@ -25,7 +25,28 @@ boundary trait CounterFunction {
 boundary trait Counter {
     machine query(table: &mut CounterTable) -> i32 reaches;
 }
-
+windows_x86_64 machine module_binding() -> ForeignBinding<12, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetModuleHandleA"
+    } }
+}
+windows_x86_64 machine symbol_binding() -> ForeignBinding<12, 14, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "GetProcAddress"
+    } }
+}
+windows_x86_64 machine native_module(name: &[u8; 13]) -> addr
+satisfies ModuleSymbols::module via module_binding();
+windows_x86_64 machine native_symbol(module: addr, name: &[u8; 24]) -> addr
+satisfies ModuleSymbols::symbol via symbol_binding();
+windows_x86_64 machine CounterTable::invoke(table: &mut CounterTable) -> i32
+satisfies Counter::query via ForeignBinding::VtableField(query);
+windows_x86_64 machine CounterFunctions::invoke(table: &CounterFunctions, output: &mut i64) -> i32
+satisfies CounterFunction::query via ForeignBinding::TableFunction(query);
+windows_x86_64 machine ProcessFunctions::invoke(table: &ProcessFunctions) -> u32
+satisfies ProcessIdentity::current via ForeignBinding::TableFunction(current);
+windows_x86_64 machine ArithmeticFunctions::invoke(table: &ArithmeticFunctions, numerator: i32, multiplier: i32, denominator: i32) -> i32
+satisfies Arithmetic::multiply_divide via ForeignBinding::TableFunction(multiply_divide);
 
 machine measure_function(table: &CounterFunctions, output: &mut i64) -> i32
 reaches CounterFunction

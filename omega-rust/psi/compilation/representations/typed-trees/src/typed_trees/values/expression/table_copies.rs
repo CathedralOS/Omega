@@ -172,13 +172,12 @@ impl ExpressionTable {
     }
 
     /// Rebase both retained source telescopes into the cloned lexical owner.
-    pub fn remap_call_static_applications<'scope>(
+    pub fn remap_call_static_applications(
         &mut self,
         application: crate::static_applications::StaticMachineApplicationHandle,
         dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
-        symbols: impl Into<crate::SymbolRebinding<'scope>>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
     ) {
-        let symbols = symbols.into();
         let selected = dispatch.map_or(Default::default(), |dispatch| {
             dispatch.selection_application
         });
@@ -193,7 +192,7 @@ impl ExpressionTable {
     fn remap_static_application(
         &mut self,
         handle: crate::static_applications::StaticMachineApplicationHandle,
-        symbols: crate::SymbolRebinding<'_>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
     ) {
         let application = self.static_machine_application_mut(handle);
         application.lexical_owner = remapped(application.lexical_owner, symbols);
@@ -211,7 +210,7 @@ impl ExpressionTable {
             .collect::<Vec<_>>();
         let mut bindings = self.static_machine_application_bindings(handle).to_vec();
         for binding in &mut bindings {
-            self.remap_static_binding_symbols(binding, symbols.authored());
+            self.remap_static_binding_symbols(binding, symbols);
         }
         self.static_machine_application_bindings_mut(handle)
             .clone_from_slice(&bindings);
@@ -285,11 +284,7 @@ impl ExpressionTable {
         });
         self.set_static_machine_application_bindings(copy, &bindings);
         self.set_static_machine_application_selected_machines(copy, &selected);
-        self.set_static_machine_application_lifetimes(
-            copy,
-            declaration.lifetime_binding_declaration,
-            &lifetimes,
-        );
+        self.set_static_machine_application_lifetimes(copy, &lifetimes);
         copy
     }
 
@@ -359,12 +354,11 @@ impl ExpressionTable {
     /// arena handles and authored names stay stable; only normalized symbols
     /// change. This is the second half of cloning a lexical scope after
     /// [`Self::copy_from`] has made its payload handles independent.
-    pub fn remap_symbols_in<'scope>(
+    pub fn remap_symbols_in(
         &mut self,
         root: ExpressionHandle,
-        symbols: impl Into<crate::SymbolRebinding<'scope>>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
     ) {
-        let symbols = symbols.into();
         let mut visited = Vec::new();
         self.remap_symbols_in_inner(root, symbols, &mut visited);
     }
@@ -372,7 +366,7 @@ impl ExpressionTable {
     fn remap_symbols_in_inner(
         &mut self,
         root: ExpressionHandle,
-        symbols: crate::SymbolRebinding<'_>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
         visited: &mut Vec<ExpressionHandle>,
     ) {
         if !root.is_valid() || visited.contains(&root) {
@@ -392,7 +386,7 @@ impl ExpressionTable {
         if let Some(mut authority) = self.index_expression_authority(root).cloned() {
             if let Some(operation) = &mut authority.operation {
                 if let Some(application) = &mut operation.application {
-                    self.remap_static_argument_symbols(application, symbols.authored());
+                    self.remap_static_argument_symbols(application, symbols);
                 }
                 for symbol in [
                     &mut operation.provider,
@@ -465,11 +459,7 @@ impl ExpressionTable {
                     binding.selected = remapped(binding.selected, symbols);
                 }
                 call.visit_static_arguments_mut(|argument| {
-                    // Static operands describe declarations and their tuples,
-                    // including while no source application is retained yet.
-                    // The target and selected-machine roster independently
-                    // rebase executable entries.
-                    self.remap_static_argument_symbols(argument, symbols.authored())
+                    self.remap_static_argument_symbols(argument, symbols)
                 });
                 *self.expression_mut(root) = ExpressionNode::Call(call);
             }

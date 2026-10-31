@@ -1,12 +1,6 @@
 // An AArch64 ldr destination, place reads the typed place, and the following Omega use reads that recorded value.
 // Expected exit: 0.
-boundary trait SelectedChoose {
-    machine choose(branch: bool) reaches
-crashes Trap;
-}
-LinuxArm64Choose satisfies SelectedChoose {
-    machine choose(branch: bool) crashes Trap
-{
+linux_arm64 machine choose(branch: bool) crashes Trap {
     let left: u32 = 37;
     let right: u32 = 37;
     let source: u32 = match branch { true -> left, false -> right };
@@ -21,13 +15,24 @@ LinuxArm64Choose satisfies SelectedChoose {
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
+
+macos_arm64 machine choose(branch: bool) crashes Trap {
+    let left: u32 = 37;
+    let right: u32 = 37;
+    let source: u32 = match branch { true -> left, false -> right };
+    let mut loaded: u32 = 0;
+    asm {
+        ldr loaded, source
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
 }
 
-
-
-WindowsX8664Choose satisfies SelectedChoose {
-    machine choose(branch: bool) crashes Trap
-{
+windows_x86_64 machine choose(branch: bool) crashes Trap {
     let left: u32 = 37;
     let right: u32 = 37;
     let source: u32 = match branch { true -> left, false -> right };
@@ -42,10 +47,23 @@ WindowsX8664Choose satisfies SelectedChoose {
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
+
+linux_x86_64 machine choose(branch: bool) crashes Trap {
+    let left: u32 = 37;
+    let right: u32 = 37;
+    let source: u32 = match branch { true -> left, false -> right };
+    let mut loaded: u32 = 0;
+    asm {
+        mov loaded, source
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
 }
-
-
 machine main() crashes Trap {
-    SelectedChoose::choose(true);
-    SelectedChoose::choose(false);
+    choose(true);
+    choose(false);
 }

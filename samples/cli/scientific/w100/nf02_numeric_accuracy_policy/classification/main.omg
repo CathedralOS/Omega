@@ -50,13 +50,13 @@ machine main() crashes Trap {
         && round_i32_to_f32(16777217i32) == 16777216.0f32
         && round_i32_to_f64(16777217i32) == 16777217.0f64
         && round_f64_to_f32(16777217.0f64) == 16777216.0f32
-        && compare_reference_additive_f32(0.0f32, F32Negate::negate(0.0f32), additive_exact32) == AccuracyComparison::Close
+        && compare_reference_additive_f32(0.0f32, F32::negate(0.0f32), additive_exact32) == AccuracyComparison::Close
         && compare_reference_additive_f32(3.5f32, 3.5f32, additive_exact32) == AccuracyComparison::Close
         && compare_reference_additive_f32(additive_nan32, 1.0f32, additive_exact32) == AccuracyComparison::Different
         && compare_reference_additive_f32(1.0f32, additive_nan32, additive_exact32) == AccuracyComparison::Different
         && compare_reference_additive_f32(additive_nan32, additive_nan32, additive_exact32) == AccuracyComparison::Different
         && compare_reference_additive_f32(additive_infinity32, additive_infinity32, additive_exact32) == AccuracyComparison::Different
-        && compare_reference_additive_f32(additive_infinity32, F32Negate::negate(additive_infinity32), additive_exact32) == AccuracyComparison::Different
+        && compare_reference_additive_f32(additive_infinity32, F32::negate(additive_infinity32), additive_exact32) == AccuracyComparison::Different
         && compare_reference_additive_f32(1.0f32, additive_infinity32, additive_exact32) == AccuracyComparison::Different
         && compare_reference_additive_f32(additive_infinity32, 1.0f32, additive_exact32) == AccuracyComparison::Different
         && compare_reference_additive_f32(1.0f32, 1.0f32, ReferenceAdditiveTolerance32 { atol: -1.0f32, rtol: 0.0f32 }) == AccuracyComparison::InvalidTolerance
@@ -66,14 +66,14 @@ machine main() crashes Trap {
         && compare_reference_additive_f32(1.0f32, 1.0f32, ReferenceAdditiveTolerance32 { atol: additive_infinity32, rtol: 0.0f32 }) == AccuracyComparison::InvalidTolerance
         && compare_reference_additive_f32(1.0f32, 1.0f32, ReferenceAdditiveTolerance32 { atol: 0.0f32, rtol: additive_infinity32 }) == AccuracyComparison::InvalidTolerance
         && compare_reference_additive_f32(additive_nan32, additive_nan32, ReferenceAdditiveTolerance32 { atol: -1.0f32, rtol: 0.0f32 }) == AccuracyComparison::InvalidTolerance
-        && compare_reference_additive_f32(0.0f32, 0.0f32, ReferenceAdditiveTolerance32 { atol: F32Negate::negate(0.0f32), rtol: F32Negate::negate(0.0f32) }) == AccuracyComparison::Close
-        && compare_reference_additive_f64(0.0f64, F64Negate::negate(0.0f64), additive_exact64) == AccuracyComparison::Close
+        && compare_reference_additive_f32(0.0f32, 0.0f32, ReferenceAdditiveTolerance32 { atol: F32::negate(0.0f32), rtol: F32::negate(0.0f32) }) == AccuracyComparison::Close
+        && compare_reference_additive_f64(0.0f64, F64::negate(0.0f64), additive_exact64) == AccuracyComparison::Close
         && compare_reference_additive_f64(3.5f64, 3.5f64, additive_exact64) == AccuracyComparison::Close
         && compare_reference_additive_f64(additive_nan64, 1.0f64, additive_exact64) == AccuracyComparison::Different
         && compare_reference_additive_f64(1.0f64, additive_nan64, additive_exact64) == AccuracyComparison::Different
         && compare_reference_additive_f64(additive_nan64, additive_nan64, additive_exact64) == AccuracyComparison::Different
         && compare_reference_additive_f64(additive_infinity64, additive_infinity64, additive_exact64) == AccuracyComparison::Different
-        && compare_reference_additive_f64(additive_infinity64, F64Negate::negate(additive_infinity64), additive_exact64) == AccuracyComparison::Different
+        && compare_reference_additive_f64(additive_infinity64, F64::negate(additive_infinity64), additive_exact64) == AccuracyComparison::Different
         && compare_reference_additive_f64(1.0f64, additive_infinity64, additive_exact64) == AccuracyComparison::Different
         && compare_reference_additive_f64(additive_infinity64, 1.0f64, additive_exact64) == AccuracyComparison::Different
         && compare_reference_additive_f64(1.0f64, 1.0f64, ReferenceAdditiveTolerance64 { atol: -1.0f64, rtol: 0.0f64 }) == AccuracyComparison::InvalidTolerance
@@ -83,7 +83,7 @@ machine main() crashes Trap {
         && compare_reference_additive_f64(1.0f64, 1.0f64, ReferenceAdditiveTolerance64 { atol: additive_infinity64, rtol: 0.0f64 }) == AccuracyComparison::InvalidTolerance
         && compare_reference_additive_f64(1.0f64, 1.0f64, ReferenceAdditiveTolerance64 { atol: 0.0f64, rtol: additive_infinity64 }) == AccuracyComparison::InvalidTolerance
         && compare_reference_additive_f64(additive_nan64, additive_nan64, ReferenceAdditiveTolerance64 { atol: -1.0f64, rtol: 0.0f64 }) == AccuracyComparison::InvalidTolerance
-        && compare_reference_additive_f64(0.0f64, 0.0f64, ReferenceAdditiveTolerance64 { atol: F64Negate::negate(0.0f64), rtol: F64Negate::negate(0.0f64) }) == AccuracyComparison::Close {
+        && compare_reference_additive_f64(0.0f64, 0.0f64, ReferenceAdditiveTolerance64 { atol: F64::negate(0.0f64), rtol: F64::negate(0.0f64) }) == AccuracyComparison::Close {
         true -> done()
         _ -> incorrect()
     }

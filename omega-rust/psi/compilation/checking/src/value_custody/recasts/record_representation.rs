@@ -6,7 +6,7 @@ use super::scalar_representation::{
 use std::collections::HashSet;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-type SymbolIdentity = (symbols::SymbolHandle, Option<TypeReferenceHandle>);
+type SymbolIdentity = (u32, u32);
 
 const MAX_RECAST_REPRESENTATION_DEPTH: usize = 256;
 const MAX_RECAST_REPRESENTATION_WORK: usize = 16384;
@@ -44,47 +44,6 @@ impl MutableRecordRepresentation {
     pub(super) fn permits_shared_mutation(&self) -> bool {
         self.leaves.iter().any(|leaf| leaf.facts.atomic)
     }
-}
-
-/// Observation protocols belong to semantic fields even when this retained
-/// application has no physical target. Policy evidence and layout offsets do
-/// not create or remove an atomic leaf.
-pub(super) fn type_has_atomic_storage(
-    program: &dyn crate::CheckingInput,
-    root: TypeReferenceHandle,
-) -> bool {
-    let mut pending = vec![root];
-    let mut visited = HashSet::new();
-    while let Some(reference) = pending.pop() {
-        if !visited.insert(program.normalized_type_identity(reference)) {
-            continue;
-        }
-        if let Some(storage) = program.layout_storage_arguments(reference) {
-            pending.push(storage.semantic_type);
-            continue;
-        }
-        if super::representation_types::scalar_is_atomic(program, reference) == Some(true) {
-            return true;
-        }
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. }
-            | TypeReferenceNode::FixedArray {
-                element_type: base_type,
-                ..
-            } => pending.push(*base_type),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-                if let Some(data) = program.closed_data_definition(reference) {
-                    pending.extend(
-                        program
-                            .live_data_fields(program.data_members(data))
-                            .map(|field| field.type_reference),
-                    );
-                }
-            }
-            _ => {}
-        }
-    }
-    false
 }
 
 #[derive(Debug, Clone)]
@@ -284,7 +243,10 @@ fn unique_record_field<'program>(
     carrier: TypeReferenceHandle,
     select: impl Fn(&typed_trees::data::DataField) -> bool,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let owner = program.closed_data_field_definition(carrier)?;
+    let owner = crate::declarations::data_queries::data_definition_by_symbol(
+        program,
+        program.type_reference_symbol(carrier),
+    )?;
     let mut fields = program
         .data_members(owner)
         .iter()
@@ -657,21 +619,10 @@ fn mutable_record_representation_inner(
     budget: &mut RepresentationBudget,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
-    let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
-    mutable_record_representation_for_data(program, data, visiting, budget, allow_lifetime_shell)
-}
-
-fn mutable_record_representation_for_data(
-    program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-    visiting: &mut HashSet<SymbolIdentity>,
-    budget: &mut RepresentationBudget,
-    allow_lifetime_shell: bool,
-) -> Option<MutableRecordRepresentation> {
     budget.enter()?;
     let representation = mutable_record_representation_inner_body(
         program,
-        data,
+        symbol,
         visiting,
         budget,
         allow_lifetime_shell,
@@ -682,32 +633,28 @@ fn mutable_record_representation_for_data(
 
 fn mutable_record_representation_inner_body(
     program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
+    symbol: symbols::SymbolHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
-    if !data.symbol.is_valid() {
+    if !symbol.is_valid() {
         return None;
     }
-    let symbol_identity = (data.symbol, data.generic_instance);
+    let symbol_identity = (symbol.arena_index(), symbol.generation());
     if !visiting.insert(symbol_identity) {
         return None;
     }
-    let layout = program.plan_laid_layout_for_data(data);
-    if layout.is_none()
-        && data
-            .generic_instance
-            .is_some_and(|reference| program.layout_storage_arguments(reference).is_some())
-    {
-        visiting.remove(&symbol_identity);
-        return None;
-    }
+    let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+    let layout = program.plan_laid_layout(data.symbol);
     // The synthesized layout owns geometry, while its retained schema owns
     // authored validity. Copying fields into a physical declaration must not
     // erase the schema's where facts at an alias or foreign-write boundary.
     let semantic_data = match layout {
-        Some(plan) => program.closed_data_field_definition(plan.semantic_type)?,
+        Some(plan) => crate::declarations::data_queries::data_definition_by_symbol(
+            program,
+            plan.schema_symbol,
+        )?,
         None => data,
     };
     let Some(where_bounds) =
@@ -789,7 +736,7 @@ fn mutable_record_representation_inner_body(
         field_symbols.push(field.symbol);
     }
 
-    let (size, align, offsets) = if let Some(plan) = program.plan_laid_layout_for_data(data) {
+    let (size, align, offsets) = if let Some(plan) = program.plan_laid_layout(data.symbol) {
         if plan.field_symbols != field_symbols {
             return None;
         }
@@ -966,10 +913,6 @@ fn mutable_record_type_representation_body(
             budget,
             allow_lifetime_shell,
         ),
-        TypeReferenceNode::Generic { .. } if program.closed_data_definition(type_reference).is_some() => {
-            mutable_record_representation_for_data(program,
-                program.closed_data_definition(type_reference)?, visiting, budget, allow_lifetime_shell)
-        }
         TypeReferenceNode::Generic { .. }
             if allow_lifetime_shell
                 && budget.lifetime_shell_depth > 0
@@ -1138,50 +1081,4 @@ pub(super) fn record_representation_implies(
     target: &MutableRecordRepresentation,
 ) -> bool {
     record_layouts_match(program, source, target, scalar_representation_facts_imply)
-        || shared_initialized_byte_projection(source, target)
-}
-
-/// A read-only byte observation may weaken scalar validity, but may not expose
-/// padding, fragmented bits, or an atomic storage protocol. The complete
-/// occupied roster proves every observed byte belongs to an initialized leaf.
-/// Mutable aliases continue to require the two-way leaf relation above.
-fn shared_initialized_byte_projection(
-    source: &MutableRecordRepresentation,
-    target: &MutableRecordRepresentation,
-) -> bool {
-    use super::scalar_representation::{ScalarRepresentationSet, full_scalar_bit_patterns};
-    use typed_trees::types::PrimitiveType;
-    if source.size != target.size || target.align != 1 || source.align == 0 {
-        return false;
-    }
-    if target.leaves.iter().any(|leaf| {
-        leaf.primitive != PrimitiveType::U8
-            || leaf.size != 1
-            || !leaf.byte_projection
-            || leaf.facts.atomic
-            || !leaf.facts.domains.is_empty()
-            || leaf.facts.values
-                != ScalarRepresentationSet::ExactBitPatterns(full_scalar_bit_patterns(
-                    PrimitiveType::U8,
-                ))
-    }) {
-        return false;
-    }
-    let covers = |representation: &MutableRecordRepresentation| {
-        let mut leaves = representation.leaves.iter().collect::<Vec<_>>();
-        leaves.sort_unstable_by_key(|leaf| leaf.offset);
-        let mut cursor = 0usize;
-        for leaf in leaves {
-            if leaf.offset != cursor || leaf.size == 0 || !leaf.byte_projection || leaf.facts.atomic
-            {
-                return false;
-            }
-            let Some(next) = cursor.checked_add(leaf.size) else {
-                return false;
-            };
-            cursor = next;
-        }
-        cursor == representation.size
-    };
-    covers(source) && covers(target)
 }

@@ -6,6 +6,13 @@ public boundary trait ScalarInput {
 public data ScalarImports {}
 data Main { }
 
+public macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+    } }
+}
+macos_arm64 boundary machine ScalarImports::read(descriptor: i32, value: &mut f32, count: u64) -> i64
+    satisfies ScalarInput::read via read_binding();
 
 machine Main::main(main: &mut Main) reaches ScalarInput blocks; {
     let mut value: f32 = 100.0f32;

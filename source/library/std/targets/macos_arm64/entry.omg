@@ -15,9 +15,7 @@ boundary trait MacosArm64PhysicalEntry {
 
 data MacosArm64 {}
 MacosArm64CallingPolicy satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        MacosArm64::plan(signature)
-    }
+    CallingPolicy::plan = MacosArm64::plan;
 }
 
 machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult

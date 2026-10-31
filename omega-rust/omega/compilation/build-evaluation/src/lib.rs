@@ -93,6 +93,7 @@ mod terminal_filesystem;
 pub mod terminal_requests;
 pub mod terminal_settings;
 
+pub use admission::target_helpers::select_build_helpers;
 use admitted_build_program::{AdmittedBuildProgram, admit_build_program};
 pub use artifacts::compile_timings::counters::preliminary_check_totals;
 pub use build_evaluation::{

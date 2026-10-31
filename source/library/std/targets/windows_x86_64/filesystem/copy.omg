@@ -12,7 +12,7 @@ use targets::windows_x86_64::filesystem::handles;
 use targets::windows_x86_64::filesystem::metadata;
 use targets::windows_x86_64::filesystem::sequences;
 
-machine windows_filesystem_copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+windows_x86_64 machine windows_filesystem_copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 invokes WindowsFilesystemHost;
 {

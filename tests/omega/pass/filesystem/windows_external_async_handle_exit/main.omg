@@ -18,7 +18,17 @@ boundary trait ExternalFileOpen {
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     blocks;
 }
-
+windows_x86_64 machine external_file_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "CreateFileW"
+    } }
+}
+windows_x86_64 machine external_file_open(path: &[u16; 16] in ExternalNativePath, access: u32, sharing: u32,
+    security: u64, disposition: u32, flags: u32, template: u64) -> i64
+satisfies ExternalFileOpen::open
+via external_file_binding()
+requires security == 0 && template == 0
+blocks;
 
 data Main { buffer: [u8; 1]; handle: u64; asynchronous: u64; duplicate: u64; }
 machine Main::main(main: &mut Main)
@@ -34,7 +44,7 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
         // Deliberately bypass the raw family's open-time async-flag rejection.
         let wide: [u16; 16] = [111u16, 109u16, 101u16, 103u16, 97u16, 95u16,
             97u16, 115u16, 121u16, 110u16, 99u16, 46u16, 116u16, 120u16, 116u16, 0u16];
-        let handle: i64 = block ExternalFileOpen::open(&wide, 3221225472, 7, 0, 3, 1073741952, 0);
+        let handle: i64 = block external_file_open(&wide, 3221225472, 7, 0, 3, 1073741952, 0);
         transition handle != 0 && handle != -1 { true -> reject(main, handle) _ -> bad(main, 73) }
     }
     machine reject(main: &mut Main, handle: i64) {

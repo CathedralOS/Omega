@@ -5,24 +5,24 @@
 use omega::language::core::float_operations;
 
 machine fused32(left: f32, right: f32, addend: f32) -> f32 {
-    F32FusedMultiplyAdd::fused_multiply_add(left, right, addend)
+    F32::fused_multiply_add(left, right, addend)
 }
 
 machine fused64(left: f64, right: f64, addend: f64) -> f64 {
-    F64FusedMultiplyAdd::fused_multiply_add(left, right, addend)
+    F64::fused_multiply_add(left, right, addend)
 }
 
 machine main() crashes Trap {
     let next32: f32 = 1.00000011920928955078125;
     let cancel32: f32 = 0.0f32 - 1.0000002384185791015625;
     let residual32: f32 = fused32(next32, next32, cancel32);
-    let separate32: f32 = F32MultiplyThenAdd::multiply_then_add(next32, next32, cancel32);
+    let separate32: f32 = F32::multiply_then_add(next32, next32, cancel32);
     let repeated32: f32 = fused32(residual32, 2.0f32, residual32);
 
     let next64: f64 = 1.0000000000000002220446049250313080847263336181640625;
     let cancel64: f64 = 0.0 - 1.000000000000000444089209850062616169452667236328125;
     let residual64: f64 = fused64(next64, next64, cancel64);
-    let separate64: f64 = F64MultiplyThenAdd::multiply_then_add(next64, next64, cancel64);
+    let separate64: f64 = F64::multiply_then_add(next64, next64, cancel64);
     let repeated64: f64 = fused64(residual64, 2.0, residual64);
 
     transition residual32 > 0.0f32 && separate32 == 0.0f32

@@ -7,7 +7,7 @@ use omega::language::core::numeric_conversion;
 public machine scaled(value: f64)
 invokes Console;
 reaches Console {
-    let scaled: i64 in Saturating = I64FromF64::from_f64(value * 1000000000000.0);
+    let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     integer64(scaled as i64);
 }
 public machine integer(value: i32)

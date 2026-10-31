@@ -299,7 +299,7 @@ impl<'selection> LengthJobs<'selection> {
         // A newly literal type can close a static application's remaining
         // tuple. Resume the same specialization owner in the same arena; it
         // appends real instances and cannot replay an evaluated leaf.
-        typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
+        typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
         let domain = EvaluationDomain::all()
             .with_accounting(self.domain.accounting.clone())
             .demanded_roots(typed, &[machine]);

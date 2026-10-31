@@ -5,9 +5,9 @@
 use omega_language_std::console;
 use omega::language::core::layout;
 
+data TiledRecordNestedArray { }
 
-TiledRecordNestedArray satisfies FixedLayout<Samples> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+machine TiledRecordNestedArray::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -25,7 +25,6 @@ TiledRecordNestedArray satisfies FixedLayout<Samples> {
         align: 4,
     }
 }
-}
 
 data Cell {
     tag: u32;
@@ -33,7 +32,7 @@ data Cell {
 }
 
 data Samples { cells: [Cell; 2]; }
-data TiledRecordNestedArrayView { value: LayoutStorage<Samples, TiledRecordNestedArray>; }
+data TiledRecordNestedArrayView { value: TiledRecordNestedArray<Samples>; }
 
 machine make_samples() -> Samples {
     let cells: [Cell; 2];

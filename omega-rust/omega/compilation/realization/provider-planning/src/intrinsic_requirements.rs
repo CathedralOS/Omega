@@ -74,11 +74,6 @@ impl<'typed> IntrinsicRequirement<'typed> {
                     context, schema, operator,
                 )
             }),
-            IntrinsicRequirementKind::Trait(owner) => typed
-                .trait_definition_by_symbol(owner)
-                .is_some_and(|owner| {
-                    crate::service_schema::schema_binds_exact_boundary_trait(context, schema, owner)
-                }),
             IntrinsicRequirementKind::TopLevelRequirement => {
                 typed.machine(self.symbol).is_some_and(|requirement| {
                     crate::service_schema::schema_binds_exact_boundary_requirement(
@@ -103,7 +98,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
         method: &ServiceMethod,
         row: &ProviderPlanRow,
     ) -> bool {
-        effects::numeric_realizations::RequirementPlanIdentity {
+        effects::external_providers::RequirementPlanIdentity {
             overload: &self.requirement_identity,
             package: self.package_identity,
             schema: &self.schema_identity(),

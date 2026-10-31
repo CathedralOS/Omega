@@ -22,7 +22,7 @@ public machine scaled(value:f64,offset:i64 in Wrapping) reaches Console invokes 
   transition scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 { true -> bounded(scaled,exponent) false -> failure() }
  }
  machine bounded(scaled:f64,exponent:i64 in Wrapping) requires scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 {
-  let mantissa:i64=I64FromF64::from_f64(scaled);
+  let mantissa:i64=I64::from_f64(scaled);
   io::decimal::number(mantissa as i64 in Wrapping); io::decimal::number(exponent-15);
  }
  machine failure() { Console::write_line("REJECT numeric output"); Console::exit_process(70); }
@@ -40,7 +40,7 @@ public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower
  let scaled:f64=parts.mantissa*1000000000000000.0;
  transition scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 { true -> bounded(scaled,power+parts.exponent-15,lower,lower_power,upper,upper_power,lower_value,lower_value_power,upper_value,upper_value_power) false -> failure() }
  machine bounded(scaled:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) requires scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 {
-  let signed:i64=I64FromF64::from_f64(scaled);
+  let signed:i64=I64::from_f64(scaled);
   let coefficient:u64 in Wrapping=narrow_i64_to_u64_saturating(signed) as u64 in Wrapping;
   transition model::courant::compare_decimal(coefficient,power,lower,lower_power) < 0 { true -> near(scaled,power,lower,lower_power,lower_value,lower_value_power) false -> upper(coefficient,power,upper,upper_power,scaled,upper_value,upper_value_power) }
  }

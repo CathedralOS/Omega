@@ -78,7 +78,6 @@ pub(crate) fn instantiate_requirement_applications(
             }
             vec![calls::InvocationTuple {
                 owner: demand.argument_owner,
-                lifetime_declaration: requirement,
                 arguments: Vec::new(),
                 lifetimes: Vec::new(),
             }]
@@ -97,7 +96,6 @@ pub(crate) fn instantiate_requirement_applications(
                     .into_iter()
                     .map(|arguments| calls::InvocationTuple {
                         owner: demand.argument_owner,
-                        lifetime_declaration: requirement,
                         arguments,
                         lifetimes: Vec::new(),
                     })
@@ -113,13 +111,6 @@ pub(crate) fn instantiate_requirement_applications(
             }
         };
         for invocation in tuples {
-            // A roster-only finite tuple has no caller; its declaration owns
-            // those static operands. Actual calls retain their supplying owner.
-            let lexical_owner = if invocation.owner.is_valid() {
-                invocation.owner
-            } else {
-                requirement
-            };
             let mut arguments = invocation.arguments;
             // Closed instances consume a derived tuple. Keep the occurrence's
             // authored recipes available to final formation checking.
@@ -130,16 +121,9 @@ pub(crate) fn instantiate_requirement_applications(
             )
             .map_err(|message| vec![Diagnostic::error(message)])?;
             if arguments.len() != parameters.len() {
-                let mut diagnostic = Diagnostic::error(format!(
-                    "static method application requires its complete invocation telescope for `{}` (found {}, expected {})",
-                    program.symbols.display_path(requirement, "::"),
-                    arguments.len(),
-                    parameters.len(),
-                ));
-                if let Some(span) = program.symbols.symbol_source_span(invocation.owner) {
-                    diagnostic = diagnostic.with_source_span(span);
-                }
-                return Err(vec![diagnostic]);
+                return Err(vec![Diagnostic::error(
+                    "static method application requires its complete invocation telescope",
+                )]);
             }
             // A symbolic call checks the authored universal schema. It does
             // not demand an executable instance until its own tuple closes.
@@ -150,7 +134,7 @@ pub(crate) fn instantiate_requirement_applications(
                     | typed_trees::data::TypeParameterKind::Const { .. }
                     | typed_trees::data::TypeParameterKind::Value { .. } => {
                         let actual = program
-                            .static_operand_type_reference_in_scope(argument, lexical_owner)
+                            .static_operand_type_reference(argument)
                             .map_err(|message| vec![Diagnostic::error(message)])?;
                         open |= super::contextual_calls::operand_is_open(program, actual);
                     }
@@ -164,7 +148,7 @@ pub(crate) fn instantiate_requirement_applications(
             if open {
                 continue;
             }
-            let bindings = invocation_bindings(program, lexical_owner, &parameters, &arguments)?;
+            let bindings = invocation_bindings(program, &parameters, &arguments)?;
             let application = program.expression_table.retain_static_machine_application(
                 requirement,
                 name.clone(),
@@ -173,15 +157,15 @@ pub(crate) fn instantiate_requirement_applications(
             let source = program
                 .expression_table
                 .static_machine_application_mut(application);
-            source.lexical_owner = lexical_owner;
+            source.lexical_owner = if invocation.owner.is_valid() {
+                invocation.owner
+            } else {
+                requirement
+            };
             source.binding_declaration = requirement;
             program
                 .expression_table
-                .set_static_machine_application_lifetimes(
-                    application,
-                    requirement,
-                    &invocation.lifetimes,
-                );
+                .set_static_machine_application_lifetimes(application, &invocation.lifetimes);
             program
                 .expression_table
                 .set_static_machine_application_bindings(application, &bindings);
@@ -237,7 +221,6 @@ pub(super) fn selected_applications<'a>(
 /// Openness prevents executable instantiation, not substitution in a contract.
 pub(crate) fn invocation_bindings(
     program: &mut TypedTrees,
-    lexical_owner: symbols::SymbolHandle,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
 ) -> Result<Vec<StaticMachineBinding>, Vec<Diagnostic>> {
@@ -250,7 +233,7 @@ pub(crate) fn invocation_bindings(
                 value: match &parameter.kind {
                     typed_trees::data::TypeParameterKind::Type => StaticMachineBindingValue::Type(
                         program
-                            .static_operand_type_reference_in_scope(argument, lexical_owner)
+                            .static_operand_type_reference(argument)
                             .map_err(|message| vec![Diagnostic::error(message)])?,
                     ),
                     typed_trees::data::TypeParameterKind::Const { type_reference }
@@ -304,7 +287,7 @@ pub(crate) fn invocation_bindings(
                                 )
                             } else {
                                 program
-                                    .static_operand_type_reference_in_scope(argument, lexical_owner)
+                                    .static_operand_type_reference(argument)
                                     .map_err(|message| vec![Diagnostic::error(message)])?
                             };
                             StaticMachineBindingValue::Const(actual)

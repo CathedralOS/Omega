@@ -1,6 +1,6 @@
 // Named float-to-integer policy conversions execute with exit 70.
 // An explicitly qualified result selects the destination-owned
-// `I32FromF64::from_f64` overload whose result is `i32 in Saturating`: toward-zero
+// `I32::from_f64` overload whose result is `i32 in Saturating`: toward-zero
 // truncation that clamps to the carrier and maps NaN to zero. The calls sit
 // in qualified locals and feed erased values, guard operands and
 // over a nested float application, for f64 and f32 sources and signed and
@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.above_byte = 300.5;
     main.below_byte = -5.5;
     main.below_short = -40000.75f32;
-    let converted_high: i32 in Saturating = I32FromF64::from_f64(huge);
+    let converted_high: i32 in Saturating = I32::from_f64(huge);
     let mut high: i32 = converted_high as i32;
     transition high == 2147483647 {
         true -> low(main)
@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine low(main: &mut Main) {
-        let low: i32 in Saturating = I32FromF64::from_f64(main.negative_huge);
+        let low: i32 in Saturating = I32::from_f64(main.negative_huge);
         let low_value: i32 = low as i32;
         transition low_value == -2147483648 {
             true -> nan(main)
@@ -49,7 +49,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine nan(main: &mut Main) {
         let nan: f64 = main.zero / main.zero;
-        let converted_nan: i32 in Saturating = I32FromF64::from_f64(nan);
+        let converted_nan: i32 in Saturating = I32::from_f64(nan);
         let nan_value: i32 = converted_nan as i32;
         transition nan_value == 0 {
             true -> guard(main)
@@ -58,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine guard(main: &mut Main) {
-        let converted_fraction: i32 in Saturating = I32FromF64::from_f64(main.fraction);
+        let converted_fraction: i32 in Saturating = I32::from_f64(main.fraction);
         transition converted_fraction as i32 == -7 {
             true -> nested(main)
             _ -> fail(main, 74)
@@ -66,7 +66,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine nested(main: &mut Main) {
-        let converted_fahrenheit: i32 in Saturating = I32FromF64::from_f64(main.celsius * 1.8 + 32.0);
+        let converted_fahrenheit: i32 in Saturating = I32::from_f64(main.celsius * 1.8 + 32.0);
         let mut fahrenheit: i32 = converted_fahrenheit as i32;
         transition fahrenheit == 68 {
             true -> unsigned_high(main)
@@ -75,7 +75,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine unsigned_high(main: &mut Main) {
-        let converted_high: u8 in Saturating = U8FromF64::from_f64(main.above_byte);
+        let converted_high: u8 in Saturating = U8::from_f64(main.above_byte);
         let mut byte_high: u8 = converted_high as u8;
         transition byte_high == 255 {
             true -> unsigned_low(main)
@@ -84,7 +84,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine unsigned_low(main: &mut Main) {
-        let converted_low: u8 in Saturating = U8FromF64::from_f64(main.below_byte);
+        let converted_low: u8 in Saturating = U8::from_f64(main.below_byte);
         let byte_low: u8 = converted_low as u8;
         transition byte_low == 0 {
             true -> short_low(main)
@@ -93,7 +93,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine short_low(main: &mut Main) {
-        let converted_low: i16 in Saturating = I16FromF32::from_f32(main.below_short);
+        let converted_low: i16 in Saturating = I16::from_f32(main.below_short);
         let mut short_low: i16 = converted_low as i16;
         transition short_low == -32768 {
             true -> good(main)

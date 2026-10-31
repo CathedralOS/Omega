@@ -2,19 +2,12 @@
 const SIZE: u64 = 1 + 0;
 const SOURCE: [u64; SIZE] = [3 + 0];
 const ALIAS: [u64; 1] = SOURCE;
-boundary trait SelectedSelectVal {
-    machine select_val() -> u64 reaches
-;
-}
-CheckedSelectVal satisfies SelectedSelectVal {
-    machine select_val() -> u64
-{ ALIAS[1] }
-}
-
-
-
+windows_x86_64 machine select_val() -> u64 { ALIAS[1] }
+linux_x86_64 machine select_val() -> u64 { ALIAS[1] }
+macos_arm64 machine select_val() -> u64 { ALIAS[1] }
+linux_arm64 machine select_val() -> u64 { ALIAS[1] }
 machine main() crashes Trap {
-    transition SelectedSelectVal::select_val() == 3 { true -> done() _ -> bad() }
+    transition select_val() == 3 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

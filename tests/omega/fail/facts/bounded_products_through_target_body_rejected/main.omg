@@ -1,30 +1,38 @@
 // Bounded u64 factors a <= 50 and b <= 50 make a * b fit in result <= 2500 without a domain or widening.
 // Invalid: the operand bound is removed, so the exact product may overflow u64.
 // Expected exit: 0
-boundary trait SelectedMul {
-    machine mul(a: u64, b: u64) -> u64 reaches
-requires a <= 50
-ensures result <= 2500;
-}
-CheckedMul satisfies SelectedMul {
-    machine mul(a: u64, b: u64) -> u64
+linux_x86_64 machine mul(a: u64, b: u64) -> u64
 requires a <= 50
 ensures result <= 2500
 {
     a * b
 }
+
+linux_arm64 machine mul(a: u64, b: u64) -> u64
+requires a <= 50
+ensures result <= 2500
+{
+    a * b
 }
 
+macos_arm64 machine mul(a: u64, b: u64) -> u64
+requires a <= 50
+ensures result <= 2500
+{
+    a * b
+}
 
-
-
-
-
+windows_x86_64 machine mul(a: u64, b: u64) -> u64
+requires a <= 50
+ensures result <= 2500
+{
+    a * b
+}
 
 machine probe(a: u64, b: u64) -> u64
 requires a <= 50 && b <= 50
 {
-    SelectedMul::mul(a, b)
+    mul(a, b)
 }
 
 machine main() crashes Trap {

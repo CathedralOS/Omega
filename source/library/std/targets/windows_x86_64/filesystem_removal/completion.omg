@@ -22,7 +22,7 @@ machine windows_removal_status(code: u32) -> i32 {
     }
 }
 
-machine windows_removal_close(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
+windows_x86_64 machine windows_removal_close(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
     original: u32) -> u32
 requires handle != 0
 reaches FilesystemNamespaceMutation {
@@ -39,7 +39,7 @@ reaches FilesystemNamespaceMutation {
     }
 }
 
-machine windows_removal_dispose(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
+windows_x86_64 machine windows_removal_dispose(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
 requires handle != 0
 reaches FilesystemNamespaceMutation {
     let disposition: WindowsNativeFileDisposition = WindowsNativeFileDisposition { delete: 1 };

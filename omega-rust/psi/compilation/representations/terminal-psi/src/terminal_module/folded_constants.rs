@@ -1,7 +1,9 @@
 //! Historical selected-realization applications consumed by constant folding.
 //! These are immutable semantic compatibility facts, never installation requests.
 
-use super::{NominalDeclarationIdentity, TerminalIdentityIndex, TerminalModule};
+use super::{
+    NominalDeclarationIdentity, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
+};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -111,6 +113,19 @@ impl FoldedConstantClosure {
                 return Err(
                     "folded constant dependency lost its exact checked candidate association",
                 );
+            }
+            let callable = TargetMachineCallable::Machine(association.machine);
+            for family in &module.target_machine_families {
+                if family
+                    .members
+                    .iter()
+                    .any(|member| member.callable == callable)
+                    && !family.members.iter().any(|member| {
+                        member.callable == callable && member.target == dependency.target
+                    })
+                {
+                    return Err("folded constant candidate belongs to another target scope");
+                }
             }
         }
         Ok(())

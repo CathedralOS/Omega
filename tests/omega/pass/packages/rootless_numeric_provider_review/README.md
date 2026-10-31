@@ -1,15 +1,14 @@
 # Rootless numeric provider review
 
-This package deliberately has no ProgramEntry. Its unused ordinary named
-implementation supplies `NegationSlot` with a checked body that calls the
-public core negate requirement. It grants no compiler intrinsic. Its ordinary
-public classifier uses a different numeric operation.
+This package deliberately has no ProgramEntry. Its unused external negate
+implementation satisfies the exact numeric requirement; its ordinary public
+classifier uses a different numeric operation.
 
 The sibling [consumer](../rootless_numeric_provider_consumer/main.omg) checks
-both finite and NaN inputs and retains exit 0 in Terminal Psi and native execution.
+both finite and NaN inputs and exits 0 in Terminal Psi and native execution.
 The [invalid control](../../../fail/packages/rootless_numeric_provider_missing_satisfaction/main.omg)
-keeps the same implementation body and signature but supplies `DifferentSlot`.
-Selecting it for `NegationSlot` must reject for the missing exact satisfaction.
+keeps a well-formed, same-signature external implementation but changes its
+satisfaction edge to square root. Selecting it for negate must reject.
 
 Full review is a separate acceptance from corpus fixture consent:
 
@@ -23,4 +22,4 @@ omega run --both tests/omega/pass/packages/rootless_numeric_provider_consumer/ma
 
 The fresh review must include `UnusedNumericProvider::negate` even though the
 consumer never calls it. This pins declaration review, not a new executable IR
-or permission to select a compiler intrinsic.
+or permission to execute an external provider.

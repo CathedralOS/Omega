@@ -92,6 +92,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) boundary_supplies:
         BTreeMap<BoundaryMachineId, crate::effects::AdmittedBoundarySupply>,
     /// Exact family catalog selection, never provider or boundary issuance.
+    pub(crate) target_machines: Option<terminal_installation::AdmittedTargetMachineSelections>,
     /// Root-authorized assumed binding contracts admitted with the provider
     /// installation. They are conditional evidence on this execution, not
     /// checked redirects: call custody keeps consulting only
@@ -289,6 +290,11 @@ impl LiveClaim {
 pub(crate) enum ResultClaimOrigin {
     /// An in-module callee's returning edge holds them at the result paths.
     CalleeReturn,
+    /// An exact member returns authentic custody under the weaker family head.
+    TargetFamilyReturn {
+        head: BoundaryMachineId,
+        member: MachineId,
+    },
     /// A checked provider returns actual custody through an admitted boundary route.
     CheckedProvider,
 }
@@ -303,6 +309,12 @@ impl ResultClaimOrigin {
         result: &terminal_psi::StructuralOperationResult,
         declared: &[semantic_vocabulary::StructuralDomainId],
     ) -> bool {
+        if matches!(self, Self::TargetFamilyReturn { .. }) {
+            return result
+                .qualifications
+                .iter()
+                .all(|domain| declared.contains(domain));
+        }
         let mut expected = declared.to_vec();
         if self == Self::CheckedProvider {
             for establishment in &result.qualification_establishments {
@@ -324,7 +336,10 @@ impl ResultClaimOrigin {
         if self != Self::CalleeReturn && !preserved.is_empty() {
             return false;
         }
-        if self == Self::CheckedProvider {
+        if matches!(
+            self,
+            Self::TargetFamilyReturn { .. } | Self::CheckedProvider
+        ) {
             result
                 .projected_qualifications
                 .iter()
@@ -616,6 +631,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             boundary_supplies: installation
                 .map(|installation| installation.supplies.clone())
                 .unwrap_or_default(),
+            target_machines: installation
+                .and_then(|installation| installation.target_machines.clone()),
             assumed_bindings: installation
                 .map(|installation| installation.assumed_bindings.clone())
                 .unwrap_or_default(),

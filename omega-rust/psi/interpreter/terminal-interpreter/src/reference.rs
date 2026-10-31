@@ -68,9 +68,6 @@ pub(crate) enum AggregateViewTip {
     Scalar {
         view: terminal_semantics::ReferenceStorageProjection,
         backing: terminal_semantics::ReferenceStorageProjection,
-        /// An immutable byte observation inside the original scalar cell.
-        /// None names its complete representation.
-        byte_offset: Option<u8>,
     },
 }
 
@@ -86,21 +83,6 @@ pub(crate) struct ResolvedStructuralProjection {
     endpoint_field: Option<semantic_vocabulary::StructuralFieldId>,
     pub(crate) primitive_storage: Option<crate::primitive_storage::PrimitiveStorage>,
     pub(crate) collection_home: Option<crate::element_views::ElementViewHome>,
-}
-
-impl ResolvedStructuralProjection {
-    /// A logical aggregate presentation remains attached to its actual home.
-    /// It is not a packed collection allocation under the presented type.
-    pub(crate) fn aggregate_presentation(&self) -> Option<AggregateViewRegion> {
-        match self.view_tip {
-            Some(AggregateViewTip::Aggregate { view, backing })
-                if backing == self.value.structural_type =>
-            {
-                Some(view)
-            }
-            _ => None,
-        }
-    }
 }
 
 /// A returned reference must retain the exact admitted source association,
@@ -1529,12 +1511,7 @@ impl TerminalExecution<'_> {
             // An aggregate re-view is a window in this backing root, not an
             // eagerly paired child. Keep its coordinate for subsequent reads,
             // reborrows and ingress; scalar endpoints have a real backing path.
-            value = if let Some(AggregateViewTip::Scalar { byte_offset, .. }) = tip {
-                if byte_offset.is_some()
-                    && access.is_some_and(|required| required != StructuralAccess::SharedBorrow)
-                {
-                    return Err(malformed());
-                }
+            value = if let Some(AggregateViewTip::Scalar { .. }) = tip {
                 let view = active_view.ok_or_else(malformed)?;
                 let (storage, _, _) = self.aggregate_view_primitive_access(
                     &value,

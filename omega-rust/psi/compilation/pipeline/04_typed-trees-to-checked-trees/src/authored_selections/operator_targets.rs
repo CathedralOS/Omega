@@ -190,8 +190,7 @@ fn checked_operator_target(
             }
         });
 
-    let executable = uses
-        .iter()
+    uses.iter()
         .find_map(|operator_use| {
             (operator_use.status == CheckedOperatorResolutionStatus::Resolved)
                 .then(|| declaration_target(operator_use.selected_operator_symbol))
@@ -201,46 +200,40 @@ fn checked_operator_target(
             uses.iter()
                 .any(|operator_use| {
                     operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
+                        || (operator_use.status == CheckedOperatorResolutionStatus::Missing
+                            && intrinsic_operator_operand_is_primitive(
+                                program,
+                                node,
+                                operator_use.origin,
+                            ))
                 })
                 .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 ))
-        });
-    if executable.is_some() {
-        return executable;
-    }
-    if let Some(resolution) = contract_resolution::checked_operator_resolution(
-        program,
-        facts,
-        expression,
-        node,
-        owner_index,
-    ) {
-        return match resolution {
-            contract_resolution::CheckedContractOperatorResolution::Declaration(symbol) => {
-                declaration_target(symbol)
-            }
-            contract_resolution::CheckedContractOperatorResolution::Builtin => {
-                Some(AuthoredSelectionResolutionTarget::Intrinsic(
-                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-                ))
-            }
-            contract_resolution::CheckedContractOperatorResolution::Unresolved => None,
-        };
-    }
-    // Missing executable metadata is not a positive builtin selection. Only
-    // a source occurrence without a reconstructible scope reaches this legacy
-    // carrier fallback; a known scoped choice above is always authoritative.
-    if uses.iter().any(|operator_use| {
-        operator_use.status == CheckedOperatorResolutionStatus::Missing
-            && intrinsic_operator_operand_is_primitive(program, node, operator_use.origin)
-    }) {
-        return Some(AuthoredSelectionResolutionTarget::Intrinsic(
-            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-        ));
-    }
-    resolve_authored_operator_without_use_fact(program, expression, node)
-        .and_then(|operator| declaration_target(operator.symbol))
+        })
+        .or_else(|| {
+            contract_resolution::checked_operator_resolution(
+                program,
+                facts,
+                expression,
+                node,
+                owner_index,
+            )
+            .and_then(|resolution| match resolution {
+                contract_resolution::CheckedContractOperatorResolution::Declaration(symbol) => {
+                    declaration_target(symbol)
+                }
+                contract_resolution::CheckedContractOperatorResolution::Builtin => {
+                    Some(AuthoredSelectionResolutionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    ))
+                }
+            })
+        })
+        .or_else(|| {
+            resolve_authored_operator_without_use_fact(program, expression, node)
+                .and_then(|operator| declaration_target(operator.symbol))
+        })
         .or_else(|| {
             let operand = match node {
                 ExpressionNode::Binary(binary) => binary.left,

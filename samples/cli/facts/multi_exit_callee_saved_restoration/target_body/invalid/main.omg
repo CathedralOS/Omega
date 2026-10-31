@@ -65,13 +65,7 @@ machine multi_exit_probe(selector: u64, x: u64) -> u64
     }
 }
 
-boundary trait SelectedRun {
-    machine run() -> i32 reaches
-;
-}
-CheckedRun satisfies SelectedRun {
-    machine run() -> i32
-{
+windows_x86_64 machine run() -> i32 {
     let k1: u64 = 10u64;
     let k2: u64 = 20u64;
     let k3: u64 = 29u64;
@@ -84,16 +78,51 @@ CheckedRun satisfies SelectedRun {
     let diff: u64 = total - 100u64;
     diff as i32
 }
+
+linux_x86_64 machine run() -> i32 {
+    let k1: u64 = 10u64;
+    let k2: u64 = 20u64;
+    let k3: u64 = 29u64;
+    let r0: u64 = multi_exit_probe(0u64, 40u64);
+    let r1: u64 = multi_exit_probe(1u64, 40u64);
+    let r2: u64 = multi_exit_probe(2u64, 40u64);
+    let caller_live: u64 = k1 + k2 + k3;
+    let probe_out: u64 = (r0 + r1 + r2) - 80u64;
+    let total: u64 = caller_live + probe_out;
+    let diff: u64 = total - 100u64;
+    diff as i32
 }
 
+macos_arm64 machine run() -> i32 {
+    let k1: u64 = 10u64;
+    let k2: u64 = 20u64;
+    let k3: u64 = 29u64;
+    let r0: u64 = multi_exit_probe(0u64, 40u64);
+    let r1: u64 = multi_exit_probe(1u64, 40u64);
+    let r2: u64 = multi_exit_probe(2u64, 40u64);
+    let caller_live: u64 = k1 + k2 + k3;
+    let probe_out: u64 = (r0 + r1 + r2) - 80u64;
+    let total: u64 = caller_live + probe_out;
+    let diff: u64 = total - 100u64;
+    diff as i32
+}
 
-
-
-
-
+linux_arm64 machine run() -> i32 {
+    let k1: u64 = 10u64;
+    let k2: u64 = 20u64;
+    let k3: u64 = 29u64;
+    let r0: u64 = multi_exit_probe(0u64, 40u64);
+    let r1: u64 = multi_exit_probe(1u64, 40u64);
+    let r2: u64 = multi_exit_probe(2u64, 40u64);
+    let caller_live: u64 = k1 + k2 + k3;
+    let probe_out: u64 = (r0 + r1 + r2) - 80u64;
+    let total: u64 = caller_live + probe_out;
+    let diff: u64 = total - 100u64;
+    diff as i32
+}
 
 machine main() crashes Trap {
-    let outcome: i32 = SelectedRun::run();
+    let outcome: i32 = run();
     transition outcome == 0 {
         true -> done()
         _ -> bad()

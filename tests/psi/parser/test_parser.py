@@ -229,7 +229,7 @@ def decode(payload: bytes) -> Observation:
     # Machine rows: owner flag and span, name span, generic-parameter range,
     # parameter range, return-type flag and handle, clause range, entry
     # statement range, lexical parent handle, body flag, expression range, visibility
-    # flag, span, boundary flag, container tag,
+    # flag, span, target flag and span, boundary flag, container tag,
     # operator token tag and span, contract range, every-requirement flag.
     machines = tuple(
         (
@@ -252,6 +252,10 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.byte(),
@@ -602,13 +606,13 @@ NO_TOKEN = (0, 1, 0, 0, 0, 0, 0)
 
 
 def machine_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
-    """Machine rows spelled before boundary and member machines are not
-    boundary and stand at the root; rows
+    """Machine rows spelled before target-scoped, boundary and member
+    machines are untargeted, not boundary, and stand at the root; rows
     spelled before operator tokens and contracts carry neither, and rows
     spelled before lexicographic measures have no components."""
-    rows = tuple(row if len(row) >= 28 else row + (0, 0) for row in rows)
-    rows = tuple(row if len(row) >= 35 else row + NO_TOKEN for row in rows)
-    return tuple(row if len(row) == 37 else row + (0, 0) for row in rows)
+    rows = tuple(row if len(row) >= 31 else row + (0, 1, 0, 0, 0, 0) for row in rows)
+    rows = tuple(row if len(row) >= 38 else row + NO_TOKEN for row in rows)
+    return tuple(row if len(row) == 40 else row + (0, 0) for row in rows)
 
 
 # The clause kinds whose rows hold a fact expression: requires, ensures and
@@ -871,6 +875,7 @@ def root_declaration_cases(program: str) -> None:
         statements: tuple[int, int] = (0, 0),
         owner: bytes = b"",
         public: bool = False,
+        target: bytes = b"",
         boundary: bool = False,
         container: int = 0,
         body: bool = True,
@@ -891,6 +896,7 @@ def root_declaration_cases(program: str) -> None:
             0,
             1 if body else 0, *expressions,
             1 if public else 0, *extent,
+            1 if target else 0, *(span(source, target) if target else NONE),
             1 if boundary else 0, container, *tail,
         )
 
@@ -909,12 +915,22 @@ def root_declaration_cases(program: str) -> None:
         generic_parameters=((2, *span(source, b"T"), 0, 0, 0, *span(source, b"T")),),
     )
 
-    # `boundary` marks a crossing; target prefixes are rejected below.
-    source = b"machine linux_arm64() {}"
+    # A target name before `machine` scopes one body of a family; `boundary`
+    # marks a crossing, with or without a target.
+    source = b"linux_arm64 machine Clock::now() -> u64 {}"
     declaration_accepted(
-        program, "target-name-is-an-ordinary-identifier", source,
+        program, "target-scoped-machine", source,
         roots=((3, 0, *whole(source)),),
-        machines=(machine(source, b"linux_arm64", whole(source)),),
+        machines=(machine(source, b"now", whole(source), owner=b"Clock", return_type=0, target=b"linux_arm64"),),
+        type_references=(named(source, b"u64"),),
+    )
+    source = b'public macos_arm64 boundary machine exit(code: i32) {}'
+    declaration_accepted(
+        program, "public-target-scoped-boundary-machine", source,
+        roots=((3, 0, *whole(source)),),
+        machines=(machine(source, b"exit", whole(source), parameters=(0, 1), public=True,
+                          target=b"macos_arm64", boundary=True),),
+        type_references=(named(source, b"i32"),),
     )
     source = b'boundary machine entry() {}\npublic boundary machine Real::add() {}'
     declaration_accepted(
@@ -1142,11 +1158,11 @@ def root_declaration_cases(program: str) -> None:
         ),
         traits=((*span(source, b"Clock"), 0, 0, 0, 0, 0, 2, 1, 1, *whole(source)),),
     )
-    source = b"boundary machine Clock::now() -> u64;\nmachine f(x: u64) -> u64 requires x > 0;\ndomain<T> T::Wrapped;"
+    source = b"linux_arm64 machine Clock::now() -> u64;\nmachine f(x: u64) -> u64 requires x > 0;\ndomain<T> T::Wrapped;"
     actual = declaration_accepted(
         program, "bodyless-declarations-before-roots", source,
         roots=(
-            (3, 0, *span(source, b"boundary machine Clock::now() -> u64;")),
+            (3, 0, *span(source, b"linux_arm64 machine Clock::now() -> u64;")),
             (3, 1, *span(source, b"machine f(x: u64) -> u64 requires x > 0;")),
             (DOMAIN, 0, *span(source, b"domain<T> T::Wrapped;")),
         ),
@@ -1213,12 +1229,7 @@ def root_declaration_cases(program: str) -> None:
         ("retired-operator", b"operator + Vec2::add(left: Vec2) -> Vec2 {}", 111, (0, 8), {}),
         ("boundary-declaration", b"boundary const x;", 109, (9, 14), {}),
         ("boundary-declaration-at-end", b"boundary", 109, (8, 8), {}),
-        ("retired-target-prefix", b"linux_arm64 machine Clock::now() -> u64 {}", 112, (0, 11), {}),
-        ("retired-bodyless-target-prefix", b"windows_x86_64 machine finish();", 112, (0, 14), {}),
-        ("retired-boundary-target-prefix", b"pub macos_arm64 boundary machine exit(code: i32) {}", 112, (4, 15), {}),
-        ("retired-bodyless-boundary-target-prefix", b"linux_x86_64 boundary machine finish();", 112, (0, 12), {}),
-        ("retired-prefix-before-data", b"linux_arm64 boundary data X;", 112, (0, 11), {}),
-        ("unregistered-prefix-rejects", b"custom_target machine finish() {}", 112, (0, 13), {}),
+        ("target-scoped-machine", b"linux_arm64 boundary data X;", 112, (21, 25), {}),
         ("unsupported-name-root", b"linux_arm64 thing", 2, (0, 11), {}),
         ("public-unsupported-name-root", b'public linux_arm64 thing', 9, (7, 18), {}),
         ("boundary-data-body", b"boundary data Handle { x: u8; }", 113, (21, 22), {}),
@@ -1440,14 +1451,14 @@ def machine_form_cases(program: str) -> None:
     ):
         actual = declaration_accepted(program, name, source, roots=((MACHINE_ROOT, 0, *whole(source)),))
         row = actual.machines[0]
-        assert row[0:4] == (1, *span(source, owner)) and row[26] == boundary, (name, row)
-        assert row[28:35] == (tag, *span(source, token), 0, 0, 0), (name, row)
+        assert row[0:4] == (1, *span(source, owner)) and row[29] == boundary, (name, row)
+        assert row[31:38] == (tag, *span(source, token), 0, 0, 0), (name, row)
     source = b"trait Add<T> { machine + add(a: T, b: T) -> T; }"
     actual = declaration_accepted(
         program, "requirement-token", source,
         traits=((*span(source, b"Add"), 0, 1, 0, 0, 0, 1, 0, 0, *whole(source)),),
     )
-    assert actual.machines[0][27:32] == (1, 1, *span(source, b"+")), actual.machines
+    assert actual.machines[0][30:35] == (1, 1, *span(source, b"+")), actual.machines
 
     retired = b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }"
     rejected(program, "retired-where-machine", retired, 201,
@@ -1464,7 +1475,7 @@ def machine_form_cases(program: str) -> None:
                     *span(source, b"requires machine F(value: u8) -> u8;")),),
         generic_parameters=((5, *span(source, b"F"), 0, 0, 0, *span(source, b"machine F")),),
     )
-    assert actual.machines[0][7:9] == (0, 1) and actual.machines[0][32:34] == (0, 1), actual.machines
+    assert actual.machines[0][7:9] == (0, 1) and actual.machines[0][35:37] == (0, 1), actual.machines
     source = (b"machine c<machine S, machine M>(p: u8) -> u8 requires machine S(i: u8) -> u8; "
               b"requires machine M(p: u8) -> u8; requires p > 0 {}")
     actual = declaration_accepted(
@@ -1475,7 +1486,7 @@ def machine_form_cases(program: str) -> None:
         ),
         clauses=(clause_row(REQUIRES, (0, 0), 2, span(source, b"requires p > 0"), True),),
     )
-    assert actual.machines[0][13:15] == (0, 1) and actual.machines[0][32:34] == (0, 2), actual.machines
+    assert actual.machines[0][13:15] == (0, 1) and actual.machines[0][35:37] == (0, 2), actual.machines
     source = (b"machine forward<machine Schema, machine Selected>(value: u8) -> u8\n"
               b"requires machine Schema<machine Inner>(value: u8) -> u8\n"
               b"requires machine Inner(index: u8) -> u8;\n"
@@ -1496,7 +1507,7 @@ def machine_form_cases(program: str) -> None:
             (5, *span(source, b"Inner"), 0, 0, 0, *span(source, b"machine Inner")),
         ),
     )
-    assert actual.machines[0][7:9] == (0, 2) and actual.machines[0][32:34] == (0, 3), actual.machines
+    assert actual.machines[0][7:9] == (0, 2) and actual.machines[0][35:37] == (0, 3), actual.machines
     source = b"machine run<machine H>() requires machine H satisfies Hook<u8>::call; {}"
     actual = declaration_accepted(
         program, "nominal-machine-contract", source,
@@ -1572,8 +1583,8 @@ def machine_form_cases(program: str) -> None:
         traits=((*span(source, b"LocalLogger"), 0, 0, 0, 0, 0, 1, 0, 1, *whole(source), 0, 0, 1, 0),),
     )
     row = actual.machines[0]
-    assert row[4:7] == span(source, b"*") and row[13:15] == (0, 4) and row[19] == 0, row
-    assert row[23:26] == through(source, b"machine", b"terminates;") and row[27] == 3 and row[34] == 1, row
+    assert row[4:7] == span(source, b"*") and row[13:15] == (0, 4) and row[18] == 0, row
+    assert row[22:25] == through(source, b"machine", b"terminates;") and row[30] == 3 and row[37] == 1, row
     source = b"trait Quiet<T> = Logger<T> { machine Logger::log suspends; machine flush reaches _ + Clock; }"
     actual = declaration_accepted(
         program, "refinement-of-named-requirements", source,

@@ -14,13 +14,7 @@ data Quartet [copy] where
     fourth: u64;
 }
 
-boundary trait SelectedMakeQuartet {
-    machine make_quartet() -> Quartet reaches
-;
-}
-CheckedMakeQuartet satisfies SelectedMakeQuartet {
-    machine make_quartet() -> Quartet
-{
+linux_x86_64 machine make_quartet() -> Quartet {
     Quartet {
         first: 10,
         second: 20,
@@ -28,19 +22,39 @@ CheckedMakeQuartet satisfies SelectedMakeQuartet {
         fourth: 40,
     }
 }
+
+linux_arm64 machine make_quartet() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
 }
 
+macos_arm64 machine make_quartet() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
+}
 
-
-
-
-
+windows_x86_64 machine make_quartet() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
+}
 
 machine probe() -> u64
 ensures
     result == 0u64
 {
-    let q: Quartet = SelectedMakeQuartet::make_quartet();
+    let q: Quartet = make_quartet();
     let total: u64 = q.first + q.second + q.third + q.fourth;
     total - 100
 }

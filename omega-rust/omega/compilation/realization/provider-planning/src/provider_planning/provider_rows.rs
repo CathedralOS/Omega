@@ -175,6 +175,7 @@ pub struct DirectBoundaryInput {
     declaration_identity: String,
     callable_identity: String,
     realization_owner: String,
+    realization_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub mechanism: DirectBoundaryMechanism,
 }
 
@@ -196,13 +197,20 @@ impl DirectBoundaryInput {
         plan.schema.methods.retain(|method| {
             original.schema.identity_text(method.requirement_identity) == requirement
         });
-        let semantic_plan = plan;
-        let plan = backend_plan::DirectBoundaryLeaf::project_plan(
-            &semantic_plan,
-            &self.callable_identity,
-            &self.callable_identity,
-        )
-        .map_err(Diagnostic::error)?;
+        let satisfied_schema = plan.schema.clone();
+        plan.schema.receiver_applications.clear();
+        plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);
+        plan.provider_type = self.realization_owner.clone();
+        plan.provider_type_package_identity = self.realization_package;
+        plan.schema.trait_name = plan.schema.identities.intern(&self.callable_identity);
+        plan.schema.trait_package_identity = self.realization_package;
+        plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
+        let [method] = plan.schema.methods.as_mut_slice() else {
+            return Err(Diagnostic::error(
+                "boundary leaf does not bind one exact requirement contract",
+            ));
+        };
+        method.requirement_identity = plan.schema.identities.intern(&self.callable_identity);
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
             binding.requirement_identity = self.callable_identity.clone();
@@ -211,8 +219,9 @@ impl DirectBoundaryInput {
         Ok(backend_plan::DirectBoundaryLeaf {
             declaration_identity: self.declaration_identity.clone(),
             callable_identity: self.callable_identity.clone(),
-            semantic_plan,
+            satisfied_schema,
             plan,
+            satisfied_requirement_identity: requirement.to_owned(),
             execution,
         })
     }
@@ -235,35 +244,13 @@ pub(crate) fn prepare(
         ) {
             continue;
         }
-        let origin = source
+        let Some(machine) = source
             .provenance
             .row_realizations
             .get(row_index)
-            .ok_or_else(|| vec![Diagnostic::error("provider row lost its supplying origin")])?;
-        let machine = if let Some(symbol) = origin.authored() {
-            typed.machine_by_symbol(symbol)
-        } else if let Some(native) = origin.native() {
-            // An immutable catalogue leaf can call its public requirement's
-            // native supply. Keep the original source row and receipt; do not
-            // synthesize a forwarding declaration or another candidate.
-            let mut matching = typed.machines().iter().filter(|machine| {
-                typed.symbols.symbol_package_identity(machine.symbol)
-                    == Some(native.selection.supplier_package)
-                    && typed
-                        .hosted_intrinsic_declaration(machine.symbol)
-                        .is_some_and(|catalogue| catalogue.requirement.symbol == native.requirement)
-            });
-            let selected = matching.next();
-            if matching.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "native row has ambiguous immutable catalogue backing",
-                )]);
-            }
-            selected
-        } else {
-            None
-        };
-        let Some(machine) = machine else {
+            .and_then(crate::ProviderRowRealization::authored)
+            .and_then(|symbol| typed.machine_by_symbol(symbol))
+        else {
             continue;
         };
         if machine.body_is_present {
@@ -325,6 +312,7 @@ pub(crate) fn prepare(
             declaration_identity,
             callable_identity,
             realization_owner: typed.symbols.display_path(machine.symbol, "::"),
+            realization_package: typed.symbols.symbol_package_identity(machine.symbol),
             mechanism,
         });
     }

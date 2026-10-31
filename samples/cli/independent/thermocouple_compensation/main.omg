@@ -57,7 +57,7 @@ machine Application::main(application: &mut Application) reaches Console {
     machine bracket_error(application: &mut Application) { Console::write_line("ERROR bracket"); Console::exit_process(13); }
     machine invert(application: &mut Application, first: Segment, second: Segment, compensated: f64, reference: f64, low: f64, high: f64) {
         let estimate: Estimate = enumerate(first, second, compensated, low, high);
-        field(&mut application.reader, "brackets=", F64FromI32::from_i32(estimate.count));
+        field(&mut application.reader, "brackets=", F64::from_i32(estimate.count));
         transition estimate.count == 1 { true -> success(application, compensated, reference, estimate) _ -> no_unique(application, estimate.count) }
     }
     machine no_unique(application: &mut Application, count: i32) {

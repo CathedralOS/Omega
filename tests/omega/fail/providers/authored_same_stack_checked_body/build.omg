@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
- Build::package(builder, "native_authored_same_stack_checked_body");
-
- Build::same_stack_demand<TextOutput::output_string>(builder, uefi_x86_64, 4096);
-}

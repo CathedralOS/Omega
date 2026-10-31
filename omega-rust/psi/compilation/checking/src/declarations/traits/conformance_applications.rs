@@ -27,63 +27,6 @@ pub(crate) use forwarding::{
     validate_forwarded_argument,
 };
 
-/// Validate the ordinary positional evidence telescope before a consumer erases
-/// an applied data operand. This checks the exact instantiated trait arguments;
-/// closing a map or matching its trait declaration alone is insufficient.
-pub fn validate_data_evidence_application(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-    lexical_owner: SymbolHandle,
-) -> Result<(), Vec<Diagnostic>> {
-    let reference = program
-        .type_reference_table
-        .unconstrained_type_reference(reference);
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        arguments,
-        lifetime_arguments,
-        ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return Err(vec![Diagnostic::error(
-            "data evidence validation requires an exact applied declaration",
-        )]);
-    };
-    let definition = program
-        .data_definition_by_symbol(*base_symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "data evidence application lost its declaration",
-            )]
-        })?;
-    let parameters = program.data_type_parameters(definition);
-    let arguments = program
-        .type_reference_table
-        .type_reference_handles(*arguments);
-    if parameters.len() != arguments.len()
-        || definition.lifetime_parameters.len() != lifetime_arguments.len()
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "data `{}` has an incomplete application telescope",
-            definition.name
-        ))]);
-    }
-    let mut diagnostics = Vec::new();
-    super::trait_implementation_arguments::validate_implementation_application(
-        program,
-        definition.symbol,
-        parameters,
-        &definition.lifetime_parameters,
-        &definition.conformance_bounds,
-        arguments,
-        lifetime_arguments,
-        lexical_owner,
-        &format!("data `{}`", definition.name),
-        &mut diagnostics,
-    );
-    crate::program_validation::finish_strict_diagnostics(diagnostics)
-}
-
 pub fn validate_conformance_applications(
     program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {

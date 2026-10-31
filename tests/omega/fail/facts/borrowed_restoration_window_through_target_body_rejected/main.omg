@@ -6,27 +6,26 @@ data Cell {
     value: u64;
 }
 
-boundary trait SelectedWriteCell {
-    machine write_cell(cell: &mut Cell) reaches
-;
-}
-CheckedWriteCell satisfies SelectedWriteCell {
-    machine write_cell(cell: &mut Cell)
-{
+linux_x86_64 machine write_cell(cell: &mut Cell) {
     cell.value = 100u64;
 }
+
+linux_arm64 machine write_cell(cell: &mut Cell) {
+    cell.value = 100u64;
 }
 
+macos_arm64 machine write_cell(cell: &mut Cell) {
+    cell.value = 100u64;
+}
 
-
-
-
-
+windows_x86_64 machine write_cell(cell: &mut Cell) {
+    cell.value = 100u64;
+}
 
 machine main() crashes Trap {
     let mut cell: Cell = Cell { value: 0u64 };
     let held: &mut Cell = &mut cell;
-    SelectedWriteCell::write_cell(&mut cell);
+    write_cell(&mut cell);
     held.value = 99u64;
     let val: u64 = cell.value;
     transition val >= 100u64 && val <= 100u64 {

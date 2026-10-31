@@ -9,16 +9,10 @@ machine selector(fail: bool) -> u32 crashes Trap {
     machine ready() -> u32 { 3221225600 }
 }
 
-boundary trait SelectedObserve {
-    machine observe(fail: bool) -> u64 reaches MachineControl;
-}
-CheckedObserve satisfies SelectedObserve {
-    machine observe(fail: bool) -> u64 reaches MachineControl
-{
+linux_x86_64 machine observe(fail: bool) -> u64 reaches MachineControl {
     let mut result: u64 = 0;
     asm { rdmsr result, selector(fail) }
     result
 }
-}
 
-machine main() reaches MachineControl crashes Trap { let result: u64 = SelectedObserve::observe(true); }
+machine main() reaches MachineControl crashes Trap { let result: u64 = observe(true); }

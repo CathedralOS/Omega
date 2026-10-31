@@ -19,7 +19,7 @@ pub struct SelectedExecution {
     /// Consumers borrow the same preparation rather than reopening source.
     pub provider_source: Arc<provider_planning::SelectedProviderSource>,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
-    pub declaration_catalog: Arc<psi_terminal_production::PreparedDeclarationCatalog>,
+    pub external_providers: Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
     /// Native handoff and executable exclusion admission demand these source
     /// identities. A refusal remains data so checking-only stops acquire no
     /// native-only obligations.

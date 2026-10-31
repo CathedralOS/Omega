@@ -42,59 +42,12 @@ enum ReceiverProvenance {
     Unknown,
 }
 
-/// This invocation's fact storage and its exact state membership. Transfers
-/// read one callee's facts; scanning every unrelated state per call made
-/// source checking quadratic even when no capability could propagate.
-struct CapabilityFlows {
-    facts: Arena<CapabilityFlowFact>,
-    by_state: Vec<StateCapabilityFacts>,
-}
-
-struct StateCapabilityFacts {
-    state_symbol: SymbolHandle,
-    fact_handles: Vec<arena::Handle<CapabilityFlowFact>>,
-}
-
-impl CapabilityFlows {
-    fn with_capacity(capacity: usize) -> Self {
-        Self {
-            facts: Arena::with_capacity(capacity),
-            by_state: Vec::new(),
-        }
-    }
-
-    fn capabilities(
-        &self,
-        state_symbol: SymbolHandle,
-        kind: CapabilityFlowKind,
-    ) -> Vec<SymbolHandle> {
-        let Ok(state_index) = self.by_state.binary_search_by_key(
-            &(state_symbol.arena_index(), state_symbol.generation()),
-            |row| {
-                (
-                    row.state_symbol.arena_index(),
-                    row.state_symbol.generation(),
-                )
-            },
-        ) else {
-            return Vec::new();
-        };
-        self.by_state[state_index]
-            .fact_handles
-            .iter()
-            .map(|handle| self.facts.get(*handle))
-            .filter(|fact| fact.kind == kind)
-            .map(|fact| fact.capability_symbol)
-            .collect()
-    }
-}
-
 pub(crate) fn build_capability_facts(
     program: &dyn ::validation::CheckingInput,
     service_reaches: &ServiceReachInferencePlan,
     flow: &FlowFacts,
 ) -> CapabilityFlowPlan {
-    let mut flows = CapabilityFlows::with_capacity(flow.boundaries.edges.len());
+    let mut flows = Arena::with_capacity(flow.boundaries.edges.len());
 
     // `uses`: every boundary-trait edge recorded by the flow analysis for calls
     // that resolve to an in-package boundary implementation.
@@ -234,7 +187,7 @@ pub(crate) fn build_capability_facts(
     // the call graph one or more levels.
     propagate_nested_capability_flows(program, service_reaches, &mut flows);
 
-    CapabilityFlowPlan::with_roots(flows.facts)
+    CapabilityFlowPlan::with_roots(flows)
 }
 
 /// A nested-call edge in the service-reach plan's call graph: a caller state
@@ -256,7 +209,7 @@ struct CallEdge {
 fn propagate_nested_capability_flows(
     program: &dyn ::validation::CheckingInput,
     service_reaches: &ServiceReachInferencePlan,
-    flows: &mut CapabilityFlows,
+    flows: &mut Arena<CapabilityFlowFact>,
 ) {
     let edges = collect_call_edges(service_reaches);
 
@@ -270,7 +223,13 @@ fn propagate_nested_capability_flows(
                 CapabilityFlowKind::Acquires,
             ] {
                 // Capabilities the callee state already carries with this verb.
-                let propagated = flows.capabilities(edge.target_state_symbol, kind);
+                let propagated: Vec<SymbolHandle> = flows
+                    .iter()
+                    .filter(|(_, fact)| {
+                        fact.kind == kind && fact.state_symbol == edge.target_state_symbol
+                    })
+                    .map(|(_, fact)| fact.capability_symbol)
+                    .collect();
 
                 if propagated.is_empty() {
                     continue;
@@ -372,7 +331,7 @@ fn state_has_capability_parameter(
 
 #[allow(clippy::too_many_arguments)]
 fn push_unique(
-    flows: &mut CapabilityFlows,
+    flows: &mut Arena<CapabilityFlowFact>,
     kind: CapabilityFlowKind,
     capability_symbol: SymbolHandle,
     machine_symbol: SymbolHandle,
@@ -391,34 +350,9 @@ fn push_unique(
         via_state_symbol,
     };
 
-    let state_index = flows
-        .by_state
-        .binary_search_by_key(
-            &(state_symbol.arena_index(), state_symbol.generation()),
-            |row| {
-                (
-                    row.state_symbol.arena_index(),
-                    row.state_symbol.generation(),
-                )
-            },
-        )
-        .unwrap_or_else(|state_index| {
-            flows.by_state.insert(
-                state_index,
-                StateCapabilityFacts {
-                    state_symbol,
-                    fact_handles: Vec::new(),
-                },
-            );
-            state_index
-        });
-    let state_fact_handles = &mut flows.by_state[state_index].fact_handles;
-    let exists = state_fact_handles
-        .iter()
-        .any(|handle| flows.facts.get(*handle) == &fact);
+    let exists = flows.iter().any(|(_, existing)| *existing == fact);
     if !exists {
-        let handle = flows.facts.append(fact);
-        state_fact_handles.push(handle);
+        flows.append(fact);
     }
     !exists
 }

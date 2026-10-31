@@ -1,7 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedHelperValue, LinuxX8664HelperValue>(builder, linux_x86_64);
-    Build::select_provider<SelectedHelperValue, MacosArm64HelperValue>(builder, macos_arm64);
-
     Build::application(builder, "unrealized_family_signature_rejected");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

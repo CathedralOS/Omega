@@ -140,7 +140,7 @@ impl SelectedProgramEntryCall {
         {
             return Err("semantic-entry transport does not join the exact selected artifact, requirement and entry shape".into());
         }
-        let selections = terminal_installation::target_context(
+        let selections = terminal_installation::admit_target_machine_selections(
             artifact.view(),
             entry.source().target_slot().owner.target_name(),
         );
@@ -148,7 +148,9 @@ impl SelectedProgramEntryCall {
             .entry(
                 artifact.view().identity(),
                 module,
-                terminal_psi::TerminalCallable::Machine(entry.checked_entry().terminal_entry()),
+                terminal_psi::TargetMachineCallable::Machine(
+                    entry.checked_entry().terminal_entry(),
+                ),
             )
             .map_err(|reason| format!("semantic-entry target selection: {reason}"))?;
         // The selected source declaration receives exactly these two existing

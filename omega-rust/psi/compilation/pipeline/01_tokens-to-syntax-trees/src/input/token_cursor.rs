@@ -97,11 +97,10 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// trivia), but trivia between tokens is retained, so every peek past the
     /// head continues from here instead of re-skipping by hand.
     fn peek(&self, index: usize) -> Option<&'tokens Token> {
-        let mut remaining = self.tokens;
-        for _ in 0..index {
-            remaining = skip_non_semantic_tokens(remaining.get(1..)?);
+        if index == 0 {
+            return self.tokens.first();
         }
-        remaining.first()
+        skip_non_semantic_tokens(self.tokens.get(1..)?).get(index - 1)
     }
 
     pub(crate) fn depth(&self) -> u16 {
@@ -325,6 +324,22 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Ok((literal, rest))
     }
 
+    /// An integer literal at a STRUCTURAL position that needs a number at
+    /// parse time (array lengths, wire field numbers, range-form bounds).
+    /// These keep an explicit i64 ceiling with a loud
+    /// error -- they are not value-binding uses, so D14's fit-at-use does not
+    /// apply.
+    pub(crate) fn take_integer(self) -> Result<(i64, Self), ParseError> {
+        let (literal, rest) = self.take_parsed_integer("integer literal")?;
+        let value = literal.value_i64().ok_or_else(|| {
+            ParseError::at_source_span(
+                "integer literal exceeds i64; this position needs a parse-time number",
+                self.current_source_span(),
+            )
+        })?;
+        Ok((value, rest))
+    }
+
     /// A nonnegative structural identity carried through the complete `u64`
     /// range. Unlike signed structural integers, stable schema identities are
     /// opaque unsigned keys rather than arithmetic values.
@@ -459,17 +474,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
                 matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
                     && self.text(token).as_str() == name
             })
-    }
-
-    /// A retired declaration head, recognized only for a directed migration
-    /// diagnostic and preceding-contract termination. This creates no machine
-    /// or target identity; ordinary names and target values remain expressions.
-    pub(crate) fn at_retired_target_machine(&self) -> bool {
-        self.at_identifier_then_contextual("machine")
-            || (self.at_identifier_then_contextual("boundary")
-                && self
-                    .peek(2)
-                    .is_some_and(|token| token.keyword() == Some(KeywordKind::Machine)))
     }
 
     /// A contextual prefix such as `move value` applies only to a following

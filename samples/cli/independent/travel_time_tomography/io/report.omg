@@ -7,7 +7,7 @@ public data Output { }
 public machine write_scaled(output: &mut Output, value: f64) reaches Console
 invokes Console;
 {
-    let converted: i64 in Saturating = I64FromF64::from_f64(value * 1000000.0);
+    let converted: i64 in Saturating = I64::from_f64(value * 1000000.0);
     let units: i64 = (converted as i64) % 2000000000000000;
     transition units < 0 { true -> negative(output, units) false -> positive(output, units) }
     machine negative(output: &mut Output, units: i64) requires units > -2000000000000000 requires units < 0 {

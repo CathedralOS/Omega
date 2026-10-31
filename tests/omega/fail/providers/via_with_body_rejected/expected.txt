@@ -1,1 +1,1 @@
-`via` binding clauses are retired
+carries a `via` binding but is not an external leaf

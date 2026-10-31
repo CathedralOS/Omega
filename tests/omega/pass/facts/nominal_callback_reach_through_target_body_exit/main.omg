@@ -18,22 +18,21 @@ requires machine Step satisfies StepContract::step;
     Step(value)
 }
 
-boundary trait SelectedRelay {
-    machine relay(value: u64) -> u64 reaches
-;
-}
-CheckedRelay satisfies SelectedRelay {
-    machine relay(value: u64) -> u64
-{
+linux_x86_64 machine relay(value: u64) -> u64 {
     walk<bump>(value)
 }
+linux_arm64 machine relay(value: u64) -> u64 {
+    walk<bump>(value)
+}
+macos_arm64 machine relay(value: u64) -> u64 {
+    walk<bump>(value)
+}
+windows_x86_64 machine relay(value: u64) -> u64 {
+    walk<bump>(value)
 }
 
-
-
-
 machine main() crashes Trap {
-    transition SelectedRelay::relay(35) == 42u64 {
+    transition relay(35) == 42u64 {
         true -> done()
         _ -> bad()
     }

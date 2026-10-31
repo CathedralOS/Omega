@@ -222,21 +222,20 @@ pub(super) fn assign_call_symbol(
         target_symbol =
             nested_receiver_call_target_symbol(symbols, machine, &receiver_chain, &call.target);
     }
-    if let symbol_resolved_trees::expression::ExpressionNode::Call(mut call) =
-        expression_table.expression(expression).clone()
+    if let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        expression_table.expression_mut(expression)
     {
         call.target_symbol = target_symbol;
+        // `exclude_service<Trait>()` names one exact declaration the same way
+        // a provider slot does; build harvesting requires a boundary trait.
         assign_call_machine_argument_symbols(
             symbols,
             machine,
             state_symbol,
             &call.target,
             target_symbol,
-            expression_table,
             &mut call.machine_arguments,
         );
-        *expression_table.expression_mut(expression) =
-            symbol_resolved_trees::expression::ExpressionNode::Call(call);
     }
 }
 

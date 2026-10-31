@@ -9,12 +9,7 @@ machine verify_diff(value: u16) -> u16
     head + tail
 }
 
-boundary trait SelectedComputeTargetBody {
-    machine compute_target_body(lhs: u16, rhs: u16) -> u16 reaches
-requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100;
-}
-CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
-    machine compute_target_body(lhs: u16, rhs: u16) -> u16
+linux_x86_64 machine compute_target_body(lhs: u16, rhs: u16) -> u16
     requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
 {
     let a: u16 in Wrapping = lhs as u16 in Wrapping;
@@ -23,16 +18,39 @@ CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
     let diff: u16 = wrapped as u16;
     verify_diff(diff)
 }
+
+linux_arm64 machine compute_target_body(lhs: u16, rhs: u16) -> u16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+{
+    let a: u16 in Wrapping = lhs as u16 in Wrapping;
+    let b: u16 in Wrapping = rhs as u16 in Wrapping;
+    let wrapped: u16 in Wrapping = a - b;
+    let diff: u16 = wrapped as u16;
+    verify_diff(diff)
 }
 
+macos_arm64 machine compute_target_body(lhs: u16, rhs: u16) -> u16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+{
+    let a: u16 in Wrapping = lhs as u16 in Wrapping;
+    let b: u16 in Wrapping = rhs as u16 in Wrapping;
+    let wrapped: u16 in Wrapping = a - b;
+    let diff: u16 = wrapped as u16;
+    verify_diff(diff)
+}
 
-
-
-
-
+windows_x86_64 machine compute_target_body(lhs: u16, rhs: u16) -> u16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+{
+    let a: u16 in Wrapping = lhs as u16 in Wrapping;
+    let b: u16 in Wrapping = rhs as u16 in Wrapping;
+    let wrapped: u16 in Wrapping = a - b;
+    let diff: u16 = wrapped as u16;
+    verify_diff(diff)
+}
 
 machine evaluate() -> u16 {
-    SelectedComputeTargetBody::compute_target_body(400, 80)
+    compute_target_body(400, 80)
 }
 
 machine main() crashes Trap {

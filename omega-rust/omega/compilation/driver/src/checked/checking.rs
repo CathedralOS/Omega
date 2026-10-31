@@ -193,12 +193,6 @@ impl PreparedPackageInvocation {
     pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
         self.source.execution()
     }
-    pub(super) fn advance_build(
-        &mut self,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
-    ) -> build_continuation::BuildExecutionProgress {
-        build_continuation::BuildSourceInvocation::advance_build(&mut self.source, returned)
-    }
 
     pub(super) fn settle(
         self,
@@ -247,7 +241,7 @@ pub(super) fn begin_package_build_worker(
     request: CheckedCompileRequest,
     source: PreparedCheckedSource,
     reuse: SettledCheckReuse,
-    owner: &build_continuation::BuildCompilationContext,
+    owner: &build_evaluation::PureBuildCompilation,
 ) -> Result<PreparedPackageInvocation, CompileFailure> {
     let selected_target =
         target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
@@ -260,7 +254,7 @@ pub(super) fn begin_package_build_worker(
         optimization_rollback: request.optimization_rollback.clone(),
         settled_check_reuse: reuse,
     };
-    let source = prepare_build_source_invocation(&request.root_path, source, child, owner)?;
+    let source = prepare_build_source_invocation(&request.root_path, source, child, Some(owner))?;
     Ok(PreparedPackageInvocation {
         capture: request.source_capture,
         root: request.root_path,
@@ -289,17 +283,6 @@ impl SourceCompilation {
     }
     pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
         self.source.execution()
-    }
-    pub fn advance_build(
-        &mut self,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
-    ) -> build_continuation::BuildExecutionProgress {
-        compile_thread::run_on_compile_thread(|| {
-            Ok::<_, CompileFailure>(self.source.advance_build(returned))
-        })
-        .unwrap_or_else(|failure| {
-            build_continuation::BuildExecutionProgress::Complete(Err(failure))
-        })
     }
 
     pub(crate) fn root(&self) -> &Path {
@@ -362,13 +345,14 @@ pub(super) fn prepare_source_compilation(
     root: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
-    build_context: &build_continuation::BuildCompilationContext,
+    pure_build_compilation: &build_evaluation::PureBuildCompilation,
 ) -> Result<SourceCompilation, CompileFailure> {
     let target = child.selected_target_profile;
     let inputs = child.package_inputs.cloned();
     let rollback = child.optimization_rollback.clone();
     let reuse = child.settled_check_reuse.clone();
-    let source = prepare_build_source_invocation(root, source, child, build_context)?;
+    let source =
+        prepare_build_source_invocation(root, source, child, Some(pure_build_compilation))?;
     Ok(SourceCompilation {
         root: root.to_path_buf(),
         target,
@@ -380,20 +364,11 @@ pub(super) fn prepare_source_compilation(
 }
 
 fn prepare_build_source_invocation(
-    root: &Path,
-    source: PreparedCheckedSource,
-    child: CheckedExecutionRequest<'_>,
-    context: &build_continuation::BuildCompilationContext,
-) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
-    build_continuation::BuildSourceInvocation::prepare(root, source, child, context.clone())
-}
-
-pub(super) fn prepare_admitted_build_source(
     root_path: &Path,
     mut source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<build_continuation::PreparedBuildSourceInvocation, CompileFailure> {
+) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
 
@@ -402,7 +377,7 @@ pub(super) fn prepare_admitted_build_source(
         prepare_typed_frontier(source, child.package_inputs, child.build.profile)?;
     let base_sources = frontier.base_sources.clone();
     let package_inputs = child.package_inputs;
-    build_continuation::prepare_admitted_build_invocation(
+    build_continuation::prepare_build_invocation(
         root_path,
         child,
         parsed,

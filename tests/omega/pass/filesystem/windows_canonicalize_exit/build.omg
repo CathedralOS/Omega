@@ -1,12 +1,6 @@
 // Windows canonicalize runtime canary: select the exact supported entry.
 
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedCanonicalPrefixIsValid, LinuxX8664CanonicalPrefixIsValid>(builder, linux_x86_64);
-    Build::select_provider<SelectedCanonicalPrefixIsValid, LinuxX8664CanonicalPrefixIsValid>(builder, linux_arm64);
-    Build::select_provider<SelectedCanonicalPrefixIsValid, LinuxX8664CanonicalPrefixIsValid>(builder, macos_arm64);
-    Build::select_provider<SelectedCanonicalPrefixIsValid, LinuxX8664CanonicalPrefixIsValid>(builder, macos_x86_64);
-    Build::select_provider<SelectedCanonicalPrefixIsValid, WindowsX8664CanonicalPrefixIsValid>(builder, windows_x86_64);
-
     Build::application(builder, "windows_canonicalize_exit");
     Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"

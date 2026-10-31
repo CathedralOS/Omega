@@ -27,7 +27,7 @@ public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; bloc
         }
     }
     machine digit(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
-        let next_accumulator: f64 = accumulator * 10.0 + F64FromI32::from_i32(character) - 48.0;
+        let next_accumulator: f64 = accumulator * 10.0 + F64::from_i32(character) - 48.0;
         transition fraction {
             true -> next(raw, bytes + 1, next_accumulator, scale * 10.0, negative, true, true, digits + 1, decimals + 1)
             false -> next(raw, bytes + 1, next_accumulator, scale, negative, true, false, digits + 1, decimals)
@@ -53,8 +53,8 @@ public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; bloc
 }
 machine sign(accumulator: f64, negative: bool) -> f64 { transition negative { true -> minus(accumulator) false -> plus(accumulator) } machine minus(accumulator: f64) -> f64 { 0.0 - accumulator } machine plus(accumulator: f64) -> f64 { accumulator } }
 public machine decode(raw: &Raw, problem: &mut Problem) -> bool {
-    let count: u64 in Saturating = U64FromF64::from_f64(raw.values[0]);
-    transition count >= 3 && count <= 16 && F64FromU64::from_u64(count as u64) == raw.values[0] && raw.count == 1 + (count as u64) * 7 {
+    let count: u64 in Saturating = U64::from_f64(raw.values[0]);
+    transition count >= 3 && count <= 16 && F64::from_u64(count as u64) == raw.values[0] && raw.count == 1 + (count as u64) * 7 {
         true -> start(raw, problem, count as u64)
         false -> bad()
     }
@@ -79,4 +79,4 @@ public machine decode(raw: &Raw, problem: &mut Problem) -> bool {
     }
     machine good() -> bool { true } machine bad() -> bool { false }
 }
-machine bounded(accumulator: f64) -> bool { F64IsFinite::is_finite(accumulator) && accumulator >= -1000.0 && accumulator <= 1000.0 }
+machine bounded(accumulator: f64) -> bool { F64::is_finite(accumulator) && accumulator >= -1000.0 && accumulator <= 1000.0 }

@@ -48,20 +48,6 @@ impl<T: Default> OrderedRootArena<T> {
         self.handles.span_or_empty(self.roots).contains(&handle)
     }
 
-    /// Exact published declaration identities in this view's order.
-    pub fn root_handles(&self) -> &[Handle<T>] {
-        self.handles.span_or_empty(self.roots)
-    }
-
-    /// Reintroduce an existing backing row after a new consumer demands it.
-    /// This never copies or replaces the record, and repeated demand is inert.
-    pub fn reactivate(&mut self, handle: Handle<T>) {
-        let _ = self.storage.get(handle);
-        if !self.contains(handle) {
-            self.handles.append_to_span(&mut self.roots, handle);
-        }
-    }
-
     pub fn iter(&self) -> OrderedRootArenaIter<'_, T> {
         OrderedRootArenaIter {
             storage: &self.storage,

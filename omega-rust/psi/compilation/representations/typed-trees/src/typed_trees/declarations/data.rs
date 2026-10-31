@@ -18,8 +18,6 @@ pub struct DataDefinition {
     /// Exact, resolved structural origin of a generated concrete generic
     /// instance. The generated nominal symbol remains the runtime carrier.
     pub generic_instance: Option<TypeReferenceHandle>,
-    /// Exact contracts for implementation operands in this data telescope.
-    pub conformance_bounds: Vec<crate::machine::GenericConformanceBound>,
     pub properties: DataProperties,
     /// Selected default-domain cleanup, independent from the data namespace.
     pub cleanup_selection: Option<crate::domain::CleanupSelection>,
@@ -48,7 +46,6 @@ impl Default for DataDefinition {
             supply_mode: language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
-            conformance_bounds: Vec::new(),
             generic_instance: None,
             properties: DataProperties::default(),
             cleanup_selection: None,

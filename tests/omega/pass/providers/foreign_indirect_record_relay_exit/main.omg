@@ -17,7 +17,24 @@ public data AllocationProbe {}
 public boundary requirement AllocationProbe::statistics() -> AllocationStatistics;
 public boundary requirement AllocationProbe::exit_with(code: i32);
 data AllocationProvider {}
-
+linux_x86_64 machine statistics_binding() -> ForeignBinding<9, 9, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "mallinfo2", version: "GLIBC_2.33",
+        },
+    }
+}
+linux_x86_64 machine exit_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5",
+        },
+    }
+}
+linux_x86_64 machine AllocationProvider::statistics() -> AllocationStatistics
+satisfies AllocationProbe::statistics via statistics_binding();
+linux_x86_64 machine AllocationProvider::exit_with(code: i32)
+satisfies AllocationProbe::exit_with via exit_binding();
 
 machine relay(statistics: AllocationStatistics, token: u64) -> AllocationStatistics {
     transition token == 70 {

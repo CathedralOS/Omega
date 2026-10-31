@@ -32,15 +32,18 @@ pub use composition_modes::verify_selected_compositions_are_realized;
 use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
+use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
 };
+use language_semantics::direct_calls::DirectCallDeclarations;
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
 };
+use symbols::SymbolHandle;
 
 /// Resolve the exact Product boundary and normalized schema for the canonical
 /// filesystem host binding.
@@ -210,19 +213,18 @@ fn mint_toolchain_settled_plan(
     }))
 }
 
-/// Evaluated Build defaults selected for one target before provider planning.
-/// Their exact implementation identities retain ordinary declaration custody.
-pub struct SettledProviderDefaults {
+/// Target defaults and declaration origins prepared before provider planning.
+/// Build admission resolves its retained declarations to these exact typed
+/// identities; settlement consumes them without depending on source filtering.
+pub struct SettledTargetMachineDeclarations {
     pub provider_defaults: Vec<ProviderSelection>,
+    pub origins: Vec<crate::SelectedTargetMachineOrigin>,
 }
 
 /// Final typed provider choices and their evidence. The selected plan facts
 /// and review provenance move into checking and selected execution; the
 /// settlement stays provider-planning custody beside the checked program.
 pub struct CheckedProviderSelection {
-    /// Final selected invocation population, separate from all-body Source
-    /// checking and the conservative candidate demand used during choice.
-    pub application_declarations: checked_trees::typed_trees::references::DeclarationSelection,
     pub settlement: ProviderSettlement<crate::UnpreparedProviderRows>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
@@ -253,8 +255,10 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     /// Package output and audit use this inventory, never runtime demand as an
     /// excuse to discard a declared foreign promise.
     pub native_build_plans: Vec<crate::DerivedProviderPlan>,
-    /// Identity table of the evaluated native row receipts.
-    pub native_binding_identities: terminal_psi::TerminalIdentityTable,
+    /// Complete ordinary-`via` evaluation population, including leaves not
+    /// selected for this executable. Backend lowering reads only the imports
+    /// installed in provider plans.
+    pub evaluated_via_bindings: EvaluatedViaBindingTable,
     /// Selected normalized-import bindings and their evaluated calling plans,
     /// the only normalized foreign-locator custody in native realization.
     pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
@@ -285,7 +289,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             component_calling_applications,
             provider_candidates,
             native_build_plans,
-            native_binding_identities,
+            evaluated_via_bindings,
             external_binding_rows,
             independent_component_descriptions,
             verified_independent_components,
@@ -305,7 +309,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             component_calling_applications,
             provider_candidates: prepared,
             native_build_plans,
-            native_binding_identities,
+            evaluated_via_bindings,
             external_binding_rows,
             independent_component_descriptions,
             verified_independent_components,
@@ -371,103 +375,14 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
     }
 }
 
-/// Discover only this target's executable applications. Candidate traversal is
-/// conservative until ordinary whole-map selection below: it supplies no authority.
-/// An explicit nomination narrows its schema's candidate edges and retains the
-/// nominated map's complete member roster, including uncalled members.
-fn provider_application_declarations<'plans>(
-    checked: &checked_trees::CheckedTrees,
-    candidates: impl IntoIterator<Item = (&'plans ProviderPlan, &'plans crate::ProviderPlanProvenance)>,
-    target: &str,
-    defaults: &[ProviderSelection],
-    requested: &[ProviderSelection],
-    application_roots: &[symbols::SymbolHandle],
-    assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
-) -> checked_trees::typed_trees::references::DeclarationSelection {
-    let mut roots = application_roots.to_vec();
-    let mut edges = Vec::new();
-    for (plan, provenance) in candidates {
-        let covers_schema = |selection: &&ProviderSelection| {
-            selection
-                .target
-                .is_none_or(|profile| profile.canonical_name() == target)
-                && plan.rows.iter().any(|row| {
-                    selection.subject.selects_schema(
-                        provenance.schema.symbol(),
-                        plan.identity_text(row.requirement_identity),
-                        plan.schema.root_application_identity(),
-                    )
-                })
-        };
-        let mut choices: Vec<_> = requested.iter().filter(covers_schema).collect();
-        if choices.is_empty() {
-            choices.extend(defaults.iter().filter(covers_schema));
-        }
-        let nominated = choices
-            .iter()
-            .any(|selection| provenance.provider_type == Some(selection.provider_type.symbol));
-        if !choices.is_empty() && !nominated {
-            continue;
-        }
-        for (requirement, realization) in provenance
-            .row_requirements
-            .iter()
-            .zip(&provenance.row_realizations)
-        {
-            if let Some(machine) = realization.authored() {
-                edges.push((*requirement, machine));
-                // A target default supplies a demanded slot. Only an authored
-                // Build nomination introduces an application independently.
-                if requested.iter().any(|selection| {
-                    selection
-                        .target
-                        .is_none_or(|profile| profile.canonical_name() == target)
-                        && provenance.provider_type == Some(selection.provider_type.symbol)
-                        && plan.rows.iter().any(|row| {
-                            selection.subject.selects_schema(
-                                provenance.schema.symbol(),
-                                plan.identity_text(row.requirement_identity),
-                                plan.schema.root_application_identity(),
-                            )
-                        })
-                }) {
-                    roots.push(machine);
-                }
-            }
-        }
-    }
-    // Exact authored assumed bindings forward demand, not implementation
-    // identity. Close only those retained symbol correspondences over the
-    // existing source edges; Native admission still validates every contract.
-    loop {
-        let before = edges.len();
-        for binding in assumed_bindings {
-            for index in 0..edges.len() {
-                let (requirement, realization) = edges[index];
-                let forwarded = (binding.required, realization);
-                if binding.supplied == requirement && !edges.contains(&forwarded) {
-                    edges.push(forwarded);
-                }
-            }
-        }
-        if edges.len() == before {
-            break;
-        }
-    }
-    checked_trees::typed_trees::references::DeclarationSelection::from_symbols(
-        checked_trees::applications::application_machines(checked, &roots, &edges),
-    )
-}
-
+/// Limit selection to executable demands and explicitly authored choices.
+/// Merely declaring an implementation does not install its boundary slots.
 fn demanded_provider_plans(
-    checked: &checked_trees::CheckedTrees,
-    requirements: &checked_trees::ProviderApplicationRequirements,
+    uses: &std::collections::HashSet<symbols::SymbolHandle>,
     candidates: &[crate::DerivedProviderPlan],
     defaults: &[ProviderSelection],
     requested: &[ProviderSelection],
 ) -> Vec<crate::DerivedProviderPlan> {
-    let uses = &requirements.templates;
-    let coordinates = &requirements.coordinates;
     let choices = defaults
         .iter()
         .chain(requested)
@@ -478,62 +393,6 @@ fn demanded_provider_plans(
     candidates
         .iter()
         .filter(|candidate| {
-            let native_rows = candidate
-                .provenance
-                .row_realizations
-                .iter()
-                .enumerate()
-                .filter_map(|(index, origin)| {
-                    origin.native().map(|origin| {
-                        (
-                            index,
-                            origin.selection.application.trait_scope,
-                            origin.selection.application.closed_requirement,
-                        )
-                    })
-                })
-                .collect::<Vec<_>>();
-            if !native_rows.is_empty() {
-                return native_rows.iter().any(|(index, scope, closed)| {
-                    let template = candidate.provenance.row_requirements[*index];
-                    coordinates.iter().any(|coordinate| {
-                        let demanded = if let Some(closed) = closed {
-                            coordinate == closed
-                        } else if let Some(application) =
-                            checked.typed.closed_requirement_application(*coordinate)
-                        {
-                            application.template == template
-                                && scope.is_none_or(|scope| {
-                                    scope.scope(&checked.typed).is_some_and(|scope| {
-                                        checked.typed.requirement_application_matches_scope(
-                                            *coordinate,
-                                            &scope,
-                                        )
-                                    })
-                                })
-                        } else {
-                            *coordinate == template
-                        };
-                        if !demanded {
-                            return false;
-                        }
-                        // An owner-selected named map covers only its exact
-                        // receiving applications, including inherited scopes.
-                        // A native family remains for every uncovered demand.
-                        !defaults.iter().chain(requested).any(|selection| {
-                            selection.target.is_none_or(|target| {
-                                target.canonical_name() == candidate.plan.target
-                            }) && crate::service_schema::conformance_covers_requirement_application(
-                                &checked.typed,
-                                selection.provider_type.symbol,
-                                template,
-                                *coordinate,
-                            )
-                        })
-                    })
-                });
-            }
-
             provider_selection::is_candidate_demanded(
                 &candidate.plan,
                 &Ok(candidate.provenance.schema.symbol()),
@@ -550,8 +409,9 @@ fn demanded_provider_plans(
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
-    provider_inventory: &checked_trees::PreparedProviderInventory,
-    settled_provider_defaults: SettledProviderDefaults,
+    provider_uses: &std::collections::HashSet<symbols::SymbolHandle>,
+    body_declarations: &DirectCallDeclarations<SymbolHandle>,
+    settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
@@ -561,11 +421,7 @@ pub fn settle_checked_providers(
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
-    application_roots: &[symbols::SymbolHandle],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
-    let body_declarations = provider_inventory
-        .direct_calls_for(checked)
-        .map_err(|error| vec![error])?;
     let typed = &checked.typed;
     // Every Product body has already been checked. This target chooses only
     // realization rows; it never narrows the source program.
@@ -578,17 +434,24 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
+    let mut evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
+        checked,
+        source::DependencyScope::Product,
+        planning_target,
+        package_inputs,
+    )?;
     let authored_providers =
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
             context,
             body_declarations,
             &boundary_calling_plan_realizations,
+            &evaluated_via_bindings,
             planning_target,
-            settled_provider_defaults,
+            settled_target_machines,
         )?);
     let target_provider_defaults = authored_providers.defaults();
     let mut derived_provider_plans = authored_providers.candidates().to_vec();
-    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let mut identities = evaluated_via_bindings.identities().clone().into_builder();
     let native_build_plans = crate::native_bindings::derive(
         context,
         &boundary_calling_plan_realizations,
@@ -597,25 +460,10 @@ pub fn settle_checked_providers(
         &mut identities,
     )?;
     derived_provider_plans.extend(native_build_plans.iter().cloned());
-    let native_binding_identities = identities.build();
-    let application_declarations = provider_application_declarations(
-        checked,
-        derived_provider_plans
-            .iter()
-            .map(|candidate| (&candidate.plan, &candidate.provenance)),
-        target_name.unwrap_or_default(),
-        target_provider_defaults,
-        build_provider_selections,
-        application_roots,
-        assumed_bindings,
-    );
-    let requirements = provider_inventory
-        .requirements_for_declarations(checked, &application_declarations)
-        .map_err(|error| vec![error])?;
+    evaluated_via_bindings.retain_extended_identities(identities.build())?;
     let selected_provider_plans = crate::select_derived_provider_plans(
         &demanded_provider_plans(
-            checked,
-            &requirements,
+            provider_uses,
             &derived_provider_plans,
             target_provider_defaults,
             build_provider_selections,
@@ -740,7 +588,7 @@ pub fn settle_checked_providers(
                         crate::ProviderRowRealization::Toolchain;
                         minted.plan.rows.len()
                     ],
-
+                    row_target_machine_origins: vec![None; minted.plan.rows.len()],
                     row_placed_accessors: vec![None; minted.plan.rows.len()],
                 },
                 selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,
@@ -939,22 +787,7 @@ pub fn settle_checked_providers(
             &boundary_calling_plan_realizations,
             opaque_representation_selections,
         )?;
-    // Reuse the same application policy after choice, now with only exact
-    // selected provenance. An inactive candidate cannot donate its applications
-    // to this activation's review or borrow the chosen provider's plan.
-    let application_declarations = provider_application_declarations(
-        checked,
-        selected_provider_provenance
-            .iter()
-            .map(|selected| (&selected.plan, &selected.provider)),
-        target_name.unwrap_or_default(),
-        target_provider_defaults,
-        build_provider_selections,
-        application_roots,
-        assumed_bindings,
-    );
     Ok(CheckedProviderSelection {
-        application_declarations,
         settlement: ProviderSettlement {
             authored_providers,
             planning_target_profile: planning_target,
@@ -962,7 +795,7 @@ pub fn settle_checked_providers(
             component_calling_applications,
             provider_candidates,
             native_build_plans,
-            native_binding_identities,
+            evaluated_via_bindings,
             external_binding_rows,
             verified_independent_components: independent_components
                 .into_iter()

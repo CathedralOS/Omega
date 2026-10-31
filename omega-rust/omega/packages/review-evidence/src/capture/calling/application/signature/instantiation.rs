@@ -48,40 +48,9 @@ pub(super) fn instantiate_application(
     )
 }
 
-pub(super) fn instantiate_captured_application(
-    compilation: &mut TypedTrees,
-    source: &TypedTrees,
-    reference: TypeReferenceHandle,
-    lexical_owner: SymbolHandle,
-    regions: &[(
-        typed_trees::type_identity::LifetimeParameterIdentity,
-        Identifier,
-    )],
-) -> Result<TypeReferenceHandle, Vec<Diagnostic>> {
-    project(
-        compilation,
-        reference,
-        &[],
-        LifetimeProjection::Regions {
-            source,
-            lexical_owner,
-            regions,
-        },
-        0,
-    )
-}
-
 #[derive(Clone, Copy)]
 enum LifetimeProjection<'a> {
     Names(&'a [(Identifier, Identifier)]),
-    Regions {
-        source: &'a TypedTrees,
-        lexical_owner: SymbolHandle,
-        regions: &'a [(
-            typed_trees::type_identity::LifetimeParameterIdentity,
-            Identifier,
-        )],
-    },
     Application {
         source: &'a TypedTrees,
         supplying_owner: SymbolHandle,
@@ -118,27 +87,8 @@ fn project(
             *lexical_owner = retained;
         }
     }
-    if let LifetimeProjection::Regions { lexical_owner, .. } = &mut lifetimes {
-        let retained = compilation
-            .type_reference_table
-            .operand_lifetime_owner(reference);
-        if retained.is_valid() {
-            *lexical_owner = retained;
-        }
-    }
     let lifetime = |name: &Identifier| {
         match lifetimes {
-            LifetimeProjection::Regions {
-                source,
-                lexical_owner,
-                regions,
-            } => typed_trees::type_identity::lifetime_parameter_identity(
-                source,
-                lexical_owner,
-                name.as_str(),
-            )
-            .and_then(|identity| regions.iter().find(|(candidate, _)| *candidate == identity))
-            .map(|(_, name)| name.clone()),
             LifetimeProjection::Names(names) => names
                 .iter()
                 .find(|(source, _)| source == name)
@@ -169,22 +119,44 @@ fn project(
             {
                 return Ok(*actual);
             }
-            // A closed nominal view retains its original complete application.
-            // Project that ordinary tuple; never synthesize a Policy<Schema>
-            // carrier from a plan's diagnostic declaration symbols.
-            if let Some(application) = compilation
-                .data_definition_by_symbol(symbol)
-                .and_then(|data| data.generic_instance)
-            {
-                return project(
-                    compilation,
-                    application,
-                    substitutions,
-                    lifetimes,
-                    depth + 1,
-                );
+            let plan = compilation
+                .plan_laid_layout(symbol)
+                .map(|layout| (layout.schema_symbol, layout.policy_symbol));
+            if let Some((schema_symbol, policy_symbol)) = plan {
+                let schema = compilation
+                    .data_definition_by_symbol(schema_symbol)
+                    .map(|definition| {
+                        (
+                            definition.symbol,
+                            definition.name.clone(),
+                            definition.generic_instance,
+                        )
+                    })
+                    .ok_or_else(|| rejected("plan-laid signature type lost its exact schema"))?;
+                let schema_reference = match schema.2 {
+                    Some(reference) => {
+                        project(compilation, reference, substitutions, lifetimes, depth + 1)?
+                    }
+                    None => compilation
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: schema.0,
+                            name: schema.1,
+                        }),
+                };
+                let base_name = Identifier::generated(compilation.symbols.name(policy_symbol));
+                let arguments = compilation
+                    .type_reference_table
+                    .insert_type_reference_handles([schema_reference]);
+                TypeReferenceNode::Generic {
+                    base_symbol: policy_symbol,
+                    base_name,
+                    lifetime_arguments: Vec::new(),
+                    arguments,
+                }
+            } else {
+                return Ok(reference);
             }
-            return Ok(reference);
         }
         TypeReferenceNode::Reference {
             referee,

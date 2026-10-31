@@ -158,19 +158,14 @@ impl TypedTrees {
                 .expression_table
                 .static_machine_application(receipt.binding_application)
                 .lexical_owner;
-            let same_regions = self
-                .static_application_lifetimes_for_declaration(application.application, realization)
-                .ok()
-                .zip(
-                    self.static_application_lifetimes_for_declaration(
-                        receipt.binding_application,
-                        realization,
-                    )
-                    .ok(),
-                )
-                .is_some_and(|(source, selected)| {
-                    source == selected && (source.is_empty() || source_owner == binding_owner)
-                });
+            let lifetimes = self
+                .expression_table
+                .static_machine_application_lifetimes(application.application);
+            let same_regions = lifetimes
+                == self
+                    .expression_table
+                    .static_machine_application_lifetimes(receipt.binding_application)
+                && (lifetimes.is_empty() || source_owner == binding_owner);
             same_regions
                 && parameters.len() == arguments.len()
                 && bindings.len() == parameters.len()
@@ -313,11 +308,6 @@ impl TypedTrees {
                 .ok_or("closed requirement has no complete portable local operand")
             })
             .collect::<Result<Vec<_>, _>>()?;
-        // The instance owns this complete source scope even when no runtime
-        // call or Type actual mentions it. Prepare the independently rederived
-        // logical telescope through the same ordinary signature owner before
-        // publishing or reusing the closed executable instance.
-        self.prepare_trait_application_callable_signatures(environment)?;
         // Signature and ABI equality are insufficient cache coordinates. The
         // outer application includes phantom arguments, and local Type/Const
         // operands retain their supplying region owner. Closure remains a
@@ -329,14 +319,6 @@ impl TypedTrees {
                 && existing.portable_trait_application_identity
                     == portable_trait_application_identity
                 && existing.portable_local_arguments == portable_local_arguments
-                && self
-                    .expression_table
-                    .static_machine_application(existing.application)
-                    .lifetime_binding_declaration
-                    == self
-                        .expression_table
-                        .static_machine_application(application)
-                        .lifetime_binding_declaration
                 && self
                     .expression_table
                     .static_machine_application_lifetimes(existing.application)

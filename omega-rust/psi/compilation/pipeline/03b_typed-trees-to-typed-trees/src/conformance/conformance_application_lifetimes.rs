@@ -30,79 +30,6 @@ struct ElisionCall {
     machine_arguments: Box<[StaticMachineArgument]>,
 }
 
-/// A call's public receiving telescope, independently of an executable body.
-/// Requirements and machine parameters have the same parameter-position region
-/// operands as ordinary machines; selecting a private body cannot supply them.
-struct CalleeTelescope<'program> {
-    owner: SymbolHandle,
-    name: &'program Identifier,
-    lifetimes: &'program [Identifier],
-    parameters: &'program [typed_trees::signature::StateParameter],
-    type_parameters: &'program [typed_trees::data::TypeParameter],
-    evidence_bounds: &'program [typed_trees::machine::GenericConformanceBound],
-}
-
-impl ElisionCall {
-    fn callee<'program>(&self, program: &'program TypedTrees) -> Option<CalleeTelescope<'program>> {
-        let call = match self.site {
-            ElisionCallSite::Expression(handle) => {
-                typed_trees::references::StaticArgumentCall::Expression(
-                    handle,
-                    program.expression_table.call_node(handle)?,
-                )
-            }
-            ElisionCallSite::Statement(handle) => {
-                typed_trees::references::StaticArgumentCall::Statement(
-                    program.statement_table.statement(handle).as_call()?,
-                )
-            }
-        };
-        if let Some(signature) = program.requirement_invocation_telescope(self.caller_machine, call)
-        {
-            return Some(CalleeTelescope::signature(program, signature));
-        }
-        if match call {
-            typed_trees::references::StaticArgumentCall::Expression(_, call) => {
-                call.static_requirement_dispatch.is_some()
-            }
-            typed_trees::references::StaticArgumentCall::Statement(call) => {
-                call.static_requirement_dispatch.is_some()
-            }
-        } {
-            return None;
-        }
-        if let Some((machine, state)) = validation::find_state(program, self.target) {
-            return Some(CalleeTelescope {
-                owner: machine.symbol,
-                name: &state.name,
-                lifetimes: &machine.lifetime_parameters,
-                parameters: program.state_parameters(state),
-                type_parameters: program.machine_type_parameters(machine),
-                evidence_bounds: &machine.conformance_bounds,
-            });
-        }
-        program
-            .machine_parameter_signature(self.target)
-            .map(|(_, signature)| CalleeTelescope::signature(program, signature))
-    }
-}
-
-impl<'program> CalleeTelescope<'program> {
-    fn signature(
-        program: &'program TypedTrees,
-        signature: &'program typed_trees::signature::StateSignature,
-    ) -> Self {
-        Self {
-            owner: signature.symbol,
-            name: &signature.name,
-            lifetimes: &signature.lifetime_parameters,
-            parameters: program.state_signature_parameters(signature),
-            type_parameters: program.state_signature_type_parameters(signature),
-            evidence_bounds: &[],
-        }
-    }
-}
-
 /// Resolve erased conformance regions from the same parameter-position borrow
 /// facts used by ordinary calls. This runs before strict application closure:
 /// it only fills a complete, uniquely constrained lifetime lane and otherwise
@@ -113,7 +40,8 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     let calls = collect_elision_calls(program);
     let mut diagnostics = Vec::new();
     for mut call in calls {
-        let Some(callee) = call.callee(program) else {
+        let Some((callee_machine, callee_state)) = validation::find_state(program, call.target)
+        else {
             continue;
         };
         let Some(caller_machine) = program.machine_by_symbol(call.caller_machine) else {
@@ -126,7 +54,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
 
         let mut call_lifetimes = Vec::<(String, String)>::new();
         let mut conflicting_call_lifetime = false;
-        let parameters = callee.parameters;
+        let parameters = program.state_parameters(callee_state);
         let skip = parameters.len().saturating_sub(call.arguments.len());
         for (argument, parameter) in call.arguments.iter().zip(parameters.iter().skip(skip)) {
             let Some((actual, applications)) = caller_state
@@ -158,13 +86,13 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     program,
                     required,
                     actual,
-                    callee.lifetimes,
+                    &callee_machine.lifetime_parameters,
                     argument_scopes::Scope {
                         owner: caller_machine.symbol,
                         frames,
                     },
                     caller_machine.symbol,
-                    RequiredLifetimeScope::Declaration(callee.owner),
+                    RequiredLifetimeScope::Operand,
                     &mut |required, actual| {
                         if let Some(actual) = actual {
                             bind_lifetime(
@@ -186,7 +114,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         if conflicting_call_lifetime {
             diagnostics.push(Diagnostic::error(format!(
                 "call to `{}` has conflicting ordinary borrow constraints for an erased lifetime",
-                callee.name
+                callee_state.name
             )));
             continue;
         }
@@ -203,7 +131,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 .map(|call| call.authored_machine_application),
         };
 
-        let evidence_bounds = callee.evidence_bounds;
+        let evidence_bounds = callee_machine.conformance_bounds.iter().collect::<Vec<_>>();
         let mut evidence_index = 0usize;
         for argument_ordinal in 0..call.machine_arguments.len() {
             let mut selected = call.machine_arguments[argument_ordinal].clone();
@@ -275,8 +203,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 continue;
             };
 
-            let machine_substitutions =
-                static_substitutions(callee.type_parameters, &call.machine_arguments);
+            let machine_substitutions = static_substitutions(
+                program.machine_type_parameters(callee_machine),
+                &call.machine_arguments,
+            );
             let conformance_substitutions = static_substitutions(
                 program.conformance_type_parameters(conformance),
                 selected
@@ -312,10 +242,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                         .zip(typed_trees::type_identity::applied_type_identity_in_scope(
                             program,
                             *expected,
-                            callee.owner,
+                            callee_machine.symbol,
                             call.caller_machine,
                             &[AppliedTypeIdentityScope {
-                                declaration: callee.owner,
+                                declaration: callee_machine.symbol,
                                 arguments: &machine_substitutions,
                                 lifetimes: &call_lifetimes,
                             }],
@@ -351,7 +281,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         }
 
         if let Some(application) = application.filter(|application| application.is_valid()) {
-            let binding_declaration = program.lifetime_declaration_owner(callee.owner);
+            let binding_declaration = program.lifetime_declaration_owner(callee_machine.symbol);
             let lifetimes = call_lifetimes
                 .iter()
                 .map(|(parameter, argument)| {
@@ -372,11 +302,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             }
             program
                 .expression_table
-                .set_static_machine_application_lifetimes(
-                    application,
-                    binding_declaration,
-                    &lifetimes,
-                );
+                .set_static_machine_application_lifetimes(application, &lifetimes);
         }
         match call.site {
             ElisionCallSite::Expression(handle) => {
@@ -559,13 +485,13 @@ fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &str) -> Option
         .find_map(|(parameter, argument)| (parameter == name).then_some(argument.as_str()))
 }
 
-/// A receiving declaration still owns its lexical region formals after field
-/// or callable-view copying. A supplied Type operand instead carries fixed
+/// An unapplied field schema still declares its own region parameters after
+/// retaining its lexical owner. A supplied Type operand instead carries fixed
 /// caller regions, even when it came from this same declaration recursively.
 #[derive(Clone, Copy)]
 enum RequiredLifetimeScope {
     Operand,
-    Declaration(SymbolHandle),
+    DeclaredField(SymbolHandle),
 }
 
 /// Infer only from the exact declaration field selected by the constructor.
@@ -592,7 +518,7 @@ pub(crate) fn collect_declared_field_lifetime_bindings(
         return Some(());
     }
     let required_scope = if declaration.generic_instance.is_none() {
-        RequiredLifetimeScope::Declaration(declaration.symbol)
+        RequiredLifetimeScope::DeclaredField(declaration.symbol)
     } else {
         // An applied field is already an operand, not fresh schema vocabulary.
         RequiredLifetimeScope::Operand
@@ -672,17 +598,12 @@ fn visit_lifetime_bindings_in_scope(
     let owner = program
         .type_reference_table
         .operand_lifetime_owner(required);
-    let declared_owner = match required_scope {
-        RequiredLifetimeScope::Declaration(declaration) => {
-            let declaration = program.lifetime_declaration_owner(declaration);
-            declaration.is_valid().then_some(declaration)
-        }
-        RequiredLifetimeScope::Operand => None,
-    };
-    if owner.is_valid() && declared_owner != Some(program.lifetime_declaration_owner(owner)) {
+    if owner.is_valid()
+        && !matches!(required_scope, RequiredLifetimeScope::DeclaredField(declaration) if owner == declaration)
+    {
         return;
     }
-    if matches!(required_scope, RequiredLifetimeScope::Declaration(_))
+    if matches!(required_scope, RequiredLifetimeScope::DeclaredField(_))
         && !matches!(
             program.type_reference_table.operand_origin(required),
             typed_trees::types::TypeOperandOrigin::Lexical

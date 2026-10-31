@@ -55,13 +55,13 @@ pub(super) fn publish(
     for &(source, body) in machines {
         callables.insert(terminal_psi::ProofCallableAssociation::Callable {
             declaration: identity(source)?,
-            callable: terminal_psi::TerminalCallable::Machine(body),
+            callable: terminal_psi::TargetMachineCallable::Machine(body),
         });
     }
     for boundary in boundaries {
         callables.insert(terminal_psi::ProofCallableAssociation::Callable {
             declaration: identity(boundary.source)?,
-            callable: terminal_psi::TerminalCallable::Boundary(boundary.id),
+            callable: terminal_psi::TargetMachineCallable::Boundary(boundary.id),
         });
     }
     Ok(PublishedScope {

@@ -189,13 +189,12 @@ impl StatementTable {
         self.insert_transition_target(target)
     }
 
-    pub(super) fn remap_transition_target_symbols<'scope>(
+    pub(super) fn remap_transition_target_symbols(
         &mut self,
         target: TransitionTargetHandle,
         expressions: &mut crate::expression::ExpressionTable,
-        symbols: impl Into<crate::SymbolRebinding<'scope>>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
     ) {
-        let symbols = symbols.into();
         if !target.is_valid() {
             return;
         }

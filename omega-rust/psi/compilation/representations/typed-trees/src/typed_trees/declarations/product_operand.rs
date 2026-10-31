@@ -59,9 +59,6 @@ pub fn resolve_product_path(
     occurrence: source::SourceSpan,
     kind: ProductOperandKind,
 ) -> Option<symbols::SymbolHandle> {
-    if kind == ProductOperandKind::TableField {
-        return resolve_native_table_field(typed, path, occurrence).map(|(_, field)| field);
-    }
     let program = typed.product_declarations();
     let candidates = product_candidates(program, kind)?;
     let token_bound_machines = if kind == ProductOperandKind::BoundarySubject {
@@ -82,86 +79,21 @@ pub fn resolve_product_path(
     )
 }
 
-/// Resolve an inert declaration from its authenticated completed-Build scope.
-/// This does not import the supplier's Build author into Product execution.
+/// Resolve a completed dependency Build's captured lexical package, without
+/// importing its Build code or inventing a source occurrence in this Product.
+/// The caller must carry the original package output/source custody.
 pub fn resolve_captured_product_path(
     typed: &TypedTrees,
-    path: &str,
-    package: semantic_vocabulary::PackageKeyIdentity,
-    stratum: source::SourceResolutionStratum,
+    scope: &language_semantics::declaration_selection::CapturedNativeDeclaration,
     kind: ProductOperandKind,
 ) -> Option<SymbolHandle> {
     let program = typed.product_declarations();
-    let candidates = if kind == ProductOperandKind::TableField {
-        program
-            .data_definitions()
-            .iter()
-            .flat_map(|definition| {
-                program
-                    .data_members(definition)
-                    .iter()
-                    .filter_map(move |member| {
-                        member
-                            .as_field()
-                            .map(|field| (field.symbol, definition.is_public))
-                    })
-            })
-            .collect()
-    } else {
-        product_candidates(program, kind)?
-    };
-    program
-        .symbols
-        .find_captured_product_declaration(path, package, stratum, candidates)
-}
-
-/// Explain a refused designation without resolving another declaration or
-/// granting access. The current and frozen description views can differ while
-/// Product sources are being joined; diagnostics retain that distinction.
-pub fn product_declaration_lookup_diagnostic(
-    typed: &TypedTrees,
-    path: &str,
-    occurrence: source::SourceSpan,
-    kind: ProductOperandKind,
-) -> String {
-    let leaf = path.rsplit("::").next().unwrap_or(path);
-    let describe = |program: &TypedTrees| {
-        let reference = program.symbols.rejoin_product_occurrence(occurrence);
-        let candidates = product_candidates(program, kind).unwrap_or_default();
-        let matching = candidates.iter().filter_map(|(symbol, _)| {
-            let name = program.symbols.display_path(*symbol, "::");
-            if name.rsplit("::").next() != Some(leaf) { return None; }
-            Some({
-                let declaration = program.symbols.symbol_provenance_source_span(*symbol);
-                let file = declaration.and_then(|span| program.symbols.source_file(span));
-                format!("{name}: selected={}, package={:?}, scope={:?}, stratum={:?}, same-package={}, permitted-stratum={}",
-                    program.symbols.symbol_source_is_selected(*symbol),
-                    file.and_then(|file| file.package_identity),
-                    file.map(|file| file.dependency_scope),
-                    file.map(|file| file.resolution_stratum),
-                    declaration.is_some_and(|span| program.symbols.same_product_package_instance(reference, span)),
-                    program.symbols.source_reference_can_describe_product_symbol(reference, *symbol),
-                )
-            })
-        }).take(8).collect::<Vec<_>>();
-        format!(
-            "{} role candidates; matching declarations: [{}]",
-            candidates.len(),
-            matching.join("; ")
-        )
-    };
-    let source = typed.symbols.rejoin_product_occurrence(occurrence);
-    let file = typed.symbols.source_file(source);
-    let selected = typed
-        .symbols
-        .source_map()
-        .is_some_and(|sources| sources.source_is_selected(source.source_id));
-    format!(
-        "designation source: selected={selected}, package={:?}, scope={:?}; current Product view: {}; designated description view: {}",
-        file.and_then(|file| file.package_identity),
-        file.map(|file| file.dependency_scope),
-        describe(typed),
-        describe(typed.product_declarations())
+    let candidates = product_candidates(program, kind)?;
+    program.symbols.find_captured_product_declaration(
+        &scope.requirement_path,
+        scope.producer.package,
+        scope.resolution_stratum,
+        candidates,
     )
 }
 
@@ -170,7 +102,7 @@ fn product_candidates(
     kind: ProductOperandKind,
 ) -> Option<Vec<(SymbolHandle, bool)>> {
     let candidates = match kind {
-        ProductOperandKind::WireCompatibilityFact | ProductOperandKind::TableField => return None,
+        ProductOperandKind::WireCompatibilityFact => return None,
         ProductOperandKind::BoundarySubject => program
             .traits()
             .iter()
@@ -214,16 +146,6 @@ fn product_candidates(
                     .iter()
                     .map(move |requirement| (requirement.symbol, definition.is_public))
             })
-            .chain(
-                program
-                    .machines()
-                    .iter()
-                    .filter(|machine| {
-                        machine.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    })
-                    .map(|machine| (machine.symbol, machine.is_public)),
-            )
             .collect(),
         ProductOperandKind::Data => program
             .data_definitions()
@@ -367,6 +289,67 @@ pub fn resolve_build_request_author(
     Ok(machine.symbol)
 }
 
+/// Capture exact authored provenance before source erasure. The Terminal
+/// producer separately proves this machine owns the issued request.
+pub fn native_binding_formation(
+    typed: &TypedTrees,
+    author: SymbolHandle,
+    root: Option<SymbolHandle>,
+    request: std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>,
+) -> Result<language_semantics::declaration_selection::NativeBindingFormation, String> {
+    use sha2::{Digest, Sha256};
+    let machine = typed
+        .machine_by_symbol(author)
+        .ok_or("native source author has no exact checked machine")?;
+    let span = typed
+        .symbols
+        .symbol_provenance_source_span(author)
+        .ok_or("native source author lost its source")?;
+    let source = typed
+        .symbols
+        .source_file(span)
+        .ok_or("native declaration has no retained source file")?;
+    let callable_identity = typed
+        .machine_callable_identity_text(machine)
+        .ok_or("native declaration has no checked callable identity")?;
+    let [operand] = request.operands.as_ref() else {
+        return Err("native formation lost its exact requirement".into());
+    };
+    let relative = source
+        .path
+        .strip_prefix(&source.package_root)
+        .map_err(|_| "native source is outside its checked package")?
+        .to_string_lossy();
+    let mut digest = Sha256::new();
+    digest.update(b"omega.native-source-occurrence.v1\0");
+    for bytes in [
+        relative.as_bytes(),
+        source.source.as_bytes(),
+        callable_identity.as_bytes(),
+        operand.path.as_bytes(),
+    ] {
+        digest.update((bytes.len() as u64).to_le_bytes());
+        digest.update(bytes);
+    }
+    digest.update((request.source_span.span.start as u64).to_le_bytes());
+    digest.update((request.source_span.span.end as u64).to_le_bytes());
+    let root_scope = root
+        .and_then(|root| typed.symbols.symbol_provenance_source_span(root))
+        .is_some_and(|root| typed.symbols.same_source_package(span, root));
+    Ok(
+        language_semantics::declaration_selection::NativeBindingFormation {
+            request,
+            author: span,
+            author_package: typed.symbols.symbol_package_identity(author),
+            root_scope,
+            declaration_path: typed.symbols.display_path(author, "::"),
+            callable_identity,
+            source_occurrence_digest: digest.finalize().into(),
+            resolution_stratum: source.resolution_stratum,
+        },
+    )
+}
+
 impl TypedTrees {
     /// Exact source correspondence, followed by whole owned-graph equality.
     /// Equal display paths or numeric SourceIds cannot replace this join.
@@ -412,107 +395,4 @@ impl TypedTrees {
                 .zip(right.operands.iter())
                 .all(|(left, right)| self.same_product_operand_source(left, right))
     }
-}
-
-/// Resolve the complete typed dispatch field designation through the same
-/// source/package visibility query as all other inert Product operands.
-/// A field is never recovered by its final spelling or by a numeric slot.
-pub fn resolve_native_table_field(
-    typed: &TypedTrees,
-    path: &str,
-    occurrence: source::SourceSpan,
-) -> Option<(SymbolHandle, SymbolHandle)> {
-    use crate::data::DataMember;
-    if !path.contains("::") {
-        return None;
-    }
-    let program = typed.product_declarations();
-    let candidates = program.data_definitions().iter().flat_map(|definition| {
-        program
-            .data_members(definition)
-            .iter()
-            .filter_map(move |member| match member {
-                DataMember::Field(field) => Some((field.symbol, definition.is_public)),
-                _ => None,
-            })
-    });
-    let field = program.symbols.find_build_subject_declaration_from_source(
-        path,
-        occurrence,
-        candidates,
-        &[],
-    )?;
-    let owner = program.data_definitions().iter().find(|definition| {
-        program.data_members(definition).iter().any(
-            |member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field),
-        )
-    })?;
-    Some((owner.symbol, field))
-}
-
-/// Capture exact authored provenance before source erasure. The Terminal
-/// producer separately proves this machine owns the issued request.
-pub fn native_binding_formation(
-    typed: &TypedTrees,
-    author: SymbolHandle,
-    root: Option<SymbolHandle>,
-    request: std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>,
-) -> Result<language_semantics::declaration_selection::NativeBindingFormation, String> {
-    use sha2::{Digest, Sha256};
-    let machine = typed
-        .machine_by_symbol(author)
-        .ok_or("native source author has no exact checked machine")?;
-    let span = typed
-        .symbols
-        .symbol_provenance_source_span(author)
-        .ok_or("native source author lost its source")?;
-    let source = typed
-        .symbols
-        .source_file(span)
-        .ok_or("native declaration has no retained source file")?;
-    let callable_identity = typed
-        .machine_callable_identity_text(machine)
-        .ok_or("native declaration has no checked callable identity")?;
-    request.validate_shape()?;
-    let operand = request
-        .operands
-        .first()
-        .ok_or("native formation lost its exact requirement")?;
-    let relative = source
-        .path
-        .strip_prefix(&source.package_root)
-        .map_err(|_| "native source is outside its checked package")?
-        .to_string_lossy();
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-source-occurrence.v1\0");
-    for bytes in [
-        relative.as_bytes(),
-        source.source.as_bytes(),
-        callable_identity.as_bytes(),
-        operand.path.as_bytes(),
-    ] {
-        digest.update((bytes.len() as u64).to_le_bytes());
-        digest.update(bytes);
-    }
-    digest.update((request.source_span.span.start as u64).to_le_bytes());
-    digest.update((request.source_span.span.end as u64).to_le_bytes());
-    let root_scope = root
-        .and_then(|root| typed.symbols.symbol_provenance_source_span(root))
-        .is_some_and(|root| typed.symbols.same_source_package(span, root));
-    Ok(
-        language_semantics::declaration_selection::NativeBindingFormation {
-            request,
-            author: span,
-            sources: typed
-                .symbols
-                .source_map()
-                .ok_or("native source formation lost its complete immutable source map")?,
-            author_package: typed.symbols.symbol_package_identity(author),
-            root_scope,
-            declaration_path: typed.symbols.display_path(author, "::"),
-            callable_identity,
-            source_occurrence_digest: digest.finalize().into(),
-            resolution_stratum: source.resolution_stratum,
-        },
-    )
 }

@@ -258,7 +258,7 @@ pub enum NativeProgramEntrySettlementError {
         machine: semantic_vocabulary::MachineId,
         reason: &'static str,
     },
-    EntrySelection(String),
+    TargetFamily(String),
     TargetDrift,
     CallingPlanPairingDrift,
     SourceSignatureSubstitution,

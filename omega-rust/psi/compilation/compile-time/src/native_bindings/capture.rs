@@ -5,18 +5,10 @@ use language_semantics::declaration_selection::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 pub fn capture_package_intents(
-    package: Option<PackageKeyIdentity>,
+    package: PackageKeyIdentity,
     formations: &[NativeBindingFormation],
     executed: &[ExecutedNativeBinding],
 ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>> {
-    let Some(package) = package else {
-        if formations.is_empty() && executed.is_empty() {
-            return Ok((Vec::new(), Vec::new()));
-        }
-        return Err(vec![Diagnostic::error(
-            "native Build intent has no immutable supplying package",
-        )]);
-    };
     let declarations = formations
         .iter()
         .map(|formation| {
@@ -46,8 +38,7 @@ pub fn capture_package_intents(
                     )]
                 })?,
                 target: event.target,
-                intent: event.intent.clone(),
-                static_environment: event.static_environment.clone(),
+                locator: event.locator.clone(),
             })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

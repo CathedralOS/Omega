@@ -3,8 +3,7 @@
 machine fresh() -> u32 {
     37
 }
-machine ArmEntry() crashes Trap
-{
+linux_arm64 machine main() crashes Trap {
     let source: u32 = fresh();
     let mut loaded: u32 = 0;
     asm {
@@ -18,8 +17,35 @@ machine ArmEntry() crashes Trap
     machine bad() crashes Trap { crash Trap; }
 }
 
-machine X86Entry() crashes Trap
-{
+macos_arm64 machine main() crashes Trap {
+    let source: u32 = fresh();
+    let mut loaded: u32 = 0;
+    asm {
+        ldr loaded, source
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+windows_x86_64 machine main() crashes Trap {
+    let source: u32 = fresh();
+    let mut loaded: u32 = 0;
+    asm {
+        mov loaded, source
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+
+linux_x86_64 machine main() crashes Trap {
     let source: u32 = fresh();
     let mut loaded: u32 = 0;
     asm {

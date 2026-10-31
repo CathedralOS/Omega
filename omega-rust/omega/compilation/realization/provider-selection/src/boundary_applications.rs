@@ -71,8 +71,8 @@ pub fn select_boundary_applications(
         };
         let realization = match &row.binding {
             ProviderBinding::CompilerIntrinsic { .. } => {
-                let execution = crate::selected_numeric_execution(
-                    &module.numeric_realizations,
+                let execution = crate::selected_external_execution(
+                    &module.external_providers,
                     &module.identities,
                     requirement.declaration(),
                     plan,

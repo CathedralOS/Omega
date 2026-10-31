@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 218 even when every table
+order below. This layout uses semantic format marker 212 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -788,7 +788,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 218 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 212 + `u16` vocabulary
 marker 130 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1035,42 +1035,26 @@ The call must settle the complete current owned roster at the selected paths;
 the receipt neither recreates a claim nor grants boundary issuance. Earlier
 markers are not reinterpreted under this layout.
 
-The current target-layout application section uses marker 217. It combines the
-exact numeric schema/ISA roster with application-owned fixed storage; independent
-markers 208 and 216 are not reinterpreted as these combined bytes. A record whose
-geometry remains target dependent uses structural shape tag `13`, a nonzero
-layout-application `u32`, and its counted structural fields. It has no packed or
-host-selected geometry in the portable artifact.
+Marker 140 adds target layout applications after the legacy family section. A
+record whose geometry remains target dependent uses structural shape tag `13`,
+a nonzero layout-application `u32`, and its counted structural fields. It has
+no packed or host-selected geometry in the portable artifact.
 
-A layout application encodes its `u32` id, record and semantic-schema type ids,
-policy identity index, and exact checked plan-callable identity index. Its
-independent counted target inputs follow: target string, `u64` pointer size and
-alignment, and a little-endian Boolean. These inputs are strictly ordered by
-target and come from the checked application's issuer; they are not recovered
-from whichever realization the receiver selects.
-
-Counted realizations follow in that same target order. Each first carries its
-complete Schema argument: `u16` ABI version `3`, counted fields, and counted
-retired `u64` field identities. A Schema field contains record-field and
-schema-field ids, `u64` opaque key, optional `u64` stable identity, `u64` byte size
-and alignment, and a kind byte (`0` scalar, `1` nested, `2` repeated). Numbered
-fields use strictly increasing stable identities independently of declaration
-order; all fields are numbered or none are. Unnumbered fields retain authored
-order. Retired identities are strictly ordered, unique and disjoint from live
-identities. The receiver validates the exact field bijection, type geometry and
-opaque-key uniqueness; source names and ordinal coincidences supply no join.
-Case-bearing schemas cannot enter this record ABI.
-
-After its Schema argument, a realization encodes the target string, pointer
-size/alignment and endianness, record size/alignment, then counted field ids with
-non-absent authored field storage. Realizations must cover the independent input
-roster exactly and preserve each input's facts. The producer checks policy
-evaluation and the fixed public Schema value's inactive-row padding; codec
-validation does not manufacture a missing source judgment. Target selection
-consumes one retained realization without changing the portable artifact,
-reopening source, or assigning default geometry to an unresolved application.
-Policy and plan identities name ordinary checked implementations; this section
-contains no target-family callable or member-machine roster.
+A layout application encodes its `u32` id, record and schema type ids, policy
+identity string, family callable, and `u16` Schema ABI version. Its counted
+Schema fields each carry record-field and schema-field ids, `u64` key, optional
+`u64` identity, `u64` byte size and alignment, and a kind byte (`0` scalar,
+`1` nested). Counted alternatives follow: deployment string, member machine id,
+`u64` record size and alignment, then counted field ids with non-absent authored
+field storage. The codec requires a complete exact family roster and validates
+every alternative against the retained invariant Schema argument. This is
+representation validation; semantic checking remains the producer's obligation.
+Deployment selection consumes one retained alternative without changing the
+canonical portable artifact or inferring default storage for an unresolved row.
+The family callable/member roster in this reference layout encoding is also
+migration work. Target-dependent geometry remains supported, but its policy
+applications must name ordinary checked implementations and join target-keyed
+Build rows, not require target-prefixed source bodies.
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
@@ -1447,26 +1431,71 @@ are not re-sorted by the canonical-order checker.
 
 ### Boundary machines and provider candidates
 
-Marker 218 retains the counted module-level numeric-realization roster introduced
-by marker 208 after
-boundary machines and before checked provider candidates. It replaces the retired
-external-binding conformance payload; markers 201 through 207 are not decoded as
-this layout. Each row contains the requirement nominal declaration and callable
-identity indices, optional requirement package digest, requirement-schema presence
-Boolean and its three indices (provider schema, method name, requirement owner),
-four-byte numeric meaning, a one-byte closed instruction-set membership tag, checked
-realization declaration, optional realization package digest, and optional code
-owner (nominal declaration, identity, optional package digest). Packages and owners
-have presence Booleans; package digests contain 32 bytes.
+Marker 201 adds a counted module-level external-provider conformance roster
+after boundary machines and before checked provider candidates. It is independent
+of call shapes: directly lowered comparisons still require satisfaction evidence.
+Each row contains the requirement's nominal declaration and callable identity
+indices, optional requirement package digest, optional requirement schema,
+optional four-byte numeric meaning,
+optional authored target membership string, checked realization machine
+declaration, optional realization package digest, optional selecting owner
+(nominal declaration index, provider identity index, optional package digest),
+and the structural external binding. Package digests are 32 bytes with a
+presence Boolean; owners likewise have a presence Boolean. Binding tags retain
+the language vocabulary: 2 = syscall followed by an i64 number, 3 = compiler
+intrinsic with no payload, 4 = vtable slot followed by an i64 index, 5 = vtable
+field and 6 = table function, each followed by a counted field string.
+Rows are strictly ordered and unique. Referenced declarations and signatures
+must exist; checked commitments, target membership and field names must be
+nonempty. Numeric meaning agrees with any corresponding callable boundary.
+These are checked satisfaction edges, not provider choices or external execution
+grants. Authored target membership retains the existing family migration
+vocabulary; it is never inferred from a normalized overload's spelling.
 
-Rows are strictly ordered and unique. Numeric meaning requires the exact schema
-coordinates, all of which must name nonempty text. The checked declaration,
-signature, contract, package and owner survive independently of executable calls.
-Receiving selection still requires one exact schema-method-row association and
-matching sealed numeric meaning and compatible instruction-set membership.
-No authored target prefix or legacy family membership is retained in this roster. This roster grants neither provider
-selection nor native execution authority and carries no locator, syscall, table,
-vtable or legacy external-binding tags.
+Marker 204 adds counted structural arguments to each structural-case successor,
+after its payload field ids and before its affine cleanup actions. These are
+simultaneous bindings in the selected edge's ordinary source namespace, using
+the same structural-argument encoding as other successors. The selected case,
+payload fields and cleanup actions keep their existing meaning. Marker 204 also
+retains all marker-203 fields; either earlier layout rejects.
+
+Marker 203 adds the requirement-schema presence Boolean followed, when present,
+by three identity-table indices: expected provider schema, method name, and
+requirement owner. The existing overload and package fields remain authoritative;
+these coordinates preserve the exact schema-method-row consistency checks without
+reopening source or parsing rendered identities. Descriptor presence records an
+eligible requirement shape, independently of whether its numeric meaning is
+supported. Numeric meaning requires a descriptor; every descriptor index must
+name nonempty text. A receiving selection still requires one exact method/row,
+its original package owner, and supported meaning. Missing meaning never
+selects an alternate execution path.
+
+Marker 200 added optional numeric meaning immediately after the optional checked
+callable: a presence Boolean followed, when
+present, by four bytes. This meaning is independent of provider selection and
+authority. Decoding checks the complete parameter/result signature, including
+the structural IEEE classification result. Non-callable evidence cannot carry it.
+
+| Kind | Byte 0 | Bytes 1–3 |
+| --- | --- | --- |
+| Named IEEE operation | 0 | operation tag, format, zero |
+| Primitive IEEE binary | 1 | binary-operation tag, format, zero |
+| Integer comparison | 2 | comparison tag, numeric type, zero |
+| IEEE negation | 3 | format, zero, zero |
+| Numeric conversion | 4 | source type, result type, arithmetic domain |
+
+Formats are 0 = binary32, 1 = binary64. Numeric types are, in tag order:
+i8, i16, i32, i64, u8, u16, u32, u64, f32, f64. Arithmetic domains are
+0 = Exact, 1 = Wrapping, 2 = Saturating, 3 = Trapping; Wrapping conversions
+and non-Exact conversions into floats are unsupported. Binary tags are
+add, subtract, multiply, divide, equal, not-equal, less, less-or-equal, greater,
+greater-or-equal; comparison tags are the last six in that order, starting at 0.
+Named tags, starting at 0, are minimum, maximum, square_root,
+multiply_then_add, fused_multiply_add, is_nan, is_finite, is_infinite, is_normal,
+is_subnormal, classify, then add/subtract/multiply/divide/square_root/
+fused_multiply_add, each with toward_zero, toward_positive, toward_negative in
+that order. Unknown tags and nonzero padding reject. Changing this order
+requires a format change; display spelling does not select a provider.
 
 | Row | Fields |
 | --- | --- |

@@ -28,3 +28,37 @@ boundary trait WindowsFilesystemTransferIo: Calling<WindowsFilesystemTransferCal
     reaches FilesystemContentRead
     blocks;
 }
+
+windows_x86_64 machine windows_write_file_binding() -> ForeignBinding<12, 9, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "WriteFile"
+    } }
+}
+windows_x86_64 machine windows_read_file_binding() -> ForeignBinding<12, 8, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "ReadFile"
+    } }
+}
+windows_x86_64 machine WindowsFilesystemImports::write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &[u8], transferred: &mut u32, overlapped: u64) -> i32
+satisfies WindowsFilesystemTransferIo::write_file
+via windows_write_file_binding()
+requires handle != 0 && bytes.len <= 4294967295 && overlapped == 0
+blocks;
+windows_x86_64 machine WindowsFilesystemImports::read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &mut [u8], transferred: &mut u32, overlapped: u64) -> i32
+satisfies WindowsFilesystemTransferIo::read_file
+via windows_read_file_binding()
+requires handle != 0 && bytes.len <= 4294967295 && overlapped == 0
+blocks;
+
+NativeWindowsFilesystemTransfers satisfies WindowsFilesystemTransferIo {
+    machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &[u8], transferred: &mut u32, overlapped: u64) -> i32
+    requires handle != 0 && bytes.len <= 4294967295 && overlapped == 0
+    reaches FilesystemContentWrite
+    blocks;
+    { block WindowsFilesystemImports::write_file(handle, bytes, transferred, overlapped) }
+    machine read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &mut [u8], transferred: &mut u32, overlapped: u64) -> i32
+    requires handle != 0 && bytes.len <= 4294967295 && overlapped == 0
+    reaches FilesystemContentRead
+    blocks;
+    { block WindowsFilesystemImports::read_file(handle, bytes, transferred, overlapped) }
+}

@@ -15,10 +15,7 @@ pub fn is_candidate_demanded<Declaration: Eq + Hash, Origin>(
     requirements
         .iter()
         .any(|requirement| uses.contains(requirement))
-        || choices.iter().any(|choice| {
-            choice
-                .target
-                .is_none_or(|target| target.canonical_name() == plan.target)
-                && choice.subject.selects_plan(schema, plan)
-        })
+        || choices
+            .iter()
+            .any(|choice| choice.subject.selects_plan(schema, plan))
 }

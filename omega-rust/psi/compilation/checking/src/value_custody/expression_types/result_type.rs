@@ -23,11 +23,11 @@ use typed_trees::types::{
 /// Return an existing result reference, never an expected-type guess. An
 /// unresolved result does not establish anonymous numeric meaning. Builtin
 /// computed results retain their carrier and policy, not input predicates.
-/// Free and trait-selected operators retain closed builtin carrier/policy
-/// result references. Casts retain their normalized semantic-domain result
-/// separately from the authored membership target. Operator results needing
-/// instantiated semantic domains, predicates or composite trait substitutions
-/// remain unresolved rather than losing their meaning.
+/// Direct operators retain closed builtin carrier/policy result references.
+/// Casts retain their normalized semantic-domain result separately from the
+/// authored membership target. Operator results needing instantiated semantic
+/// domains, predicates or selected traits remain unresolved rather than losing
+/// their meaning.
 pub fn expression_result_type_reference(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -964,46 +964,6 @@ fn binary_result(
             &operands,
         )
     {
-        // A selected trait owns its result as surely as a free declaration.
-        // Reading only free operators loses even a closed Bool carrier and
-        // prevents preserved entry predicates from retaining their truth.
-        // Composite/dependent results still need their applied telescope;
-        // this read exports only an independently closed builtin carrier.
-        let requirements =
-            crate::declaration_operator_selection_requirements(program, owner.symbol());
-        let expression_type = |operand| {
-            [binary.left, binary.right]
-                .iter()
-                .position(|source| *source == operand)
-                .and_then(|index| operands[index])
-        };
-        let scope = crate::OperatorApplicationScope {
-            owner: owner.symbol(),
-            origin: None,
-            requires: &requirements,
-            expression_type: &expression_type,
-        };
-        let resolution =
-            crate::scoped_operator_application(program, &scope, expression, spelling, &operands);
-        let requirement = match resolution.selected() {
-            Some(crate::ScopedOperatorApplication::Trait(meaning)) => Some(meaning.requirement),
-            Some(crate::ScopedOperatorApplication::BoundTrait(meaning)) => {
-                Some(meaning.requirement)
-            }
-            Some(crate::ScopedOperatorApplication::SelectedTrait { meaning, .. }) => {
-                Some(meaning.requirement)
-            }
-            _ => None,
-        };
-        if let Some(requirement) = requirement {
-            qualified_builtin_carrier(program, requirement.return_type, false)?;
-            return selected_operator_result_type_reference(
-                program,
-                requirement.symbol,
-                requirement.return_type,
-                &operands,
-            );
-        }
         let candidates = typed_trees::operator::resolve_spelling_for_operands(
             program,
             spelling,

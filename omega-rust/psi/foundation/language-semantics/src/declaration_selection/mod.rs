@@ -1,5 +1,3 @@
-mod native_binding;
-pub use native_binding::{ExecutedNativeBinding, NativeBuildIntent, decode_native_locator};
 use source::SourceSpan;
 use symbols::SymbolHandle;
 
@@ -19,16 +17,15 @@ pub use product_policy::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, AuthoredRootGrant,
 };
 mod product;
-pub mod product_operands;
 pub use build_selection_origin::BuildSelectionOrigin;
+pub mod product_operands;
 mod product_target;
 pub use product::{
-    BuildSelectionRequest, CapturedNativeDeclaration, CapturedNativeIntent, CompositionMode,
-    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, EnumExclusionRequest,
-    ExclusionVocabulary, ExecutedBuildSelection, ExecutedEnumExclusion, ExecutedProductSelection,
-    ExecutedRootBinding, NativeBindingFormation, NativeBindingProducer, ProductDeclarationOperand,
-    ProductDeclarationRequest, ProductOperandRole, ProviderReadinessRequest, RootBindingOperand,
-    RootBindingRequest, RootBindingSelection,
+    BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
+    DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
+    ExecutedEnumExclusion, ExecutedNativeBinding, ExecutedProductSelection, ExecutedRootBinding,
+    ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
+    ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
 pub use product_target::ProductTarget;
 
@@ -200,11 +197,6 @@ impl CollectionMeasure {
 /// is a different vocabulary and stays with Omega's build declarations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum BuildOperation {
-    /// Package-local native backing of one exact designated requirement.
-    NativeBinding,
-    NativeTableFunction,
-    NativeVtableField,
-    NativeSameStackDemand,
     /// Prepare the explicitly named Build dependency backing for a known requirement.
     ProviderReadiness,
     /// `Build::select_provider<Subject, Product>(b)` on the mutable root `Build`.
@@ -234,6 +226,8 @@ pub enum BuildOperation {
     IncludedSourceHandoff,
     /// `BuildLog::write_line`.
     LogWriteLine,
+    /// Package-local native supply for one exact Product requirement.
+    NativeBinding,
 }
 /// The call's target names [`BuildOperation::ProviderSelection`] and carries
 /// no resolved symbol — the authored, still-unresolved form every consumer
@@ -261,9 +255,6 @@ impl BuildOperation {
             self,
             Self::ProviderSelection
                 | Self::NativeBinding
-                | Self::NativeTableFunction
-                | Self::NativeVtableField
-                | Self::NativeSameStackDemand
                 | Self::ServiceExclusion
                 | Self::ServiceAudit
                 | Self::BoundaryAcceptance
@@ -276,12 +267,8 @@ impl BuildOperation {
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 13] = [
         Self::ProviderReadiness,
-        Self::NativeBinding,
-        Self::NativeTableFunction,
-        Self::NativeVtableField,
-        Self::NativeSameStackDemand,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
         Self::RepresentationSelection,
@@ -293,16 +280,14 @@ impl BuildOperation {
         Self::WireCompatibilityRequest,
         Self::IncludedSourceHandoff,
         Self::LogWriteLine,
+        Self::NativeBinding,
     ];
 
     /// The exact authored operation name; static operands stay in their own table.
     pub const fn authored_spelling(self) -> &'static str {
         match self {
-            Self::ProviderReadiness => "await_provider",
             Self::NativeBinding => "bind",
-            Self::NativeTableFunction => "bind_table_function",
-            Self::NativeVtableField => "bind_vtable_field",
-            Self::NativeSameStackDemand => "same_stack_demand",
+            Self::ProviderReadiness => "await_provider",
             Self::ProviderSelection => "select_provider",
             Self::AssumedBindingContract => "assume_binding_contract",
             Self::RepresentationSelection => "select_representation",
@@ -328,14 +313,9 @@ impl BuildOperation {
     /// The intrinsic selection target checking records for this operation.
     pub const fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
         match self {
+            Self::NativeBinding => AuthoredDeclarationSelectionIntrinsic::BuildNativeBinding,
             Self::ProviderReadiness => {
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderReadiness
-            }
-            Self::NativeBinding
-            | Self::NativeTableFunction
-            | Self::NativeVtableField
-            | Self::NativeSameStackDemand => {
-                AuthoredDeclarationSelectionIntrinsic::BuildNativeBinding
             }
             Self::ProviderSelection => {
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
@@ -374,6 +354,7 @@ impl BuildOperation {
 /// unresolved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
+    BuildNativeBinding,
     BuildProviderReadiness,
     BuiltinOperator,
     /// One exact compiler-owned carry permission selected by authored domain
@@ -402,7 +383,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
         role: ProductOperandRole,
     },
     BuildProviderSelection,
-    BuildNativeBinding,
     /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`:
     /// the consuming root's runtime-only authorization of one boundary
     /// requirement's link to another requirement's selected implementation
@@ -1089,4 +1069,6 @@ impl<'ledger> IntoIterator for &'ledger AuthoredDeclarationSelections {
 #[cfg(test)]
 mod tests;
 
-pub mod provider_choices;
+pub use product::{
+    CapturedNativeDeclaration, CapturedNativeIntent, NativeBindingFormation, NativeBindingProducer,
+};

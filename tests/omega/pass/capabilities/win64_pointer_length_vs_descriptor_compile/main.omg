@@ -17,6 +17,68 @@ public boundary trait NativeByteShapes {
     machine take_descriptor(value: ByteDescriptor) -> i32 reaches;
 }
 
+windows_x86_64 machine windows_x86_64_take_separate_binding() -> ForeignBinding<19, 25, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega_abi_probe.dll",
+            export: "omega_win64_take_separate",
+        },
+    }
+}
+
+linux_x86_64 machine linux_x86_64_take_separate_binding() -> ForeignBinding<21, 25, 7> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libomega_abi_probe.so",
+            symbol: "omega_win64_take_separate",
+            version: "OMEGA_1",
+        },
+    }
+}
+
+macos_arm64 machine macos_arm64_take_separate_binding() -> ForeignBinding<24, 26, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libomega_abi_probe.dylib",
+            symbol: "_omega_win64_take_separate",
+        },
+    }
+}
+
+windows_x86_64 machine windows_x86_64_take_descriptor_binding() -> ForeignBinding<19, 27, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "omega_abi_probe.dll",
+            export: "omega_win64_take_descriptor",
+        },
+    }
+}
+
+linux_x86_64 machine linux_x86_64_take_descriptor_binding() -> ForeignBinding<21, 27, 7> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libomega_abi_probe.so",
+            symbol: "omega_win64_take_descriptor",
+            version: "OMEGA_1",
+        },
+    }
+}
+
+macos_arm64 machine macos_arm64_take_descriptor_binding() -> ForeignBinding<24, 28, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libomega_abi_probe.dylib",
+            symbol: "_omega_win64_take_descriptor",
+        },
+    }
+}
+
+windows_x86_64 machine take_separate(pointer: addr, length: u64) -> i32 satisfies NativeByteShapes::take_separate via windows_x86_64_take_separate_binding();
+linux_x86_64 machine take_separate(pointer: addr, length: u64) -> i32 satisfies NativeByteShapes::take_separate via linux_x86_64_take_separate_binding();
+macos_arm64 machine take_separate(pointer: addr, length: u64) -> i32 satisfies NativeByteShapes::take_separate via macos_arm64_take_separate_binding();
+windows_x86_64 machine take_descriptor(value: ByteDescriptor) -> i32 satisfies NativeByteShapes::take_descriptor via windows_x86_64_take_descriptor_binding();
+linux_x86_64 machine take_descriptor(value: ByteDescriptor) -> i32 satisfies NativeByteShapes::take_descriptor via linux_x86_64_take_descriptor_binding();
+macos_arm64 machine take_descriptor(value: ByteDescriptor) -> i32 satisfies NativeByteShapes::take_descriptor via macos_arm64_take_descriptor_binding();
 
 data Main {
     pointer: addr;

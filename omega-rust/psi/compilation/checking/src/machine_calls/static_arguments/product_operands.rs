@@ -8,70 +8,24 @@ use typed_trees::{
     product_operand::{ProductOperandApplication, ProductSelectionOccurrence},
 };
 
-struct InputTelescope<'a> {
-    name: &'a str,
-    parameters: &'a [typed_trees::data::TypeParameter],
-    argument: &'a typed_trees::expression::StaticMachineArgument,
-}
-
 fn parameters<'a>(
     program: &'a dyn crate::CheckingInput,
-    application: &'a ProductOperandApplication,
-) -> Option<Vec<InputTelescope<'a>>> {
-    let argument = &application.argument;
+    application: &ProductOperandApplication,
+) -> Option<(&'a str, &'a [typed_trees::data::TypeParameter])> {
     match application.role? {
         ProductOperandRole::BoundarySubject => {
             let definition = program.trait_definition_by_symbol(application.declaration)?;
-            Some(vec![InputTelescope {
-                name: definition.name.as_str(),
-                parameters: program.trait_type_parameters(definition),
-                argument,
-            }])
+            Some((
+                definition.name.as_str(),
+                program.trait_type_parameters(definition),
+            ))
         }
         ProductOperandRole::Provider => {
             let definition = program.conformance_by_symbol(application.declaration)?;
-            Some(vec![InputTelescope {
-                name: program.symbols.name(definition.symbol),
-                parameters: program.conformance_type_parameters(definition),
-                argument,
-            }])
-        }
-        ProductOperandRole::Requirement => {
-            let mut result = Vec::new();
-            let mut member = argument;
-            if let Some(outer) = &argument.application
-                && outer.member.is_valid()
-            {
-                let definition = program.trait_definition_by_symbol(argument.symbol)?;
-                result.push(InputTelescope {
-                    name: definition.name.as_str(),
-                    parameters: program.trait_type_parameters(definition),
-                    argument,
-                });
-                member = program.expression_table.static_member(outer.member)?;
-            }
-            // Omission retains the member's own universal telescope. Only a
-            // real supplied application introduces source input obligations.
-            if member.application.is_some() {
-                if let Some((_, signature)) =
-                    program.trait_machine_signature(application.declaration)
-                {
-                    result.push(InputTelescope {
-                        name: signature.name.as_str(),
-                        parameters: program.state_signature_type_parameters(signature),
-                        argument: member,
-                    });
-                } else {
-                    let machine =
-                        program.machine_by_own_or_state_symbol(application.declaration)?;
-                    result.push(InputTelescope {
-                        name: machine.name.as_str(),
-                        parameters: program.machine_type_parameters(machine),
-                        argument: member,
-                    });
-                }
-            }
-            Some(result)
+            Some((
+                program.symbols.name(definition.symbol),
+                program.conformance_type_parameters(definition),
+            ))
         }
         _ => None,
     }
@@ -107,53 +61,45 @@ pub(super) fn validate_parameter_correspondence(
     let occurrences = typed_trees::product_operand::collect_product_selection_occurrences(typed);
     for handle in typed.live_product_operand_applications() {
         let application = typed.product_operand_applications.get(handle);
-        let Some(telescopes) = parameters(program, application) else {
+        let Some((name, parameters)) = parameters(program, application) else {
             diagnostics.push(
-                Diagnostic::error("Product application lost its declared input telescopes")
+                Diagnostic::error("Product nominal application lost its declared telescope")
+                    .with_source_span(application.operand.source_span),
+            );
+            continue;
+        };
+        let Some(arguments) = application.argument.application.as_ref() else {
+            diagnostics.push(
+                Diagnostic::error("Product nominal application lost its original actuals")
                     .with_source_span(application.operand.source_span),
             );
             continue;
         };
         let state = occurrence(program, application, &occurrences)
             .and_then(|occurrence| program.state_by_symbol(occurrence.state));
+        if parameters.len() != arguments.arguments.len() {
+            diagnostics.push(
+                Diagnostic::error(
+                    "Product nominal application must supply every declaration parameter",
+                )
+                .with_source_span(application.operand.source_span),
+            );
+            continue;
+        }
+        if let Err(error) =
+            super::validate_arguments(program, name, parameters, &arguments.arguments, state)
+        {
+            diagnostics.push(error.with_source_span(application.operand.source_span));
+        }
         let source = typed
             .expression_table
             .static_machine_application(application.supplying_application);
-        for telescope in telescopes {
-            let Some(arguments) = telescope.argument.application.as_ref() else {
-                diagnostics.push(
-                    Diagnostic::error("Product application lost its original actuals")
-                        .with_source_span(application.operand.source_span),
-                );
-                continue;
-            };
-            if telescope.parameters.len() != arguments.arguments.len() {
-                diagnostics.push(
-                    Diagnostic::error(
-                        "Product application must supply every declaration parameter",
-                    )
-                    .with_source_span(application.operand.source_span),
-                );
-                continue;
-            }
-            if let Err(error) = super::validate_arguments(
-                program,
-                telescope.name,
-                telescope.parameters,
-                &arguments.arguments,
-                state,
-            ) {
-                diagnostics.push(error.with_source_span(application.operand.source_span));
-            }
-            if let Err(error) =
-                crate::conformance_applications::validate_conformance_lifetime_arguments(
-                    program,
-                    telescope.argument,
-                    source.lexical_owner,
-                )
-            {
-                diagnostics.push(error.with_source_span(application.operand.source_span));
-            }
+        if let Err(error) = crate::conformance_applications::validate_conformance_lifetime_arguments(
+            program,
+            &application.argument,
+            source.lexical_owner,
+        ) {
+            diagnostics.push(error.with_source_span(application.operand.source_span));
         }
     }
 }
@@ -167,7 +113,10 @@ pub(super) fn validate_source_recipes(
     let occurrences = typed_trees::product_operand::collect_product_selection_occurrences(typed);
     for handle in typed.live_product_operand_applications() {
         let application = typed.product_operand_applications.get(handle);
-        let Some(telescopes) = parameters(program, application) else {
+        let Some((_, parameters)) = parameters(program, application) else {
+            continue;
+        };
+        let Some(arguments) = application.argument.application.as_ref() else {
             continue;
         };
         // Open recipes need their exact original state assumptions. Closed
@@ -182,20 +131,15 @@ pub(super) fn validate_source_recipes(
             let Some(state) = program.state_by_symbol(context.state) else {
                 continue;
             };
-            for telescope in telescopes {
-                let Some(arguments) = &telescope.argument.application else {
-                    continue;
-                };
-                crate::value_custody::const_expressions::validate_argument_recipes(
-                    program,
-                    machine,
-                    state,
-                    telescope.parameters,
-                    &arguments.arguments,
-                    diagnostics,
-                    formation_obligations,
-                );
-            }
+            crate::value_custody::const_expressions::validate_argument_recipes(
+                program,
+                machine,
+                state,
+                parameters,
+                &arguments.arguments,
+                diagnostics,
+                formation_obligations,
+            );
         } else {
             // No state assumptions are available here. The original recipe
             // and ordinary supplying invocation remain separate obligations;
@@ -203,35 +147,27 @@ pub(super) fn validate_source_recipes(
             let source = typed
                 .expression_table
                 .static_machine_application(application.supplying_application);
-            for telescope in telescopes {
-                let Some(arguments) = &telescope.argument.application else {
+            for (parameter, argument) in parameters.iter().zip(arguments.arguments.iter()) {
+                let TypeParameterKind::Const { type_reference } = parameter.kind else {
                     continue;
                 };
-                for (parameter, argument) in
-                    telescope.parameters.iter().zip(arguments.arguments.iter())
-                {
-                    let TypeParameterKind::Const { type_reference } = parameter.kind else {
-                        continue;
-                    };
-                    let Some(expression) = super::const_expression_argument(program, argument)
-                    else {
-                        continue;
-                    };
-                    match crate::check_closed_const_expression(
-                        program,
-                        source.lexical_owner,
-                        expression,
-                        type_reference,
-                    ) {
-                        Ok(Some(_)) => {}
-                        Ok(None) => diagnostics.push(
-                            Diagnostic::error(
-                                "Product const recipe requires its exact original source state or an independently closed expression",
-                            )
-                            .with_source_span(application.operand.source_span),
-                        ),
-                        Err(errors) => diagnostics.extend(errors),
-                    }
+                let Some(expression) = super::const_expression_argument(program, argument) else {
+                    continue;
+                };
+                match crate::check_closed_const_expression(
+                    program,
+                    source.lexical_owner,
+                    expression,
+                    type_reference,
+                ) {
+                    Ok(Some(_)) => {}
+                    Ok(None) => diagnostics.push(
+                        Diagnostic::error(
+                            "Product const recipe requires its exact original source state or an independently closed expression",
+                        )
+                        .with_source_span(application.operand.source_span),
+                    ),
+                    Err(errors) => diagnostics.extend(errors),
                 }
             }
         }

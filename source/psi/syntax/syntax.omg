@@ -364,7 +364,7 @@ public data Statement [copy] {
 // one exact trait requirement `Trait<arguments>::requirement`: the trait's
 // path and then the requirement in `SyntaxTrees::members`, the trait's static
 // arguments in `SyntaxTrees::type_arguments`, an optional satisfier label
-// `as Name`. Native bindings belong to the owning package Build.
+// `as Name` and an optional binding payload `via value` as its expression.
 // `Terminates` is the termination promise; `terminates by subjects [-> View]`
 // adds its ranking witness: the ranked subjects in `SyntaxTrees::arguments`
 // and the view, a path or an argumented view call, as its expression.
@@ -466,8 +466,9 @@ public data OperatorToken [copy] {
 // Its lexical parent scopes names without retaining runtime values. A bodyless declaration ends at `;`
 // and owns no statements or nested declarations. Every expression of the declaration,
 // in its clauses and its bodies, lies in the contiguous range from
-// `first_expression`. `boundary machine` marks a crossing. Target selection
-// belongs to evaluated Build rows, never to a machine declaration.
+// `first_expression`. A target-scoped declaration (`linux_arm64 machine
+// ...`) names its target, one body of the family the path keys by target;
+// `boundary machine` marks a crossing.
 public data MachineItem [copy] {
     has_owner: bool;
     owner: IdentifierSpan;
@@ -487,6 +488,8 @@ public data MachineItem [copy] {
     has_body: bool;
     first_expression: u64 in Trapping;
     expression_count: u64 in Trapping;
+    has_target: bool;
+    target: IdentifierSpan;
     is_boundary: bool;
     container: MachineContainer;
     is_public: bool;
@@ -805,7 +808,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedBoundaryDeclaration;
     case RetiredBoundaryRequirement;
     case RetiredOperatorDeclaration;
-    case RetiredTargetPrefix;
+    case ExpectedTargetScopedMachine;
     case ExpectedBoundaryDataEnd;
     case ExpectedTraitName;
     case ExpectedTraitParent;
@@ -851,7 +854,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedSatisfiesTrait;
     case ExpectedSatisfiedRequirement;
     case ExpectedSatisfiesLabel;
-    case RetiredViaBinding;
+    case ExpectedSatisfiesBinding;
     case ExpectedTerminationSubject;
     case ExpectedTerminationSubjectEnd;
     case ExpectedTerminationView;

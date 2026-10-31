@@ -1,4 +1,3 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_foreign_scalar_indirect_widths_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
@@ -102,38 +101,4 @@ machine build(builder: &mut Build) {
     Build::select_provider<SnapshotBool, NativeSnapshotBool>(builder, local_unchecked);
     Build::select_provider<SnapshotBool, NativeSnapshotBool>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
-
- Build::bind<SnapshotU8::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotI8::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotU16::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotI16::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotU32::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotI32::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotU64::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotI64::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotF32::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotF64::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
- Build::bind<SnapshotBool::copy>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } });
 }

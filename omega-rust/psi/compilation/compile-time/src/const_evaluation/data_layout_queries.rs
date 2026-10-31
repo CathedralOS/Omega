@@ -50,30 +50,10 @@ pub(crate) fn has_pending_target_observations(
 /// Supplies a fresh measurement view for one query pass. Evaluation can install
 /// new authored plans between passes; contexts must not leak across that change.
 /// The provider measures storage only: Psi owns formation and source mutation.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct LayoutApplicationTargetInput {
-    /// Canonical identity export, never a Source spelling or lookup key for a
-    /// declaration. Forked program interners rehydrate it before handle joins.
-    pub application_identity: String,
-    pub target: layout_plans::LayoutTargetFacts,
-    /// Exact demanding occurrence in this typed invocation, not other uses of
-    /// the same policy declaration.
-    pub lexical_owner: symbols::SymbolHandle,
-}
-
 pub trait LayoutQueryProvider {
     type Measurements: LayoutQueryMeasurements;
 
     fn prepare(&self, program: &TypedTrees) -> Self::Measurements;
-    /// Complete applicable target inputs, supplied by Omega's target catalog.
-    fn layout_target_inputs(&self) -> Vec<layout_plans::LayoutTargetFacts> {
-        Vec::new()
-    }
-    /// None is a host evaluation domain; Some is the complete explicit Product
-    /// application roster, including absence of a demand for a retained type.
-    fn layout_application_inputs(&self) -> Option<&[LayoutApplicationTargetInput]> {
-        None
-    }
 }
 
 /// Read-only geometry for the exact supplied source operand. None means an
@@ -185,14 +165,46 @@ pub fn fold_data_layout_queries(
     Ok(())
 }
 
-/// An exact fixed-representation application waits for its validated plan;
-/// ordinary record packing cannot supply a provisional answer.
+/// Whether the operand is a `Policy<Schema>` application whose validated
+/// plan instance the deferred evaluation has not installed yet. Mirrors the
+/// layout builder's own route: an installed `plan_laid_layouts` entry for
+/// `{policy_symbol, schema_symbol}` answers immediately, otherwise the
+/// attached `{policy}::plan` machine marks the operand plan-laid and the
+/// query must wait for installation rather than error early.
 fn plan_laid_operand_pending_installation(
     program: &TypedTrees,
     operand: TypeReferenceHandle,
 ) -> bool {
-    program.layout_storage_arguments(operand).is_some()
-        && program.plan_laid_layout_for_type(operand).is_none()
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(operand)
+    else {
+        return false;
+    };
+    if arguments.is_empty() || !base_symbol.is_valid() {
+        return false;
+    }
+    let argument_handles = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    let installed = program.plan_laid_layouts.iter().any(|plan| {
+        plan.policy_symbol == *base_symbol
+            && argument_handles
+                .iter()
+                .any(|argument| program.type_reference_symbol(*argument) == plan.schema_symbol)
+    });
+    if installed {
+        return false;
+    }
+    let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
+        return false;
+    };
+    program.machines().iter().any(|machine| {
+        machine.attached_data_symbol == *base_symbol
+            && machine.name.as_str() == format!("{}::plan", definition.name)
+    })
 }
 
 /// A `layout_type_reference` of an unresolved fixed array returns the
@@ -211,13 +223,6 @@ fn reject_unresolved_layout_operands(
             continue;
         }
         visited.push(reference);
-        // Code evidence selects geometry but occupies no field or runtime
-        // extent. The installer's ordinary evidence checker already validated
-        // its complete telescope before evaluation. Only T supplies contents.
-        if let Some(storage) = typed.layout_storage_arguments(reference) {
-            pending.push(storage.semantic_type);
-            continue;
-        }
         match typed.type_reference_table.type_reference(reference) {
             TypeReferenceNode::FixedArray {
                 element_type,

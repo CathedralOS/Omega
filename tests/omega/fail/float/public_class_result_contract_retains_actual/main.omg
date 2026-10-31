@@ -2,8 +2,8 @@ use omega::language::core::float_operations;
 
 // Both actuals are zeros; the classification still retains their own signs.
 machine category(value: f32, other: f32) -> FloatClass
-ensures result == F32Classify::classify(value) {
-    F32Classify::classify(other)
+ensures result == F32::classify(value) {
+    F32::classify(other)
 }
 
 machine main() crashes Trap {

@@ -137,19 +137,11 @@ public boundary trait ProgramStorageEntry {
 // Explicitly selected transport to this artifact's Build-bound continuation.
 // This call forwards two existing grants; it cannot introduce either root or
 // choose a continuation by spelling. The native bridge retains Build custody.
-boundary machine program_storage_enter(
+public data ProgramStorageEntryNativeProvider {}
+public uefi_x86_64 boundary machine ProgramStorageEntryNativeProvider::enter(
     image: Extent in Granted,
     initial_storage: Extent in Granted
 ) satisfies ProgramStorageEntry::enter;
-
-// Ordinary implementation identity; the exact private catalogue leaf owns the
-// fixed entry mechanics. Build selects this map only for the UEFI profile.
-public ProgramStorageEntryNativeProvider satisfies ProgramStorageEntry {
-    machine enter(image: Extent in Granted, initial_storage: Extent in Granted)
-    reaches {
-        program_storage_enter(image, initial_storage);
-    }
-}
 
 // `Granted` owns one canonical half-open address interval. Runtime address
 // arithmetic must not define the one-past end: fixed-width values first embed

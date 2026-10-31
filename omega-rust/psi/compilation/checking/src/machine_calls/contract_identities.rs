@@ -46,8 +46,8 @@ pub fn canonical_template_contract_bytes(
         language_semantics::MachineSupplyMode::Requirement => 2,
         language_semantics::MachineSupplyMode::Boundary => 3,
         language_semantics::MachineSupplyMode::AdmissionClaim => 4,
+        language_semantics::MachineSupplyMode::ExternalRealization { .. } => 5,
         language_semantics::MachineSupplyMode::TopLevelRequirement => 6,
-        language_semantics::MachineSupplyMode::CompilerPrimitive => 7,
     });
     for (index, parameter) in parameters.iter().enumerate() {
         bytes.push(match parameter.kind {
@@ -134,7 +134,21 @@ pub fn canonical_template_contract_bytes(
         bytes.extend(shape);
         bytes.push(0xfd);
     }
-    let (service_row, may_suspend, may_block) = {
+    let (service_row, may_suspend, may_block) = if machine.target_family_interface {
+        let reach = reach_inference.for_machine(machine.symbol).ok_or_else(|| {
+            Diagnostic::error("target-family template has no published service-reach summary")
+        })?;
+        let operational = operational
+            .machine_by_symbol(machine.symbol)
+            .ok_or_else(|| {
+                Diagnostic::error("target-family template has no completed operational summary")
+            })?;
+        (
+            reach_inference.services(reach.published),
+            operational.transitive_may_suspend,
+            operational.transitive_may_block,
+        )
+    } else {
         (
             program
                 .service_reach_rows

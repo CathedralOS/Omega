@@ -5,7 +5,7 @@ requires index < 2,
 {
     let accepted: bool = values[index] >= 0.0 && values[index] <= 18446744073709551616.0;
     transition accepted {
-        true -> finish(U64FromF64::from_f64(values[index]))
+        true -> finish(U64::from_f64(values[index]))
         false -> finish(0)
     }
     machine finish(converted: u64) -> u64 { converted }

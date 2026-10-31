@@ -10,28 +10,27 @@ data Main where 0 <= k, k <= 3 {
     hits: i32 in Wrapping;
 }
 
-boundary trait SelectedReadTarget {
-    machine read_target(main: &Main) -> i32 in Wrapping reaches
-;
-}
-CheckedReadTarget satisfies SelectedReadTarget {
-    machine read_target(main: &Main) -> i32 in Wrapping
-{
+linux_x86_64 machine read_target(main: &Main) -> i32 in Wrapping {
     main.arr[main.k + 1]
 }
+linux_arm64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
 }
-
-
-
+macos_arm64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
+windows_x86_64 machine read_target(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
 
 machine Main::main(main: &mut Main) crashes Trap {
     main.arr = [10, 20, 30, 40, 50];
     main.k = 2;
-    let first: i32 in Wrapping = SelectedReadTarget::read_target(main);
+    let first: i32 in Wrapping = read_target(main);
     transition { _ -> successor(main, first) }
     machine successor(main: &mut Main, first: i32 in Wrapping) {
         main.k = 3;
-        let second: i32 in Wrapping = SelectedReadTarget::read_target(main);
+        let second: i32 in Wrapping = read_target(main);
         transition first == 40 && second == 50 {
             true -> done()
             _ -> bad()

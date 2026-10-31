@@ -2,13 +2,7 @@
 // The split is in a target body. The cut bound equals the parent bound, so the upper child is empty.
 use omega::language::core::activation;
 
-boundary trait SelectedTargetExercise {
-    machine target_exercise() -> bool reaches
-crashes Trap;
-}
-CheckedTargetExercise satisfies SelectedTargetExercise {
-    machine target_exercise() -> bool crashes Trap
-{
+windows_x86_64 machine target_exercise() -> bool crashes Trap {
     transition Activation::try_claim<16>(8) {
         ActivationClaimAttempt::Established { claim } -> divide(claim)
         ActivationClaimAttempt::Rejected -> (false)
@@ -39,16 +33,105 @@ CheckedTargetExercise satisfies SelectedTargetExercise {
         true
     }
 }
+
+linux_x86_64 machine target_exercise() -> bool crashes Trap {
+    transition Activation::try_claim<16>(8) {
+        ActivationClaimAttempt::Established { claim } -> divide(claim)
+        ActivationClaimAttempt::Rejected -> (false)
+    }
+    machine divide(claim: ActivationClaim) -> bool {
+        transition ActivationClaim::split<16>(claim, 4) {
+            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
+            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+        }
+    }
+    machine return_rejected(claim: ActivationClaim) -> bool {
+        ActivationClaim::release(claim);
+        false
+    }
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+        transition ActivationClaim::merge(lower, upper) {
+            ActivationClaimMerge::Covered { claim } -> restored(claim)
+            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+        }
+    }
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+        ActivationClaim::release(upper);
+        ActivationClaim::release(lower);
+        false
+    }
+    machine restored(claim: ActivationClaim) -> bool {
+        ActivationClaim::release(claim);
+        true
+    }
 }
 
+macos_arm64 machine target_exercise() -> bool crashes Trap {
+    transition Activation::try_claim<16>(8) {
+        ActivationClaimAttempt::Established { claim } -> divide(claim)
+        ActivationClaimAttempt::Rejected -> (false)
+    }
+    machine divide(claim: ActivationClaim) -> bool {
+        transition ActivationClaim::split<16>(claim, 4) {
+            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
+            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+        }
+    }
+    machine return_rejected(claim: ActivationClaim) -> bool {
+        ActivationClaim::release(claim);
+        false
+    }
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+        transition ActivationClaim::merge(lower, upper) {
+            ActivationClaimMerge::Covered { claim } -> restored(claim)
+            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+        }
+    }
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+        ActivationClaim::release(upper);
+        ActivationClaim::release(lower);
+        false
+    }
+    machine restored(claim: ActivationClaim) -> bool {
+        ActivationClaim::release(claim);
+        true
+    }
+}
 
-
-
-
-
+linux_arm64 machine target_exercise() -> bool crashes Trap {
+    transition Activation::try_claim<16>(8) {
+        ActivationClaimAttempt::Established { claim } -> divide(claim)
+        ActivationClaimAttempt::Rejected -> (false)
+    }
+    machine divide(claim: ActivationClaim) -> bool {
+        transition ActivationClaim::split<16>(claim, 4) {
+            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
+            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+        }
+    }
+    machine return_rejected(claim: ActivationClaim) -> bool {
+        ActivationClaim::release(claim);
+        false
+    }
+    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+        transition ActivationClaim::merge(lower, upper) {
+            ActivationClaimMerge::Covered { claim } -> restored(claim)
+            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+        }
+    }
+    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+        ActivationClaim::release(upper);
+        ActivationClaim::release(lower);
+        false
+    }
+    machine restored(claim: ActivationClaim) -> bool {
+        ActivationClaim::release(claim);
+        true
+    }
+}
 
 machine main() crashes Trap {
-    let ok: bool = SelectedTargetExercise::target_exercise();
+    let ok: bool = target_exercise();
     transition ok {
         true -> done()
         false -> bad()

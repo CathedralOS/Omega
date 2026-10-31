@@ -1,16 +1,9 @@
 // Selecting a body is stronger evidence than the joined contract, not
 // permission to ignore the selected body's actual trap.
-boundary trait SelectedHelper {
-    machine helper() reaches
-crashes Trap;
-}
-CheckedHelper satisfies SelectedHelper {
-    machine helper() crashes Trap
-{ crash Trap; }
-}
-
-
-
+linux_x86_64 machine helper() crashes Trap { crash Trap; }
+windows_x86_64 machine helper() crashes Trap { crash Trap; }
+macos_arm64 machine helper() crashes Trap { crash Trap; }
+linux_arm64 machine helper() crashes Trap { crash Trap; }
 uefi_x86_64 machine helper() crashes Trap {}
 
-machine main() crashes Trap { SelectedHelper::helper(); }
+machine main() crashes Trap { helper(); }

@@ -5,7 +5,6 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-layout-plans = { path = "../../../foundation/layout-plans" }
 arena = { path = "../../../foundation/arena" }
 numerics = { path = "../../../foundation/numerics" }
 compiler-storage = { path = "../../../foundation/compiler-storage" }

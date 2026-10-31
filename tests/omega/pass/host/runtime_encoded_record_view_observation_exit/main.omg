@@ -1,12 +1,39 @@
-use omega::language::core::layout;
 // Expected exit: 0. Expected output contains: A.
 // A foreign scalar snapshot checks the original signed
 // predicate through its captured codec, not against the observed u8 carrier.
 use omega::language::core::external_binding;
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField
+where
+    size <= 4096,
+    1 <= align,
+    align <= 16,
+{
+    key: u64;
+    size: u64;
+    align: u64;
+    number: i64;
+    kind: FieldKind;
+}
+data Schema
+where
+    field_count <= 32,
+{ fields: [SchemaField; 32]; field_count: u64; }
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan {
+    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
 
-
-SignedByte satisfies FixedLayout<NarrowByte> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+data SignedByte { }
+machine SignedByte::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -24,7 +51,6 @@ SignedByte satisfies FixedLayout<NarrowByte> {
         align: 1,
     }
 }
-}
 
 
 data NarrowByte [copy] where -128 <= value, value <= 127 { value: i64; }
@@ -33,9 +59,19 @@ public boundary trait ByteOutput {
     machine write(descriptor: i32, value: &u8, count: u64) -> i64 reaches;
 }
 public data ByteImports {}
+public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } }
+}
+macos_arm64 boundary machine ByteImports::write(descriptor: i32, value: &u8, count: u64) -> i64
+    satisfies ByteOutput::write via write_binding();
+linux_x86_64 boundary machine ByteImports::write(descriptor: i32, value: &u8, count: u64) -> i64
+    satisfies ByteOutput::write via ForeignBinding::Syscall(1);
+linux_arm64 boundary machine ByteImports::write(descriptor: i32, value: &u8, count: u64) -> i64
+    satisfies ByteOutput::write via ForeignBinding::Syscall(64);
 
-
-data Main { encoded: LayoutStorage<NarrowByte, SignedByte>; }
+data Main { encoded: SignedByte<NarrowByte>; }
 
 machine read(value: &u8) -> u8 { value }
 machine identity(value: &u8) -> &u8 { value }

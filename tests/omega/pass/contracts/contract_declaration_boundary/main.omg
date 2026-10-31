@@ -8,10 +8,12 @@ public boundary trait ForeignReports {
 trait Identity<T> { machine same(value: T) -> T; }
 data Wrapped<T> { value: T; }
 
-
+uefi_x86_64 machine Table::read(table: &Table) -> Status
+satisfies ForeignReports::read via ForeignBinding::TableFunction(read)
+ensures result.code == 0;
 public FirmwareReports satisfies ForeignReports {
     machine read(table: &Table) -> Status ensures result.code == 0; {
-        RawNativeForeignReports::read(table)
+        Table::read(table)
     }
 }
 
@@ -54,7 +56,3 @@ requires value >= 0; domain >= 0; domain <= 100; trait >= 0;
          operator + domain >= 0;
          operator < value; operator == domain;
 ensures result == value; { value }
-
-boundary trait RawNativeForeignReports {
-    machine read(table: &Table) -> Status reaches ensures result.code == 0;
-}

@@ -26,12 +26,7 @@ ensures result.rest.length == whole.length - length,
         rest: Tail { length: whole.length - length },
     }
 }
-boundary trait SelectedAllocate {
-    machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued reaches
-requires length <= strategy.remaining;
-}
-CheckedAllocate satisfies SelectedAllocate {
-    machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
+macos_arm64 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
 requires length <= strategy.remaining
 {
     let parts: Parts = split(strategy.tail, length);
@@ -41,13 +36,39 @@ requires length <= strategy.remaining
         allocation: parts.taken,
     }
 }
+linux_x86_64 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
+requires length <= strategy.remaining
+{
+    let parts: Parts = split(strategy.tail, length);
+    check_length(&parts.taken, length);
+    Issued {
+        strategy: Strategy { tail: parts.rest, remaining: strategy.remaining },
+        allocation: parts.taken,
+    }
 }
-
-
-
+linux_arm64 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
+requires length <= strategy.remaining
+{
+    let parts: Parts = split(strategy.tail, length);
+    check_length(&parts.taken, length);
+    Issued {
+        strategy: Strategy { tail: parts.rest, remaining: strategy.remaining },
+        allocation: parts.taken,
+    }
+}
+windows_x86_64 machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
+requires length <= strategy.remaining
+{
+    let parts: Parts = split(strategy.tail, length);
+    check_length(&parts.taken, length);
+    Issued {
+        strategy: Strategy { tail: parts.rest, remaining: strategy.remaining },
+        allocation: parts.taken,
+    }
+}
 machine main() crashes Trap {
-    let first: Issued = SelectedAllocate::allocate(Strategy { tail: Tail { length: 48 }, remaining: 48 }, 16, true);
-    let second: Issued = SelectedAllocate::allocate(Strategy { tail: Tail { length: 48 }, remaining: 48 }, 16, false);
+    let first: Issued = allocate(Strategy { tail: Tail { length: 48 }, remaining: 48 }, 16, true);
+    let second: Issued = allocate(Strategy { tail: Tail { length: 48 }, remaining: 48 }, 16, false);
     transition first.strategy.remaining == 32 && first.strategy.tail.length == 32
         && first.allocation.length == 16 && second.strategy.remaining == 32
         && second.strategy.tail.length == 32 && second.allocation.length == 16 {

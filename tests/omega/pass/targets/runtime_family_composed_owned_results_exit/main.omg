@@ -7,49 +7,28 @@ machine Receipt::drop(receipt: &mut Receipt) {}
 data Pair { left: Receipt; right: Receipt; }
 data Holder<Value> { held: Value; }
 
-boundary trait SelectedProduce {
-    machine produce(code: u64) -> Receipt reaches
-;
-}
-CheckedProduce satisfies SelectedProduce {
-    machine produce(code: u64) -> Receipt
-{ Receipt { code: code } }
-}
+linux_x86_64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+windows_x86_64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+linux_arm64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
+macos_arm64 machine produce(code: u64) -> Receipt { Receipt { code: code } }
 
+machine relay(code: u64) -> Receipt { produce(code) }
 
+linux_x86_64 machine pack<Value>(held: Value) -> Holder<Value> { Holder { held: held } }
+windows_x86_64 machine pack<Value>(held: Value) -> Holder<Value> { Holder { held: held } }
+linux_arm64 machine pack<Value>(held: Value) -> Holder<Value> { Holder { held: held } }
+macos_arm64 machine pack<Value>(held: Value) -> Holder<Value> { Holder { held: held } }
 
-
-machine relay(code: u64) -> Receipt { SelectedProduce::produce(code) }
-
-boundary trait SelectedPack {
-    machine pack<Value>(held: Value) -> Holder<Value> reaches
-;
-}
-CheckedPack satisfies SelectedPack {
-    machine pack<Value>(held: Value) -> Holder<Value>
-{ Holder { held: held } }
-}
-
-
-
-
-boundary trait SelectedPair {
-    machine pair() -> Pair reaches
-;
-}
-CheckedPair satisfies SelectedPair {
-    machine pair() -> Pair
-{ Pair { left: Receipt { code: 12 }, right: Receipt { code: 30 } } }
-}
-
-
-
+linux_x86_64 machine pair() -> Pair { Pair { left: Receipt { code: 12 }, right: Receipt { code: 30 } } }
+windows_x86_64 machine pair() -> Pair { Pair { left: Receipt { code: 12 }, right: Receipt { code: 30 } } }
+linux_arm64 machine pair() -> Pair { Pair { left: Receipt { code: 12 }, right: Receipt { code: 30 } } }
+macos_arm64 machine pair() -> Pair { Pair { left: Receipt { code: 12 }, right: Receipt { code: 30 } } }
 
 machine main() crashes Trap {
     let relayed: Receipt = relay(42);
-    let holder: Holder<Receipt> = SelectedPack::pack<Receipt>(relayed);
+    let holder: Holder<Receipt> = pack<Receipt>(relayed);
     let transferred: Receipt = holder.held;
-    let result: Pair = SelectedPair::pair();
+    let result: Pair = pair();
     let left: Receipt = result.left;
     let right: Receipt = result.right;
     let correct: bool = transferred.code == 42 && left.code == 12 && right.code == 30;

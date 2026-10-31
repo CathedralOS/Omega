@@ -5,29 +5,40 @@ data Window where used <= 90, {
     used: u64;
 }
 
-boundary trait SelectedEvaluate {
-    machine evaluate() -> u64 reaches
-;
-}
-CheckedEvaluate satisfies SelectedEvaluate {
-    machine evaluate() -> u64
-{
+linux_x86_64 machine evaluate() -> u64 {
     let window: Window = Window { used: 40 };
     let view: &Window = &window;
     let used: u64 = view.used;
     let diff: u64 = 90u64 - used;
     diff
 }
+
+linux_arm64 machine evaluate() -> u64 {
+    let window: Window = Window { used: 40 };
+    let view: &Window = &window;
+    let used: u64 = view.used;
+    let diff: u64 = 90u64 - used;
+    diff
 }
 
+macos_arm64 machine evaluate() -> u64 {
+    let window: Window = Window { used: 40 };
+    let view: &Window = &window;
+    let used: u64 = view.used;
+    let diff: u64 = 90u64 - used;
+    diff
+}
 
-
-
-
-
+windows_x86_64 machine evaluate() -> u64 {
+    let window: Window = Window { used: 40 };
+    let view: &Window = &window;
+    let used: u64 = view.used;
+    let diff: u64 = 90u64 - used;
+    diff
+}
 
 machine main() crashes Trap {
-    let diff: u64 = SelectedEvaluate::evaluate();
+    let diff: u64 = evaluate();
     transition diff == 50 {
         true -> done()
         _ -> bad()

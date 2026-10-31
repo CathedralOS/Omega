@@ -3,7 +3,7 @@
 //! native work domain, which may omit separately compiled component providers.
 
 use terminal_installation::{
-    AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
+    AdmittedScalarApplications, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
 };
 
 /// Completed checking and the whole selected provider companion it consumed.
@@ -19,7 +19,7 @@ impl<'request> NativeScalarApplications<'request> {
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
-        targets: &TerminalTargetContext,
+        targets: &AdmittedTargetMachineSelections,
         layouts: &AdmittedTargetLayouts,
         selection: &super::NativeExecutionSelection<'_>,
         scalar_demand: &[semantic_vocabulary::ScalarApplicationId],

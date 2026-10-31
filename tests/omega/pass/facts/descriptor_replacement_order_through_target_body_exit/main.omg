@@ -19,17 +19,10 @@ machine replace<'storage>(mut bundle: Bundle<'storage>, intermediate: &'storage 
     observe(&bundle)
 }
 
-boundary trait SelectedTransport {
-    machine transport<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage> reaches
-;
-}
-CheckedTransport satisfies SelectedTransport {
-    machine transport<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage>
-{ bundle }
-}
-
-
-
+windows_x86_64 machine transport<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage> { bundle }
+linux_x86_64 machine transport<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage> { bundle }
+macos_arm64 machine transport<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage> { bundle }
+linux_arm64 machine transport<'storage>(bundle: Bundle<'storage>) -> Bundle<'storage> { bundle }
 
 machine main() crashes Trap {
     let old: Cell = Cell { value: 17 };
@@ -37,7 +30,7 @@ machine main() crashes Trap {
     let new: Cell = Cell { value: 41 };
     let sibling: Cell = Cell { value: 19 };
     let bundle: Bundle = Bundle { entries: [Views { first: &old, second: &sibling }] };
-    let selected: Bundle = SelectedTransport::transport(bundle);
+    let selected: Bundle = transport(bundle);
     let replaced: bool = replace(selected, &intermediate, &new);
     transition replaced && old.value == 17 && sibling.value == 19 {
         true -> done()

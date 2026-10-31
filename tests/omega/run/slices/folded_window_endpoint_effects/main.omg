@@ -9,12 +9,22 @@ data Sequence [copy] { digits: u64 in Wrapping; }
 boundary trait ByteCounter {
     machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 reaches;
 }
+data Provider {}
 Selected satisfies ByteCounter {
-    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
+    ByteCounter::count = Provider::count;
+}
+macos_arm64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
     sized(prefix, bytes, suffix)
 }
+linux_arm64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
+    sized(prefix, bytes, suffix)
 }
-
+linux_x86_64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
+    sized(prefix, bytes, suffix)
+}
+windows_x86_64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
+    sized(prefix, bytes, suffix)
+}
 machine sized(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
     transition prefix == 17 && suffix == 23 {
         true -> window(bytes)

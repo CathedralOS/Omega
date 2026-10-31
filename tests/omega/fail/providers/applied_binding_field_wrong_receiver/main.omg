@@ -21,16 +21,9 @@ machine choose_unsigned() -> i32 { 19 }
 machine choose_boolean() -> i32 { 29 }
 
 data TargetProviders {}
-boundary trait SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders) reaches
-;
-}
-CheckedTargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders)
-{
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<UnsignedReading, UnsignedMap>(defaults);
     TargetProviders::select_provider<BooleanReading, BooleanMap>(defaults);
-}
 }
 data Session<Value> { value: Value; }
 data Wrapper<Value> { value: Value; }

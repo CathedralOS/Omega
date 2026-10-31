@@ -18,7 +18,15 @@ boundary trait FixtureSymlink {
     requires flags == 2
     reaches FilesystemNamespaceMutation blocks;
 }
-
+windows_x86_64 machine fixture_symlink_binding() -> ForeignBinding<12, 19, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "CreateSymbolicLinkW"
+    } }
+}
+windows_x86_64 machine fixture_symlink(link: &[u16; 19] in FixtureLink, target: &[u16; 64] in FixtureTarget, flags: u32) -> u8
+satisfies FixtureSymlink::create via fixture_symlink_binding()
+requires flags == 2
+blocks;
 
 data Main { buffer: [u8; 64]; }
 machine Main::main(main: &mut Main)

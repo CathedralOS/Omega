@@ -30,7 +30,7 @@ public machine load(envelope: &mut Envelope, packet: &input::Packet) -> bool {
     }
     machine initialize(envelope: &mut Envelope, packet: &input::Packet, bound: i32,
                      count: i32 in Wrapping) -> bool {
-        envelope.bound = F64FromI32::from_i32(bound);
+        envelope.bound = F64::from_i32(bound);
         envelope.constraints = count;
         envelope.count = 4;
         envelope.area = 0.0;
@@ -68,9 +68,9 @@ public machine load(envelope: &mut Envelope, packet: &input::Packet) -> bool {
     }
     machine assign(envelope: &mut Envelope, packet: &input::Packet, index: i32 in Wrapping,
                  a: i32, b: i32, limit: i32) -> bool {
-        envelope.a[index] = F64FromI32::from_i32(a);
-        envelope.b[index] = F64FromI32::from_i32(b);
-        envelope.limit[index] = F64FromI32::from_i32(limit) / 1000000.0;
+        envelope.a[index] = F64::from_i32(a);
+        envelope.b[index] = F64::from_i32(b);
+        envelope.limit[index] = F64::from_i32(limit) / 1000000.0;
         transition { _ -> constraint(envelope, packet, index + 1) }
     }
 }

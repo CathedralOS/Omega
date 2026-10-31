@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedReadAt, CheckedReadAt>(builder, linux_x86_64);
-    Build::select_provider<SelectedReadAt, CheckedReadAt>(builder, linux_arm64);
-    Build::select_provider<SelectedReadAt, CheckedReadAt>(builder, macos_arm64);
-    Build::select_provider<SelectedReadAt, CheckedReadAt>(builder, windows_x86_64);
-
     Build::application(builder, "runtime_count_index_target_body_out_of_bounds");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

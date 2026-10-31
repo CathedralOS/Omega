@@ -172,8 +172,10 @@ pub struct VerifiedPsiOptimizationInput {
     pub(crate) admitted_assumed_bindings:
         Vec<installation_evidence::InstalledAssumedBindingEvidence>,
     pub(crate) admitted_native_callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
-    pub(crate) target_machine_selections: Option<terminal_installation::TerminalTargetContext>,
+    pub(crate) target_machine_selections:
+        Option<terminal_installation::AdmittedTargetMachineSelections>,
     pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
+    pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
     pub(crate) external_requirement_applications:
         Vec<effects::SelectedExternalRequirementApplication>,
     /// Both coordinate rosters index the same selected facts table. This
@@ -223,8 +225,14 @@ impl VerifiedPsiOptimizationInput {
     /// Optimizer-only preparation retains no execution selection.
     pub fn target_machine_selections(
         &self,
-    ) -> Option<&terminal_installation::TerminalTargetContext> {
+    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
         self.target_machine_selections.as_ref()
+    }
+
+    /// Exact provider coordinates already closed against this artifact and its
+    /// invocation selection. The original boundary remains the call contract.
+    pub fn target_family_realizations(&self) -> &[effects::SelectedTargetFamilyRealization] {
+        &self.target_family_realizations
     }
 
     /// Identity table shared by the retained selected requirement coordinates.
@@ -239,7 +247,24 @@ impl VerifiedPsiOptimizationInput {
     ) -> Option<&terminal_installation::AdmittedTargetLayouts> {
         self.target_layout_selections.as_ref()
     }
+
+    /// Resolve a portable family head to its exact execution coordinate. A missing
+    /// selected member refuses only when reached; retained, unused families
+    /// impose no deployment requirement. Opaque members still require their
+    /// own realization and cannot be promoted to executable checked bodies.
+    pub fn target_family_member(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
+        target_family_member(
+            self.context.module(),
+            self.target_machine_selections(),
+            boundary,
+        )
+    }
 }
+
+pub(crate) use terminal_installation::admitted_boundary_member as target_family_member;
 
 /// Verifier-owned proof context retained beside the reconstructible Omega plan.
 /// The complete immutable Terminal module remains for proof-question and cycle

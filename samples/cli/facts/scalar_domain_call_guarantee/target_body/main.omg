@@ -9,19 +9,12 @@ Actual satisfies Query {
     }
 }
 
-boundary trait SelectedTargetRead {
-    machine target_read(input: i64) -> i64 reaches
-ensures result >= FLOOR;
-}
-CheckedTargetRead satisfies SelectedTargetRead {
-    machine target_read(input: i64) -> i64 ensures result >= FLOOR
-{ Query::read(input) }
-}
-
-
-
+macos_arm64 machine target_read(input: i64) -> i64 ensures result >= FLOOR { Query::read(input) }
+linux_arm64 machine target_read(input: i64) -> i64 ensures result >= FLOOR { Query::read(input) }
+linux_x86_64 machine target_read(input: i64) -> i64 ensures result >= FLOOR { Query::read(input) }
+windows_x86_64 machine target_read(input: i64) -> i64 ensures result >= FLOOR { Query::read(input) }
 machine issue(input: i64) -> i64 in Nonnegative {
-    let value: i64 = SelectedTargetRead::target_read(input);
+    let value: i64 = target_read(input);
     value
 }
 

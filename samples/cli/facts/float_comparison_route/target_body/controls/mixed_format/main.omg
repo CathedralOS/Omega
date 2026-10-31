@@ -3,19 +3,12 @@
 // Invalid (mixed format): the right operand's format is f32, so `left == right`
 // has no declared operator and no builtin route; checking refuses.
 // Expected diagnostic: builtin `==` cannot combine `f64` and `f32`
-boundary trait SelectedEqualOperands {
-    machine equal_operands(left: f64, right: f32) -> bool reaches
-;
-}
-CheckedEqualOperands satisfies SelectedEqualOperands {
-    machine equal_operands(left: f64, right: f32) -> bool
-{ left == right }
-}
-
-
-
+linux_x86_64 machine equal_operands(left: f64, right: f32) -> bool { left == right }
+linux_arm64 machine equal_operands(left: f64, right: f32) -> bool { left == right }
+macos_arm64 machine equal_operands(left: f64, right: f32) -> bool { left == right }
+windows_x86_64 machine equal_operands(left: f64, right: f32) -> bool { left == right }
 machine main() crashes Trap {
-    let equal: bool = SelectedEqualOperands::equal_operands(212.0, 2.0);
+    let equal: bool = equal_operands(212.0, 2.0);
     transition equal { true -> bad() _ -> done() }
     machine done() {}
     machine bad() { crash Trap; }

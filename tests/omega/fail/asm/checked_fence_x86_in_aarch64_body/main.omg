@@ -1,13 +1,7 @@
 // Expected exit: 0.
 // Checked fence sequences retain their catalog target, ordering and exact empty clobber set while carrying input 37 to a result requiring 37.
 
-boundary trait SelectedOrdered {
-    machine ordered(input: u32) -> u32 reaches
-requires input == 37 ensures result == 37;
-}
-LinuxX8664Ordered satisfies SelectedOrdered {
-    machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37
-{
+linux_x86_64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
     asm where clobbers none {
     entry requires input == 37 ensures input == 37:
         lfence;
@@ -16,24 +10,26 @@ LinuxX8664Ordered satisfies SelectedOrdered {
     }
     input
 }
+
+windows_x86_64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
+    asm where clobbers none {
+    entry requires input == 37 ensures input == 37:
+        lfence;
+        sfence;
+        mfence
+    }
+    input
 }
 
-
-
-LinuxArm64Ordered satisfies SelectedOrdered {
-    machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37
-{
+linux_arm64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
     asm where clobbers none {
     entry requires input == 37 ensures input == 37:
         lfence
     }
     input
 }
-}
 
-MacosArm64Ordered satisfies SelectedOrdered {
-    machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37
-{
+macos_arm64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
     asm where clobbers none {
     entry requires input == 37 ensures input == 37:
         dmb ld;
@@ -42,7 +38,6 @@ MacosArm64Ordered satisfies SelectedOrdered {
     }
     input
 }
-}
 
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
@@ -50,6 +45,6 @@ machine consume(value: u32) requires value == 37 crashes Trap {
     transition value == 37 { true -> finished() false -> failed() }
 }
 machine main() crashes Trap {
-    let value: u32 = SelectedOrdered::ordered(37);
+    let value: u32 = ordered(37);
     consume(value);
 }

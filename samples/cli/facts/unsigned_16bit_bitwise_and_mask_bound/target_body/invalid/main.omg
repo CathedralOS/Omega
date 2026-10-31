@@ -2,29 +2,40 @@
 // Invalid: target bodies compute with mask 127u16, causing 63u16 - res to underflow. Place: target_body.
 // Expected diagnostic: may overflow `u16`
 
-boundary trait SelectedVerifyTarget {
-    machine verify_target() -> i32 reaches
-;
-}
-CheckedVerifyTarget satisfies SelectedVerifyTarget {
-    machine verify_target() -> i32
-{
+linux_x86_64 machine verify_target() -> i32 {
     let raw: u16 = 116u16;
     let res: u16 = raw & 127u16;
     let headroom: u16 = 63u16 - res;
     let margin: u16 = res - 40u16;
     0i32
 }
+
+linux_arm64 machine verify_target() -> i32 {
+    let raw: u16 = 116u16;
+    let res: u16 = raw & 127u16;
+    let headroom: u16 = 63u16 - res;
+    let margin: u16 = res - 40u16;
+    0i32
 }
 
+macos_arm64 machine verify_target() -> i32 {
+    let raw: u16 = 116u16;
+    let res: u16 = raw & 127u16;
+    let headroom: u16 = 63u16 - res;
+    let margin: u16 = res - 40u16;
+    0i32
+}
 
-
-
-
-
+windows_x86_64 machine verify_target() -> i32 {
+    let raw: u16 = 116u16;
+    let res: u16 = raw & 127u16;
+    let headroom: u16 = 63u16 - res;
+    let margin: u16 = res - 40u16;
+    0i32
+}
 
 machine probe() -> i32 {
-    SelectedVerifyTarget::verify_target()
+    verify_target()
 }
 
 machine main() crashes Trap {

@@ -45,7 +45,7 @@ pub(crate) fn prepare_components<'input>(
             .map(|export| {
                 proposal.prepare_native_callable_execution(
                     artifact,
-                    terminal_psi::TerminalCallable::Machine(export.candidate.candidate),
+                    terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;

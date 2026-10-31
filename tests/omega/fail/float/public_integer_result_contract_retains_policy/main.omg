@@ -1,7 +1,7 @@
 use omega::language::core::float_operations;
 
 machine saturating_increment(value: f32) -> u8 in Saturating {
-    let converted: u8 in Saturating = U8FromF32::from_f32(value);
+    let converted: u8 in Saturating = U8::from_f32(value);
     converted + (10u8 as u8 in Saturating)
 }
 
@@ -9,7 +9,7 @@ machine saturating_increment(value: f32) -> u8 in Saturating {
 // helper's saturated result even though every conversion and proof call is total.
 machine increment(value: f32) -> u8 in Saturating
 ensures result == saturating_increment(value) {
-    let converted: u8 in Saturating = U8FromF32::from_f32(value);
+    let converted: u8 in Saturating = U8::from_f32(value);
     ((converted as u8 in Wrapping) + (10u8 as u8 in Wrapping)) as u8 in Saturating
 }
 

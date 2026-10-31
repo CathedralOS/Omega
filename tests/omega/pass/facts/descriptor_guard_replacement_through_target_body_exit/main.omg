@@ -28,17 +28,10 @@ machine consume<'carrier, 'storage>(envelope: Envelope<'carrier, 'storage>, inco
     }
 }
 
-boundary trait SelectedRelay {
-    machine relay<'carrier, 'storage>(envelope: Envelope<'carrier, 'storage>) -> Envelope<'carrier, 'storage> reaches
-;
-}
-CheckedRelay satisfies SelectedRelay {
-    machine relay<'carrier, 'storage>(envelope: Envelope<'carrier, 'storage>) -> Envelope<'carrier, 'storage>
-{ envelope }
-}
-
-
-
+windows_x86_64 machine relay<'carrier, 'storage>(envelope: Envelope<'carrier, 'storage>) -> Envelope<'carrier, 'storage> { envelope }
+linux_x86_64 machine relay<'carrier, 'storage>(envelope: Envelope<'carrier, 'storage>) -> Envelope<'carrier, 'storage> { envelope }
+macos_arm64 machine relay<'carrier, 'storage>(envelope: Envelope<'carrier, 'storage>) -> Envelope<'carrier, 'storage> { envelope }
+linux_arm64 machine relay<'carrier, 'storage>(envelope: Envelope<'carrier, 'storage>) -> Envelope<'carrier, 'storage> { envelope }
 
 machine main() crashes Trap {
     let mut old: Cell = Cell { value: 17 };
@@ -46,7 +39,7 @@ machine main() crashes Trap {
     let sibling: Cell = Cell { value: 19 };
     let mut message: Message = Message { body: &mut old, sibling: &sibling };
     let envelope: Envelope = Envelope::Active { message: &mut message };
-    let selected: Envelope = SelectedRelay::relay(envelope);
+    let selected: Envelope = relay(envelope);
     let replaced: bool = consume(selected, &mut new);
     transition replaced && old.value == 17 && new.value == 41 && sibling.value == 19 {
         true -> done()

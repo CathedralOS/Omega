@@ -10,27 +10,32 @@ requires masked >= 40i32 && masked <= 63i32
     0i32
 }
 
-boundary trait SelectedVerifyTarget {
-    machine verify_target() -> i32 reaches
-;
-}
-CheckedVerifyTarget satisfies SelectedVerifyTarget {
-    machine verify_target() -> i32
-{
+linux_x86_64 machine verify_target() -> i32 {
     let raw: i32 = 116i32;
     let res: i32 = raw & 127i32;
     verify_masked(res)
 }
+
+linux_arm64 machine verify_target() -> i32 {
+    let raw: i32 = 116i32;
+    let res: i32 = raw & 127i32;
+    verify_masked(res)
 }
 
+macos_arm64 machine verify_target() -> i32 {
+    let raw: i32 = 116i32;
+    let res: i32 = raw & 127i32;
+    verify_masked(res)
+}
 
-
-
-
-
+windows_x86_64 machine verify_target() -> i32 {
+    let raw: i32 = 116i32;
+    let res: i32 = raw & 127i32;
+    verify_masked(res)
+}
 
 machine probe() -> i32 {
-    SelectedVerifyTarget::verify_target()
+    verify_target()
 }
 
 machine main() crashes Trap {

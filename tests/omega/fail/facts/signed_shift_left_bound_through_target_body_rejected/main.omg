@@ -2,22 +2,25 @@
 // Place: another target body (invalid twin). The shift's own operand bound is omitted, so exact left shift on `i64` may overflow.
 // Expected diagnostic: may overflow `i64`
 
-boundary trait SelectedShiftLeft {
-    machine shift_left(val: i64) -> i64 reaches
-;
-}
-CheckedShiftLeft satisfies SelectedShiftLeft {
-    machine shift_left(val: i64) -> i64
+linux_x86_64 machine shift_left(val: i64) -> i64
 {
     val << 2
 }
+
+linux_arm64 machine shift_left(val: i64) -> i64
+{
+    val << 2
 }
 
+macos_arm64 machine shift_left(val: i64) -> i64
+{
+    val << 2
+}
 
-
-
-
-
+windows_x86_64 machine shift_left(val: i64) -> i64
+{
+    val << 2
+}
 
 machine main() crashes Trap {
     let val: i64 = 25i64;
@@ -26,7 +29,7 @@ machine main() crashes Trap {
         _ -> bad()
     }
     machine shift_step(v: i64) {
-        let shifted: i64 = SelectedShiftLeft::shift_left(v);
+        let shifted: i64 = shift_left(v);
         transition shifted >= 100i64 && shifted <= 100i64 {
             true -> done(shifted)
             _ -> bad()

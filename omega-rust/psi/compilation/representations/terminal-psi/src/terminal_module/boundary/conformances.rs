@@ -57,7 +57,7 @@ pub struct ClosedConformanceStaticApplication {
     pub public_requirement_identity: TerminalIdentityIndex,
     pub realization_identity: TerminalIdentityIndex,
     pub source_callable_identity: TerminalIdentityIndex,
-    pub callable: crate::TerminalCallable,
+    pub callable: crate::TargetMachineCallable,
     /// Checked method application, including its independently checked capture
     /// commitment when this invocation's template was capture-applied.
     pub application_commitment: Option<[u8; 32]>,
@@ -127,7 +127,7 @@ pub struct ClosedConformanceRealizationCallable {
     /// Canonical checked callable identity, not a declaration display path.
     pub source_callable_identity: TerminalIdentityIndex,
     /// Artifact-local callable: a body or its opaque portable contract head.
-    pub callable: crate::TerminalCallable,
+    pub callable: crate::TargetMachineCallable,
     /// Source-derived matched requirement/realization result class for the
     /// bounded static requirement cohort.
     /// Callable identity intentionally excludes return type, so this separately
@@ -261,10 +261,10 @@ fn callable_result_bytes(result: ClosedConformanceCallableResult) -> Vec<u8> {
     }
 }
 
-fn callable_bytes(callable: crate::TerminalCallable) -> Vec<u8> {
+fn callable_bytes(callable: crate::TargetMachineCallable) -> Vec<u8> {
     let (tag, identity) = match callable {
-        crate::TerminalCallable::Machine(machine) => (1, machine.get()),
-        crate::TerminalCallable::Boundary(boundary) => (2, boundary.get()),
+        crate::TargetMachineCallable::Machine(machine) => (1, machine.get()),
+        crate::TargetMachineCallable::Boundary(boundary) => (2, boundary.get()),
     };
     let mut bytes = vec![tag];
     bytes.extend(identity.to_le_bytes());

@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedCompare, LinuxX8664Compare>(builder, linux_x86_64);
-    Build::select_provider<SelectedCompare, LinuxX8664Compare>(builder, windows_x86_64);
-    Build::select_provider<SelectedCompare, LinuxArm64Compare>(builder, linux_arm64);
-    Build::select_provider<SelectedCompare, LinuxArm64Compare>(builder, macos_arm64);
-
     Build::application(builder, "checked_asm_compare_preserves_parameter");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

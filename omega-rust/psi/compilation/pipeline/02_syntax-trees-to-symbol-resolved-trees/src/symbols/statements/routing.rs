@@ -193,7 +193,6 @@ pub(super) fn assign_statement_symbols(
                 state_symbol,
                 &call.target,
                 call.target_symbol,
-                expression_table,
                 &mut call.storage.machine_arguments,
             );
         }

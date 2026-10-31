@@ -77,17 +77,7 @@ pub fn resolve_build_static_operand(
             0,
         ) => ProductOperandKind::BoundarySubject,
         (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
-        (
-            BuildOperation::NativeBinding
-            | BuildOperation::NativeTableFunction
-            | BuildOperation::NativeVtableField
-            | BuildOperation::NativeSameStackDemand,
-            0,
-        )
-        | (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
-        (BuildOperation::NativeTableFunction | BuildOperation::NativeVtableField, 1) => {
-            ProductOperandKind::TableField
-        }
+        (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
         (BuildOperation::WireCompatibilityRequest, 0..=3)
         | (BuildOperation::RepresentationSelection, 0) => ProductOperandKind::Data,
         (BuildOperation::RepresentationSelection, 1) => ProductOperandKind::Representation,
@@ -222,18 +212,14 @@ pub fn build_product_request_intrinsic(
                 && owner.name.as_str() == "BuildBindingOperations"
                 && program.symbols.is_build_prelude_symbol(owner.symbol)
                 && program
-                    .trait_machine_signature_by_symbol(owner, call.target_symbol)
-                    .is_some_and(|signature| {
-                        matches!(
-                            signature.name.as_str(),
-                            "prepare"
-                                | "select"
-                                | "select_provider"
-                                | "bind_native"
-                                | "bind_table_function"
-                                | "bind_vtable_field"
-                                | "same_stack_demand"
-                        )
+                    .trait_machine_signatures(owner)
+                    .iter()
+                    .any(|signature| {
+                        signature.symbol == call.target_symbol
+                            && matches!(
+                                signature.name.as_str(),
+                                "prepare" | "select" | "select_provider"
+                            )
                     })
         })
         .ok_or("Build product request has no exact compiler-owned recording operation")?;

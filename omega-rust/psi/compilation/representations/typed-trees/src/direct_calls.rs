@@ -3,7 +3,8 @@
 use crate::TypedTrees;
 use crate::typed_trees::inspection::callees::ExplicitStateCallees;
 use language_semantics::direct_calls::{
-    DirectCall, DirectCallDeclarations, DirectCallMachine, DirectCallState,
+    DirectCall, DirectCallDeclarations, DirectCallFamily, DirectCallFamilyMember,
+    DirectCallMachine, DirectCallState,
 };
 use symbols::SymbolHandle;
 
@@ -54,11 +55,33 @@ pub fn collect(
                 in_scope: typed
                     .symbols
                     .symbol_is_in_dependency_scope(machine.symbol, scope),
+                family_interface: machine.target_family_interface,
+                authored_target: typed.machine_authored_target(machine).map(str::to_owned),
+                source_target_context: typed.source_target_context(machine).map(str::to_owned),
+                target: machine
+                    .target
+                    .as_ref()
+                    .map(|target| target.as_str().to_owned()),
                 states,
             }
         })
         .collect();
-    DirectCallDeclarations::new(scope, machines, machine_positions)
+    let families = typed
+        .target_machine_families
+        .iter()
+        .map(|family| DirectCallFamily {
+            canonical: typed.machine_position_by_symbol(family.canonical),
+            members: family
+                .members
+                .iter()
+                .map(|member| DirectCallFamilyMember {
+                    target: member.target.as_str().to_owned(),
+                    machine: typed.machine_position_by_symbol(member.machine),
+                })
+                .collect(),
+        })
+        .collect();
+    DirectCallDeclarations::new(scope, machines, families, machine_positions)
 }
 
 fn called_machine_position(typed: &TypedTrees, called: SymbolHandle) -> Option<usize> {

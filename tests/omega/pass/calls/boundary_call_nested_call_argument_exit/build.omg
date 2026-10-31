@@ -1,4 +1,3 @@
-use omega::language::core::external_binding;
 // Deployable native canary: only windows_x86_64 binds kernel32 CloseHandle.
 
 machine build(builder: &mut Build) {
@@ -7,11 +6,4 @@ machine build(builder: &mut Build) {
         location: "../../../../../source/library/std"
     });
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-
- Build::bind<Io::c_close_handle>(builder, windows_x86_64, ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "CloseHandle",
-        },
-    });
 }

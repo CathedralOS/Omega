@@ -5,7 +5,7 @@
 // file imports none of them: its own `Nat` is the only `Nat` its `==`
 // resolves, `<=` over anonymous integers stays builtin although core's
 // `Nat::less_or_equal` is loaded, and `(6 + 1) - 0` stays builtin although
-// `FloatSubtract::subtract` is loaded.
+// `Float::subtract` is loaded.
 trait Equatable<T> {
     machine equals(left: &T, right: &T) -> bool;
 }

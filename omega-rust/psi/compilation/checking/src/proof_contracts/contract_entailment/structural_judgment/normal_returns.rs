@@ -16,7 +16,7 @@ mod owned_arguments;
 
 use super::super::specification_calls::{
     AppliedProofBindings, SelectedCallContract, owner_contracts, owner_leading_operands,
-    owner_return_type, owner_symbol, selected_call_contract, selected_call_contract_for_parameters,
+    owner_return_type, owner_symbol, selected_call_contract,
 };
 
 use super::value_predicates::boolean_term;
@@ -1048,13 +1048,6 @@ impl<'program> StructuralJudge<'program> {
         // Containment is needed only when this value could actually fold.
         // Other operands keep their ordinary scheduler without subtree walks.
         if matches!(demand, NormalValueDemand::Value)
-            // The receiving callable owns a float argument's landing. Even an
-            // integral decimal must keep its floating meaning here; turning
-            // it into an integer loses its format and signed-zero identity.
-            && !matches!(
-                program.primitive_type_reference(scope.2),
-                Some(typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64)
-            )
             && crate::value_custody::literals::has_anonymous_numeric_results(program, expression)
             && !observes_inner_operation()
             && let Some(value) =
@@ -1225,12 +1218,9 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         let has_own_effect = match node {
-            ExpressionNode::Call(call) => !call_has_mathematical_denotation(
-                program,
-                scope.0.symbol,
-                program.state_parameters(scope.1),
-                call,
-            ),
+            ExpressionNode::Call(call) => {
+                !call_has_mathematical_denotation(program, scope.0.symbol, call)
+            }
             ExpressionNode::Atomic(_) => {
                 crate::value_custody::atomic_operations::atomic_once_carrier(program, expression)
                     .is_some()
@@ -2292,12 +2282,7 @@ impl<'program> StructuralJudge<'program> {
         // Computed proof machines are erased mathematical applications. Their
         // definitions and induction remain with the existing term owner;
         // replacing them with opaque runtime occurrences loses that denotation.
-        if call_has_mathematical_denotation(
-            program,
-            scope.0.symbol,
-            program.state_parameters(scope.1),
-            call,
-        ) {
+        if call_has_mathematical_denotation(program, scope.0.symbol, call) {
             return None;
         }
         if !call.evidence_arguments.is_empty() || call.quotient_operation.is_some() {
@@ -2974,13 +2959,11 @@ impl<'program> NormalReturnPath<'program> {
 }
 
 /// Authored mathematical definitions have no runtime invocation, including
-/// definitions with ordinary scalar results. Sealed semantic declarations
-/// retain the same erased meaning across result carriers; runtime calls still
-/// require complete write frames.
+/// definitions with ordinary scalar results. Other calls need the shared
+/// proof-only classification; runtime calls still require complete write frames.
 pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_denotation(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,
-    parameters: &[typed_trees::signature::StateParameter],
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     if crate::mathematical_applications::selected_definition(program, call).is_some() {
@@ -2994,7 +2977,7 @@ pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_den
             .proof_only_mention(program, signature.return_type)
             .is_some();
     }
-    match selected_call_contract_for_parameters(program, call, caller, parameters) {
+    match selected_call_contract(program, caller, call) {
         Some(SelectedCallContract::Concrete(machine, _)) => {
             crate::proof_only_classification(program).is_proof_machine(program, machine)
         }
@@ -3003,15 +2986,9 @@ pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_den
             // denotation as a computed proof machine. Retain its selected
             // identity; an unresolved or ordinary runtime operator must still
             // establish its write frame and capture its own result occurrence.
-            // Erasure follows the selected semantic declaration, including
-            // closed catalog functions returning Bool or an integer. A
-            // scalar result cannot turn an erased mathematical application
-            // into a replayable runtime invocation. Ordinary numeric runtime
-            // operators still require their observed call occurrence.
-            (crate::proof_only_classification(program)
+            crate::proof_only_classification(program)
                 .proof_only_mention(program, operator.return_type)
                 .is_some()
-                || crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(program, operator).is_some())
                 && crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(program, operator)
         }
         _ => false,

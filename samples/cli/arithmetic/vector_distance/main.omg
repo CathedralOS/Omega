@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
     // Magnitude = sqrt(ax*ax + ay*ay) = sqrt(9 + 16) = sqrt(25) = 5.
     main.mag = sqrt_f64(main.ax * main.ax + main.ay * main.ay);
     // A named saturating conversion truncates the float, then the policy erases.
-    let converted: i32 in Saturating = I32FromF64::from_f64(main.mag);
+    let converted: i32 in Saturating = I32::from_f64(main.mag);
     main.magi = converted as i32;
 
     // A clamped display value (the magnitude pinned to a [0, 255] band, as a

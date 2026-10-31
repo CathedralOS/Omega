@@ -9,7 +9,7 @@ machine disjoint(value: f64) -> i32 {
     let rejected: bool = !accepted;
     reading.other = 2000000000.0;
     transition rejected {
-        false -> finish(I32FromF64::from_f64(reading.value))
+        false -> finish(I32::from_f64(reading.value))
         true -> zero()
     }
     machine finish(observed: i32) -> i32 { observed }
@@ -23,7 +23,7 @@ machine snapshot(value: f64) -> i32 {
     let copied: f64 = current;
     current = 2000000000.0;
     transition accepted {
-        true -> finish(I32FromF64::from_f64(copied))
+        true -> finish(I32::from_f64(copied))
         false -> zero()
     }
     machine finish(observed: i32) -> i32 { observed }
@@ -36,7 +36,7 @@ machine forwarded(value: f64) -> i32 {
     transition { _ -> decide(accepted, value) }
     machine decide(accepted: bool, value: f64) -> i32 {
         transition accepted {
-            true -> finish(I32FromF64::from_f64(value))
+            true -> finish(I32::from_f64(value))
             false -> zero()
         }
     }

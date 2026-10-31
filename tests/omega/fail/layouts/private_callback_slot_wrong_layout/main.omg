@@ -9,11 +9,12 @@ boundary trait Callback {
 data OtherLayout {
 }
 
-WrongLayoutSlot satisfies PrivateCallbackSlot<ForeignRecord, OtherLayout, Callback::call> { }
+WrongLayoutSlot satisfies PrivateCallbackSlot<OtherLayout, Callback::call> { }
 
+data Spread {
+}
 
-Spread satisfies FixedLayout<ForeignRecord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+machine Spread::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -28,8 +29,7 @@ Spread satisfies FixedLayout<ForeignRecord> {
     };
     Plan::place_private<WrongLayoutSlot>(plan, 8)
 }
-}
 
 data ForeignRecord { payload: u64; }
-data Main { value: LayoutStorage<ForeignRecord, Spread>; }
+data Main { value: Spread<ForeignRecord>; }
 machine Main::main() { }

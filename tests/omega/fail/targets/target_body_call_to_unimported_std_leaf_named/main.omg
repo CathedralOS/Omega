@@ -5,16 +5,10 @@
 use omega_language_std::console;
 use omega_language_std::macos_gui;
 
-boundary trait SelectedPace {
-    machine pace(timeout: i32)
-reaches ClockObservation + ExecutionDelay;
-}
-CheckedPace satisfies SelectedPace {
-    machine pace(timeout: i32)
+macos_arm64 machine pace(timeout: i32)
 reaches ClockObservation + ExecutionDelay
 {
     let status: i32 = darwin_poll(0, 0, timeout);
-}
 }
 
 data Main { }

@@ -36,11 +36,8 @@ impl<Requirement> BuildSelectionRequest<Requirement> {
             Self::Exclusion(_) => true,
             Self::Declaration(request) => matches!(
                 request.operation,
-                super::BuildOperation::NativeBinding
-                    | super::BuildOperation::NativeTableFunction
-                    | super::BuildOperation::NativeVtableField
-                    | super::BuildOperation::NativeSameStackDemand
-                    | super::BuildOperation::ProviderSelection
+                super::BuildOperation::ProviderSelection
+                    | super::BuildOperation::NativeBinding
                     | super::BuildOperation::ServiceExclusion
                     | super::BuildOperation::BoundaryAcceptance
                     | super::BuildOperation::ServiceAudit
@@ -171,23 +168,12 @@ pub enum ProductOperandRole {
     BoundarySubject,
     Provider,
     Requirement,
-    TableField,
     Data,
     Representation,
     WireCompatibilityFact,
 }
 
 impl BuildOperation {
-    pub const fn is_native_intent(self) -> bool {
-        matches!(
-            self,
-            Self::NativeBinding
-                | Self::NativeTableFunction
-                | Self::NativeVtableField
-                | Self::NativeSameStackDemand
-        )
-    }
-
     pub const fn product_operand_role(self, position: usize) -> Option<ProductOperandRole> {
         use ProductOperandRole as Role;
         match (self, position) {
@@ -196,15 +182,9 @@ impl BuildOperation {
                 Some(Role::BoundarySubject)
             }
             (Self::ProviderSelection, 1) => Some(Role::Provider),
-            (
-                Self::NativeBinding
-                | Self::NativeTableFunction
-                | Self::NativeVtableField
-                | Self::NativeSameStackDemand,
-                0,
-            )
-            | (Self::AssumedBindingContract, 0 | 1) => Some(Role::Requirement),
-            (Self::NativeTableFunction | Self::NativeVtableField, 1) => Some(Role::TableField),
+            (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
+                Some(Role::Requirement)
+            }
             (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
                 Some(Role::Data)
             }
@@ -216,16 +196,11 @@ impl BuildOperation {
 
     pub const fn product_operand_count_valid(self, count: usize) -> bool {
         match self {
-            Self::NativeTableFunction
-            | Self::NativeVtableField
-            | Self::ProviderSelection
+            Self::NativeBinding => count == 1,
+            Self::ProviderSelection
             | Self::RepresentationSelection
             | Self::AssumedBindingContract => count == 2,
-            Self::NativeSameStackDemand
-            | Self::NativeBinding
-            | Self::ServiceExclusion
-            | Self::ServiceAudit
-            | Self::BoundaryAcceptance => count == 1,
+            Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => count == 1,
             Self::WireCompatibilityRequest => count >= 5,
             _ => false,
         }
@@ -294,9 +269,7 @@ impl ProductDeclarationRequest {
 
 /// The ordinary provider composition choice, independent of declaration or
 /// target identity. Omission at the source surface means Fused.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompositionMode {
     #[default]
     Fused,
@@ -307,10 +280,10 @@ pub enum CompositionMode {
 /// Capturing a potential call does not mint an execution event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutedBuildSelection {
-    Native(super::ExecutedNativeBinding),
     Entry(ExecutedRootBinding),
     Declaration(ExecutedProductSelection),
     Exclusion(ExecutedEnumExclusion),
+    Native(ExecutedNativeBinding),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -326,6 +299,17 @@ pub struct ExecutedProductSelection {
     /// Provider choices retain the actual evaluated mode. Representation
     /// choices carry no composition argument.
     pub composition: Option<CompositionMode>,
+}
+
+/// One reached package-local native intent. The locator is an owned checked
+/// semantic snapshot, not provider evidence or host execution authority. The
+/// Product join still resolves the exact requirement under this occurrence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedNativeBinding {
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    pub target: super::ProductTarget,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
+    pub selecting_machine: source::SourceSpan,
 }
 
 /// Inert designated operands retained under their authored lexical scope.
@@ -411,75 +395,28 @@ pub struct ExecutedRootBinding {
     pub implementation: RootBindingSelection,
 }
 
-impl ProductDeclarationOperand {
-    /// Exact syntax retained by this inert operand. Descendants belong to
-    /// Product formation, not to the running Build activation. Ordinary
-    /// locator/value arguments are not in this owned graph.
-    pub fn owns_selection_occurrence(&self, occurrence: source::SourceSpan) -> bool {
-        let contains = |owner: source::SourceSpan| {
-            owner.source_id == occurrence.source_id
-                && owner.span.start <= occurrence.span.start
-                && occurrence.span.end <= owner.span.end
-        };
-        contains(self.source_span)
-            || self.application.as_deref().is_some_and(|graph| {
-                graph
-                    .names
-                    .iter()
-                    .any(|(_, name)| contains(name.source_span))
-                    || graph.operands.iter().any(|(_, operand)| {
-                        let path = graph.names.span_or_empty(operand.path);
-                        let (Some(first), Some(last)) = (path.first(), path.last()) else {
-                            return false;
-                        };
-                        first.source_span.source_id == last.source_span.source_id
-                            && occurrence
-                                == source::SourceSpan::new(
-                                    first.source_span.source_id,
-                                    source::Span::new(
-                                        first.source_span.span.start,
-                                        last.source_span.span.end,
-                                    ),
-                                )
-                    })
-                    || graph
-                        .expressions
-                        .iter()
-                        .any(|(_, expression)| contains(expression.source_span))
-            })
-    }
-}
-
 /// Stable source coordinates of one reached or declared package-owned native
 /// operation. Captured from checked Build code, never from locator arguments.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBindingProducer {
     pub package: semantic_vocabulary::PackageKeyIdentity,
     pub declaration_path: String,
     pub callable_identity: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedNativeDeclaration {
     pub producer: NativeBindingProducer,
-    /// The entire designated request survives: owner/member applications and
-    /// table designations cannot be reconstructed from one rendered path.
-    pub request: std::sync::Arc<ProductDeclarationRequest>,
-    pub author: source::SourceSpan,
-    pub sources: std::sync::Arc<source::SourceMap>,
+    pub requirement_path: String,
     pub source_occurrence_digest: [u8; 32],
     pub resolution_stratum: source::SourceResolutionStratum,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedNativeIntent {
     pub declaration: u32,
     pub target: ProductTarget,
-    pub intent: super::NativeBuildIntent,
-    /// Captured actuals belong to the reached helper application, independently
-    /// of its authored descriptor recipe and the receiving Product namespace.
-    pub static_environment:
-        Option<std::sync::Arc<super::product_operands::ProductStaticEnvironment>>,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
 }
 
 /// Source coordinates captured while checked Build bodies still exist. The
@@ -489,7 +426,6 @@ pub struct CapturedNativeIntent {
 pub struct NativeBindingFormation {
     pub request: std::sync::Arc<ProductDeclarationRequest>,
     pub author: source::SourceSpan,
-    pub sources: std::sync::Arc<source::SourceMap>,
     pub author_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub root_scope: bool,
     pub declaration_path: String,
@@ -507,22 +443,16 @@ impl NativeBindingFormation {
                 "native output cannot substitute another checked Build package's scope".into(),
             );
         }
-        self.request.validate_shape()?;
-        let author = self
-            .sources
-            .get(self.author.source_id)
-            .ok_or("native formation lost its immutable source owner")?;
-        let mut sources = self.sources.as_ref().clone();
-        sources.bind_anonymous_owner(&author.package_root, package)?;
+        let [operand] = self.request.operands.as_ref() else {
+            return Err("native formation lost its requirement".into());
+        };
         Ok(CapturedNativeDeclaration {
             producer: NativeBindingProducer {
                 package,
                 declaration_path: self.declaration_path.clone(),
                 callable_identity: self.callable_identity.clone(),
             },
-            request: self.request.clone(),
-            author: self.author,
-            sources: std::sync::Arc::new(sources),
+            requirement_path: operand.path.clone(),
             source_occurrence_digest: self.source_occurrence_digest,
             resolution_stratum: self.resolution_stratum,
         })
@@ -536,30 +466,18 @@ mod native_formation_tests {
     fn native_output_never_crosses_checked_package_scope() {
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
         let other = semantic_vocabulary::PackageKeyIdentity::from_digest([8; 32]).unwrap();
-        let mut sources = source::SourceMap::default();
-        let source = sources
-            .add_with_metadata(
-                std::path::PathBuf::from("/native-test/build.omg"),
-                "machine build(builder: &mut Build) {}".into(),
-                std::path::PathBuf::from("/native-test"),
-                None,
-                source::SourceOrigin::User,
-            )
-            .clone();
-        let span = source.source_span(source::Span::new(0, source.source.len()));
         let mut formation = NativeBindingFormation {
             request: std::sync::Arc::new(ProductDeclarationRequest {
-                source_span: span,
+                source_span: Default::default(),
                 operation: BuildOperation::NativeBinding,
                 operands: vec![ProductDeclarationOperand {
                     application: None,
                     path: "Raw::read".into(),
-                    source_span: span,
+                    source_span: Default::default(),
                 }]
                 .into_boxed_slice(),
             }),
-            author: span,
-            sources: std::sync::Arc::new(sources),
+            author: Default::default(),
             author_package: Some(package),
             root_scope: true,
             declaration_path: "build".into(),

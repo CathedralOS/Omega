@@ -8,10 +8,9 @@ data Payload {
     words: [Word in Tagged; 2];
     array: [Word; 2] in TaggedArray;
 }
+data Packed {}
 
-
-Packed satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+machine Packed::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 },
@@ -27,9 +26,8 @@ Packed satisfies FixedLayout<Payload> {
         size_fixed: 40, size_is_dynamic: false, align: 8,
     }
 }
-}
 
-data View { payload: LayoutStorage<Payload, Packed>; }
+data View { payload: Packed<Payload>; }
 
 machine main() crashes Trap {
     transition size_of<View>() == 40 && align_of<View>() == 8 {

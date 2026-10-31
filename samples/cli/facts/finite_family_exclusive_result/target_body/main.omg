@@ -44,18 +44,11 @@ machine check(drops: &mut [u64; 1]) crashes Trap {
     machine bad() { crash Trap; }
 }
 
-boundary trait SelectedHelper {
-    machine helper(counter: &mut [u64; 1]) reaches
-crashes Trap;
-}
-CheckedHelper satisfies SelectedHelper {
-    machine helper(counter: &mut [u64; 1]) crashes Trap
-{ check(counter); }
-}
-
-
-
+linux_x86_64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }
+linux_arm64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }
+macos_arm64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }
+windows_x86_64 machine helper(counter: &mut [u64; 1]) crashes Trap { check(counter); }
 machine main() crashes Trap {
     let mut counter: [u64; 1] = [0];
-    SelectedHelper::helper(&mut counter);
+    helper(&mut counter);
 }

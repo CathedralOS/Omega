@@ -1,4 +1,3 @@
-use omega::language::core::external_binding;
 // Deployable external-satisfier canary: every hosted target selects its exact
 // binding producer and satisfying leaf.
 
@@ -9,69 +8,4 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_x86_64::ProgramEntry, entry_start);
-
- Build::bind<ForeignMath::absolute>(builder, windows_x86_64, ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "msvcrt.dll",
-            export: "abs",
-        },
-    });
- Build::bind<ForeignMath::absolute>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "abs",
-            version: "GLIBC_2.2.5",
-        },
-    });
- Build::bind<ForeignMath::absolute>(builder, linux_arm64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "abs",
-            version: "GLIBC_2.17",
-        },
-    });
- Build::bind<ForeignMath::absolute>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libSystem.B.dylib",
-            symbol: "_abs",
-        },
-    });
- Build::bind<ForeignMath::absolute>(builder, macos_x86_64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libSystem.B.dylib",
-            symbol: "_abs",
-        },
-    });
- Build::bind<ForeignMath::exit_with>(builder, windows_x86_64, ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "msvcrt.dll",
-            export: "exit",
-        },
-    });
- Build::bind<ForeignMath::exit_with>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "exit",
-            version: "GLIBC_2.2.5",
-        },
-    });
- Build::bind<ForeignMath::exit_with>(builder, linux_arm64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "exit",
-            version: "GLIBC_2.17",
-        },
-    });
- Build::bind<ForeignMath::exit_with>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libSystem.B.dylib",
-            symbol: "_exit",
-        },
-    });
- Build::bind<ForeignMath::exit_with>(builder, macos_x86_64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libSystem.B.dylib",
-            symbol: "_exit",
-        },
-    });
 }

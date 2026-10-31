@@ -160,41 +160,66 @@ pub(crate) fn selected_source_calling_application(
         };
     }
 
-    let (requirement_owner, signature) = crate::service_schema::requirement_application_for_schema(
-        typed,
-        method,
-        &plan.schema.identities,
-    )
-    .map_err(Diagnostic::error)?;
-    let schema_owner = if plan.schema.methods.len() == 1
-        && plan.schema.receiver_applications.is_empty()
-        && plan.schema.identity_text(plan.schema.trait_name) == requirement_identity
-    {
-        // An exact callable slot retains its declaration owner separately.
-        // This is the same source signature query as a whole-map method;
-        // physical ABI equality is never a substitute for the full identity.
-        requirement_owner
-    } else {
-        let owners = typed
-            .traits()
-            .iter()
-            .filter(|definition| {
-                crate::service_schema::schema_binds_exact_boundary_trait(
-                    provider_context,
-                    &plan.schema,
-                    definition,
-                )
-            })
-            .collect::<Vec<_>>();
-        let [owner] = owners.as_slice() else {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry schema `{}` resolves to {} exact typed boundary traits",
-                plan.schema.identity_text(plan.schema.trait_name),
-                owners.len(),
-            )));
-        };
-        *owner
+    let schema_owners = typed
+        .traits()
+        .iter()
+        .filter(|definition| {
+            crate::service_schema::schema_binds_exact_boundary_trait(
+                provider_context,
+                &plan.schema,
+                definition,
+            )
+        })
+        .collect::<Vec<_>>();
+    let [schema_owner] = schema_owners.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "selected source boundary entry schema `{}` resolves to {} exact typed boundary traits",
+            plan.schema.identity_text(plan.schema.trait_name),
+            schema_owners.len()
+        )));
     };
+
+    let requirement_owners = typed
+        .traits()
+        .iter()
+        .filter(|definition| {
+            typed.trait_declaration_path(definition) == method.requirement_owner
+                && crate::service_schema::is_product_declaration(typed, definition.symbol)
+                && typed.symbols.symbol_package_identity(definition.symbol)
+                    == method.requirement_owner_package_identity
+        })
+        .collect::<Vec<_>>();
+    let [requirement_owner] = requirement_owners.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "selected source boundary entry requirement owner `{}` resolves to {} exact typed traits",
+            method.requirement_owner,
+            requirement_owners.len()
+        )));
+    };
+    if !requirement_owner.is_boundary {
+        return Err(Diagnostic::error(format!(
+            "selected source boundary entry requirement owner `{}` is not an exact boundary trait",
+            method.requirement_owner
+        )));
+    }
+
+    let matching_signatures = typed
+        .trait_machine_signatures(requirement_owner)
+        .iter()
+        .filter(|signature| {
+            signature.name.as_str() == method_name
+                && typed.trait_requirement_callable_identity_text(requirement_owner, signature)
+                    == requirement_identity
+        })
+        .collect::<Vec<_>>();
+    let [signature] = matching_signatures.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "selected source boundary entry requirement `{}` binds {} exact typed signatures for `{method_name}` / `{requirement_identity}`",
+            method.requirement_owner,
+            matching_signatures.len()
+        )));
+    };
+
     let (Some(fingerprint), Some(commitment)) = (
         method.calling_plan_report_fingerprint,
         method.calling_plan_commitment,
@@ -278,9 +303,7 @@ pub fn component_calling_applications(
         }
         let profile = target::TargetProfile::from_canonical_target_name(&plan.target)
             .map_err(|error| vec![error])?;
-        let layout_target = layout::LayoutTarget::for_profile(profile)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if layout_target.native_target() != native_target {
+        if profile.native_target() != native_target {
             return Err(vec![Diagnostic::error(
                 "component ABI request names another selected native target",
             )]);
@@ -306,7 +329,7 @@ pub fn component_calling_applications(
             let application = match application {
                 Some(application) => application,
                 None => super::plan_computation::evaluate_default_calling_application(
-                    typed, layout_target, trait_name, plan.schema.trait_package_identity,
+                    typed, native_target, trait_name, plan.schema.trait_package_identity,
                     &row.method, requirement,
                     calling_conventions::CallingPolicy::native_for_target(native_target),
                     0, representations,

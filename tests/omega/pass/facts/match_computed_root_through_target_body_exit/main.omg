@@ -10,13 +10,7 @@ requires counter == 0
     0
 }
 
-boundary trait SelectedApply {
-    machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64 reaches
-;
-}
-CheckedApply satisfies SelectedApply {
-    machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64
-{
+linux_x86_64 machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64 {
     let selected: &mut i64 = match chosen[compute(visits)] {
         17 -> &mut chosen[0]
         _ -> &mut other[0]
@@ -24,19 +18,39 @@ CheckedApply satisfies SelectedApply {
     selected = 41;
     selected
 }
+
+linux_arm64 machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64 {
+    let selected: &mut i64 = match chosen[compute(visits)] {
+        17 -> &mut chosen[0]
+        _ -> &mut other[0]
+    };
+    selected = 41;
+    selected
 }
 
+macos_arm64 machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64 {
+    let selected: &mut i64 = match chosen[compute(visits)] {
+        17 -> &mut chosen[0]
+        _ -> &mut other[0]
+    };
+    selected = 41;
+    selected
+}
 
-
-
-
-
+windows_x86_64 machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64 {
+    let selected: &mut i64 = match chosen[compute(visits)] {
+        17 -> &mut chosen[0]
+        _ -> &mut other[0]
+    };
+    selected = 41;
+    selected
+}
 
 machine main() crashes Trap {
     let mut chosen: [i64; 2] = [17, 5];
     let mut other: [i64; 2] = [0, 8];
     let mut visits: u64 = 0;
-    let written: i64 = SelectedApply::apply(&mut chosen, &mut other, &mut visits);
+    let written: i64 = apply(&mut chosen, &mut other, &mut visits);
     transition written == 41 && chosen[0] == 41 && chosen[1] == 5 && other[0] == 0 && visits == 1 {
         true -> done()
         false -> wrong()

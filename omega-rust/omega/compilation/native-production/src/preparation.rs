@@ -48,24 +48,12 @@ pub fn prepare<'input>(
         let (artifact, proposal) = request.prepare_terminal(retained)?;
         let components =
             crate::components::prepare_components(request.components, artifact.view())?;
-        let selections = terminal_installation::target_context(
+        let selections = terminal_installation::admit_target_machine_selections(
             artifact.view(),
             proposal.target_profile().target_name(),
         );
-        let layout_target = proposal
-            .target_profile()
-            .layout_target_facts()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "native entry has no admitted target layout facts",
-                )]
-            })?;
-        let layouts = terminal_installation::admit_target_layouts(
-            artifact.view(),
-            &selections,
-            &layout_target,
-        )
-        .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
+        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
+            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
         let entry = proposal.program_entry().checked_entry().terminal_entry();
         let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
         for initializer in request.private_entry_ram {

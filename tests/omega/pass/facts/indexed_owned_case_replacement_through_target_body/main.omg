@@ -22,22 +22,24 @@ machine run(payload: u64 in PositiveSmall) -> u64 {
     let mut frames: [Frame; 4096];
     replace(&mut frames, 3, payload)
 }
-boundary trait SelectedWitness {
-    machine witness() -> u64 reaches
-;
-}
-CheckedWitness satisfies SelectedWitness {
-    machine witness() -> u64
-{
+windows_x86_64 machine witness() -> u64 {
     let payload: u64 in PositiveSmall = 3;
     run(payload)
 }
+linux_x86_64 machine witness() -> u64 {
+    let payload: u64 in PositiveSmall = 3;
+    run(payload)
 }
-
-
-
+linux_arm64 machine witness() -> u64 {
+    let payload: u64 in PositiveSmall = 3;
+    run(payload)
+}
+macos_arm64 machine witness() -> u64 {
+    let payload: u64 in PositiveSmall = 3;
+    run(payload)
+}
 machine main() crashes Trap {
-    transition SelectedWitness::witness() == 2 { true -> done() false -> bad() }
+    transition witness() == 2 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

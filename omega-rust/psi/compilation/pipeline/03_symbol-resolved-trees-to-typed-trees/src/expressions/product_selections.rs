@@ -72,15 +72,12 @@ pub(crate) fn request(
     };
     if !operand_count_valid
         || evidence_count != 0
-        || match operation {
-            BuildOperation::ProviderSelection => !(2..=3).contains(&ordinary_count),
-            BuildOperation::NativeBinding | BuildOperation::NativeSameStackDemand => {
-                ordinary_count != 3
-            }
-            BuildOperation::NativeTableFunction | BuildOperation::NativeVtableField => {
-                ordinary_count != 2
-            }
-            _ => ordinary_count != 1,
+        || if operation == BuildOperation::NativeBinding {
+            ordinary_count != 3
+        } else if operation == BuildOperation::ProviderSelection {
+            !(2..=3).contains(&ordinary_count)
+        } else {
+            ordinary_count != 1
         }
     {
         return Err(Diagnostic::error(format!(
@@ -129,7 +126,7 @@ pub(crate) fn request(
         None
     };
     let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
-        let nominal_application = operand.application.is_some() && matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider | ProductOperandRole::Requirement));
+        let nominal_application = operand.application.is_some() && matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider));
         if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
             || operand.path.is_empty() {

@@ -40,9 +40,33 @@ enum ObservedContentTerm {
     Separate(Vec<ObservedContentTerm>),
 }
 
+impl ObservedContentEquation {
+    pub(in crate::proof_contracts::contract_entailment) fn retain_family_sources(
+        &mut self,
+        other: &Self,
+    ) {
+        for requirement in &other.requirements {
+            if !self.requirements.contains(requirement) {
+                self.requirements.push(requirement.clone());
+            }
+        }
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn same_equation(
+        &self,
+        other: &Self,
+    ) -> bool {
+        self.algebra == other.algebra
+            && ((same_term(&self.left, &other.left, &PartialEq::eq)
+                && same_term(&self.right, &other.right, &PartialEq::eq))
+                || (same_term(&self.left, &other.right, &PartialEq::eq)
+                    && same_term(&self.right, &other.left, &PartialEq::eq)))
+    }
+}
+
 /// The selected-contract owner calls this only after authenticating all entry
-/// requirements. The exact selected callable owns every observed equation and
-/// its original content conservation dependencies.
+/// requirements. Its existing family intersection applies to these observations
+/// as well as ordinary equations; one target body cannot donate a public law.
 pub(in crate::proof_contracts::contract_entailment) fn call_content_guarantees(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge<'_>,

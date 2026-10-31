@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedSelect, CheckedSelect>(builder, windows_x86_64);
-    Build::select_provider<SelectedSelect, CheckedSelect>(builder, linux_x86_64);
-    Build::select_provider<SelectedSelect, CheckedSelect>(builder, macos_arm64);
-    Build::select_provider<SelectedSelect, CheckedSelect>(builder, linux_arm64);
-
     Build::application(builder, "match_projected_product_custody");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

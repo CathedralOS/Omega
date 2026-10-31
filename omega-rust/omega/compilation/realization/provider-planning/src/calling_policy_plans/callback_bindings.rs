@@ -268,19 +268,13 @@ pub(crate) fn validate_callback_requirement_report_collision(
 pub fn close_outbound_callback_materializations(
     typed: &TypedTrees,
     realizations: &mut [BoundaryCallingPlanRealization],
-    target_profile: target::TargetProfile,
+    native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
-    if realizations.is_empty() {
-        return Ok(());
-    }
-    let layout_target = layout::LayoutTarget::for_profile(target_profile)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let native_target = layout_target.native_target();
     let layout_plan = layout::build_layout_plan_for_roots(
         typed,
-        layout_target,
+        native_target,
         opaque_representation_selections,
         realizations.iter().flat_map(|realization| {
             realization

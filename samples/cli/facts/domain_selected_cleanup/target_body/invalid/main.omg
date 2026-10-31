@@ -14,19 +14,12 @@ machine check(output: &Counter) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-boundary trait SelectedConsume {
-    machine consume(keeper: Keeper) reaches
-requires keeper.code == 7;
-}
-CheckedConsume satisfies SelectedConsume {
-    machine consume(keeper: Keeper) requires keeper.code == 7
-{}
-}
-
-
-
+windows_x86_64 machine consume(keeper: Keeper) requires keeper.code == 7 {}
+linux_x86_64 machine consume(keeper: Keeper) requires keeper.code == 7 {}
+macos_arm64 machine consume(keeper: Keeper) requires keeper.code == 7 {}
+linux_arm64 machine consume(keeper: Keeper) requires keeper.code == 7 {}
 machine main() crashes Trap {
     let mut output: Counter = Counter { value: 0, invocations: 0 };
-    SelectedConsume::consume(Keeper { output: &mut output, code: 6 });
+    consume(Keeper { output: &mut output, code: 6 });
     check(&output);
 }

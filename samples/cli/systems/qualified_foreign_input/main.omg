@@ -11,6 +11,16 @@ public boundary trait Magnitude {
         requires 6 in RepresentableMagnitude;
 }
 
+macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs",
+        },
+    }
+}
+macos_arm64 machine absolute(value: i32 in RepresentableMagnitude) -> i32
+    satisfies Magnitude::absolute via absolute_binding()
+    requires 6 in RepresentableMagnitude;
 
 data Main { value: i32; }
 machine forward(main: &Main, value: i32 in RepresentableMagnitude) -> i32

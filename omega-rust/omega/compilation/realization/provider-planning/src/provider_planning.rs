@@ -16,7 +16,6 @@
 //! Early Build's source-only requirement queries remain separate.
 
 pub(crate) mod external_binding_rows;
-pub(crate) mod native_catalogue_backing;
 mod selected_declarations;
 pub use selected_declarations::prepare_selected_plan_declarations;
 mod provenance_replay;
@@ -32,10 +31,12 @@ pub use effects::{
     CompilerPrimitiveIntegerComparisonOperation,
 };
 pub(crate) use external_binding_rows::extract_native_external_binding_rows;
-pub(crate) use provenance_replay::{DerivedProviderPlan, ProviderPlanProvenance};
+pub(crate) use provenance_replay::{
+    DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
+};
 pub use provenance_replay::{
-    ProviderPlanDerivation, ProviderRowRealization, ProviderSchemaDeclaration,
-    derive_satisfies_plans, exact_checked_adapter, same_semantic_name, satisfies_plan_name,
+    ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans,
+    exact_checked_adapter, same_semantic_name, satisfies_plan_name,
     selected_requirement_checked_adapter,
 };
 
@@ -90,3 +91,5 @@ pub fn select_derived_provider_plans(
         })
         .collect())
 }
+
+pub use provenance_replay::ProviderRowRealization;

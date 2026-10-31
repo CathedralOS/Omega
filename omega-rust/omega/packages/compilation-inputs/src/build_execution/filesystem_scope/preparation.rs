@@ -19,25 +19,32 @@ static NEXT_PRIVATE_OUTPUT: AtomicU64 = AtomicU64::new(0);
 pub fn prepare_filesystem_scope(
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
-    captured_source: Option<&crate::CapturedBuildSource>,
+    anonymous_source: Option<&crate::AnonymousSourceCapture>,
     required_sources: &source::SourceMap,
     build_execution_profile: Option<target::TargetProfile>,
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
     build_snapshot: Option<&crate::BuildSnapshotRequest>,
 ) -> Result<BuildMachineFilesystemScope, Vec<Diagnostic>> {
-    if package_inputs.is_some() && captured_source.is_some() {
+    if package_inputs.is_some() && anonymous_source.is_some() {
         return Err(vec![Diagnostic::error(
-            "Build scope cannot combine captured source custody with supplied package inputs",
+            "Build scope cannot combine anonymous source custody with supplied package inputs",
         )]);
     }
-    let captured_input = captured_source.map(|source| source.build_input());
+    let anonymous_input = anonymous_source
+        .map(|source| source.build_input())
+        .transpose()
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "could not bind acquired Build input: {reason}"
+            ))]
+        })?;
     let retained_input = package_inputs
         .and_then(|inputs| inputs.captured_source_input(inputs.root()))
-        .or(captured_input);
+        .or(anonymous_input.as_ref());
     let source_root = package_inputs
         .and_then(|inputs| inputs.package_root(inputs.root()))
-        .or_else(|| captured_source.map(|source| source.root()))
+        .or_else(|| anonymous_source.map(|source| source.root()))
         .or_else(|| {
             root_path
                 .parent()
@@ -52,22 +59,25 @@ pub fn prepare_filesystem_scope(
             .map(|parent| parent.join("build"))
             .unwrap_or_else(|| std::path::PathBuf::from("build"))
     });
-    let mut build_machine_filesystem_scope = if package_inputs.is_some()
-        || captured_source.is_some()
-    {
-        crate::BuildMachineFilesystemScope::for_admitted_root(
-            source_root.clone(),
-            build_dir,
-            filesystem_sponsor,
-            package_inputs
-                .and_then(|inputs| inputs.canonical_source_metadata(inputs.root()))
-                .cloned()
-                .or_else(|| captured_input.map(|input| input.canonical_source_metadata().clone())),
-        )
-    } else {
-        crate::BuildMachineFilesystemScope::for_root(root_path, build_dir, filesystem_sponsor)
-    }
-    .with_execution_profile(build_execution_profile);
+    let mut build_machine_filesystem_scope =
+        if package_inputs.is_some() || anonymous_source.is_some() {
+            crate::BuildMachineFilesystemScope::for_admitted_root(
+                source_root.clone(),
+                build_dir,
+                filesystem_sponsor,
+                package_inputs
+                    .and_then(|inputs| inputs.canonical_source_metadata(inputs.root()))
+                    .cloned()
+                    .or_else(|| {
+                        anonymous_input
+                            .as_ref()
+                            .map(|input| input.canonical_source_metadata().clone())
+                    }),
+            )
+        } else {
+            crate::BuildMachineFilesystemScope::for_root(root_path, build_dir, filesystem_sponsor)
+        }
+        .with_execution_profile(build_execution_profile);
     if let Some(inputs) = package_inputs {
         build_machine_filesystem_scope = build_machine_filesystem_scope
             .with_package_activation(inputs.root(), inputs.root_role());
@@ -153,7 +163,7 @@ pub fn prepare_filesystem_scope(
                 let captured = if let Some(complete) = retained_input {
                     let filesystem = package_inputs
                         .map(|inputs| inputs.source_filesystem())
-                        .or_else(|| captured_source.map(|source| source.filesystem()))
+                        .or_else(|| anonymous_source.map(|source| source.filesystem()))
                         .ok_or_else(|| {
                             vec![Diagnostic::error(
                                 "retained Build input lost its source namespace",
@@ -207,35 +217,37 @@ pub fn prepare_filesystem_scope(
                 })?
             }
         };
-        build_machine_filesystem_scope = if (package_inputs.is_some() || captured_source.is_some())
-            && matches!(
-                build_snapshot.capture(),
-                crate::BuildSnapshotCapture::Scoped(_)
-            ) {
-            // A narrowed inventory has a different commitment from the full
-            // package. Compare exact captured entries against that package's
-            // authenticated full capture rather than dropping provenance or
-            // treating matching path kinds/lengths as matching source bytes.
-            let physical_complete;
-            let complete = match retained_input {
-                Some(complete) => complete,
-                None => {
-                    physical_complete =
+        build_machine_filesystem_scope =
+            if (package_inputs.is_some() || anonymous_source.is_some())
+                && matches!(
+                    build_snapshot.capture(),
+                    crate::BuildSnapshotCapture::Scoped(_)
+                )
+            {
+                // A narrowed inventory has a different commitment from the full
+                // package. Compare exact captured entries against that package's
+                // authenticated full capture rather than dropping provenance or
+                // treating matching path kinds/lengths as matching source bytes.
+                let physical_complete;
+                let complete = match retained_input {
+                    Some(complete) => complete,
+                    None => {
+                        physical_complete =
                         crate::capture_package_source_input(&source_root).map_err(|reason| {
                             vec![Diagnostic::error(format!(
                                 "could not validate the scoped package source snapshot: {reason}"
                             ))]
                         })?;
-                    &physical_complete
-                }
-            };
-            build_machine_filesystem_scope
-                .with_scoped_package_source_input(captured_input, complete)?
-        } else {
-            build_machine_filesystem_scope.with_captured_source_input(captured_input)?
-        }
-        .with_named_inputs(build_snapshot.inputs())
-        .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
+                        &physical_complete
+                    }
+                };
+                build_machine_filesystem_scope
+                    .with_scoped_package_source_input(captured_input, complete)?
+            } else {
+                build_machine_filesystem_scope.with_captured_source_input(captured_input)?
+            }
+            .with_named_inputs(build_snapshot.inputs())
+            .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
     }
     Ok(build_machine_filesystem_scope)
 }

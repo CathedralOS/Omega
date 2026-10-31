@@ -8,13 +8,50 @@
 
 use terminal_psi::{
     ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedReachArgument,
-    ClosedReachParameter, TerminalCallable, TerminalIdentityIndex, TerminalModule,
+    ClosedReachParameter, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
 };
+
+/// A wholly checked family returns actual body custody, never opaque host
+/// outputs. Authenticate the independent contract and every retained member;
+/// a selected checked tag cannot waive another tag's opaque obligations.
+pub fn is_checked_body_family_contract(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> bool {
+    let head = TargetMachineCallable::Boundary(boundary.id);
+    let Some(family) = module
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == head)
+    else {
+        return false;
+    };
+    boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
+        && boundary.role == terminal_psi::BoundaryDeclarationRole::Callable
+        && family.head_contract != [0; 32]
+        && boundary
+            .declaration
+            .as_ref()
+            .is_some_and(|declaration| declaration.source.contract == family.head_contract)
+        && validate_boundary_callable(module, boundary).is_ok()
+        && !family.members.is_empty()
+        && family.members.iter().all(|member| match member.callable {
+            TargetMachineCallable::Machine(machine) => {
+                matches!(
+                    member.supply,
+                    terminal_psi::TargetMachineSupply::CheckedBody
+                        | terminal_psi::TargetMachineSupply::Boundary
+                ) && module.machine(machine).is_some()
+            }
+            TargetMachineCallable::Boundary(_) => false,
+        })
+}
 
 /// An opaque signature retains its own checked machine or trait declaration,
 /// not its provider's. Legacy operators and synthetic evidence can have no
-/// such source. A foreign leaf's export name never supplies a checked callable
-/// identity and is never parsed to recover one.
+/// such source. A portable family additionally authenticates its independent
+/// published overload and contract; a foreign leaf's export name is not that
+/// overload and is never parsed to recover one.
 pub fn validate_boundary_callable(
     module: &TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
@@ -84,19 +121,35 @@ pub fn validate_boundary_callable(
         };
         identity(module, coordinate)?;
     }
-
+    if let Some(family) = module
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == TargetMachineCallable::Boundary(boundary.id))
+    {
+        if family.head_contract != declaration.contract {
+            return Err("checked boundary declaration differs from its published family contract");
+        }
+        if !family
+            .members
+            .iter()
+            .any(|member| member.callable == family.canonical)
+            && identity(module, declaration.callable)? != identity(module, boundary.identity)?
+        {
+            return Err("checked boundary declaration differs from its published family overload");
+        }
+    }
     Ok(())
 }
 
 fn callable_declaration(
     module: &TerminalModule,
-    callable: TerminalCallable,
+    callable: TargetMachineCallable,
 ) -> Result<&terminal_psi::CheckedMachineDeclaration, &'static str> {
     match callable {
-        TerminalCallable::Machine(machine) => module
+        TargetMachineCallable::Machine(machine) => module
             .machine(machine)
             .and_then(|machine| machine.declaration.as_ref()),
-        TerminalCallable::Boundary(boundary) => module
+        TargetMachineCallable::Boundary(boundary) => module
             .boundary_machine(boundary)
             .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
             .and_then(|boundary| boundary.declaration.as_ref())
@@ -107,14 +160,14 @@ fn callable_declaration(
 
 fn callable_result(
     module: &TerminalModule,
-    callable: TerminalCallable,
+    callable: TargetMachineCallable,
 ) -> Result<terminal_psi::ClosedConformanceCallableResult, &'static str> {
     use terminal_psi::{
         BoundaryMachineResult, ClosedConformanceCallableResult as ResultClass,
         TerminalMachineResult,
     };
     match callable {
-        TerminalCallable::Machine(machine) => match &module
+        TargetMachineCallable::Machine(machine) => match &module
             .machine(machine)
             .ok_or("conformance callable registry names an absent machine")?
             .result
@@ -125,7 +178,7 @@ fn callable_result(
                 Ok(ResultClass::Structural(result.structural_type))
             }
         },
-        TerminalCallable::Boundary(boundary) => match &module
+        TargetMachineCallable::Boundary(boundary) => match &module
             .boundary_machine(boundary)
             .ok_or("conformance callable registry names an absent boundary")?
             .result
@@ -485,7 +538,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                 return Err("static conformance application has no unique callable registry entry");
             }
             match applied.callable {
-                TerminalCallable::Boundary(boundary) => {
+                TargetMachineCallable::Boundary(boundary) => {
                     let arguments = module
                         .boundary_machine(boundary)
                         .and_then(|boundary| boundary.declaration.as_ref())
@@ -496,7 +549,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                         );
                     }
                 }
-                TerminalCallable::Machine(machine) if !applied.method_arguments.is_empty() => {
+                TargetMachineCallable::Machine(machine) if !applied.method_arguments.is_empty() => {
                     let machine = module
                         .machine(machine)
                         .ok_or("static conformance application target is absent")?;
@@ -516,7 +569,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                         );
                     }
                 }
-                TerminalCallable::Machine(_) => {}
+                TargetMachineCallable::Machine(_) => {}
             }
         }
         if terminal_psi::closed_conformance_application_commitment(&module.identities, application)
@@ -569,7 +622,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                 applied.public_requirement_identity == dispatch.public_requirement_identity
                     && applied.realization_identity == dispatch.realization_identity
                     && applied.source_callable_identity == dispatch.realization_callable_identity
-                    && applied.callable == TerminalCallable::Machine(dispatch.realization)
+                    && applied.callable == TargetMachineCallable::Machine(dispatch.realization)
             })
             .count()
             != 1

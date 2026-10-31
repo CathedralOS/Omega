@@ -401,7 +401,7 @@ fn inspect_cleanup_obligations(artifact: &CanonicalTerminalArtifact) -> Result<(
 /// These are fixture-authored invalid exchange controls, not fabricated compiler
 /// trees or logical Source proofs. Ordinary producer trust remains explicit.
 fn boundary_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
-    use terminal_psi::TerminalCallable;
+    use terminal_psi::TargetMachineCallable;
     let module = artifact.semantic_module();
     let (position, row, boundary) = module
         .closed_conformance_applications
@@ -413,7 +413,7 @@ fn boundary_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result
                 .iter()
                 .enumerate()
                 .find_map(|(row, applied)| {
-                    if let TerminalCallable::Boundary(boundary) = applied.callable {
+                    if let TargetMachineCallable::Boundary(boundary) = applied.callable {
                         Some((position, row, boundary))
                     } else {
                         None
@@ -446,10 +446,10 @@ fn boundary_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result
         .ok_or("replacement boundary is absent")?;
     replacement.declaration = Some(declaration.clone());
     let application = &mut bad.closed_conformance_applications[position];
-    application.static_applications[row].callable = TerminalCallable::Boundary(other.id);
+    application.static_applications[row].callable = TargetMachineCallable::Boundary(other.id);
     for callable in &mut application.realization_callables {
-        if callable.callable == TerminalCallable::Boundary(boundary) {
-            callable.callable = TerminalCallable::Boundary(other.id);
+        if callable.callable == TargetMachineCallable::Boundary(boundary) {
+            callable.callable = TargetMachineCallable::Boundary(other.id);
         }
     }
     refresh_conformance_commitment(&mut bad, position);

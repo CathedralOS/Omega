@@ -39,11 +39,10 @@ pub(crate) fn lower_to_target(
             budget,
         )
         .map_err(TargetLoweringError::AbstractOptimization)?;
-        let target =
-            abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                optimized, request,
-            )
-            .map_err(TargetLoweringError::Target)?;
+        let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+            optimized, request,
+        )
+        .map_err(TargetLoweringError::Target)?;
         Ok(target)
     })
 }

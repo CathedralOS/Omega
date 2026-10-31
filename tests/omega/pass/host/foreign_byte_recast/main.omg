@@ -4,9 +4,8 @@ use omega::language::core::layout;
 // `value as &mut ForeignByte` hands `&mut SignedByte<PortableByte>` storage
 // to the `i8` view `bzero`/`memcmp` consume — `reaches A + B` unions both
 // service ceilings.
-
-public SignedByte2 satisfies FixedLayout<PortableByte> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+public data SignedByte2 {}
+machine SignedByte2::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -24,20 +23,33 @@ public SignedByte2 satisfies FixedLayout<PortableByte> {
         align: 1,
     }
 }
-}
 public data PortableByte [copy] { value: i64; }
-public data RawView { value: LayoutStorage<PortableByte, SignedByte2>; }
+public data RawView { value: SignedByte2<PortableByte>; }
 public data ForeignByte { value: i8; }
 public boundary trait ClearByte {
     machine clear(value: &mut ForeignByte, count: u64) reaches;
 }
-
-
+macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_bzero",
+        },
+    }
+}
+macos_arm64 machine clear_bytes(value: &mut ForeignByte, count: u64)
+    satisfies ClearByte::clear via clear_binding();
 public boundary trait CompareByte {
     machine compare(left: &RawView, right: &RawView, count: u64) -> i32 reaches;
 }
-
-
+macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcmp",
+        },
+    }
+}
+macos_arm64 machine compare_bytes(left: &RawView, right: &RawView, count: u64) -> i32
+    satisfies CompareByte::compare via compare_binding();
 machine compare(left: &RawView, right: &RawView) -> i32 reaches CompareByte {
     CompareByte::compare(left, right, 1)
 }

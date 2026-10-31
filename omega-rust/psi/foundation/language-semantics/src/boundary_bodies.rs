@@ -11,6 +11,8 @@ pub struct BoundaryBodySelection {
     pub provider_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub provider_application: Option<String>,
     pub requirement_lifetime_partition: Vec<u32>,
+    /// Includes inherited source target context, not just a local prefix.
+    pub target: Option<String>,
     /// Visibility of the complete machine/provider/satisfaction relationship.
     pub is_product: bool,
 }
@@ -21,5 +23,6 @@ pub struct BoundaryBodySelection {
 pub struct CheckedBodyCandidate<'candidate, Body> {
     pub body: Body,
     pub declaration: &'candidate BoundaryBodySelection,
+    pub target: Option<&'candidate str>,
     pub is_product: bool,
 }

@@ -1,12 +1,6 @@
 // A checked asm block (or target-scoped checked assembly helper) with explicit register operand bindings and contract (result <= 96u64) establishes the post-assembly bound, discharging exact subtraction 96u64 - result.
 // Expected exit: 0.
-boundary trait SelectedReadAsm {
-    machine read_asm() -> u64 reaches
-ensures result <= 96u64;
-}
-LinuxX8664ReadAsm satisfies SelectedReadAsm {
-    machine read_asm() -> u64 ensures result <= 96u64
-{
+linux_x86_64 machine read_asm() -> u64 ensures result <= 96u64 {
     let mut val: u32 = 0;
     asm {
     entry:
@@ -17,23 +11,31 @@ LinuxX8664ReadAsm satisfies SelectedReadAsm {
     }
     val as u64
 }
+
+windows_x86_64 machine read_asm() -> u64 ensures result <= 96u64 {
+    let mut val: u32 = 0;
+    asm {
+    entry:
+        mov eax, 36;
+        jmp done;
+    done requires eax <= 96:
+        mov val, eax
+    }
+    val as u64
 }
 
-
-
-LinuxArm64ReadAsm satisfies SelectedReadAsm {
-    machine read_asm() -> u64 ensures result <= 96u64
-{
+linux_arm64 machine read_asm() -> u64 ensures result <= 96u64 {
     36u64
 }
+
+macos_arm64 machine read_asm() -> u64 ensures result <= 96u64 {
+    36u64
 }
-
-
 
 const LIMIT: u64 = 96u64;
 
 machine main() crashes Trap {
-    let val: u64 = SelectedReadAsm::read_asm();
+    let val: u64 = read_asm();
     let diff: u64 = LIMIT - val;
     transition diff == 60u64 {
         true -> done()

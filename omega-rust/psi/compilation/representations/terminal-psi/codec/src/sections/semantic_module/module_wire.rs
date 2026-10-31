@@ -19,7 +19,6 @@ mod carry_and_suspension_wire;
 pub(crate) mod quotient_wire;
 mod recursive_component_wire;
 
-mod callable_wire;
 mod closed_conformance_wire;
 pub(crate) mod declaration_wire;
 mod dynamic_dispatch_wire;
@@ -36,9 +35,10 @@ mod scalar_application_wire;
 mod scalar_block_invariant_wire;
 mod scalar_condition_wire;
 mod scalar_predicate_wire;
+mod target_family_wire;
 mod target_layout_wire;
 mod task_activation_wire;
-use super::numeric_realization_wire;
+use super::external_provider_wire;
 
 use terminal_psi::{
     TerminalIdentityIndex, TerminalIdentityTable, TerminalModule, TerminalRootServiceReach,
@@ -81,7 +81,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     writer.u16(module.vocabulary_marker.get());
     writer.boolean(module.entry.is_some());
     if let Some(entry) = module.entry {
-        callable_wire::encode_callable(&mut writer, entry);
+        target_family_wire::encode_callable(&mut writer, entry);
     }
     writer.len("identities", module.identities.entries().len())?;
     for identity in module.identities.entries() {
@@ -153,8 +153,8 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     c!("boundary machines" => &module.boundary_machines => encode_boundary_machine)?;
     writer.counted(
         "external provider conformances",
-        &module.numeric_realizations,
-        numeric_realization_wire::encode,
+        &module.external_providers,
+        external_provider_wire::encode,
     )?;
     c!("provider candidates" => &module.provider_candidates => encode_provider_candidate)?;
     dynamic_dispatch_wire::encode_dynamic_dispatch(&mut writer, &module.dynamic_dispatch)?;
@@ -221,6 +221,11 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     )?;
     c!("machines" => &module.machines => super::machine_wire::encode_machine)?;
     writer.counted(
+        "target-machine families",
+        &module.target_machine_families,
+        target_family_wire::encode_family,
+    )?;
+    writer.counted(
         "target layout applications",
         &module.target_layout_applications,
         target_layout_wire::encode,
@@ -249,7 +254,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     }
     let vocabulary_marker = VocabularyMarker::CURRENT;
     let entry = if reader.boolean()? {
-        Some(callable_wire::decode_callable(reader)?)
+        Some(target_family_wire::decode_callable(reader)?)
     } else {
         None
     };
@@ -334,7 +339,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let placed_view_inputs = decode_counted(reader, placed_view_wire::decode_placed_view_input)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
-    let numeric_realizations = decode_counted(reader, numeric_realization_wire::decode)?;
+    let external_providers = decode_counted(reader, external_provider_wire::decode)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let dynamic_dispatch = dynamic_dispatch_wire::decode_dynamic_dispatch(reader)?;
     let float_meaning_projections =
@@ -366,6 +371,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         operation_crash_contract_wire::decode_operation_crash_contract,
     )?;
     let machines = decode_counted(reader, super::machine_wire::decode_machine)?;
+    let target_machine_families = decode_counted(reader, target_family_wire::decode_family)?;
     let target_layout_applications = decode_counted(reader, target_layout_wire::decode)?;
     let boundary_application_demands =
         decode_counted(reader, boundary_application_wire::decode_demand)?;
@@ -398,7 +404,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         placement_lifecycle_plans,
         reborrow_restored_call_uses,
         boundary_machines,
-        numeric_realizations,
+        external_providers,
         provider_candidates,
         dynamic_dispatch,
         float_meaning_projections,
@@ -414,6 +420,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         suspension_call_sites,
         suspension_call_plans,
         machines,
+        target_machine_families,
         target_layout_applications,
         boundary_application_demands,
         boundary_application_candidates,

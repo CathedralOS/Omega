@@ -1,2 +1,0 @@
-does not satisfy trait `FixedLayout`
-expected `Schema`, got `ConstrainedSchema`

@@ -48,8 +48,20 @@ public boundary trait NativeBytes {
     machine release(buffer: Buffer in Buffer::Owned);
 }
 public data LibSystemBytes {}
-
-
+public macos_arm64 machine calloc_binding() -> ForeignBinding<17, 7, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_calloc",
+    } }
+}
+public macos_arm64 machine free_binding() -> ForeignBinding<17, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "libSystem.B.dylib", symbol: "_free",
+    } }
+}
+macos_arm64 boundary machine LibSystemBytes::allocate(count: u64, width: u64) -> addr
+satisfies NativeBytes::allocate via calloc_binding();
+macos_arm64 boundary machine LibSystemBytes::release(buffer: Buffer in Buffer::Owned)
+satisfies NativeBytes::release via free_binding();
 InitialSupplyProvider satisfies InitialSupply {
     machine acquire() -> Buffer reaches NativeBytes crashes Trap
     ensures result.pointer != 0; {

@@ -2,14 +2,6 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_target_layout_queries_exit");
-    Build::select_provider<LayoutExpectedSize, MacosArm64LayoutExpectedSize>(builder, macos_arm64);
-    Build::select_provider<LayoutExpectedSize, LinuxX8664LayoutExpectedSize>(builder, linux_x86_64);
-    Build::select_provider<LayoutExpectedSize, LinuxArm64LayoutExpectedSize>(builder, linux_arm64);
-    Build::select_provider<LayoutExpectedSize, WindowsX8664LayoutExpectedSize>(builder, windows_x86_64);
-    Build::select_provider<LayoutDemandLayout, MacosArm64LayoutDemandLayout>(builder, macos_arm64);
-    Build::select_provider<LayoutDemandLayout, LinuxArm64LayoutDemandLayout>(builder, linux_arm64);
-    Build::select_provider<LayoutDemandLayout, LinuxX8664LayoutDemandLayout>(builder, linux_x86_64);
-    Build::select_provider<LayoutDemandLayout, WindowsX8664LayoutDemandLayout>(builder, windows_x86_64);
     Build::bind(builder, windows_x86_64::ProgramEntry, program);
     Build::bind(builder, linux_x86_64::ProgramEntry, program);
     Build::bind(builder, linux_arm64::ProgramEntry, program);

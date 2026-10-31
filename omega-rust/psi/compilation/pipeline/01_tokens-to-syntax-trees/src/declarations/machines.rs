@@ -25,7 +25,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     // The vocabulary is the same closed `OperatorSpelling` set the `operator`
     // head uses; a non-punctuation head is a tokenless named machine. Every
     // `machine`-headed form shares this admission: plain, `boundary machine`,
-    // forms. Item-level contexts that may not carry a token
+    // and `<target> machine`. Item-level contexts that may not carry a token
     // (`boundary requirement`, conformance members) reject on the recorded
     // field after this returns; context ownership checks remain downstream.
     let (spelling, input) = if input.tokens.first().is_some_and(|token| {
@@ -64,8 +64,8 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     }
     if next.at_contextual("via") {
         return Err(next.error_here(
-            "`via` binding clauses are retired; bind the exact foreign requirement in the owning package Build with \
-             `Build::bind<Requirement>(builder, target, locator)`",
+            "`via <Binding>` cannot supply a machine by itself; name the requirement first as \
+             `satisfies Trait::machine via Binding::Case(...)`",
         ));
     }
     let (clauses, next) = parse_machine_clauses(syntax_trees, next, type_parameters)?;
@@ -106,15 +106,39 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     // Tail normalization belongs to resolved machine identity. Parsing a
     // same-spelled call as a backedge here loses generic applications and can
     // choose a different callable before binding has established its target.
+    if clauses.admitted_same_stack_bytes != 0 {
+        let span = clauses
+            .same_stack_clause_span
+            .expect("a positive stack demand records its clause span");
+        if !bodyless {
+            return Err(crate::diagnostics::parse_error::ParseError::at_source_span(
+                "`stack N bytes` admits demand only on a bodyless external realization",
+                span,
+            ));
+        }
+        let has_external_binding = syntax_trees
+            .items
+            .satisfies_clauses(satisfies)
+            .iter()
+            .any(|clause| clause.via.is_some() || clause.via_expression.is_valid());
+        if !has_external_binding {
+            return Err(crate::diagnostics::parse_error::ParseError::at_source_span(
+                "`stack N bytes` requires a `satisfies ... via ...` binding",
+                span,
+            ));
+        }
+    }
     Ok((
         Machine {
+            target_family_interface: false,
             name,
             generic_data_template: Default::default(),
             default_body_trait: Default::default(),
             attached_data,
             spelling,
             is_public: false,
-
+            target: None,
+            authored_target: None,
             boundary: false,
             is_top_level_boundary_requirement: false,
             bodyless,
@@ -136,6 +160,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             blocks_keyword_source_spans: clauses.blocks_keyword_source_spans,
             suspends: clauses.suspends,
             blocks: clauses.blocks,
+            admitted_same_stack_bytes: clauses.admitted_same_stack_bytes,
             contracts: clauses.contracts,
             states,
             nested_machines,

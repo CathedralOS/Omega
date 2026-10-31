@@ -4,7 +4,7 @@
 //! its deployment catalog when realizing the selected provider closure. The
 //! checked prelude encodes these values; engines reject unknown protocol codes.
 
-#[derive(compiler_storage::Record, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProductTarget {
     LinuxArm64,
     LinuxX86_64,

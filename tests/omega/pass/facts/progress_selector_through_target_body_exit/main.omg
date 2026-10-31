@@ -15,29 +15,40 @@ terminates;
     calls = (calls as u64 in Wrapping + 1) as u64;
     value.identity
 }
-boundary trait SelectedSelect {
-    machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64 reaches
-requires left in Token::Fair, right in Token::Fair, index < 2
-terminates;
-}
-CheckedSelect satisfies SelectedSelect {
-    machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
+linux_x86_64 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
 requires left in Token::Fair, right in Token::Fair, index < 2
 terminates;
 {
     let values: [&Token; 2] = [left, right];
     consume(values[index], calls)
 }
+linux_arm64 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
+requires left in Token::Fair, right in Token::Fair, index < 2
+terminates;
+{
+    let values: [&Token; 2] = [left, right];
+    consume(values[index], calls)
 }
-
-
-
+macos_arm64 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
+requires left in Token::Fair, right in Token::Fair, index < 2
+terminates;
+{
+    let values: [&Token; 2] = [left, right];
+    consume(values[index], calls)
+}
+windows_x86_64 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
+requires left in Token::Fair, right in Token::Fair, index < 2
+terminates;
+{
+    let values: [&Token; 2] = [left, right];
+    consume(values[index], calls)
+}
 machine main() reaches Grants crashes Trap {
     let left: Token = Grants::grant(37);
     let right: Token = Grants::grant(43);
     let mut calls: u64 = 0;
-    let first: u64 = SelectedSelect::select(&left, &right, 0, &mut calls);
-    let second: u64 = SelectedSelect::select(&left, &right, 1, &mut calls);
+    let first: u64 = select(&left, &right, 0, &mut calls);
+    let second: u64 = select(&left, &right, 1, &mut calls);
     transition first == 37 && second == 43 && calls == 2 {
         true -> done()
         false -> wrong()

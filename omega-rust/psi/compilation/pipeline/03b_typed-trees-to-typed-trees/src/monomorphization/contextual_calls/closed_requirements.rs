@@ -59,14 +59,16 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
                         "closed requirement demand lost its source machine binder",
                     )]
                 })?;
-            let retained = program.applied_machine_callable(
-                application,
-                ordinal,
-                argument.symbol,
-                source.parameter,
-                &source.signature,
-            );
-            let Some(retained) = retained else {
+            let retained = program
+                .applied_machine_callable(
+                    application,
+                    ordinal,
+                    argument.symbol,
+                    source.parameter,
+                    &source.signature,
+                )
+                .map(|view| view.provider);
+            let Some(provider) = retained else {
                 if program.has_applied_machine_selection(application, ordinal, argument.symbol) {
                     return Err(vec![Diagnostic::error(
                         "closed requirement call lost its determined source machine demand",
@@ -76,7 +78,6 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
                 // refinement; no determined provider tuple is manufactured.
                 continue;
             };
-            let provider = retained.provider;
             let bindings = program
                 .expression_table
                 .static_machine_application_bindings(provider);
@@ -99,10 +100,9 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
                 caller_operands,
                 &caller_lifetimes,
             ) {
-                return Err(vec![Diagnostic::error(format!(
-                    "closed requirement demand has a stale source provider tuple: previous regions {:?}, current regions {:?}",
-                    retained.caller_lifetimes, caller_lifetimes,
-                ))]);
+                return Err(vec![Diagnostic::error(
+                    "closed requirement demand has a stale source provider tuple",
+                )]);
             }
             if program.applied_machine_callable_matches(
                 application,

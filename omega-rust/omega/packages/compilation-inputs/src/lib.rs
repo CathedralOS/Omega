@@ -23,9 +23,7 @@
 //! commands, not a dependency on either application's orchestration.
 
 mod anonymous_owner;
-mod build_handoff_inventory;
 pub use anonymous_owner::AnonymousSourceCapture;
-pub use build_handoff_inventory::BuildHandoffInventory;
 pub use package_source::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
 mod canonical_fs;
@@ -36,10 +34,8 @@ mod cursor;
 pub(crate) use optimization_core::digest_encoder;
 pub mod source_assembly;
 pub mod source_imports;
-mod toolchain_build;
 pub mod toolchain_library;
 pub use build_execution::*;
-pub use toolchain_build::{BuildSourceOwner, CapturedCoreSource, CoreSourceIdentity};
 mod package_compilation;
 mod review_cache_digests;
 #[doc(hidden)]
@@ -53,17 +49,14 @@ mod wire_codec_sources;
 pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
 pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
-#[doc(hidden)]
-pub use package_compilation::native_output_codec;
 pub use package_compilation::{
-    CompilerProductRetention, IndependentComponentDescription, NativeBindingProduction,
-    PackageBuildHandoff, PackageBuildSource, PackageCompilationInputError,
-    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
-    PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
-    PackageNativeBindingOrigin, PackageSourceBinding,
+    CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
+    PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
+    PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
+    PackageDependencyClosure, PackageSourceBinding,
 };
 #[doc(hidden)]
-pub use package_compilation::{native_receipts, provider_selection_codec};
+pub use package_compilation::{native_output_codec, provider_selection_codec};
 pub use review_cache_digests::{
     package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
 };
@@ -81,8 +74,6 @@ pub(crate) use source_snapshot::capture_scoped_source_input;
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
 };
-
-pub use package_compilation::NativeBuildEvaluation;
 
 /// Capture the same complete anonymous namespace that source assembly consumes.
 /// Callers may compare a private checkpoint before parsing, then pass this exact
@@ -108,3 +99,7 @@ pub fn capture_anonymous_compilation_source(
         ))]
     })
 }
+pub use package_compilation::{
+    NativeBindingProducer, NativeBindingProduction, NativeBuildEvaluation,
+    PackageNativeBindingOrigin,
+};

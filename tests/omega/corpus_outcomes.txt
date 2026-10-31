@@ -22754,24 +22754,6 @@ fail/facts/fixed_array_value_through_target_body_rejected rejected 3442ms expect
 	cannot prove index `index` is within length 2 in read_element::entry
 	cannot prove index `index` is within length 2 in read_element::entry
 	cannot prove index `index` is within length 2 in read_element::entry
-fail/facts/fixed_layout_storage_through_call_result_rejected rejected 1023ms expected @50285e49318d
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_const_name_rejected rejected 708ms expected @50285e49318d
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_field_rejected rejected 624ms expected @50285e49318d
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_local_rejected rejected 701ms expected @50285e49318d
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_match_join_rejected rejected 990ms expected @50285e49318d
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_other_machine_rejected rejected 831ms expected @50285e49318d
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_other_state_rejected rejected 800ms expected @50285e49318d
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_parameter_rejected rejected 671ms expected @50285e49318d
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
-fail/facts/fixed_layout_storage_through_target_body_rejected rejected 540ms expected @1abd71057ea2+wt
-	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/facts/float_comparison_route_mixed_format_rejected rejected 2150ms expected @ccdb99ca2214
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/facts/float_comparison_route_through_call_result_rejected rejected 2521ms expected @ccdb99ca2214
@@ -33092,93 +33074,6 @@ fail/facts/unsigned_32bit_division_remainder_bound_through_other_machine_rejecte
 	exact arithmetic in machine `forward_eval` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_32bit_division_remainder_bound_through_other_state_rejected rejected 1078ms expected @ccdb99ca2214
 	exact arithmetic in machine `check_state` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/arithmetic/sparse_captured_utf_path_unbounded_index rejected 34357ms expected @b0d06a168a00+wt
-	cannot prove index `next_output` is within length 4096 in emit_pair::entry
-fail/arithmetic/unformed_contradiction_cannot_hide_overflow rejected 351ms expected @b0d06a168a00+wt
-	exact arithmetic in machine `unsafe` state `entry` local `__transition_subject#5` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `unsafe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_machine_statement_completion_call_result_rejected rejected 18366ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 1: result != -1
-fail/facts/nested_machine_statement_completion_const_name_rejected rejected 13379ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 0: result != -1
-fail/facts/nested_machine_statement_completion_field_rejected rejected 14033ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 1: result != -1
-fail/facts/nested_machine_statement_completion_local_rejected rejected 13642ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 1: result != -1
-fail/facts/nested_machine_statement_completion_match_join_rejected rejected 13145ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 1: result != -1
-fail/facts/nested_machine_statement_completion_missing_theorem_citation_rejected rejected 482ms expected @b0d06a168a00+wt
-	machine `conclude` ensures contract proof fact `minus(x, z) == minus(y, z)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
-fail/facts/nested_machine_statement_completion_missing_theorem_premise_rejected rejected 529ms expected @b0d06a168a00+wt
-	machine `conclude` cites `minus_swap`, but the callee's requires fact `a == add(b, Nat)` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `conclude` ensures contract proof fact `minus(x, z) == minus(y, z)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
-fail/facts/nested_machine_statement_completion_missing_unit_theorem_citation_rejected rejected 546ms expected @b0d06a168a00+wt
-	machine `Laws::minus_swap` ensures contract proof fact `minus(a, c) == minus(b, c)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
-fail/facts/nested_machine_statement_completion_other_machine_rejected rejected 12228ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 0: result != -1
-fail/facts/nested_machine_statement_completion_other_state_rejected rejected 11199ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 0: result != -1
-fail/facts/nested_machine_statement_completion_overwritten_guard_rejected rejected 11515ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 2: result != -1
-fail/facts/nested_machine_statement_completion_parameter_rejected rejected 12490ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 0: result != -1
-fail/facts/nested_machine_statement_completion_private_guarantee_rejected rejected 2872ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from probe at statement 0: result != -1
-fail/facts/nested_machine_statement_completion_self_theorem_citation_rejected rejected 510ms expected @b0d06a168a00+wt
-	machine `Laws::forge` ensures contract proof fact `a == b` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
-fail/facts/nested_machine_statement_completion_target_body_rejected rejected 12527ms expected @b0d06a168a00+wt
-	cannot prove ensures contract for exit from HostedProbeBody::apply at statement 0: result != -1
-fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
-	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/packages/rootless_numeric_provider_missing_satisfaction rejected 3781ms expected @2b9f8a09c701
-	build selects provider `UnusedNumericProvider` for slot `operator::F32::negate(named(name(f32)))->named(name(f32))`, but no candidate exists in the loaded dependency closure
-fail/slices/nested_machine_field_window_out_of_bounds rejected 673ms expected @bc368540ef79
-	cannot prove subslice range end bound `0..wide.length` is within slice length 2
-pass/arithmetic/sparse_captured_utf_path_exit checked 59503ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/build/provider_package_default_exit checked 2309ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
-pass/build/provider_package_default_override_exit checked 2177ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
-pass/build/provider_package_generated_owner_exit checked 2411ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
-pass/build/provider_package_helper_exit checked 2199ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
-pass/build/provider_selection_cross_file_author_exit checked 1958ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
-pass/build/runtime_dependency_private_native_binding_exit checked 1073ms check-target:macos_arm64 @e5a0b87130b9
-pass/build/runtime_retained_const_application_exit checked 1831ms check-target:macos_arm64 @248be7918b27
-pass/calls/runtime_fused_child_computed_borrow_exit checked 1030ms check-target:macos_arm64 @bc368540ef79
-pass/calls/runtime_guarded_terminal_record_field_exit checked 1030ms check-target:macos_arm64 @bc368540ef79
-pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 942ms check-target:macos_arm64 @bc368540ef79
-pass/facts/case_where_equality_data_predicate_direct_exit checked 1911ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_formed_call_exit checked 1946ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_nested_payload_carriage_exit checked 1782ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_restored_exit checked 1694ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_call_result_exit checked 1605ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_const_name_exit checked 3197ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_field_exit checked 1881ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_local_exit checked 2016ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_match_join_exit checked 1970ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_other_machine_exit checked 1841ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_other_state_exit checked 1778ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_parameter_exit checked 2013ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_through_target_body_exit checked 2120ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/case_where_equality_data_predicate_whole_replacement_restored_exit checked 2279ms check-target:macos_arm64 @6d4edb1c9d50
-pass/facts/fixed_layout_storage_through_call_result_exit checked 3270ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_const_name_exit checked 5725ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_field_exit checked 3862ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_local_exit checked 3732ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_match_join_exit checked 3528ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_other_machine_exit checked 3828ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_other_state_exit checked 3215ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_parameter_exit checked 3927ms check-target:macos_arm64 @50285e49318d
-pass/facts/fixed_layout_storage_through_target_body_exit checked 1950ms check-target:macos_arm64 @1abd71057ea2+wt
-pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_local_exit checked 19784ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_match_join_exit checked 20968ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_namespaced_tag_exit checked 7773ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_namespaced_theorem_exit checked 6788ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_other_machine_exit checked 19975ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_other_state_exit checked 19572ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_parameter_exit checked 20251ms check-target:macos_arm64 @b0d06a168a00+wt
-pass/facts/nested_machine_statement_completion_target_body_exit checked 20912ms check-target:macos_arm64 @b0d06a168a00+wt
 fail/facts/unsigned_32bit_division_remainder_bound_through_parameter_rejected rejected 1363ms expected @ccdb99ca2214
 	exact arithmetic in machine `remainder_param` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_32bit_division_remainder_bound_through_target_body_rejected rejected 1515ms expected @ccdb99ca2214

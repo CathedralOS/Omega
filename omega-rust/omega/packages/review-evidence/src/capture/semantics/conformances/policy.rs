@@ -221,13 +221,13 @@ fn validate_retained_application(
     let selected = StaticMachineArgument {
         path: Box::new([]),
         application: Some(Box::new(StaticSymbolApplication {
-            member: arena::Handle::invalid(),
             lifetime_arguments: application
                 .lifetime_arguments
                 .iter()
                 .map(Identifier::generated)
                 .collect(),
             arguments: application.arguments.clone(),
+            member: Default::default(),
         })),
         type_reference: Default::default(),
         const_literal: None,

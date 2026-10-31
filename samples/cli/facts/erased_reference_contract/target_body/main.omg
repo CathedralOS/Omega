@@ -2,23 +2,28 @@
 // Expected exit: 0
 machine keep(runtime: i32, witness [erased]: &i32) -> i32
 requires witness == 7 { runtime }
-boundary trait SelectedSelected {
-    machine selected(flag: bool) -> i32 reaches
-;
-}
-CheckedSelected satisfies SelectedSelected {
-    machine selected(flag: bool) -> i32
-{
+linux_x86_64 machine selected(flag: bool) -> i32 {
     let runtime: i32 = match flag { true -> 41, false -> 42 };
     let value: i32 = 7;
     keep(runtime, &value)
 }
+linux_arm64 machine selected(flag: bool) -> i32 {
+    let runtime: i32 = match flag { true -> 41, false -> 42 };
+    let value: i32 = 7;
+    keep(runtime, &value)
 }
-
-
-
+macos_arm64 machine selected(flag: bool) -> i32 {
+    let runtime: i32 = match flag { true -> 41, false -> 42 };
+    let value: i32 = 7;
+    keep(runtime, &value)
+}
+windows_x86_64 machine selected(flag: bool) -> i32 {
+    let runtime: i32 = match flag { true -> 41, false -> 42 };
+    let value: i32 = 7;
+    keep(runtime, &value)
+}
 machine exercise(flag: bool) -> i32 {
-    SelectedSelected::selected(flag)
+    selected(flag)
 }
 machine verify(result: i32, flag: bool) crashes Trap {
     transition (flag && result == 41) || (!flag && result == 42) {

@@ -16,24 +16,24 @@ machine snapshot(source: u64, counter: &mut Counter) -> Counted<(source)>
 { counter.value = !counter.value; Counted { value: source } }
 machine overwrite(slot: &mut u64) -> u64 ensures slot == 9 { slot = 9; 0 }
 machine seven(value: u64) -> u64 requires value == 7 ensures result == 7 { value }
-boundary trait SelectedReceive {
-    machine receive(selected: Counted<7>, ignored: u64) -> u64 reaches
-ensures result == 7;
-}
-CheckedReceive satisfies SelectedReceive {
-    machine receive(selected: Counted<7>, ignored: u64) -> u64
+windows_x86_64 machine receive(selected: Counted<7>, ignored: u64) -> u64
 ensures result == 7
 { let saved: Counted<7> = selected; seven(saved.value) }
-}
 
+linux_x86_64 machine receive(selected: Counted<7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<7> = selected; seven(saved.value) }
 
+macos_arm64 machine receive(selected: Counted<7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<7> = selected; seven(saved.value) }
 
-
-
-
+linux_arm64 machine receive(selected: Counted<7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<7> = selected; seven(saved.value) }
 machine receive_ordered(earlier: u64, selected: Counted<7>, ignored: u64) -> u64
 ensures result == 7
-{ SelectedReceive::receive(selected, ignored) }
+{ receive(selected, ignored) }
 machine main() crashes Trap {
     let mut source: Scalar = Scalar { value: 1 };
     let mut counter: Counter = Counter { value: false };

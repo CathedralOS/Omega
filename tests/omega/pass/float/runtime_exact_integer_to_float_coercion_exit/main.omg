@@ -34,7 +34,7 @@ machine main() crashes Trap {
     let high: f32 = bounded(16777216);
     let magnitude: u64 = 9223372036854775808u64;
     let unsigned: f64 = magnitude as f64;
-    let rounded: f64 = F64FromI64::from_i64(9007199254740993i64);
+    let rounded: f64 = F64::from_i64(9007199254740993i64);
     let sample: Sample = Sample { value: -7 };
     let field: f64 = observe(&sample);
     transition small == 3.0f32 && large == 18014398509481984.0f64

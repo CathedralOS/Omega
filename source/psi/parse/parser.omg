@@ -97,6 +97,9 @@ where
     committed_lifetime_count: u64 in Trapping;
     machine_start: u64 in Trapping;
     machine_is_public: bool;
+    machine_has_target: bool;
+    machine_target_start: u64 in Trapping;
+    machine_target_end: u64 in Trapping;
     machine_is_boundary: bool;
     machine_container: MachineContainer;
     machine_has_owner: bool;
@@ -266,8 +269,8 @@ machine Parser::identifier_span(
 // remains the only token/cursor behavior owner. A root is `[public]` and then a
 // declaration: `use`, `data`, `machine` and `let` by keyword; `boundary`,
 // `trait`, `domain`, `const` and `proposition` by contextual word; and, led
-// by a name, a named conformance `Name [<...>] satisfies`. Target prefixes,
-// the retired `boundary requirement` and `operator`
+// by a name, a target-scoped `target [boundary] machine` or a named
+// conformance `Name [<...>] satisfies`. The retired `boundary requirement` and `operator`
 // introducers reject at their word. Bounded array reads carry their
 // collection's Trapping policy, so parsing publishes the same crash route
 // its callees do.
@@ -346,7 +349,8 @@ crashes Trap
         }
     }
 
-    // A root led by a name: a contextual introducer or a conformance's name.
+    // A root led by a name: a contextual introducer, a target name before
+    // `machine` or `boundary machine`, or a conformance's name.
     machine named_root(parser: &mut Parser, input: &TokenStream, is_public: bool) {
         let crossing: bool = Parser::at_word(parser, input, "boundary");
         transition crossing {
@@ -412,18 +416,22 @@ crashes Trap
         let retired: bool = Parser::at_word(parser, input, "operator");
         transition retired {
             true -> reject_here(parser, input, ParseDiagnosticCode::RetiredOperatorDeclaration)
-            _ -> retired_machine_prefix(parser, input, is_public)
+            _ -> target_machine_word(parser, input, is_public)
         }
     }
 
-    // No name can introduce a machine or boundary declaration. Reject the
-    // retired prefix at its token without admitting a target selector or
-    // assigning target meaning to the name.
-    machine retired_machine_prefix(parser: &mut Parser, input: &TokenStream, is_public: bool) {
-        let machine: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
-        let boundary: bool = Parser::next_is_word(parser, input, "boundary");
-        transition machine || boundary {
-            true -> reject_here(parser, input, ParseDiagnosticCode::RetiredTargetPrefix)
+    machine target_machine_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let scoped: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
+        transition scoped {
+            true -> target_machine(parser, input, is_public)
+            _ -> target_boundary_word(parser, input, is_public)
+        }
+    }
+
+    machine target_boundary_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let scoped: bool = Parser::next_is_word(parser, input, "boundary");
+        transition scoped {
+            true -> target_boundary(parser, input, is_public)
             _ -> conformance_word(parser, input, is_public)
         }
     }
@@ -496,6 +504,27 @@ crashes Trap
         transition retired {
             true -> reject_here(parser, input, ParseDiagnosticCode::RetiredOperatorDeclaration)
             _ -> reject_here(parser, input, ParseDiagnosticCode::ExpectedBoundaryDeclaration)
+        }
+    }
+
+    // `target machine ...`: the leading name is the family's target.
+    machine target_machine(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        Parser::take_current(parser, input);
+        let root_head: MachineHead = Parser::root_machine_head(parser.item_start, is_public);
+        let head: MachineHead = Parser::target_machine_head(root_head, parser.token_start, parser.token_end);
+        transition { _ -> dispatch_machine(parser, input, head) }
+    }
+
+    machine target_boundary(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        Parser::take_current(parser, input);
+        let root_head: MachineHead = Parser::root_machine_head(parser.item_start, is_public);
+        let target_head: MachineHead = Parser::target_machine_head(root_head, parser.token_start, parser.token_end);
+        let head: MachineHead = Parser::boundary_machine_head(target_head);
+        Parser::take_current(parser, input);
+        let crossing: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
+        transition crossing {
+            true -> dispatch_machine(parser, input, head)
+            _ -> reject_here(parser, input, ParseDiagnosticCode::ExpectedTargetScopedMachine)
         }
     }
 
@@ -785,11 +814,14 @@ crashes Trap
 }
 
 // The head of a root `[public] machine` declaration starting at `start`; the
-// constructors below add `boundary` or select a machine container.
+// constructors below add a target name or `boundary`.
 machine Parser::root_machine_head(start: u64 in Trapping, is_public: bool) -> MachineHead {
     MachineHead {
         start: start,
         is_public: is_public,
+        has_target: false,
+        target_start: 0,
+        target_end: 0,
         is_boundary: false,
         container: MachineContainer::Root
     }
@@ -799,8 +831,23 @@ machine Parser::measure_head(start: u64 in Trapping) -> MachineHead {
     MachineHead {
         start: start,
         is_public: false,
+        has_target: false,
+        target_start: 0,
+        target_end: 0,
         is_boundary: false,
         container: MachineContainer::Measure
+    }
+}
+
+machine Parser::target_machine_head(head: MachineHead, start: u64 in Trapping, end: u64 in Trapping) -> MachineHead {
+    MachineHead {
+        start: head.start,
+        is_public: head.is_public,
+        has_target: true,
+        target_start: start,
+        target_end: end,
+        is_boundary: head.is_boundary,
+        container: head.container
     }
 }
 
@@ -808,6 +855,9 @@ machine Parser::boundary_machine_head(head: MachineHead) -> MachineHead {
     MachineHead {
         start: head.start,
         is_public: head.is_public,
+        has_target: head.has_target,
+        target_start: head.target_start,
+        target_end: head.target_end,
         is_boundary: true,
         container: head.container
     }

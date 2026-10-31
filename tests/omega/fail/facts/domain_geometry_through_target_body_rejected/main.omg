@@ -10,24 +10,24 @@ machine region(base: addr, length: u64, endpoint: addr) -> Region in Bounded
 requires embed(base) + embed(length) <= embed(endpoint)
 ensures result.base == base && result.length == length
 { Region { base: base, length: length } }
-boundary trait SelectedCut {
-    machine cut(whole: Region in Bounded, requested: u64) -> addr reaches
-requires requested < whole.length;
-}
-CheckedCut satisfies SelectedCut {
-    machine cut(whole: Region in Bounded, requested: u64) -> addr
+macos_arm64 machine cut(whole: Region in Bounded, requested: u64) -> addr
 requires requested < whole.length
 { whole.base + requested }
-}
 
+linux_x86_64 machine cut(whole: Region in Bounded, requested: u64) -> addr
+requires requested < whole.length
+{ whole.base + requested }
 
+linux_arm64 machine cut(whole: Region in Bounded, requested: u64) -> addr
+requires requested < whole.length
+{ whole.base + requested }
 
-
-
-
+windows_x86_64 machine cut(whole: Region in Bounded, requested: u64) -> addr
+requires requested < whole.length
+{ whole.base + requested }
 machine main() crashes Trap {
     let whole: Region in Bounded = region(10, 80, 100);
-    let address: addr = SelectedCut::cut(whole, 20);
+    let address: addr = cut(whole, 20);
     transition address == 30 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

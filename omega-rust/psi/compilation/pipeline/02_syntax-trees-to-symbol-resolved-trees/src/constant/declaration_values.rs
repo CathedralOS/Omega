@@ -135,22 +135,6 @@ pub(crate) fn evaluated_declaration_value(
         }
         return Ok(EvaluatedConstant::UndeterminedNaN(*format));
     }
-    if let Some(normalization) = &definition.normalization {
-        // This bounded encoding remains a claim, with exact authored roots and
-        // selection custody retained below. Typed replay owns comparison against
-        // the complete applied carrier; syntax has no DataApplicationViews.
-        let EvaluatedConstant::Encoded(encoding) = &normalization.result_value else {
-            return Err("normalized semantic value lost its materialized form".into());
-        };
-        let identity = language_semantics::const_value::CanonicalConstIdentity {
-            type_name: String::new(),
-            encoding: encoding.clone(),
-        };
-        if identity.decode_declaration_encoding().is_none() {
-            return Err("normalized declaration has invalid canonical framing".into());
-        }
-        return Ok(normalization.result_value.clone());
-    }
     public_declaration_value_encoding(syntax, definition, selection).map(EvaluatedConstant::Encoded)
 }
 
@@ -260,37 +244,6 @@ pub(crate) fn validate_const_definition(
             Err(Diagnostic::error("target-dependent constant evaluation requires an unqualified builtin scalar destination")
                 .with_source_span(definition.name.source_span()))
         };
-    }
-    if definition.normalization.is_some() {
-        let reference = definition.name.source_span();
-        evaluated_declaration_value(syntax, definition, selection).map_err(|reason| {
-            Diagnostic::error(format!("normalized constant is invalid: {reason}"))
-                .with_source_span(reference)
-        })?;
-        let qualified = definition
-            .qualification
-            .as_ref()
-            .is_some_and(|qualification| {
-                qualification.destination == definition.type_reference
-                    && qualification.initializer == definition.value
-            });
-        if definition.pending_qualification.is_some()
-            || (!qualified
-                && crate::preparation::generic_data::const_destination_requires_proof(
-                    syntax, definition, selection,
-                ))
-        {
-            return Err(Diagnostic::error(
-                "normalized constant requires its exact checked declaration-site result judgment",
-            )
-            .with_source_span(reference));
-        }
-        // Typed replay checks both roots and their complete applied carrier.
-        // A syntax encoder cannot reopen an implementation operand as data.
-        return validate_scalar_initializer(syntax, definition).map_err(|reason| {
-            Diagnostic::error(format!("scalar constant is invalid: {reason}"))
-                .with_source_span(reference)
-        });
     }
     // An unused private declaration never acquires a use-site proof obligation.
     // Its constrained destination is still mandatory; failure to encode a

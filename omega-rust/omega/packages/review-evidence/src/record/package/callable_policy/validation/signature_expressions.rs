@@ -167,12 +167,8 @@ pub(in crate::record) fn expression(
 }
 
 fn meaning_check(meaning: &PackageReviewContractOperatorMeaning) -> Result {
-    match meaning {
-        PackageReviewContractOperatorMeaning::Builtin => {}
-        PackageReviewContractOperatorMeaning::Declared(coordinate)
-        | PackageReviewContractOperatorMeaning::TraitRequirement(coordinate) => {
-            operator(coordinate)?;
-        }
+    if let PackageReviewContractOperatorMeaning::Declared(coordinate) = meaning {
+        operator(coordinate)?;
     }
     Ok(())
 }

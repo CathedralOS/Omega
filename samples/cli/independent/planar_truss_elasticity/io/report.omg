@@ -13,13 +13,13 @@ public machine write_scaled(output: &mut Output, value: f64) reaches Console inv
     }
     machine negative(output: &mut Output, value: f64) { Console::write("-"); transition { _ -> positive(output, -value) } }
     machine positive(output: &mut Output, value: f64) {
-        let converted: i64 in Saturating = I64FromF64::from_f64(value);
+        let converted: i64 in Saturating = I64::from_f64(value);
         let integral: i64 = converted as i64;
         transition integral >= 0 && integral < 1000000000000 { true -> parts(output, value, integral) false -> overflow(output) }
     }
     machine parts(output: &mut Output, value: f64, integral: i64) requires integral >= 0 requires integral < 1000000000000 {
         let fraction: f64 = (value - (integral as f64)) * 1000000000000.0;
-        let converted_fraction: i64 in Saturating = I64FromF64::from_f64(fraction);
+        let converted_fraction: i64 in Saturating = I64::from_f64(fraction);
         let fractional: i64 = converted_fraction as i64;
         transition integral >= 0 && integral < 1000000000000 && fractional >= 0 && fractional < 1000000000000 {
             true -> digits(output, integral, fractional, 100000000000, false)

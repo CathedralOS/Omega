@@ -144,6 +144,18 @@ public boundary trait Registration: Calling<RegistrationCalling> {
     invokes Initializer;
 }
 
+macos_arm64 machine registration_binding() -> ForeignBinding<26, 19, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_pthread_key_create",
+        },
+    }
+}
+macos_arm64 machine registration_leaf<machine Handler>(key: &mut ThreadKey) -> i32
+requires machine Handler satisfies Initializer::call;
+satisfies Registration::register
+via registration_binding();
 
 public data Initialization { }
 public machine Initialization::call(context: u64) satisfies Initializer::call

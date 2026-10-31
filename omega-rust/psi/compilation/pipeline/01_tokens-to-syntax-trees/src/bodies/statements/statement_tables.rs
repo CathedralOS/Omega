@@ -84,8 +84,9 @@ pub(crate) fn root_binding_declaration(
     if !matches!(owner, [name] if name.as_str(syntax_trees) == "Build") {
         return Ok(None);
     }
-    // The generic overload designates a native requirement and follows the
-    // ordinary source-issued selection call route, not entry-slot syntax.
+    // A static requirement operand selects the native-binding overload. Keep
+    // that ordinary call intact for exact toolchain/Product admission; entry
+    // slots retain their separate statement form below.
     if !call.machine_arguments.is_empty() {
         return Ok(None);
     }

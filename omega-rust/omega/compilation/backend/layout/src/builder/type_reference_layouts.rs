@@ -21,27 +21,6 @@ impl<'program> LayoutBuilder<'program> {
         type_reference: TypeReferenceHandle,
         bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<TypeLayout, Diagnostic> {
-        if self
-            .program
-            .layout_storage_arguments(type_reference)
-            .is_some()
-        {
-            let plan = self
-                .program
-                .plan_laid_layout_for_type(type_reference)
-                .ok_or_else(|| {
-                    Diagnostic::error("fixed representation has no installed validated geometry")
-                })?;
-            let geometry = plan.invariant_geometry().ok_or_else(|| {
-                Diagnostic::error(
-                    "fixed representation geometry has not closed under the exact target",
-                )
-            })?;
-            return Ok(TypeLayout {
-                size: geometry.size,
-                alignment: geometry.align,
-            });
-        }
         match self
             .program
             .type_reference_table
@@ -52,8 +31,8 @@ impl<'program> LayoutBuilder<'program> {
                 // slices/text and `{instance, table}` for dynamic traits.
                 // Keeping only the instance pointer loses dispatch identity
                 // and disagrees with calling-policy parameter placement.
-                // Scalar and aggregate references have source-visible pointer geometry.
-                // Engine-private scalar codec lanes are not source storage.
+                // References to sized carriers (including records containing
+                // a descriptor) remain thin pointers.
                 //
                 // A domain-constrained slice view (`&[u8] in Utf8`) is
                 // `Reference { Constrained { Slice } }`: the constraint is a
@@ -138,11 +117,63 @@ impl<'program> LayoutBuilder<'program> {
                             .layout_generic_data_definition(definition, *arguments, bindings);
                     }
 
-                    if !arguments.is_empty() {
+                    // A `Policy<Schema>` application over a NON-generic data is a
+                    // plan-laid instantiation, not the policy's own (usually
+                    // empty) record. Field and parameter spellings arrive as the
+                    // synthesized instance through the plan-laid desugar, but a
+                    // `size_of<Policy<Schema>>()` operand lowers its type
+                    // argument symbol-side and reaches here as this Generic
+                    // node; resolve the installed instance so the query answers
+                    // the validated plan layout rather than the policy shell.
+                    if !arguments.is_empty()
+                        && let Some(plan) = self.program.plan_laid_layouts.iter().find(|plan| {
+                            plan.policy_symbol == *base_symbol
+                                && self
+                                    .program
+                                    .type_reference_table
+                                    .type_reference_handles(*arguments)
+                                    .iter()
+                                    .any(|argument| {
+                                        self.program.type_reference_symbol(*argument)
+                                            == plan.schema_symbol
+                                    })
+                        })
+                    {
+                        return self.layout_data_definition(plan.data_symbol);
+                    }
+
+                    // When the operand's `Policy<Schema>` is the only mention, the
+                    // syntax-level desugar never instantiated it, so no validated
+                    // plan exists to measure. Answering the policy's own record
+                    // layout would return a wrong `(0, 1)`-class answer for a
+                    // type the program never admits; a policy application without
+                    // an installed instance has no runtime layout.
+                    if !arguments.is_empty()
+                        && let Some(plan_machine) = self.program.machines().iter().find(|machine| {
+                            machine.attached_data_symbol == *base_symbol
+                                && machine.name.as_str() == format!("{}::plan", definition.name)
+                        })
+                    {
                         return Err(Diagnostic::error(format!(
-                            "`{base_name}` is not a generic data type"
+                            "`{base_name}` is a layout policy application, but its \
+                             schema instance has no runtime layout: the type was never \
+                             instantiated in a value position ({plan_machine} produced \
+                             no layout plan for it)",
+                            plan_machine = plan_machine.name.as_str()
                         )));
                     }
+
+                    // A surviving `Data<Args>` over a non-generic, non-policy data
+                    // is a malformed operand the query's symbol-side lowering never
+                    // validated; answering the base record's layout would silently
+                    // drop the argument list.
+                    if !arguments.is_empty() {
+                        return Err(Diagnostic::error(format!(
+                            "`{base_name}` is not a generic data type and owns no `plan` \
+                             machine, so `{base_name}<...>` names no layout"
+                        )));
+                    }
+
                     return self.layout_data_definition(*base_symbol);
                 }
 

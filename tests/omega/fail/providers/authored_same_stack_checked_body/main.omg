@@ -2,7 +2,7 @@
 // same-stack contribution.
 public boundary trait TextOutput { machine output_string(this: addr) reaches; }
 
-machine checked(this: addr) satisfies TextOutput::output_string  {
+machine checked(this: addr) satisfies TextOutput::output_string stack 4096 bytes; {
     TextOutput::output_string(this);
 }
 

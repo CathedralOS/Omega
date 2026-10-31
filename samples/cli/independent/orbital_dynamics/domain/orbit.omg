@@ -15,7 +15,7 @@ machine coordinate(value: f64) -> f64
 requires value == value && value >= -1000000.0 && value <= 1000000.0 { value }
 
 machine Orbit::diagnostics(orbit: &mut Orbit) {
-    let radius: f64 = F64SquareRoot::square_root(orbit.x * orbit.x + orbit.y * orbit.y);
+    let radius: f64 = F64::square_root(orbit.x * orbit.x + orbit.y * orbit.y);
     let speed_squared: f64 = orbit.vx * orbit.vx + orbit.vy * orbit.vy;
     orbit.energy = 0.5 * speed_squared - orbit.parameter / radius;
     orbit.momentum = orbit.x * orbit.vy - orbit.y * orbit.vx;
@@ -26,7 +26,7 @@ machine Orbit::step(orbit: &mut Orbit) {
     orbit.periapsis = false;
     orbit.previous_radial = orbit.radial;
     let radius_squared: f64 = orbit.x * orbit.x + orbit.y * orbit.y;
-    let radius: f64 = F64SquareRoot::square_root(radius_squared);
+    let radius: f64 = F64::square_root(radius_squared);
     let factor: f64 = (0.0 - orbit.parameter) / (radius_squared * radius);
     let half: f64 = 0.5 * orbit.timestep;
     let half_vx: f64 = orbit.vx + half * factor * orbit.x;
@@ -63,7 +63,7 @@ machine Orbit::step(orbit: &mut Orbit) {
         }
     }
     machine kick(orbit: &mut Orbit, half_vx: f64, half_vy: f64, x: f64, y: f64, radius_squared: f64) {
-        let radius: f64 = F64SquareRoot::square_root(radius_squared);
+        let radius: f64 = F64::square_root(radius_squared);
         let factor: f64 = (0.0 - orbit.parameter) / (radius_squared * radius);
         orbit.x = x; orbit.y = y;
         orbit.vx = half_vx + 0.5 * orbit.timestep * factor * x;

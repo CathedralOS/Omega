@@ -109,25 +109,6 @@ impl PackageDependencyClosure {
 }
 
 impl PackageCompilationInputs {
-    /// Exact library suppliers whose immutable source roles may be nominated
-    /// during this consumer's preliminary review. Discovery checks the whole
-    /// Product closure, including dependency services referenced by an app.
-    /// The app's own declarations and Build-only dependencies are not library
-    /// nominees. This roster grants neither accepted roles nor execution.
-    pub fn semantic_role_discovery_packages(&self) -> Vec<PackageKeyIdentity> {
-        if !self.semantic_role_discovery() {
-            return Vec::new();
-        }
-        self.dependency_closure()
-            .packages()
-            .iter()
-            .copied()
-            .filter(|package| {
-                *package != self.root() || self.root_role() == BuildDeclarationKind::Package
-            })
-            .collect()
-    }
-
     /// Direct aliases in one root execution scope. Build aliases never fall
     /// back to Product aliases, including during the final request join.
     pub fn direct_dependencies(
@@ -377,34 +358,4 @@ fn dependency_cycle_in_set(
         }
     }
     visited != packages.len()
-}
-
-impl compiler_storage::Record for PackageDependencyClosure {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        use compiler_storage::Record;
-        output.record(|output| {
-            self.root.write(output)?;
-            self.root_role.write(output)?;
-            self.packages.write(output)?;
-            self.dependencies.write(output)
-        })
-    }
-
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        use compiler_storage::Record;
-        input.record(|input| {
-            Self::from_canonical_parts(
-                PackageKeyIdentity::read(input)?,
-                BuildDeclarationKind::read(input)?,
-                Vec::<PackageKeyIdentity>::read(input)?,
-                Vec::<PackageDependencyBinding>::read(input)?,
-            )
-            .map_err(|reason| input.error(reason))
-        })
-    }
 }

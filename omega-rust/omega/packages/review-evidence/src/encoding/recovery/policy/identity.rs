@@ -64,3 +64,18 @@ pub(in crate::encoding::recovery) fn signature_parameter(
         is_mutable: reader.boolean()?,
     })
 }
+
+pub(in crate::encoding::recovery) fn target_context(
+    reader: &mut Reader<'_>,
+) -> Result<crate::record::PackagePolicyTargetContext, Error> {
+    super::tag!(reader => {
+        0 => Ok(crate::record::PackagePolicyTargetContext::TargetIndependent),
+        1 => {
+            let target = reader.string()?;
+            if target.is_empty() {
+                return Err(Error::InvalidIdentity);
+            }
+            Ok(crate::record::PackagePolicyTargetContext::TargetMember { target })
+        }
+    })
+}

@@ -30,30 +30,38 @@ ensures result == 0u16
     }
 }
 
-boundary trait SelectedEvaluateSum {
-    machine evaluate_sum() -> u16 reaches
-crashes Trap
-ensures result == 0u16;
-}
-CheckedEvaluateSum satisfies SelectedEvaluateSum {
-    machine evaluate_sum() -> u16 crashes Trap
+linux_x86_64 machine evaluate_sum() -> u16 crashes Trap
 ensures result == 0u16
 {
     let sum: u16 = compute_sum(500u16, 101u16);
     verify_sum(sum)
 }
+
+linux_arm64 machine evaluate_sum() -> u16 crashes Trap
+ensures result == 0u16
+{
+    let sum: u16 = compute_sum(500u16, 101u16);
+    verify_sum(sum)
 }
 
+macos_arm64 machine evaluate_sum() -> u16 crashes Trap
+ensures result == 0u16
+{
+    let sum: u16 = compute_sum(500u16, 101u16);
+    verify_sum(sum)
+}
 
-
-
-
-
+windows_x86_64 machine evaluate_sum() -> u16 crashes Trap
+ensures result == 0u16
+{
+    let sum: u16 = compute_sum(500u16, 101u16);
+    verify_sum(sum)
+}
 
 machine probe() -> u16 crashes Trap
 ensures result == 0u16
 {
-    SelectedEvaluateSum::evaluate_sum()
+    evaluate_sum()
 }
 
 machine main() crashes Trap {

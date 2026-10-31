@@ -530,7 +530,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     || program_image_retained(psi_operation, boundary, targeted, selected)
                     || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                     || placed_scalar_retained(operation, targeted, selected)
-                    || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
+                    || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::InvokeNoNormal {
@@ -568,6 +568,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         + selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::ExternalCompletion(*psi_edge)
                             && matches!(&row.call.source,
                                 legalized_operations::NativeCallOrigin::InstalledProvider { boundary: required, .. }
+                                | legalized_operations::NativeCallOrigin::TargetFamily { boundary: required, .. }
                                 if required == boundary)).count()) == 1
                         && control_flow::retained(operation, targeted)
                 },

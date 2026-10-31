@@ -8,8 +8,6 @@
 //! dispatches its authoring trait's requirements through its own
 //! implementation's rows.
 
-mod member_carriers;
-
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;
@@ -485,6 +483,7 @@ fn build_machine_catalog(program: &SymbolResolvedTrees) -> Vec<MachineCatalogEnt
         .iter()
         .enumerate()
         // A target sibling never realizes a conformance of this realization.
+        .filter(|(_, machine)| machine.target.is_none())
         .map(|(ordinal, machine)| MachineCatalogEntry {
             ordinal,
             symbol: machine.symbol,
@@ -560,18 +559,18 @@ fn normalize_one(
         let realizations = resolve_realizations(program, authored, machine_catalog, None);
         let mut matching = Vec::new();
         for candidate in &candidates {
-            // Retain the exact inherited declaration by its known parameter
-            // and result carriers as well as result dispatch domains. Open
-            // generic carriers remain unresolved here; fully applied typing
-            // and contract refinement remain authoritative later.
+            // Legal same-path overload families share one normalized
+            // parameter signature and differ by dispatch-bearing result
+            // domains. The typed conformance validator remains authoritative
+            // for the complete parameter/contract compatibility check; this
+            // pre-typed phase uses the result set only to retain the exact
+            // declaration symbol rather than collapsing to the leaf name.
             let requirement_shape =
                 result_dispatch_shape(program, candidate.signature.return_type.as_ref());
             for (machine, state) in
                 resolve_realizations(program, authored, machine_catalog, Some(&requirement_shape))
             {
-                if member_carriers::compatible(program, &candidate.signature, state) {
-                    matching.push((*candidate, machine, state));
-                }
+                matching.push((*candidate, machine, state));
             }
         }
         let (requirement, machine, state) = match (

@@ -36,6 +36,12 @@ semantic_id!(
     ServiceReachRowId
 );
 semantic_id!(
+    /// A normalized EXTERNAL-BINDING identity (PRV4 step 1): the structural
+    /// `via <Binding>` value of an ExternalRealization leaf, interned so supply
+    /// modes stay Copy and equal bindings share one identity without rendering.
+    ExternalBindingId
+);
+semantic_id!(
     /// A canonical ranking view (e.g. `Nat::Descending`); the witness names
     /// it explicitly, defaults elaborate at once.
     RankingViewId

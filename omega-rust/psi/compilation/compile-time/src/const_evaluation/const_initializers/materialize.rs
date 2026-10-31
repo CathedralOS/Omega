@@ -32,12 +32,6 @@ pub(super) fn literal(
     value: &BuildTimeValue,
     reference: SourceSpan,
 ) -> Result<ExpressionHandle, String> {
-    // Representation choice is retained by the receiving declaration. Literal
-    // syntax constructs T under T's ordinary source authority; its exact field
-    // view is rejoined to the receiving application during typed replay.
-    if let Some(storage) = program.layout_storage_arguments(destination) {
-        return literal(syntax, program, storage.semantic_type, value, reference);
-    }
     let node = match program.type_reference_table.type_reference(destination) {
         TypeReferenceNode::Constrained { base_type, .. } => {
             return literal(syntax, program, *base_type, value, reference);
@@ -120,12 +114,6 @@ pub(super) fn literal(
                 nominal_literal(syntax, program, *symbol, value, reference)?
             }
         }
-        TypeReferenceNode::Generic { .. } => {
-            let definition = program
-                .closed_data_definition(destination)
-                .ok_or("evaluated aggregate leaf lost its exact closed data application")?;
-            nominal_literal_for_definition(syntax, program, definition, value, reference)?
-        }
         _ => {
             return Err("evaluated aggregate leaf has no materializable carrier".to_owned());
         }
@@ -155,20 +143,6 @@ fn nominal_literal(
     if definitions.next().is_some() {
         return Err("evaluated aggregate leaf has ambiguous nominal identity".to_owned());
     }
-    nominal_literal_for_definition(syntax, program, definition, value, reference)
-}
-
-fn nominal_literal_for_definition(
-    syntax: &mut SyntaxTrees,
-    program: &TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
-    value: &BuildTimeValue,
-    reference: SourceSpan,
-) -> Result<ExpressionNode, String> {
-    if definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
-        return Err("evaluated aggregate leaf has no source-owned constructor".into());
-    }
-    let symbol = definition.symbol;
     let owner_path = program.symbols.display_path(symbol, "::");
     if program
         .symbols
@@ -293,9 +267,6 @@ pub(super) fn canonical_value(
     destination: TypeReferenceHandle,
     value: &BuildTimeValue,
 ) -> Result<DecodedCanonicalConstValue, String> {
-    if let Some(storage) = program.layout_storage_arguments(destination) {
-        return canonical_value(program, storage.semantic_type, value);
-    }
     match program.type_reference_table.type_reference(destination) {
         TypeReferenceNode::Constrained { base_type, .. } => {
             canonical_value(program, *base_type, value)
@@ -361,13 +332,6 @@ pub(super) fn canonical_value(
                 nominal_value(program, *symbol, value)
             }
         }
-        TypeReferenceNode::Generic { .. } => nominal_value_for_definition(
-            program,
-            program
-                .closed_data_definition(destination)
-                .ok_or("evaluated leaf lost its exact closed data application")?,
-            value,
-        ),
         _ => Err("evaluated leaf has no encodable carrier".to_owned()),
     }
 }
@@ -386,17 +350,6 @@ fn nominal_value(
         .ok_or("evaluated leaf has no exact nominal declaration")?;
     if definitions.next().is_some() {
         return Err("evaluated leaf has ambiguous nominal identity".to_owned());
-    }
-    nominal_value_for_definition(program, definition, value)
-}
-
-fn nominal_value_for_definition(
-    program: &TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
-    value: &BuildTimeValue,
-) -> Result<DecodedCanonicalConstValue, String> {
-    if definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
-        return Err("evaluated leaf has no source-owned structural value".into());
     }
     let members = program.data_members(definition);
     let type_name = definition.name.as_str().to_owned();

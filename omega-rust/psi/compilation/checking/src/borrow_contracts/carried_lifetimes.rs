@@ -41,33 +41,6 @@ pub(super) enum RegionIdentity {
     Captured(SymbolHandle, usize),
 }
 
-pub(super) fn describe_region(
-    program: &dyn crate::CheckingInput,
-    region: Option<&RegionIdentity>,
-) -> String {
-    match region {
-        None => "elided region".to_owned(),
-        Some(RegionIdentity::Fresh(ordinal)) => format!("fresh invocation region {ordinal}"),
-        Some(RegionIdentity::Declared(name)) => format!("unresolved region '{name}"),
-        Some(RegionIdentity::Captured(declaration, ordinal)) => {
-            let parameter = typed_trees::type_identity::LifetimeParameterIdentity {
-                declaration: *declaration,
-                ordinal: *ordinal,
-            };
-            let name = typed_trees::type_identity::lifetime_parameter_name(
-                program.typed_program(),
-                parameter,
-            )
-            .map(|name| name.as_str())
-            .unwrap_or("<unknown>");
-            format!(
-                "captured region '{name} ({ordinal}) of `{}`",
-                program.symbols.display_path(*declaration, "::")
-            )
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeclarationLifetimeFrontier {
     Complete { has_borrows: bool },
@@ -97,29 +70,6 @@ struct TypeScope<'scope> {
     outer: Option<&'scope TypeScope<'scope>>,
     argument_lifetimes: &'scope [(String, RegionIdentity)],
     application_lifetimes: &'scope [Vec<(String, RegionIdentity)>],
-    captured: &'scope [super::callable_regions::AppliedRegionBinding],
-    /// Region scopes survive a foreign operand without reactivating that
-    /// operand's receiving Type substitutions.
-    region_outer: Option<&'scope TypeScope<'scope>>,
-}
-
-impl TypeScope<'_> {
-    fn applied_region<'scope>(
-        &'scope self,
-        program: &dyn crate::CheckingInput,
-        parameter: typed_trees::type_identity::LifetimeParameterIdentity,
-    ) -> Option<&'scope RegionIdentity> {
-        let mut scope = Some(self);
-        while let Some(frame) = scope {
-            if let Some(argument) =
-                super::callable_regions::applied_region(program, frame.captured, parameter)
-            {
-                return Some(argument);
-            }
-            scope = frame.region_outer.or(frame.outer);
-        }
-        None
-    }
 }
 
 struct DataVisit {
@@ -305,7 +255,6 @@ pub(super) fn symbolic_carried_lifetimes(
         &[],
         &[],
         &[],
-        &[],
         SymbolHandle::invalid(),
         false,
         LifetimeFrontier::Value,
@@ -378,7 +327,6 @@ pub(super) fn symbolic_input_lifetimes(
         &[],
         &[],
         &[],
-        &[],
         SymbolHandle::invalid(),
         false,
         LifetimeFrontier::Input,
@@ -430,7 +378,6 @@ pub(super) fn scoped_carried_lifetimes(
     lifetimes: &[(String, RegionIdentity)],
     argument_lifetimes: &[(String, RegionIdentity)],
     application_lifetimes: &[Vec<(String, RegionIdentity)>],
-    captured: &[super::callable_regions::AppliedRegionBinding],
     declaration: SymbolHandle,
     scoped_regions: bool,
     frontier: LifetimeFrontier,
@@ -447,7 +394,6 @@ pub(super) fn scoped_carried_lifetimes(
             starts: scope_starts,
             argument_lifetimes,
             application_lifetimes,
-            captured,
             ..TypeScope::default()
         },
         &[],
@@ -489,59 +435,6 @@ pub(super) fn whole_elided_result_accesses(
     .then(|| output.into_iter().map(|leaf| leaf.access).collect())
 }
 
-/// A slot's declaration identity selects its own region frame. Whole-node
-/// ownership cannot collapse mixed captured/fresh nominal arguments, and a
-/// Type-operand prefix must not inherit its receiver's lifetime application.
-fn carried_region(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-    slot: usize,
-    name: &typed_trees::name::Identifier,
-    lifetimes: &[(String, RegionIdentity)],
-    types: TypeScope<'_>,
-    scoped: bool,
-) -> Option<RegionIdentity> {
-    let lexical = || {
-        lifetimes
-            .iter()
-            .rev()
-            .find(|(parameter, _)| parameter == name.as_str())
-            .map_or_else(
-                || RegionIdentity::Declared(name.as_str().to_owned()),
-                |(_, region)| region.clone(),
-            )
-    };
-    if !scoped {
-        return Some(lexical());
-    }
-    let Some(region) =
-        crate::type_regions::retained_lifetime_identity(program, reference, slot, Some(name))
-            .ok()?
-    else {
-        return Some(lexical());
-    };
-    let owner = program.lifetime_declaration_owner(region.declaration);
-    if !owner.is_valid() {
-        return None;
-    }
-    if let Some(argument) = types.applied_region(program, region) {
-        return Some(argument.clone());
-    }
-    let mut scope = Some(types);
-    while let Some(frame) = scope {
-        if program.lifetime_declaration_owner(frame.declaration) == owner {
-            return frame
-                .lifetimes
-                .iter()
-                .rev()
-                .find(|(parameter, _)| parameter == name.as_str())
-                .map(|(_, region)| region.clone());
-        }
-        scope = frame.region_outer.or(frame.outer).copied();
-    }
-    Some(RegionIdentity::Captured(owner, region.ordinal))
-}
-
 fn collect_type(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -553,7 +446,6 @@ fn collect_type(
     whole_elided_contract: bool,
     template: &mut TemplateFrontier<'_>,
 ) -> bool {
-    let receiver_types = types;
     let operand_owner = if template.scoped_regions {
         program
             .type_reference_table
@@ -561,25 +453,7 @@ fn collect_type(
     } else {
         SymbolHandle::invalid()
     };
-    let operand_lifetimes = super::callable_refinement::captured_lifetimes(program, operand_owner)
-        .into_iter()
-        .map(|(name, identity)| {
-            let identity = match identity {
-                RegionIdentity::Captured(declaration, ordinal) => receiver_types
-                    .applied_region(
-                        program,
-                        typed_trees::type_identity::LifetimeParameterIdentity {
-                            declaration,
-                            ordinal,
-                        },
-                    )
-                    .cloned()
-                    .unwrap_or(RegionIdentity::Captured(declaration, ordinal)),
-                identity => identity,
-            };
-            (name, identity)
-        })
-        .collect::<Vec<_>>();
+    let operand_lifetimes = super::callable_refinement::captured_lifetimes(program, operand_owner);
     let (lifetimes, types) = if operand_owner.is_valid() {
         // A declaration-owned field uses the region application of its active
         // traversal frame, just as it uses that frame's Type substitutions.
@@ -596,18 +470,9 @@ fn collect_type(
             }
             scope = frame.outer.copied();
         }
-        supplying_scope.map_or(
-            (
-                &operand_lifetimes[..],
-                TypeScope {
-                    declaration: operand_owner,
-                    lifetimes: &operand_lifetimes,
-                    region_outer: Some(&receiver_types),
-                    ..TypeScope::default()
-                },
-            ),
-            |frame| (frame.lifetimes, frame),
-        )
+        supplying_scope.map_or((&operand_lifetimes[..], TypeScope::default()), |frame| {
+            (frame.lifetimes, frame)
+        })
     } else {
         (lifetimes, types)
     };
@@ -666,29 +531,20 @@ fn collect_type(
             if whole_elided_contract && lifetime.is_some() {
                 return false;
             }
-            let lifetime = match lifetime {
-                Some(name) => {
-                    let Some(region) = carried_region(
-                        program,
-                        reference,
-                        0,
-                        name,
-                        lifetimes,
-                        types,
-                        template.scoped_regions,
-                    ) else {
-                        return false;
-                    };
-                    Some(region)
-                }
-                None => None,
-            };
             output.push(CarriedLifetime {
                 lifetime_only: false,
                 retained_contract: false,
                 reference,
                 owner_path: owner_path.to_vec(),
-                lifetime,
+                lifetime: lifetime.as_ref().map(|lifetime| {
+                    lifetimes
+                        .iter()
+                        .rev()
+                        .find_map(|(parameter, argument)| {
+                            (parameter == lifetime.as_str()).then_some(argument.clone())
+                        })
+                        .unwrap_or_else(|| RegionIdentity::Declared(lifetime.as_str().to_owned()))
+                }),
                 access: *access,
                 source: if template.frontier == LifetimeFrontier::Input {
                     super::ViewReturnInputSource::Referent
@@ -859,20 +715,17 @@ fn collect_type(
                     retained_contract: false,
                     reference,
                     owner_path: owner_path.to_vec(),
-                    lifetime: {
-                        let Some(region) = carried_region(
-                            program,
-                            reference,
-                            custody.result_lifetime_argument_ordinal as usize,
-                            lifetime,
-                            lifetimes,
-                            types,
-                            template.scoped_regions,
-                        ) else {
-                            return false;
-                        };
-                        Some(region)
-                    },
+                    lifetime: Some(
+                        lifetimes
+                            .iter()
+                            .rev()
+                            .find_map(|(parameter, actual)| {
+                                (parameter == lifetime.as_str()).then_some(actual.clone())
+                            })
+                            .unwrap_or_else(|| {
+                                RegionIdentity::Declared(lifetime.as_str().to_owned())
+                            }),
+                    ),
                     access: language_semantics::ReferenceAccess::Shared,
                     source: super::ViewReturnInputSource::Stored,
                 });
@@ -917,23 +770,17 @@ fn collect_type(
                 .lifetime_parameters
                 .iter()
                 .zip(lifetime_arguments)
-                .enumerate()
-                .map(|(slot, (parameter, argument))| {
-                    let argument = carried_region(
-                        program,
-                        reference,
-                        slot,
-                        argument,
-                        lifetimes,
-                        types,
-                        template.scoped_regions,
-                    )?;
-                    Some((parameter.as_str().to_owned(), argument))
+                .map(|(parameter, argument)| {
+                    let argument = lifetimes
+                        .iter()
+                        .rev()
+                        .find_map(|(outer, concrete)| {
+                            (outer == argument.as_str()).then_some(concrete.clone())
+                        })
+                        .unwrap_or_else(|| RegionIdentity::Declared(argument.as_str().to_owned()));
+                    (parameter.as_str().to_owned(), argument)
                 })
-                .collect::<Option<Vec<_>>>();
-            let Some(nested_lifetimes) = nested_lifetimes else {
-                return false;
-            };
+                .collect::<Vec<_>>();
             let nested_types = parameters
                 .iter()
                 .zip(arguments)
@@ -952,8 +799,6 @@ fn collect_type(
                     outer: Some(&types),
                     argument_lifetimes: lifetimes,
                     application_lifetimes: &[],
-                    captured: &[],
-                    region_outer: None,
                 },
                 owner_path,
                 visiting,
@@ -995,7 +840,6 @@ fn collect_type(
                         TypeScope {
                             bindings: &frame.bindings[..*start],
                             starts: &frame.starts[..scope_ordinal],
-                            captured: &[],
                             ..*frame
                         }
                     };

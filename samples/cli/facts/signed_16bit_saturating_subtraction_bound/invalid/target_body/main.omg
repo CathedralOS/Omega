@@ -9,12 +9,7 @@ machine verify_diff(value: i16) -> i16
     head + tail
 }
 
-boundary trait SelectedComputeTargetBody {
-    machine compute_target_body(lhs: i16, rhs: i16) -> i16 reaches
-requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100;
-}
-CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
-    machine compute_target_body(lhs: i16, rhs: i16) -> i16
+linux_x86_64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
     requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
 {
     let a: i16 in Saturating = lhs as i16 in Saturating;
@@ -23,16 +18,39 @@ CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
     let diff: i16 = sat as i16;
     verify_diff(diff)
 }
+
+linux_arm64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+{
+    let a: i16 in Saturating = lhs as i16 in Saturating;
+    let b: i16 in Saturating = rhs as i16 in Saturating;
+    let sat: i16 in Saturating = a - b;
+    let diff: i16 = sat as i16;
+    verify_diff(diff)
 }
 
+macos_arm64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+{
+    let a: i16 in Saturating = lhs as i16 in Saturating;
+    let b: i16 in Saturating = rhs as i16 in Saturating;
+    let sat: i16 in Saturating = a - b;
+    let diff: i16 = sat as i16;
+    verify_diff(diff)
+}
 
-
-
-
-
+windows_x86_64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+{
+    let a: i16 in Saturating = lhs as i16 in Saturating;
+    let b: i16 in Saturating = rhs as i16 in Saturating;
+    let sat: i16 in Saturating = a - b;
+    let diff: i16 = sat as i16;
+    verify_diff(diff)
+}
 
 machine evaluate() -> i16 {
-    SelectedComputeTargetBody::compute_target_body(400, 80)
+    compute_target_body(400, 80)
 }
 
 machine main() crashes Trap {

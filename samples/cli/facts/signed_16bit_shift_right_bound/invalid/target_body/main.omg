@@ -8,27 +8,36 @@ machine verify_shifted(shifted: i16) -> i32
     sub as i32
 }
 
-boundary trait SelectedComputeTargetBody {
-    machine compute_target_body(val: i16) -> i32 reaches
-requires val >= 476 && val <= 480;
-}
-CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
-    machine compute_target_body(val: i16) -> i32
+linux_x86_64 machine compute_target_body(val: i16) -> i32
     requires val >= 476 && val <= 480
 {
     let shifted: i16 = val >> 2u32;
     verify_shifted(shifted)
 }
+
+linux_arm64 machine compute_target_body(val: i16) -> i32
+    requires val >= 476 && val <= 480
+{
+    let shifted: i16 = val >> 2u32;
+    verify_shifted(shifted)
 }
 
+macos_arm64 machine compute_target_body(val: i16) -> i32
+    requires val >= 476 && val <= 480
+{
+    let shifted: i16 = val >> 2u32;
+    verify_shifted(shifted)
+}
 
-
-
-
-
+windows_x86_64 machine compute_target_body(val: i16) -> i32
+    requires val >= 476 && val <= 480
+{
+    let shifted: i16 = val >> 2u32;
+    verify_shifted(shifted)
+}
 
 machine evaluate() -> i32 {
-    SelectedComputeTargetBody::compute_target_body(480)
+    compute_target_body(480)
 }
 
 machine main() crashes Trap {

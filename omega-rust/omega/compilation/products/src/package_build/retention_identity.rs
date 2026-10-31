@@ -31,12 +31,8 @@ impl PreparedPackageBuild {
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
-        for (scope, bundle) in self.inputs.dependency_build_handoff_instances() {
-            identity.digest.byte(match scope {
-                build_declarations::DependencyPurpose::Product => 0,
-                build_declarations::DependencyPurpose::Build => 1,
-            });
-            identity.package(bundle.package());
+        for bundle in self.inputs.dependency_build_handoffs() {
+            identity.package(Some(bundle.package()));
             identity
                 .digest
                 .raw(&package_compilation::native_output_codec::digest(bundle));
@@ -56,26 +52,6 @@ struct BuildOutputIdentity<'program> {
 }
 
 impl BuildOutputIdentity<'_> {
-    fn native_intent(
-        &mut self,
-        intent: &language_semantics::declaration_selection::NativeBuildIntent,
-    ) {
-        use language_semantics::declaration_selection::NativeBuildIntent;
-        match intent {
-            NativeBuildIntent::Locator(locator) => {
-                self.digest.byte(0);
-                self.native_locator(locator);
-            }
-            NativeBuildIntent::Table { drops_receiver } => {
-                self.digest.byte(1);
-                self.digest.byte(u8::from(*drops_receiver));
-            }
-            NativeBuildIntent::SameStackDemand { bytes } => {
-                self.digest.byte(2);
-                self.digest.u64(*bytes);
-            }
-        }
-    }
     fn native_locator(&mut self, locator: &semantic_vocabulary::NativeBindingLocator) {
         use semantic_vocabulary::{ForeignLocatorCandidate as Locator, NativeBindingLocator};
         match locator {
@@ -203,13 +179,7 @@ impl BuildOutputIdentity<'_> {
             self.product_request(&selection.request)?;
             self.product_target(Some(selection.target));
             self.occurrence(selection.selecting_machine)?;
-            self.native_intent(&selection.intent);
-            if let Some(environment) = &selection.static_environment {
-                self.digest.byte(1);
-                self.digest.bytes(&environment.identity);
-            } else {
-                self.digest.byte(0);
-            }
+            self.native_locator(&selection.locator);
         }
         self.digest.len(behavior_exclusion_requests.len());
         for request in behavior_exclusion_requests {
@@ -336,50 +306,9 @@ impl BuildOutputIdentity<'_> {
             self.digest.raw(&supply.evaluation.identity_digest());
             let selection = &supply.selection;
             self.symbol(selection.subject)?;
-            self.symbol(selection.application.requirement)?;
+            self.symbol(selection.requirement)?;
             self.product_target(Some(selection.target));
-            match &selection.supply {
-                build_time_evaluation::native_bindings::NativeBindingSupply::Locator(locator) => {
-                    self.digest.byte(0);
-                    self.native_locator(locator);
-                }
-                build_time_evaluation::native_bindings::NativeBindingSupply::Table(table) => {
-                    self.digest.byte(1);
-                    self.symbol(table.table)?;
-                    self.symbol(table.field)?;
-                    self.digest.byte(u8::from(table.drops_receiver));
-                }
-            }
-            if let Some(scope) = selection.application.trait_scope {
-                self.digest.byte(1);
-                let scope = scope
-                    .scope(self.program)
-                    .ok_or("native application lost its outer telescope")?;
-                let identity = scope
-                    .portable_application_identity(self.program)
-                    .ok_or("native outer telescope has no exact identity")?;
-                self.digest.string(
-                    &self
-                        .program
-                        .type_identity_text(identity)
-                        .ok_or("native outer identity is not portable")?,
-                );
-            } else {
-                self.digest.byte(0);
-            }
-            if let Some(closed) = selection.application.closed_requirement {
-                self.digest.byte(1);
-                self.symbol(closed)?;
-            } else {
-                self.digest.byte(0);
-            }
-            if let Some(demand) = &selection.same_stack_demand {
-                self.digest.byte(1);
-                self.digest.u64(demand.bytes);
-                self.digest.raw(&demand.source_occurrence_digest);
-            } else {
-                self.digest.byte(0);
-            }
+            self.native_locator(&selection.locator);
             self.digest.string(&selection.producer.declaration_path);
             self.digest.string(&selection.producer.callable_identity);
             self.digest.raw(&selection.source_occurrence_digest);
@@ -645,9 +574,6 @@ impl BuildOutputIdentity<'_> {
             BuildOperation::IncludedSourceHandoff => 10,
             BuildOperation::LogWriteLine => 11,
             BuildOperation::NativeBinding => 12,
-            BuildOperation::NativeTableFunction => 13,
-            BuildOperation::NativeVtableField => 14,
-            BuildOperation::NativeSameStackDemand => 15,
         });
         self.digest.len(operands.len());
         for operand in operands {

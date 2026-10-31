@@ -8,19 +8,18 @@ BorrowedReading<'provider> satisfies Reading<&'provider i32> {
 machine read<'provider>(value: &'provider i32) -> i32 { value as i32 }
 
 data TargetProviders {}
-boundary trait SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders) reaches
-;
-}
-CheckedTargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders)
-{
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
 }
+linux_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
 }
-
-
-
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
+}
+windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Reading, BorrowedReading>(defaults);
+}
 machine stepped<'step>(value: &'step i32)
     -> i32 reaches Reading { Reading<&'step i32>::read(value) }
 machine observed<'source>(value: &'source i32)

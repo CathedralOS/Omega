@@ -196,7 +196,6 @@ fn evaluate_application_group(
         sources.clone(),
         source_scoped_top_level_bindings,
         context.retained_base(),
-        context.template_context,
         &declarations,
     )?;
     let endpoint_references = endpoint_leaves

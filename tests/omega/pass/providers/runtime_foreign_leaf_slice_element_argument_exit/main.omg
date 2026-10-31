@@ -11,6 +11,29 @@ public boundary trait CText {
     machine length(text: &u8) -> u64 reaches;
 }
 
+macos_arm64 machine c_strlen_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_strlen",
+        },
+    }
+}
+
+linux_x86_64 machine linux_x86_64_c_strlen_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "strlen", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+macos_arm64 machine c_strlen(text: &u8) -> u64
+    satisfies CText::length via c_strlen_binding();
+
+linux_x86_64 machine c_strlen(text: &u8) -> u64
+    satisfies CText::length via linux_x86_64_c_strlen_binding();
 
 public data Words {
     bytes: [u8; 6];
@@ -39,7 +62,7 @@ macos_arm64 machine MeasureProvider::measure(text: &[u8]) -> i32 satisfies Measu
     machine lend(text: &[u8]) -> i32
     requires text.len > 2
     {
-        let element: u64 = CText::length(&text[2]);
+        let element: u64 = c_strlen(&text[2]);
         transition element == 3 {
             true -> (70)
             _ -> (71)
@@ -56,7 +79,7 @@ linux_x86_64 machine MeasureProvider::measure(text: &[u8]) -> i32 satisfies Meas
     machine lend(text: &[u8]) -> i32
     requires text.len > 2
     {
-        let element: u64 = CText::length(&text[2]);
+        let element: u64 = c_strlen(&text[2]);
         transition element == 3 {
             true -> (70)
             _ -> (71)

@@ -24,21 +24,16 @@ pub(super) fn prepare<'host, 'artifact>(
             "component runtime companions name another producing occurrence",
         ));
     }
-    let target_machines =
-        terminal_interpreter::target_context(artifact, runtime.target().target_name());
-    let facts = super::layout_target_facts(runtime.target().target_name()).map_err(|error| {
-        TerminalRuntimeError::Requirements(
-            terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
-        )
-    })?;
-    let target_layouts =
-        terminal_interpreter::admit_target_layouts(artifact, &target_machines, &facts).map_err(
-            |error| {
-                TerminalRuntimeError::Requirements(
-                    terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
-                )
-            },
-        )?;
+    let target_machines = terminal_interpreter::admit_target_machine_selections(
+        artifact,
+        runtime.target().target_name(),
+    );
+    let target_layouts = terminal_interpreter::admit_target_layouts(artifact, &target_machines)
+        .map_err(|error| {
+            TerminalRuntimeError::Requirements(
+                terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
+            )
+        })?;
     let mut imports = Vec::new();
     for provision in runtime.host_provisions().host() {
         if matches!(&provision.realization,
@@ -60,13 +55,15 @@ pub(super) fn prepare<'host, 'artifact>(
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags,
             memory_ordering,
-            entry: Some(terminal_psi::TerminalCallable::Machine(runtime.entry())),
+            entry: Some(terminal_psi::TargetMachineCallable::Machine(
+                runtime.entry(),
+            )),
             installation: runtime
                 .scalar_applications()
                 .map(|completed| completed.primary().providers())
                 .or_else(|| runtime.host_provisions().installation()),
             host_imports: &imports,
-            target_context: Some(&target_machines),
+            target_machines: Some(&target_machines),
             target_layouts: Some(&target_layouts),
         })
         .map_err(TerminalRuntimeError::Requirements)?;

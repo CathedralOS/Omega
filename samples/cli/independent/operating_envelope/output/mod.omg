@@ -41,7 +41,7 @@ invokes Console;
 public machine micro(value: f64) reaches Console
 invokes Console;
 {
-    let converted: i32 in Saturating = I32FromF64::from_f64(value * 1000000.0);
+    let converted: i32 in Saturating = I32::from_f64(value * 1000000.0);
     integer(converted as i32);
 }
 public machine report(envelope: &geometry::Envelope) reaches Console
@@ -73,10 +73,10 @@ invokes Console;
         Console::write("vertices "); integer(envelope.count as i32); Console::write_byte(10);
         // Split area at its integral part: the maximum 40000 square units
         // cannot fit in i32 micro-units as a single number.
-        let whole: i32 in Saturating = I32FromF64::from_f64(envelope.area);
+        let whole: i32 in Saturating = I32::from_f64(envelope.area);
         Console::write("area_whole "); integer(whole as i32); Console::write_byte(10);
         Console::write("area_fraction_micro ");
-        micro(envelope.area - F64FromI32::from_i32(whole as i32)); Console::write_byte(10);
+        micro(envelope.area - F64::from_i32(whole as i32)); Console::write_byte(10);
         transition { _ -> vertex(envelope, 0) }
     }
     machine vertex(envelope: &geometry::Envelope, index: i32 in Wrapping) {

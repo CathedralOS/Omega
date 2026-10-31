@@ -14,7 +14,7 @@ machine logarithm(value: f64) -> f64 {
     }
     machine term(power: f64, square: f64, index: u64, sum: f64, adjustment: f64) -> f64
     requires index >= 1 requires index <= 49 {
-        let next: f64 = sum + power / F64FromI64::from_i64(index as i64);
+        let next: f64 = sum + power / F64::from_i64(index as i64);
         transition index < 47 { true -> term(power * square, square, index + 2, next, adjustment) false -> (2.0 * next + adjustment) }
     }
 }

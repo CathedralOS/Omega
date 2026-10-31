@@ -4,9 +4,8 @@ use omega::language::core::layout;
 // `&'storage mut` sources (the declared source union) under a
 // `terminates by` ranking, so writes land through whichever storage the
 // caller picked.
-
-SignedByte satisfies FixedLayout<PortableByte> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+data SignedByte {}
+machine SignedByte::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -24,9 +23,8 @@ SignedByte satisfies FixedLayout<PortableByte> {
         align: 1,
     }
 }
-}
 data PortableByte [copy] { value: i64; }
-data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
+data RawView { value: SignedByte<PortableByte>; }
 data Main { bytes: [u8; 2]; ordinary: i64; }
 
 machine retain<'storage>(value: &'storage mut i64, remaining: u64)

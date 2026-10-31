@@ -1,21 +1,14 @@
 // An exclusive reference moves into another binding. Writing through the receiving binding changes the original backing; the following read must see 41.
 // Place: another target body.
 // Expected exit: 0.
-boundary trait SelectedWrite {
-    machine write(child: &mut i64) reaches
-;
-}
-CheckedWrite satisfies SelectedWrite {
-    machine write(child: &mut i64)
-{ child = 41; }
-}
-
-
-
+linux_x86_64 machine write(child: &mut i64) { child = 41; }
+linux_arm64 machine write(child: &mut i64) { child = 41; }
+macos_arm64 machine write(child: &mut i64) { child = 41; }
+windows_x86_64 machine write(child: &mut i64) { child = 41; }
 machine main() crashes Trap {
     let mut backing: i64 = 17;
     let original: &mut i64 = &mut backing;
-    SelectedWrite::write(original);
+    write(original);
     let observed: i64 = backing;
     transition observed == 41 {
         true -> done()

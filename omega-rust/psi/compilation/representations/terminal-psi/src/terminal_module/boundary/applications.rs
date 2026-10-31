@@ -74,6 +74,7 @@ pub struct BoundaryApplicationCandidate {
     pub application: BoundaryApplication,
     pub selection_identity: TerminalIdentityIndex,
     pub selection_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub target: Option<String>,
     pub body: CheckedMachineDeclaration,
 }
 

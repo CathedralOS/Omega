@@ -1,29 +1,41 @@
 // A view of at least 1024 bytes retains its extent after an indexed byte write through a helper.
 // Invalid control: the 1024-byte lower bound is not established.
 machine write_first(first: &mut u8) { first = 41; }
-boundary trait SelectedPreserveSuffix {
-    machine preserve_suffix(bytes: &mut [u8]) reaches
-requires bytes.len >= 3;
-}
-CheckedPreserveSuffix satisfies SelectedPreserveSuffix {
-    machine preserve_suffix(bytes: &mut [u8])
+linux_x86_64 machine preserve_suffix(bytes: &mut [u8])
 requires bytes.len >= 3;
 {
     let saved: u8 = bytes[bytes.len - 4];
     write_first(&mut bytes[0]);
     bytes[bytes.len - 4] = saved;
 }
+
+linux_arm64 machine preserve_suffix(bytes: &mut [u8])
+requires bytes.len >= 3;
+{
+    let saved: u8 = bytes[bytes.len - 4];
+    write_first(&mut bytes[0]);
+    bytes[bytes.len - 4] = saved;
 }
 
+macos_arm64 machine preserve_suffix(bytes: &mut [u8])
+requires bytes.len >= 3;
+{
+    let saved: u8 = bytes[bytes.len - 4];
+    write_first(&mut bytes[0]);
+    bytes[bytes.len - 4] = saved;
+}
 
-
-
-
-
+windows_x86_64 machine preserve_suffix(bytes: &mut [u8])
+requires bytes.len >= 3;
+{
+    let saved: u8 = bytes[bytes.len - 4];
+    write_first(&mut bytes[0]);
+    bytes[bytes.len - 4] = saved;
+}
 machine main() crashes Trap {
     let mut bytes: [u8; 1024];
     bytes[1020] = 73;
-    SelectedPreserveSuffix::preserve_suffix(&mut bytes[..]);
+    preserve_suffix(&mut bytes[..]);
     transition bytes[0] == 41 && bytes[1020] == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

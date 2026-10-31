@@ -90,7 +90,10 @@ impl PackagePolicySelectedProviders {
                 }
                 if let Some(producer) = &row.native_build {
                     producer.declaration.validate_resolved()?;
-                    if row.realization.is_some() || row.compiler_intrinsic_execution.is_some() {
+                    if row.realization.is_some()
+                        || row.compiler_intrinsic_execution.is_some()
+                        || !row.requirement_lifetime_partition.is_empty()
+                    {
                         return Err(
                             "native Build row mixes authored realization or binder origins",
                         );
@@ -104,8 +107,6 @@ impl PackagePolicySelectedProviders {
                             evaluated: Some(bound),
                             ..
                         } if &bound.producer == producer => {}
-                        crate::record::PackagePolicyProviderBinding::VtableField { .. }
-                        | crate::record::PackagePolicyProviderBinding::TableFunction { .. } => {}
                         _ => {
                             return Err(
                                 "native Build row has a different binding producer or mechanism",

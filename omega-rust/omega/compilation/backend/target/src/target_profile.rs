@@ -136,7 +136,8 @@ impl ProgramEntryPhysicalContractPackage {
 /// console and process-exit leaves close as hosted compiler intrinsics.
 ///
 /// "Hosted" here means the bundle's bodyless `boundary machine` leaves
-/// (the exact `native::hosted` catalogue declarations) bind by exact realization
+/// (`ConsoleNativeProvider::{read_byte, write_byte, exit_process}` and
+/// `ProcessExitNativeProvider::exit_process`) bind by exact realization
 /// identity and this compiler emits the kernel syscall itself through
 /// `image-emission`'s hosted encoders (`HostedReadByte`, hosted byte output,
 /// `HostedExitProcessI32`). A target joins that catalog by gaining a variant
@@ -183,12 +184,22 @@ impl HostedIntrinsicBundle {
 
     /// Package-relative path of the bundled console provider closure.
     pub const fn console_source(self) -> &'static str {
-        "native/hosted.omg"
+        match self {
+            Self::LinuxArm64 => "targets/linux_arm64/console_impl.omg",
+            Self::LinuxX64 => "targets/linux_x86_64/console_impl.omg",
+            Self::MacosArm64 => "targets/macos_arm64/console_impl.omg",
+            Self::MacosX64 => "targets/macos_x86_64/console_impl.omg",
+        }
     }
 
     /// Package-relative path of the bundled process-exit provider closure.
     pub const fn process_exit_source(self) -> &'static str {
-        "native/hosted.omg"
+        match self {
+            Self::LinuxArm64 => "targets/linux_arm64/process_exit_impl.omg",
+            Self::LinuxX64 => "targets/linux_x86_64/process_exit_impl.omg",
+            Self::MacosArm64 => "targets/macos_arm64/process_exit_impl.omg",
+            Self::MacosX64 => "targets/macos_x86_64/process_exit_impl.omg",
+        }
     }
 
     /// The admitted bundle a canonical target name selects, or `None` for
@@ -511,19 +522,6 @@ impl TargetProfile {
             Self::AlphaBootstrap => None,
             profile => Some(profile.native_target()),
         }
-    }
-
-    /// Compiler catalog inputs for fixed representation policy evaluation and
-    /// receiving-boundary replay. The executing host supplies none of these.
-    pub fn layout_target_facts(self) -> Option<layout_plans::LayoutTargetFacts> {
-        self.address_model()?;
-        let native = self.native_realization()?;
-        Some(layout_plans::LayoutTargetFacts {
-            profile: self.target_name().to_owned(),
-            pointer_size: native.pointer_size as u64,
-            pointer_alignment: native.pointer_alignment as u64,
-            little_endian: true,
-        })
     }
 
     pub fn native_target(self) -> NativeTarget {

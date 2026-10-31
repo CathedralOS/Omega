@@ -9,28 +9,36 @@ requires rem >= 0i32 && rem <= 15i32
     0i32
 }
 
-boundary trait SelectedVerifyTarget {
-    machine verify_target() -> i32 reaches
-;
-}
-CheckedVerifyTarget satisfies SelectedVerifyTarget {
-    machine verify_target() -> i32
-{
+linux_x86_64 machine verify_target() -> i32 {
     let dividend: i32 = 43i32;
     let divisor: i32 = 16i32;
     let rem: i32 = dividend % divisor;
     verify_rem(rem)
 }
+
+linux_arm64 machine verify_target() -> i32 {
+    let dividend: i32 = 43i32;
+    let divisor: i32 = 16i32;
+    let rem: i32 = dividend % divisor;
+    verify_rem(rem)
 }
 
+macos_arm64 machine verify_target() -> i32 {
+    let dividend: i32 = 43i32;
+    let divisor: i32 = 16i32;
+    let rem: i32 = dividend % divisor;
+    verify_rem(rem)
+}
 
-
-
-
-
+windows_x86_64 machine verify_target() -> i32 {
+    let dividend: i32 = 43i32;
+    let divisor: i32 = 16i32;
+    let rem: i32 = dividend % divisor;
+    verify_rem(rem)
+}
 
 machine probe() -> i32 {
-    SelectedVerifyTarget::verify_target()
+    verify_target()
 }
 
 machine main() crashes Trap {

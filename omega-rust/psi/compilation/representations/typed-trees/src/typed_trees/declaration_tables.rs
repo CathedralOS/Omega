@@ -17,93 +17,19 @@ impl TypedTrees {
         if !owner.is_valid() {
             return owner;
         }
-        if let Some((implementation, _)) = self.owned_conformance_realization(owner) {
-            return implementation.symbol;
+        let enclosing = self.symbols.get(owner).declaration_owner;
+        if enclosing.is_valid()
+            && self
+                .conformance_by_symbol(enclosing)
+                .is_some_and(|conformance| {
+                    conformance.rows.iter().any(|row| {
+                        row.source.owns_realization() && row.realization_machine == owner
+                    })
+                })
+        {
+            return enclosing;
         }
         self.symbols.get(owner).parent
-    }
-
-    /// Exact authored ownership of an inline/default/synthesized map member.
-    /// Execution projection may remove the map from type-work roots while
-    /// retaining its member bodies. Its immutable declaration metadata still
-    /// owns their captures and requirement slots; referenced callees do not.
-    pub fn owned_conformance_realization(
-        &self,
-        machine: symbols::SymbolHandle,
-    ) -> Option<(
-        &crate::trait_definition::Conformance,
-        &crate::trait_definition::ConformanceRow,
-    )> {
-        if !machine.is_valid() {
-            return None;
-        }
-        let owner = self.symbols.get(machine).declaration_owner;
-        let implementation = self.product_declarations().conformance_by_symbol(owner)?;
-        let mut rows = implementation
-            .rows
-            .iter()
-            .filter(|row| row.source.owns_realization() && row.realization_machine == machine);
-        let row = rows.next()?;
-        rows.next().is_none().then_some((implementation, row))
-    }
-
-    /// A resolved named implementation qualifier calls its exact owned member,
-    /// including before executable preparation routes requirement syntax. This
-    /// is call classification, not conformance or provider admission. Runtime
-    /// bindings and same-shaped bodies cannot supply this declaration role.
-    pub fn direct_named_implementation_member(
-        &self,
-        implementation: symbols::SymbolHandle,
-        requirement: symbols::SymbolHandle,
-    ) -> Option<symbols::SymbolHandle> {
-        let declaration = self
-            .product_declarations()
-            .conformance_by_symbol(implementation)?;
-        let mut rows = declaration
-            .rows
-            .iter()
-            .filter(|row| row.source.owns_realization() && row.requirement == requirement);
-        let row = rows.next()?;
-        if rows.next().is_some() {
-            return None;
-        }
-        let (trait_owner, _) = self
-            .product_declarations()
-            .trait_machine_signature(requirement)?;
-        if row.declaring_trait != trait_owner.symbol {
-            return None;
-        }
-        let (owner, owned) = self.owned_conformance_realization(row.realization_machine)?;
-        if owner.symbol != implementation || owned != row {
-            return None;
-        }
-        let machine = self.machine_by_symbol(row.realization_machine)?;
-        let entry = self.machine_states(machine).first()?;
-        (entry.symbol == row.realization_state).then_some(entry.symbol)
-    }
-
-    /// Nominal authority of one exact owned map member. The selected row,
-    /// declaring trait, overload and authored entry must all agree; callable
-    /// shape or another map referencing the same body grants no membership.
-    /// The complete inherited scope stays borrowed until the caller composes
-    /// its independently retained provider and demand application frames.
-    pub fn owned_conformance_requirement_scope(
-        &self,
-        realization: symbols::SymbolHandle,
-        declaring_trait: symbols::SymbolHandle,
-        requirement: symbols::SymbolHandle,
-    ) -> Option<crate::trait_definition::AppliedTraitScope<'_>> {
-        let (implementation, row) = self.owned_conformance_realization(realization)?;
-        if row.declaring_trait != declaring_trait || row.requirement != requirement {
-            return None;
-        }
-        let machine = self.machine_by_symbol(realization)?;
-        let entry = self.machine_states(machine).first()?;
-        if entry.symbol != row.realization_state {
-            return None;
-        }
-        crate::trait_definition::AppliedTraitScope::from_conformance(self, implementation)?
-            .declaring_scope(self, declaring_trait)
     }
 
     /// Authored applications still joined to retained source calls. Arena rows
@@ -281,16 +207,6 @@ impl TypedTrees {
                 &selected.application,
             ));
         }
-        for (handle, selected) in self.data_implementation_applications.iter() {
-            if includes_owner(selected.lexical_owner) {
-                sites.push((
-                    super::ClosedConformanceApplicationSite::DataArgument(handle),
-                    selected.lexical_owner,
-                    selected.supplying_application,
-                    &selected.application,
-                ));
-            }
-        }
         for handle in self.live_product_operand_applications() {
             let selected = self.product_operand_applications.get(handle);
             let Some(application) = selected.implementation.as_ref() else {
@@ -317,12 +233,6 @@ impl TypedTrees {
         site: super::ClosedConformanceApplicationSite,
     ) -> Option<&mut super::ClosedConformanceApplication> {
         match site {
-            super::ClosedConformanceApplicationSite::DataArgument(handle) => Some(
-                &mut self
-                    .data_implementation_applications
-                    .get_mut(handle)
-                    .application,
-            ),
             super::ClosedConformanceApplicationSite::ProductOperand(handle) => self
                 .product_operand_applications
                 .get_mut(handle)
@@ -368,15 +278,6 @@ impl TypedTrees {
             }
             false
         };
-        let selected = self
-            .data_implementation_applications
-            .iter()
-            .filter(|(_, selected)| !owner_removed(selected.lexical_owner))
-            .map(|(_, selected)| selected.clone())
-            .collect::<Vec<_>>();
-        let mut applications = arena::Arena::new();
-        applications.insert_many(selected);
-        self.data_implementation_applications = applications;
         // An unavailable scope can mean either malformed evidence or a source
         // declaration deliberately removed by this private projection. Only
         // the exact removed roster distinguishes them. Both source records
@@ -565,15 +466,13 @@ impl TypedTrees {
     /// Closed executable copies are not authored rows in that map.
     pub fn callable_body_has_open_parameters(&self, machine: &crate::machine::Machine) -> bool {
         machine.has_specialization_parameters()
-            || self
-                .owned_conformance_realization(machine.symbol)
-                .is_some_and(|(conformance, _)| {
-                    !self
-                        .product_declarations()
-                        .conformance_type_parameters(conformance)
-                        .is_empty()
-                        || !conformance.lifetime_parameters.is_empty()
-                })
+            || self.conformances().iter().any(|conformance| {
+                (!self.conformance_type_parameters(conformance).is_empty()
+                    || !conformance.lifetime_parameters.is_empty())
+                    && conformance.rows.iter().any(|row| {
+                        row.source.owns_realization() && row.realization_machine == machine.symbol
+                    })
+            })
     }
 
     /// The unique authored template relation for an executable application.
@@ -615,7 +514,15 @@ impl TypedTrees {
             }
             // A target body invokes its resolved family head's declaration.
             // Names and selected realization alone do not establish this join.
-
+            if self.target_machine_families.iter().any(|family| {
+                family.canonical == declaration
+                    && family
+                        .members
+                        .iter()
+                        .any(|member| member.machine == callable)
+            }) {
+                return Ok(true);
+            }
             let template = match self.executable_application_template(callable)? {
                 Some(template) => template,
                 None => {
@@ -737,17 +644,7 @@ impl TypedTrees {
                         .iter()
                         .filter(|(_, application)| application.instance == owner)
                         .map(|(_, application)| application.template),
-                )
-                .chain(self.retained_static_machine_contract(owner).and_then(|_| {
-                    // Applying a logical callable freshens its nested contract
-                    // symbols, while each rigid lifetime slot keeps the exact
-                    // authored declaration. Rejoin only a retained contract's
-                    // explicit compiler derivation, never an equal signature.
-                    let original = self.symbols.get(owner).generated_from;
-                    (original.is_valid()
-                        && self.retained_static_machine_contract(original).is_some())
-                    .then_some(original)
-                }));
+                );
             let Some(template) = templates.next() else {
                 break;
             };

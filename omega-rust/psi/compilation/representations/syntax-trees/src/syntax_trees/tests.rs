@@ -225,11 +225,12 @@ fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
         attached_data: None,
         spelling: None,
         is_public: false,
-
+        target: None,
+        authored_target: None,
         boundary: false,
         is_top_level_boundary_requirement: false,
         bodyless: false,
-
+        target_family_interface: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
@@ -247,6 +248,7 @@ fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
         blocks_keyword_source_spans: Vec::new(),
         suspends: false,
         blocks: false,
+        admitted_same_stack_bytes: 0,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }
@@ -782,7 +784,6 @@ fn constant_argument_origin_survives_deep_copy_and_root_extension() {
         supply_mode: language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
-        conformance_bounds: Vec::new(),
         generic_instance: Some(application),
         properties: Default::default(),
         quotient: None,
@@ -964,7 +965,6 @@ fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
         supply_mode: language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
-        conformance_bounds: Vec::new(),
         generic_instance: Some(origin),
         properties: Default::default(),
         quotient: None,
@@ -987,7 +987,6 @@ fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
     assert!(matches!(
         &snapshot.root_items[0],
         ItemSnapshot::Data {
-            conformance_bounds: Vec::new(),
             generic_instance: Some(crate::snapshot::TypeReferenceSnapshot::Generic { .. }),
             ..
         }
@@ -1018,7 +1017,6 @@ fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
         supply_mode: language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: arena::HandleSpan::empty(),
-        conformance_bounds: Vec::new(),
         generic_instance: None,
         properties: Default::default(),
         quotient: None,
@@ -1082,11 +1080,12 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         attached_data: None,
         spelling: None,
         is_public: true,
-
+        target: None,
+        authored_target: None,
         boundary: false,
         is_top_level_boundary_requirement: true,
         bodyless: true,
-
+        target_family_interface: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
@@ -1104,6 +1103,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         blocks_keyword_source_spans: vec![blocks_keyword_source_span],
         suspends: true,
         blocks: true,
+        admitted_same_stack_bytes: 0,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));

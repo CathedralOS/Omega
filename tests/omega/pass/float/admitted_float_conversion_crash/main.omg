@@ -11,7 +11,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console + ProcessExit {
     Console::write_line("before conversion trap");
     main.value = 0.0f64 / 0.0f64;
-    let converted: i32 in Trapping = I32FromF64::from_f64(main.value);
+    let converted: i32 in Trapping = I32::from_f64(main.value);
     ProcessExit::exit_process(converted as i32);
 }
 

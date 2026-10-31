@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
     }
     machine exact_record(main: &mut Main) {
         main.record[0] = 93;
-        let end: u64 = SelectedNativeRecordEnd::native_record_end();
+        let end: u64 = native_record_end();
         main.record[end] = 94;
         let result: i32 = PosixFilesystemHost::read_metadata(".", &mut main.record[1..end]);
         transition result == 0 && main.record[0] == 93 && main.record[end] == 94 {
@@ -82,7 +82,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
         transition result == 0 && main.record[145] == 97 { true -> compare_times(main) _ -> finish(main, 19) }
     }
     machine compare_times(main: &mut Main) {
-        let matches: bool = SelectedNativeTimesMatch::native_times_match(&main.record);
+        let matches: bool = native_times_match(&main.record);
         transition matches { true -> finish(main, 0) _ -> finish(main, 20) }
     }
     machine finish(main: &mut Main, code: i32) {
@@ -94,42 +94,27 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
     machine bad(code: i32) { Console::exit_process(code); }
 }
 
-boundary trait SelectedNativeRecordEnd {
-    machine native_record_end() -> u64 reaches
-ensures result >= 129 && result <= 145;
-}
-LinuxArm64NativeRecordEnd satisfies SelectedNativeRecordEnd {
-    machine native_record_end() -> u64 ensures result >= 129 && result <= 145
-{ 129 }
-}
-LinuxX8664NativeRecordEnd satisfies SelectedNativeRecordEnd {
-    machine native_record_end() -> u64 ensures result >= 129 && result <= 145
-{ 145 }
-}
+linux_arm64 machine native_record_end() -> u64 ensures result >= 129 && result <= 145 { 129 }
+linux_x86_64 machine native_record_end() -> u64 ensures result >= 129 && result <= 145 { 145 }
+macos_arm64 machine native_record_end() -> u64 ensures result >= 129 && result <= 145 { 145 }
 
-
-boundary trait SelectedNativeTimesMatch {
-    machine native_times_match(record: &[u8; 146]) -> bool reaches
-;
-}
-LinuxArm64NativeTimesMatch satisfies SelectedNativeTimesMatch {
-    machine native_times_match(record: &[u8; 146]) -> bool
-{
+linux_arm64 machine native_times_match(record: &[u8; 146]) -> bool {
     native_word_matches(record[72..80], 255, 255)
         && native_word_matches(record[80..88], 100, 0)
         && native_word_matches(record[88..96], 2, 0)
         && native_word_matches(record[96..104], 200, 0)
 }
+linux_x86_64 machine native_times_match(record: &[u8; 146]) -> bool {
+    native_word_matches(record[72..80], 255, 255)
+        && native_word_matches(record[80..88], 100, 0)
+        && native_word_matches(record[88..96], 2, 0)
+        && native_word_matches(record[96..104], 200, 0)
 }
-
-MacosArm64NativeTimesMatch satisfies SelectedNativeTimesMatch {
-    machine native_times_match(record: &[u8; 146]) -> bool
-{
+macos_arm64 machine native_times_match(record: &[u8; 146]) -> bool {
     native_word_matches(record[32..40], 255, 255)
         && native_word_matches(record[40..48], 100, 0)
         && native_word_matches(record[48..56], 2, 0)
         && native_word_matches(record[56..64], 200, 0)
-}
 }
 
 machine native_word_matches(bytes: &[u8], first: u8, rest: u8) -> bool

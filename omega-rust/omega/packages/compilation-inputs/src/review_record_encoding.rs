@@ -83,7 +83,6 @@ pub fn semantic_binding_role_tag(role: AcceptedSemanticBindingRole) -> u8 {
         AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry => 7,
         AcceptedSemanticBindingRole::LinuxArm64ProgramEntry => 8,
         AcceptedSemanticBindingRole::WindowsX64ProgramEntry => 9,
-        AcceptedSemanticBindingRole::UefiHandoffService => 10,
     }
 }
 
@@ -101,7 +100,6 @@ pub fn recover_semantic_binding_role(
         7 => AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry,
         8 => AcceptedSemanticBindingRole::LinuxArm64ProgramEntry,
         9 => AcceptedSemanticBindingRole::WindowsX64ProgramEntry,
-        10 => AcceptedSemanticBindingRole::UefiHandoffService,
         _ => return None,
     })
 }

@@ -1,2 +1,0 @@
-// Ordinary package review root for the portable audio_playback surface.
-use audio_playback::audio_playback;

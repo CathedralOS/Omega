@@ -54,7 +54,7 @@ invokes Console;
     }
 }
 machine real(reader: &mut Reader, value: f64) reaches Console {
-    let scaled: i64 in Saturating = I64FromF64::from_f64(value * 1000000000000.0 + 0.5);
+    let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0 + 0.5);
     let amount: i64 in Wrapping = scaled as i64 in Wrapping;
     integer(reader, (amount / 1000000000000) as i64);
     Console::write_byte(46);

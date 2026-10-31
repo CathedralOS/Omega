@@ -15,22 +15,18 @@ requires replacement <= 60
     counter
 }
 
-boundary trait SelectedCompute {
-    machine compute(counter: &Counter) -> i32 reaches
-;
-}
-CheckedCompute satisfies SelectedCompute {
-    machine compute(counter: &Counter) -> i32
-{ let total: i32 = 70 + counter.value;
+linux_x86_64 machine compute(counter: &Counter) -> i32 { let total: i32 = 70 + counter.value;
     transition counter.before == 17 && counter.after == 53 { true -> total false -> -99 } }
-}
-
-
-
+linux_arm64 machine compute(counter: &Counter) -> i32 { let total: i32 = 70 + counter.value;
+    transition counter.before == 17 && counter.after == 53 { true -> total false -> -99 } }
+macos_arm64 machine compute(counter: &Counter) -> i32 { let total: i32 = 70 + counter.value;
+    transition counter.before == 17 && counter.after == 53 { true -> total false -> -99 } }
+windows_x86_64 machine compute(counter: &Counter) -> i32 { let total: i32 = 70 + counter.value;
+    transition counter.before == 17 && counter.after == 53 { true -> total false -> -99 } }
 machine main() crashes Trap {
     let counter: Counter = produce(60);
     let low: Counter = produce(-2147483648);
-    transition counter.before == 17 && counter.after == 53 && low.before == 17 && low.after == 53 && SelectedCompute::compute(&counter) == 130 && SelectedCompute::compute(&low) == -2147483578 { true -> done() _ -> bad() }
+    transition counter.before == 17 && counter.after == 53 && low.before == 17 && low.after == 53 && compute(&counter) == 130 && compute(&low) == -2147483578 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

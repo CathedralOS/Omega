@@ -11,25 +11,24 @@ data Outer {
     tag: u64;
 }
 
-boundary trait SelectedComputeGeometry {
-    machine compute_geometry() -> u64 reaches
-;
-}
-CheckedComputeGeometry satisfies SelectedComputeGeometry {
-    machine compute_geometry() -> u64
-{
+linux_x86_64 machine compute_geometry() -> u64 {
     size_of<Outer>() - (align_of<Outer>() * 3u64)
 }
+
+linux_arm64 machine compute_geometry() -> u64 {
+    size_of<Outer>() - (align_of<Outer>() * 3u64)
 }
 
+macos_arm64 machine compute_geometry() -> u64 {
+    size_of<Outer>() - (align_of<Outer>() * 3u64)
+}
 
-
-
-
-
+windows_x86_64 machine compute_geometry() -> u64 {
+    size_of<Outer>() - (align_of<Outer>() * 3u64)
+}
 
 machine probe() -> u64 {
-    SelectedComputeGeometry::compute_geometry()
+    compute_geometry()
 }
 
 machine main() crashes Trap {

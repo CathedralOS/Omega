@@ -1,14 +1,5 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "resultless_native_callback_compile");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-
- Build::bind<OnceRegistrar::execute>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "pthread_once",
-            version: "GLIBC_2.34",
-        },
-    });
 }

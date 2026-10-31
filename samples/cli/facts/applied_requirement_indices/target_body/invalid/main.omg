@@ -24,32 +24,34 @@ Provider satisfies Identity<Word> {
     ensures result in Tagged<Word>;
     { value }
 }
-boundary trait SelectedForward {
-    machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
-reaches Identity;
-}
-LinuxX8664Forward satisfies SelectedForward {
-    machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+linux_x86_64 machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
 reaches Identity
 {
     let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
     Identity<Value>::identity(result)
 }
+linux_arm64 machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+reaches Identity
+{
+    let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
+    Identity<Value>::identity(result)
 }
-
-
-WindowsX8664Forward satisfies SelectedForward {
-    machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+macos_arm64 machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+reaches Identity
+{
+    let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
+    Identity<Value>::identity(result)
+}
+windows_x86_64 machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
 reaches Identity
 {
     let result: Payload in Tagged<Alt> = Identity<Value>::identity(value);
     Identity<Value>::identity(result)
 }
-}
 machine field<Value>(holder: Holder<Value>) -> Payload in Tagged<Value>
 reaches Identity
 {
-    SelectedForward::forward<Value, Other>(holder.value)
+    forward<Value, Other>(holder.value)
 }
 machine forward_pair<Outer, Inner>(value: Payload in Pair<Outer, Inner>) -> Payload in Pair<Outer, Inner>
 reaches Identity

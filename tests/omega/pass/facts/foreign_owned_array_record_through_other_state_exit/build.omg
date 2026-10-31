@@ -1,17 +1,7 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::application(builder, "foreign_owned_array_record");
  Build::bind(builder, macos_arm64::ProgramEntry, main);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, windows_x86_64::ProgramEntry, main);
-
- Build::bind<IntegerDivision::divide>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_arraydiv_fixture.dylib", symbol: "_arraydiv_lldiv" } });
- Build::bind<IntegerDivision::divide>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_lldiv", version: "ARRAYDIV_1.0" } });
- Build::bind<IntegerDivision::divide>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_lldiv", version: "ARRAYDIV_1.0" } });
- Build::bind<IntegerDivision::divide>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_arraydiv_fixture.dll", export: "arraydiv_lldiv" } });
- Build::bind<IntegerDivision::verify>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_arraydiv_fixture.dylib", symbol: "_arraydiv_verify" } });
- Build::bind<IntegerDivision::verify>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_verify", version: "ARRAYDIV_1.0" } });
- Build::bind<IntegerDivision::verify>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_arraydiv_fixture.so", symbol: "arraydiv_verify", version: "ARRAYDIV_1.0" } });
- Build::bind<IntegerDivision::verify>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_arraydiv_fixture.dll", export: "arraydiv_verify" } });
 }

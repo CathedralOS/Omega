@@ -36,7 +36,8 @@ pub use declaration_descriptions::{
     CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
 };
 pub use proof_applications::{
-    ProofApplicationMachine, ProofApplicationPlan, ProofApplications, ProofDeclarationDependencies,
+    ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
+    ProofDeclarationDependencies,
 };
 mod mutation;
 mod qualifications;

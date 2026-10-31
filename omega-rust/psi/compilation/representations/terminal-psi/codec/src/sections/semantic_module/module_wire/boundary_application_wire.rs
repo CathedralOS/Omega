@@ -95,6 +95,7 @@ mod tests {
                 application: BoundaryApplication::Empty,
                 selection_identity: TerminalIdentityIndex(9),
                 selection_package: semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]),
+                target: Some("windows_x86_64".into()),
                 body: terminal_psi::CheckedMachineDeclaration {
                     semantic_declaration: Default::default(),
                     parameter_types: Vec::new(),
@@ -265,6 +266,10 @@ pub(super) fn encode_candidate(
     encode_application(writer, &candidate.application)?;
     writer.u32(candidate.selection_identity.0);
     encode_package(writer, candidate.selection_package);
+    writer.boolean(candidate.target.is_some());
+    if let Some(target) = &candidate.target {
+        writer.string("boundary candidate target", target)?;
+    }
     super::super::machine_declaration_wire::encode(writer, &candidate.body)
 }
 
@@ -275,8 +280,13 @@ pub(super) fn decode_candidate(
     let application = decode_application(reader)?;
     let selection_identity = TerminalIdentityIndex(reader.u32()?);
     let selection_package = decode_package(reader)?;
+    let target = if reader.boolean()? {
+        Some(reader.string("boundary candidate target")?)
+    } else {
+        None
+    };
     let body = super::super::machine_declaration_wire::decode(reader)?;
-    if selection_identity.is_absent() {
+    if selection_identity.is_absent() || target.as_ref().is_some_and(|target| target.is_empty()) {
         return Err(CodecError::MalformedStructuralFoundation(
             "empty boundary candidate identity or commitment",
         ));
@@ -286,6 +296,7 @@ pub(super) fn decode_candidate(
         application,
         selection_identity,
         selection_package,
+        target,
         body,
     })
 }

@@ -3,12 +3,7 @@
 // Invalid control: divisor upper bound widened to 17u32, allowing rem as high as 16u32 and failing subtraction 15u32 - rem.
 // Expected rejection: may overflow `u32`
 
-boundary trait SelectedRemainderTarget {
-    machine remainder_target(dividend: u32, divisor: u32) -> i32 reaches
-requires divisor >= 16u32 && divisor <= 17u32;
-}
-CheckedRemainderTarget satisfies SelectedRemainderTarget {
-    machine remainder_target(dividend: u32, divisor: u32) -> i32
+linux_x86_64 machine remainder_target(dividend: u32, divisor: u32) -> i32
     requires divisor >= 16u32 && divisor <= 17u32;
 {
     let rem: u32 = dividend % divisor;
@@ -20,16 +15,48 @@ CheckedRemainderTarget satisfies SelectedRemainderTarget {
     machine pass() -> i32 { 0 }
     machine fail() -> i32 { 1 }
 }
+
+linux_arm64 machine remainder_target(dividend: u32, divisor: u32) -> i32
+    requires divisor >= 16u32 && divisor <= 17u32;
+{
+    let rem: u32 = dividend % divisor;
+    let headroom: u32 = 15u32 - rem;
+    transition rem == 11u32 && headroom == 4u32 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
 }
 
+macos_arm64 machine remainder_target(dividend: u32, divisor: u32) -> i32
+    requires divisor >= 16u32 && divisor <= 17u32;
+{
+    let rem: u32 = dividend % divisor;
+    let headroom: u32 = 15u32 - rem;
+    transition rem == 11u32 && headroom == 4u32 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
+}
 
-
-
-
-
+windows_x86_64 machine remainder_target(dividend: u32, divisor: u32) -> i32
+    requires divisor >= 16u32 && divisor <= 17u32;
+{
+    let rem: u32 = dividend % divisor;
+    let headroom: u32 = 15u32 - rem;
+    transition rem == 11u32 && headroom == 4u32 {
+        true -> pass()
+        _ -> fail()
+    }
+    machine pass() -> i32 { 0 }
+    machine fail() -> i32 { 1 }
+}
 
 machine main() crashes Trap {
-    let res: i32 = SelectedRemainderTarget::remainder_target(43u32, 16u32);
+    let res: i32 = remainder_target(43u32, 16u32);
     transition res == 0 {
         true -> done()
         _ -> bad()

@@ -5,47 +5,31 @@ Small satisfies Answer { machine get() -> u64 { 3 } }
 Large satisfies Answer { machine get() -> u64 { 3 } }
 Same satisfies Answer { machine get() -> u64 { 4 } }
 data TargetProviders {}
-boundary trait SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders) reaches
-;
-}
-LinuxX8664TargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders)
-{
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Answer, Small>(defaults);
 }
-}
-WindowsX8664TargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut TargetProviders)
-{
+windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Answer, Large>(defaults);
 }
+linux_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Answer, Small>(defaults);
 }
-
-
+macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    TargetProviders::select_provider<Answer, Large>(defaults);
+}
 machine limit() -> u64 { Answer::get() }
 data Main { values: [u8; limit()]; }
 const OBSERVED_SIZE: u64 = size_of<Main>() + 1u64;
 data SizeBox { observed: u64; }
-boundary trait SelectedExpected {
-    machine expected() -> u64 reaches
-;
-}
-LinuxX8664Expected satisfies SelectedExpected {
-    machine expected() -> u64
-{ 4 }
-}
-WindowsX8664Expected satisfies SelectedExpected {
-    machine expected() -> u64
-{ 8 }
-}
-
-
+linux_x86_64 machine expected() -> u64 { 4 }
+windows_x86_64 machine expected() -> u64 { 8 }
+linux_arm64 machine expected() -> u64 { 4 }
+macos_arm64 machine expected() -> u64 { 8 }
 machine main() crashes Trap {
     let boxed: SizeBox = SizeBox { observed: OBSERVED_SIZE };
     let observed: u64 = boxed.observed;
     let slack: u64 = observed - 5u64;
-    transition observed == SelectedExpected::expected() + 1u64 && slack == SelectedExpected::expected() - 4u64 { true -> done() false -> bad() }
+    transition observed == expected() + 1u64 && slack == expected() - 4u64 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

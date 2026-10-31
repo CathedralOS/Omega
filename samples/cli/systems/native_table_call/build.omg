@@ -1,17 +1,4 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "native_table_call");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
-
- Build::bind<ModuleSymbols::module>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
-        library: "kernel32.dll", export: "GetModuleHandleA"
-    } });
- Build::bind<ModuleSymbols::symbol>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
-        library: "kernel32.dll", export: "GetProcAddress"
-    } });
-
- Build::bind_vtable_field<Counter::query, CounterTable::query>(builder, windows_x86_64);
- Build::bind_table_function<CounterFunction::query, CounterFunctions::query>(builder, windows_x86_64);
- Build::bind_table_function<ProcessIdentity::current, ProcessFunctions::current>(builder, windows_x86_64);
- Build::bind_table_function<Arithmetic::multiply_divide, ArithmeticFunctions::multiply_divide>(builder, windows_x86_64);
 }

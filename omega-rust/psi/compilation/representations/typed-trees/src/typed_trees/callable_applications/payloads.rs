@@ -19,9 +19,6 @@ impl CallableApplication {
             .type_reference_table
             .operand_lifetime_owner(original);
         if owner.is_valid()
-            && !program
-                .type_reference_table
-                .has_resolved_operand_lifetimes(original)
             && program.lifetime_declaration_owner(owner)
                 != program.lifetime_declaration_owner(self.region_scope)
         {
@@ -46,7 +43,6 @@ impl CallableApplication {
         let mut applied_owner = program
             .type_reference_table
             .operand_lifetime_owner(original);
-        let mut applied_lifetimes = Vec::new();
         let node = match program
             .type_reference_table
             .type_reference(original)
@@ -84,13 +80,12 @@ impl CallableApplication {
                 let lifetime = lifetime
                     .as_ref()
                     .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
-                    .map(|lifetime| self.scoped_lifetime(program, original, 0, lifetime))
+                    .map(|lifetime| self.scoped_lifetime(program, original, lifetime))
                     .transpose()?;
-                if let Some(lifetime) = &lifetime {
-                    applied_lifetimes.push(lifetime.region);
-                    if lifetime.region.declaration.is_valid() {
-                        applied_owner = lifetime.region.declaration;
-                    }
+                if let Some(lifetime) = &lifetime
+                    && lifetime.region.declaration.is_valid()
+                {
+                    applied_owner = lifetime.region.declaration;
                 }
                 types::TypeReferenceNode::Reference {
                     referee: self.type_reference(program, referee)?,
@@ -238,8 +233,7 @@ impl CallableApplication {
                 }
                 let lifetimes = lifetime_arguments
                     .iter()
-                    .enumerate()
-                    .map(|(slot, lifetime)| {
+                    .map(|lifetime| {
                         if self.elided_lifetimes.contains(lifetime) {
                             if crate::type_identity::lifetime_parameter_identity(
                                 program,
@@ -258,36 +252,59 @@ impl CallableApplication {
                                 origin: super::CallableLifetimeOrigin::Lexical,
                             });
                         }
-                        self.scoped_lifetime(program, original, slot, lifetime)
+                        self.scoped_lifetime(program, original, lifetime)
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                // Retain each resolved supplying frame independently. A
-                // captured trait argument and a rigid invocation binder can
-                // inhabit the same nominal type without sharing an owner.
-                for lifetime in &lifetimes {
-                    if lifetime.region.declaration.is_valid()
-                        && crate::type_identity::lifetime_parameter_name(program, lifetime.region)
-                            != Some(&lifetime.name)
-                    {
-                        return Err("applied nominal region lost its exact declaration ordinal");
-                    }
-                }
                 if let Some((environment, _)) = &self.trait_region_application {
-                    let supplier = environment.argument_owner();
-                    if lifetimes.iter().all(|lifetime| {
-                        lifetime.origin == CallableLifetimeOrigin::Captured
+                    let captured = lifetimes
+                        .iter()
+                        .any(|lifetime| lifetime.origin == CallableLifetimeOrigin::Captured);
+                    if captured
+                        && lifetimes.iter().any(|lifetime| {
+                            lifetime.origin == CallableLifetimeOrigin::Rigid
+                                || !lifetime.region.declaration.is_valid()
+                        })
+                    {
+                        // A rigid binder coordinate is not a captured actual,
+                        // even when both name the same source declaration.
+                        // Their mixed application needs separate represented frames.
+                        return Err(
+                            "applied nominal regions have no complete represented supplying telescope",
+                        );
+                    }
+                    // A proven receiving-frame substitution moves the whole
+                    // nominal operand to its exact supplier. Unrelated owned
+                    // operands retain their original scope. Every region must
+                    // still rejoin its declaration/ordinal under that scope.
+                    let owner = if captured {
+                        environment.argument_owner()
+                    } else if applied_owner.is_valid() {
+                        applied_owner
+                    } else if self.region_scope.is_valid() {
+                        self.region_scope
+                    } else {
+                        environment.argument_owner()
+                    };
+                    for lifetime in &lifetimes {
+                        if lifetime.region.declaration.is_valid()
                             && crate::type_identity::lifetime_parameter_identity(
                                 program,
-                                supplier,
+                                owner,
                                 lifetime.name.as_str(),
-                            ) == Some(lifetime.region)
-                    }) {
-                        applied_owner = supplier;
-                    } else if !applied_owner.is_valid() {
-                        applied_owner = self.region_scope;
+                            ) != Some(lifetime.region)
+                        {
+                            return Err(
+                                "applied nominal regions have no complete represented supplying telescope",
+                            );
+                        }
+                    }
+                    if lifetimes
+                        .iter()
+                        .any(|lifetime| lifetime.region.declaration.is_valid())
+                    {
+                        applied_owner = owner;
                     }
                 }
-                applied_lifetimes.extend(lifetimes.iter().map(|lifetime| lifetime.region));
                 types::TypeReferenceNode::Generic {
                     base_symbol: nominal_owner,
                     base_name,
@@ -327,9 +344,6 @@ impl CallableApplication {
         program
             .type_reference_table
             .retain_operand_lifetime_owner(applied, applied_owner)?;
-        program
-            .type_reference_table
-            .retain_operand_lifetimes(applied, applied_lifetimes)?;
         Ok(applied)
     }
 
@@ -490,17 +504,9 @@ impl CallableApplication {
                                 },
                             )
                             .collect::<Vec<_>>();
-                        let declaration = program
-                            .expression_table
-                            .static_machine_application(application)
-                            .lifetime_binding_declaration;
                         program
                             .expression_table
-                            .set_static_machine_application_lifetimes(
-                                application,
-                                declaration,
-                                &lifetimes,
-                            );
+                            .set_static_machine_application_lifetimes(application, &lifetimes);
                         let mut arguments = program
                             .expression_table
                             .static_machine_application_arguments(application)

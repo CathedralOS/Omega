@@ -165,6 +165,7 @@ impl ProgramPrivateArrivalIndex {
     ) -> bool {
         self.private_targets.contains(&machine.symbol)
             && !machine.is_public
+            && !machine.target_family_interface
             && program.machine_trait_conformances(machine).is_empty()
             && !self.unclosed_symbols.contains(&machine.symbol)
             && program
@@ -342,7 +343,10 @@ fn compute_closed_arrivals(
         .iter()
         .position(|member| member.symbol == callee.symbol)
         .ok_or("the callable is not a private member of the enclosing declaration")?;
-    if callee.is_public || !program.machine_trait_conformances(callee).is_empty() {
+    if callee.is_public
+        || callee.target_family_interface
+        || !program.machine_trait_conformances(callee).is_empty()
+    {
         return Err("the private declaration group has an exposed callable");
     }
     let mut expected_owners: Vec<(Arrival, usize)> = Vec::new();
@@ -427,8 +431,9 @@ fn compute_closed_arrivals(
         .iter()
         .enumerate()
         .filter_map(|(member_index, member)| {
-            let exposed =
-                member.is_public || !program.machine_trait_conformances(member).is_empty();
+            let exposed = member.is_public
+                || member.target_family_interface
+                || !program.machine_trait_conformances(member).is_empty();
             let open_use = std::iter::once(member.symbol)
                 .chain(
                     program

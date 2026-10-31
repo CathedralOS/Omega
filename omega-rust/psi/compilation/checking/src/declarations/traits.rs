@@ -10,7 +10,8 @@
 //! for named implementations (`named_implementations`), and
 //! `collect_dynamic_implementation_selections` (`dynamic`). For each machine, in
 //! this order: `validate_generic_conformance_bounds`,
-//! `validate_machine_trait_conformances` for each conformance. Native ABI shape admission belongs to the selected calling plan, not an
+//! `validate_machine_trait_conformances`, `validate_external_via_expression`
+//! for each conformance, and `validate_external_leaf_native_shapes` for an
 //! external leaf with one `via` binding. The bound, machine-conformance and
 //! external checks come from `conformance`.
 //!
@@ -39,7 +40,6 @@ mod provider_regions;
 pub mod refinement_fit;
 mod requirements;
 mod trait_implementation_arguments;
-pub(crate) use trait_implementation_arguments::validate_implementation_application;
 
 pub use conformance::GenericBoundRequirement;
 pub use conformance::compose_forwarded_trait_arguments;
@@ -48,15 +48,15 @@ pub use conformance::resolve_closed_requirement_application;
 pub use conformance::revalidate_machine_trait_conformances;
 pub use conformance::revalidate_top_level_requirement_realization;
 pub(crate) use conformance::{
-    named_conformance_argument_matches, validate_generic_conformance_bounds,
+    named_conformance_argument_matches, validate_external_leaf_native_shapes,
+    validate_external_via_expression, validate_generic_conformance_bounds,
     validate_machine_trait_conformances, validate_trait_application_obligations,
     validate_trait_conformance_bounds,
 };
 pub use dynamic::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
-    collect_dynamic_slot_demands, describe_dynamic_conformances, dynamic_call_demand,
-    dynamic_expression_call_demand, normalized_dynamic_row_identities, qualified_trait_scope,
-    resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
+    collect_dynamic_slot_demands, dynamic_call_demand, dynamic_expression_call_demand,
+    qualified_trait_scope, resolve_dynamic_call_targets, resolve_selected_dynamic_call_targets,
 };
 pub(crate) use dynamic::{
     dynamic_requirement_ineligibility, dynamic_selector_application,

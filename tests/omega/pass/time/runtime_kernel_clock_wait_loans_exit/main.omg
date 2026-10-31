@@ -12,6 +12,18 @@ public boundary trait ClockProbe {
 }
 data ClockImports {}
 
+linux_x86_64 machine ClockImports::read(selector: i32, instant: &mut Instant) -> i64
+    satisfies ClockProbe::read via ForeignBinding::Syscall(228);
+linux_arm64 machine ClockImports::read(selector: i32, instant: &mut Instant) -> i64
+    satisfies ClockProbe::read via ForeignBinding::Syscall(113);
+linux_x86_64 machine ClockImports::sleep(request: &Instant, remainder: u64) -> i64
+    satisfies ClockProbe::sleep via ForeignBinding::Syscall(35);
+linux_arm64 machine ClockImports::sleep(request: &Instant, remainder: u64) -> i64
+    satisfies ClockProbe::sleep via ForeignBinding::Syscall(101);
+linux_x86_64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
+    satisfies ClockProbe::sleep_unit via ForeignBinding::Syscall(35);
+linux_arm64 machine ClockImports::sleep_unit(request: &Instant, remainder: u64)
+    satisfies ClockProbe::sleep_unit via ForeignBinding::Syscall(101);
 
 machine read(instant: &mut Instant) -> i64
     reaches ClockProbe { ClockProbe::read(1, instant) }

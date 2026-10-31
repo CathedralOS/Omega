@@ -9,12 +9,7 @@ machine verify_prod(value: i64) -> i64
     head + tail
 }
 
-boundary trait SelectedComputeTargetBody {
-    machine compute_target_body(lhs: i64, rhs: i64) -> i64 reaches
-requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10;
-}
-CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
-    machine compute_target_body(lhs: i64, rhs: i64) -> i64
+linux_x86_64 machine compute_target_body(lhs: i64, rhs: i64) -> i64
     requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
 {
     let a: i64 in Saturating = lhs as i64 in Saturating;
@@ -23,16 +18,39 @@ CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
     let prod: i64 = sat as i64;
     verify_prod(prod)
 }
+
+linux_arm64 machine compute_target_body(lhs: i64, rhs: i64) -> i64
+    requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
+{
+    let a: i64 in Saturating = lhs as i64 in Saturating;
+    let b: i64 in Saturating = rhs as i64 in Saturating;
+    let sat: i64 in Saturating = a * b;
+    let prod: i64 = sat as i64;
+    verify_prod(prod)
 }
 
+macos_arm64 machine compute_target_body(lhs: i64, rhs: i64) -> i64
+    requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
+{
+    let a: i64 in Saturating = lhs as i64 in Saturating;
+    let b: i64 in Saturating = rhs as i64 in Saturating;
+    let sat: i64 in Saturating = a * b;
+    let prod: i64 = sat as i64;
+    verify_prod(prod)
+}
 
-
-
-
-
+windows_x86_64 machine compute_target_body(lhs: i64, rhs: i64) -> i64
+    requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
+{
+    let a: i64 in Saturating = lhs as i64 in Saturating;
+    let b: i64 in Saturating = rhs as i64 in Saturating;
+    let sat: i64 in Saturating = a * b;
+    let prod: i64 = sat as i64;
+    verify_prod(prod)
+}
 
 machine evaluate() -> i64 {
-    SelectedComputeTargetBody::compute_target_body(15, 8)
+    compute_target_body(15, 8)
 }
 
 machine main() crashes Trap {

@@ -46,13 +46,7 @@ ensures result <= 80
     tree_bound<Nodes, Total>(next);
     Total
 }
-boundary trait SelectedProduced {
-    machine produced() -> u64 reaches
-ensures result <= 80;
-}
-CheckedProduced satisfies SelectedProduced {
-    machine produced() -> u64 ensures result <= 80
-{
+windows_x86_64 machine produced() -> u64 ensures result <= 80 {
     let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
     let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
     let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
@@ -65,12 +59,47 @@ CheckedProduced satisfies SelectedProduced {
     };
     open_total<1, 2, 1, 4, 3, 7>(left, right)
 }
+linux_x86_64 machine produced() -> u64 ensures result <= 80 {
+    let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+    let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+    let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+    let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+    let left [erased]: Tree<1, 2> = Tree::Fork {
+        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
+    };
+    let right [erased]: Tree<1, 4> = Tree::Fork {
+        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
+    };
+    open_total<1, 2, 1, 4, 3, 7>(left, right)
 }
-
-
-
+macos_arm64 machine produced() -> u64 ensures result <= 80 {
+    let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+    let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+    let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+    let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+    let left [erased]: Tree<1, 2> = Tree::Fork {
+        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
+    };
+    let right [erased]: Tree<1, 4> = Tree::Fork {
+        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
+    };
+    open_total<1, 2, 1, 4, 3, 7>(left, right)
+}
+linux_arm64 machine produced() -> u64 ensures result <= 80 {
+    let left_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+    let left_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+    let right_zero_a [erased]: Tree<0, 0> = Tree::Empty;
+    let right_zero_b [erased]: Tree<0, 0> = Tree::Empty;
+    let left [erased]: Tree<1, 2> = Tree::Fork {
+        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 2, left: left_zero_a, right: left_zero_b
+    };
+    let right [erased]: Tree<1, 4> = Tree::Fork {
+        left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
+    };
+    open_total<1, 2, 1, 4, 3, 7>(left, right)
+}
 machine main() crashes Trap {
-    let remaining: u64 = 80u64 - SelectedProduced::produced();
+    let remaining: u64 = 80u64 - produced();
     transition remaining == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

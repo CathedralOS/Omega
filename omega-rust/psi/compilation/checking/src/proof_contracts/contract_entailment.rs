@@ -102,8 +102,6 @@ pub(crate) mod numeric_observations;
 mod observed_projections;
 pub use declaration_projections::declaration_projection_cases_hold;
 mod operand_fits;
-mod operation_definedness;
-pub(crate) use operation_definedness::operation_inputs_exclude_integer_values;
 mod proof_edges;
 pub(crate) mod proof_integer;
 mod quotient_congruence;
@@ -790,19 +788,12 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 proven.entry.push(*fact);
                 return false;
             }
-            // Bodyless guarantees have no body proof: an admission claim
-            // requires owner acceptance, while a compiler primitive carries its
-            // independently authenticated immutable semantic contract. Neither
-            // publishes a checked-body proof here. The engine veto applies to
-            // both supplies, including a contradiction in a toolchain contract.
-            let unproved_supply = match machine.supply_mode {
-                language_semantics::MachineSupplyMode::AdmissionClaim => Some("accepted boundary"),
-                language_semantics::MachineSupplyMode::CompilerPrimitive => {
-                    Some("compiler primitive")
-                }
-                _ => None,
-            };
-            if let Some(supply) = unproved_supply
+            // CH10 ACCEPTED tier (GR6d): a bodyless boundary machine's
+            // ensures is an AXIOM -- believed under the grant-locality rule
+            // (own-package dev-active; the trust report carries the row),
+            // never proven. The ENGINE VETO still applies: a statement the
+            // judge can REFUTE is a compile error, grants notwithstanding.
+            if machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
                 && zero_value_mention.is_none()
             {
                 if matches!(
@@ -810,7 +801,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     StructuralJudgment::Refuted
                 ) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "{supply} machine `{}` claims `{}`, which the \
+                        "accepted boundary machine `{}` claims `{}`, which the \
                          engine REFUTES structurally -- a refutable statement is a \
                          compile error, grants notwithstanding (chapter 10 engine \
                          veto)",

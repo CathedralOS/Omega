@@ -2,22 +2,15 @@
 // Fact: a shared tagged scalar-field loan keeps its original backing and value 73 while computing value ^ 0.
 data Cell { value: u32; }
 domain u32::Controlled;
-boundary trait SelectedConsume {
-    machine consume(value: &u32 in Controlled) -> u32 reaches
-;
-}
-CheckedConsume satisfies SelectedConsume {
-    machine consume(value: &u32 in Controlled) -> u32
-{ value ^ 0 }
-}
-
-
-
+windows_x86_64 machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
+linux_x86_64 machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
+macos_arm64 machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
+linux_arm64 machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
 machine main() crashes Trap {
     let mut storage: Cell = Cell { value: 73 };
     let selected: &u32 in Controlled = &storage.value;
     storage.value = 74;
-    let result: u32 = SelectedConsume::consume(selected);
+    let result: u32 = consume(selected);
     transition result == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

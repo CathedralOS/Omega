@@ -474,7 +474,7 @@ pub(crate) fn evaluate(
                     declarations[*ordinal].item,
                     Item::Const(declarations[*ordinal].definition.clone()),
                 );
-                declarations[*ordinal].evaluated_value = Some(value.value);
+                declarations[*ordinal].evaluated_value = Some(value.value.encoding.into());
             }
         }
         ready.retain(|ordinal| !declarations[*ordinal].leaves.is_empty());
@@ -514,7 +514,6 @@ pub(crate) fn evaluate(
             sources.clone(),
             bindings,
             context.retained_base(),
-            context.template_context,
             &probe_declarations,
         )?;
         let frontier = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
@@ -756,7 +755,6 @@ pub(crate) fn evaluate(
             let mut builtin_operators = Vec::new();
             let mut call_selections = Vec::new();
             let mut scalar_value = None;
-            let mut structured_value = None;
             for leaf in &declarations[ordinal].leaves {
                 let reference = syntax.expressions.source_span(leaf.expression);
                 let authored = &authored_probes
@@ -792,18 +790,6 @@ pub(crate) fn evaluate(
                     }
                     extend_unique(&mut selections, evaluation.origins);
                     extend_unique(&mut builtin_operators, evaluation.operators);
-                    if declarations[ordinal].leaves.len() == 1
-                        && leaf.expression == authored_expression
-                    {
-                        let value = materialize::canonical_value(
-                            typed,
-                            evaluation.destination,
-                            &evaluation.value,
-                        )
-                        .map_err(|reason| failure(reference, reason))?;
-                        structured_value = Some(language_semantics::const_value::CanonicalConstIdentity::from_declaration_value(&value)
-                            .ok_or_else(|| failure(reference, "structured declaration value exceeds canonical encoding limits"))?.encoding.into());
-                    }
                     let materialized = materialize::literal(
                         &mut syntax,
                         typed,
@@ -918,8 +904,6 @@ pub(crate) fn evaluate(
                         "scalar initializer lost its evaluated value",
                     )
                 })?
-            } else if let Some(value) = structured_value {
-                value
             } else {
                 let mut materialized_definition = definition.clone();
                 materialized_definition.value = value;
@@ -929,7 +913,7 @@ pub(crate) fn evaluate(
                         failure(syntax.expressions.source_span(authored_expression), reason)
                     })?;
                 pending_destination = payload.pending_destination;
-                payload.value
+                payload.value.encoding.into()
             };
             // A declaration's geometry is part of its normalization custody,
             // even when a scalar payload leaf never reads that extent. Keep

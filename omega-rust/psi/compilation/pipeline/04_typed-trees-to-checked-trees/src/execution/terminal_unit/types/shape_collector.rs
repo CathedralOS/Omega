@@ -104,19 +104,34 @@ impl<'program> ShapeCollector<'program> {
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let constraints = typed_trees::operator::declared_domain_constraints(
-            self.program.typed_program(),
-            carrier,
-        );
-        if !constraints.is_empty() {
-            let mut selected = constraints
-                .into_iter()
-                .filter(|constraint| constraint.semantic_id == domain);
-            let application = selected.next()?;
-            if selected.next().is_some() {
-                return None;
+        let mut reference = carrier;
+        let mut has_domain_constraints = false;
+        let mut selected_application = None;
+        loop {
+            match self.program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    for constraint in self.program.type_reference_table.constraints(*constraints) {
+                        let TypeConstraintNode::Domain(constraint) = constraint else {
+                            continue;
+                        };
+                        has_domain_constraints = true;
+                        if constraint.semantic_id == domain
+                            && selected_application.replace(constraint).is_some()
+                        {
+                            return None;
+                        }
+                    }
+                    reference = *base_type;
+                }
+                _ => break,
             }
-            return self.add_domain_application(application, carrier, binders, false);
+        }
+        if has_domain_constraints {
+            return self.add_domain_application(selected_application?, carrier, binders, false);
         }
         let definition = {
             // Legacy unqualified carriers carry only the semantic family.
@@ -1080,15 +1095,6 @@ impl<'program> ShapeCollector<'program> {
         // without a selected application still cannot claim storage.
         let mut data = data;
         if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
-            // The layout evaluator lends this context; it is never executable
-            // storage that an authored OpaqueRepresentation can manufacture.
-            if self
-                .program
-                .core_layout_declaration(data.symbol, "LayoutTarget")
-            {
-                self.in_progress.remove(&identity);
-                return None;
-            }
             if validation::activation_claim_byte_carrier(self.program, data.symbol).is_some() {
                 // The descriptor moves with linear custody. Its byte backing
                 // belongs to the caller-site establishment, never this home.
@@ -1247,10 +1253,7 @@ impl<'program> ShapeCollector<'program> {
         }
 
         let program = self.program;
-        // Storage identity can erase independent value indices. The prepared
-        // field view retains the exact representation application and owns
-        // the policy join; semantic T's symbol cannot select its geometry.
-        let authored_layout = program.plan_laid_layout_for_data(&data);
+        let authored_layout = program.plan_laid_layout(data.symbol);
         let placed_view = program.placed_view_plans.iter().find_map(|view| {
             let definition = program.data_definition_by_symbol(view.data_symbol)?;
             (closed_data_identity(program, definition, binders) == identity).then_some(view)
@@ -1265,17 +1268,6 @@ impl<'program> ShapeCollector<'program> {
                     byte_alignment: view.placement.layout().align,
                 },
             }
-        } else if let Some(storage) = data
-            .generic_instance
-            .and_then(|application| program.layout_storage_arguments(application))
-        {
-            // Checking records the representation demand before target inputs
-            // exist. Ordinary packing cannot stand in for a pending policy.
-            checked_trees::CheckedUnitRecordStorage::TargetLayout {
-                application: storage.application,
-                application_identity: program.normalized_type_identity(storage.application),
-                schema_type_identity: self.add_type(storage.semantic_type, binders, &[])?,
-            }
         } else {
             match authored_layout {
                 Some(layout) => match layout.invariant_geometry() {
@@ -1286,12 +1278,10 @@ impl<'program> ShapeCollector<'program> {
                         },
                     ),
                     None => {
-                        let schema_type_identity =
-                            self.add_type(layout.semantic_type, binders, &[])?;
+                        let schema = program.data_definition_by_symbol(layout.schema_symbol)?;
+                        let schema_type_identity = self.add_attached_data(schema, binders)?;
                         checked_trees::CheckedUnitRecordStorage::TargetLayout {
-                            application: layout.application,
-                            application_identity: program
-                                .normalized_type_identity(layout.application),
+                            application: layout.data_symbol,
                             schema_type_identity,
                         }
                     }

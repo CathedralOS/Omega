@@ -100,11 +100,7 @@ impl TypedTrees {
                 .static_machine_application_lifetimes(selection.application)
                 .to_vec();
             self.expression_table
-                .set_static_machine_application_lifetimes(
-                    selected,
-                    original.lifetime_binding_declaration,
-                    &lifetimes,
-                );
+                .set_static_machine_application_lifetimes(selected, &lifetimes);
             let row = self
                 .expression_table
                 .static_machine_application_mut(selected);

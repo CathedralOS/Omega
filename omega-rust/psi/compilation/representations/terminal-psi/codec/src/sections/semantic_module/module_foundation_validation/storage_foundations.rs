@@ -444,15 +444,13 @@ fn validate_reference_membership(
     } else {
         structural_fields::declared_memberships(machine, source.place).is_some_and(
             |(whole, projected)| {
-                let Ok(mut captured) = terminal_semantics::reference_carrier_memberships(
+                let Ok(mut captured) = terminal_semantics::reference_source_memberships(
                     module.structural_types.iter(),
                     source_type,
                     whole,
                     projected,
                     source_path,
                     *access,
-                    result.structural_type,
-                    storage.as_ref(),
                 ) else {
                     return false;
                 };

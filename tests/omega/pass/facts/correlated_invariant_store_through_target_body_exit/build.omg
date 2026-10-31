@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedAdvance, CheckedAdvance>(builder, windows_x86_64);
-    Build::select_provider<SelectedAdvance, CheckedAdvance>(builder, linux_x86_64);
-    Build::select_provider<SelectedAdvance, CheckedAdvance>(builder, macos_arm64);
-    Build::select_provider<SelectedAdvance, CheckedAdvance>(builder, linux_arm64);
-
     Build::application(builder, "correlated_invariant_store_target_body");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

@@ -18,10 +18,10 @@ pub use expression_and_type_snapshots::{
 pub use item_snapshots::{
     CapabilityContractKindSnapshot, CapabilityContractSnapshot, CapabilityMemberSnapshot,
     CarryPolicySnapshot, ConformanceMemberSnapshot, DataMemberSnapshot, DataPayloadFieldSnapshot,
-    DataPropertiesSnapshot, GenericConformanceBoundSnapshot, ItemSnapshot, OperatorSnapshot,
-    ProofFactSnapshot, PropositionBodySnapshot, PropositionParameterSignatureSnapshot,
-    QuotientEquivalenceSelectionSnapshot, QuotientSnapshot, SatisfiesClauseSnapshot,
-    TypeParameterSnapshot,
+    DataPropertiesSnapshot, ExternalBindingSnapshot, GenericConformanceBoundSnapshot, ItemSnapshot,
+    OperatorSnapshot, ProofFactSnapshot, PropositionBodySnapshot,
+    PropositionParameterSignatureSnapshot, QuotientEquivalenceSelectionSnapshot, QuotientSnapshot,
+    SatisfiesClauseSnapshot, TypeParameterSnapshot,
 };
 pub use state_and_statement_snapshots::{
     AssemblyFactKindSnapshot, NativeCallbackParameterSnapshot, StateParameterSnapshot,

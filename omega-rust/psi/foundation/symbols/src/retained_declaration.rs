@@ -172,23 +172,6 @@ impl RetainedDeclaration {
         })
     }
 
-    /// Compare one source-owned header without requiring a receiving symbol.
-    /// This recognizes the same declaration; it grants no visibility or use.
-    pub fn matches_source(&self, kind: SymbolKind, source: &SourceFile, span: Span) -> bool {
-        kind == self.kind
-            && span == self.span
-            && source.path == self.source.path
-            && source.package_root == self.source.package_root
-            && source.origin == self.source.origin
-            && source.resolution_stratum == self.source.resolution_stratum
-            && source.dependency_scope == self.source.dependency_scope
-            && self
-                .source
-                .package_identity
-                .is_none_or(|owner| source.package_identity == Some(owner))
-            && source.source == self.source.source
-    }
-
     /// Rejoin the exact authored occurrence among the destination's declarations.
     /// Source IDs and arena handles may change; source bytes, location, stratum,
     /// origin and checked dependency scope may not. An anonymous source may gain
@@ -212,7 +195,17 @@ impl RetainedDeclaration {
             let Some(source) = symbols.source_file(span) else {
                 continue;
             };
-            if !self.matches_source(symbols.get(candidate).kind, source, span.span) {
+            if source.path != self.source.path
+                || source.package_root != self.source.package_root
+                || source.origin != self.source.origin
+                || source.resolution_stratum != self.source.resolution_stratum
+                || source.dependency_scope != self.source.dependency_scope
+                || self
+                    .source
+                    .package_identity
+                    .is_some_and(|owner| source.package_identity != Some(owner))
+                || source.source != self.source.source
+            {
                 continue;
             }
             if selected.is_valid() && selected != candidate {

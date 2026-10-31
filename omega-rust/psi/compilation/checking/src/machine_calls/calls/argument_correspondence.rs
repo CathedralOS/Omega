@@ -38,10 +38,7 @@ pub(crate) fn executable_parameters<'program>(
         return site
             .parameters(program, caller)
             .map(Cow::Borrowed)
-            .ok_or_else(|| {
-                trace_missing_parameter_telescope(program, caller, site);
-                "call has no retained parameter telescope"
-            });
+            .ok_or("call has no retained parameter telescope");
     }
     let arguments = selected_call_arguments(program, caller, site)?;
     let public = site
@@ -62,100 +59,6 @@ pub(crate) fn executable_parameters<'program>(
             })
             .collect(),
     ))
-}
-
-// Temporary observation at the existing refusal. Declaration membership below
-// is diagnostic data only; an omitted executable never borrows a template's
-// signature or gains admission from the retained product frontier.
-fn trace_missing_parameter_telescope(
-    program: &dyn crate::CheckingInput,
-    caller: SymbolHandle,
-    site: &CallSite<'_>,
-) {
-    if std::env::var_os("OMEGA_CALL_SIGNATURE_TRACE").is_none() {
-        return;
-    }
-    let (raw_target, application) = match site {
-        CallSite::Statement(call) => (call.target_symbol, call.authored_machine_application),
-        CallSite::Expression { call, .. } => {
-            (call.target_symbol, call.authored_machine_application)
-        }
-        CallSite::TransitionNamed { path, .. } => (path.symbol, Default::default()),
-    };
-    let target = site.target_symbol(program);
-    let symbol = program.symbols.get(target);
-    let parent = symbol.parent;
-    eprintln!(
-        "CALL_SIGNATURE missing caller={caller:?} raw={raw_target:?} target={target:?} name={} kind={:?} parent={parent:?} parent_kind={:?} generated_from={:?} application={application:?}",
-        program.symbols.name(target),
-        symbol.kind,
-        program.symbols.get(parent).kind,
-        symbol.generated_from,
-    );
-    let declaration = if application.is_valid() {
-        let retained = program
-            .expression_table
-            .static_machine_application(application);
-        eprintln!(
-            "CALL_SIGNATURE application owner={:?} registration={:?} declaration={:?} bindings={:?}",
-            retained.lexical_owner,
-            retained.registration_operation,
-            retained.binding_declaration,
-            program
-                .expression_table
-                .static_machine_application_bindings(application),
-        );
-        retained.binding_declaration
-    } else {
-        SymbolHandle::invalid()
-    };
-    for (label, declarations) in [
-        ("live", program.typed_program()),
-        ("product", program.product_declarations()),
-    ] {
-        for machine in declarations.machines().iter().filter(|machine| {
-            machine.symbol == target
-                || machine.symbol == parent
-                || machine.symbol == declaration
-                || declarations
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == target)
-        }) {
-            eprintln!(
-                "CALL_SIGNATURE {label} machine={:?} name={} states={:?}",
-                machine.symbol,
-                machine.name,
-                declarations
-                    .machine_states(machine)
-                    .iter()
-                    .map(|state| (
-                        state.symbol,
-                        declarations.state_parameters(state).len(),
-                        state.return_type,
-                    ))
-                    .collect::<Vec<_>>(),
-            );
-        }
-        for specialization in &declarations.machine_specializations {
-            if specialization.instance == parent || specialization.template == declaration {
-                eprintln!(
-                    "CALL_SIGNATURE {label} specialization template={:?} instance={:?} application={:?}",
-                    specialization.template,
-                    specialization.instance,
-                    specialization.binding_application,
-                );
-            }
-        }
-        for (_, capture) in declarations.captured_machine_applications.iter() {
-            if capture.instance == parent || capture.template == declaration {
-                eprintln!(
-                    "CALL_SIGNATURE {label} capture template={:?} instance={:?} application={:?}",
-                    capture.template, capture.instance, capture.binding_application,
-                );
-            }
-        }
-    }
 }
 
 /// Compose one admitted selected application with its exact executable
@@ -747,10 +650,7 @@ fn requirement_binding_correspondence(
                     .expression_table
                     .static_machine_application_lifetimes(closed.application)
                     != lifetimes
-                || (!lifetimes.is_empty()
-                    && (supplied.lexical_owner != application.lexical_owner
-                        || supplied.lifetime_binding_declaration
-                            != application.lifetime_binding_declaration))
+                || (!lifetimes.is_empty() && supplied.lexical_owner != application.lexical_owner)
                 || header.iter().zip(arguments).any(|(parameter, argument)| {
                     let mut bindings = retained
                         .iter()

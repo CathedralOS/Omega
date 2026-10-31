@@ -164,7 +164,10 @@ pub(super) fn project(
             PackagePolicyRowKind::Callable,
             initial,
             audit,
-            |encoder| encode_nominal(encoder, &callable.identity),
+            |encoder| {
+                encode_nominal(encoder, &callable.identity)?;
+                values::identity::encode_target_context(encoder, &callable.target_context)
+            },
             |encoder| callable_policy::encode_callable(encoder, callable),
         )?;
     }
@@ -207,14 +210,11 @@ pub(super) fn project(
             true,
             |encoder| {
                 encode_nominal(encoder, &native.method.requirement)?;
-                let producer = native.producer();
+                let producer = native
+                    .producer()
+                    .ok_or_else(|| rejected("native row has no Build producer"))?;
                 encode_nominal(encoder, &producer.declaration)?;
-                encoder.string(&producer.callable_identity)?;
-                encoder.field_by(
-                    "application",
-                    &native.application,
-                    baseline::native_application,
-                )
+                encoder.string(&producer.callable_identity)
             },
             |encoder| baseline::native_binding(encoder, native),
         )?;
@@ -224,7 +224,10 @@ pub(super) fn project(
             PackagePolicyRowKind::ExternalSupply,
             true,
             true,
-            |encoder| encode_nominal(encoder, supply.callable()),
+            |encoder| {
+                encode_nominal(encoder, supply.callable())?;
+                values::identity::encode_target_context(encoder, supply.target_context())
+            },
             |encoder| values::external_policy::validated_value(encoder, supply),
         )?;
     }

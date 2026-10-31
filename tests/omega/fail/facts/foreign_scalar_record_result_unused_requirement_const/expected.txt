@@ -1,2 +1,0 @@
-partial exact division in closed const argument
-the divisor must be proven nonzero

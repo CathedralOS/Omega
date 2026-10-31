@@ -55,7 +55,7 @@ pub use language_semantics::wire::WireCompatibilityDemand;
 pub use build_time_values::BuildTimeValue;
 pub use checked_interpreter::{
     CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,
-    SelectedBuildTimeBinaryOperator,
+    SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody,
 };
 pub use const_evaluation::const_domain_facts::evaluate_const_domain_facts;
 pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;
@@ -63,8 +63,7 @@ pub use const_evaluation::const_lengths::{
     evaluate_const_array_lengths, evaluate_zero_argument_machine,
 };
 pub use const_evaluation::data_layout_queries::{
-    LayoutApplicationTargetInput, LayoutQueryMeasurements, LayoutQueryProvider,
-    fold_data_layout_queries,
+    LayoutQueryMeasurements, LayoutQueryProvider, fold_data_layout_queries,
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;
@@ -73,6 +72,7 @@ pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};
 pub use layouts::placement_lifecycles::{
     admit_placement_lifecycle_plans, retain_placement_lifecycle_plans,
 };
+pub use layouts::plan_laid::{PlanLaidRecord, desugar_plan_laid_value_types};
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
     BuildTimeProgram, BuildTimeSelectionAuthority,
@@ -107,10 +107,12 @@ pub use build_time_evaluation::{
     evaluate_pre_resolution,
 };
 
+pub use machine_execution::selected_target_bodies::{
+    SelectedBuildTimeTargetBody, prepare_selected_target_family_calls,
+};
+
 // Source formation is shared by native Build and retained foreign producers.
 pub use validation::native_locators;
 pub use validation::product_entries;
 
 pub mod native_bindings;
-
-pub use layouts::plan_laid::{FixedLayoutTargetScope, evaluate_fixed_layout_applications};

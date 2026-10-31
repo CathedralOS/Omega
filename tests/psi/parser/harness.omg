@@ -256,7 +256,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedBoundaryDeclaration -> parse_diagnostic(parser_harness, output, 109)
             ParseDiagnosticCode::RetiredBoundaryRequirement -> parse_diagnostic(parser_harness, output, 110)
             ParseDiagnosticCode::RetiredOperatorDeclaration -> parse_diagnostic(parser_harness, output, 111)
-            ParseDiagnosticCode::RetiredTargetPrefix -> parse_diagnostic(parser_harness, output, 112)
+            ParseDiagnosticCode::ExpectedTargetScopedMachine -> parse_diagnostic(parser_harness, output, 112)
             ParseDiagnosticCode::ExpectedBoundaryDataEnd -> parse_diagnostic(parser_harness, output, 113)
             ParseDiagnosticCode::ExpectedTraitName -> parse_diagnostic(parser_harness, output, 114)
             ParseDiagnosticCode::ExpectedTraitParent -> parse_diagnostic(parser_harness, output, 115)
@@ -1006,8 +1006,8 @@ machine ParserHarness::write_parse_observation(
 // Machine rows carry the owner flag and span, the name, the generic-parameter
 // range, the parameter range, the return-type flag and handle, the clause
 // range, the entry statement range, the state range, the body flag, the
-// expression range, the visibility flag, the span, the boundary flag and
-// the container tag (0 root, 1 trait, 2 conformance).
+// expression range, the visibility flag, the span, the target flag and span,
+// the boundary flag and the container tag (0 root, 1 trait, 2 conformance).
 // Parameter rows carry the name,
 // type-reference handle and span. Every declaration uses the same machine row.
 machine ParserHarness::write_machine_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
@@ -1045,6 +1045,8 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.expression_count);
         ParserHarness::write_flag(parser_harness, item.is_public);
         ParserHarness::write_source_span(parser_harness, item.source_span);
+        ParserHarness::write_flag(parser_harness, item.has_target);
+        ParserHarness::write_source_span(parser_harness, item.target.source_span);
         ParserHarness::write_flag(parser_harness, item.is_boundary);
         transition item.container {
             MachineContainer::Root -> machine_container(parser_harness, output, index, item, 0)

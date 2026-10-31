@@ -11,15 +11,8 @@ machine read<'provider, 'call>(value: &'provider i32, other: &'call i32) -> i32 
     value as i32
 }
 data Providers {}
-boundary trait SelectedProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut Providers) reaches
-;
-}
-CheckedProvidersProviderDefaults satisfies SelectedProvidersProviderDefaults {
-    machine provider_defaults(defaults: &mut Providers)
-{
+macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
     Providers::select_provider<Reading, Reader>(defaults);
-}
 }
 data Main {
     value: i32;
@@ -40,7 +33,9 @@ reaches Reading crashes Trap {
     machine bad() { crash Trap; }
 }
 
-
+linux_x86_64 machine Providers::provider_defaults(defaults: &mut Providers) {
+    Providers::select_provider<Reading, Reader>(defaults);
+}
 
 // The root owns ordinary local storage and supplies its borrow explicitly.
 machine entry_start<'activation>()

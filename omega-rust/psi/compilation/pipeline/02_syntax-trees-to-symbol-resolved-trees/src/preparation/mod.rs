@@ -15,6 +15,7 @@ pub(crate) mod declaration_selection;
 pub(crate) mod generic_data;
 pub(crate) mod machine_equations;
 pub(crate) mod module_normalization;
+pub(crate) mod target_families;
 pub(crate) mod trait_defaults;
 pub(crate) mod type_equations;
 
@@ -45,6 +46,7 @@ pub(crate) fn prepare(
     constants: crate::resolution::lowerer::ConstResolutionMode,
     base: Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>>,
 ) -> Result<Prepared, Vec<Diagnostic>> {
+    target_families::normalize(&mut syntax, sources.as_deref())?;
     let constant_selection = declaration_selection::ConstantSelection::with_shared_base(
         &syntax,
         sources,

@@ -200,7 +200,16 @@ fn lower_machine_contents(
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
         purpose: typed::machine::MachinePurpose::Runtime,
+        target: machine
+            .target
+            .as_ref()
+            .map(crate::lowerer::name::lower_name),
+        authored_target: machine
+            .authored_target
+            .as_ref()
+            .map(crate::lowerer::name::lower_name),
         body_is_present: machine.body_is_present,
+        target_family_interface: machine.target_family_interface,
         body_status: typed::machine::MachineBodyStatus::Deferred,
         structural_type_equations_pending: machine.structural_type_equations_pending,
         // The authored bit and private witness copy here; the final typed
@@ -209,6 +218,7 @@ fn lower_machine_contents(
         termination_plan: machine.termination_plan.clone(),
         service_reach_row: machine.service_reach_row,
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
+        admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
         suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
         blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
         lifetime_parameters: machine
@@ -361,6 +371,7 @@ fn lower_machine_contents(
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let via_expression = typed::expression::ExpressionHandle::invalid();
         lowerer.typed_trees.push_machine_trait_conformance(
             &mut typed_machine,
             typed::machine::TraitConformance {
@@ -382,6 +393,9 @@ fn lower_machine_contents(
                     .alias
                     .as_ref()
                     .map(crate::lowerer::name::lower_name),
+                external_binding: conformance.external_binding,
+                via_expression,
+                external_binding_source_span: conformance.external_binding_source_span,
             },
         );
     }
@@ -607,6 +621,20 @@ fn lower_machine_implementation(
             "machine body completion changed conformance declarations",
         ));
     }
+    for (ordinal, source) in conformances.iter().enumerate() {
+        let via_expression = source
+            .via_expression
+            .is_valid()
+            .then(|| lower_expression_handle(lowerer, source.via_expression))
+            .transpose()?
+            .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
+        lowerer
+            .typed_trees
+            .machine_trait_conformances
+            .span_mut_or_empty(typed_machine.satisfies)[ordinal]
+            .via_expression = via_expression;
+    }
+
     let source_states = lowerer.source_trees.machine_state_handles(machine.states);
     let retained_count = lowerer.typed_trees.machine_states(typed_machine).len();
     if source_states.len() < retained_count {

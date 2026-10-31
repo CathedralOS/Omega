@@ -88,22 +88,13 @@ impl PackageSourceContent {
                 .dependency_build_handoff_instances()
                 .map(|(scope, bundle)| GeneratedSourceContent {
                     scope,
-                    source_owner: bundle.source_owner(),
+                    package: bundle.package(),
                     sources: bundle.sources().to_vec(),
                     selected_product_sources: bundle
                         .provider_selections()
                         .iter()
                         .flat_map(|selection| [&selection.subject, &selection.provider])
                         .map(|anchor| anchor.source().path.clone())
-                        .chain(bundle.native_declarations().iter().flat_map(|declaration| {
-                            declaration
-                                .sources
-                                .selected_files()
-                                .filter(|file| {
-                                    file.dependency_scope == source::DependencyScope::Product
-                                })
-                                .map(|file| file.path.clone())
-                        }))
                         .collect(),
                 })
                 .collect(),
@@ -114,7 +105,7 @@ impl PackageSourceContent {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 struct GeneratedSourceContent {
     scope: DependencyPurpose,
-    source_owner: crate::BuildSourceOwner,
+    package: PackageKeyIdentity,
     sources: Vec<PackageGeneratedSource>,
     selected_product_sources: Vec<std::path::PathBuf>,
 }

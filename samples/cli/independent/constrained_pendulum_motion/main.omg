@@ -86,7 +86,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine small_angle(main: &mut Main) {
         main.pendulum.x = 0.01 * main.pendulum.length;
-        main.pendulum.y = 0.0 - F64SquareRoot::square_root(main.pendulum.length * main.pendulum.length - main.pendulum.x * main.pendulum.x);
+        main.pendulum.y = 0.0 - F64::square_root(main.pendulum.length * main.pendulum.length - main.pendulum.x * main.pendulum.x);
         transition { _ -> project(main) }
     }
     machine released(main: &mut Main) {
@@ -108,7 +108,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine row(main: &mut Main) {
         Console::write("ROW ");
-        print_micro(F64FromI32::from_i32(main.step));
+        print_micro(F64::from_i32(main.step));
         Console::write(" ");
         print_micro(main.pendulum.x);
         Console::write(" ");

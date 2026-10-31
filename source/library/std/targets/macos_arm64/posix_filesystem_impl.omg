@@ -36,6 +36,7 @@ boundary trait PosixFilesystemDarwinByteViews: Calling<DarwinArm64ByteViewCallin
     machine c_read_dir(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64 reaches DirectoryEnumeration;
 }
 
+
 // Unlike the raw Linux syscall, libc consumes an aligned timespec[2] object.
 // Caller byte views need not have that alignment. Materialize only this native
 // 32-byte record, keeping required ABI marshaling separate from payload staging.
@@ -45,24 +46,20 @@ data DarwinTimestampRecord {
     modified_seconds: i64;
     modified_nanoseconds: i64;
 }
-DarwinTimestampAlignment satisfies FixedLayout<DarwinTimestampRecord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan
-    reaches
-    terminates; {
-        let mut entries: [FieldEntry; 64];
-        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
-        entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
-        entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 24 } };
-        Plan { entries: entries, entry_count: 4, size_fixed: 32, size_is_dynamic: false, align: 8 }
-    }
+data DarwinTimestampAlignment { }
+macos_arm64 machine DarwinTimestampAlignment::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
+    entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 24 } };
+    Plan { entries: entries, entry_count: 4, size_fixed: 32, size_is_dynamic: false, align: 8 }
 }
-
 
 // Decode the caller's packed little-endian bytes without forming an aligned
 // native reference to them. All signed bit patterns, including UTIME sentinels,
 // survive unchanged; semantic timestamp validation remains the OS's operation.
-machine darwin_timestamp_word(bytes: &[u8]) -> i64
+macos_arm64 machine darwin_timestamp_word(bytes: &[u8]) -> i64
 requires bytes.len == 8;
 {
     let word: u64 in Wrapping = (widen_u8_to_u64(bytes[0]) as u64 in Wrapping)
@@ -76,207 +73,485 @@ requires bytes.len == 8;
     narrow_u64_to_i64_wrapping(word as u64)
 }
 
-boundary trait PosixFilesystemDarwin {
-    machine c_open(path: &[u8; 4096], flags: i32) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-
-    machine c_open_create(path: &[u8; 4096], flags: i32, mode: u16) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-
-    machine c_create(path: &[u8; 4096], mode: u16) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-
-    machine c_close(fd: i32) -> i32 reaches;
-
-    machine c_remove(path: &[u8; 4096]) -> i32
-reaches FilesystemNamespaceMutation;
-
-    machine c_seek(fd: i32, offset: i64, whence: i32) -> i64 reaches;
-
-    machine c_create_dir(path: &[u8; 4096], mode: u16) -> i32
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
-
-    machine c_remove_dir(path: &[u8; 4096]) -> i32
-reaches FilesystemNamespaceMutation;
-
-    machine c_create_dir_name(name: &[u8; 4096], mode: u16) -> i32
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
-
-    machine c_open_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-
-    machine c_unlink_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
-reaches FilesystemNamespaceMutation;
-
-    machine c_set_permissions(path: &[u8; 4096], mode: u16) -> i32
-reaches FilesystemMetadataMutation;
-
-    machine c_set_file_permissions(fd: i32, mode: u16) -> i32
-reaches FilesystemMetadataMutation;
-
-    machine c_rename(from: &[u8; 4096], to: &[u8; 4096]) -> i32
-reaches FilesystemNamespaceMutation;
-
-    machine c_hard_link(original: &[u8; 4096], link: &[u8; 4096]) -> i32
-reaches FilesystemNamespaceMutation;
-
-    machine c_symlink(target: &[u8; 4096], link: &[u8; 4096]) -> i32
-reaches FilesystemNamespaceMutation;
-
-    machine c_remove_name(path: &[u8; 4096]) -> i32
-reaches FilesystemNamespaceMutation;
-
-    machine c_remove_dir_name(path: &[u8; 4096]) -> i32
-reaches FilesystemNamespaceMutation;
-
-    machine c_read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32
-reaches FilesystemMetadataQuery;
-
-    machine c_read_metadata_at(directory_descriptor: i32, name: &[u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
-reaches FilesystemMetadataQuery;
-
-    machine c_set_len(fd: i32, length: i64) -> i32
-reaches FilesystemContentWrite + FilesystemMetadataMutation;
-
-    machine c_set_file_times(fd: i32, times: &LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>) -> i32
-reaches FilesystemMetadataMutation;
-
-    machine c_sync(fd: i32) -> i32 reaches;
-
-    machine c_sync_data(fd: i32) -> i32 reaches;
-
-    machine c_duplicate(fd: i32) -> i32 reaches;
-
-    machine c_lock_file(fd: i32, operation: i32) -> i32 reaches;
-
-    machine c_change_owner(path: &[u8; 4096], uid: u32, gid: u32) -> i32
-reaches FilesystemMetadataMutation;
-
-    machine c_change_owner_no_follow(path: &[u8; 4096], uid: u32, gid: u32) -> i32
-reaches FilesystemMetadataMutation;
-
-    machine c_change_file_owner(fd: i32, uid: u32, gid: u32) -> i32
-reaches FilesystemMetadataMutation;
-
-    machine c_error_location() -> u64 reaches;
-
-    machine c_copy_from_address(destination: &mut [u8; 4], source: u64, count: u64) -> u64
-reaches
-requires count <= 4;
+macos_arm64 machine posix_darwin_open_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_open",
+        },
+    }
 }
 
-// requirement namespace for the libSystem imports
+macos_arm64 machine posix_darwin_open_private_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "___open",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_creat_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_creat",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_read_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_read",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_write_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_write",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_pread_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_pread",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_pwrite_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_pwrite",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_close_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_close",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_unlink_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_unlink",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_lseek_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_lseek",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_mkdir_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_mkdir",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_rmdir_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_rmdir",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_openat_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_openat",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_unlinkat_binding() -> ForeignBinding<26, 9, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_unlinkat",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_chmod_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_chmod",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_fchmod_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_fchmod",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_rename_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_rename",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_link_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_link",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_symlink_binding() -> ForeignBinding<26, 8, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_symlink",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_readlink_binding() -> ForeignBinding<26, 9, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_readlink",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_getdirentries64_private_binding() -> ForeignBinding<26, 18, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "___getdirentries64",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_fstatat_binding() -> ForeignBinding<26, 8, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_fstatat",
+        },
+    }
+}
+macos_arm64 machine posix_darwin_fstat_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_fstat",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_ftruncate_binding() -> ForeignBinding<26, 10, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_ftruncate",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_futimens_binding() -> ForeignBinding<26, 9, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_futimens",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_fsync_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_fsync",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_fdatasync_binding() -> ForeignBinding<26, 10, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_fdatasync",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_dup_binding() -> ForeignBinding<26, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_dup",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_flock_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_flock",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_chown_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_chown",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_lchown_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_lchown",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_fchown_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_fchown",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_error_private_binding() -> ForeignBinding<26, 8, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "___error",
+        },
+    }
+}
+
+macos_arm64 machine posix_darwin_memcpy_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_memcpy",
+        },
+    }
+}
+
+boundary requirement PosixFilesystemDarwin::c_open(path: &[u8; 4096], flags: i32) -> i32
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_open_create(path: &[u8; 4096], flags: i32, mode: u16) -> i32
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_create(path: &[u8; 4096], mode: u16) -> i32
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_close(fd: i32) -> i32
+;
+boundary requirement PosixFilesystemDarwin::c_remove(path: &[u8; 4096]) -> i32
+reaches FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_seek(fd: i32, offset: i64, whence: i32) -> i64
+;
+boundary requirement PosixFilesystemDarwin::c_create_dir(path: &[u8; 4096], mode: u16) -> i32
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_remove_dir(path: &[u8; 4096]) -> i32
+reaches FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_create_dir_name(name: &[u8; 4096], mode: u16) -> i32
+reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_open_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_unlink_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
+reaches FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_set_permissions(path: &[u8; 4096], mode: u16) -> i32
+reaches FilesystemMetadataMutation;
+boundary requirement PosixFilesystemDarwin::c_set_file_permissions(fd: i32, mode: u16) -> i32
+reaches FilesystemMetadataMutation;
+boundary requirement PosixFilesystemDarwin::c_rename(from: &[u8; 4096], to: &[u8; 4096]) -> i32
+reaches FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_hard_link(original: &[u8; 4096], link: &[u8; 4096]) -> i32
+reaches FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_symlink(target: &[u8; 4096], link: &[u8; 4096]) -> i32
+reaches FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_remove_name(path: &[u8; 4096]) -> i32
+reaches FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_remove_dir_name(path: &[u8; 4096]) -> i32
+reaches FilesystemNamespaceMutation;
+boundary requirement PosixFilesystemDarwin::c_read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32
+reaches FilesystemMetadataQuery;
+boundary requirement PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor: i32, name: &[u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
+reaches FilesystemMetadataQuery;
+boundary requirement PosixFilesystemDarwin::c_set_len(fd: i32, length: i64) -> i32
+reaches FilesystemContentWrite + FilesystemMetadataMutation;
+boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
+reaches FilesystemMetadataMutation;
+boundary requirement PosixFilesystemDarwin::c_sync(fd: i32) -> i32
+;
+boundary requirement PosixFilesystemDarwin::c_sync_data(fd: i32) -> i32
+;
+boundary requirement PosixFilesystemDarwin::c_duplicate(fd: i32) -> i32
+;
+boundary requirement PosixFilesystemDarwin::c_lock_file(fd: i32, operation: i32) -> i32
+;
+boundary requirement PosixFilesystemDarwin::c_change_owner(path: &[u8; 4096], uid: u32, gid: u32) -> i32
+reaches FilesystemMetadataMutation;
+boundary requirement PosixFilesystemDarwin::c_change_owner_no_follow(path: &[u8; 4096], uid: u32, gid: u32) -> i32
+reaches FilesystemMetadataMutation;
+boundary requirement PosixFilesystemDarwin::c_change_file_owner(fd: i32, uid: u32, gid: u32) -> i32
+reaches FilesystemMetadataMutation;
+boundary requirement PosixFilesystemDarwin::c_error_location() -> u64
+;
+boundary requirement PosixFilesystemDarwin::c_copy_from_address(destination: &mut [u8; 4], source: u64, count: u64) -> u64
+requires count <= 4;
+
+data PosixFilesystemDarwin { }  // requirement namespace for the libSystem imports
+data PosixFilesystemDarwinImports { }
+
+macos_arm64 machine PosixFilesystemDarwinImports::c_open(path: &[u8; 4096], flags: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_open via posix_darwin_open_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_open_create(path: &[u8; 4096], flags: i32, mode: u16) -> i32
+    satisfies PosixFilesystemDarwin::c_open_create via posix_darwin_open_private_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_create(path: &[u8; 4096], mode: u16) -> i32
+    satisfies PosixFilesystemDarwin::c_create via posix_darwin_creat_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read(fd: i32, buffer: &mut [u8]) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_read via posix_darwin_read_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_write(fd: i32, bytes: &[u8]) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_write via posix_darwin_write_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_at(fd: i32, buffer: &mut [u8], offset: i64) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_read_at via posix_darwin_pread_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_write_at via posix_darwin_pwrite_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_close(fd: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_close via posix_darwin_close_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_remove(path: &[u8; 4096]) -> i32
+    satisfies PosixFilesystemDarwin::c_remove via posix_darwin_unlink_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_seek(fd: i32, offset: i64, whence: i32) -> i64
+    satisfies PosixFilesystemDarwin::c_seek via posix_darwin_lseek_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_create_dir(path: &[u8; 4096], mode: u16) -> i32
+    satisfies PosixFilesystemDarwin::c_create_dir via posix_darwin_mkdir_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_remove_dir(path: &[u8; 4096]) -> i32
+    satisfies PosixFilesystemDarwin::c_remove_dir via posix_darwin_rmdir_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_create_dir_name(name: &[u8; 4096], mode: u16) -> i32
+    satisfies PosixFilesystemDarwin::c_create_dir_name via posix_darwin_mkdir_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_open_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_open_at via posix_darwin_openat_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_unlink_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_unlink_at via posix_darwin_unlinkat_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_permissions(path: &[u8; 4096], mode: u16) -> i32
+    satisfies PosixFilesystemDarwin::c_set_permissions via posix_darwin_chmod_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_permissions(fd: i32, mode: u16) -> i32
+    satisfies PosixFilesystemDarwin::c_set_file_permissions via posix_darwin_fchmod_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_rename(from: &[u8; 4096], to: &[u8; 4096]) -> i32
+    satisfies PosixFilesystemDarwin::c_rename via posix_darwin_rename_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_hard_link(original: &[u8; 4096], link: &[u8; 4096]) -> i32
+    satisfies PosixFilesystemDarwin::c_hard_link via posix_darwin_link_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_symlink(target: &[u8; 4096], link: &[u8; 4096]) -> i32
+    satisfies PosixFilesystemDarwin::c_symlink via posix_darwin_symlink_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_link(path: &[u8; 4096], buffer: &mut [u8]) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_read_link via posix_darwin_readlink_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_dir(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_read_dir via posix_darwin_getdirentries64_private_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_remove_name(path: &[u8; 4096]) -> i32
+    satisfies PosixFilesystemDarwin::c_remove_name via posix_darwin_unlink_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_remove_dir_name(path: &[u8; 4096]) -> i32
+    satisfies PosixFilesystemDarwin::c_remove_dir_name via posix_darwin_rmdir_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32
+    satisfies PosixFilesystemDarwin::c_read_file_metadata via posix_darwin_fstat_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_metadata_at(directory_descriptor: i32, name: &[u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_read_metadata_at via posix_darwin_fstatat_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_len(fd: i32, length: i64) -> i32
+    satisfies PosixFilesystemDarwin::c_set_len via posix_darwin_ftruncate_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
+    satisfies PosixFilesystemDarwin::c_set_file_times via posix_darwin_futimens_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_sync(fd: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_sync via posix_darwin_fsync_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_sync_data(fd: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_sync_data via posix_darwin_fdatasync_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_duplicate(fd: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_duplicate via posix_darwin_dup_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_lock_file(fd: i32, operation: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_lock_file via posix_darwin_flock_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_change_owner(path: &[u8; 4096], uid: u32, gid: u32) -> i32
+    satisfies PosixFilesystemDarwin::c_change_owner via posix_darwin_chown_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_change_owner_no_follow(path: &[u8; 4096], uid: u32, gid: u32) -> i32
+    satisfies PosixFilesystemDarwin::c_change_owner_no_follow via posix_darwin_lchown_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_change_file_owner(fd: i32, uid: u32, gid: u32) -> i32
+    satisfies PosixFilesystemDarwin::c_change_file_owner via posix_darwin_fchown_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_error_location() -> u64
+    satisfies PosixFilesystemDarwin::c_error_location via posix_darwin_error_private_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_copy_from_address(destination: &mut [u8; 4], source: u64, count: u64) -> u64
+    satisfies PosixFilesystemDarwin::c_copy_from_address via posix_darwin_memcpy_binding()
+    requires count <= 4;
 
 // The negated `errno` of the call that just failed.
-machine darwin_filesystem_failure_i32() -> i32
+macos_arm64 machine PosixFilesystemDarwin::failure_i32() -> i32
 
 {
     let location: u64 = PosixFilesystemDarwin::c_error_location();
     let mut code: [u8; 4];
-    let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code[0], location, 4);
+    let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code, location, 4);
     let low: u8 = code[0];
     0 - (low as i32)
 }
 
-machine darwin_filesystem_failure_i64() -> i64
+macos_arm64 machine PosixFilesystemDarwin::failure_i64() -> i64
 
 {
     let location: u64 = PosixFilesystemDarwin::c_error_location();
     let mut code: [u8; 4];
-    let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code[0], location, 4);
+    let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code, location, 4);
     let low: u8 = code[0];
     0 - (low as i64)
 }
 
 // Capture libc errno before restoring caller storage after a native write.
-machine darwin_filesystem_normalize_i64(outcome: i64) -> i64 {
-    transition outcome < 0 { true -> darwin_filesystem_failure_i64() _ -> outcome }
+macos_arm64 machine PosixFilesystemDarwin::normalize_i64(outcome: i64) -> i64 {
+    transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i64() _ -> outcome }
 }
 
 // Darwin `ENAMETOOLONG`, answered without a call when a path does not fit.
-machine darwin_filesystem_name_too_long_i32() -> i32 { -63 }
-machine darwin_filesystem_name_too_long_i64() -> i64 { -63 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// The kernel writes one complete native record into caller-owned storage.
-// Only path termination needs scratch; undersized output never reaches libc.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-DarwinArm64PosixFilesystem satisfies PosixFilesystemHost {
-    machine open(path: &[u8] in Path, flags: i32) -> i32
+macos_arm64 machine PosixFilesystemDarwin::name_too_long_i32() -> i32 { -63 }
+macos_arm64 machine PosixFilesystemDarwin::name_too_long_i64() -> i64 { -63 }
+
+macos_arm64 machine PosixFilesystemNativeProvider::open(path: &[u8] in Path, flags: i32) -> i32
+    satisfies PosixFilesystemHost::open
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -295,7 +570,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
 }
 
-    machine open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32
+    satisfies PosixFilesystemHost::open_create
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -314,7 +590,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
 }
 
-    machine create(path: &[u8] in Path, mode: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::create(path: &[u8] in Path, mode: i32) -> i32
+    satisfies PosixFilesystemHost::create
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -333,7 +610,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
 }
 
-    machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64
+macos_arm64 machine PosixFilesystemNativeProvider::read(fd: i32, buffer: &mut [u8], count: u64) -> i64
+    satisfies PosixFilesystemHost::read
 reaches FilesystemContentRead
 {
     let capacity: u64 = min_u64(count, buffer.len);
@@ -341,14 +619,16 @@ reaches FilesystemContentRead
     PosixFilesystemDarwin::normalize_i64(outcome)
 }
 
-    machine write(fd: i32, bytes: &[u8]) -> i64
+macos_arm64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) -> i64
+    satisfies PosixFilesystemHost::write
 reaches FilesystemContentWrite
 {
     let outcome: i64 = PosixFilesystemDarwinImports::c_write(fd, bytes);
     PosixFilesystemDarwin::normalize_i64(outcome)
 }
 
-    machine read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64
+macos_arm64 machine PosixFilesystemNativeProvider::read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64
+    satisfies PosixFilesystemHost::read_at
 reaches FilesystemContentRead
 {
     let capacity: u64 = min_u64(count, buffer.len);
@@ -356,14 +636,17 @@ reaches FilesystemContentRead
     PosixFilesystemDarwin::normalize_i64(outcome)
 }
 
-    machine write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
+macos_arm64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
+    satisfies PosixFilesystemHost::write_at
 reaches FilesystemContentWrite
 {
     let outcome: i64 = PosixFilesystemDarwinImports::c_write_at(fd, bytes, offset);
     PosixFilesystemDarwin::normalize_i64(outcome)
 }
 
-    machine close(fd: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::close(fd: i32) -> i32
+    satisfies PosixFilesystemHost::close
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_close(fd);
     transition outcome < 0 {
@@ -372,7 +655,8 @@ reaches FilesystemContentWrite
     }
 }
 
-    machine remove(path: &[u8] in Path) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::remove(path: &[u8] in Path) -> i32
+    satisfies PosixFilesystemHost::remove
 reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -391,7 +675,9 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine seek(fd: i32, offset: i64, whence: i32) -> i64
+macos_arm64 machine PosixFilesystemNativeProvider::seek(fd: i32, offset: i64, whence: i32) -> i64
+    satisfies PosixFilesystemHost::seek
+
 {
     let outcome: i64 = PosixFilesystemDarwin::c_seek(fd, offset, whence);
     transition outcome < 0 {
@@ -400,7 +686,8 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine create_dir(path: &[u8] in Path, mode: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::create_dir(path: &[u8] in Path, mode: i32) -> i32
+    satisfies PosixFilesystemHost::create_dir
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -419,7 +706,8 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     }
 }
 
-    machine remove_dir(path: &[u8] in Path) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::remove_dir(path: &[u8] in Path) -> i32
+    satisfies PosixFilesystemHost::remove_dir
 reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -438,7 +726,8 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine create_dir_name(name: &[u8], mode: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::create_dir_name(name: &[u8], mode: i32) -> i32
+    satisfies PosixFilesystemHost::create_dir_name
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -457,7 +746,8 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     }
 }
 
-    machine open_at(dirfd: i32, name: &[u8], flags: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::open_at(dirfd: i32, name: &[u8], flags: i32) -> i32
+    satisfies PosixFilesystemHost::open_at
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -476,7 +766,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
 }
 
-    machine unlink_at(dirfd: i32, name: &[u8], flags: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::unlink_at(dirfd: i32, name: &[u8], flags: i32) -> i32
+    satisfies PosixFilesystemHost::unlink_at
 reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -495,7 +786,8 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::set_permissions(path: &[u8] in Path, mode: u32) -> i32
+    satisfies PosixFilesystemHost::set_permissions
 reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
@@ -514,7 +806,8 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine set_file_permissions(fd: i32, mode: u32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::set_file_permissions(fd: i32, mode: u32) -> i32
+    satisfies PosixFilesystemHost::set_file_permissions
 reaches FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_set_file_permissions(fd, narrow_u32_to_u16_wrapping(mode));
@@ -524,7 +817,8 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::rename(from: &[u8] in Path, to: &[u8] in Path) -> i32
+    satisfies PosixFilesystemHost::rename
 reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
@@ -545,7 +839,8 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32
+    satisfies PosixFilesystemHost::hard_link
 reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
@@ -566,7 +861,8 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32
+    satisfies PosixFilesystemHost::symlink
 reaches FilesystemNamespaceMutation
 {
     let mut first: [u8; 4096];
@@ -587,7 +883,8 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> i64
+macos_arm64 machine PosixFilesystemNativeProvider::read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> i64
+    satisfies PosixFilesystemHost::read_link
 reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
@@ -600,7 +897,8 @@ reaches FilesystemMetadataQuery
     }
 }
 
-    machine read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64
+macos_arm64 machine PosixFilesystemNativeProvider::read_dir(fd: i32, buffer: &mut [u8], count: u64, position: &mut i64) -> i64
+    satisfies PosixFilesystemHost::read_dir
 reaches DirectoryEnumeration
 {
     let capacity: u64 = min_u64(count, buffer.len);
@@ -641,7 +939,8 @@ reaches DirectoryEnumeration
     }
 }
 
-    machine remove_name(path: &[u8]) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::remove_name(path: &[u8]) -> i32
+    satisfies PosixFilesystemHost::remove_name
 reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -660,7 +959,8 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine remove_dir_name(path: &[u8]) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::remove_dir_name(path: &[u8]) -> i32
+    satisfies PosixFilesystemHost::remove_dir_name
 reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
@@ -679,13 +979,15 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
+    satisfies PosixFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery
 {
     PosixFilesystemNativeProvider::read_metadata_at(-2, path, buffer, 0)
 }
 
-    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32
+    satisfies PosixFilesystemHost::read_file_metadata
 reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 144 { true -> query(fd, buffer) _ -> -22 }
@@ -695,13 +997,17 @@ reaches FilesystemMetadataQuery
     }
 }
 
-    machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
+    satisfies PosixFilesystemHost::read_symlink_metadata
 reaches FilesystemMetadataQuery
 {
     PosixFilesystemNativeProvider::read_metadata_at(-2, path, buffer, 32)
 }
 
-    machine read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+// The kernel writes one complete native record into caller-owned storage.
+// Only path termination needs scratch; undersized output never reaches libc.
+macos_arm64 machine PosixFilesystemNativeProvider::read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+    satisfies PosixFilesystemHost::read_metadata_at
 reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 144 { true -> prepare(directory_descriptor, name, buffer, flags) _ -> -22 }
@@ -720,7 +1026,8 @@ reaches FilesystemMetadataQuery
     }
 }
 
-    machine set_len(fd: i32, length: i64) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::set_len(fd: i32, length: i64) -> i32
+    satisfies PosixFilesystemHost::set_len
 reaches FilesystemContentWrite + FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_set_len(fd, length);
@@ -730,12 +1037,13 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation
     }
 }
 
-    machine set_file_times(fd: i32, times: &[u8]) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::set_file_times(fd: i32, times: &[u8]) -> i32
+    satisfies PosixFilesystemHost::set_file_times
 reaches FilesystemMetadataMutation
 {
     transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
     machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
-        let mut native: LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>;
+        let mut native: DarwinTimestampAlignment<DarwinTimestampRecord>;
         native.accessed_seconds = darwin_timestamp_word(times[0..8]);
         native.accessed_nanoseconds = darwin_timestamp_word(times[8..16]);
         native.modified_seconds = darwin_timestamp_word(times[16..24]);
@@ -745,7 +1053,9 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine sync(fd: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::sync(fd: i32) -> i32
+    satisfies PosixFilesystemHost::sync
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_sync(fd);
     transition outcome < 0 {
@@ -754,7 +1064,9 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine sync_data(fd: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::sync_data(fd: i32) -> i32
+    satisfies PosixFilesystemHost::sync_data
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_sync_data(fd);
     transition outcome < 0 {
@@ -763,7 +1075,9 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine duplicate(fd: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::duplicate(fd: i32) -> i32
+    satisfies PosixFilesystemHost::duplicate
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_duplicate(fd);
     transition outcome < 0 {
@@ -772,7 +1086,9 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine lock_file(fd: i32, operation: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::lock_file(fd: i32, operation: i32) -> i32
+    satisfies PosixFilesystemHost::lock_file
+
 {
     let outcome: i32 = PosixFilesystemDarwin::c_lock_file(fd, operation);
     transition outcome < 0 {
@@ -781,7 +1097,8 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32
+    satisfies PosixFilesystemHost::change_owner
 reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
@@ -800,7 +1117,8 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine change_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::change_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> i32
+    satisfies PosixFilesystemHost::change_owner_no_follow
 reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
@@ -819,7 +1137,8 @@ reaches FilesystemMetadataMutation
     }
 }
 
-    machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
+macos_arm64 machine PosixFilesystemNativeProvider::change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
+    satisfies PosixFilesystemHost::change_file_owner
 reaches FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemDarwin::c_change_file_owner(fd, narrow_i32_to_u32_wrapping(uid), narrow_i32_to_u32_wrapping(gid));
@@ -828,45 +1147,8 @@ reaches FilesystemMetadataMutation
         _ -> (outcome)
     }
 }
-}
 
-// Exact ordinary helper retained from main Darwin ABI repair.
-machine PosixFilesystemDarwin::failure_i32() -> i32
-{
-    let location: u64 = PosixFilesystemDarwin::c_error_location();
-    let mut code: [u8; 4];
-    let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code, location, 4);
-    let low: u8 = code[0];
-    0 - (low as i32)
-}
-
-// Exact ordinary helper retained from main Darwin ABI repair.
-machine PosixFilesystemDarwin::failure_i64() -> i64
-{
-    let location: u64 = PosixFilesystemDarwin::c_error_location();
-    let mut code: [u8; 4];
-    let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code, location, 4);
-    let low: u8 = code[0];
-    0 - (low as i64)
-}
-
-// Exact ordinary helper retained from main Darwin ABI repair.
-machine PosixFilesystemDarwin::normalize_i64(outcome: i64) -> i64
-{
-    transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i64() _ -> outcome }
-}
-
-// Exact ordinary helper retained from main Darwin ABI repair.
-machine PosixFilesystemDarwin::name_too_long_i32() -> i32
-{ -63 }
-
-// Exact ordinary helper retained from main Darwin ABI repair.
-machine PosixFilesystemDarwin::name_too_long_i64() -> i64
-{ -63 }
-
-// Exact ordinary helper retained from main Darwin ABI repair.
-machine PosixFilesystemNativeProvider::provider_defaults(defaults: &mut PosixFilesystemNativeProvider)
-{
+macos_arm64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &mut PosixFilesystemNativeProvider) {
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemHost, PosixFilesystemImplementation>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_open, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_open_create, PosixFilesystemDarwinImports>(defaults);

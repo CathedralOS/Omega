@@ -5,18 +5,18 @@ use omega::language::core::task;
 // `blocks;` from its own Target requirement cannot realize the slot.
 data NarrowTaskRuntime { }
 
-boundary machine NarrowTaskRuntime::start<T, Arguments, machine Target>(
+machine NarrowTaskRuntime::start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> Task<T>
 requires machine Target(arguments: Arguments) -> T suspends;
 satisfies TaskRuntime::start
-;
+via ForeignBinding::CompilerIntrinsic;
 
-boundary machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(
+machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> StartOutcome<T, Arguments>
 requires machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
-;
+via ForeignBinding::CompilerIntrinsic;
 
 machine main() { }

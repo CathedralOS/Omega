@@ -12,8 +12,6 @@ pub enum IntrinsicRequirementKind {
     Operator,
     /// A receiver-free top-level `boundary requirement` machine.
     TopLevelRequirement,
-    /// Exact closed-catalogue boundary-trait requirement.
-    Trait(symbols::SymbolHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,22 +112,6 @@ impl<'typed> IntrinsicRequirement<'typed> {
         if !symbol.is_valid() {
             return None;
         }
-        if let Some((owner, requirement)) = typed.trait_machine_signature(symbol) {
-            typed.sealed_numeric_requirement(owner, requirement)?;
-            return Some(Self {
-                kind: IntrinsicRequirementKind::Trait(owner.symbol),
-                symbol: requirement.symbol,
-                call_target: requirement.symbol,
-                namespace: typed.trait_declaration_path(owner),
-                name: requirement.name.as_str().to_owned(),
-                parameters: typed.state_signature_parameters(requirement),
-                return_type: requirement.return_type,
-                package_identity: typed.symbols.symbol_package_identity(requirement.symbol),
-                requirement_identity: typed
-                    .trait_requirement_callable_identity_text(owner, requirement),
-                operator: None,
-            });
-        }
         if let Some(operator) = typed.operator_definition_by_symbol(symbol) {
             return Self::from_operator(typed, operator);
         }
@@ -158,9 +140,6 @@ impl<'typed> IntrinsicRequirement<'typed> {
 
     /// Expected schema coordinate, retained before source is discarded.
     pub fn schema_identity(&self) -> std::borrow::Cow<'_, str> {
-        if matches!(self.kind, IntrinsicRequirementKind::Trait(_)) {
-            return std::borrow::Cow::Borrowed(&self.namespace);
-        }
         if self.kind == IntrinsicRequirementKind::Operator || self.operator.is_some() {
             std::borrow::Cow::Borrowed(&self.requirement_identity)
         } else {
@@ -171,18 +150,14 @@ impl<'typed> IntrinsicRequirement<'typed> {
     pub fn method_name(&self) -> &str {
         match self.kind {
             IntrinsicRequirementKind::Operator => "realize",
-            IntrinsicRequirementKind::TopLevelRequirement | IntrinsicRequirementKind::Trait(_) => {
-                &self.name
-            }
+            IntrinsicRequirementKind::TopLevelRequirement => &self.name,
         }
     }
 
     pub fn method_owner(&self) -> &str {
         match self.kind {
             IntrinsicRequirementKind::Operator => &self.requirement_identity,
-            IntrinsicRequirementKind::TopLevelRequirement | IntrinsicRequirementKind::Trait(_) => {
-                &self.namespace
-            }
+            IntrinsicRequirementKind::TopLevelRequirement => &self.namespace,
         }
     }
 
@@ -198,8 +173,9 @@ impl<'typed> IntrinsicRequirement<'typed> {
         // an external realization at all.
         typed.machines().iter().any(|machine| {
             typed
-                .sealed_numeric_realization(machine.symbol, self.symbol)
-                .is_some()
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| conformance.external_binding.is_some())
                 && typed
                     .machine_callable_identity_text(machine)
                     .is_some_and(|identity| identity == realization_machine_identity)
@@ -215,11 +191,6 @@ impl<'typed> IntrinsicRequirement<'typed> {
                             )
                             .is_some_and(|resolved| resolved.symbol == self.symbol)
                         }
-                        IntrinsicRequirementKind::Trait(owner) => matches!(
-                            crate::machine::resolve_satisfied_declaration(typed, machine, conformance),
-                            Some(crate::machine::SatisfiedDeclaration::Trait { definition, requirement })
-                                if definition.symbol == owner && requirement.symbol == self.symbol
-                        ),
                         IntrinsicRequirementKind::TopLevelRequirement => matches!(
                             crate::machine::resolve_satisfied_declaration(
                                 typed, machine, conformance,

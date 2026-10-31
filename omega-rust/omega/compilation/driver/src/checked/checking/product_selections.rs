@@ -8,18 +8,11 @@ pub(super) fn admit(
     source: &mut psi_compiler::SourceContinuation,
     computed: &mut ComputedBuildConfig,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-    handoffs: &package_compilation::BuildHandoffInventory,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut package_providers = Vec::new();
-    for selection in
-        handoffs.admitted_provider_selections(package_inputs, source::DependencyScope::Product)?
-    {
-        package_providers.push(
-            source
-                .rejoin_product_provider_selection(&selection)
-                .map_err(|error| vec![error])?,
-        );
-    }
+    let package_providers = package_inputs
+        .map(|inputs| inputs.rejoin_package_provider_selections(source))
+        .transpose()?
+        .unwrap_or_default();
     let admitted = source.admit_product_policy(psi_compiler::ProductPolicyRequest {
         activation: computed.selected_build_machine_symbol,
         declared: &computed.declared_product_selections,
@@ -46,9 +39,9 @@ pub(super) fn admit(
             evaluation,
         });
     }
-    for (_, bundle) in handoffs
-        .handoffs()
-        .filter(|(scope, _)| *scope == build_declarations::DependencyPurpose::Product)
+    for bundle in package_inputs
+        .into_iter()
+        .flat_map(|inputs| inputs.product_dependency_native_handoffs())
     {
         let selections = source.admit_captured_native_bindings(
             bundle.native_declarations(),

@@ -35,8 +35,14 @@ machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "copy expects source and byte count" } }
     }
 }
-
-
+linux_x86_64 machine snapshot_binding() -> ForeignBinding<9, 6, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
+    } }
+}
+linux_x86_64 machine snapshot(value: &[u8; 8], count: u64) -> u64
+satisfies Snapshot::copy via snapshot_binding()
+requires count == 8;
 NativeSnapshot satisfies Snapshot { Snapshot::copy = snapshot; }
 machine main() crashes Trap {
     let value: [u8; 8] = [135, 214, 18, 0, 0, 0, 0, 0];

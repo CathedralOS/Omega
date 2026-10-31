@@ -27,7 +27,7 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 pub(crate) struct TerminalProductionView<'a> {
     program: &'a Arc<checked_trees::CheckedTrees>,
     provider_inventory: &'a checked_trees::PreparedProviderInventory,
-    external_declarations: &'a psi_compiler::PreparedDeclarationCatalog,
+    external_declarations: &'a psi_compiler::PreparedExternalProviderDeclarations,
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
     provider_defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
@@ -53,7 +53,7 @@ impl<'a> TerminalProductionView<'a> {
         Self {
             program: selection.execution.provider_source.program(),
             provider_inventory: selection.execution.provider_source.inventory(),
-            external_declarations: &selection.execution.declaration_catalog,
+            external_declarations: &selection.execution.external_providers,
             sources: &selection.sources,
             build: &selection.build,
             provider_defaults: &selection.provider_defaults,
@@ -76,7 +76,7 @@ impl<'a> TerminalProductionView<'a> {
         Self {
             program: checked.execution().provider_source.program(),
             provider_inventory: checked.execution().provider_source.inventory(),
-            external_declarations: &checked.execution().declaration_catalog,
+            external_declarations: &checked.execution().external_providers,
             sources: checked.sources(),
             build: checked.build(),
             provider_defaults: checked.provider_defaults(),
@@ -404,7 +404,23 @@ fn produce_shared_terminal(
             .filter(|receipt| receipt.provider_machine.is_valid())
             .map(|receipt| receipt.provider_machine),
     );
+    // Normalize the default to its portable family head; application receipts
+    // still name the exact selected declaration.
     let default = machines[0];
+    let default = typed
+        .target_machine_families
+        .iter()
+        .find(|family| {
+            (family.canonical == default
+                || family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == default))
+                && typed
+                    .machine_by_symbol(family.canonical)
+                    .is_some_and(|machine| machine.target_family_interface)
+        })
+        .map_or(default, |family| family.canonical);
     let applications = cohort
         .iter()
         .map(AdmittedTerminalProduct::custody)
@@ -546,10 +562,25 @@ fn prepare_target_provider_publication(
             .target_name()
             .to_owned(),
     );
+    targets.extend(
+        checked_trees::ProofApplications::new(
+            &source.program.facts.proof_applications,
+            &source.program.facts.operational,
+        )
+        .scopes(
+            source
+                .selected_target_profile
+                .unwrap_or_else(target::TargetProfile::host)
+                .target_name(),
+        )
+        .into_iter()
+        .map(str::to_owned),
+    );
     targets.sort();
     targets.dedup();
     let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
         body_declarations: source.provider_inventory.direct_calls(),
+        origins: source.provider_inventory.origins(),
         context: provider_planning::ProviderPlanningContext::new(
             &source.program.typed,
             source::DependencyScope::Product,

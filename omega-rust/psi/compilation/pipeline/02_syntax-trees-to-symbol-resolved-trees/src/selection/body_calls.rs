@@ -52,6 +52,15 @@ pub(crate) fn retarget_machine_calls(
             .collect::<Vec<_>>();
         let mut declaration_expressions = Vec::new();
         append_contract_expressions(program, machine.contracts, &mut declaration_expressions);
+        // A bodyless external leaf still owns executable compile-time
+        // expressions. Rebind their calls by the same exact-family rule
+        // as body calls, before typing commits their producer identities.
+        declaration_expressions.extend(
+            program
+                .machine_trait_conformances(machine.satisfies)
+                .iter()
+                .map(|conformance| conformance.via_expression),
+        );
         for state in program
             .machine_state_handles(machine.states)
             .iter()

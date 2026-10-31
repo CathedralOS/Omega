@@ -39,21 +39,20 @@ pub(super) fn project(
                         "native inventory lost its complete checked requirement",
                     )]
                 })?;
-            let method = services::project_native(
+            let method = services::project(
                 &mut signatures,
                 &candidate.plan.schema,
                 candidate.provenance.schema,
+                None,
                 native.requirement,
                 method,
                 &candidate.plan.schema.identities,
-                native,
             )?;
             for production in
                 std::iter::once(&native.origin.primary).chain(&native.origin.equivalents)
             {
                 let occurrence = provider_planning::native_bindings::NativeBuildRowOrigin {
                     requirement: native.requirement,
-                    selection: native.selection.clone(),
                     origin: package_compilation::PackageNativeBindingOrigin {
                         primary: production.clone(),
                         equivalents: Vec::new(),
@@ -66,16 +65,6 @@ pub(super) fn project(
                 )?;
                 rows.push(PackagePolicyNativeBinding {
                     method: method.clone(),
-                    producer: crate::capture::providers::policy::bindings::native_producer(
-                        input,
-                        &occurrence,
-                    )?,
-                    application: native
-                        .selection
-                        .application
-                        .coordinates(&input.typed)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?
-                        .into(),
                     binding,
                 });
             }

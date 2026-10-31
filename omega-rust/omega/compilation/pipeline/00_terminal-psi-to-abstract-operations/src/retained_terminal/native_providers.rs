@@ -43,7 +43,7 @@ impl PreparedNativeExecution {
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         proposal: &TerminalNativeRealizationProposal,
-        entry: terminal_psi::TerminalCallable,
+        entry: terminal_psi::TargetMachineCallable,
         scalar_applications: Option<crate::NativeScalarApplications<'_>>,
     ) -> Result<crate::VerifiedNativeArtifactInput, Vec<Diagnostic>> {
         let selection = crate::NativeExecutionSelection {
@@ -64,7 +64,7 @@ impl PreparedNativeExecution {
             .lower(artifact, &[], &selection)
             .map_err(crate::native_admission::artifact_lowering_error)?;
         input
-            .bind_selected_provider_coordinates(&self.selection)
+            .bind_selected_provider_coordinates(artifact, &self.selection)
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }
 }
@@ -109,7 +109,7 @@ impl PreparedNativeWork<'_> {
             )
             .map_err(crate::native_admission::artifact_lowering_error)?;
         let input = input
-            .bind_selected_provider_coordinates(&self.execution.selection)
+            .bind_selected_provider_coordinates(self.artifact, &self.execution.selection)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok((input, self.execution))
     }
@@ -159,7 +159,7 @@ impl PreparedRetainedNativeProviders<'_> {
         let proposal = self.proposal;
         crate::NativeAdmissionRequest {
             private_entry_ram: &[],
-            entry: terminal_psi::TerminalCallable::Machine(
+            entry: terminal_psi::TargetMachineCallable::Machine(
                 proposal.program_entry().checked_entry().terminal_entry(),
             ),
             boundary_application_coverage: Some(&proposal.boundary_applications().coverage),
@@ -228,10 +228,10 @@ impl TerminalNativeRealizationProposal {
             .collect::<Vec<_>>();
         let entry = self.program_entry().as_settlement();
         let root = entry.physical_adapter().map_or(
-            terminal_psi::TerminalCallable::Machine(
+            terminal_psi::TargetMachineCallable::Machine(
                 self.program_entry().checked_entry().terminal_entry(),
             ),
-            |adapter| terminal_psi::TerminalCallable::Machine(adapter.machine()),
+            |adapter| terminal_psi::TargetMachineCallable::Machine(adapter.machine()),
         );
         let semantic_call = crate::SelectedProgramEntryCall::bind(
             artifact,
@@ -274,7 +274,7 @@ impl TerminalNativeRealizationProposal {
     pub fn prepare_native_callable_execution<'input>(
         &'input self,
         artifact: &'input terminal_codec::CanonicalTerminalArtifact,
-        entry: terminal_psi::TerminalCallable,
+        entry: terminal_psi::TargetMachineCallable,
     ) -> Result<PreparedNativeWork<'input>, Vec<Diagnostic>> {
         let scope = crate::artifact_admission::NativeScopePreparation::prepare(
             artifact,
@@ -331,6 +331,7 @@ impl TerminalNativeRealizationProposal {
         };
         let mut demands = BTreeSet::new();
         let mut direct_demands = BTreeSet::new();
+        let mut family_members = Vec::new();
         for boundary in module
             .boundary_machines
             .iter()
@@ -346,7 +347,26 @@ impl TerminalNativeRealizationProposal {
             {
                 continue;
             }
-            direct_demands.insert(name.to_owned());
+            match crate::optimization::target_family_member(
+                module,
+                Some(&scope.targets),
+                boundary.id,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            {
+                Some(terminal_psi::TargetMachineCallable::Boundary(member)) => {
+                    let member = module.boundary_machine(member).ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "foreign family lost its exact target member",
+                        )]
+                    })?;
+                    direct_demands.insert(identity(member)?.to_owned());
+                    family_members.push((boundary, member));
+                }
+                _ => {
+                    direct_demands.insert(name.to_owned());
+                }
+            }
         }
         let mut direct = Vec::new();
         let mut external_bindings = self.providers().external_bindings.clone();
@@ -360,11 +380,33 @@ impl TerminalNativeRealizationProposal {
                 }
             }
         }
-        let selection = self
+        let mut selection = self
             .providers()
             .selection
             .clone()
             .with_direct_boundary_plans(direct)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let mut family_rows = selection.family_realization_rows().to_vec();
+        let mut identities = selection.identities().clone().into_builder();
+        for (head, member) in family_members {
+            let Some((plan, row)) = selection.selected_requirement_row(identity(member)?) else {
+                continue;
+            };
+            family_rows.push(effects::SelectedTargetFamilyRealization {
+                terminal: artifact.manifest().semantic(),
+                target: self.target_profile().target_name().to_owned(),
+                head: head.id,
+                member: member.id,
+                head_identity: identities.intern(identity(head)?),
+                member_identity: identities.intern(identity(member)?),
+                selected_requirement_identity: identities
+                    .intern(plan.identities.text(row.requirement_identity)),
+                provider_plan_report_identity: plan.report_fingerprint(),
+                provider_plan_digest: plan.identity_digest(),
+            });
+        }
+        selection = selection
+            .with_family_realization_rows(family_rows, &identities.build())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         // Selection may reorder plans when executable direct dependencies
         // join. Rejoin complete plans, then derive every builtin in that one
@@ -428,7 +470,7 @@ impl TerminalNativeRealizationProposal {
                     };
                 Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
                     plan,
-                    semantic_schema: &leaf.semantic_plan.schema,
+                    semantic_schema: &leaf.satisfied_schema,
                     row_executions,
                     row_numeric_realizations: &non_authored_realization,
                 })
@@ -440,7 +482,7 @@ impl TerminalNativeRealizationProposal {
                 intrinsic_provenance.into_iter(),
                 &demands,
                 &module.boundary_machines,
-                &module.numeric_realizations,
+                &module.external_providers,
                 &module.identities,
             )?;
         // Builtin occurrences bind the actual boundary IDs, including family

@@ -472,13 +472,6 @@ pub fn evaluated_syscall_identity_digest(
 pub enum EvaluatedNativeBinding {
     Import(EvaluatedForeignImport),
     Syscall(EvaluatedForeignSyscall),
-    Table {
-        target: target::TargetProfile,
-        table: String,
-        field: String,
-        drops_receiver: bool,
-        receipt: EvaluatedBindingReceipt,
-    },
 }
 
 impl EvaluatedNativeBinding {
@@ -489,19 +482,6 @@ impl EvaluatedNativeBinding {
     ) -> Result<Self, String> {
         let receipt = self.receipt().reintern_producer(source, destination)?;
         match self {
-            Self::Table {
-                target,
-                table,
-                field,
-                drops_receiver,
-                ..
-            } => Ok(Self::Table {
-                target: *target,
-                table: table.clone(),
-                field: field.clone(),
-                drops_receiver: *drops_receiver,
-                receipt,
-            }),
             Self::Import(import) => Ok(Self::Import(
                 EvaluatedForeignImport::from_retained_evidence(import.locator().clone(), receipt)?,
             )),
@@ -518,7 +498,6 @@ impl EvaluatedNativeBinding {
 
     pub const fn target(&self) -> target::TargetProfile {
         match self {
-            Self::Table { target, .. } => *target,
             Self::Import(evaluated) => evaluated.locator().target(),
             Self::Syscall(evaluated) => evaluated.target(),
         }
@@ -526,7 +505,6 @@ impl EvaluatedNativeBinding {
 
     pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
         match self {
-            Self::Table { receipt, .. } => receipt,
             Self::Import(evaluated) => evaluated.receipt(),
             Self::Syscall(evaluated) => evaluated.receipt(),
         }
@@ -534,7 +512,6 @@ impl EvaluatedNativeBinding {
 
     pub const fn identity_digest(&self) -> target::ForeignLocatorIdentityDigest {
         match self {
-            Self::Table { receipt, .. } => receipt.locator_identity_digest(),
             Self::Import(evaluated) => evaluated.locator().identity_digest(),
             Self::Syscall(evaluated) => evaluated.identity_digest(),
         }
@@ -542,24 +519,6 @@ impl EvaluatedNativeBinding {
 
     pub fn provider_binding(&self) -> super::ProviderBinding {
         match self {
-            Self::Table {
-                table,
-                field,
-                drops_receiver,
-                ..
-            } => {
-                if *drops_receiver {
-                    super::ProviderBinding::TableFunction {
-                        table: table.clone(),
-                        field: field.clone(),
-                    }
-                } else {
-                    super::ProviderBinding::VtableField {
-                        table: table.clone(),
-                        field: field.clone(),
-                    }
-                }
-            }
             Self::Import(evaluated) => super::ProviderBinding::Import {
                 evaluated: evaluated.clone(),
             },
@@ -572,13 +531,13 @@ impl EvaluatedNativeBinding {
     pub const fn as_import(&self) -> Option<&EvaluatedForeignImport> {
         match self {
             Self::Import(evaluated) => Some(evaluated),
-            Self::Syscall(_) | Self::Table { .. } => None,
+            Self::Syscall(_) => None,
         }
     }
 
     pub const fn as_syscall(&self) -> Option<&EvaluatedForeignSyscall> {
         match self {
-            Self::Import(_) | Self::Table { .. } => None,
+            Self::Import(_) => None,
             Self::Syscall(evaluated) => Some(evaluated),
         }
     }

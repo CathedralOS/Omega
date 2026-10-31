@@ -130,38 +130,6 @@ pub fn applied_lifetime_parameter_identity_with_supplier(
     lifetime_parameter_identity(program, lexical_owner, name).map(|identity| (identity, false))
 }
 
-/// Apply only the frame that owns an already resolved region. Names select a
-/// slot inside that exact declaration; an equally spelled binder in another
-/// frame cannot capture it. Without that frame the original region is rigid.
-pub fn apply_resolved_lifetime_parameter_identity(
-    program: &TypedTrees,
-    region: LifetimeParameterIdentity,
-    argument_owner: SymbolHandle,
-    scopes: &[super::AppliedTypeIdentityScope<'_>],
-) -> Option<(LifetimeParameterIdentity, bool)> {
-    let parameter = lifetime_parameter_name(program, region)?;
-    for (ordinal, scope) in scopes.iter().enumerate().rev() {
-        if program.lifetime_declaration_owner(scope.declaration) != region.declaration {
-            continue;
-        }
-        let Some((_, argument)) = scope
-            .lifetimes
-            .iter()
-            .find(|(name, _)| name == parameter.as_str())
-        else {
-            return Some((region, false));
-        };
-        return applied_lifetime_parameter_identity(
-            program,
-            argument_owner,
-            argument,
-            &scopes[..ordinal],
-        )
-        .map(|actual| (actual, true));
-    }
-    Some((region, false))
-}
-
 /// Find a region in the supplied lexical telescope, including captured outer
 /// declarations. Executable copies retain their authored declaration's regions.
 /// A same-spelled region elsewhere in the program cannot satisfy this query.
@@ -172,7 +140,7 @@ pub fn lifetime_parameter_identity(
 ) -> Option<LifetimeParameterIdentity> {
     let mut owner = program.lifetime_declaration_owner(lexical_owner);
     while owner.is_valid() {
-        let parameters = declaration_lifetime_parameters(program, owner);
+        let parameters = declaration_lifetimes(program, owner);
         if let Some(ordinal) = parameters.and_then(|parameters| {
             parameters
                 .iter()
@@ -195,12 +163,10 @@ pub fn lifetime_parameter_name(
     program: &TypedTrees,
     region: LifetimeParameterIdentity,
 ) -> Option<&crate::name::Identifier> {
-    declaration_lifetime_parameters(program, region.declaration)?.get(region.ordinal)
+    declaration_lifetimes(program, region.declaration)?.get(region.ordinal)
 }
 
-/// The exact declaration's own region telescope. This performs no lexical
-/// search, application substitution, region equality or supply admission.
-pub fn declaration_lifetime_parameters(
+fn declaration_lifetimes(
     program: &TypedTrees,
     owner: SymbolHandle,
 ) -> Option<&[crate::name::Identifier]> {

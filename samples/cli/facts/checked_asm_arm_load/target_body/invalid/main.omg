@@ -1,16 +1,10 @@
 // An AArch64 ldr destination, place reads the typed place, and the following Omega use reads that recorded value.
 // Expected exit: 0.
 machine main() crashes Trap {
-    SelectedLoad::load();
+    load();
 }
 
-boundary trait SelectedLoad {
-    machine load() reaches
-crashes Trap;
-}
-LinuxArm64Load satisfies SelectedLoad {
-    machine load() crashes Trap
-{
+linux_arm64 machine load() crashes Trap {
     let source: u32 = 37;
     let mut loaded: u32 = 0;
     asm {
@@ -23,13 +17,22 @@ LinuxArm64Load satisfies SelectedLoad {
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
+
+macos_arm64 machine load() crashes Trap {
+    let source: u32 = 37;
+    let mut loaded: u32 = 0;
+    asm {
+        ldr loaded, [source]
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
 }
 
-
-
-WindowsX8664Load satisfies SelectedLoad {
-    machine load() crashes Trap
-{
+windows_x86_64 machine load() crashes Trap {
     let source: u32 = 37;
     let mut loaded: u32 = 0;
     asm {
@@ -42,4 +45,17 @@ WindowsX8664Load satisfies SelectedLoad {
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
+
+linux_x86_64 machine load() crashes Trap {
+    let source: u32 = 37;
+    let mut loaded: u32 = 0;
+    asm {
+        mov loaded, [source]
+    }
+    transition loaded == 37 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
 }

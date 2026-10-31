@@ -2,9 +2,9 @@ use omega::language::core::float_operations;
 
 machine rounded(value: i32) -> f32
 ensures
-    F32Classify::classify(result) == F32Classify::classify(F32FromI32::from_i32(value)) &&
-    (F32IsNan::is_nan(result) || result == F32FromI32::from_i32(value)) {
-    F32FromI32::from_i32(value)
+    F32::classify(result) == F32::classify(F32::from_i32(value)) &&
+    (F32::is_nan(result) || result == F32::from_i32(value)) {
+    F32::from_i32(value)
 }
 
 machine main() crashes Trap {

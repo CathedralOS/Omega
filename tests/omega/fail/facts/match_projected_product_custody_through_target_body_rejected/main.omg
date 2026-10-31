@@ -15,13 +15,7 @@ machine fold(value: Payload) -> u64 {
     (value.left >> 4) ^ value.right
 }
 
-boundary trait SelectedSelect {
-    machine select(selected: u64, first: u64, second: u64) -> Payload reaches
-;
-}
-CheckedSelect satisfies SelectedSelect {
-    machine select(selected: u64, first: u64, second: u64) -> Payload
-{
+windows_x86_64 machine select(selected: u64, first: u64, second: u64) -> Payload {
     let pair: Pair = Pair {
         first: Payload { left: first, right: second },
         second: Payload { left: second, right: first }
@@ -31,12 +25,38 @@ CheckedSelect satisfies SelectedSelect {
         _ -> supply(first ^ 255, second ^ 255).second
     }
 }
+linux_x86_64 machine select(selected: u64, first: u64, second: u64) -> Payload {
+    let pair: Pair = Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    };
+    match selected {
+        0 -> pair.first,
+        _ -> supply(first ^ 255, second ^ 255).second
+    }
 }
-
-
-
+macos_arm64 machine select(selected: u64, first: u64, second: u64) -> Payload {
+    let pair: Pair = Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    };
+    match selected {
+        0 -> pair.first,
+        _ -> supply(first ^ 255, second ^ 255).second
+    }
+}
+linux_arm64 machine select(selected: u64, first: u64, second: u64) -> Payload {
+    let pair: Pair = Pair {
+        first: Payload { left: first, right: second },
+        second: Payload { left: second, right: first }
+    };
+    match selected {
+        0 -> pair.first,
+        _ -> supply(first ^ 255, second ^ 255).second
+    }
+}
 machine choose(selected: u64, first: u64, second: u64) -> u64 {
-    let result: Payload = SelectedSelect::select(selected, first, second);
+    let result: Payload = select(selected, first, second);
     let consumed_again: u64 = fold(result);
     fold(result)
 }

@@ -31,11 +31,11 @@ machine round_away(value: f64) -> i32 in Wrapping {
         false -> positive(value)
     }
     machine negative(value: f64) -> i32 in Wrapping {
-        let converted: i32 in Saturating = I32FromF64::from_f64(value - 0.5);
+        let converted: i32 in Saturating = I32::from_f64(value - 0.5);
         converted as i32 in Wrapping
     }
     machine positive(value: f64) -> i32 in Wrapping {
-        let converted: i32 in Saturating = I32FromF64::from_f64(value + 0.5);
+        let converted: i32 in Saturating = I32::from_f64(value + 0.5);
         converted as i32 in Wrapping
     }
 }

@@ -12,6 +12,26 @@ public boundary trait Compare {
     machine bytes(left: &Pair in Ordered, right: &Pair in Ordered, count: u64) -> i32 reaches;
 }
 
+macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcmp",
+        },
+    }
+}
+
+linux_x86_64 machine linux_x86_64_compare_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
+        },
+    }
+}
+macos_arm64 machine compare_bytes(left: &Pair in Ordered, right: &Pair in Ordered, count: u64) -> i32
+    satisfies Compare::bytes via compare_binding();
+
+linux_x86_64 machine compare_bytes(left: &Pair in Ordered, right: &Pair in Ordered, count: u64) -> i32
+    satisfies Compare::bytes via linux_x86_64_compare_binding();
 
 machine second_value(first: i64) -> i64 requires first >= 0 && first <= 69 ensures result >= 1 && result <= 70 { first + 1 }
 

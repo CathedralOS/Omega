@@ -21,29 +21,40 @@ requires direct == false
     true
 }
 
-boundary trait SelectedObserve {
-    machine observe() -> bool reaches
-;
-}
-CheckedObserve satisfies SelectedObserve {
-    machine observe() -> bool
-{
+linux_x86_64 machine observe() -> bool {
     let left: f64 in Marked = 1.0;
     let right: f64 in Marked = 1.0;
     let direct: bool = compare(left, right);
     let matched: u64 = choose(left, right);
     hold(direct) && matched == 11
 }
+
+linux_arm64 machine observe() -> bool {
+    let left: f64 in Marked = 1.0;
+    let right: f64 in Marked = 1.0;
+    let direct: bool = compare(left, right);
+    let matched: u64 = choose(left, right);
+    hold(direct) && matched == 11
 }
 
+macos_arm64 machine observe() -> bool {
+    let left: f64 in Marked = 1.0;
+    let right: f64 in Marked = 1.0;
+    let direct: bool = compare(left, right);
+    let matched: u64 = choose(left, right);
+    hold(direct) && matched == 11
+}
 
-
-
-
-
+windows_x86_64 machine observe() -> bool {
+    let left: f64 in Marked = 1.0;
+    let right: f64 in Marked = 1.0;
+    let direct: bool = compare(left, right);
+    let matched: u64 = choose(left, right);
+    hold(direct) && matched == 11
+}
 
 machine main() crashes Trap {
-    transition SelectedObserve::observe() {
+    transition observe() {
         true -> done()
         _ -> bad()
     }

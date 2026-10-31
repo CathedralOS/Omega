@@ -64,6 +64,7 @@ pub(crate) fn selected_policy_machine<'program>(
     argument_owner: symbols::SymbolHandle,
     calling_trait: &checked_trees::typed_trees::trait_definition::TraitDefinition,
     calling_policy: &checked_trees::typed_trees::trait_definition::TraitDefinition,
+    target_profile: target::TargetProfile,
 ) -> Result<&'program checked_trees::typed_trees::machine::Machine, String> {
     use checked_trees::typed_trees::trait_definition::{
         AppliedTraitScope, TraitApplicationArguments,
@@ -210,5 +211,17 @@ pub(crate) fn selected_policy_machine<'program>(
     {
         return Err("generic calling-policy realization requires an explicitly specialized machine before policy evaluation".to_owned());
     }
-    Ok(machine)
+    // The implementation row selects the authored callable. A family head
+    // is its portable contract, not an executable policy body. Resolve that
+    // exact family on the selected deployment before build-time admission,
+    // as external binding producers and provider rows already do.
+    typed
+        .machine_for_target(machine, target_profile.target_name())
+        .ok_or_else(|| {
+            format!(
+                "calling policy realization `{}` has no body for target `{}`",
+                machine.name,
+                target_profile.target_name()
+            )
+        })
 }

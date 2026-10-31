@@ -1,13 +1,7 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedPerform, WindowsX8664Perform>(builder, windows_x86_64);
-    Build::select_provider<SelectedPerform, LinuxX8664Perform>(builder, linux_x86_64);
-    Build::select_provider<SelectedPerform, WindowsX8664Perform>(builder, macos_arm64);
-    Build::select_provider<SelectedPerform, WindowsX8664Perform>(builder, linux_arm64);
-
     Build::application(builder, "narrowed_integer_write_nonhost_invalid");
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_x86_64::ProgramEntry, entry_start);
 }

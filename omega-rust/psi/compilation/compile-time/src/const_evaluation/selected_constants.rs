@@ -1,11 +1,14 @@
 //! Resume one selected constant application, including its layout dependencies.
 //!
-//! The caller supplies exact checked provider selections and a
+//! The caller supplies exact checked provider/target-body selections and a
 //! read-only geometry provider. Psi owns source mutation, continuation order
 //! and initializer completion. Layout plans installed by evaluation must be
 //! visible to the second query pass, never a reused first-pass view.
 
-use crate::{LayoutQueryProvider, PreCheckEvaluation, SelectedBuildTimeOperators};
+use crate::{
+    LayoutQueryProvider, PreCheckEvaluation, SelectedBuildTimeOperators,
+    SelectedBuildTimeTargetBody,
+};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::references::DeclarationSelection;
@@ -15,6 +18,7 @@ pub struct SelectedConstantEvaluationRequest<'request, Layouts> {
     pub program: &'request mut TypedTrees,
     pub pending: Vec<PreCheckEvaluation>,
     pub operators: SelectedBuildTimeOperators<'request>,
+    pub target_bodies: &'request [SelectedBuildTimeTargetBody],
     pub selection: &'request DeclarationSelection,
     pub layouts: &'request Layouts,
 }
@@ -23,6 +27,8 @@ impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts
     /// Resolve available geometry, evaluate plans and constants, then close
     /// remaining queries before finishing each initializer in original order.
     pub fn evaluate(self) -> Result<(), Vec<Diagnostic>> {
+        crate::prepare_selected_target_family_calls(self.program, self.target_bodies)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         super::data_layout_queries::fold_data_layout_queries(
             self.program,
             true,
@@ -30,17 +36,9 @@ impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts
             self.layouts,
         )?;
         let mut evaluated = Vec::with_capacity(self.pending.len());
-        let layout_targets = self.layouts.layout_target_inputs();
         for continuation in self.pending {
-            let continuation = continuation
-                .with_layout_targets(&layout_targets)
-                .with_layout_applications(self.layouts.layout_application_inputs());
             evaluated.push(continuation.evaluate_selected_operators(self.program, self.operators)?);
         }
-        crate::layouts::plan_laid::validate_layout_application_coverage(
-            self.program,
-            self.layouts.layout_application_inputs(),
-        )?;
         super::data_layout_queries::fold_data_layout_queries(
             self.program,
             false,
@@ -121,6 +119,7 @@ mod tests {
             program: &mut program,
             pending: Vec::new(),
             operators: SelectedBuildTimeOperators::default(),
+            target_bodies: &[],
             selection: &selection,
             layouts: &layouts,
         }
@@ -145,6 +144,7 @@ mod tests {
             program: &mut program,
             pending: Vec::new(),
             operators: SelectedBuildTimeOperators::default(),
+            target_bodies: &[],
             selection: &selection,
             layouts: &layouts,
         }

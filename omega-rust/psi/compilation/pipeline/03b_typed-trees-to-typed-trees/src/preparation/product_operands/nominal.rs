@@ -33,7 +33,7 @@ fn require_application_inputs(
     result.map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
-pub(super) fn require_trait_inputs(
+fn require_trait_inputs(
     program: &TypedTrees,
     scope: &AppliedTraitScope<'_>,
     demand: ProductApplicationDemand,

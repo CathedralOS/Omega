@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedCompute, CheckedCompute>(builder, linux_x86_64);
-    Build::select_provider<SelectedCompute, CheckedCompute>(builder, linux_arm64);
-    Build::select_provider<SelectedCompute, CheckedCompute>(builder, windows_x86_64);
-    Build::select_provider<SelectedCompute, CheckedCompute>(builder, macos_arm64);
-
     Build::application(builder, "boundary_provider_call");
     Build::select_provider<Provider, Actual>(builder, linux_arm64);
     Build::select_provider<Provider, Actual>(builder, linux_x86_64);

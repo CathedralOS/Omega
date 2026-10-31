@@ -6,10 +6,6 @@ use symbols::SymbolHandle;
 pub struct ConstDeclaration {
     pub symbol: SymbolHandle,
     pub is_public: bool,
-    /// The semantic evaluator normalized this declaration. Its exact authored
-    /// and materialized roots must independently replay against the retained
-    /// value before the receiving compilation may publish or execute it.
-    pub requires_value_replay: bool,
     pub declared_type: crate::types::TypeReferenceHandle,
     /// Exact authored initializer occurrence retained solely for package
     /// review source custody after const substitution.

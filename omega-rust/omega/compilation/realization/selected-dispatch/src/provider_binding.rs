@@ -13,7 +13,6 @@ use std::sync::Arc;
 
 /// Realization choices joined to a completed source judgment.
 pub struct ProviderBindingRequest<'a> {
-    pub application_declarations: checked_trees::typed_trees::references::DeclarationSelection,
     pub provider_inventory: &'a Arc<psi_terminal_production::PreparedProviderInventory>,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
@@ -31,7 +30,7 @@ pub struct ProviderBindingRequest<'a> {
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub external_declarations: &'a std::sync::OnceLock<
-        Result<Arc<psi_terminal_production::PreparedDeclarationCatalog>, Vec<Diagnostic>>,
+        Result<Arc<psi_terminal_production::PreparedExternalProviderDeclarations>, Vec<Diagnostic>>,
     >,
 }
 
@@ -68,11 +67,13 @@ pub fn prepare_selected_execution(
             &settlement.selected_provider_plan_facts,
         )?;
     }
-    // Prepare immutable checked declaration evidence before source-free binding.
-    let declaration_catalog = settlement
+    // Numeric plan admission consumes this exact checked owner's declaration
+    // facts. Prepare once before binding; malformed declarations can now refuse
+    // before plan/qualification errors, but neither path executes effects.
+    let external_providers = settlement
         .external_declarations
         .get_or_init(|| {
-            psi_terminal_production::PreparedDeclarationCatalog::prepare(
+            psi_terminal_production::PreparedExternalProviderDeclarations::prepare(
                 Arc::clone(&program),
                 settlement.exact_toolchain_sources,
             )
@@ -84,7 +85,7 @@ pub fn prepare_selected_execution(
             })
         })
         .clone()?;
-    declaration_catalog
+    external_providers
         .require_owner(&program, settlement.exact_toolchain_sources)
         .map_err(|error| {
             vec![Diagnostic::error(format!(
@@ -98,9 +99,9 @@ pub fn prepare_selected_execution(
     );
     let binding = provider_selection::bind_selected_provider_plan_facts(
         provider_selection::BoundaryProviderAdmission {
-            review: &declaration_catalog.boundary_provider_review(),
-            identities: &declaration_catalog.identities,
-            numeric_realizations: &declaration_catalog.conformances,
+            review: &external_providers.boundary_provider_review(),
+            identities: &external_providers.identities,
+            external_providers: &external_providers.conformances,
         },
         program.facts.semantic.admitted_qualification_issuers(),
         &provider_plans,
@@ -113,12 +114,11 @@ pub fn prepare_selected_execution(
     let provider_source = Arc::new(provider_planning::SelectedProviderSource::new(
         Arc::clone(settlement.provider_inventory),
         selected_provider_plan_facts,
-        settlement.application_declarations,
     ));
     let selected_provider_plan_facts = provider_source.plans();
     // Close the existing exact source association once. Native ABI publication
     // is not needed to count calling declarations and must not add early errors.
-    let calling_requirements = declaration_catalog.callbacks.calling_requirements(
+    let calling_requirements = external_providers.callbacks.calling_requirements(
         settlement
             .boundary_calling_plan_realizations
             .iter()
@@ -127,13 +127,13 @@ pub fn prepare_selected_execution(
     );
     let callback_roots = {
         let providers =
-            provider_source.callback_providers(&declaration_catalog.callbacks.declarations)?;
+            provider_source.callback_providers(&external_providers.callbacks.declarations)?;
         let selected = provider_selection::select_callback_declarations(
-            &declaration_catalog.callbacks.declarations,
+            &external_providers.callbacks.declarations,
             &calling_requirements,
             &providers,
         )?;
-        declaration_catalog.selected_callback_roots(selected)
+        external_providers.selected_callback_roots(selected)
     };
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
@@ -162,7 +162,7 @@ pub fn prepare_selected_execution(
     };
     let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
         settlement.provider_candidates,
-        &declaration_catalog,
+        &external_providers,
         &service_declarations,
         selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
@@ -173,7 +173,7 @@ pub fn prepare_selected_execution(
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
     )?;
     let direct_boundary_leaves = crate::intrinsic_review::produce_direct_boundary_leaves(
-        &declaration_catalog,
+        &external_providers,
         &settlement.selected_provider_provenance,
         settlement.provider_candidates,
         &service_declarations,
@@ -202,7 +202,7 @@ pub fn prepare_selected_execution(
     Ok(SelectedExecution {
         direct_boundary_leaves,
         service_declarations,
-        declaration_catalog,
+        external_providers,
         native_provider_sources,
         provider_source,
         selected_target_profile: settlement.selected_target_profile,

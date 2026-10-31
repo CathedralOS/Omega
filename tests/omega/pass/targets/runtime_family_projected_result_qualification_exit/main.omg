@@ -12,17 +12,10 @@ machine issue(code: u64) -> Receipt in Receipt::Issued {
     issued
 }
 
-boundary trait SelectedProduce {
-    machine produce(code: u64) -> Slot reaches
-;
-}
-CheckedProduce satisfies SelectedProduce {
-    machine produce(code: u64) -> Slot
-{ Slot { receipt: issue(code) } }
-}
-
-
-
+linux_x86_64 machine produce(code: u64) -> Slot { Slot { receipt: issue(code) } }
+windows_x86_64 machine produce(code: u64) -> Slot { Slot { receipt: issue(code) } }
+linux_arm64 machine produce(code: u64) -> Slot { Slot { receipt: issue(code) } }
+macos_arm64 machine produce(code: u64) -> Slot { Slot { receipt: issue(code) } }
 
 machine consume(receipt: Receipt in Receipt::Issued) -> bool {
     let correct: bool = receipt.code == 42;
@@ -31,7 +24,7 @@ machine consume(receipt: Receipt in Receipt::Issued) -> bool {
 }
 
 machine main() crashes Trap {
-    let slot: Slot = SelectedProduce::produce(42);
+    let slot: Slot = produce(42);
     let correct: bool = consume(slot.receipt);
     transition correct { true -> done() _ -> bad() }
     machine done() {}

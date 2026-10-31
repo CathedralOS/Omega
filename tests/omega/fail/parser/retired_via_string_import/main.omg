@@ -1,8 +1,0 @@
-// Native supply belongs to Build; retired source clauses refuse before their payload.
-trait Contract {
-            machine call(value: i64) -> i64;
-        }
-
-        machine call_external(value: i64) -> i64
-        satisfies Contract::call
-        via ForeignBinding::DllImport("legacy.dll", "call");

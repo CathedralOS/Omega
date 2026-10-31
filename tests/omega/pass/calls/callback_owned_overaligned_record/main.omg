@@ -153,14 +153,13 @@ machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
 }
 
 
-public Aligned satisfies FixedLayout<OwnedRecord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+public data Aligned { }
+machine Aligned::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
     entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
     Plan { entries: entries, entry_count: 3, size_fixed: 32, size_is_dynamic: false, align: 32 }
-}
 }
 
 public data OwnedRecord [copy] { first: u64; second: u64; third: u64; }
@@ -178,7 +177,7 @@ public data ForeignInterface [copy] {
     abi: u32; argument_count: u32; argument_types: addr; result_type: addr;
     stack_bytes: u32; flags: u32; fixed_arguments: u32;
 }
-public data ArgumentValues { pair: &LayoutStorage<OwnedRecord, Aligned>; }
+public data ArgumentValues { pair: &Aligned<OwnedRecord>; }
 
 public boundary trait Prepare: Calling<PrepareCalling> {
     machine prepare(
@@ -187,36 +186,63 @@ public boundary trait Prepare: Calling<PrepareCalling> {
     ) -> u32 reaches;
 }
 public boundary trait Transform: Calling<TransformCalling> {
-    machine transform(pair: LayoutStorage<OwnedRecord, Aligned>) -> LayoutStorage<OwnedRecord, Aligned> reaches;
+    machine transform(pair: Aligned<OwnedRecord>) -> Aligned<OwnedRecord> reaches;
 }
 public boundary trait Invoke: Calling<InvokeCalling> {
     machine invoke<machine Handler>(
         interface: &PreparedInterface, native callback transform from Handler,
-        result: &mut LayoutStorage<OwnedRecord, Aligned>, arguments: &ArgumentValues
+        result: &mut Aligned<OwnedRecord>, arguments: &ArgumentValues
     )
     requires machine Handler satisfies Transform::transform;
     reaches
     invokes Transform;
 }
 
-machine transformed(pair: LayoutStorage<OwnedRecord, Aligned>) -> LayoutStorage<OwnedRecord, Aligned> {
-    let mut result: LayoutStorage<OwnedRecord, Aligned>;
+machine transformed(pair: Aligned<OwnedRecord>) -> Aligned<OwnedRecord> {
+    let mut result: Aligned<OwnedRecord>;
     result.first = pair.third;
     result.second = pair.first;
     result.third = pair.second;
     result
 }
 public data Handler { }
-public machine Handler::transform(pair: LayoutStorage<OwnedRecord, Aligned>) -> LayoutStorage<OwnedRecord, Aligned>
+public machine Handler::transform(pair: Aligned<OwnedRecord>) -> Aligned<OwnedRecord>
 satisfies Transform::transform
 {
     transformed(pair)
 }
 
+macos_arm64 machine prepare_binding() -> ForeignBinding<21, 13, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_prep_cif",
+        },
+    }
+}
+macos_arm64 machine prepare_leaf(
+    interface: &mut ForeignInterface, abi: u32, count: u32,
+    result_type: &PairType, argument_types: &ArgumentTypes
+) -> u32
+satisfies Prepare::prepare
+via prepare_binding();
+
+macos_arm64 machine invoke_binding() -> ForeignBinding<21, 9, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_call",
+        },
+    }
+}
+macos_arm64 machine invoke_leaf<machine Selected>(
+    interface: &PreparedInterface, result: &mut Aligned<OwnedRecord>, arguments: &ArgumentValues
+)
+requires machine Selected satisfies Transform::transform;
+satisfies Invoke::invoke
+via invoke_binding();
 
 data Main {
     interface: ForeignInterface;
-    input: LayoutStorage<OwnedRecord, Aligned>; result: LayoutStorage<OwnedRecord, Aligned>;
+    input: Aligned<OwnedRecord>; result: Aligned<OwnedRecord>;
 }
 machine Main::main(main: &mut Main) reaches Prepare + Invoke + Transform + Console
 invokes Prepare;
@@ -392,6 +418,36 @@ machine LinuxPolicies::returned() -> ValuePlacement {
     placement
 }
 
+linux_x86_64 machine linux_prepare_binding() -> ForeignBinding<11, 12, 15> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libffi.so.8", symbol: "ffi_prep_cif", version: "LIBFFI_BASE_8.0",
+        },
+    }
+}
+
+linux_x86_64 machine prepare_leaf(
+    interface: &mut ForeignInterface, abi: u32, count: u32,
+    result_type: &PairType, argument_types: &ArgumentTypes
+) -> u32
+satisfies Prepare::prepare
+via linux_prepare_binding();
+
+
+linux_x86_64 machine linux_invoke_binding() -> ForeignBinding<11, 8, 15> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libffi.so.8", symbol: "ffi_call", version: "LIBFFI_BASE_8.0",
+        },
+    }
+}
+
+linux_x86_64 machine invoke_leaf<machine Selected>(
+    interface: &PreparedInterface, result: &mut Aligned<OwnedRecord>, arguments: &ArgumentValues
+)
+requires machine Selected satisfies Transform::transform;
+satisfies Invoke::invoke
+via linux_invoke_binding();
 
 // libffi target ABI discriminants from the platform ffi headers.
 macos_arm64 machine ffi_abi() -> u32 { 1 }

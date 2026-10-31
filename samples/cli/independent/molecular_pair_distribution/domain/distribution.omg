@@ -23,7 +23,7 @@ machine separation(first: i32, second: i32, box: i32) -> f64 crashes Trap {
     }
     machine invalid_box() -> f64 { crash Trap; }
     machine folded(delta: i32, box: i32) -> f64 {
-        transition delta > box / 2 { true -> F64FromI32::from_i32(((box as i32 in Wrapping) - (delta as i32 in Wrapping)) as i32) _ -> F64FromI32::from_i32(delta) }
+        transition delta > box / 2 { true -> F64::from_i32(((box as i32 in Wrapping) - (delta as i32 in Wrapping)) as i32) _ -> F64::from_i32(delta) }
     }
 }
 public machine histogram(distribution: &mut Distribution) crashes Trap {
@@ -62,7 +62,7 @@ public machine histogram(distribution: &mut Distribution) crashes Trap {
         }
     }
     machine endpoint(distribution: &mut Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, squared: f64, bin: i32 in Wrapping) {
-        let edge: f64 = F64FromI32::from_i32(distribution.edges[bin]);
+        let edge: f64 = F64::from_i32(distribution.edges[bin]);
         transition squared < edge*edge || (bin == distribution.bins - 1 && squared == edge*edge) {
             true -> count(distribution, snapshot, first, second, bin) _ -> bin(distribution, snapshot, first, second, squared, bin + 1)
         }
@@ -82,15 +82,15 @@ public machine report(distribution: &Distribution) reaches Console invokes Conso
         }
     }
     machine values(distribution: &Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {
-        let upper: f64 = F64FromI32::from_i32(distribution.edges[bin]);
+        let upper: f64 = F64::from_i32(distribution.edges[bin]);
         let count: i32 in Wrapping = distribution.counts[bin];
         let total: i32 in Wrapping = cumulative + count;
-        let particles: f64 = F64FromI32::from_i32(distribution.particles as i32);
-        let snapshots: f64 = F64FromI32::from_i32(distribution.snapshots as i32);
-        let box: f64 = F64FromI32::from_i32(distribution.box);
+        let particles: f64 = F64::from_i32(distribution.particles as i32);
+        let snapshots: f64 = F64::from_i32(distribution.snapshots as i32);
+        let box: f64 = F64::from_i32(distribution.box);
         let cubes: f64 = upper*upper*upper - lower*lower*lower;
-        let g: Precise = normalized(F64FromI32::from_i32(count as i32), box, snapshots, particles, cubes);
-        let coordination: f64 = 2.0 * F64FromI32::from_i32(total as i32) / (snapshots * particles);
+        let g: Precise = normalized(F64::from_i32(count as i32), box, snapshots, particles, cubes);
+        let coordination: f64 = 2.0 * F64::from_i32(total as i32) / (snapshots * particles);
         integer(widen_i32_to_i64(bin as i32) as i64 in Wrapping); Console::write(" ");
         integer(widen_i32_to_i64(count as i32) as i64 in Wrapping); Console::write(" ");
         precise_real(g); Console::write(" "); real(coordination); Console::write_line("");

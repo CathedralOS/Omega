@@ -5,6 +5,8 @@ use crate::declarations::state_signatures::validate_callable_state_signatures;
 use crate::declarations::state_signatures::validate_machine_contracts;
 use crate::declarations::symbols::MachineSymbols;
 use crate::declarations::traits::validate_conformances;
+use crate::declarations::traits::validate_external_leaf_native_shapes;
+use crate::declarations::traits::validate_external_via_expression;
 use crate::declarations::traits::validate_generic_conformance_bounds;
 use crate::declarations::traits::validate_machine_trait_conformances;
 use crate::declarations::traits::validate_trait_conformance_bounds;
@@ -542,15 +544,6 @@ fn validate<'program>(
             &mut diagnostics,
             &mut formation_obligations,
         );
-        if machine.supply_mode == language_semantics::MachineSupplyMode::CompilerPrimitive {
-            let authenticated = program.has_authenticated_compiler_primitive_supply(machine);
-            if !authenticated {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "compiler primitive `{}` has no exact immutable catalogue realization",
-                    machine.name,
-                )));
-            }
-        }
         validate_machine_contracts(program, machine, &mut diagnostics);
         arithmetic_domains::validate_machine_total_specification_arithmetic(
             program,
@@ -617,6 +610,52 @@ fn validate<'program>(
                 &mut diagnostics,
                 &mut formation_obligations,
             );
+        }
+
+        // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's
+        // realization -- it must never parse and then silently drop. Exactly
+        // one via clause, on a bodyless realizing machine, populates
+        // ExternalRealization; every other carrier refuses here.
+        {
+            let conformances = program.machine_trait_conformances(machine);
+            let via_count = conformances
+                .iter()
+                .filter(|conformance| {
+                    conformance.external_binding.is_some() || conformance.via_expression.is_valid()
+                })
+                .count();
+            for conformance in conformances {
+                if conformance.external_binding.is_some() && conformance.via_expression.is_valid() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` retains both a bootstrap binding and an ordinary `via` expression on one conformance",
+                        machine.name,
+                    )));
+                }
+                validate_external_via_expression(program, machine, conformance, &mut diagnostics);
+            }
+            let is_external = matches!(
+                machine.supply_mode,
+                language_semantics::MachineSupplyMode::ExternalRealization { .. }
+            );
+            if via_count > 1 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` carries {via_count} `via` bindings; an external \
+                     leaf has exactly one realization",
+                    machine.name,
+                )));
+            } else if via_count == 1 && !is_external {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` carries a `via` binding but is not an external \
+                     leaf: `satisfies Requirement via <Binding>;` belongs on a \
+                     BODYLESS external realization (a composite lowering is an \
+                     ordinary checked body; an accepted axiom carries no \
+                     realization)",
+                    machine.name,
+                )));
+            }
+            if via_count == 1 && is_external {
+                validate_external_leaf_native_shapes(program, machine, &mut diagnostics);
+            }
         }
 
         // Arrival analysis covers the entire immutable machine. State-local

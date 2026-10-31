@@ -22,6 +22,7 @@ pub(super) fn apply_pruning(
     let mut typed = checked.typed.into_inner();
     let mut facts = checked.facts;
     validation::execution_projection::retain_machine_roster(&mut typed, retained, pruned);
+    super::retain_live_family_members(&mut typed);
     apply_fact_pruning(&mut facts, retained, pruned, index);
     CheckedTrees::with_roots(typed, facts)
 }

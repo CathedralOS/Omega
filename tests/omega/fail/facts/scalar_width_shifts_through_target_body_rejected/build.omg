@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedShiftRoundTrip, CheckedShiftRoundTrip>(builder, linux_x86_64);
-    Build::select_provider<SelectedShiftRoundTrip, CheckedShiftRoundTrip>(builder, linux_arm64);
-    Build::select_provider<SelectedShiftRoundTrip, CheckedShiftRoundTrip>(builder, macos_arm64);
-    Build::select_provider<SelectedShiftRoundTrip, CheckedShiftRoundTrip>(builder, windows_x86_64);
-
     Build::application(builder, "scalar_width_shifts_through_target_body_invalid");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

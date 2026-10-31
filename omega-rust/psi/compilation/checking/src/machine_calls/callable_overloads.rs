@@ -22,7 +22,11 @@ fn validate_machine_overloads(
     let mut seen: Vec<(CallableIdentityId, symbols::SymbolHandle)> = Vec::new();
     // A target sibling shares its family's name and signature by design; each
     // target's one body per path is validated before resolution.
-    for machine in program.machines().iter() {
+    for machine in program
+        .machines()
+        .iter()
+        .filter(|machine| machine.target.is_none())
+    {
         let identity = program.machine_callable_identity(machine);
         if !identity.is_valid() {
             continue;

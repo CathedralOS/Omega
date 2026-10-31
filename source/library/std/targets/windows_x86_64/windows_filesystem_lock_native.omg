@@ -17,6 +17,7 @@ data WindowsNativeLockRequest {
     offset_high: u32;
     event: u64;
 }
+data WindowsFilesystemLockImports {}
 
 boundary trait WindowsFilesystemLockIo {
     machine acquire(handle: i64 in WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: &mut WindowsNativeLockRequest) -> i32
@@ -31,4 +32,44 @@ boundary trait WindowsFilesystemLockIo {
     requires handle != 0 && offset_low == 0 && offset_high == 0
         && length_low == 4294967295 && length_high == 4294967295
     blocks;
+}
+
+windows_x86_64 machine windows_lock_file_binding() -> ForeignBinding<12, 10, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "LockFileEx"
+    } }
+}
+windows_x86_64 machine windows_unlock_file_binding() -> ForeignBinding<12, 10, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "kernel32.dll", export: "UnlockFile"
+    } }
+}
+
+windows_x86_64 machine WindowsFilesystemLockImports::acquire(handle: i64 in WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: &mut WindowsNativeLockRequest) -> i32
+satisfies WindowsFilesystemLockIo::acquire via windows_lock_file_binding()
+requires handle != 0 && flags <= 3 && reserved == 0
+    && length_low == 4294967295 && length_high == 4294967295
+    && request.internal == 0 && request.transferred == 0
+    && request.offset_low == 0 && request.offset_high == 0 && request.event == 0
+blocks;
+
+windows_x86_64 machine WindowsFilesystemLockImports::release(handle: i64 in WindowsSynchronousFileOrAbsent, offset_low: u32, offset_high: u32, length_low: u32, length_high: u32) -> i32
+satisfies WindowsFilesystemLockIo::release via windows_unlock_file_binding()
+requires handle != 0 && offset_low == 0 && offset_high == 0
+    && length_low == 4294967295 && length_high == 4294967295
+blocks;
+
+NativeWindowsFilesystemLockImports satisfies WindowsFilesystemLockIo {
+    machine acquire(handle: i64 in WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: &mut WindowsNativeLockRequest) -> i32
+    requires handle != 0 && flags <= 3 && reserved == 0
+        && length_low == 4294967295 && length_high == 4294967295
+        && request.internal == 0 && request.transferred == 0
+        && request.offset_low == 0 && request.offset_high == 0 && request.event == 0
+    blocks;
+    { block WindowsFilesystemLockImports::acquire(handle, flags, reserved, length_low, length_high, request) }
+    machine release(handle: i64 in WindowsSynchronousFileOrAbsent, offset_low: u32, offset_high: u32, length_low: u32, length_high: u32) -> i32
+    requires handle != 0 && offset_low == 0 && offset_high == 0
+        && length_low == 4294967295 && length_high == 4294967295
+    blocks;
+    { block WindowsFilesystemLockImports::release(handle, offset_low, offset_high, length_low, length_high) }
 }

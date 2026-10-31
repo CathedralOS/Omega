@@ -26,32 +26,6 @@ pub(crate) trait TypeRegionScope: Copy {
         self
     }
 
-    /// A nominal type can carry regions from several supplying telescopes.
-    /// Authenticate each retained declaration/ordinal before selecting its
-    /// scope; a whole-node owner cannot stand for every slot of that type.
-    fn at_lifetime(
-        self,
-        program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
-        slot: usize,
-        spelling: Option<&Identifier>,
-    ) -> Option<Self> {
-        Some(
-            match retained_lifetime_identity(program, reference, slot, spelling).ok()? {
-                Some(region) => self.enter_lifetime(program, region),
-                None => self,
-            },
-        )
-    }
-
-    fn enter_lifetime(
-        self,
-        program: &dyn crate::CheckingInput,
-        region: typed_trees::type_identity::LifetimeParameterIdentity,
-    ) -> Self {
-        self.enter_operand(program, region.declaration)
-    }
-
     /// One named alias of this scope's rosters: `None` when the name is not an
     /// alias here, so the walk falls through to the declaration instance.
     fn named_alias(
@@ -116,44 +90,6 @@ pub(crate) trait TypeRegionScope: Copy {
             return Some((reference, self));
         }
     }
-}
-
-/// Authenticate the same retained slot before either structural identity or
-/// physical-loan traversal selects its supplying environment.
-pub(crate) fn retained_lifetime_identity(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-    slot: usize,
-    spelling: Option<&Identifier>,
-) -> Result<Option<typed_trees::type_identity::LifetimeParameterIdentity>, &'static str> {
-    let regions = program.type_reference_table.operand_lifetimes(reference);
-    if regions.is_empty() {
-        return Ok(None);
-    }
-    let expected = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Reference {
-            lifetime: Some(_), ..
-        } => 1,
-        TypeReferenceNode::Generic {
-            lifetime_arguments, ..
-        } => lifetime_arguments.len(),
-        _ => 0,
-    };
-    if regions.len() != expected {
-        return Err("retained lifetime slots do not match the type's telescope");
-    }
-    let region = *regions
-        .get(slot)
-        .ok_or("retained lifetime slot is absent")?;
-    if !region.declaration.is_valid() {
-        return Ok(None);
-    }
-    if typed_trees::type_identity::lifetime_parameter_name(program.typed_program(), region)
-        != spelling
-    {
-        return Err("retained lifetime slot lost its exact declaration ordinal");
-    }
-    Ok(Some(region))
 }
 
 /// One named-alias step of the reference walk: chase the substituted operand
@@ -302,21 +238,11 @@ pub(crate) fn type_reference_region_applications<
                 ..
             },
         ) => {
-            let Some(actual_region_scope) =
-                actual_scope.at_lifetime(program, actual, 0, actual_lifetime.as_ref())
-            else {
-                return false;
-            };
-            let Some(required_region_scope) =
-                required_scope.at_lifetime(program, required, 0, required_lifetime.as_ref())
-            else {
-                return false;
-            };
             applications.retain_mut(|state| {
                 lifetime_matches(
                     state,
-                    actual_region_scope,
-                    required_region_scope,
+                    actual_scope,
+                    required_scope,
                     actual,
                     actual_lifetime.as_ref(),
                     required_lifetime.as_ref(),
@@ -355,36 +281,21 @@ pub(crate) fn type_reference_region_applications<
             },
         ) => {
             actual_lifetimes.len() == required_lifetimes.len()
-                && actual_lifetimes
-                    .iter()
-                    .zip(required_lifetimes)
-                    .enumerate()
-                    .all(|(slot, (actual_lifetime, required_lifetime))| {
-                        let Some(actual_region_scope) =
-                            actual_scope.at_lifetime(program, actual, slot, Some(actual_lifetime))
-                        else {
-                            return false;
-                        };
-                        let Some(required_region_scope) = required_scope.at_lifetime(
-                            program,
-                            required,
-                            slot,
-                            Some(required_lifetime),
-                        ) else {
-                            return false;
-                        };
+                && actual_lifetimes.iter().zip(required_lifetimes).all(
+                    |(actual_lifetime, required_lifetime)| {
                         applications.retain_mut(|state| {
                             lifetime_matches(
                                 state,
-                                actual_region_scope,
-                                required_region_scope,
+                                actual_scope,
+                                required_scope,
                                 actual,
                                 Some(actual_lifetime),
                                 Some(required_lifetime),
                             )
                         });
                         !applications.is_empty()
-                    })
+                    },
+                )
                 && actual_arguments.count() == required_arguments.count()
                 && program
                     .type_reference_table

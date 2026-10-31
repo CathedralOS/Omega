@@ -16,25 +16,27 @@ terminates by remaining;
     }
     machine done() {}
 }
-boundary trait SelectedPerform {
-    machine perform(counter: &mut u64, select: bool) reaches
-;
-}
-CheckedPerform satisfies SelectedPerform {
-    machine perform(counter: &mut u64, select: bool)
-{
+windows_x86_64 machine perform(counter: &mut u64, select: bool) {
     let remaining: u64 = match select { true -> 7 false -> 0 };
     count(counter, remaining);
 }
+linux_x86_64 machine perform(counter: &mut u64, select: bool) {
+    let remaining: u64 = match select { true -> 7 false -> 0 };
+    count(counter, remaining);
 }
-
-
-
+linux_arm64 machine perform(counter: &mut u64, select: bool) {
+    let remaining: u64 = match select { true -> 7 false -> 0 };
+    count(counter, remaining);
+}
+macos_arm64 machine perform(counter: &mut u64, select: bool) {
+    let remaining: u64 = match select { true -> 7 false -> 0 };
+    count(counter, remaining);
+}
 machine main() crashes Trap {
     let mut counted: u64 = 3;
-    SelectedPerform::perform(&mut counted, true);
+    perform(&mut counted, true);
     let matched: bool = counted == 10;
-    SelectedPerform::perform(&mut counted, false);
+    perform(&mut counted, false);
     transition matched && counted == 10 {
         true -> done() false -> bad()
     }

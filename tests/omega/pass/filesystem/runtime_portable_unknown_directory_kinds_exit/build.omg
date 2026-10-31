@@ -1,8 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedDirectoryKindOffset, LinuxX8664DirectoryKindOffset>(builder, linux_x86_64);
-    Build::select_provider<SelectedDirectoryKindOffset, LinuxX8664DirectoryKindOffset>(builder, linux_arm64);
-    Build::select_provider<SelectedDirectoryKindOffset, MacosArm64DirectoryKindOffset>(builder, macos_arm64);
-
     Build::application(builder, "runtime_portable_unknown_directory_kinds_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::select_provider<omega_language_std::PosixFilesystemHost, UnknownDirectoryEntries>(builder, linux_arm64);

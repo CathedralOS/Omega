@@ -1,15 +1,15 @@
 use omega::language::core::float_operations;
 
 machine scale(value: f32 in Trapping) -> f32 in Trapping
-requires F32IsFinite::is_finite((value as f32) * 2.00f32)
+requires F32::is_finite((value as f32) * 2.00f32)
 crashes Trap false {
     value * 2.0f32
 }
 
 machine finite_narrow(value: f64 in Trapping) -> f32 in Trapping
-requires F32IsFinite::is_finite(F32FromF64::from_f64(value as f64))
+requires F32::is_finite(F32::from_f64(value as f64))
 crashes Trap false {
-    F32FromF64::from_f64(value)
+    F32::from_f64(value)
 }
 
 machine closed_scale() -> f32 in Trapping
@@ -19,7 +19,7 @@ crashes Trap false {
 
 // A Boolean wellness query does not adapt its qualified input value.
 machine finite_qualified(value: f32 in Trapping)
-requires F32IsFinite::is_finite(value) {}
+requires F32::is_finite(value) {}
 
 machine main() crashes Trap {
     finite_qualified(1.5f32 as f32 in Trapping);

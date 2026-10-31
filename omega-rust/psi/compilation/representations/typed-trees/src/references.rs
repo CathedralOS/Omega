@@ -15,7 +15,7 @@ use crate::{
     machine::TraitConformance,
     proposition::{PropositionApplication, PropositionBinderArgumentKind, PropositionFormula},
     signature::{AuthoredInvocationTarget, SignatureContract},
-    statement::{StatementHandle, StatementNode, TransitionTargetNode},
+    statement::{StatementNode, TransitionTargetNode},
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
 use symbols::SymbolHandle;
@@ -157,7 +157,6 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn expression(&mut self, _: ExpressionHandle) -> bool {
         true
     }
-    fn statement_handle(&mut self, _: StatementHandle) {}
     fn statement(&mut self, _: &StatementNode) -> bool {
         true
     }
@@ -188,7 +187,6 @@ pub struct ProgramReferences {
     /// Declaration dependencies retained as descriptions, not executable edges.
     pub descriptor_symbols: HashSet<SymbolHandle>,
     pub expressions: HashSet<ExpressionHandle>,
-    pub statements: HashSet<StatementHandle>,
     pub type_references: Vec<TypeReferenceHandle>,
     pub proof_facts: Vec<arena::Handle<ProofFact>>,
     /// Exact ledger identities owned by these roots, not selections inferred
@@ -203,7 +201,6 @@ struct ReferenceCollector {
     callable_uses: HashSet<SymbolHandle>,
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
-    statements: HashSet<StatementHandle>,
     expressions: HashSet<ExpressionHandle>,
     track_new_expressions: bool,
     new_expressions: HashSet<ExpressionHandle>,
@@ -218,9 +215,6 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
-    fn statement_handle(&mut self, handle: StatementHandle) {
-        self.statements.insert(handle);
-    }
     fn callable_use(&mut self, symbol: SymbolHandle) {
         if symbol.is_valid() {
             self.callable_uses.insert(symbol);
@@ -318,18 +312,7 @@ pub struct TypeOccurrence {
 /// Retain the supplying declaration for every live type operand. A shared
 /// arena handle does not transfer its author's lexical checking scope.
 pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurrence> {
-    collect_selected_program_type_occurrences(program, &DeclarationSelection::all())
-}
-
-/// Source-owned type operands under one operation's declaration roster.
-pub fn collect_selected_program_type_occurrences(
-    program: &TypedTrees,
-    selection: &DeclarationSelection,
-) -> Vec<TypeOccurrence> {
-    let mut occurrences = TypeOccurrences {
-        selection: selection.clone(),
-        ..TypeOccurrences::default()
-    };
+    let mut occurrences = TypeOccurrences::default();
     visit_program(program, &mut occurrences);
     occurrences.types
 }
@@ -412,7 +395,6 @@ pub(crate) fn collect_program_application_occurrences(
 
 #[derive(Default)]
 struct TypeOccurrences {
-    selection: DeclarationSelection,
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
@@ -497,9 +479,6 @@ impl TypedReferences for TypeOccurrences {
     }
 
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-        if !self.selection.contains(symbol) {
-            return false;
-        }
         self.owner = symbol;
         true
     }
@@ -672,79 +651,6 @@ pub fn collect_selected_program_references(
     collect_program_references_with_roles(program, selection, None)
 }
 
-/// Visit each declaration's complete reference inventory once, including
-/// shared arena nodes under every owning declaration. The consumer may retain
-/// a compact projection without storing the full traversal scratch.
-pub fn for_each_declaration_references(
-    program: &TypedTrees,
-    mut consume: impl FnMut(SymbolHandle, ProgramReferences),
-) {
-    struct Declarations<'consumer, Consumer> {
-        consume: &'consumer mut Consumer,
-        owner: SymbolHandle,
-        current: ReferenceCollector,
-    }
-    impl<Consumer: FnMut(SymbolHandle, ProgramReferences)> Declarations<'_, Consumer> {
-        fn finish(&mut self) {
-            let current = std::mem::take(&mut self.current);
-            if self.owner.is_valid() {
-                (self.consume)(self.owner, finish_references(current));
-            }
-        }
-    }
-    impl<Consumer> Extend<SymbolHandle> for Declarations<'_, Consumer> {
-        fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: Symbols) {
-            self.current.extend(symbols);
-        }
-    }
-    impl<Consumer: FnMut(SymbolHandle, ProgramReferences)> TypedReferences
-        for Declarations<'_, Consumer>
-    {
-        fn declaration(&mut self, owner: SymbolHandle) -> bool {
-            self.finish();
-            self.owner = owner;
-            self.current.declaration(owner)
-        }
-        fn callable_use(&mut self, symbol: SymbolHandle) {
-            self.current.callable_use(symbol);
-        }
-        fn statement_handle(&mut self, handle: StatementHandle) {
-            self.current.statement_handle(handle);
-        }
-        fn authored_selection(
-            &mut self,
-            occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
-        ) {
-            self.current.authored_selection(occurrence);
-        }
-        fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
-            self.current.declaration_description_dependency(symbol);
-        }
-        fn expression(&mut self, handle: ExpressionHandle) -> bool {
-            self.current.expression(handle)
-        }
-        fn type_reference(&mut self, handle: TypeReferenceHandle) -> bool {
-            self.current.type_reference(handle)
-        }
-        fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
-            self.current.proof_fact(handle)
-        }
-        fn mathematical_type(
-            &mut self,
-            handle: crate::mathematical::MathematicalTypeHandle,
-        ) -> bool {
-            self.current.mathematical_type(handle)
-        }
-    }
-    let mut declarations = Declarations {
-        consume: &mut consume,
-        owner: SymbolHandle::invalid(),
-        current: ReferenceCollector::default(),
-    };
-    visit_program(program, &mut declarations);
-    declarations.finish();
-}
-
 /// Per-declaration symbol dependencies from the same traversal used by product
 /// retention. Each root gets its own visited-node set: a shared type node still
 /// contributes its dependencies to every declaration that owns a reference.
@@ -856,7 +762,6 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
         symbols: roots.symbols,
         descriptor_symbols: roots.descriptor_symbols,
         expressions: roots.expressions,
-        statements: roots.statements,
         type_references,
         proof_facts,
         authored_selection_occurrences: roots.authored_selection_occurrences,
@@ -971,11 +876,7 @@ pub fn visit_product_operand_inputs(
                 roots.authored_selection(occurrence);
             }
         }
-        if application.role
-            == Some(language_semantics::declaration_selection::ProductOperandRole::Requirement)
-        {
-            visit_static_argument(program, roots, &application.argument);
-        } else if let Some(arguments) = &application.argument.application {
+        if let Some(arguments) = &application.argument.application {
             for argument in arguments.arguments.iter() {
                 visit_static_argument(program, roots, argument);
             }
@@ -1328,15 +1229,6 @@ fn visit_static_machine_bindings_inner(
     let source = program
         .expression_table
         .static_machine_application(application);
-    if !program
-        .expression_table
-        .static_machine_application_lifetimes(application)
-        .is_empty()
-    {
-        // Region scopes are descriptive custody, never executable call edges.
-        retained.declaration_description_dependency(source.lifetime_binding_declaration);
-        retained.declaration_description_dependency(source.lexical_owner);
-    }
     for selection in program
         .product_input_selections
         .span_or_empty(source.input_selections)
@@ -1461,30 +1353,6 @@ fn visit_declaration_dependencies(
 ) {
     visit_constant_evaluation_entries(program, retained, owner);
     visit_product_operand_inputs(program, retained, owner);
-    for (_, selected) in program
-        .data_implementation_applications
-        .iter()
-        .filter(|(_, selected)| selected.lexical_owner == owner)
-    {
-        visit_type_reference(program, retained, selected.source_application);
-        visit_type_reference(program, retained, selected.argument);
-        visit_static_machine_bindings(program, retained, selected.supplying_application);
-        visit_closed_conformance(program, retained, &selected.application);
-        for (_, capture) in program
-            .captured_machine_applications
-            .iter()
-            .filter(|(_, capture)| {
-                capture.conformance_application == selected.application
-                    && program
-                        .expression_table
-                        .static_machine_application(capture.supplying_application)
-                        .lexical_owner
-                        == owner
-            })
-        {
-            visit_symbol(retained, capture.instance);
-        }
-    }
     if program.trait_implementation_applications.is_empty() {
         return;
     }
@@ -1568,12 +1436,6 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             }
         }
         visit_type_parameters(program, retained, data.type_parameters);
-        for bound in &data.conformance_bounds {
-            visit_symbol(retained, bound.trait_symbol);
-            for argument in &bound.arguments {
-                visit_type_reference(program, retained, *argument);
-            }
-        }
         if data.predicate_subject_symbol.is_valid() {
             visit_symbol(retained, data.predicate_subject_symbol);
             visit_type_reference(program, retained, data.predicate_subject_type);
@@ -2340,6 +2202,7 @@ fn visit_conformance(
 ) {
     visit_symbol(retained, conformance.symbol);
     visit_symbol(retained, conformance.requirement_symbol);
+    visit_expression(program, retained, conformance.via_expression);
     for argument in program
         .type_reference_table
         .type_reference_handles(conformance.arguments)
@@ -2653,11 +2516,7 @@ fn visit_machine_with_sidecars(
         for contract in program.state_contracts(state) {
             visit_proof_facts(program, retained, contract.facts);
         }
-        for (handle, statement) in program
-            .statement_table
-            .iter_statements(state.statement_nodes)
-        {
-            retained.statement_handle(handle);
+        for statement in program.statement_table.statements(state.statement_nodes) {
             visit_statement(program, retained, statement);
         }
     }

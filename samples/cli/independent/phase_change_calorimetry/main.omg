@@ -31,8 +31,8 @@ machine Application::main(application: &mut Application) reaches Console crashes
         }
     }
     machine count(application: &mut Application, first: Material, second: Material, conductance: f64, count: f64) {
-        let narrowed: i32 in Saturating = I32FromF64::from_f64(count);
-        transition F64FromI32::from_i32(narrowed as i32) == count {
+        let narrowed: i32 in Saturating = I32::from_f64(count);
+        transition F64::from_i32(narrowed as i32) == count {
             true -> configured(application, first, second, conductance, narrowed as i32) _ -> invalid(application)
         }
     }

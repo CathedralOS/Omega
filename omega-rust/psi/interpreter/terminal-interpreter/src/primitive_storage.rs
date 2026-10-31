@@ -157,9 +157,6 @@ pub(crate) struct PrimitiveStorage {
 pub(crate) struct PrimitiveStorageEncoding {
     pub(crate) source: ScalarType,
     pub(crate) view: ScalarType,
-    /// A readonly subwindow of the original scalar's stored byte image.
-    /// Mutable representation views retain the whole scalar codec.
-    pub(crate) byte_offset: Option<u8>,
 }
 
 impl PrimitiveStorageEncoding {
@@ -171,9 +168,6 @@ impl PrimitiveStorageEncoding {
         value: TerminalScalarValue,
         source: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-        if self.byte_offset.is_some() {
-            return Err(malformed());
-        }
         let bits = encoding::encode(self.view, value)?;
         encoding::convert_scalar(encoding::decode(self.source, bits)?, source)
     }
@@ -222,9 +216,6 @@ impl PrimitiveStorageWrites {
             return Err(malformed());
         }
         if let Some(encoding) = storage.encoding {
-            if encoding.byte_offset.is_some() {
-                return Err(malformed());
-            }
             let value = if encoding.view != encoding.source {
                 encoding.source_value(value, encoding.source)?
             } else {
@@ -954,7 +945,6 @@ impl TerminalExecution<'_> {
         let crate::reference::AggregateViewTip::Scalar {
             view: observed,
             backing: stored,
-            byte_offset,
         } = tip
         else {
             return Err(malformed());
@@ -980,15 +970,13 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        if byte_offset.is_some()
-            || stored.stored_scalar != stored.logical_scalar
+        if stored.stored_scalar != stored.logical_scalar
             || observed.logical_scalar != stored.logical_scalar
             || observed.stored_scalar != stored.stored_scalar
         {
             storage.encoding = Some(PrimitiveStorageEncoding {
                 source: stored.stored_scalar,
                 view: observed.stored_scalar,
-                byte_offset,
             });
         }
         Ok((storage, observed.logical_scalar, shared_view))
@@ -1914,7 +1902,6 @@ impl TerminalExecution<'_> {
                 let crate::reference::AggregateViewTip::Scalar {
                     view: observed,
                     backing: stored,
-                    byte_offset: None,
                 } = tip
                 else {
                     return Ok(None);
@@ -2158,25 +2145,7 @@ impl TerminalExecution<'_> {
                 // An admitted representation view decodes the same physical
                 // bits, including constrained integer-to-boolean views. The
                 // ordinary shared-observation law cannot establish that cast.
-                let mut bits = encoding::encode(encoding.source, stored)?;
-                if let Some(offset) = encoding.byte_offset {
-                    let source_width =
-                        terminal_semantics::reference_storage_byte_width(encoding.source)
-                            .ok_or_else(malformed)?;
-                    let view_width =
-                        terminal_semantics::reference_storage_byte_width(encoding.view)
-                            .ok_or_else(malformed)?;
-                    if offset
-                        .checked_add(view_width)
-                        .is_none_or(|end| end > source_width)
-                    {
-                        return Err(malformed());
-                    }
-                    bits >>= u32::from(offset) * 8;
-                    if view_width < 16 {
-                        bits &= (1u128 << (u32::from(view_width) * 8)) - 1;
-                    }
-                }
+                let bits = encoding::encode(encoding.source, stored)?;
                 let viewed = encoding::decode(encoding.view, bits)?;
                 return encoding::convert_scalar(viewed, expected);
             }

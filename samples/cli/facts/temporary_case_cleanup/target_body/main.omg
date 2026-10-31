@@ -7,20 +7,16 @@ machine consume(value: Bonus) -> bool
 requires value.value == 2 {
     observe(Event::Treasure { gold: 1, details: value })
 }
-boundary trait SelectedProduced {
-    machine produced() -> Bonus reaches
-ensures result.value == 2;
-}
-CheckedProduced satisfies SelectedProduced {
-    machine produced() -> Bonus
-ensures result.value == 2
-{ Bonus { value: 2 } }
-}
-
-
-
+windows_x86_64 machine produced() -> Bonus
+ensures result.value == 2 { Bonus { value: 2 } }
+linux_x86_64 machine produced() -> Bonus
+ensures result.value == 2 { Bonus { value: 2 } }
+linux_arm64 machine produced() -> Bonus
+ensures result.value == 2 { Bonus { value: 2 } }
+macos_arm64 machine produced() -> Bonus
+ensures result.value == 2 { Bonus { value: 2 } }
 machine main() crashes Trap {
-    let accepted: bool = consume(SelectedProduced::produced());
+    let accepted: bool = consume(produced());
     transition accepted { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

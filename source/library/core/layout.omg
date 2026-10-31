@@ -1,8 +1,9 @@
 // LAYOUT POLICIES (wiki/spec/layouts/plans.md):
-// Layout is a library, not a language axiom. A policy is an ordinary named
-// implementation of `FixedLayout<T>`. Its exact `plan(schema, target)` call
-// runs through semantic-evaluation admission with no effects and a termination
-// guarantee. The compiler supplies the exact `Schema` and immutable target,
+// layout is a library, not a language axiom. A policy is ordinary data
+// satisfying `Layout`; its `plan(schema)` machine runs at BUILD TIME (no
+// keyword -- the position makes the evaluation build-time, the effect system
+// makes it legal, and this trait's effect-free signature is the stability
+// contract). The compiler materializes `Schema` from a data definition,
 // validates the returned `Plan` (a bad plan is a compile error, never
 // unsafety), and derives codecs / projections / value types from it.
 //
@@ -37,8 +38,7 @@ public data SchemaField where align >= 1, align <= 16 {
     kind: FieldKind;
 }
 
-// A schema: numbered fields follow stable identity order; unnumbered fields
-// follow declaration order. At most
+// A schema: the fields of one data definition, in declaration order. At most
 // 32 fields in the pilot slice (plan validation rejects more).
 // A schema field's SHAPE fact -- what a grammar policy needs to choose a
 // placement (a scalar varint-encodes; text/nested/repeated payloads are
@@ -123,7 +123,7 @@ public data FieldEntry {
 // size/alignment before anything trusts the plan. Native layout evaluation
 // retains a compiler-private demand catalog beside this semantic value; each
 // entry comes from an executed `Plan::place_private` call citing one exact
-// named `PrivateCallbackSlot<T, Layout, Requirement>` implementation. Neither raw
+// named `PrivateCallbackSlot<Layout, Requirement>` implementation. Neither raw
 // slot identities nor callback addresses enter this record.
 public data Plan {
     entries: [FieldEntry; 64];
@@ -134,16 +134,16 @@ public data Plan {
 }
 
 // Compiler-known relationship for one semantic-field-free native slot.
-// `Layout` is the selected fixed-layout implementation whose plan may place the slot;
+// `Layout` is the layout policy type whose `Layout::plan` may place the slot;
 // the machine argument is an exact signature-free callback requirement. A
 // named implementation such as
-// `CallbackSlot satisfies PrivateCallbackSlot<Record, Spread, Callback::call> { }` is
+// `CallbackSlot satisfies PrivateCallbackSlot<Spread, Callback::call> { }` is
 // inert until that layout policy explicitly cites it through
 // `Plan::place_private<Implementation>`; another policy cannot place it. A
 // callback occupying a whole foreign ABI parameter is instead declared once in
 // its registrar requirement's native telescope; it is not a layout slot and
 // does not use this relationship.
-public trait PrivateCallbackSlot<T, Layout satisfies FixedLayout<T>, machine Requirement> {
+public trait PrivateCallbackSlot<Layout, machine Requirement> {
 }
 
 // The ordinary value signature is an identity operation so helpers can compose
@@ -617,13 +617,11 @@ public boundary trait PlacementLifecycle<P, T> {
         PlacementReturn<Extent in Granted & Vacant, T>,
         PlacementInitializationFailure
     >
-    reaches ResourceProfileSupply
-    invokes ResourceProfileSupply;
+    reaches ResourceProfileSupply;
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
         -> PlacementExtraction<Extent in Granted & Vacant, T>
-    reaches ResourceProfileSupply
-    invokes ResourceProfileSupply;
+    reaches ResourceProfileSupply;
 }
 
 // Ordinary provider orchestration keeps profile selection, call ordering and
@@ -763,36 +761,8 @@ satisfies Writable<PlacedField<T>, T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.
-// Compiler-issued immutable representation facts for this exact target.
-// Authored code cannot construct this opaque compile-time input or gain
-// host services, private source access, storage backing or execution authority.
-public boundary data LayoutTarget;
-
-// An immutable borrowed snapshot of the compiler-issued policy context.
-// The context has no authored constructor or executable storage representation.
-public data LayoutTargetFacts<'target> [copy] {
-    profile: &'target [u8];
-    pointer_size: u64;
-    pointer_alignment: u64;
-    little_endian: bool;
-}
-
-// Semantic evaluation supplies the exact issuer's snapshot. This ordinary
-// primitive declaration exposes its checked result shape; it grants no target,
-// storage or Build authority to an authored value.
-public boundary machine layout_target_facts<'target>(target: &'target LayoutTarget)
-    -> LayoutTargetFacts<'target>
-reaches
-terminates;
-
-// The compiler retains and validates the exact semantic type, policy,
-// target and returned geometry; this adds no wrapper or independent T header.
-public boundary data LayoutStorage<T, Policy satisfies FixedLayout<T>>;
-
-public trait FixedLayout<T> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan
-    reaches
-    terminates;
+public trait Layout {
+    machine plan(schema: Schema) -> Plan;
 }
 
 public trait Access {

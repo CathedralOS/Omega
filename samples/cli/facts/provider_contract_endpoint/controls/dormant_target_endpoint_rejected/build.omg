@@ -1,13 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedLimit, LinuxX8664Limit>(builder, linux_x86_64);
-    Build::select_provider<SelectedLimit, LinuxArm64Limit>(builder, linux_arm64);
-    Build::select_provider<SelectedLimit, LinuxArm64Limit>(builder, windows_x86_64);
-    Build::select_provider<SelectedLimit, LinuxArm64Limit>(builder, macos_arm64);
-    Build::select_provider<SelectedDormantDemand, CheckedDormantDemand>(builder, linux_x86_64);
-    Build::select_provider<SelectedDormantDemand, CheckedDormantDemand>(builder, linux_arm64);
-    Build::select_provider<SelectedDormantDemand, CheckedDormantDemand>(builder, windows_x86_64);
-    Build::select_provider<SelectedDormantDemand, CheckedDormantDemand>(builder, macos_arm64);
-
     Build::application(builder, "provider_contract_endpoint_probe");
     Build::select_provider<Endpoint, Actual>(builder, linux_arm64);
     Build::select_provider<Endpoint, Actual>(builder, linux_x86_64);

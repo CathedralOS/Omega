@@ -66,7 +66,9 @@ fn declaration(artifact: &CanonicalTerminalArtifact) -> &terminal_psi::CheckedMa
     module
         .machines
         .iter()
-        .find(|machine| Some(terminal_psi::TerminalCallable::Machine(machine.id)) == module.entry)
+        .find(|machine| {
+            Some(terminal_psi::TargetMachineCallable::Machine(machine.id)) == module.entry
+        })
         .and_then(|machine| machine.declaration.as_ref())
         .expect("published source declaration")
 }

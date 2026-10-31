@@ -6,12 +6,7 @@ data Outcome [copy] {
     case Ready(value: u64) where value <= 50;
 }
 
-boundary trait SelectedEval {
-    machine eval(outcome: Outcome) -> u64 reaches
-ensures result <= 60;
-}
-CheckedEval satisfies SelectedEval {
-    machine eval(outcome: Outcome) -> u64
+linux_x86_64 machine eval(outcome: Outcome) -> u64
     ensures result <= 60
 {
     transition outcome {
@@ -19,18 +14,38 @@ CheckedEval satisfies SelectedEval {
         Outcome::Empty {} -> 0
     }
 }
+
+linux_arm64 machine eval(outcome: Outcome) -> u64
+    ensures result <= 60
+{
+    transition outcome {
+        Outcome::Ready { value } -> (value + 10)
+        Outcome::Empty {} -> 0
+    }
 }
 
+macos_arm64 machine eval(outcome: Outcome) -> u64
+    ensures result <= 60
+{
+    transition outcome {
+        Outcome::Ready { value } -> (value + 10)
+        Outcome::Empty {} -> 0
+    }
+}
 
-
-
-
-
+windows_x86_64 machine eval(outcome: Outcome) -> u64
+    ensures result <= 60
+{
+    transition outcome {
+        Outcome::Ready { value } -> (value + 10)
+        Outcome::Empty {} -> 0
+    }
+}
 
 machine main() crashes Trap {
     let a: Outcome = Outcome::Ready { value: 32 };
     let b: Outcome = Outcome::Empty {};
-    transition SelectedEval::eval(a) == 42 && SelectedEval::eval(b) == 0 {
+    transition eval(a) == 42 && eval(b) == 0 {
         true -> done()
         _ -> bad()
     }

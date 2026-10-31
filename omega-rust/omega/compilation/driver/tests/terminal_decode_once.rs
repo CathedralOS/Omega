@@ -177,13 +177,13 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
                 let profile = target::TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(build_time_evaluation::ScalarScopeEvaluation {
-                    layout_target: profile
-                        .layout_target_facts()
-                        .ok_or("scalar evaluation target has no immutable layout catalogue")?,
                     carrier_layout: profile
                         .native_realization()
                         .map(runtime_abi::target_carrier_layout),
-                    targets: terminal_installation::target_context(artifact.view(), scope),
+                    targets: terminal_installation::admit_target_machine_selections(
+                        artifact.view(),
+                        scope,
+                    ),
                     providers,
                     address_model: Ok(target::TargetSemantics::close_address_model(profile).map(
                         |model| terminal_installation::ScalarAddressModel {
@@ -337,7 +337,7 @@ fn exercise_owned_and_borrowed_instances() {
     );
     let (transferred_module, _) = published.into_semantics();
     assert_eq!(machine_storage, transferred_module.machines.as_ptr());
-    let Some(terminal_psi::TerminalCallable::Machine(entry)) = module.entry else {
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         panic!("this fixture has an ordinary machine entry");
     };
     let entry = module.machine(entry).unwrap();

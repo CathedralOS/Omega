@@ -534,7 +534,15 @@ fn hash_supply(hash: &mut semantic_vocabulary::Fnv1a, mode: language_semantics::
         language_semantics::MachineSupplyMode::TopLevelRequirement => hash.byte(2),
         language_semantics::MachineSupplyMode::Boundary => hash.byte(3),
         language_semantics::MachineSupplyMode::AdmissionClaim => hash.byte(4),
-        language_semantics::MachineSupplyMode::CompilerPrimitive => hash.byte(7),
+        language_semantics::MachineSupplyMode::ExternalRealization { binding, mechanism } => {
+            hash.byte(5);
+            hash.u32(binding.map(|binding| binding.0).unwrap_or(0));
+            hash.byte(
+                mechanism
+                    .map(language_semantics::ExternalBindingMechanism::identity_tag)
+                    .unwrap_or(0),
+            );
+        }
     }
 }
 

@@ -17,8 +17,8 @@ pub(crate) fn build_debug_map(
     // Shared assembly may emit ordered helpers before the selected scalar root.
     // The source plan belongs to the entry identity, not the first emitted body.
     let terminal_machine = match module.entry {
-        Some(terminal_psi::TerminalCallable::Machine(entry)) => module.machine(entry),
-        Some(terminal_psi::TerminalCallable::Boundary(_)) | None => None,
+        Some(terminal_psi::TargetMachineCallable::Machine(entry)) => module.machine(entry),
+        Some(terminal_psi::TargetMachineCallable::Boundary(_)) | None => None,
     }
     .ok_or(LoweringError::Unsupported(
         "the selected entry machine is absent from its terminal call closure",

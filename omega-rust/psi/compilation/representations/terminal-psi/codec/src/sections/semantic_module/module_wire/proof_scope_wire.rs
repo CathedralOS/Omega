@@ -6,8 +6,8 @@ use super::super::wire::{Reader, Writer, decode_counted};
 use super::super::{CodecError, MAX_PROPOSITION_DEPTH};
 use arena::{Arena, HandleSpan};
 use semantic_vocabulary::proof_applications::{
-    ProofApplicationCall, ProofApplicationMachine, ProofCallGraph, ProofCallMachine,
-    ProofDeclarationDependencies, ProofStaticBinding,
+    ProofApplicationCall, ProofApplicationMachine, ProofApplicationTargetMember, ProofCallGraph,
+    ProofCallMachine, ProofDeclarationDependencies, ProofStaticBinding,
 };
 use terminal_psi::{
     ProofApplicationScope, ProofDeclarationId, ProofScopeDeclaration, TerminalIdentityIndex,
@@ -36,6 +36,22 @@ fn read_references(
 ) -> Result<HandleSpan<ProofDeclarationId>, CodecError> {
     let entries = decode_counted(reader, |reader| Ok(ProofDeclarationId(reader.u32()?)))?;
     Ok(rows.insert_many(entries))
+}
+
+fn target(writer: &mut Writer, target: &Option<String>) -> Result<(), CodecError> {
+    writer.boolean(target.is_some());
+    if let Some(target) = target {
+        writer.string("proof scope target", target)?;
+    }
+    Ok(())
+}
+
+fn read_target(reader: &mut Reader<'_>) -> Result<Option<String>, CodecError> {
+    if reader.boolean()? {
+        Ok(Some(reader.string("proof scope target")?))
+    } else {
+        Ok(None)
+    }
 }
 
 pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Result<(), CodecError> {
@@ -77,7 +93,7 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
             ));
         };
         writer.u32(declaration.0);
-        super::callable_wire::encode_callable(writer, *callable);
+        super::target_family_wire::encode_callable(writer, *callable);
     }
     let plan = &scope.plan;
     writer.boolean(plan.has_obligations);
@@ -88,7 +104,18 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
         references(writer, &plan.symbols, row.states)?;
         references(writer, &plan.symbols, row.binders)?;
         references(writer, &plan.symbols, row.dynamic_realizations)?;
+        target(writer, &row.authored_target)?;
+        target(writer, &row.source_target)?;
+        writer.boolean(row.family_interface);
         writer.boolean(row.product_selected);
+        let members = plan.target_members.span(row.family_members).ok_or(
+            CodecError::MalformedStructuralFoundation("proof scope lost its family member span"),
+        )?;
+        writer.len("proof scope target members", members.len())?;
+        for member in members {
+            writer.string("proof scope target", &member.target)?;
+            writer.u32(member.machine.0);
+        }
     }
     writer.len(
         "proof scope declaration dependencies",
@@ -196,7 +223,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             .callables
             .insert(terminal_psi::ProofCallableAssociation::Callable {
                 declaration: ProofDeclarationId(reader.u32()?),
-                callable: super::callable_wire::decode_callable(reader)?,
+                callable: super::target_family_wire::decode_callable(reader)?,
             });
     }
     let plan = &mut result.plan;
@@ -207,13 +234,27 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
         let states = read_references(reader, &mut plan.symbols)?;
         let binders = read_references(reader, &mut plan.symbols)?;
         let dynamic_realizations = read_references(reader, &mut plan.symbols)?;
+        let authored_target = read_target(reader)?;
+        let source_target = read_target(reader)?;
+        let family_interface = reader.boolean()?;
         let product_selected = reader.boolean()?;
+        let members = decode_counted(reader, |reader| {
+            Ok(ProofApplicationTargetMember {
+                target: reader.string("proof scope target")?,
+                machine: ProofDeclarationId(reader.u32()?),
+            })
+        })?;
+        let family_members = plan.target_members.insert_many(members);
         plan.machines.insert(ProofApplicationMachine {
             machine,
             states,
             binders,
             dynamic_realizations,
+            authored_target,
+            source_target,
+            family_interface,
             product_selected,
+            family_members,
         });
     }
     for _ in 0..reader.count()? {
@@ -278,6 +319,8 @@ mod tests {
         for ordinal in [1, 2, 3, 4, 7, 8] {
             scope.plan.machines.insert(ProofApplicationMachine {
                 machine: ProofDeclarationId(ordinal),
+                authored_target: (ordinal == 1 || ordinal == 8).then(|| "macos_arm64".into()),
+                source_target: (ordinal == 1 || ordinal == 8).then(|| "macos_arm64".into()),
                 product_selected: ordinal != 8,
                 ..Default::default()
             });
@@ -334,19 +377,19 @@ mod tests {
         for (declaration, callable) in [
             (
                 1,
-                terminal_psi::TerminalCallable::Machine(
+                terminal_psi::TargetMachineCallable::Machine(
                     semantic_vocabulary::MachineId::new(41).unwrap(),
                 ),
             ),
             (
                 2,
-                terminal_psi::TerminalCallable::Machine(
+                terminal_psi::TargetMachineCallable::Machine(
                     semantic_vocabulary::MachineId::new(42).unwrap(),
                 ),
             ),
             (
                 9,
-                terminal_psi::TerminalCallable::Boundary(
+                terminal_psi::TargetMachineCallable::Boundary(
                     semantic_vocabulary::BoundaryMachineId::new(41).unwrap(),
                 ),
             ),
@@ -374,8 +417,8 @@ mod tests {
         assert_eq!(decoded.declarations, scope.declarations);
         assert_eq!(decoded.callables, scope.callables);
         assert_eq!(reader.remaining(), 0);
-        let before = scope.applications().membership(&[]);
-        let after = decoded.applications().membership(&[]);
+        let before = scope.applications().membership("macos_arm64", false, &[]);
+        let after = decoded.applications().membership("macos_arm64", false, &[]);
         assert_eq!(before, after);
         let mut machines = after.0;
         machines.sort_unstable();

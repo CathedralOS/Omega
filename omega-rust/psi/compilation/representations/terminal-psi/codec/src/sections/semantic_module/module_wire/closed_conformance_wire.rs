@@ -43,7 +43,7 @@ pub(super) fn encode_closed_conformance_application(
     )?;
     for callable in &application.realization_callables {
         writer.u32(callable.source_callable_identity.0);
-        super::callable_wire::encode_callable(writer, callable.callable);
+        super::target_family_wire::encode_callable(writer, callable.callable);
         match callable.result {
             ClosedConformanceCallableResult::Unit => writer.u8(1),
             ClosedConformanceCallableResult::Scalar(scalar) => {
@@ -99,7 +99,7 @@ pub(super) fn encode_closed_conformance_application(
         writer.u32(applied.public_requirement_identity.0);
         writer.u32(applied.realization_identity.0);
         writer.u32(applied.source_callable_identity.0);
-        super::callable_wire::encode_callable(writer, applied.callable);
+        super::target_family_wire::encode_callable(writer, applied.callable);
         writer.boolean(applied.application_commitment.is_some());
         if let Some(commitment) = applied.application_commitment {
             writer.bytes(&commitment);
@@ -166,7 +166,7 @@ pub(super) fn decode_closed_conformance_application(
         realization_callables: decode_counted(reader, |reader| {
             Ok(terminal_psi::ClosedConformanceRealizationCallable {
                 source_callable_identity: TerminalIdentityIndex(reader.u32()?),
-                callable: super::callable_wire::decode_callable(reader)?,
+                callable: super::target_family_wire::decode_callable(reader)?,
                 result: match reader.u8()? {
                     1 => ClosedConformanceCallableResult::Unit,
                     2 => ClosedConformanceCallableResult::Scalar(
@@ -225,7 +225,7 @@ pub(super) fn decode_closed_conformance_application(
                 public_requirement_identity: TerminalIdentityIndex(reader.u32()?),
                 realization_identity: TerminalIdentityIndex(reader.u32()?),
                 source_callable_identity: TerminalIdentityIndex(reader.u32()?),
-                callable: super::callable_wire::decode_callable(reader)?,
+                callable: super::target_family_wire::decode_callable(reader)?,
                 application_commitment: if reader.boolean()? {
                     Some(reader.array()?)
                 } else {

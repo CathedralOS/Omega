@@ -22,8 +22,8 @@ mod retained;
 
 pub use proposals::CompilerIntrinsicPlanProvenance;
 pub(crate) use proposals::derive_selected_intrinsic_settlement_proposals;
-mod numeric_satisfaction;
-pub(crate) use numeric_satisfaction::{selected_execution, validate_numeric_realization_owners};
+mod external_satisfaction;
+pub(crate) use external_satisfaction::validate_external_provider_owners;
 pub(crate) use retained::prepare_retained_compiler_builtins;
 pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 
@@ -46,7 +46,6 @@ use target_operations::{
 pub(super) fn settle_compiler_builtins<'request>(
     input: &NativeRealizationInput,
     request: &ProviderAdmissionRequest<'_, 'request>,
-    installation: Option<&crate::AdmittedProviderInstallation>,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,
@@ -54,14 +53,6 @@ pub(super) fn settle_compiler_builtins<'request>(
     ),
     Vec<Diagnostic>,
 > {
-    let selected_calls = installation
-        .map(|installation| {
-            installation
-                .terminal_selection()
-                .providers()
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
     // Every executed row derivation could not close is reported together:
     // the roster was scoped to this entry's executed boundaries before it
     // arrived, so each unsettled proposal here names a boundary this entry
@@ -200,7 +191,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     &demand,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                require_placed_backing_origins(input, boundary.id, &selected_calls)
+                require_placed_backing_origins(input, boundary.id)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let compiler_operation = placed_operation(operation);
                 if demand.placement_commitment != placement_commitment
@@ -461,10 +452,6 @@ fn placed_operation(
 fn require_placed_backing_origins(
     input: &NativeRealizationInput,
     boundary: semantic_vocabulary::BoundaryMachineId,
-    selected_calls: &[(
-        semantic_vocabulary::BoundaryMachineId,
-        semantic_vocabulary::MachineId,
-    )],
 ) -> Result<(), String> {
     use std::collections::BTreeSet;
     let module = input.context().module();
@@ -474,9 +461,30 @@ fn require_placed_backing_origins(
         .iter()
         .map(|function| function.machine)
         .collect::<BTreeSet<_>>();
+    let mut selected_calls = Vec::new();
+    for operation in module
+        .machines
+        .iter()
+        .filter(|machine| reachable.contains(&machine.id))
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+    {
+        let terminal_psi::OperationKind::BoundaryCall { boundary: head, .. } = &operation.kind
+        else {
+            continue;
+        };
+        if selected_calls.iter().any(|(previous, _)| previous == head) {
+            continue;
+        }
+        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
+            input.optimization_input().target_family_member(*head)?
+        {
+            selected_calls.push((*head, member));
+        }
+    }
     let graph = terminal_semantics::descriptor_results::terminal_placed_origin_graph(
         module,
-        selected_calls,
+        &selected_calls,
     )
     .ok_or_else(|| "placed RAM origin graph is incomplete".to_owned())?;
     let mut origins = terminal_semantics::PlacedRamOriginAnalysis::new(

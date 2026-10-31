@@ -54,7 +54,7 @@ machine logarithm(value: f64) -> f64 {
     }
     machine sum(term: f64, square: f64, index: i32 in Wrapping, accumulated: f64) -> f64 {
         transition index < 49 {
-            true -> sum(term * square, square, index + 2, accumulated + 2.0 * term / F64FromI32::from_i32(index as i32))
+            true -> sum(term * square, square, index + 2, accumulated + 2.0 * term / F64::from_i32(index as i32))
             _ -> accumulated
         }
     }

@@ -58,7 +58,7 @@ public machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
     machine inspect(values: &[f64], output: &mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64) -> bool
     requires index < values.len {
-        let value: f64 = F64Maximum::maximum(values[index as u64], F64Negate::negate(values[index as u64]));
+        let value: f64 = F64::maximum(values[index as u64], F64::negate(values[index as u64]));
         let valid: bool = nf09_finite(values[index as u64]);
         transition valid {
             false -> (false)
@@ -86,7 +86,7 @@ public machine try_scaled_norm_f64(values: &[f64], output: &mut f64) -> bool {
         transition { _ -> step(values, output, index + 1, scale, next) }
     }
     machine finish(output: &mut f64, scale: f64, squares: f64) -> bool {
-        let result: f64 = scale * F64SquareRoot::square_root(squares);
+        let result: f64 = scale * F64::square_root(squares);
         let valid: bool = nf09_finite(result);
         transition valid {
             true -> publish(output, result)

@@ -30,6 +30,7 @@ use flow_effects::{CallOperational, MachineOperational, OperationalPlan, StateOp
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MachineWork {
     symbol: SymbolHandle,
+    family_members: Vec<SymbolHandle>,
     parameters: Vec<SymbolHandle>,
     uses_published_contract: bool,
     published_may_suspend: bool,
@@ -112,8 +113,13 @@ fn build_machine_work(
     let mut machines = Vec::with_capacity(program.machines().len());
 
     for machine in program.machines() {
-        let uses_published_contract = machine.is_public
-            || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
+        let family_members = super::family_interface_members(program, machine)
+            .iter()
+            .map(|member| member.machine)
+            .collect::<Vec<_>>();
+        let uses_published_contract = family_members.is_empty()
+            && (machine.is_public
+                || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody);
         let states = program
             .machine_states(machine)
             .iter()
@@ -130,6 +136,7 @@ fn build_machine_work(
         let published = machine_operational(program, machine);
         machines.push(MachineWork {
             symbol: machine.symbol,
+            family_members,
             parameters: program
                 .machine_states(machine)
                 .first()
@@ -681,6 +688,18 @@ fn propagate_operational_may(
                     body.may_block |= contexts[target].summary.may_block;
                 }
             }
+            // A target family owns an envelope, not a source body to validate.
+            let mut family = DirectCallOperational::default();
+            for target in &owner.family_members {
+                if let Some(machine) = machines
+                    .iter()
+                    .position(|machine| machine.symbol == *target)
+                {
+                    let target = context_index(machines, &mut contexts, machine, selectors.clone());
+                    family.may_suspend |= contexts[target].summary.may_suspend;
+                    family.may_block |= contexts[target].summary.may_block;
+                }
+            }
             contexts[position].body = body;
             contexts[position].summary = if owner.uses_published_contract {
                 DirectCallOperational {
@@ -689,8 +708,8 @@ fn propagate_operational_may(
                 }
             } else {
                 DirectCallOperational {
-                    may_suspend: body.may_suspend,
-                    may_block: body.may_block,
+                    may_suspend: body.may_suspend || family.may_suspend,
+                    may_block: body.may_block || family.may_block,
                 }
             };
         }

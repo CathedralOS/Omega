@@ -10,13 +10,7 @@ machine distinct(indices: &Indices) -> bool {
         false -> false
     }
 }
-boundary trait SelectedReplace {
-    machine replace(values: &mut [Cell], indices: &Indices) reaches
-requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
-    distinct(indices) == true;
-}
-CheckedReplace satisfies SelectedReplace {
-    machine replace(values: &mut [Cell], indices: &Indices)
+windows_x86_64 machine replace(values: &mut [Cell], indices: &Indices)
 requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
     distinct(indices) == true
 {
@@ -25,18 +19,41 @@ requires values.len == 2, indices.first < 2, indices.second < 2, indices.positio
     first = Cell { value: 17 };
     second = Cell { value: 53 };
 }
+
+linux_x86_64 machine replace(values: &mut [Cell], indices: &Indices)
+requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
+    distinct(indices) == true
+{
+    let first: &mut Cell = &mut values[indices.positions[indices.first]];
+    let second: &mut Cell = &mut values[indices.positions[indices.second]];
+    first = Cell { value: 17 };
+    second = Cell { value: 53 };
 }
 
+macos_arm64 machine replace(values: &mut [Cell], indices: &Indices)
+requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
+    distinct(indices) == true
+{
+    let first: &mut Cell = &mut values[indices.positions[indices.first]];
+    let second: &mut Cell = &mut values[indices.positions[indices.second]];
+    first = Cell { value: 17 };
+    second = Cell { value: 53 };
+}
 
-
-
-
-
+linux_arm64 machine replace(values: &mut [Cell], indices: &Indices)
+requires values.len == 2, indices.first < 2, indices.second < 2, indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
+    distinct(indices) == true
+{
+    let first: &mut Cell = &mut values[indices.positions[indices.first]];
+    let second: &mut Cell = &mut values[indices.positions[indices.second]];
+    first = Cell { value: 17 };
+    second = Cell { value: 53 };
+}
 machine invoke(values: &mut [Cell], indices: &Indices)
 requires values.len == 2, indices.first < 2, indices.second < 2,
     indices.positions[indices.first] < values.len, indices.positions[indices.second] < values.len,
     indices.positions[indices.first] != indices.positions[indices.second]
-{ SelectedReplace::replace(values, indices); }
+{ replace(values, indices); }
 machine main() crashes Trap {
     let mut forward: Storage = Storage { before: 101, values: [Cell { value: 1 }, Cell { value: 2 }], after: 109 };
     let mut reverse: Storage = Storage { before: 127, values: [Cell { value: 3 }, Cell { value: 4 }], after: 137 };

@@ -1,2 +1,1 @@
-machine main()
-{ asm { mov w30, 37 } }
+linux_arm64 machine main() { asm { mov w30, 37 } }

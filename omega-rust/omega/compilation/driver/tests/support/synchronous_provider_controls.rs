@@ -91,14 +91,19 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
     // Changing the default to an independent, quiet body cannot hide a cycle
     // among the other installed closed instances in this same artifact.
     let mut uncalled = module.clone();
-    uncalled.entry = Some(terminal_psi::TerminalCallable::Machine(quiet));
+    uncalled.entry = Some(terminal_psi::TargetMachineCallable::Machine(quiet));
     let optimization = terminal_codec::build_identity_optimization_execution_record(&uncalled)
         .map_err(|error| format!("uncalled optimization: {error:?}"))?;
     let uncalled = CanonicalTerminalArtifact::from_parts(uncalled, optimization, None)
         .map_err(|error| format!("uncalled artifact: {error:?}"))?;
     let uncalled = CanonicalTerminalArtifact::from_bytes(&uncalled.to_bytes())
         .map_err(|error| format!("uncalled transport: {error:?}"))?;
-    let calls = terminal_installation::SynchronousCallGraph::new(uncalled.semantic_module(), None)?;
+    let members = terminal_installation::admit_target_machine_selections(uncalled.view(), target);
+    let calls = terminal_installation::SynchronousCallGraph::new(
+        uncalled.semantic_module(),
+        Some(&members),
+        None,
+    )?;
     if !calls.from_root(quiet)?.boundaries.is_empty() {
         return Err("quiet entry unexpectedly calls a provider".into());
     }

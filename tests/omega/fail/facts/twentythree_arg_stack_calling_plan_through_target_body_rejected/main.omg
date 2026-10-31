@@ -58,13 +58,7 @@ ensures
     (prefix - 253u64) + a23
 }
 
-boundary trait SelectedEvaluate23 {
-    machine evaluate23() -> i32 reaches
-crashes Trap
-ensures result == 0i32;
-}
-CheckedEvaluate23 satisfies SelectedEvaluate23 {
-    machine evaluate23() -> i32 crashes Trap
+linux_x86_64 machine evaluate23() -> i32 crashes Trap
 ensures result == 0i32
 {
     let res: u64 = pick23(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 81);
@@ -82,18 +76,68 @@ ensures result == 0i32
         crash Trap;
     }
 }
+
+linux_arm64 machine evaluate23() -> i32 crashes Trap
+ensures result == 0i32
+{
+    let res: u64 = pick23(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 81);
+    let headroom: u64 = 80u64 - res;
+    let margin: u64 = res - 40u64;
+    let diff: u64 = (headroom + margin) - 40u64;
+    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
+        true -> ok()
+        _ -> bad()
+    }
+    machine ok() -> i32 {
+        0i32
+    }
+    machine bad() -> i32 {
+        crash Trap;
+    }
 }
 
+macos_arm64 machine evaluate23() -> i32 crashes Trap
+ensures result == 0i32
+{
+    let res: u64 = pick23(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 81);
+    let headroom: u64 = 80u64 - res;
+    let margin: u64 = res - 40u64;
+    let diff: u64 = (headroom + margin) - 40u64;
+    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
+        true -> ok()
+        _ -> bad()
+    }
+    machine ok() -> i32 {
+        0i32
+    }
+    machine bad() -> i32 {
+        crash Trap;
+    }
+}
 
-
-
-
-
+windows_x86_64 machine evaluate23() -> i32 crashes Trap
+ensures result == 0i32
+{
+    let res: u64 = pick23(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 81);
+    let headroom: u64 = 80u64 - res;
+    let margin: u64 = res - 40u64;
+    let diff: u64 = (headroom + margin) - 40u64;
+    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
+        true -> ok()
+        _ -> bad()
+    }
+    machine ok() -> i32 {
+        0i32
+    }
+    machine bad() -> i32 {
+        crash Trap;
+    }
+}
 
 machine probe() -> i32 crashes Trap
 ensures result == 0i32
 {
-    SelectedEvaluate23::evaluate23()
+    evaluate23()
 }
 
 machine main() crashes Trap {

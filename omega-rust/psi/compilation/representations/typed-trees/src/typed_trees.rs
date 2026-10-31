@@ -106,6 +106,7 @@ macro_rules! span_columns {
 }
 pub(crate) use span_columns;
 
+mod authored_targets;
 mod build_selections;
 mod callable_applications;
 mod canonical_values;
@@ -128,9 +129,7 @@ pub mod inspection;
 pub mod names;
 mod placed_plans;
 mod selection_exclusions;
-mod symbol_rebinding;
 pub use selection_exclusions::AuthoredSelectionExclusions;
-pub use symbol_rebinding::SymbolRebinding;
 mod trait_and_machine_tables;
 mod type_reference_queries;
 pub mod type_system;
@@ -140,9 +139,9 @@ mod wire_schema_queries;
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
-    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
-    MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
-    StaticRequirementDispatch, TraitImplementationApplication, closed_conformance_applications_of,
+    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, MachineSpecialization,
+    MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
+    TraitImplementationApplication, closed_conformance_applications_of,
     machine_specialization_matches_template_identity,
 };
 pub use placed_plans::{
@@ -151,8 +150,8 @@ pub use placed_plans::{
     PlacedScalarAccessorOperation, PlacedViewPlan, PlacementExecutionDeclaration,
     PlacementLifecycleOperation, PlacementLifecyclePlan, PlanLaidBitField, PlanLaidBitFragment,
     PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations,
-    PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
-    PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
+    PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
+    PlanLaidTargetLayout,
 };
 
 use crate::{
@@ -233,6 +232,7 @@ pub struct TypedTrees {
     /// Exact structured identities for external realization bindings. Typed
     /// conformance and supply rows retain ids into this table, so downstream
     /// consumers never need to rescan source syntax to recover the binding.
+    pub external_bindings: language_semantics::ExternalBindingTable,
     /// Validated layout plans for PLAN-LAID VALUE TYPES (`gdt: CLayout<Gdt>`
     /// in type position; programmable-layouts L4). Populated by the compiler
     /// pipeline AFTER build-time plan evaluation + validation; the native
@@ -244,7 +244,6 @@ pub struct TypedTrees {
     pub plan_laid_target_layouts: Arena<PlanLaidTargetLayout>,
     /// Exact active Schema argument rows retained by family applications.
     pub plan_laid_schema_fields: Arena<PlanLaidSchemaField>,
-    pub plan_laid_retired_field_identities: Arena<PlanLaidRetiredFieldIdentity>,
     /// Canonical source `Placed<P, T>` derivations. Each record binds the
     /// synthetic view/accessor types to the validated placement plan that
     /// selected them, so checking and lowering never reconstruct permissions
@@ -272,19 +271,25 @@ pub struct TypedTrees {
     pub captured_machine_states: Arena<CapturedMachineState>,
     /// Source trait implementation slots demand map captures before checking.
     pub trait_implementation_applications: Arena<TraitImplementationApplication>,
-    pub data_implementation_applications: Arena<DataImplementationApplication>,
     /// Requirements instantiated under the `dyn Trait<Args>` applications
     /// that select or call them. Checking appends one record per
     /// (selector application, requirement) after specialization converges.
     pub dynamic_slots: Vec<crate::dynamic_traits::DynamicSlotSignature>,
+    /// Product-scope target-machine families: one record per authored
+    /// contract name implemented under target heads, keying each target's
+    /// body. Typing produces it from resolved family handles before the
+    /// per-target swap and check run. Product pruning preserves every member;
+    /// runtime families lower into Terminal and declaration programs retain
+    /// Build effects separately. Early portable-call retargeting remains a
+    /// transitional consumer. Empty for programs without admitted
+    /// product-scope target-scoped declarations.
+    /// Seeded typing preserves the base prefix and appends new families in
+    /// name order within the extension cohort.
+    pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
     /// Exact source semantic-role inputs supplied by package admission or an
     /// explicitly proposed review role. These describe callable completion;
     /// they grant no selected provider or execution authority.
     pub boundary_completion_declarations: Arena<BoundaryCompletionDeclaration>,
-    /// Fresh package source-role custody for exact catalogue declarations.
-    /// These form boundary demands only; they supply no native backing.
-    pub boundary_catalogue_declarations:
-        Arena<declarations::boundary_catalogues::BoundaryCatalogueDeclaration>,
     /// Exact owner identity and authored names for erased evidence forwarding;
     /// checked lowering binds both names to checked evidence-term handles.
     pub evidence_forwardings: Vec<EvidenceForwarding>,
@@ -523,6 +528,12 @@ impl TypedTrees {
         self.product_declaration_frontier.as_deref().unwrap_or(self)
     }
 
+    pub fn plan_laid_layout(&self, data_symbol: symbols::SymbolHandle) -> Option<&PlanLaidLayout> {
+        self.plan_laid_layouts
+            .iter()
+            .find(|layout| layout.data_symbol == data_symbol)
+    }
+
     pub fn machine_specialization(
         &self,
         instance: symbols::SymbolHandle,
@@ -592,10 +603,10 @@ impl TypedTrees {
             authored_service_reach_rows: Vec::new(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
             applied_domain_applications: Vec::new(),
+            external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: Arena::new(),
             plan_laid_schema_fields: Arena::new(),
-            plan_laid_retired_field_identities: Arena::new(),
             placed_view_plans: Vec::new(),
             placement_lifecycle_plans: Arena::new(),
             placement_policy_invocations: Arena::new(),
@@ -607,10 +618,9 @@ impl TypedTrees {
             captured_machine_applications: Arena::new(),
             captured_machine_states: Arena::new(),
             trait_implementation_applications: Arena::new(),
-            data_implementation_applications: Arena::new(),
             dynamic_slots: Vec::new(),
+            target_machine_families: Vec::new(),
             boundary_completion_declarations: Arena::default(),
-            boundary_catalogue_declarations: Arena::default(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             declaration_indexes: declaration_index::DeclarationIndexes::default(),
@@ -774,12 +784,11 @@ impl DerefMut for TypedTrees {
 
 /// Symbol-remap lookup shared by the typed-tree copy paths: symbols map
 /// through the pair table, unmapped symbols stay themselves.
-pub(crate) fn remapped<'scope>(
+pub(crate) fn remapped(
     symbol: SymbolHandle,
-    symbols: impl Into<SymbolRebinding<'scope>>,
+    symbols: &[(SymbolHandle, SymbolHandle)],
 ) -> SymbolHandle {
     symbols
-        .into()
         .iter()
         .find_map(|(source, target)| (*source == symbol).then_some(*target))
         .unwrap_or(symbol)

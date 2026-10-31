@@ -42,7 +42,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     machine initialize(main: &mut Main) {
         main.mode = (main.input[0] as i32) - 48;
         let density: i32 = (main.input[3] as i32) - 48;
-        main.particle.density = F64FromI32::from_i32(density);
+        main.particle.density = F64::from_i32(density);
         main.particle.depth = 0.0;
         main.particle.velocity = 0.0;
         main.timestep = 0.5;

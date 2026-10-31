@@ -9,11 +9,13 @@ use validation::contract_structure::{
     callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
 };
 
-/// Normalized declaration inputs retained while checked operator crash sites
-/// join each machine plan. Final identities use the complete published contract.
+/// Normalization scratch retained until every generated contract's envelope
+/// settles. Publishing a head before its member graph closes would commit an
+/// empty crash permission set and then silently change that public contract.
 struct ContractPublication<'program> {
     type_identities: &'program arena::OwnedInterner<typed_trees::type_identity::TypeIdentityTable>,
     supply: language_semantics::MachineSupplyMode,
+    external_binding: Option<language_semantics::ExternalBindingIdentity>,
     services: Vec<String>,
     invocations: language_semantics::SynchronousInvocationInterface,
     published_invocations: Vec<String>,
@@ -31,6 +33,7 @@ impl ContractPublication<'_> {
         self.type_identities.with(|table| {
             checked_trees::contract_identity(
                 self.supply,
+                self.external_binding.as_ref(),
                 &self.services,
                 self.invocations,
                 &self.published_invocations,
@@ -43,6 +46,55 @@ impl ContractPublication<'_> {
             )
         })
     }
+}
+
+/// Add only causes inferred from private members, leaving authored head routes
+/// guarded. The prepared graph excludes proof pruning: a stronger prover must
+/// not narrow the published interface. Invocation-specific refinement happens
+/// later against this finalized ceiling, never against a lexical body.
+fn publish_family_crash_envelopes(
+    contracts: &mut [checked_trees::MachineContractPlan],
+    publications: &mut [ContractPublication<'_>],
+    additions: &[(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)],
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    for (head, causes) in additions {
+        let position = contracts
+            .iter()
+            .position(|contract| contract.machine == *head)
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "target-family crash envelope has no owning contract",
+                )]
+            })?;
+        let publication = publications.get_mut(position).ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "target-family crash envelope has no declaration publication",
+            )]
+        })?;
+        let contract = &mut contracts[position];
+        let mut published = contract.crash.published().to_vec();
+        for cause in causes {
+            // An inferred unconditional permission subsumes authored guards
+            // for this cause; both the runtime row and commitment normalize
+            // that same complete contract rather than hashing redundant facts.
+            published.retain(|bucket| bucket.cause() != *cause);
+            published.push(checked_trees::CrashRouteBucket::unconditional(*cause));
+            publication.declaration.clauses.retain(|clause| {
+                clause.kind != checked_trees::DeclaredContractKind::Crashes(*cause)
+            });
+            publication
+                .declaration
+                .clauses
+                .push(checked_trees::DeclaredContractClause {
+                    kind: checked_trees::DeclaredContractKind::Crashes(*cause),
+                    fact: None,
+                });
+        }
+        publication.declaration.clauses.sort();
+        publication.declaration.clauses.dedup();
+        contract.crash = contract.crash.clone().with_published_ceiling(published);
+    }
+    Ok(())
 }
 
 /// STR4 checked plans (wiki/spec/language/machines.md): assemble each machine's
@@ -83,8 +135,9 @@ pub(crate) fn build_contract_plans(
             operators,
         )
     });
-    let (mut machines, publications) =
-        phase_profile::scope("05.d.3.c.5c.2.per_machine_plans", || {
+    let (mut machines, mut publications) = phase_profile::scope(
+        "05.d.3.c.5c.2.per_machine_plans",
+        || {
             use rayon::prelude::*;
             let results: Result<
                 Vec<(checked_trees::MachineContractPlan, ContractPublication<'_>)>,
@@ -175,9 +228,7 @@ pub(crate) fn build_contract_plans(
                         let binders = program
                             .machine_states(machine)
                             .first()
-                            .map(|entry| {
-                                callable_binders(&generics, program.state_parameters(entry))
-                            })
+                            .map(|entry| callable_binders(&generics, program.state_parameters(entry)))
                             .unwrap_or_else(|| generics.clone());
                         let declaration = checked_trees::DeclaredContractStructure {
                             callables,
@@ -194,9 +245,27 @@ pub(crate) fn build_contract_plans(
                             declared_termination(program, &termination.interface, &binders);
                         let closed_scalar_values =
                             build_closed_scalar_value_contract_plan(program, machine, operators);
+                        let external_binding = match machine.supply_mode {
+                            language_semantics::MachineSupplyMode::ExternalRealization {
+                                binding: Some(binding),
+                                ..
+                            } => Some(
+                                program
+                                    .external_bindings
+                                    .identity(binding)
+                                    .cloned()
+                                    .ok_or_else(|| {
+                                        vec![diagnostics::Diagnostic::error(
+                                            "checked external supply lost its owning binding identity",
+                                        )]
+                                    })?,
+                            ),
+                            _ => None,
+                        };
                         let publication = ContractPublication {
                             type_identities: &program.type_identities,
                             supply: machine.supply_mode,
+                            external_binding,
                             services: published_service_names,
                             invocations: synchronous_invocation.interface,
                             published_invocations: synchronous_invocation.published.clone(),
@@ -209,8 +278,8 @@ pub(crate) fn build_contract_plans(
                             machine: machine.symbol,
                             closed_scalar_values,
                             crash,
-                            // Checked operator sites join before final contract identities
-                            // are published; these coordinates are construction scratch.
+                            // No consumer observes these construction coordinates. Family
+                            // envelopes settle before each final contract identity is minted.
                             report_fingerprint: 0,
                             commitment: checked_trees::MachineContractCommitment::from_digest(
                                 [0; 32],
@@ -221,7 +290,8 @@ pub(crate) fn build_contract_plans(
                     .collect()
             });
             results.map(|pairs| pairs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
-        })?;
+        },
+    )?;
     let operator_crashes = phase_profile::scope("05.d.3.c.5c.3.operator_crashes", || {
         operator_crashes::build(program, operators, flow, semantic)
     })?;
@@ -266,7 +336,12 @@ pub(crate) fn build_contract_plans(
             &crash_capsules,
             &machines,
         )
-    });
+    })?;
+    publish_family_crash_envelopes(
+        &mut machines,
+        &mut publications,
+        summary_graph.family_potential_crash_causes(),
+    )?;
     phase_profile::scope("05.d.3.c.5c.6.identities", || {
         use rayon::prelude::*;
         validation::checking_thread_pool().install(|| {
@@ -1093,7 +1168,6 @@ fn computation_contains_trapping_operation(
                 | Value::Call { .. }
                 | Value::FixedArray { .. }
                 | Value::ByteLiteralView { .. }
-                | Value::FixedByteArrayLiteral { .. }
                 | Value::ZeroedStructural { .. } => {}
             }
         }

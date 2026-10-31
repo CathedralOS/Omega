@@ -26,16 +26,6 @@ pub enum SeededContinuationError {
 pub struct SeededTypingBase {
     resolved: Arc<SymbolResolvedTrees>,
     typed: Arc<TypedTrees>,
-    // Exact published records removed from a source view remain lookup
-    // backing. A later reference can demand their declaration, not a judgment.
-    inactive_data: Vec<InactiveDataDeclaration>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-struct InactiveDataDeclaration {
-    symbol: symbols::SymbolHandle,
-    resolved: arena::Handle<symbol_resolved_trees::data::DataDefinition>,
-    typed: arena::Handle<typed_trees::data::DataDefinition>,
 }
 
 impl SeededTypingBase {
@@ -91,20 +81,6 @@ impl SeededTypingBase {
                 "authored declaration typing could not extend its retained source: {reason:?}"
             ))]
         })?;
-        // Extension lowering may publish a demanded existing data instance.
-        // Keep the resolver frontier paired with precisely that same roster.
-        let restored = typed
-            .inactive_data
-            .iter()
-            .filter(|entry| {
-                typed.resolved.data_definitions.contains(entry.resolved)
-                    && !frontier.trees().data_definitions.contains(entry.resolved)
-            })
-            .map(|entry| entry.resolved)
-            .collect::<Vec<_>>();
-        let frontier = frontier
-            .reactivate_data_declarations(&restored)
-            .map_err(|error| vec![error])?;
         Ok((typed, frontier))
     }
 
@@ -131,42 +107,6 @@ impl SeededTypingBase {
         let mut typed =
             validation::execution_projection::project_source_program(&self.typed, &sources);
         let selection = typed_trees::references::DeclarationSelection::from_program(&typed);
-        for (ordinal, data) in self.typed.data_definitions().iter().enumerate() {
-            if data.generic_instance.is_none() || selection.contains(data.symbol) {
-                continue;
-            }
-            let mut originals = resolved
-                .data_definitions
-                .iter()
-                .enumerate()
-                .filter(|(_, original)| original.symbol == data.symbol);
-            let Some((resolved_ordinal, _)) = originals.next() else {
-                // Typed-only applications have no pre-resolution constructor
-                // declaration; their existing typed elaborator owns them.
-                continue;
-            };
-            if originals.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "inactive data instance has ambiguous resolved declaration custody",
-                )]);
-            }
-            let entry = InactiveDataDeclaration {
-                symbol: data.symbol,
-                resolved: resolved.data_definitions.root_handles()[resolved_ordinal],
-                typed: self.typed.roots.data_definitions.handle_at(ordinal as u32),
-            };
-            if let Some(previous) = self
-                .inactive_data
-                .iter_mut()
-                .find(|old| old.symbol == data.symbol)
-            {
-                // This selected root, not arena insertion order, owns the
-                // current published version before the view removes it.
-                *previous = entry;
-            } else {
-                self.inactive_data.push(entry);
-            }
-        }
         macro_rules! select_roots {
             ($($field:ident),+ $(,)?) => {
                 $(resolved.roots.$field.retain(|root| selection.contains(root.symbol));)+
@@ -218,7 +158,6 @@ impl SeededTypingBase {
         Ok(Self {
             resolved: Arc::new(resolved),
             typed: Arc::new(typed),
-            inactive_data: self.inactive_data,
         })
     }
 
@@ -353,7 +292,6 @@ pub fn lower_symbol_resolved_trees_to_seeded_base(
     Ok(SeededTypingBase {
         resolved,
         typed: Arc::new(typed),
-        inactive_data: Vec::new(),
     })
 }
 
@@ -365,7 +303,7 @@ pub fn lower_seeded_extension(
     source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
     retained: SeededTypingBase,
 ) -> Result<SeededTypingBase, (SeededTypingBase, SeededContinuationError)> {
-    let (mut source, resolved_base) = source.into_typing_continuation_parts();
+    let (source, resolved_base) = source.into_typing_continuation_parts();
     if resolved_base != *retained.resolved {
         return Err((retained, SeededContinuationError::CrossPairedResolvedBase));
     }
@@ -422,7 +360,6 @@ pub fn lower_seeded_extension(
                 &lowerer.typed_trees.proof_output_calls,
             ));
     }
-    let demanded = reactivate_data_declarations(&mut lowerer.typed_trees, &retained.inactive_data);
     if let Err(error) = close_typed_cohort(&mut lowerer, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
@@ -437,61 +374,10 @@ pub fn lower_seeded_extension(
     // generated declarations legitimately extend retained owners' child spans.
     // Retained preservation belongs to those operations and their fixtures.
     let typed = lowerer.typed_trees;
-    reactivate_resolved_data_declarations(&mut source, &demanded, &retained.inactive_data);
     Ok(SeededTypingBase {
         resolved: Arc::new(source),
         typed: Arc::new(typed),
-        inactive_data: retained.inactive_data,
     })
-}
-
-/// Reactivate exact prior data declarations only when current rooted source
-/// references their symbols. Children follow the common reference closure;
-/// template diagnostic location never roots an unused instance.
-fn reactivate_data_declarations(
-    program: &mut TypedTrees,
-    inactive: &[InactiveDataDeclaration],
-) -> Vec<symbols::SymbolHandle> {
-    let mut demanded = Vec::new();
-    loop {
-        let references = typed_trees::references::collect_program_references(program);
-        let additions = inactive
-            .iter()
-            .filter(|entry| {
-                references.symbols.contains(&entry.symbol)
-                    && !program
-                        .data_definitions()
-                        .iter()
-                        .any(|data| data.symbol == entry.symbol)
-            })
-            .collect::<Vec<_>>();
-        if additions.is_empty() {
-            return demanded;
-        }
-        let mut data = program.data_definitions().to_vec();
-        for entry in additions {
-            let declaration = program.tables.data_definitions.get(entry.typed).clone();
-            debug_assert_eq!(declaration.symbol, entry.symbol);
-            data.push(declaration);
-            demanded.push(entry.symbol);
-        }
-        program.roots.data_definitions = program.tables.data_definitions.insert_many(data);
-        program.identity = Default::default();
-    }
-}
-
-fn reactivate_resolved_data_declarations(
-    source: &mut SymbolResolvedTrees,
-    demanded: &[symbols::SymbolHandle],
-    inactive: &[InactiveDataDeclaration],
-) {
-    for entry in inactive
-        .iter()
-        .filter(|entry| demanded.contains(&entry.symbol))
-    {
-        source.data_definitions.reactivate(entry.resolved);
-    }
-    source.resolution_indexes = Default::default();
 }
 
 /// Authored completion shares ordinary body lowering, but admits only the
@@ -564,7 +450,6 @@ fn lower_body_completion(
                 &lowerer.typed_trees.proof_output_calls,
             ));
     }
-    let demanded = reactivate_data_declarations(&mut lowerer.typed_trees, &retained.inactive_data);
     close_typed_cohort(&mut lowerer, &cohort)?;
     // Retained-storage preservation is carried by these append-only operations,
     // not by a second comparison of their output: the supplied completion data
@@ -574,18 +459,10 @@ fn lower_body_completion(
     // storage instead of appending to it is a bug for the corpus and the
     // fixtures to find.
     let typed = lowerer.typed_trees;
-    let handles = retained
-        .inactive_data
-        .iter()
-        .filter(|entry| demanded.contains(&entry.symbol))
-        .map(|entry| entry.resolved)
-        .collect::<Vec<_>>();
-    let frontier = frontier.reactivate_data_declarations(&handles)?;
     Ok((
         SeededTypingBase {
-            resolved: frontier.shared_trees(),
+            resolved: source,
             typed: Arc::new(typed),
-            inactive_data: retained.inactive_data,
         },
         frontier,
     ))
@@ -726,8 +603,12 @@ fn resolved_completion_retains_declarations(
         if old_conformances.len() != new_conformances.len() {
             return false;
         }
-        if old_conformances != new_conformances {
-            return false;
+        for (old, new) in old_conformances.iter().zip(new_conformances) {
+            let mut header = new.clone();
+            header.via_expression = old.via_expression;
+            if header != *old {
+                return false;
+            }
         }
     }
     // Non-machine roots can append through ordinary body-driven synthesis,
@@ -793,6 +674,21 @@ fn join_resolved_semantics(
         ));
     }
     if !source
+        .external_bindings
+        .identities()
+        .take(base.external_bindings.identities().len())
+        .eq(base.external_bindings.identities())
+        || !source
+            .external_bindings
+            .identities()
+            .take(candidate.external_bindings.identities().len())
+            .eq(candidate.external_bindings.identities())
+    {
+        return Err(Diagnostic::error(
+            "source continuation changed retained external-binding identities",
+        ));
+    }
+    if !source
         .evidence_forwardings
         .starts_with(&base.evidence_forwardings)
     {
@@ -828,6 +724,7 @@ fn join_resolved_semantics(
     candidate.symbols = source.symbols.clone();
     candidate.service_reaches = source.service_reaches.clone();
     candidate.service_reach_rows = source.service_reach_rows.clone();
+    candidate.external_bindings = source.external_bindings.clone();
     candidate
         .retain_authored_declaration_selections(source.authored_declaration_selections().clone());
     append_authored_service_reach_rows(candidate, source, &base.authored_service_reach_rows);

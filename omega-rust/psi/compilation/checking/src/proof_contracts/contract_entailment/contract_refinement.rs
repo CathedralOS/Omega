@@ -16,7 +16,6 @@
 //! unknown implication refuses, rather than comparing diagnostic spellings.
 
 mod float_implication;
-mod selected_guarantees;
 
 use super::law_conformance::indexed_law_binder_arguments;
 use super::scoped_arithmetic_implication_for_declaration;
@@ -99,7 +98,6 @@ pub(crate) fn check_contract_refinement(
     }
     let mut required = ContractFacts::collect(
         program,
-        machine.symbol,
         requirement.symbol,
         program.state_signature_contracts(requirement).iter(),
         required_parameters,
@@ -120,7 +118,6 @@ pub(crate) fn check_contract_refinement(
     }
     let member = ContractFacts::collect(
         program,
-        machine.symbol,
         machine.symbol,
         program
             .machine_contracts(machine)
@@ -178,17 +175,13 @@ pub(crate) fn check_contract_refinement(
 }
 
 struct ContractFacts {
-    implementation: SymbolHandle,
     owner: SymbolHandle,
-    parameters: Vec<StateParameter>,
-    binders: Vec<(SymbolHandle, String)>,
     bindings: Vec<ScopedArithmeticBinding>,
     requires: Vec<Conjunct>,
     ensures: Vec<Conjunct>,
 }
 
 struct Conjunct {
-    kind: SignatureContractKind,
     fact: ProofFact,
     identity: Option<CorrespondenceFact>,
     law_checked: bool,
@@ -198,7 +191,6 @@ struct Conjunct {
 impl ContractFacts {
     fn collect<'a>(
         program: &dyn crate::CheckingInput,
-        implementation: SymbolHandle,
         owner: SymbolHandle,
         contracts: impl Iterator<Item = &'a SignatureContract>,
         parameters: &[StateParameter],
@@ -210,10 +202,7 @@ impl ContractFacts {
         generic.extend_from_slice(captured);
         let binders = callable_binders(&generic, parameters);
         let mut facts = Self {
-            implementation,
             owner,
-            parameters: parameters.to_vec(),
-            binders: binders.clone(),
             bindings: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -317,7 +306,6 @@ impl ContractFacts {
                         ProofFact::Membership(_) => false,
                     };
                     target.push(Conjunct {
-                        kind: contract.kind.clone(),
                         identity: correspondence_fact(program, &fact, &binders),
                         float: if source_index_meaning {
                             FloatObservation::collect(program, owner, parameters, &binders, &fact)
@@ -442,9 +430,6 @@ fn entailed(
         return true;
     }
     if !goal.float.is_empty() && goal.float.iter().all(|goal| goal.entailed_by(premises)) {
-        return true;
-    }
-    if selected_guarantees::entailed(program, premises, premise_scope, goal, goal_scope) {
         return true;
     }
     let ProofFact::Expression(expression) = goal.fact else {

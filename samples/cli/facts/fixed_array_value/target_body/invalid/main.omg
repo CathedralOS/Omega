@@ -1,28 +1,34 @@
 // A fixed-extent array [u64; 2] preserves its in-bounds index contract index < 2 and independent element values across all nine places.
 // Invalid: all target bodies weaken the index bound to index <= 2, so the index may exceed length 2.
 // Expected exit: 0
-boundary trait SelectedReadElement {
-    machine read_element(values: [u64; 2], index: u64) -> u64 reaches
-requires index <= 2;
-}
-CheckedReadElement satisfies SelectedReadElement {
-    machine read_element(values: [u64; 2], index: u64) -> u64
+linux_x86_64 machine read_element(values: [u64; 2], index: u64) -> u64
 requires index <= 2
 {
     values[index]
 }
+
+linux_arm64 machine read_element(values: [u64; 2], index: u64) -> u64
+requires index <= 2
+{
+    values[index]
 }
 
+macos_arm64 machine read_element(values: [u64; 2], index: u64) -> u64
+requires index <= 2
+{
+    values[index]
+}
 
-
-
-
-
+windows_x86_64 machine read_element(values: [u64; 2], index: u64) -> u64
+requires index <= 2
+{
+    values[index]
+}
 
 machine probe(values: [u64; 2], index: u64) -> u64
 requires index <= 2
 {
-    SelectedReadElement::read_element(values, index)
+    read_element(values, index)
 }
 
 machine main() crashes Trap {

@@ -5,6 +5,46 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
+    let source = r#"
+        boundary trait Console {
+            machine write_byte(byte: i32) reaches;
+        }
+
+        machine console_write_byte(byte: i32)
+        satisfies Console::write_byte
+        via ForeignBinding::CompilerIntrinsic;
+    "#;
+    let parsed = super::parse_source(source, "compiler intrinsic binding should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str(&parsed) == "console_write_byte" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("external leaf machine");
+    let clause = parsed
+        .items
+        .satisfies_clauses(machine.satisfies)
+        .first()
+        .expect("satisfies clause");
+    assert!(matches!(
+        clause.via.as_ref(),
+        Some(syntax_trees::item::ExternalBinding::CompilerIntrinsic)
+    ));
+    let via_source_span = clause
+        .via_keyword_source_span
+        .expect("external binding retains exact `via` custody");
+    let via_start = source.find("via").expect("authored `via`");
+    assert_eq!(via_source_span.span.start, via_start);
+    assert_eq!(via_source_span.span.end, via_start + "via".len());
+}
+
+#[test]
 fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
     let source = r#"
         trait Reads<'scope, Item> {
@@ -60,6 +100,119 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
         error
             .message
             .contains("lifetime arguments precede type, const, and machine arguments")
+    );
+}
+
+#[test]
+fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
+    let source = r#"
+        boundary trait Kernel32Requirements {
+            machine write_file() reaches;
+        }
+
+        machine write_file_binding() -> i32 {
+            0
+        }
+
+        machine kernel32_write_file()
+        satisfies Kernel32Requirements::write_file
+        via write_file_binding();
+    "#;
+    let parsed = super::parse_source(source, "ordinary via call should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str(&parsed) == "kernel32_write_file" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("external leaf machine");
+    let clause = parsed
+        .items
+        .satisfies_clauses(machine.satisfies)
+        .first()
+        .expect("satisfies clause");
+    assert!(
+        clause.via.is_none(),
+        "ordinary calls are not bootstrap bindings"
+    );
+    assert!(matches!(
+        parsed.expressions.expression(clause.via_expression),
+        syntax_trees::expression::ExpressionNode::Call(_)
+    ));
+    let via_source_span = clause
+        .via_keyword_source_span
+        .expect("ordinary via expression retains exact keyword custody");
+    let via_start = source.find("via").expect("authored `via`");
+    assert_eq!(via_source_span.span.start, via_start);
+    assert_eq!(via_source_span.span.end, via_start + "via".len());
+}
+
+#[test]
+fn rejects_legacy_named_compiler_intrinsic_payload() {
+    let source = r#"
+        boundary trait Console {
+            machine write_byte(byte: i32) reaches;
+        }
+
+        machine console_write_byte(byte: i32)
+        satisfies Console::write_byte
+        via ForeignBinding::CompilerIntrinsic("Console::write_byte");
+    "#;
+    let error = super::parse_tokenized_error(
+        source,
+        "compiler intrinsic identity is derived, never authored",
+    );
+    super::expect_error(&error, "found punctuation `(`");
+}
+
+#[test]
+fn retired_vtable_slot_rejects_before_consuming_its_payload() {
+    let source = r#"
+        boundary trait Firmware {
+            machine invoke(this: addr) reaches;
+        }
+
+        machine legacy(this: addr)
+        satisfies Firmware::invoke
+        via ForeignBinding::VtableSlot(not_an_integer_payload);
+    "#;
+    let error = super::parse_source_error(
+        source,
+        "tokenize retired vtable slot",
+        "authored numeric vtable slots are retired",
+    );
+    assert_eq!(
+        error.message,
+        "`ForeignBinding::VtableSlot` is retired; declare the foreign table layout and use \
+         `ForeignBinding::VtableField(field)`"
+    );
+}
+
+#[test]
+fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
+    let source = r#"
+        trait Contract {
+            machine call(value: i64) -> i64;
+        }
+
+        machine call_external(value: i64) -> i64
+        satisfies Contract::call
+        via ForeignBinding::DllImport("legacy.dll", "call");
+    "#;
+    let error = super::parse_source_error(
+        source,
+        "tokenize retired string-backed import",
+        "authored string-backed import bootstrap is retired",
+    );
+    assert_eq!(
+        error.message,
+        "`ForeignBinding::DllImport(\"module\", \"symbol\")` is retired; return the \
+         compiler-owned `ForeignBinding::DllImport { import: DllImport::Case { .. } }` \
+         value from one `via` producer machine instead"
     );
 }
 
@@ -843,7 +996,9 @@ fn retired_provides_declarations_name_the_external_leaf_migration() {
             error
                 .message
                 .contains("`provides` declarations are retired")
-                && error.message.contains("Build::bind<Requirement>")
+                && error
+                    .message
+                    .contains("satisfies Trait::method via Binding::Case")
         );
     }
 }

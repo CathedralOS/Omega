@@ -2,37 +2,7 @@ use super::*;
 
 impl TypeReferenceTable {
     pub fn substitute_node(&mut self, handle: TypeReferenceHandle, node: TypeReferenceNode) {
-        let same_region_slots = match (self.type_references.get(handle), &node) {
-            (
-                TypeReferenceNode::Generic {
-                    lifetime_arguments: before,
-                    ..
-                },
-                TypeReferenceNode::Generic {
-                    lifetime_arguments: after,
-                    ..
-                },
-            ) => before == after,
-            (
-                TypeReferenceNode::Reference {
-                    lifetime: before, ..
-                },
-                TypeReferenceNode::Reference {
-                    lifetime: after, ..
-                },
-            ) => before == after,
-            _ => false,
-        };
         let replaced = std::mem::replace(self.type_references.get_mut(handle), node);
-        // Rewriting a child/type argument does not rebind the unchanged root
-        // region slots. Whole replacement with a different roster clears them;
-        // substitute_from transfers its independently retained source roster.
-        if !same_region_slots {
-            *self.operand_lifetime_spans.get_mut(Handle::from_parts(
-                handle.arena_index(),
-                handle.generation(),
-            )) = HandleSpan::empty();
-        }
         let replaced_named = match replaced {
             TypeReferenceNode::Named { symbol, .. } => Some(symbol),
             _ => None,
@@ -61,9 +31,7 @@ impl TypeReferenceTable {
             occurrence.generation(),
         )) = owner;
         self.set_operand_origin(occurrence, self.operand_origin(replacement));
-        let lifetimes = self.operand_lifetimes(replacement).to_vec();
         self.substitute_node(occurrence, node);
-        self.retain_operand_lifetimes(occurrence, lifetimes)?;
         Ok(())
     }
 
@@ -300,19 +268,7 @@ impl TypeReferenceTable {
                 }),
             TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => None,
         };
-        let Some(node) = rebuilt else {
-            return Ok(handle);
-        };
-        let owner = self.operand_lifetime_owner(handle);
-        let lifetimes = self.operand_lifetimes(handle).to_vec();
-        let origin = self.operand_origin(handle);
-        let origins = self.constant_origins(handle)?.to_vec();
-        let rebuilt = self.insert(node);
-        self.retain_operand_lifetime_owner(rebuilt, owner)?;
-        self.retain_operand_lifetimes(rebuilt, lifetimes)?;
-        self.set_operand_origin(rebuilt, origin);
-        self.attach_constant_origins(rebuilt, origins)?;
-        Ok(rebuilt)
+        Ok(rebuilt.map_or(handle, |node| self.insert(node)))
     }
 
     /// A rebuilt argument span when any argument changed.

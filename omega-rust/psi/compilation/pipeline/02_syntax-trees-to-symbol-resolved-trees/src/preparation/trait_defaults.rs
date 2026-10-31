@@ -1122,10 +1122,14 @@ fn machine_from_signature(
             arguments: HandleSpan::empty(),
             requirement: Some(requirement),
             alias: None,
+            via: None,
+            via_expression: ExpressionHandle::invalid(),
+            via_keyword_source_span: None,
         });
         HandleSpan::from_parts(clause, 1)
     });
     Machine {
+        target_family_interface: false,
         name: machine_name,
         default_body_trait,
         // The member belongs to its implementation's map, not to any data
@@ -1137,7 +1141,8 @@ fn machine_from_signature(
         spelling: None,
         is_public: false,
         bodyless: false,
-
+        target: None,
+        authored_target: None,
         boundary: false,
         is_top_level_boundary_requirement: false,
         generic_data_template: Default::default(),
@@ -1159,6 +1164,7 @@ fn machine_from_signature(
         suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
         blocks: signature.blocks,
         blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
+        admitted_same_stack_bytes: 0,
         contracts: signature.contracts,
         states: HandleSpan::from_parts(state, 1),
         nested_machines: HandleSpan::empty(),

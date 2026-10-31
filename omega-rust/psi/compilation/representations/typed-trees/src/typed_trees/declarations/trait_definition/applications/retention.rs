@@ -116,26 +116,6 @@ impl TraitApplicationEnvironment {
         })
     }
 
-    /// A copied type slot already names its supplying declaration. Apply an
-    /// exact matching frame instead of looking up its spelling in the current
-    /// receiving telescope.
-    pub(crate) fn resolved_lifetime_identity(
-        &self,
-        program: &TypedTrees,
-        region: crate::type_identity::LifetimeParameterIdentity,
-        preceding_frames: usize,
-    ) -> Option<(crate::type_identity::LifetimeParameterIdentity, bool)> {
-        let scope = self.scope(program)?;
-        scope.with_identity_scopes(program, |frames| {
-            crate::type_identity::apply_resolved_lifetime_parameter_identity(
-                program,
-                region,
-                self.argument_owner,
-                frames.get(..preceding_frames)?,
-            )
-        })
-    }
-
     pub(crate) fn frame_count(&self) -> usize {
         self.scope_starts.len()
     }

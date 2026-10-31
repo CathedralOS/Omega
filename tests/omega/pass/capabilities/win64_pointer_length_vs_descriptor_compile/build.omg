@@ -1,4 +1,3 @@
-use omega::language::core::external_binding;
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
@@ -7,43 +6,4 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-
- Build::bind<NativeByteShapes::take_separate>(builder, windows_x86_64, ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "omega_abi_probe.dll",
-            export: "omega_win64_take_separate",
-        },
-    });
- Build::bind<NativeByteShapes::take_separate>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libomega_abi_probe.so",
-            symbol: "omega_win64_take_separate",
-            version: "OMEGA_1",
-        },
-    });
- Build::bind<NativeByteShapes::take_separate>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libomega_abi_probe.dylib",
-            symbol: "_omega_win64_take_separate",
-        },
-    });
- Build::bind<NativeByteShapes::take_descriptor>(builder, windows_x86_64, ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "omega_abi_probe.dll",
-            export: "omega_win64_take_descriptor",
-        },
-    });
- Build::bind<NativeByteShapes::take_descriptor>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libomega_abi_probe.so",
-            symbol: "omega_win64_take_descriptor",
-            version: "OMEGA_1",
-        },
-    });
- Build::bind<NativeByteShapes::take_descriptor>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "libomega_abi_probe.dylib",
-            symbol: "_omega_win64_take_descriptor",
-        },
-    });
 }

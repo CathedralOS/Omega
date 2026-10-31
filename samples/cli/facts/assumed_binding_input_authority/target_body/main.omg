@@ -10,18 +10,12 @@ Actual satisfies Supplied {
         values[index.value]
     }
 }
-boundary trait SelectedExercise {
-    machine exercise() -> u32 reaches Required;
-}
-CheckedExercise satisfies SelectedExercise {
-    machine exercise() -> u32 reaches Required
-{ Required::get(Index { value: 1 }) }
-}
-
-
-
+linux_x86_64 machine exercise() -> u32 reaches Required { Required::get(Index { value: 1 }) }
+linux_arm64 machine exercise() -> u32 reaches Required { Required::get(Index { value: 1 }) }
+windows_x86_64 machine exercise() -> u32 reaches Required { Required::get(Index { value: 1 }) }
+macos_arm64 machine exercise() -> u32 reaches Required { Required::get(Index { value: 1 }) }
 machine main() reaches Required crashes Trap {
-    let observed: u32 = SelectedExercise::exercise();
+    let observed: u32 = exercise();
     transition observed == 11 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

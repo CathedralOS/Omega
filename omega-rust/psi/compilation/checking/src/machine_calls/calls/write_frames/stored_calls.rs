@@ -264,7 +264,12 @@ fn invocation_reference_effects(
         trace_refusal("checked-callee-application");
         return None;
     }
-    if callee.has_bodyless_signature() {
+    if matches!(
+        callee.supply_mode,
+        language_semantics::MachineSupplyMode::Boundary
+            | language_semantics::MachineSupplyMode::AdmissionClaim
+            | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+    ) {
         return opaque_outputs::effects(
             program,
             machine,
@@ -278,7 +283,17 @@ fn invocation_reference_effects(
         );
     }
     let parameters = body_parameters;
-
+    if callee.target_family_interface {
+        let alternatives = super::call_targets::checked_body_alternatives(program, callee, state)?;
+        let relative = checked_alternatives::relative_effects(
+            program,
+            &alternatives,
+            parameters,
+            symbols,
+            inference,
+        )?;
+        return transfer(parameters, relative);
+    }
     if !callee.body_is_present || !callee.supply_mode.is_checked_body() {
         trace_refusal("checked-body-unavailable");
         return None;

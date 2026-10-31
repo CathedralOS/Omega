@@ -19,17 +19,11 @@ pub(super) fn collect(
         collect_inputs(
             typed,
             application.input_selections,
-            if application.role
-                == Some(language_semantics::declaration_selection::ProductOperandRole::Requirement)
-            {
-                std::slice::from_ref(&application.argument)
-            } else {
-                application
-                    .argument
-                    .application
-                    .as_ref()
-                    .map_or(&[][..], |application| application.arguments.as_ref())
-            },
+            application
+                .argument
+                .application
+                .as_ref()
+                .map_or(&[][..], |application| application.arguments.as_ref()),
             resolutions,
         )?;
     }

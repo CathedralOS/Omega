@@ -121,11 +121,12 @@ pub fn provider_trait_requirement_matches(
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
 ) -> bool {
-    machine.supply_mode.is_checked_body()
-        && machine.body_is_present
-        && provider_row_matches(context, plan, row, machine)
+    provider_row_matches(context, plan, row, machine)
         && provider_trait_application(context, plan, row, machine, declaring_trait, requirement)
-            .is_some()
+            .is_some_and(|application| match application {
+                ProviderTraitApplication::Named { .. } => true,
+                ProviderTraitApplication::Machine(edge) => edge.external_binding.is_none(),
+            })
 }
 
 /// The one row of a named provider's map that a plan row installs, joined by
@@ -154,31 +155,6 @@ pub(crate) fn named_provider_row<'a>(
     (matching.next().is_none() && context.contains(entry.realization_machine)).then_some(entry)
 }
 
-/// The exact declaration that owns a provider machine's namespace. Module
-/// ownership is code ownership; it does not manufacture a data carrier or
-/// grant a boundary realization. The caller still authenticates every row.
-pub(crate) fn provider_owner_symbol(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-) -> Option<symbols::SymbolHandle> {
-    typed.machine_code_owner_symbol(machine)
-}
-
-pub(crate) fn provider_owner_path(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-) -> Option<String> {
-    typed.machine_code_owner_path(machine)
-}
-
-pub(crate) fn provider_owner_package_identity(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-    provider_owner_symbol(typed, machine)
-        .and_then(|symbol| typed.symbols.symbol_package_identity(symbol))
-}
-
 /// Rejoin a provider row to its declaration, including an exact specialization
 /// of the map's realization. Physical machine ownership is not map ownership.
 pub fn provider_row_matches(
@@ -205,10 +181,16 @@ pub fn provider_row_matches(
         {
             return false;
         }
-        // The row names the exact ordinary machine selected by its Build plan.
+        // The row names what resolution bound its authored path to; on this
+        // plan's target that stands for one body: the machine itself or its
+        // family's member for the target.
         if plan.application_identity().is_none()
-            && crate::target_machines::scoped_row_machine(context, entry.realization_machine)
-                .is_some_and(|realized| realized.symbol == machine.symbol)
+            && crate::target_machines::realized_row_machine(
+                context,
+                entry.realization_machine,
+                Some(&plan.target),
+            )
+            .is_some_and(|realized| realized.symbol == machine.symbol)
         {
             return true;
         }
@@ -250,11 +232,12 @@ pub fn provider_row_matches(
                 .is_none(),
         }
     } else {
-        let Some(owner) = provider_owner_symbol(typed, machine) else {
-            return false;
-        };
-        context.contains(owner)
-            && provider_owner_path(typed, machine).as_deref() == Some(plan.provider_type.as_str())
-            && typed.symbols.symbol_package_identity(owner) == plan.provider_type_package_identity
+        machine.attached_data_symbol.is_valid()
+            && context.contains(machine.attached_data_symbol)
+            && typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
+            && typed
+                .symbols
+                .symbol_package_identity(machine.attached_data_symbol)
+                == plan.provider_type_package_identity
     }
 }

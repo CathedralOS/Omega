@@ -137,9 +137,7 @@ impl<'program> Evaluator<'program> {
                     let kind = match &halt {
                         Halt::Exit(_) => FilesystemEvaluationHaltKind::Exit,
                         Halt::Unsupported(_) => FilesystemEvaluationHaltKind::Unsupported,
-                        Halt::Trap(_) | Halt::Crash(_, _) | Halt::StaticInputUnavailable(_) => {
-                            FilesystemEvaluationHaltKind::Trap
-                        }
+                        Halt::Trap(_) | Halt::Crash(_, _) => FilesystemEvaluationHaltKind::Trap,
                         Halt::Resource(_) => FilesystemEvaluationHaltKind::ResourceExhausted,
                     };
                     self.filesystem_operation_attempts[attempt_index].outcome =
@@ -168,9 +166,7 @@ impl<'program> Evaluator<'program> {
                 let kind = match &halt {
                     Halt::Exit(_) => FilesystemEvaluationHaltKind::Exit,
                     Halt::Unsupported(_) => FilesystemEvaluationHaltKind::Unsupported,
-                    Halt::Trap(_) | Halt::Crash(_, _) | Halt::StaticInputUnavailable(_) => {
-                        FilesystemEvaluationHaltKind::Trap
-                    }
+                    Halt::Trap(_) | Halt::Crash(_, _) => FilesystemEvaluationHaltKind::Trap,
                     Halt::Resource(_) => FilesystemEvaluationHaltKind::ResourceExhausted,
                 };
                 self.filesystem_operation_attempts[attempt_index].outcome =

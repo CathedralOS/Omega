@@ -66,6 +66,7 @@ use typed_trees::TypedTrees;
 pub(crate) mod name;
 pub(crate) mod progress;
 pub(crate) mod seeded_continuation;
+mod target_machine_families;
 
 /// These judgments require authored membership and case nodes, which typing
 /// erases. Every producer of new resolved bodies must run them before lowering,
@@ -122,6 +123,7 @@ pub fn lower_symbol_resolved_trees(
         .map(lower_authored_service_reach_row)
         .collect();
     lowerer.typed_trees.semantic_domains = symbol_resolved_trees.semantic_domains.clone();
+    lowerer.typed_trees.external_bindings = symbol_resolved_trees.external_bindings.clone();
     lowerer.typed_trees.retain_authored_declaration_selections(
         symbol_resolved_trees
             .authored_declaration_selections()
@@ -359,6 +361,10 @@ pub(crate) fn close_typed_cohort(
         .instantiate_nominal_machine_parameter_contracts()
         .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
+    crate::expressions::build_selections::normalize_native_locators(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+    )?;
     crate::type_reference::normalize_const_argument_carriers(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
@@ -404,6 +410,11 @@ pub(crate) fn close_typed_cohort(
     }
     crate::declarations::provider_defaults::finalize_provider_default_calls(
         &mut lowerer.typed_trees,
+    )?;
+    target_machine_families::append(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        cohort.machines,
     )?;
     validation::normalize_terminal_transition_calls(
         &mut lowerer.typed_trees,
@@ -546,7 +557,6 @@ impl Lowerer<'_> {
             .push_const_declaration(typed_trees::constant::ConstDeclaration {
                 symbol: declaration.symbol,
                 is_public: declaration.is_public,
-                requires_value_replay: declaration.requires_value_replay,
                 declared_type,
                 initializer_source_span: declaration.initializer_source_span,
                 pending_target_observation: declaration.pending_target_observation,
@@ -698,10 +708,10 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         // Applied domain theories are derived after authored typing, alongside
         // specialization; the fresh source entrance regenerates them later.
         applied_domain_applications: _,
+        external_bindings,
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,
         plan_laid_schema_fields: _,
-        plan_laid_retired_field_identities: _,
         placed_view_plans: _,
         placement_lifecycle_plans: _,
         placement_policy_invocations: _,
@@ -714,11 +724,11 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         captured_machine_applications: _,
         captured_machine_states: _,
         trait_implementation_applications: _,
-        data_implementation_applications: _,
         // Checking instantiates selector slots after specialization.
         dynamic_slots: _,
+        // Family records are produced after all typed bodies settle.
+        target_machine_families: _,
         boundary_completion_declarations: _,
-        boundary_catalogue_declarations: _,
         evidence_forwardings: _,
         proof_output_calls,
         // Derived lookup state rebuilds from the retained tables.
@@ -743,6 +753,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     trees.service_reach_rows = service_reach_rows;
     trees.authored_service_reach_rows = authored_service_reach_rows;
     trees.semantic_domains = semantic_domains;
+    trees.external_bindings = external_bindings;
     trees.evidence_forwardings = source
         .evidence_forwardings
         .iter()

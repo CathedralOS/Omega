@@ -32,6 +32,12 @@ pub enum TerminalUnsupportedCapability {
     RegisterAccess {
         operation: terminal_psi::RegisterOperation,
     },
+    /// Opaque members require separately admitted execution and result custody.
+    TargetMachineMemberSupply {
+        head: terminal_psi::TargetMachineCallable,
+        callable: terminal_psi::TargetMachineCallable,
+        supply: terminal_psi::TargetMachineSupply,
+    },
     ExternalCompletionInvocation {
         boundary: BoundaryMachineId,
         kind: ExternalCompletionKind,
@@ -95,16 +101,7 @@ pub(crate) fn check_with_private_entry_ram(
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
     let mut placed_candidates = Vec::new();
-    let selected_calls = installation
-        .into_iter()
-        .flat_map(|installation| &installation.supplies)
-        .filter_map(|(&boundary, supply)| match supply {
-            crate::effects::AdmittedBoundarySupply::CheckedProvider(machine) => {
-                Some((boundary, *machine))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let mut selected_calls = Vec::new();
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
     let mut scalar_applications = BTreeSet::new();
@@ -132,7 +129,7 @@ pub(crate) fn check_with_private_entry_ram(
         let requirement = machine.assembly_target_requirement;
         if requirement != terminal_psi::RegisterTargetApplicability::Any {
             let selected = installation
-                .and_then(|supplies| supplies.target_context.as_ref())
+                .and_then(|supplies| supplies.target_machines.as_ref())
                 .map(|selection| selection.target());
             let layouts = program
                 .target_layouts
@@ -239,6 +236,28 @@ pub(crate) fn check_with_private_entry_ram(
                         None
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {
+                        if program.is_target_family_head(*boundary) {
+                            let member = crate::calls::target_families::selected_member(
+                                program,
+                                installation
+                                    .and_then(|installation| installation.target_machines.as_ref()),
+                                *boundary,
+                            )?;
+                            if let terminal_psi::TargetMachineCallable::Machine(member) = member {
+                                if !selected_calls.contains(&(*boundary, member)) {
+                                    selected_calls.push((*boundary, member));
+                                }
+                                crate::calls::target_families::validate_result_transport(
+                                    operation,
+                                    program.verified_machine(member)?,
+                                )?;
+                                pending.push(member);
+                                continue;
+                            }
+                            // An opaque member contributes the head's exact
+                            // provider or host demand, never an executable body
+                            // or an adapter supplied by catalog membership.
+                        }
                         let declaration = program.verified_boundary_machine(boundary)?;
                         // Compiler primitives execute in the interpreter and
                         // retain their own unsupported-operation fences. They
@@ -319,8 +338,9 @@ pub(crate) fn check_with_private_entry_ram(
             match &block.terminator {
                 Terminator::InvokeNoNormal { callee, .. } => pending.push(*callee),
                 Terminator::ExternalCompletion { boundary, kind, .. } => {
-                    let callee = crate::calls::completion::checked_provider_callee(
+                    let callee = crate::calls::target_families::completion_callee(
                         program,
+                        installation.and_then(|row| row.target_machines.as_ref()),
                         installation
                             .and_then(|row| row.supplies.get(boundary))
                             .copied(),
@@ -412,7 +432,19 @@ pub(crate) fn check_with_private_entry_ram(
         let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
             continue;
         };
-        let terminal_psi::TerminalCallable::Machine(machine) = *entry else {
+        let callable = match entry {
+            terminal_psi::TargetMachineCallable::Machine(_) => Some(*entry),
+            terminal_psi::TargetMachineCallable::Boundary(_) => installation
+                .and_then(|installation| installation.target_machines.as_ref())
+                .and_then(|targets| {
+                    targets
+                        .selections()
+                        .iter()
+                        .find(|selection| selection.head() == *entry)
+                })
+                .map(|selection| selection.callable()),
+        };
+        let Some(terminal_psi::TargetMachineCallable::Machine(machine)) = callable else {
             continue;
         };
         if !visited.contains(&machine) {
@@ -948,7 +980,7 @@ mod tests {
             )]),
             assumed_bindings: Vec::new(),
             folded_constant_target: None,
-            target_context: None,
+            target_machines: None,
             target_layouts: None,
         };
         assert_eq!(
@@ -1162,7 +1194,7 @@ mod tests {
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
             folded_constant_target: None,
-            target_context: None,
+            target_machines: None,
             target_layouts: None,
         };
         // Multi-source result transport no longer adds a capability demand.

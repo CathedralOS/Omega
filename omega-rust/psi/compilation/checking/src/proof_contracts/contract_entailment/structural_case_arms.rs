@@ -2240,11 +2240,10 @@ fn terminal_body_transfer<'program>(
                 return None;
             };
             let super::specification_calls::SelectedCallContract::Concrete(callee, entry) =
-                super::specification_calls::selected_call_contract_for_parameters(
+                super::specification_calls::selected_call_contract(
                     program,
-                    call,
                     invocation.symbol,
-                    program.state_parameters(state),
+                    call,
                 )?
             else {
                 return None;
@@ -2266,7 +2265,6 @@ fn terminal_body_transfer<'program>(
                 && super::structural_judgment::normal_returns::call_has_mathematical_denotation(
                     program,
                     invocation.symbol,
-                    program.state_parameters(state),
                     call,
                 )
                 && !is_subordinate_machine(program, proof_root.symbol, callee.symbol)

@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedInspectTarget, CheckedInspectTarget>(builder, linux_x86_64);
-    Build::select_provider<SelectedInspectTarget, CheckedInspectTarget>(builder, linux_arm64);
-    Build::select_provider<SelectedInspectTarget, CheckedInspectTarget>(builder, macos_arm64);
-    Build::select_provider<SelectedInspectTarget, CheckedInspectTarget>(builder, windows_x86_64);
-
     Build::application(builder, "alias_fact_transfer_target_body_invalid");
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

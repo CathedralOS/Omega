@@ -72,6 +72,7 @@ use std::sync::Arc;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 
 pub(crate) mod dependencies;
 pub(crate) mod rewrite;
@@ -268,6 +269,13 @@ pub fn prune_checked_tree_product(
             .map(|(_, recipe)| recipe.machine)
             .filter(|machine| machine.is_valid()),
     );
+    retained.extend(
+        checked
+            .typed
+            .target_machine_families
+            .iter()
+            .flat_map(|family| family.members.iter().map(|member| member.machine)),
+    );
 
     // Transitive closure over the checked edge relation. The relation is
     // finite (bounded by the machine table) so iteration always converges.
@@ -323,6 +331,24 @@ pub fn prune_checked_tree_product(
 /// family whose members all left keeps no row. `canonical` is retained
 /// regardless — it is the family's contract-head identity, a symbol that
 /// survives machine pruning even when its own body did not.
+fn retain_live_family_members(typed: &mut TypedTrees) {
+    if typed.target_machine_families.is_empty() {
+        return;
+    }
+    let live: HashSet<SymbolHandle> = typed
+        .machines()
+        .iter()
+        .map(|machine| machine.symbol)
+        .collect();
+    for family in &mut typed.target_machine_families {
+        family
+            .members
+            .retain(|member| live.contains(&member.machine));
+    }
+    typed
+        .target_machine_families
+        .retain(|family| !family.members.is_empty());
+}
 
 /// Domain-separated SHA-256 identity of one executed product selection.
 fn selection_identity(

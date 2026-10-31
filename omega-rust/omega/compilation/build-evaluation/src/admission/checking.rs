@@ -18,7 +18,6 @@ use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 
 pub(crate) fn prepare_checked_build(
-    handoffs: &package_compilation::BuildHandoffInventory,
     typed: &mut typed_trees::TypedTrees,
     pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
     entry: symbols::SymbolHandle,
@@ -57,56 +56,40 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    // Projection deliberately removes conformance descriptor roots from host
-    // type-work. Provider planning still needs their complete declaration
-    // roster. Borrow the retained frontier, filtered to this Build scope;
-    // checking and execution below keep the projected program.
-    let inherited = handoffs
-        .admitted_provider_selections(packages, source::DependencyScope::Build)?
-        .into_iter()
-        .map(|selection| {
-            selection
-                .rejoin(typed, source::DependencyScope::Build, &[])
-                .map_err(|error| vec![error])
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    // Rejoin against the complete declaration owner, then project its prepared
-    // applications into the checked Build input. A descriptor-only named
-    // implementation is intentionally absent from the host work roster.
-    let provisional = if pre_checks.is_empty() && inherited.is_empty() {
+    let provisional = if pre_checks.is_empty() {
         projection
     } else {
         validation::execution_projection::project_build_program(typed, entry)?
     };
     let context = provider_planning::ProviderPlanningContext::new(
-        provisional.product_declarations(),
+        &provisional,
         source::DependencyScope::Build,
     );
-    let mut defaults =
-        build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
-    for selection in inherited {
-        defaults.push(
-            build_time_evaluation::provider_declarations::TargetProviderDefaults {
-                target: selection
-                    .target
-                    .map(|target| target.canonical_name().to_owned()),
-                machines: Vec::new(),
-                selections: vec![selection],
-            },
-        );
-    }
+    let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
     let declarations = provider_planning::target_machines::settle_provider_defaults(
+        &typed_trees::provider_declarations::provider_target_declarations(
+            context.typed,
+            context.scope,
+        ),
         &defaults,
         execution_profile.unwrap_or_else(target::TargetProfile::host),
     );
+    let bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
+        context,
+        execution_profile,
+        packages,
+    )?;
     let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
-    let candidates =
-        provider_planning::derive_satisfies_plans(provider_planning::ProviderPlanDerivation::new(
+    let candidates = provider_planning::derive_satisfies_plans(
+        provider_planning::ProviderPlanDerivation::evaluated(
             context,
             &body_declarations,
             &[],
             execution_profile.map(target::TargetProfile::target_name),
-        ))?;
+            &bindings,
+            &declarations.origins,
+        ),
+    )?;
     let (selected_provider_plan_facts, provenance) =
         if candidates.is_empty() && declarations.provider_defaults.is_empty() {
             (effects::SelectedProviderPlanFacts::default(), Vec::new())

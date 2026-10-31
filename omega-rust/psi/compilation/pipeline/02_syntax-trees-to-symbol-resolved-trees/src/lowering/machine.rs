@@ -199,6 +199,10 @@ fn lower_lexical_machine_parts(
     // Each member keeps its own conformances and target-owned `via` locators.
     // Provider selection joins an exact member without promoting it into the
     // portable head or rewriting other members' declarations.
+    let sibling_target = machine
+        .target
+        .as_ref()
+        .map(|name| crate::lowering::name::lower_name(syntax_trees, name));
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
@@ -222,6 +226,16 @@ fn lower_lexical_machine_parts(
     let contracts =
         lower_machine_signature_contracts(lowerer, syntax_trees, machine.contracts, states)?;
     let machine_name = crate::lowering::name::lower_name(syntax_trees, &machine.name);
+    // A member keeps its authored family path and has a distinct
+    // `<path>::<target>` symbol. The independent head occupies the portable
+    // path; same-target calls bind exact member symbols during resolution.
+    let target_symbol_name = match &sibling_target {
+        Some(target) => symbol_resolved_trees::name::DiagnosticName::new(
+            format!("{}::{}", machine.name.as_str(syntax_trees), target.as_str()),
+            machine.name.source_span(),
+        ),
+        None => symbol_resolved_trees::name::DiagnosticName::default(),
+    };
     let attached_data = machine
         .attached_data
         .as_ref()
@@ -229,13 +243,45 @@ fn lower_lexical_machine_parts(
     let termination_plan =
         build_termination_plan(lowerer, syntax_trees, machine, states, type_parameters);
 
-    // Callable supply is declared by the source form. Native binding selection
-    // belongs to Build and never changes a requirement-satisfaction edge.
+    // STR3: the supply mode's ONE population site. Requirement gains its
+    // source when trait requirements reach this record; TopLevelRequirement is
+    // the explicit `boundary requirement` marker or a bodyless token-bearing
+    // boundary machine. Both declare required callable supply, not a proof axiom.
+    // An explicit bodyless `satisfies ... via ...` supplies an external leaf,
+    // including a `boundary machine`: boundary marks a crossing, not an axiom.
+    // Only a declaration without an external realization can instead author
+    // an admission claim. Supply is decided before the
+    // push so the interner borrow does not overlap the machines borrow.
     let supply_mode = {
-        if machine.is_top_level_boundary_requirement
+        let via_binding = syntax_trees
+            .items
+            .satisfies_clauses(machine.satisfies)
+            .iter()
+            .find_map(|clause| clause.via.as_ref())
+            .map(|value| external_binding_identity(syntax_trees, value));
+        let has_via_expression = syntax_trees
+            .items
+            .satisfies_clauses(machine.satisfies)
+            .iter()
+            .any(|clause| clause.via_expression.is_valid());
+        if machine.target_family_interface {
+            language_semantics::MachineSupplyMode::Requirement
+        } else if machine.is_top_level_boundary_requirement
             || crate::lowering::operator::is_token_bearing_boundary_signature(machine)
         {
             language_semantics::MachineSupplyMode::TopLevelRequirement
+        } else if machine.bodyless && (via_binding.is_some() || has_via_expression) {
+            let (binding, mechanism) = via_binding
+                .map(|identity| {
+                    let mechanism = identity.mechanism();
+                    let binding = lowerer
+                        .symbol_resolved_trees
+                        .external_bindings
+                        .intern(identity);
+                    (Some(binding), Some(mechanism))
+                })
+                .unwrap_or((None, None));
+            language_semantics::MachineSupplyMode::ExternalRealization { binding, mechanism }
         } else if machine.bodyless && machine.boundary {
             // A bodyless boundary declaration is an admission claim only when it
             // actually authors a fact. Claim-free symbols such as the
@@ -305,6 +351,15 @@ fn lower_lexical_machine_parts(
         interface_exposure,
         supply_mode,
         body_is_present: !machine.bodyless,
+        target: sibling_target,
+        authored_target: machine
+            .authored_target
+            .as_ref()
+            .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
+        target_family: SymbolHandle::invalid(),
+        target_family_interface: machine.target_family_interface,
+        target_family_contracts_prepared: false,
+        target_symbol_name,
         has_structural_type_equations: requires_argument_recovery,
         structural_type_equations_pending: !machine.where_facts.is_empty()
             && (lowerer.structural_type_equations_pending || !requires_argument_recovery),
@@ -313,6 +368,7 @@ fn lower_lexical_machine_parts(
         termination_plan,
         service_reach_row: language_semantics::ServiceReachRowId::NULL,
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
+        admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
         suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
         blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
         compiler_selection_partition,
@@ -495,6 +551,8 @@ fn compiler_selection_partition(
     if requirement.trait_name.is_source_backed()
         || requirement_name.is_source_backed()
         || requirement.alias.is_some()
+        || requirement.via.is_some()
+        || requirement.via_expression.is_valid()
     {
         return None;
     }
@@ -843,6 +901,18 @@ fn lower_machine_trait_conformances(
             syntax_trees,
             clause.arguments,
         )?;
+        let external_binding = clause.via.as_ref().map(|binding| {
+            lowerer
+                .symbol_resolved_trees
+                .external_bindings
+                .intern(external_binding_identity(syntax_trees, binding))
+        });
+        let via_expression = clause
+            .via_expression
+            .is_valid()
+            .then(|| lower_expression_into_table(lowerer, syntax_trees, clause.via_expression))
+            .transpose()?
+            .unwrap_or_else(symbol_resolved_trees::expression::ExpressionHandle::invalid);
         lowerer
             .symbol_resolved_trees
             .tables
@@ -867,11 +937,43 @@ fn lower_machine_trait_conformances(
                         .alias
                         .as_ref()
                         .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
+                    external_binding,
+                    via_expression,
+                    external_binding_source_span: clause.via_keyword_source_span,
                 },
             );
     }
 
     Ok(span)
+}
+
+fn external_binding_identity(
+    syntax_trees: &syntax_trees::SyntaxTrees,
+    binding: &syntax::item::ExternalBinding,
+) -> language_semantics::ExternalBindingIdentity {
+    use language_semantics::ExternalBindingIdentity;
+
+    match binding {
+        syntax::item::ExternalBinding::Syscall { number } => {
+            ExternalBindingIdentity::Syscall { number: *number }
+        }
+        syntax::item::ExternalBinding::CompilerIntrinsic => {
+            ExternalBindingIdentity::CompilerIntrinsic
+        }
+        syntax::item::ExternalBinding::VtableSlot { index } => {
+            ExternalBindingIdentity::VtableSlot { index: *index }
+        }
+        syntax::item::ExternalBinding::VtableField { field } => {
+            ExternalBindingIdentity::VtableField {
+                field: field.as_str(syntax_trees).to_owned(),
+            }
+        }
+        syntax::item::ExternalBinding::TableFunction { field } => {
+            ExternalBindingIdentity::TableFunction {
+                field: field.as_str(syntax_trees).to_owned(),
+            }
+        }
+    }
 }
 
 fn lower_machine_states(

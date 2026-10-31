@@ -11,6 +11,7 @@ mod boundary_review;
 mod callback_roots;
 mod provider_demands;
 mod provider_instances;
+mod target_bodies;
 pub use callback_roots::{
     CallbackProviderDeclarations, SelectedCallbackRow, select_callback_declarations,
 };
@@ -19,6 +20,7 @@ pub use provider_instances::{
     GenericProviderInstanceDeclarations, ProviderInstanceDeclarations,
     ProviderInstanceRowDeclarations, ProviderPlanInstanceDeclarations, project_provider_instances,
 };
+pub use target_bodies::{DirectTargetBodyAbsences, reject_reached_inert_calls};
 mod selected_binding;
 pub use boundary_review::BoundaryProviderAdmission;
 pub use selected_binding::{
@@ -26,10 +28,10 @@ pub use selected_binding::{
 };
 mod checked_bodies;
 mod declarations;
-mod numeric_execution;
+mod external_execution;
 pub use boundary_applications::{CompilerIntrinsicPlanProvenance, select_boundary_applications};
 pub use checked_bodies::{CheckedBodyCandidate, select_checked_body};
-pub use numeric_execution::selected_numeric_execution;
+pub use external_execution::selected_external_execution;
 mod independent_components;
 mod installation_reach;
 mod provider_selection;

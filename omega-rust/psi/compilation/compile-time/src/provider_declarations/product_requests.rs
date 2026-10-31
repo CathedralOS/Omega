@@ -34,8 +34,7 @@ fn identities(
          role|
          -> Result<ProviderSelectionIdentity, Diagnostic> {
             let symbol = resolve_product_path(context.typed, &operand.path, operand.source_span, role)
-            .ok_or_else(|| Diagnostic::error(format!("Product provider operand `{}` does not resolve to one visible declaration of role {role:?}\n  {}", operand.path,
-                typed_trees::product_operand::product_declaration_lookup_diagnostic(context.typed, &operand.path, operand.source_span, role)))
+            .ok_or_else(|| Diagnostic::error(format!("Product provider operand `{}` does not resolve to one visible declaration of role {role:?}", operand.path))
                 .with_source_span(operand.source_span))?;
             let application = if operand.application.is_some() {
                 let mut matching = context

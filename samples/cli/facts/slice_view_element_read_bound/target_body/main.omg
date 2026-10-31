@@ -4,12 +4,7 @@
 
 use omega::language::core::slice;
 
-boundary trait SelectedReadGuarded {
-    machine read_guarded(view: &[u64]) -> i32 reaches
-requires view.len >= 3;
-}
-CheckedReadGuarded satisfies SelectedReadGuarded {
-    machine read_guarded(view: &[u64]) -> i32
+linux_x86_64 machine read_guarded(view: &[u64]) -> i32
     requires view.len >= 3
 {
     let elem: u64 = view[2];
@@ -21,18 +16,50 @@ CheckedReadGuarded satisfies SelectedReadGuarded {
     machine done() -> i32 { 0 }
     machine bad() -> i32 { 1 }
 }
+
+linux_arm64 machine read_guarded(view: &[u64]) -> i32
+    requires view.len >= 3
+{
+    let elem: u64 = view[2];
+    let diff: u64 = view.len - 3u64;
+    transition elem == 30u64 && diff == 1u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
 }
 
+macos_arm64 machine read_guarded(view: &[u64]) -> i32
+    requires view.len >= 3
+{
+    let elem: u64 = view[2];
+    let diff: u64 = view.len - 3u64;
+    transition elem == 30u64 && diff == 1u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
+}
 
-
-
-
-
+windows_x86_64 machine read_guarded(view: &[u64]) -> i32
+    requires view.len >= 3
+{
+    let elem: u64 = view[2];
+    let diff: u64 = view.len - 3u64;
+    transition elem == 30u64 && diff == 1u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
+}
 
 machine main() crashes Trap {
     let items: [u64; 4] = [10u64, 20u64, 30u64, 40u64];
     let view: &[u64] = &items[..];
-    let res: i32 = SelectedReadGuarded::read_guarded(view);
+    let res: i32 = read_guarded(view);
     transition res == 0 {
         true -> pass()
         _ -> fail()

@@ -47,6 +47,7 @@ pub(in crate::flow) fn record<'plans>(
     let parameters = program.state_parameters(destination);
     let authenticated = validation::private_invocation_entry_is_closed(program, owner)
         && !owner.is_public
+        && !owner.target_family_interface
         && owner.supplies_checked_body()
         && site.is_some_and(|site| {
             site.target_symbol(program) == destination.symbol

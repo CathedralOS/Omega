@@ -10,27 +10,36 @@ requires combined >= 40 && combined <= 63
     headroom + margin
 }
 
-boundary trait SelectedBitwiseOrTarget {
-    machine bitwise_or_target(base: i32) -> i32 reaches
-requires base >= 16 && base <= 31;
-}
-CheckedBitwiseOrTarget satisfies SelectedBitwiseOrTarget {
-    machine bitwise_or_target(base: i32) -> i32
+linux_x86_64 machine bitwise_or_target(base: i32) -> i32
 requires base >= 16 && base <= 31
 {
     let combined: i32 = base | 32i32;
     verify_combined(combined)
 }
+
+linux_arm64 machine bitwise_or_target(base: i32) -> i32
+requires base >= 16 && base <= 31
+{
+    let combined: i32 = base | 32i32;
+    verify_combined(combined)
 }
 
+macos_arm64 machine bitwise_or_target(base: i32) -> i32
+requires base >= 16 && base <= 31
+{
+    let combined: i32 = base | 32i32;
+    verify_combined(combined)
+}
 
-
-
-
-
+windows_x86_64 machine bitwise_or_target(base: i32) -> i32
+requires base >= 16 && base <= 31
+{
+    let combined: i32 = base | 32i32;
+    verify_combined(combined)
+}
 
 machine probe() -> i32 {
-    SelectedBitwiseOrTarget::bitwise_or_target(20i32)
+    bitwise_or_target(20i32)
 }
 
 machine main() crashes Trap {

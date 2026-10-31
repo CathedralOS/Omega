@@ -1,36 +1,24 @@
 // A shared two-byte Pair view starting at byte 1 of live [u8; 4] preserves the original first-byte address and full two-byte loan while its second field reads 37.
 // Expected exit: 0
 // Place: target_body.
-use omega::language::core::layout;
 data Pair { first: u8; second: u8; }
-
-PairLayout satisfies FixedLayout<Pair> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
-        let mut entries: [FieldEntry; 64];
-        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
-        entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 1 } };
-        Plan { entries: entries, entry_count: 2, size_fixed: 2, size_is_dynamic: false, align: 1 }
-    }
+windows_x86_64 machine observe(view: &Pair, original: addr) -> bool {
+    address_of(&view.first) == original && view.second == 37
 }
-
-boundary trait FootprintObserver {
-    machine observe(view: &LayoutStorage<Pair, PairLayout>, original: addr) -> bool reaches terminates;
+linux_x86_64 machine observe(view: &Pair, original: addr) -> bool {
+    address_of(&view.first) == original && view.second == 37
 }
-ArmFootprintObserver satisfies FootprintObserver {
-    machine observe(view: &LayoutStorage<Pair, PairLayout>, original: addr) -> bool {
-        address_of(&view.first) == original && view.second == 37
-    }
+macos_arm64 machine observe(view: &Pair, original: addr) -> bool {
+    address_of(&view.first) == original && view.second == 37
 }
-OtherFootprintObserver satisfies FootprintObserver {
-    machine observe(view: &LayoutStorage<Pair, PairLayout>, original: addr) -> bool {
-        address_of(&view.first) == original && view.second == 37
-    }
+linux_arm64 machine observe(view: &Pair, original: addr) -> bool {
+    address_of(&view.first) == original && view.second == 37
 }
 machine probe() -> bool {
     let mut bytes: [u8; 4] = [11, 23, 37, 41];
     let original: addr = address_of(&bytes[1]);
-    let view: &LayoutStorage<Pair, PairLayout> = &bytes[1] as &LayoutStorage<Pair, PairLayout>;
-    FootprintObserver::observe(view, original)
+    let view: &Pair = &bytes[1] as &Pair;
+    observe(view, original)
 }
 machine main() crashes Trap {
     let accepted: bool = probe();

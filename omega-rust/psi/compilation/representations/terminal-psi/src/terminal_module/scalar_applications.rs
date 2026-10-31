@@ -8,7 +8,7 @@
 use arena::Arena;
 use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
 
-use crate::TerminalCallable;
+use crate::TargetMachineCallable;
 
 /// A canonical, append-only application namespace. IDs are one-based wire
 /// coordinates; arena generations never escape as portable identities.
@@ -34,7 +34,7 @@ pub enum ScalarApplication {
     /// arguments are empty; other application reads are explicit operations in
     /// the retained body. Selected families keep their portable head identity.
     Evaluate {
-        entry: TerminalCallable,
+        entry: TargetMachineCallable,
         scalar_type: ScalarType,
     },
 }

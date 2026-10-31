@@ -1,6 +1,6 @@
 //! Exact transport joins, not a second proof of the source program.
-use super::declaration_catalog_tests::{identity_table, unit_machine};
 use super::module_wire::encode_raw;
+use super::target_family_tests::{identity_table, unit_machine};
 use crate::{decode_module, encode_module, semantic_fingerprint};
 use semantic_vocabulary::{
     DomainSemanticId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,

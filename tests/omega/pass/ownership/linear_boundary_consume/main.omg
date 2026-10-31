@@ -9,8 +9,36 @@ data Receipt [linear] {
 }
 boundary requirement Receipt::ack(receipt: Receipt);
 data ReceiptSink {}
-
-
+linux_x86_64 machine linux_x86_64_receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+windows_x86_64 machine windows_x86_64_receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    }
+}
+macos_arm64 machine macos_arm64_receipt_sink_binding() -> ForeignBinding<26, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs",
+        },
+    }
+}
+linux_x86_64 machine linux_x86_64_receipt_ack(receipt: Receipt)
+    satisfies Receipt::ack via linux_x86_64_receipt_sink_binding();
+windows_x86_64 machine windows_x86_64_receipt_ack(receipt: Receipt)
+    satisfies Receipt::ack via windows_x86_64_receipt_sink_binding();
+macos_arm64 machine macos_arm64_receipt_ack(receipt: Receipt)
+    satisfies Receipt::ack via macos_arm64_receipt_sink_binding();
 machine main() {
     let receipt: Receipt = Receipt { code: -7 };
     let alias: Receipt = receipt;

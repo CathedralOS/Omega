@@ -74,15 +74,14 @@ impl ExpressionTable {
 }
 
 impl ExpressionTable {
-    pub fn remap_static_application_operands<'scope>(
+    pub fn remap_static_application_operands(
         &mut self,
         handle: crate::static_applications::StaticMachineApplicationHandle,
-        symbols: impl Into<crate::SymbolRebinding<'scope>>,
+        symbols: &[(SymbolHandle, SymbolHandle)],
     ) {
-        let symbols = symbols.into();
         let mut arguments = self.static_machine_application_arguments(handle).to_vec();
         for argument in &mut arguments {
-            self.remap_static_argument_symbols(argument, symbols.authored());
+            self.remap_static_argument_symbols(argument, symbols);
         }
         self.static_machine_application_arguments_mut(handle)
             .clone_from_slice(&arguments);
@@ -90,7 +89,7 @@ impl ExpressionTable {
             .static_machine_application_selected_machines(handle)
             .to_vec();
         for argument in &mut selected {
-            self.remap_static_argument_symbols(argument, symbols.execution());
+            self.remap_static_argument_symbols(argument, symbols);
         }
         self.static_machine_application_selected_machines_mut(handle)
             .clone_from_slice(&selected);

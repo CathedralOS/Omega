@@ -47,14 +47,35 @@ pub struct Machine {
     /// strict effect and operational ceilings without changing supply mode.
     pub is_public: bool,
     /// Structural package exposure, independent of name visibility and supply.
-    /// A boundary declaration retains its structural contract independently
-    /// of whether its name is exported. Authored once in resolution.
+    /// An external boundary retains its exported contract even when its supply
+    /// is ExternalRealization rather than Boundary. Authored once in resolution.
     pub interface_exposure:
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     /// Populated once at syntax-to-resolved lowering and copied downstream;
     /// semantic consumers must not reconstruct supply from source spelling or
     /// body presence.
     pub supply_mode: language_semantics::MachineSupplyMode,
+    /// Exact authored implementation target. Every product member retains
+    /// this identity; its independent portable interface and ordinary machines
+    /// have no target. Psi checks all members without choosing a deployment.
+    pub target: Option<DiagnosticName>,
+    /// Authored target head, independent of the transitional sibling marker.
+    pub authored_target: Option<DiagnosticName>,
+    /// Exact independent interface of this product-scope target family,
+    /// including closed generic attachments. Invalid for ordinary and Build
+    /// declarations. This handle supplies no executable implementation.
+    pub target_family: SymbolHandle,
+    /// Generated Requirement owning the portable callable identity. Target
+    /// implementations refine this head; none is its executable definition.
+    pub target_family_interface: bool,
+    /// Declaration preparation checkpoint. Completing authored bodies must
+    /// preserve these already resolved interface clauses and their handles.
+    pub target_family_contracts_prepared: bool,
+    /// A sibling's symbol spelling, `<path>::<target>`, so the symbol table
+    /// keeps one root machine per authored path for name lookups while the
+    /// record's `name` stays the authored family path. Empty for every other
+    /// machine.
+    pub target_symbol_name: DiagnosticName,
     /// Exact source-body presence retained independently from supply mode.
     /// Boundary supply admits both bodyless host declarations and checked
     /// adapters, so downstream review must not reconstruct this distinction
@@ -82,6 +103,9 @@ pub struct Machine {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
+    /// Authored same-stack demand of a bodyless external realization, in bytes.
+    /// Zero means the source wrote no `stack N bytes` clause.
+    pub admitted_same_stack_bytes: u64,
     /// Exact authored operational-clause keyword occurrences. These explain
     /// the semantic booleans below without making source coordinates part of
     /// contract identity.
@@ -93,6 +117,18 @@ pub struct Machine {
     pub compiler_selection_partition:
         Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     pub storage: MachineStorage,
+}
+
+impl Machine {
+    /// The spelling of this machine's symbol in the symbol table: the
+    /// authored name, or `<name>::<target>` for a target sibling.
+    pub fn symbol_spelling(&self) -> &str {
+        if self.target.is_some() {
+            self.target_symbol_name.as_str()
+        } else {
+            self.name.as_str()
+        }
+    }
 }
 
 /// Compiler-owned derivation, separate from trait-default selection partitions.
@@ -188,6 +224,17 @@ pub struct TraitConformance {
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<DiagnosticName>,
     pub alias: Option<DiagnosticName>,
+    /// Exact interned identity of the external leaf's structured `via`
+    /// bootstrap binding. New source instead retains `via_expression` until
+    /// hermetic evaluation produces the normalized Omega-owned binding.
+    pub external_binding: Option<language_semantics::ExternalBindingId>,
+    /// Ordinary authored expression after `via`, lowered through the same
+    /// name-resolution table as every other expression. Invalid for the
+    /// segregated bootstrap binding and for ordinary checked satisfiers.
+    pub via_expression: ExpressionHandle,
+    /// Exact authored `via` keyword occurrence retained separately from the
+    /// semantic binding identity for package-review source custody.
+    pub external_binding_source_span: Option<source::SourceSpan>,
 }
 
 #[cfg(test)]
@@ -242,7 +289,13 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
         spelling: None,
         is_public: false,
         supply_mode: Default::default(),
+        target: None,
+        target_symbol_name: Default::default(),
+        authored_target: None,
+        target_family: SymbolHandle::invalid(),
+        target_family_interface: false,
         interface_exposure: Default::default(),
+        target_family_contracts_prepared: false,
         body_is_present: true,
         body_status: crate::machine::MachineBodyStatus::Complete,
         has_structural_type_equations: false,
@@ -250,6 +303,7 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
         termination_plan: Default::default(),
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
+        admitted_same_stack_bytes: 0,
         suspends_keyword_source_spans: Vec::new(),
         blocks_keyword_source_spans: Vec::new(),
         compiler_selection_partition: None,

@@ -5,21 +5,14 @@ data Reading [copy] where value >= 0.0 && value <= 0.25 { value: f64; }
 machine admit(value: f64) -> f64
 requires value >= 0.0 && value <= 0.5
 { value }
-boundary trait SelectedProbe {
-    machine probe(reading: Reading) -> f64 reaches
-;
-}
-CheckedProbe satisfies SelectedProbe {
-    machine probe(reading: Reading) -> f64
-{ admit(reading.value) }
-}
-
-
-
+linux_x86_64 machine probe(reading: Reading) -> f64 { admit(reading.value) }
+linux_arm64 machine probe(reading: Reading) -> f64 { admit(reading.value) }
+macos_arm64 machine probe(reading: Reading) -> f64 { admit(reading.value) }
+windows_x86_64 machine probe(reading: Reading) -> f64 { admit(reading.value) }
 machine main() crashes Trap {
     let low: Reading = Reading { value: 0.125 };
     let high: Reading = Reading { value: 0.25 };
-    transition SelectedProbe::probe(low) == 0.125 && SelectedProbe::probe(high) == 0.25 { true -> done() _ -> bad() }
+    transition probe(low) == 0.125 && probe(high) == 0.25 { true -> done() _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }

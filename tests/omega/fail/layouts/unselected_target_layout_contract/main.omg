@@ -1,15 +1,5 @@
 machine eight() requires size_of<u64>() == 8 {}
 machine impossible() requires size_of<u64>() == 0 {}
-boundary trait SelectedScoped {
-    machine scoped() reaches
-;
-}
-MacosArm64Scoped satisfies SelectedScoped {
-    machine scoped()
-{ eight(); }
-}
-WindowsX8664Scoped satisfies SelectedScoped {
-    machine scoped()
-{ impossible(); }
-}
-machine program() { SelectedScoped::scoped(); }
+macos_arm64 machine scoped() { eight(); }
+windows_x86_64 machine scoped() { impossible(); }
+machine program() { scoped(); }

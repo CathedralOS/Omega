@@ -6,31 +6,17 @@ public boundary trait Endpoint {
 public Actual satisfies Endpoint {
     machine upper() -> u64 { 7 }
 }
-boundary trait SelectedLimit {
-    machine limit() -> u64 reaches
-;
-}
-CheckedLimit satisfies SelectedLimit {
-    machine limit() -> u64
-{ Endpoint::upper() }
-}
-
-
-
-boundary trait SelectedDormantDemand {
-    machine dormant_demand() -> u64 reaches
-;
-}
-CheckedDormantDemand satisfies SelectedDormantDemand {
-    machine dormant_demand() -> u64
-{ bounded(7) }
-}
-
-
-
+linux_x86_64 machine limit() -> u64 { Endpoint::upper() }
+linux_arm64 machine limit() -> u64 { Endpoint::upper() }
+windows_x86_64 machine limit() -> u64 { Endpoint::upper() }
+macos_arm64 machine limit() -> u64 { Endpoint::upper() }
+linux_x86_64 machine dormant_demand() -> u64 { bounded(7) }
+linux_arm64 machine dormant_demand() -> u64 { bounded(7) }
+windows_x86_64 machine dormant_demand() -> u64 { bounded(7) }
+macos_arm64 machine dormant_demand() -> u64 { bounded(7) }
 machine bounded(value: u64) -> u64
-requires value <= SelectedLimit::limit()
-ensures result <= SelectedLimit::limit()
+requires value <= limit()
+ensures result <= limit()
 { value }
 public machine main() crashes Trap {
     let value: u64 = bounded(7);

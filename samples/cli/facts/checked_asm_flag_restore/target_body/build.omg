@@ -1,8 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedRestore, CheckedRestore>(builder, linux_x86_64);
-    Build::select_provider<SelectedRestore, CheckedRestore>(builder, windows_x86_64);
-    Build::select_provider<SelectedRestore, CheckedRestore>(builder, macos_x86_64);
-
     Build::application(builder, "checked_asm_flag_restore_target_body");
     builder.freestanding = true;
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

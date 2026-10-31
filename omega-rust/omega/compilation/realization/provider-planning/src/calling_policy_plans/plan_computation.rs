@@ -30,6 +30,7 @@ use calling_conventions::{
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
+use target::NativeTarget;
 
 macro_rules! row {
     ($a:expr => $b:expr) => {
@@ -39,7 +40,7 @@ macro_rules! row {
 
 pub(crate) fn evaluate_default_calling_application(
     typed: &TypedTrees,
-    layout_target: layout::LayoutTarget,
+    native_target: NativeTarget,
     trait_name: &str,
     trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     method_name: &str,
@@ -52,8 +53,7 @@ pub(crate) fn evaluate_default_calling_application(
         .traits()
         .iter()
         .filter(|definition| {
-            (typed.trait_declaration_path(definition) == trait_name
-                || trait_name == requirement_identity)
+            typed.trait_declaration_path(definition) == trait_name
                 && crate::service_schema::is_product_declaration(typed, definition.symbol)
                 && typed.symbols.symbol_package_identity(definition.symbol)
                     == trait_package_identity
@@ -62,12 +62,6 @@ pub(crate) fn evaluate_default_calling_application(
             typed
                 .trait_machine_signatures(definition)
                 .iter()
-                .chain(
-                    typed
-                        .closed_requirement_applications()
-                        .filter(|application| application.declaring_trait == definition.symbol)
-                        .map(|application| application.signature),
-                )
                 .filter(|signature| signature.name.as_str() == method_name)
                 .map(|signature| {
                     (
@@ -126,7 +120,7 @@ pub(crate) fn evaluate_default_calling_application(
             signature,
             &[],
             requirement_identity,
-            layout_target,
+            native_target,
             opaque_representation_selections,
         )?
     } else {
@@ -141,7 +135,7 @@ pub(crate) fn evaluate_default_calling_application(
             requirement,
             entry,
             requirement_identity,
-            layout_target,
+            native_target,
             opaque_representation_selections,
         )?
     };
@@ -166,6 +160,7 @@ pub fn compute_boundary_calling_plans(
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
     // Provider selection consumes the source judgment. Retain it through
     // policy admission rather than rechecking its internal call premises.
+    let native_target = target_profile.native_target();
     let typed = &checked.typed;
     let vocabularies =
         checked_trees::typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
@@ -240,6 +235,7 @@ pub fn compute_boundary_calling_plans(
                 argument_owner,
                 calling_trait,
                 calling_policy_trait,
+                target_profile,
             )
             .map_err(|reason| {
                 vec![
@@ -265,8 +261,7 @@ pub fn compute_boundary_calling_plans(
                     signature,
                     &signature_instance.bindings,
                     &signature_instance.requirement_identity,
-                    layout::LayoutTarget::for_profile(target_profile)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                    native_target,
                     opaque_representation_selections,
                 )
                 .map_err(|reason| {
@@ -295,13 +290,30 @@ pub fn compute_boundary_calling_plans(
     if pending.is_empty() {
         return Ok(Vec::new());
     }
+    // Policy helpers use ordinary target families too. Select their exact
+    // retained bodies in Omega, then give admission and evaluation one shared
+    // identity mapping; Psi must neither guess the host nor pick a sibling.
+    let machine_bodies = typed
+        .target_machine_families
+        .iter()
+        .filter_map(|family| {
+            typed
+                .target_family_member(family.canonical, target_profile.target_name())
+                .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
+                    family: family.canonical,
+                    body: body.symbol,
+                })
+        })
+        .collect::<Vec<_>>();
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
         typed,
         package_inputs.map(|inputs| {
             std::sync::Arc::new(inputs.clone())
                 as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
-    );
+    )
+    .with_selected_machine_bodies(typed, &machine_bodies)
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut evaluated = Vec::with_capacity(pending.len());
     for (
         boundary_trait,

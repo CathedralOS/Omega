@@ -46,7 +46,6 @@ mod cleanup_applications;
 mod contextual_calls;
 mod domain_applications;
 mod explicit_arguments;
-mod layout_storage_policies;
 mod native_query_lifetimes;
 mod placed_primitives;
 mod provider_tuple_closure;
@@ -74,6 +73,7 @@ mod range_arguments;
 mod result_locals;
 pub(crate) use result_locals::refresh as refresh_inferred_result_locals;
 mod saved_calls;
+mod target_families;
 mod type_reference_walk;
 
 /// Authored metadata shared by all candidate applications in a round.
@@ -292,7 +292,6 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         body_rewriting::fold_closed_const_machine_arguments(program)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         trait_implementation_arguments::prepare(program)?;
-        layout_storage_policies::prepare(program)?;
         program
             .prepare_closed_conformance_scopes()
             .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -300,14 +299,6 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let captured_owners = captured_rows::close(program)?;
         let captures_changed = !captured_owners.is_empty();
         changed_owners.extend(captured_owners);
-        // Projected receivers and captured results can complete operands after
-        // the initial inference pass. Settle their dependent subjects before
-        // collecting consumers or declaring the round unchanged.
-        let subjects = result_locals::materialize_dispatch_subjects(program);
-        if !subjects.is_empty() {
-            changed_owners.extend(subjects);
-            continue;
-        }
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {

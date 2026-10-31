@@ -11,12 +11,7 @@ data Outer {
     header: u64;
 }
 
-boundary trait SelectedEvaluate {
-    machine evaluate(seed: u64) -> u64 reaches
-requires seed <= 73;
-}
-CheckedEvaluate satisfies SelectedEvaluate {
-    machine evaluate(seed: u64) -> u64
+linux_x86_64 machine evaluate(seed: u64) -> u64
 requires seed <= 73
 {
     let outer: Outer = Outer {
@@ -28,16 +23,48 @@ requires seed <= 73
     let diff: u64 = 72u64 - quota;
     diff
 }
+
+linux_arm64 machine evaluate(seed: u64) -> u64
+requires seed <= 73
+{
+    let outer: Outer = Outer {
+        inner: Inner { quota: seed, tag: 7 },
+        header: 10,
+    };
+    let view: &Outer = &outer;
+    let quota: u64 = view.inner.quota;
+    let diff: u64 = 72u64 - quota;
+    diff
 }
 
+macos_arm64 machine evaluate(seed: u64) -> u64
+requires seed <= 73
+{
+    let outer: Outer = Outer {
+        inner: Inner { quota: seed, tag: 7 },
+        header: 10,
+    };
+    let view: &Outer = &outer;
+    let quota: u64 = view.inner.quota;
+    let diff: u64 = 72u64 - quota;
+    diff
+}
 
-
-
-
-
+windows_x86_64 machine evaluate(seed: u64) -> u64
+requires seed <= 73
+{
+    let outer: Outer = Outer {
+        inner: Inner { quota: seed, tag: 7 },
+        header: 10,
+    };
+    let view: &Outer = &outer;
+    let quota: u64 = view.inner.quota;
+    let diff: u64 = 72u64 - quota;
+    diff
+}
 
 machine main() crashes Trap {
-    let diff: u64 = SelectedEvaluate::evaluate(30);
+    let diff: u64 = evaluate(30);
     transition diff == 42 {
         true -> done()
         _ -> bad()

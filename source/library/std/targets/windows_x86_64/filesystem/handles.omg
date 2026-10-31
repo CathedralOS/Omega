@@ -11,7 +11,7 @@ use windows_filesystem_host;
 use omega::language::core::filesystem_authority;
 use targets::windows_x86_64::filesystem::errors;
 
-machine windows_filesystem_opened(handle: u64) -> OpenResult
+windows_x86_64 machine windows_filesystem_opened(handle: u64) -> OpenResult
 invokes WindowsFilesystemHost;
 {
     transition handle != 0 {
@@ -24,7 +24,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-machine windows_filesystem_open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
+windows_x86_64 machine windows_filesystem_open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes WindowsFilesystemHost;
 {
@@ -76,7 +76,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-machine windows_filesystem_open(path: &[u8] in Path) -> OpenResult
+windows_x86_64 machine windows_filesystem_open(path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes WindowsFilesystemHost;
 {
@@ -84,7 +84,7 @@ invokes WindowsFilesystemHost;
     block windows_filesystem_open_with(path, options)
 }
 
-machine windows_filesystem_create(path: &[u8] in Path) -> OpenResult
+windows_x86_64 machine windows_filesystem_create(path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes WindowsFilesystemHost;
 {
@@ -93,7 +93,7 @@ invokes WindowsFilesystemHost;
     })
 }
 
-machine windows_filesystem_create_new(path: &[u8] in Path) -> OpenResult
+windows_x86_64 machine windows_filesystem_create_new(path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes WindowsFilesystemHost;
 {
@@ -102,7 +102,7 @@ invokes WindowsFilesystemHost;
     })
 }
 
-machine windows_filesystem_append(path: &[u8] in Path) -> OpenResult
+windows_x86_64 machine windows_filesystem_append(path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 invokes WindowsFilesystemHost;
 {
@@ -111,7 +111,7 @@ invokes WindowsFilesystemHost;
     })
 }
 
-machine windows_filesystem_read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+windows_x86_64 machine windows_filesystem_read(file: File, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead
 invokes WindowsFilesystemHost;
 {
@@ -131,7 +131,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-machine windows_filesystem_write(file: File, bytes: &[u8]) -> IoResult
+windows_x86_64 machine windows_filesystem_write(file: File, bytes: &[u8]) -> IoResult
 reaches FilesystemContentWrite
 invokes WindowsFilesystemHost;
 {
@@ -148,7 +148,7 @@ invokes WindowsFilesystemHost;
 // The raw positioned operations preserve the original object's cursor and
 // cannot upgrade its granted data rights. Validate portable arguments before
 // acquiring their temporary independent object; retain the actual short count.
-machine windows_filesystem_read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+windows_x86_64 machine windows_filesystem_read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
 reaches FilesystemContentRead
 invokes WindowsFilesystemHost;
 {
@@ -168,7 +168,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-machine windows_filesystem_write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
+windows_x86_64 machine windows_filesystem_write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
 reaches FilesystemContentWrite
 invokes WindowsFilesystemHost;
 {
@@ -188,7 +188,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-machine windows_filesystem_close(file: File) -> UnitResult
+windows_x86_64 machine windows_filesystem_close(file: File) -> UnitResult
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
@@ -201,7 +201,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-machine windows_filesystem_sync(file: File) -> UnitResult
+windows_x86_64 machine windows_filesystem_sync(file: File) -> UnitResult
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
@@ -214,7 +214,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-machine windows_filesystem_clone(file: File) -> OpenResult
+windows_x86_64 machine windows_filesystem_clone(file: File) -> OpenResult
 invokes WindowsFilesystemHost;
 {
     transition file.handle != 0 {
@@ -227,7 +227,7 @@ invokes WindowsFilesystemHost;
     }
 }
 
-machine windows_filesystem_set_length(file: File, length: i64) -> UnitResult
+windows_x86_64 machine windows_filesystem_set_length(file: File, length: i64) -> UnitResult
 reaches FilesystemContentWrite + FilesystemMetadataMutation
 invokes WindowsFilesystemHost;
 {

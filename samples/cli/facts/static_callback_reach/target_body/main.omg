@@ -50,21 +50,24 @@ ensures result <= 37
 machine pure_observer() -> u64 reaches
 ensures result <= 37
 { ordinary<quiet>(37) }
-boundary trait SelectedEvaluate {
-    machine evaluate() -> u64 reaches Console;
-}
-CheckedEvaluate satisfies SelectedEvaluate {
-    machine evaluate() -> u64 reaches Console
-{
+linux_x86_64 machine evaluate() -> u64 reaches Console {
     let result: u64 = TraversalCode::traverse<quiet>(37);
     37 - result
 }
+linux_arm64 machine evaluate() -> u64 reaches Console {
+    let result: u64 = TraversalCode::traverse<quiet>(37);
+    37 - result
 }
-
-
-
+macos_arm64 machine evaluate() -> u64 reaches Console {
+    let result: u64 = TraversalCode::traverse<quiet>(37);
+    37 - result
+}
+windows_x86_64 machine evaluate() -> u64 reaches Console {
+    let result: u64 = TraversalCode::traverse<quiet>(37);
+    37 - result
+}
 machine main() reaches Console crashes Trap {
-    let margin: u64 = SelectedEvaluate::evaluate();
+    let margin: u64 = evaluate();
     let sibling: u64 = TraversalCode::traverse<second>(37);
     let pure: u64 = pure_observer();
     let declared: u64 = ordinary<console_step>(37);

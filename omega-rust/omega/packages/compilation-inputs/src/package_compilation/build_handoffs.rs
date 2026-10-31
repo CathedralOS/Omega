@@ -23,39 +23,24 @@ use std::sync::Arc;
 /// each consumer still validates its own closure, custody, purpose, effective
 /// target, and build execution profile. Equal product bytes do not establish that the
 /// generator ran under the consumer's admitted build context.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageBuildHandoff {
     contents: Arc<PackageBuildHandoffContents>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PackageBuildHandoffContents {
-    subject: BuildSourceSubject,
+    package: PackageKeyIdentity,
     purpose: DependencyPurpose,
+    target: target::TargetProfile,
     build_execution_profile: Option<target::TargetProfile>,
+    dependency_closure: PackageDependencyClosure,
+    source_consumption_commitment: PackageSourceConsumptionCommitment,
     sources: Vec<PackageGeneratedSource>,
     provider_selections:
         Arc<[build_time_evaluation::provider_declarations::RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
     native: super::native_bindings::NativeBuildOutputs,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-enum BuildSourceSubject {
-    Package {
-        package: PackageKeyIdentity,
-        target: target::TargetProfile,
-        dependency_closure: PackageDependencyClosure,
-        source_consumption_commitment: PackageSourceConsumptionCommitment,
-    },
-    ToolchainCore(crate::CapturedCoreSource),
-}
-
-pub struct PackageBuildSource<'handoff> {
-    pub package: PackageKeyIdentity,
-    pub target: target::TargetProfile,
-    pub dependency_closure: &'handoff PackageDependencyClosure,
-    pub source_consumption_commitment: PackageSourceConsumptionCommitment,
 }
 
 impl PackageBuildHandoff {
@@ -91,14 +76,12 @@ impl PackageBuildHandoff {
     ) -> Self {
         Self {
             contents: Arc::new(PackageBuildHandoffContents {
-                subject: BuildSourceSubject::Package {
-                    package,
-                    target,
-                    dependency_closure,
-                    source_consumption_commitment,
-                },
+                package,
                 purpose,
+                target,
                 build_execution_profile,
+                dependency_closure,
+                source_consumption_commitment,
                 sources,
                 provider_selections: Arc::from([]),
                 selection_observation: None,
@@ -107,73 +90,8 @@ impl PackageBuildHandoff {
         }
     }
 
-    pub fn source_owner(&self) -> crate::BuildSourceOwner {
-        match &self.contents.subject {
-            BuildSourceSubject::Package { package, .. } => {
-                crate::BuildSourceOwner::Package(*package)
-            }
-            BuildSourceSubject::ToolchainCore(input) => {
-                crate::BuildSourceOwner::ToolchainCore(input.identity())
-            }
-        }
-    }
-
-    pub fn package_source(&self) -> Option<PackageBuildSource<'_>> {
-        match &self.contents.subject {
-            BuildSourceSubject::Package {
-                package,
-                target,
-                dependency_closure,
-                source_consumption_commitment,
-            } => Some(PackageBuildSource {
-                package: *package,
-                target: *target,
-                dependency_closure,
-                source_consumption_commitment: *source_consumption_commitment,
-            }),
-            BuildSourceSubject::ToolchainCore(_) => None,
-        }
-    }
-
-    pub fn package(&self) -> Option<PackageKeyIdentity> {
-        match self.source_owner() {
-            crate::BuildSourceOwner::Package(package) => Some(package),
-            crate::BuildSourceOwner::ToolchainCore(_) => None,
-        }
-    }
-
-    pub fn core_source(&self) -> Option<&crate::CapturedCoreSource> {
-        match &self.contents.subject {
-            BuildSourceSubject::ToolchainCore(input) => Some(input),
-            BuildSourceSubject::Package { .. } => None,
-        }
-    }
-
-    pub fn from_toolchain_core(
-        input: crate::CapturedCoreSource,
-        purpose: DependencyPurpose,
-        build_execution_profile: Option<target::TargetProfile>,
-    ) -> Self {
-        Self {
-            contents: Arc::new(PackageBuildHandoffContents {
-                subject: BuildSourceSubject::ToolchainCore(input),
-                purpose,
-                build_execution_profile,
-                sources: Vec::new(),
-                provider_selections: Arc::from([]),
-                selection_observation: None,
-                native: Default::default(),
-            }),
-        }
-    }
-
-    fn owns_activation_source(&self, source: &source::SourceFile) -> bool {
-        match &self.contents.subject {
-            BuildSourceSubject::Package { package, .. } => {
-                source.package_identity == Some(*package)
-            }
-            BuildSourceSubject::ToolchainCore(input) => input.contains_source(source),
-        }
+    pub fn package(&self) -> PackageKeyIdentity {
+        self.contents.package
     }
 
     /// The checked activation that produced the bundle, not the import edge's
@@ -183,8 +101,8 @@ impl PackageBuildHandoff {
         self.contents.purpose
     }
 
-    pub fn target(&self) -> Option<target::TargetProfile> {
-        self.package_source().map(|subject| subject.target)
+    pub fn target(&self) -> target::TargetProfile {
+        self.contents.target
     }
 
     /// The admitted profile that checked and executed the producer's build.
@@ -194,23 +112,12 @@ impl PackageBuildHandoff {
         self.contents.build_execution_profile
     }
 
-    pub fn dependency_closure(&self) -> Option<&PackageDependencyClosure> {
-        match &self.contents.subject {
-            BuildSourceSubject::Package {
-                dependency_closure, ..
-            } => Some(dependency_closure),
-            BuildSourceSubject::ToolchainCore(_) => None,
-        }
+    pub fn dependency_closure(&self) -> &PackageDependencyClosure {
+        &self.contents.dependency_closure
     }
 
-    pub fn source_consumption_commitment(&self) -> Option<PackageSourceConsumptionCommitment> {
-        match &self.contents.subject {
-            BuildSourceSubject::Package {
-                source_consumption_commitment,
-                ..
-            } => Some(*source_consumption_commitment),
-            BuildSourceSubject::ToolchainCore(_) => None,
-        }
+    pub fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
+        self.contents.source_consumption_commitment
     }
 
     pub fn sources(&self) -> &[PackageGeneratedSource] {
@@ -312,7 +219,7 @@ impl PackageBuildHandoff {
             return Err("package provider choices have no original Build observation");
         }
         if selections.iter().any(|selection| {
-            selection.origin.activation().source().package_identity != self.package()
+            selection.origin.activation().source().package_identity != Some(self.package())
                 || selection.origin.event_ordinal().is_none()
         }) {
             return Err(
@@ -418,11 +325,7 @@ impl PackageCompilationInputs {
         let required = self.required_dependency_source_instances();
         let mut generated = BTreeMap::new();
         for bundle in bundles {
-            let Some(package) = bundle.package() else {
-                errors
-                    .push(PackageCompilationInputError::ToolchainBuildHandoffRequiresSourceContext);
-                continue;
-            };
+            let package = bundle.package();
             let purpose = bundle.purpose();
             if package == self.source.root {
                 errors.push(PackageCompilationInputError::RootBuildHandoff { package });
@@ -439,7 +342,7 @@ impl PackageCompilationInputs {
                 });
                 continue;
             }
-            if bundle.dependency_closure() != Some(&self.dependency_closure_for(package)) {
+            if bundle.dependency_closure() != &self.dependency_closure_for(package) {
                 errors.push(PackageCompilationInputError::BuildHandoffClosureMismatch { package });
             }
             if generated.insert((package, purpose), bundle).is_some() {
@@ -460,7 +363,7 @@ impl PackageCompilationInputs {
     }
 
     #[doc(hidden)]
-    pub(crate) fn dependency_build_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
+    pub fn dependency_build_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
         self.target.dependency_build_handoffs.values()
     }
 
@@ -490,24 +393,14 @@ impl PackageCompilationInputs {
             .dependency_build_handoffs
             .values()
             .filter_map(|bundle| {
-                let Some(package) = bundle.package() else {
-                    return Some(
-                        PackageCompilationInputError::ToolchainBuildHandoffRequiresSourceContext,
-                    );
-                };
-                let Some(bundle_target) = bundle.target() else {
-                    return Some(
-                        PackageCompilationInputError::ToolchainBuildHandoffRequiresSourceContext,
-                    );
-                };
                 let expected_target = match bundle.purpose() {
                     DependencyPurpose::Product => selected_target,
                     DependencyPurpose::Build => bundle.build_execution_profile(),
                 };
-                (Some(bundle_target) != expected_target).then_some(
+                (Some(bundle.target()) != expected_target).then_some(
                     PackageCompilationInputError::BuildHandoffTargetMismatch {
-                        package,
-                        bundle_target,
+                        package: bundle.package(),
+                        bundle_target: bundle.target(),
                         selected_target: expected_target,
                     },
                 )
@@ -531,16 +424,13 @@ impl PackageCompilationInputs {
             .dependency_build_handoffs
             .values()
             .filter(|bundle| bundle.build_execution_profile() != execution_profile)
-            .map(|bundle| match bundle.package() {
-                Some(package) => {
-                    PackageCompilationInputError::BuildHandoffExecutionProfileMismatch {
-                        package,
-                        bundle_profile: bundle.build_execution_profile(),
-                        execution_profile,
-                    }
-                }
-                None => PackageCompilationInputError::ToolchainBuildHandoffRequiresSourceContext,
-            })
+            .map(
+                |bundle| PackageCompilationInputError::BuildHandoffExecutionProfileMismatch {
+                    package: bundle.package(),
+                    bundle_profile: bundle.build_execution_profile(),
+                    execution_profile,
+                },
+            )
             .collect::<Vec<_>>();
         if errors.is_empty() {
             Ok(())
@@ -588,68 +478,4 @@ fn generated_source_relative_path(
 
 fn generated_source_logical_path(package_root: &Path, relative: &Path) -> PathBuf {
     package_root.join(".omega/generated").join(relative)
-}
-
-// Compiler-private source snapshots carry the same complete provider/native
-// payload as ordinary handoffs. Delegate those fields to their custody-aware
-// codecs instead of defining a second graph shape or losing original Build
-// observations during source-cache recovery. Decoded handoffs remain candidates;
-// receiving source and package admission run independently.
-impl compiler_storage::Record for PackageBuildHandoffContents {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        use compiler_storage::Record;
-        output.record(|output| {
-            self.subject.write(output)?;
-            self.purpose.write(output)?;
-            self.build_execution_profile.write(output)?;
-            self.sources.write(output)?;
-            super::provider_selection_codec::encode_package_provider_selections(
-                &self.provider_selections,
-                self.selection_observation,
-            )
-            .write(output)?;
-            super::native_output_codec::encode_parts(&self.native).write(output)
-        })
-    }
-
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        use compiler_storage::Record;
-        input.record(|input| {
-            let subject = BuildSourceSubject::read(input)?;
-            let purpose = DependencyPurpose::read(input)?;
-            let build_execution_profile = Option::<target::TargetProfile>::read(input)?;
-            let sources = Vec::<PackageGeneratedSource>::read(input)?;
-            let provider_bytes = Vec::<u8>::read(input)?;
-            let native_bytes = Vec::<u8>::read(input)?;
-            let (selections, observation) =
-                super::provider_selection_codec::decode_package_provider_selections(
-                    &provider_bytes,
-                )
-                .ok_or_else(|| input.error("invalid retained provider selection payload"))?;
-            let native = super::native_output_codec::decode_parts(&native_bytes)
-                .ok_or_else(|| input.error("invalid native Build output payload"))?;
-            let candidate = PackageBuildHandoff {
-                contents: Arc::new(Self {
-                    subject,
-                    purpose,
-                    build_execution_profile,
-                    sources,
-                    provider_selections: Arc::from([]),
-                    selection_observation: None,
-                    native: Default::default(),
-                }),
-            };
-            let candidate = candidate
-                .with_retained_provider_selections(selections, observation)
-                .map_err(|reason| input.error(reason))?
-                .with_native_binding_outputs(native.declarations, native.intents, native.evaluation)
-                .map_err(|reason| input.error(reason))?;
-            Ok(Arc::unwrap_or_clone(candidate.contents))
-        })
-    }
 }

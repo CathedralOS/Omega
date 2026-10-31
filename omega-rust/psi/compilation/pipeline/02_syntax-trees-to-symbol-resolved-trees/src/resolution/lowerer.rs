@@ -349,13 +349,13 @@ impl Lowerer {
         for row in &base.authored_service_reach_rows {
             authored_by_owner.entry(row.owner).or_insert(row);
         }
-        let retained_reach =
-            |owner: symbols::SymbolHandle, row: language_semantics::ServiceReachRowId| {
-                crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
-                    row,
-                    authored: authored_by_owner.get(&owner).copied().cloned(),
-                }
-            };
+        let retained_reach = |owner: symbols::SymbolHandle,
+                              row: language_semantics::ServiceReachRowId| {
+            crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
+                row,
+                authored: authored_by_owner.get(&owner).copied().cloned(),
+            }
+        };
         self.pending_machine_service_reaches = base
             .machines
             .iter()
@@ -494,6 +494,7 @@ impl Lowerer {
             service_reach_rows,
             authored_service_reach_rows,
             semantic_domains,
+            external_bindings,
             evidence_forwardings,
             // Derived lookup state does not travel with the fields; the
             // rebuilt program's indexes fill lazily from its own tables.
@@ -504,6 +505,7 @@ impl Lowerer {
         trees.service_reach_rows = service_reach_rows;
         trees.authored_service_reach_rows = authored_service_reach_rows;
         trees.semantic_domains = semantic_domains;
+        trees.external_bindings = external_bindings;
         trees.evidence_forwardings = evidence_forwardings;
         trees
     }

@@ -52,7 +52,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine large(main: &mut Main) {
         main.large = Complex { real: 3.0e20, imaginary: 4.0e20 };
         let direct: f32 = ComplexF32::norm_squared(&main.large);
-        let direct_finite: bool = F32IsFinite::is_finite(direct);
+        let direct_finite: bool = F32::is_finite(direct);
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(&main.large);
         transition direct_finite { false -> magnitude(main, outcome) _ -> bad(main) }
     }

@@ -4,7 +4,6 @@
 //! [`BuildMachineEntry`]. The remaining early jobs return pure values.
 //! Build activations and their mutable argument custody run through Terminal Psi.
 
-mod evaluation_error;
 mod evaluator;
 use crate::{
     BuildTimeOperationEvaluation, EvaluationUsage, FilesystemAccess, FilesystemMetadataLayout,
@@ -12,7 +11,6 @@ use crate::{
 };
 use build_time_values::BuildTimeValue;
 use checked_trees::CheckedTrees;
-pub use evaluation_error::{BuildMachineEvaluationError, UnavailableStaticInput};
 use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -26,6 +24,10 @@ pub struct InterpretOptions<'bindings> {
     /// Explicit Product execution associations, separate from immutable Psi.
     pub boundary_adapters: &'bindings [checked_trees::CheckedBoundaryAdapterDispatch],
     pub float_comparisons: &'bindings [checked_trees::CheckedSelectedFloatComparisonExecution],
+    /// The realization owner's exact family-body selections for this target.
+    /// A call bound to a target family resolves to the selected member's
+    /// checked body through these, never to a body the interpreter invents.
+    pub machine_bodies: &'bindings [SelectedBuildTimeMachineBody],
     /// The realization owner's supplied x86 processor flags image, captured
     /// from the executing host. `pushfq` observes this environment and `popfq`
     /// restores its arithmetic bits; both decline without it rather than
@@ -134,6 +136,51 @@ pub enum BuildMachineEntry<'a> {
     Symbol(SymbolHandle),
 }
 
+/// An exact family-body selection supplied by the realization owner. Psi knows
+/// membership, not deployment policy: the caller chooses a retained checked body
+/// and both admission and execution consume that same identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct SelectedBuildTimeMachineBody {
+    pub family: SymbolHandle,
+    pub body: SymbolHandle,
+}
+
+impl SelectedBuildTimeMachineBody {
+    /// Membership alone confers no execution authority. A selected external or
+    /// deferred member remains subject to the ordinary admission/body checks;
+    /// unrelated nonexecuting families may be retained in a realization map.
+    pub fn validate_all(program: &TypedTrees, selections: &[Self]) -> Result<(), String> {
+        for (position, selected) in selections.iter().enumerate() {
+            let family = program
+                .target_machine_families
+                .iter()
+                .find(|family| family.canonical == selected.family)
+                .ok_or_else(|| "build-time body selection names no retained family".to_owned())?;
+            if !program
+                .machine(selected.family)
+                .is_some_and(|machine| machine.target_family_interface)
+                || !family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == selected.body)
+                || program.machine(selected.body).is_none()
+            {
+                return Err(
+                    "build-time body selection is not a retained member of its exact family"
+                        .to_owned(),
+                );
+            }
+            if selections[..position]
+                .iter()
+                .any(|previous| previous.family == selected.family)
+            {
+                return Err("build-time family has more than one selected body".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
 /// One build-time machine evaluation: the machine, its arguments, the selected
 /// build-time operators a structured evaluation may call, and the sponsor an
 /// argument evaluation charges for its result custody.
@@ -144,6 +191,7 @@ pub struct BuildMachineEvaluationRequest<'a> {
     pub entry: BuildMachineEntry<'a>,
     pub arguments: Vec<BuildTimeValue>,
     pub operators: &'a [SelectedBuildTimeBinaryOperator],
+    pub machine_bodies: &'a [SelectedBuildTimeMachineBody],
 }
 
 /// The immutable source and facts available to a compiler invocation. Early
@@ -181,6 +229,7 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             entry: BuildMachineEntry::Name(machine_name),
             arguments,
             operators: &[],
+            machine_bodies: &[],
         }
     }
 
@@ -191,6 +240,7 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             entry: BuildMachineEntry::Symbol(machine_symbol),
             arguments,
             operators: &[],
+            machine_bodies: &[],
         }
     }
 }
@@ -214,7 +264,6 @@ pub fn materialize_zero_initialized_build_time_value(
                 }
                 Halt::Exit(code) => format!("zero storage initialization exited with code {code}"),
                 Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
-                Halt::StaticInputUnavailable(input) => input.to_string(),
             })?;
     crate::build_time::observe_build_time_value(&value, &|reference| {
         evaluator.read_reference(reference)
@@ -223,7 +272,6 @@ pub fn materialize_zero_initialized_build_time_value(
         Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => message,
         Halt::Exit(code) => format!("zero storage observation exited with code {code}"),
         Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
-        Halt::StaticInputUnavailable(input) => input.to_string(),
     })
 }
 
@@ -240,7 +288,7 @@ pub const fn pure_evaluation_step_ceiling() -> u64 {
 pub fn evaluate_build_time_machine(
     program: &TypedTrees,
     request: BuildMachineEvaluationRequest<'_>,
-) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
+) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
     evaluate_prepared_build_time_machine(BuildMachineProgram::Typed(program), request)
 }
 
@@ -251,8 +299,14 @@ pub fn evaluate_build_time_machine(
 pub fn evaluate_prepared_build_time_machine(
     program: BuildMachineProgram<'_>,
     request: BuildMachineEvaluationRequest<'_>,
-) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
-    evaluate_structured_return(program, request.entry, request.arguments, request.operators)
+) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+    evaluate_structured_return(
+        program,
+        request.entry,
+        request.arguments,
+        request.operators,
+        request.machine_bodies,
+    )
 }
 
 fn evaluate_const_on_current_thread(
@@ -276,23 +330,12 @@ fn evaluate_const_on_current_thread(
 /// The value-returning evaluation's halt text: an explicit exit reports its
 /// code against the value expectation; every other halt carries its message.
 fn value_return_halt_error(halt: Halt) -> String {
-    structured_return_halt_error(halt).to_string()
-}
-
-fn structured_return_halt_error(halt: Halt) -> BuildMachineEvaluationError {
     match halt {
-        Halt::Exit(code) => BuildMachineEvaluationError::Rejected(format!(
+        Halt::Exit(code) => format!(
             "the machine attempted to exit the process (code {code}) instead of returning a value"
-        )),
-        Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => {
-            BuildMachineEvaluationError::Rejected(message)
-        }
-        Halt::Crash(cause, site) => {
-            BuildMachineEvaluationError::Rejected(format!("explicit crash {cause:?} at {site}"))
-        }
-        Halt::StaticInputUnavailable(input) => {
-            BuildMachineEvaluationError::StaticInputUnavailable(input)
-        }
+        ),
+        Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => message,
+        Halt::Crash(cause, site) => format!("explicit crash {cause:?} at {site}"),
     }
 }
 
@@ -301,18 +344,17 @@ fn evaluate_structured_return(
     entry: BuildMachineEntry<'_>,
     arguments: Vec<build_time_values::BuildTimeValue>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
-) -> Result<
-    BuildTimeOperationEvaluation<build_time_values::BuildTimeValue>,
-    BuildMachineEvaluationError,
-> {
+    machine_bodies: &[SelectedBuildTimeMachineBody],
+) -> Result<BuildTimeOperationEvaluation<build_time_values::BuildTimeValue>, String> {
     let typed = program.typed();
+    SelectedBuildTimeMachineBody::validate_all(typed, machine_bodies)?;
     if operators
         .iter()
         .any(|operator| operator.has_crash_contract(typed))
     {
-        return Err(BuildMachineEvaluationError::Rejected(
+        return Err(
             "selected operator crash invocations have no build-time execution support".into(),
-        ));
+        );
     }
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -320,6 +362,7 @@ fn evaluate_structured_return(
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new_build(program);
                 evaluator.selected_build_time_operators = operators;
+                evaluator.selected_build_time_machine_bodies = machine_bodies;
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
                 let result = match entry {
                     BuildMachineEntry::Name(machine_name) => {
@@ -344,16 +387,12 @@ fn evaluate_structured_return(
                             evaluator.private_layout_placements,
                         ))
                     }
-                    Err(halt) => Err(structured_return_halt_error(halt)),
+                    Err(halt) => Err(value_return_halt_error(halt)),
                 }
             })
             .expect("spawn build-time evaluation worker thread")
             .join()
-            .unwrap_or_else(|_| {
-                Err(BuildMachineEvaluationError::Rejected(
-                    "build-time evaluator thread panicked".to_owned(),
-                ))
-            })
+            .unwrap_or_else(|_| Err("build-time evaluator thread panicked".to_owned()))
     })
 }
 
@@ -366,6 +405,12 @@ fn interpret_on_current_thread(
     let mut evaluator = Evaluator::new_checked(checked, stdin);
     evaluator.boundary_adapter_dispatch = options.boundary_adapters;
     evaluator.selected_product_float_comparisons = Some(options.float_comparisons);
+    if let Err(message) =
+        SelectedBuildTimeMachineBody::validate_all(&checked.typed, options.machine_bodies)
+    {
+        return evaluator.error_outcome(message);
+    }
+    evaluator.selected_build_time_machine_bodies = options.machine_bodies;
     evaluator.x86_flags = match options.x86_flags {
         Some(image) => match language_core::inline_assembly::X86FlagsEnvironment::new(image) {
             Ok(environment) => Some(environment),
@@ -465,7 +510,6 @@ fn interpret_on_current_thread(
         Err(Halt::Crash(cause, site)) => {
             InterpretOutcome::crashed(cause, site, evaluator.stdout, evaluator.stderr, usage)
         }
-        Err(Halt::StaticInputUnavailable(input)) => evaluator.error_outcome(input.to_string()),
         Err(Halt::Unsupported(message))
         | Err(Halt::Trap(message))
         | Err(Halt::Resource(message)) => {

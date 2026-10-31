@@ -74,15 +74,6 @@ pub fn revalidate_named_implementation(
         &mut diagnostics,
         &mut formation_obligations,
     );
-    if !diagnostics.iter().any(Diagnostic::is_error) {
-        let invocations = crate::infer_synchronous_invocations(program);
-        crate::machine_calls::invocations::validate_named_conformance_refinement(
-            program,
-            &invocations,
-            conformance,
-            &mut diagnostics,
-        );
-    }
     crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
@@ -235,23 +226,63 @@ fn validate_closed_rows(
             )));
             continue;
         };
-        super::conformance::validate_applied_trait_signature(
-            program,
-            service_reaches,
-            machine,
-            state,
-            &application,
-            requirement,
-            diagnostics,
-        );
-        crate::proof_contracts::contract_entailment::check_law_conformance(
-            program,
-            machine,
-            conformance_name,
-            &application,
-            requirement,
-            diagnostics,
-            &mut Vec::new(),
-        );
+        let validate_member = |machine: &typed_trees::machine::Machine,
+                               state: &typed_trees::state::State,
+                               diagnostics: &mut Vec<Diagnostic>| {
+            super::conformance::validate_applied_trait_signature(
+                program,
+                service_reaches,
+                machine,
+                state,
+                &application,
+                requirement,
+                diagnostics,
+            );
+            crate::proof_contracts::contract_entailment::check_law_conformance(
+                program,
+                machine,
+                conformance_name,
+                &application,
+                requirement,
+                diagnostics,
+                &mut Vec::new(),
+            );
+        };
+        if !machine.target_family_interface {
+            validate_member(machine, state, diagnostics);
+            continue;
+        }
+        let Some(members) = crate::machine_calls::calls::target_family_members(program, machine)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{implementation_name}` target family `{}` retains no complete authored member roster",
+                machine.name,
+            )));
+            continue;
+        };
+        let Some(state_position) =
+            typed_trees::state::state_position(program.machine_states(machine), state.symbol)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "closed conformance `{implementation_name}` target family `{}` retains a state outside its callable interface",
+                machine.name,
+            )));
+            continue;
+        };
+        for member in members {
+            let Some((body, entry)) = program.machine(member.machine).and_then(|body| {
+                program
+                    .machine_states(body)
+                    .get(state_position)
+                    .map(|entry| (body, entry))
+            }) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "closed conformance `{implementation_name}` target family `{}` has no corresponding callable state on target `{}`",
+                    machine.name, member.target,
+                )));
+                continue;
+            };
+            validate_member(body, entry, diagnostics);
+        }
     }
 }

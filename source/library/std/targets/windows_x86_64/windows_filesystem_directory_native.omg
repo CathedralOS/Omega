@@ -35,6 +35,7 @@ data WindowsNativeDirectoryEntryInfo {
     name_bytes: u32;
     characters: [u16; 4096];
 }
+data WindowsFilesystemDirectoryImports {}
 
 boundary trait WindowsFilesystemDirectoryIo {
     machine next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, event: u64, callback: u64, context: u64,
@@ -50,4 +51,47 @@ boundary trait WindowsFilesystemDirectoryIo {
     requires handle != 0 && event == 0 && callback == 0 && context == 0 && capacity == 8208
         && information_class == 12 && single_entry == 1 && name_filter == 0 && restart == 0
     reaches DirectoryEnumeration blocks;
+}
+
+windows_x86_64 machine windows_directory_query_binding() -> ForeignBinding<9, 20, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName {
+        library: "ntdll.dll", export: "NtQueryDirectoryFile"
+    } }
+}
+
+windows_x86_64 machine WindowsFilesystemDirectoryImports::next_name(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
+    event: u64, callback: u64, context: u64, status: &mut WindowsFilesystemIoStatus,
+    output: &mut WindowsNativeDirectoryNameInfo, capacity: u32, information_class: u32,
+    single_entry: u8, name_filter: u64, restart: u8) -> i32
+satisfies WindowsFilesystemDirectoryIo::next_name via windows_directory_query_binding()
+requires handle != 0 && event == 0 && callback == 0 && context == 0 && capacity == 8208
+    && information_class == 12 && single_entry == 1 && name_filter == 0 && restart == 0
+blocks;
+
+windows_x86_64 machine WindowsFilesystemDirectoryImports::next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
+    event: u64, callback: u64, context: u64, status: &mut WindowsFilesystemIoStatus,
+    output: &mut WindowsNativeDirectoryEntryInfo, capacity: u32, information_class: u32,
+    single_entry: u8, name_filter: u64, restart: u8) -> i32
+satisfies WindowsFilesystemDirectoryIo::next_entry via windows_directory_query_binding()
+requires handle != 0 && event == 0 && callback == 0 && context == 0 && capacity == 8256
+    && information_class == 1 && single_entry == 1 && name_filter == 0 && restart <= 1
+blocks;
+
+NativeWindowsFilesystemDirectoryImports satisfies WindowsFilesystemDirectoryIo {
+    machine next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, event: u64, callback: u64, context: u64,
+        status: &mut WindowsFilesystemIoStatus, output: &mut WindowsNativeDirectoryEntryInfo, capacity: u32,
+        information_class: u32, single_entry: u8, name_filter: u64, restart: u8) -> i32
+    requires handle != 0 && event == 0 && callback == 0 && context == 0 && capacity == 8256
+        && information_class == 1 && single_entry == 1 && name_filter == 0 && restart <= 1
+    reaches DirectoryEnumeration + FilesystemMetadataQuery blocks;
+    { block WindowsFilesystemDirectoryImports::next_entry(handle, event, callback, context, status, output,
+        capacity, information_class, single_entry, name_filter, restart) }
+    machine next_name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, event: u64, callback: u64, context: u64,
+        status: &mut WindowsFilesystemIoStatus, output: &mut WindowsNativeDirectoryNameInfo, capacity: u32,
+        information_class: u32, single_entry: u8, name_filter: u64, restart: u8) -> i32
+    requires handle != 0 && event == 0 && callback == 0 && context == 0 && capacity == 8208
+        && information_class == 12 && single_entry == 1 && name_filter == 0 && restart == 0
+    reaches DirectoryEnumeration blocks;
+    { block WindowsFilesystemDirectoryImports::next_name(handle, event, callback, context, status, output,
+        capacity, information_class, single_entry, name_filter, restart) }
 }

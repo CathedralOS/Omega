@@ -1048,6 +1048,7 @@ impl Evaluation {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
+        machine: semantic_vocabulary::MachineId,
         predicates: Vec<checked_trees::CheckedBooleanExpression>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -1059,12 +1060,6 @@ impl Evaluation {
         if predicates.is_empty() {
             return Ok(());
         }
-        // A composed source helper can be a block in its enclosing Terminal
-        // machine. Refinement belongs to this actual emission, not to a lookup
-        // of the helper in the closure's independently callable target roster.
-        let machine = self.machine.ok_or(LoweringError::Unsupported(
-            "local refinement has no emitted machine identity",
-        ))?;
         let edge = self.continue_values(
             identities,
             checked,

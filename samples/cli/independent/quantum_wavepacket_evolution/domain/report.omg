@@ -26,7 +26,7 @@ reaches Console {
         transition { _ -> normalize(value * 10.0, exponent - 1) }
     }
     machine emit(value: f64, exponent: i32 in Wrapping) {
-        let mantissa: i64 in Saturating = I64FromF64::from_f64(value * 1000000000000000000.0);
+        let mantissa: i64 in Saturating = I64::from_f64(value * 1000000000000000000.0);
         integer64(mantissa as i64); Console::write("e");
         integer((exponent - 18) as i32);
     }

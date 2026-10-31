@@ -55,15 +55,7 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
         };
 
         match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
-            syntax_trees::item::TypeParameterKind::Machine {
-                contract:
-                    None | Some(syntax_trees::item::MachineParameterContract::RequirementIdentity),
-            } => {
-                // Data/trait identity indices need no executable contract by
-                // default. Their first authored callable clause replaces that
-                // identity-only placeholder; a second authored clause below
-                // still rejects for both structural and nominal contracts.
-            }
+            syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
             syntax_trees::item::TypeParameterKind::Type
                 if syntax_trees.items.type_parameters(type_parameters)[parameter_index].bounds
                     == syntax_trees::item::DataProperties::default() => {}

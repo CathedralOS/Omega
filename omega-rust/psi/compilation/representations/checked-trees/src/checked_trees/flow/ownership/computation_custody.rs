@@ -812,7 +812,6 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 self.argument_evaluation(source)
             }
             CheckedStructuralValueKind::ByteLiteralView { .. }
-            | CheckedStructuralValueKind::FixedByteArrayLiteral { .. }
             | CheckedStructuralValueKind::NativeCodeLayout { .. }
             | CheckedStructuralValueKind::ZeroedStructural { .. } => 0,
         }

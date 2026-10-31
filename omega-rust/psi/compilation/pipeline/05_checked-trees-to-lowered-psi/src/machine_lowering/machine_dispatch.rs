@@ -64,6 +64,33 @@ pub(crate) fn lower_selected_machine(
     program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredSelectedMachine, LoweringError> {
+    // A portable head owns a checked contract and complete member catalog,
+    // but no executable body. Close the same catalog without inserting the
+    // head among body roots or selecting a target on Psi's side.
+    if checked.typed.target_machine_families.iter().any(|family| {
+        family.canonical == selection.machine
+            && !family
+                .members
+                .iter()
+                .any(|member| member.machine == family.canonical)
+    }) {
+        return Ok(LoweredSelectedMachine::source_mapped(
+            crate::unit::attached_unit::lower_unit_closure(
+                identities,
+                checked,
+                &crate::unit::attached_unit::UnitClosureRequest::unit(
+                    checked,
+                    selection.machine,
+                    &[],
+                    program_roots,
+                    exact_toolchain_sources,
+                ),
+            )?,
+            LoweringCompletion {
+                debug: DebugPublication::Omit,
+            },
+        ));
+    }
     // Cleanup and composed plans lower as their own machines; a
     // result-bearing ordinary body lowers through a closure below, its
     // result with the cleanup after it.

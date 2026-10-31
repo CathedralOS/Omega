@@ -42,7 +42,11 @@ fn invocation_body_parameters<'program>(
 ) -> Option<&'program [StateParameter]> {
     let target = target_machine(program, call)?;
     if target != body {
-        return None;
+        let interface = program.machine_by_symbol(target)?;
+        validation::target_family_members(program, interface)?
+            .iter()
+            .any(|member| member.machine == body)
+            .then_some(())?;
     }
     let machine = program.machine_by_symbol(body)?;
     Some(program.state_parameters(program.machine_states(machine).first()?))
@@ -145,6 +149,9 @@ pub(in crate::checks::contracts) fn captured_operand<'facts>(
     )
 }
 
+/// The complete call telescope in exact captured source order. Static namespace
+/// receivers are evaluation positions but not explicit argument parameters;
+/// retain the same receiver offset used by individual captured observations.
 pub(crate) fn captured_argument_expressions(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,

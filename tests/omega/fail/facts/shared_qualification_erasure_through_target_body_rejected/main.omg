@@ -9,21 +9,20 @@ machine issue_other() -> Ticket in Ticket::Other { Ticket { number: 23 } }
 domain Ticket::Labelled = Ticket::Issued & Ticket::Label;
 machine issue() -> Ticket in Ticket::Labelled { Ticket { number: 17 } }
 machine observe(ticket: &Ticket in Ticket::Observed) -> u64 { ticket.number }
-boundary trait SelectedInspect {
-    machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 reaches
-;
-}
-CheckedInspect satisfies SelectedInspect {
-    machine inspect(ticket: Ticket in Ticket::Labelled) -> u64
-{
+macos_arm64 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
     observe((&ticket) as &Ticket in Ticket::Observed)
 }
+linux_arm64 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
+    observe((&ticket) as &Ticket in Ticket::Observed)
 }
-
-
-
+linux_x86_64 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
+    observe((&ticket) as &Ticket in Ticket::Observed)
+}
+windows_x86_64 machine inspect(ticket: Ticket in Ticket::Labelled) -> u64 {
+    observe((&ticket) as &Ticket in Ticket::Observed)
+}
 machine main() crashes Trap {
-    let observed: u64 = SelectedInspect::inspect(issue());
+    let observed: u64 = inspect(issue());
     transition observed == 17 { true -> done() _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }

@@ -4,7 +4,7 @@
 use omega::language::core::float_operations;
 data Cell { value: f64; }
 machine weighted(left: &Cell, shift: i32 in Wrapping, right: &Cell, index: u32 in Saturating, weight: f64, tail: f64) -> f64 {
-    weight*left.value+tail*right.value+F64FromI32::from_i32(shift as i32)+F64FromU32::from_u32(index as u32)
+    weight*left.value+tail*right.value+F64::from_i32(shift as i32)+F64::from_u32(index as u32)
 }
 machine choose() -> bool { true }
 machine route(left: &Cell, right: &Cell, first: bool) -> f64 {

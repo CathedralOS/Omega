@@ -439,11 +439,12 @@ fn collect_calls(
                     // storage. Descriptor siblings do not change that field's
                     // allocation. Crossing a pointer still needs the retained
                     // completed-call origin roster below.
-                    let inline_scalar = inline_scalar_storage(
-                        structural_type,
-                        &coordinate.path,
-                        &signature.structural_types,
-                    );
+                    let inline_scalar = crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+                        structural_type, &coordinate.path, &signature.structural_types,
+                    ).is_some_and(|geometry| !geometry.uses_borrowed_backing)
+                        && crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+                            structural_type, &coordinate.path, &signature.structural_types,
+                        ).is_some();
                     if inline_scalar {
                         visited.origin();
                     } else {
@@ -734,24 +735,6 @@ fn rebased(
     result
 }
 
-/// A complete scalar projection staying in its original allocation owns its
-/// inline bytes independently of which operation produced that allocation.
-/// Descriptor descendants retain the ordinary source-origin walk instead.
-fn inline_scalar_storage(
-    identity: semantic_vocabulary::StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> bool {
-    crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-        identity, path, types,
-    )
-    .is_some_and(|geometry| !geometry.uses_borrowed_backing)
-        && crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-            identity, path, types,
-        )
-        .is_some()
-}
-
 fn constructed_fields(
     geometry: &mut SourceGeometry<'_>,
     identity: semantic_vocabulary::StructuralTypeId,
@@ -762,21 +745,6 @@ fn constructed_fields(
     calls: &mut BTreeSet<(OperationId, PlaceId)>,
 ) -> Result<(), SelectedInstructionError> {
     let function = geometry.function;
-    let signature = function
-        .structural
-        .as_ref()
-        .ok_or(SelectedInstructionError::custody())?;
-    if inline_scalar_storage(identity, &coordinate.path, &signature.structural_types)
-        || !contains_borrowed_storage(&signature.structural_types, identity, &mut BTreeSet::new())
-    {
-        // A completed constructor with no borrowed descendants owns every
-        // inline byte, just as an established local does. Its physical read
-        // footprint validates the actual projection independently. Re-viewed
-        // names cannot require fictitious fields in that original home.
-        // Descriptor descendants still follow the complete initializer roster.
-        visited.origin();
-        return Ok(());
-    }
     if coordinate.path.is_empty() {
         if fields.is_empty() {
             visited.origin();

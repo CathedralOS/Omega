@@ -26,29 +26,38 @@ requires premise(kept)
     Observe(kept)
 }
 
-boundary trait SelectedObserve {
-    machine observe() -> bool reaches
-;
-}
-CheckedObserve satisfies SelectedObserve {
-    machine observe() -> bool
-{
+linux_x86_64 machine observe() -> bool {
     let kept: bool = true;
     let direct: bool = apply<witness>(kept);
     hold(direct)
 }
+
+linux_arm64 machine observe() -> bool {
+    let kept: bool = true;
+    let direct: bool = apply<witness>(kept);
+    hold(direct)
 }
 
+macos_arm64 machine observe() -> bool {
+    let kept: bool = true;
+    let direct: bool = apply<witness>(kept);
+    hold(direct)
+}
 
+macos_x86_64 machine observe() -> bool {
+    let kept: bool = true;
+    let direct: bool = apply<witness>(kept);
+    hold(direct)
+}
 
-
-
-
-
-
+windows_x86_64 machine observe() -> bool {
+    let kept: bool = true;
+    let direct: bool = apply<witness>(kept);
+    hold(direct)
+}
 
 machine main() crashes Trap {
-    transition SelectedObserve::observe() {
+    transition observe() {
         true -> done()
         _ -> bad()
     }

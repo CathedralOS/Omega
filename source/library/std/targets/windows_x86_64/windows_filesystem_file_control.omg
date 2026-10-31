@@ -18,7 +18,7 @@ machine windows_file_control_completion(status: i32, released: i32) -> i32 {
     transition status != 0 { true -> (status) false -> (released) }
 }
 
-machine windows_filesystem_native_set_file_length(handle: u64, length: i64) -> i32
+windows_x86_64 machine WindowsFilesystemNativeProvider::set_file_length(handle: u64, length: i64) -> i32
 satisfies WindowsFilesystemHost::set_file_length
 reaches FilesystemContentWrite + FilesystemMetadataMutation {
     transition length >= 0 {
@@ -26,32 +26,32 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation {
         false -> (-87)
     }
     machine pin(handle: u64, length: i64) -> i32 {
-        let duplicate: u64 = windows_filesystem_native_duplicate_handle(handle);
+        let duplicate: u64 = WindowsFilesystemNativeProvider::duplicate_handle(handle);
         transition duplicate != 0 { true -> block update(duplicate, length) false -> failed() }
     }
-    machine failed() -> i32 { windows_filesystem_native_failure_i32() }
+    machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
     machine update(duplicate: u64, length: i64) -> i32 {
         let input: WindowsNativeFileEndOfFileInfo = WindowsNativeFileEndOfFileInfo { length: length };
         let raw: i64 = narrow_u64_to_i64_wrapping(duplicate);
         let succeeded: i32 = block WindowsFilesystemFileControlIo::end_of_file(raw, 6, &input, 8);
-        let status: i32 = windows_filesystem_native_completion_status(succeeded);
-        let released: i32 = block windows_filesystem_native_close_handle(duplicate);
+        let status: i32 = WindowsFilesystemNativeProvider::completion_status(succeeded);
+        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(duplicate);
         windows_file_control_completion(status, released)
     }
 }
 
-machine windows_filesystem_native_set_handle_readonly(handle: u64, readonly: bool) -> i32
+windows_x86_64 machine WindowsFilesystemNativeProvider::set_handle_readonly(handle: u64, readonly: bool) -> i32
 satisfies WindowsFilesystemHost::set_handle_readonly
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
-    let duplicate: u64 = windows_filesystem_native_duplicate_handle(handle);
+    let duplicate: u64 = WindowsFilesystemNativeProvider::duplicate_handle(handle);
     transition duplicate != 0 { true -> block update(duplicate, readonly) false -> failed() }
-    machine failed() -> i32 { windows_filesystem_native_failure_i32() }
+    machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
     machine update(duplicate: u64, readonly: bool) -> i32 {
         block windows_set_readonly_owned(duplicate, readonly)
     }
 }
 
-machine windows_filesystem_native_set_path_readonly(path: &[u8] in Path, readonly: bool) -> i32
+windows_x86_64 machine WindowsFilesystemNativeProvider::set_path_readonly(path: &[u8] in Path, readonly: bool) -> i32
 satisfies WindowsFilesystemHost::set_path_readonly
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     let mut wide: [u16; 4096];
@@ -60,25 +60,25 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     transition count > 0 { true -> block acquire(wide, readonly) false -> (-87) }
     machine acquire(wide: [u16; 4096] in WindowsNativePath, readonly: bool) -> i32 {
         let raw: i64 = block WindowsFilesystemFileControlIo::open_attributes(&wide, 384, 7, 0, 3, 34603008, 0);
-        let handle: u64 = windows_filesystem_native_normalize_handle(raw);
+        let handle: u64 = WindowsFilesystemNativeProvider::normalize_handle(raw);
         transition handle != 0 { true -> block update(handle, readonly) false -> failed() }
     }
-    machine failed() -> i32 { windows_filesystem_native_failure_i32() }
+    machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
     machine update(handle: u64, readonly: bool) -> i32 { block windows_set_readonly_owned(handle, readonly) }
 }
 
-machine windows_set_readonly_owned(handle: u64, readonly: bool) -> i32
+windows_x86_64 machine windows_set_readonly_owned(handle: u64, readonly: bool) -> i32
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     let status: i32 = block windows_update_readonly(handle, readonly);
-    let released: i32 = block windows_filesystem_native_close_handle(handle);
+    let released: i32 = block WindowsFilesystemNativeProvider::close_handle(handle);
     windows_file_control_completion(status, released)
 }
 
-machine windows_update_readonly(handle: u64, readonly: bool) -> i32
+windows_x86_64 machine windows_update_readonly(handle: u64, readonly: bool) -> i32
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
     let classified: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(handle);
     transition classified != 0 { true -> block query(classified, readonly) false -> failed() }
-    machine failed() -> i32 { windows_filesystem_native_failure_i32() }
+    machine failed() -> i32 { WindowsFilesystemNativeProvider::failure_i32() }
     machine query(handle: i64 in WindowsDiskFileOrAbsent, readonly: bool) -> i32 requires handle != 0 {
         let mut current: WindowsNativeFileBasicInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, &mut current, 40);
@@ -101,6 +101,6 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
             attributes: attributes, padding: 0
         };
         let succeeded: i32 = block WindowsFilesystemFileControlIo::basic(handle, 0, &input, 40);
-        windows_filesystem_native_completion_status(succeeded)
+        WindowsFilesystemNativeProvider::completion_status(succeeded)
     }
 }

@@ -22,11 +22,12 @@ fn numeric_native_inputs_reload_from_canonical_external_satisfaction() {
             .all(|execution| execution.is_none_or(|execution| !execution.is_numeric()))
     );
     assert!(
-        !recovered
+        recovered
             .artifact()
             .semantic_module()
-            .numeric_realizations
-            .is_empty()
+            .external_providers
+            .iter()
+            .any(|candidate| candidate.numeric_intrinsic.is_some())
     );
 }
 

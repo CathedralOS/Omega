@@ -30,30 +30,38 @@ ensures result == 0i32
     }
 }
 
-boundary trait SelectedEvaluateDiff {
-    machine evaluate_diff() -> i32 reaches
-crashes Trap
-ensures result == 0i32;
-}
-CheckedEvaluateDiff satisfies SelectedEvaluateDiff {
-    machine evaluate_diff() -> i32 crashes Trap
+linux_x86_64 machine evaluate_diff() -> i32 crashes Trap
 ensures result == 0i32
 {
     let diff: i32 = compute_diff(125i32, 20i32);
     verify_diff(diff)
 }
+
+linux_arm64 machine evaluate_diff() -> i32 crashes Trap
+ensures result == 0i32
+{
+    let diff: i32 = compute_diff(125i32, 20i32);
+    verify_diff(diff)
 }
 
+macos_arm64 machine evaluate_diff() -> i32 crashes Trap
+ensures result == 0i32
+{
+    let diff: i32 = compute_diff(125i32, 20i32);
+    verify_diff(diff)
+}
 
-
-
-
-
+windows_x86_64 machine evaluate_diff() -> i32 crashes Trap
+ensures result == 0i32
+{
+    let diff: i32 = compute_diff(125i32, 20i32);
+    verify_diff(diff)
+}
 
 machine probe() -> i32 crashes Trap
 ensures result == 0i32
 {
-    SelectedEvaluateDiff::evaluate_diff()
+    evaluate_diff()
 }
 
 machine main() crashes Trap {

@@ -43,35 +43,6 @@ pub(crate) fn project_operator_coordinate(
     })
 }
 
-/// Token-bearing trait requirements are source declarations, not builtin
-/// operators or their selected implementation bodies. The existing callable
-/// identity retains closed trait/local applications, including phantom actuals.
-pub(crate) fn project_trait_operator_coordinate(
-    compilation: &PackageReviewInput<'_>,
-    owner: &typed_trees::trait_definition::TraitDefinition,
-    requirement: &typed_trees::signature::StateSignature,
-) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
-    if requirement.spelling.is_none() {
-        return Err(vec![Diagnostic::error(
-            "reviewed trait operator requirement has no fixed operator spelling",
-        )]);
-    }
-    let overload = compilation.trait_requirement_callable_identity(owner, requirement);
-    if !overload.is_valid() {
-        return Err(vec![Diagnostic::error(
-            "reviewed trait operator requirement has no exact callable identity",
-        )]);
-    }
-    Ok(PackageReviewOperatorCoordinate {
-        identity: nominal_identity(compilation, requirement.symbol)?,
-        parameter_dispatch: compilation
-            .callable_parameters_text(compilation.callable_identity_parameters(overload)),
-        // Fixed tokens are operand-directed. The full return contract remains
-        // on the separately reviewed requirement declaration.
-        result_dispatch: String::new(),
-    })
-}
-
 pub(crate) fn project_public_operators<'a>(
     compilation: &'a PackageReviewInput<'_>,
     package: PackageKeyIdentity,

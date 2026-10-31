@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 
 // Returning false cannot establish the public finite predicate for all values.
 machine finite(value: f32) -> bool
-ensures result == F32IsFinite::is_finite(value) {
+ensures result == F32::is_finite(value) {
     false
 }
 

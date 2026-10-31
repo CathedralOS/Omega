@@ -11,8 +11,9 @@ use psi::syntax::syntax;
 // names one exact requirement of a visible trait, `Trait<arguments>::name`:
 // the trait binds like a trait position, its static arguments like any
 // static argument in the machine's generic scope, and the requirement is
-// the trait's member of that name. Native bindings belong to the owning
-// package Build and carry no expression on the satisfaction edge. A
+// the trait's member of that name. Its `via` payload is a compile-time value
+// (wiki/spec/build/foreign_bindings.md), so it binds in the machine's static
+// scope: its value binders and constants, never its parameters. A
 // `terminates by subjects [-> View]` witness ranks the body's entry
 // parameters: its subjects and view bind as a `requires` fact's names do
 // (wiki/spec/language/termination.md). A trait reached through a module
@@ -91,7 +92,7 @@ crashes Trap
 }
 
 // One `satisfies` clause of machine `machine`: its trait's static
-// arguments and its exact trait requirement.
+// arguments, its trait and requirement, then its `via` payload.
 machine Resolver::bind_satisfied_requirement(
     resolver: &mut Resolver,
     sources: &SourceSet,
@@ -199,9 +200,16 @@ crashes Trap
     ) {
         Resolver::set_requirement(resolver, clause_handle, ValueBinding::Machine { handle: requirement });
         transition clause.has_expression {
-            true -> reject(resolver, ResolveDiagnosticCode::UnsupportedClause, clause.source_span)
+            true -> payload(resolver, sources, syntax, machine, clause)
             _ -> done()
         }
+    }
+
+    // The payload sees the machine's binders and constants, not its
+    // parameters.
+    machine payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, clause: Clause) {
+        let scope: NameScope = Resolver::fact_scope(true, machine, 0, 0, false);
+        Resolver::bind_tree(resolver, sources, syntax, scope, clause.expression);
     }
 
     machine qualified(resolver: &mut Resolver, clause: Clause) {

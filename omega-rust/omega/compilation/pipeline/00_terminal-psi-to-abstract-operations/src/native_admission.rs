@@ -20,7 +20,7 @@ use terminal_codec::CanonicalTerminalArtifact;
 #[derive(Clone, Copy)]
 pub struct NativeAdmissionRequest<'request, 'execution> {
     /// Exact retained callable selected by the application's checked custody.
-    pub entry: terminal_psi::TerminalCallable,
+    pub entry: terminal_psi::TargetMachineCallable,
     pub private_entry_ram: &'request [terminal_installation::CheckedPrivateEntryRamRecipe],
     /// Exact provider custody plus the receiving authority policies.
     /// An absent permission policy makes no receiver-admission claim; it is
@@ -65,7 +65,7 @@ pub fn admit_native_realization<'execution>(
     )
     .map_err(artifact_lowering_error)?;
     let input = input
-        .bind_selected_provider_coordinates(request.providers.selected_provider_plans)
+        .bind_selected_provider_coordinates(artifact, request.providers.selected_provider_plans)
         .map_err(|error| realization_error("selected provider coordinates", error))?;
     admit_prepared_native_realization(input, artifact, request)
 }

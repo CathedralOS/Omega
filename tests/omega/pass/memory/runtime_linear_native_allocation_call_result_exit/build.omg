@@ -1,12 +1,13 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_linear_native_allocation_call_result_exit");
+    Build::select_provider<NativeHeap, HeapProvider>(builder, linux_arm64);
+    Build::select_provider<NativeHeap, HeapProvider>(builder, linux_x86_64);
+    Build::select_provider<NativeHeap, HeapProvider>(builder, macos_arm64);
+    Build::select_provider<NativeHeap, HeapProvider>(builder, macos_x86_64);
+    Build::select_provider<NativeHeap, HeapProvider>(builder, windows_x86_64);
+    Build::select_provider<NativeHeap, HeapProvider>(builder, uefi_x86_64);
+    Build::select_provider<NativeHeap, HeapProvider>(builder, cross_platform_cli);
+    Build::select_provider<NativeHeap, HeapProvider>(builder, local_unchecked);
+    Build::select_provider<NativeHeap, HeapProvider>(builder, alpha_bootstrap);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-
- Build::bind<NativeHeap::allocate>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "malloc", version: "GLIBC_2.2.5",
-    } });
- Build::bind<NativeHeap::release>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "free", version: "GLIBC_2.2.5",
-    } });
 }

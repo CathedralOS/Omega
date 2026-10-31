@@ -1,31 +1,39 @@
 // Invalid control for the target-body place. `requires remaining <= 5` does not prove
 // `remaining >= 2`, so `remaining - 2` is not exact u64. No domain, no `as`.
 
-boundary trait SelectedDeduct {
-    machine deduct(remaining: u64) -> u64 reaches
-requires
-    remaining <= 5;
-}
-CheckedDeduct satisfies SelectedDeduct {
-    machine deduct(remaining: u64) -> u64
+linux_x86_64 machine deduct(remaining: u64) -> u64
 requires
     remaining <= 5;
 {
     remaining - 2
 }
+
+linux_arm64 machine deduct(remaining: u64) -> u64
+requires
+    remaining <= 5;
+{
+    remaining - 2
 }
 
+macos_arm64 machine deduct(remaining: u64) -> u64
+requires
+    remaining <= 5;
+{
+    remaining - 2
+}
 
-
-
-
-
+windows_x86_64 machine deduct(remaining: u64) -> u64
+requires
+    remaining <= 5;
+{
+    remaining - 2
+}
 
 machine walk(remaining: u64) -> u64
 requires
     remaining <= 5;
 {
-    SelectedDeduct::deduct(remaining)
+    deduct(remaining)
 }
 
 data Main {

@@ -24,6 +24,9 @@ pub(crate) fn derive_machine_summary(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedProgressSummary> {
+    if machine.target_family_interface {
+        return family_summary(program, machine, summaries);
+    }
     if !crate::checks::termination::retained_machine_local_summary(machine, rank_arrivals)
         .promises_termination()
     {
@@ -122,6 +125,61 @@ pub(crate) fn derive_machine_summary(
 /// Canonical configuration.md blob ee6d981abab37d83e1ef92d92f9d267a0a5765bc:
 /// "callers meet every member's premises and the joined conservative effect/crash
 /// envelope."
+fn family_summary(
+    program: &dyn ::validation::CheckingInput,
+    head: &typed_trees::machine::Machine,
+    summaries: &[CheckedProgressSummary],
+) -> Option<CheckedProgressSummary> {
+    let mut families = program
+        .target_machine_families
+        .iter()
+        .filter(|family| family.canonical == head.symbol);
+    let family = families.next()?;
+    if families.next().is_some() || family.members.is_empty() {
+        return None;
+    }
+    let head_entry = program.machine_states(head).first()?;
+    let parameters = program.state_parameters(head_entry);
+    let mut premises = Vec::new();
+    for member in &family.members {
+        let machine = program.machine_by_symbol(member.machine)?;
+        let language_semantics::TerminationInterface::Published(TerminationGuarantee::Terminates {
+            premises: published,
+        }) = &machine.termination_plan.interface
+        else {
+            return Some(no_guarantee(head.symbol));
+        };
+        let checked = program
+            .machine_position_by_symbol(machine.symbol)
+            .and_then(|index| summaries.get(index))
+            .filter(|summary| summary.machine == machine.symbol)
+            .or_else(|| {
+                summaries
+                    .iter()
+                    .find(|summary| summary.machine == machine.symbol)
+            })?;
+        if !checked.guarantee.promises_termination() {
+            return Some(no_guarantee(head.symbol));
+        }
+        let entry = program.machine_states(machine).first()?;
+        let source = program.state_parameters(entry);
+        if source.len() != parameters.len() {
+            return None;
+        }
+        for premise in published {
+            let position = source
+                .iter()
+                .position(|parameter| parameter.symbol == premise.subject.root)?;
+            let mut premise = premise.clone();
+            premise.subject.root = parameters[position].symbol;
+            crate::collections::push_unique(&mut premises, premise);
+        }
+    }
+    Some(CheckedProgressSummary {
+        machine: head.symbol,
+        guarantee: TerminationGuarantee::Terminates { premises },
+    })
+}
 
 pub(crate) fn no_guarantee(machine: SymbolHandle) -> CheckedProgressSummary {
     CheckedProgressSummary {
@@ -216,7 +274,20 @@ pub(crate) fn selected_call_summary<'a>(
             });
         }
     }
-
+    if target_machine.target_family_interface {
+        let summary = program
+            .machine_position_by_symbol(target_machine.symbol)
+            .and_then(|index| summaries.get(index))
+            .filter(|summary| summary.machine == target_machine.symbol)
+            .or_else(|| {
+                summaries
+                    .iter()
+                    .find(|summary| summary.machine == target_machine.symbol)
+            })?;
+        return Some(SelectedCallProgress {
+            guarantee: &summary.guarantee,
+        });
+    }
     match &target_machine.termination_plan.interface {
         language_semantics::TerminationInterface::Published(guarantee) => {
             Some(SelectedCallProgress { guarantee })

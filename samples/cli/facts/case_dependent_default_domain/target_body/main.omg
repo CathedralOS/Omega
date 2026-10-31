@@ -34,19 +34,12 @@ machine width(span: Interval) -> u64 {
         Interval::Empty -> 0
     }
 }
-boundary trait SelectedConsume {
-    machine consume(marked: Value<bool>, span: Interval) -> bool reaches
-;
-}
-CheckedConsume satisfies SelectedConsume {
-    machine consume(marked: Value<bool>, span: Interval) -> bool
-{ pick(marked) && width(span) == 4 }
-}
-
-
-
+linux_x86_64 machine consume(marked: Value<bool>, span: Interval) -> bool { pick(marked) && width(span) == 4 }
+linux_arm64 machine consume(marked: Value<bool>, span: Interval) -> bool { pick(marked) && width(span) == 4 }
+macos_arm64 machine consume(marked: Value<bool>, span: Interval) -> bool { pick(marked) && width(span) == 4 }
+windows_x86_64 machine consume(marked: Value<bool>, span: Interval) -> bool { pick(marked) && width(span) == 4 }
 machine probe() -> bool {
-    SelectedConsume::consume(Value::Boolean { value: true }, Interval::Range { lo: 17, hi: 21 })
+    consume(Value::Boolean { value: true }, Interval::Range { lo: 17, hi: 21 })
 }
 machine main() crashes Trap {
     transition probe() == true {

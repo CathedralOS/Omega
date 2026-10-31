@@ -256,14 +256,7 @@ pub fn has_builtin_spelled_expression_meaning(
             .map(OperandType::from_reference)
             .collect::<Vec<_>>(),
         program.expression_table.source_span(expression),
-    )) && super::canonical_primitive_operator_meanings(
-        program,
-        spelling,
-        operand_types,
-        program.expression_table.source_span(expression),
-    )
-    .is_empty()
-        && !abstract_trait_meaning
+    )) && !abstract_trait_meaning
         && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
         // Raw contracts can select an operator through a lexical implementation
         // bound before specialization publishes a selected implementation.
@@ -685,11 +678,7 @@ pub fn declared_domain_constraints(
             );
             domains
         }
-        _ => program
-            .layout_storage_arguments(type_reference)
-            .map_or_else(Vec::new, |storage| {
-                declared_domain_constraints(program, storage.semantic_type)
-            }),
+        _ => Vec::new(),
     }
 }
 

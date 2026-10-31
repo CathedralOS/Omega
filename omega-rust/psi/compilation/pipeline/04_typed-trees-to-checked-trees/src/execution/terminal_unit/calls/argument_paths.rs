@@ -10,8 +10,8 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, SignatureContractKind, StateParameter, StatementNode,
-    SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
+    CheckedUnitStructuralPathSegment, Multiplicity, SignatureContractKind, StateParameter,
+    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
 };
 use typed_trees::expression::ExpressionHandle;
 
@@ -1228,6 +1228,28 @@ pub(crate) fn byte_sequence_literal_argument(
             checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
             CheckedStructuralAccess::SharedBorrow,
         ) => {}
+        (
+            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity },
+            CheckedStructuralAccess::Owned,
+        ) if program.type_multiplicity(parameter_type) == Multiplicity::Unrestricted
+            && u64::try_from(bytes.len()).ok()? <= capacity =>
+        {
+            // This is construction at the formal, not ownership of immutable
+            // image storage. Lowering must establish fresh bounded backing.
+            for symbol in
+                validation::field_domains::domain_constraint_symbols(program, parameter_type)
+            {
+                let domain = program.domain_definition(symbol)?;
+                if !domain.establishment_routes.is_empty()
+                    || domain.semantic_roles != Default::default()
+                    || !validation::field_domains::string_literal_expression_grants_domain(
+                        program, expression, symbol,
+                    )
+                {
+                    return None;
+                }
+            }
+        }
         _ => return None,
     }
     Some(CheckedUnitStructuralArgumentPlan {

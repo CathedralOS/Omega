@@ -6,7 +6,7 @@ public data Main { values: [f64; 2]; index: i32 in Wrapping; }
 
 machine produced(index: &mut i32 in Wrapping, value: i32) -> f64 {
     index = 0;
-    F64FromI32::from_i32(value)
+    F64::from_i32(value)
 }
 
 public machine Main::main(application: &mut Main) reaches Console
@@ -27,8 +27,8 @@ crashes Trap
     machine store(application: &mut Main, value: i32, index: i32 in Wrapping) {
         application.index = index;
         application.values[application.index] = produced(&mut application.index, value);
-        let stored: i32 in Saturating = I32FromF64::from_f64(application.values[1]);
-        let untouched: i32 in Saturating = I32FromF64::from_f64(application.values[0]);
+        let stored: i32 in Saturating = I32::from_f64(application.values[1]);
+        let untouched: i32 in Saturating = I32::from_f64(application.values[0]);
         transition stored == 65 && untouched == 0 && application.index == 0 {
             true -> done(application) false -> bad(application)
         }

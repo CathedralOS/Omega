@@ -35,6 +35,11 @@ pub(in crate::encoding::encode) fn validated_value(
     supply: &PackagePolicyExternalExecutableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("callable", &supply.callable, encode_nominal)?;
+    encoder.field_by(
+        "target_context",
+        &supply.target_context,
+        super::identity::encode_target_context,
+    )?;
     encoder.field_by("signature", &supply.signature, signatures::signature)?;
     encoder.field_by("requirement", &supply.requirement, signatures::requirement)?;
     encoder.field("binding", |encoder| {

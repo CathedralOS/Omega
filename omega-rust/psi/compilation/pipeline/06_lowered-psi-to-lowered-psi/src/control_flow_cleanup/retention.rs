@@ -210,7 +210,7 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     // in the independent declaration catalog and do not root executable code.
     for application in module.scalar_applications.declarations() {
         if let terminal_psi::ScalarApplication::Evaluate {
-            entry: terminal_psi::TerminalCallable::Machine(machine),
+            entry: terminal_psi::TargetMachineCallable::Machine(machine),
             ..
         } = application
         {
@@ -228,7 +228,7 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     }
     roots.extend(module.quotients.adaptations.iter().map(|row| row.machine));
 
-    if let Some(terminal_psi::TerminalCallable::Machine(entry)) = module.entry {
+    if let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry {
         roots.insert(entry);
     }
     // Published dispatch tables retain their callees without a direct call edge.
@@ -240,6 +240,15 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
             .flat_map(|table| table.rows.iter().flatten())
             .copied(),
     );
+    roots.extend(module.target_machine_families.iter().flat_map(|family| {
+        family
+            .members
+            .iter()
+            .filter_map(|member| match member.callable {
+                terminal_psi::TargetMachineCallable::Machine(machine) => Some(machine),
+                terminal_psi::TargetMachineCallable::Boundary(_) => None,
+            })
+    }));
     for coercion in &module.scalar_qualifications.coercions {
         roots.insert(coercion.machine);
     }
@@ -284,7 +293,7 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     for application in &module.closed_conformance_applications {
         roots.insert(application.owner);
         for callable in &application.realization_callables {
-            if let terminal_psi::TerminalCallable::Machine(machine) = callable.callable {
+            if let terminal_psi::TargetMachineCallable::Machine(machine) = callable.callable {
                 roots.insert(machine);
             }
         }

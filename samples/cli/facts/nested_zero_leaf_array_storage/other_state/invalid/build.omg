@@ -1,17 +1,7 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::application(builder, "nested_zero_leaf_array_storage");
  Build::bind(builder, macos_arm64::ProgramEntry, main);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, windows_x86_64::ProgramEntry, main);
-
- Build::bind<ZeroLeafProvider::make>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_zeroleaf_fixture.dylib", symbol: "_zero_leaf_make" } });
- Build::bind<ZeroLeafProvider::make>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_make", version: "ZEROLEAF_1.0" } });
- Build::bind<ZeroLeafProvider::make>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_make", version: "ZEROLEAF_1.0" } });
- Build::bind<ZeroLeafProvider::make>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_zeroleaf_fixture.dll", export: "zero_leaf_make" } });
- Build::bind<ZeroLeafProvider::shift>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_zeroleaf_fixture.dylib", symbol: "_zero_leaf_shift" } });
- Build::bind<ZeroLeafProvider::shift>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_shift", version: "ZEROLEAF_1.0" } });
- Build::bind<ZeroLeafProvider::shift>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_shift", version: "ZEROLEAF_1.0" } });
- Build::bind<ZeroLeafProvider::shift>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_zeroleaf_fixture.dll", export: "zero_leaf_shift" } });
 }

@@ -4,9 +4,8 @@
 use omega::language::core::layout;
 
 data Payload { bytes: [u8; 65536]; }
-
-Packed satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+data Packed {}
+machine Packed::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 },
@@ -16,8 +15,7 @@ Packed satisfies FixedLayout<Payload> {
         size_fixed: schema.fields[0].size, size_is_dynamic: false, align: 1,
     }
 }
-}
-data View { payload: LayoutStorage<Payload, Packed>; }
+data View { payload: Packed<Payload>; }
 machine main() crashes Trap {
     transition size_of<View>() == 65536 && align_of<View>() == 1 {
         true -> done()

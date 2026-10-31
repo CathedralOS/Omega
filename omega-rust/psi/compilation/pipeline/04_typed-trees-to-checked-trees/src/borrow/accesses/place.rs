@@ -165,7 +165,7 @@ pub(crate) fn borrow_access_geometry(
                     representation_address: Some(address),
                 });
             }
-            if let Some(source) = validation::validate_runtime_indexed_recast_source(
+            let source = validation::validate_runtime_indexed_recast_source(
                 program,
                 machine,
                 state,
@@ -173,41 +173,15 @@ pub(crate) fn borrow_access_geometry(
                 expression,
                 cast.target_type,
                 access,
-            ) {
-                return borrow_access_place(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    source,
-                    machine_symbol,
-                )
-                .map(BorrowAccessGeometry::declared);
-            }
-            // An unavailable footprint is not absence of the source's loan.
-            // Retain its complete collection and separately captured address;
-            // this grants no cast compatibility or narrower physical range.
-            // Pending applications rebuild this geometry in strict replay
-            // after their plans validate. Invalid casts still owe the ordinary
-            // recast judgment and cannot publish from this source capture.
-            let indexed = program.expression_table.indexed_node(source)?;
-            let place = borrow_access_place(
-                program,
-                state_symbol,
-                statement_index,
-                indexed.collection,
-                machine_symbol,
             )?;
-            let address = borrow_access_place(
+            return borrow_access_place(
                 program,
                 state_symbol,
                 statement_index,
                 source,
                 machine_symbol,
-            )?;
-            return Some(BorrowAccessGeometry {
-                place,
-                representation_address: Some(address),
-            });
+            )
+            .map(BorrowAccessGeometry::declared);
         }
     }
     // Formation, flow and returned-value capture share one address algebra.

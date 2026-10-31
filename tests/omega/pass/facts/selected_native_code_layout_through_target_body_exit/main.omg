@@ -12,21 +12,23 @@ terminates;
         layout.entry != 0 && layout.regions[0].base == layout.entry && layout.regions[0].length > 0
     }
 }
-boundary trait SelectedTargetWitness {
-    machine target_witness() -> bool reaches
-terminates;
-}
-CheckedTargetWitness satisfies SelectedTargetWitness {
-    machine target_witness() -> bool terminates;
-{
+linux_x86_64 machine target_witness() -> bool terminates; {
     let layout: CodeLayout = code_layout<selected<u64, 7>>();
     inspect(&layout)
 }
+linux_arm64 machine target_witness() -> bool terminates; {
+    let layout: CodeLayout = code_layout<selected<u64, 7>>();
+    inspect(&layout)
 }
-
-
-
-machine witness() -> bool terminates; { SelectedTargetWitness::target_witness() }
+macos_arm64 machine target_witness() -> bool terminates; {
+    let layout: CodeLayout = code_layout<selected<u64, 7>>();
+    inspect(&layout)
+}
+windows_x86_64 machine target_witness() -> bool terminates; {
+    let layout: CodeLayout = code_layout<selected<u64, 7>>();
+    inspect(&layout)
+}
+machine witness() -> bool terminates; { target_witness() }
 machine main() crashes Trap {
     transition witness() { true -> done() _ -> bad() }
     machine done() {}

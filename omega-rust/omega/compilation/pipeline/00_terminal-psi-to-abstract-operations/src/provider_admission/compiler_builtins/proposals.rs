@@ -7,10 +7,11 @@
 //! its selected plan and Terminal boundary. The consuming lowerer admits it
 //! through its local target catalog.
 
-use super::numeric_satisfaction::{reconcile_numeric_meaning, selected_execution};
+use super::external_satisfaction::reconcile_numeric_meaning;
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ServiceSchema;
+use provider_selection::selected_external_execution;
 use std::collections::BTreeSet;
 
 pub use provider_selection::CompilerIntrinsicPlanProvenance;
@@ -33,7 +34,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
-    numeric_realizations: &[terminal_psi::NumericRealization],
+    external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let plans = selected.plans();
@@ -122,8 +123,8 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         // A row this compile could not close is retained with its reason, not
         // refused here: whether the boundary is executed is each entry's
         // execution-scope question, answered at admission.
-        let identity = match selected_execution(
-            numeric_realizations,
+        let identity = match selected_external_execution(
+            external_providers,
             identities,
             &boundary.owner,
             &plans[selected_row.plan_index],

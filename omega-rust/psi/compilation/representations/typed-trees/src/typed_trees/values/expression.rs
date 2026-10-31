@@ -535,7 +535,6 @@ impl ExpressionTable {
                 selected_machine_arguments: HandleSpan::empty(),
                 bindings: HandleSpan::empty(),
                 lifetime_bindings: HandleSpan::empty(),
-                lifetime_binding_declaration: SymbolHandle::invalid(),
                 binding_declaration: SymbolHandle::invalid(),
                 conformance_selection: None,
             })
@@ -660,12 +659,8 @@ impl ExpressionTable {
     pub fn set_static_machine_application_lifetimes(
         &mut self,
         application: StaticMachineApplicationHandle,
-        declaration: SymbolHandle,
         bindings: &[StaticMachineLifetimeBinding],
     ) {
-        self.static_machine_applications
-            .get_mut(application)
-            .lifetime_binding_declaration = declaration;
         let previous = self
             .static_machine_applications
             .get(application)

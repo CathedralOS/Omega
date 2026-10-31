@@ -17,24 +17,24 @@ Direct satisfies Counting {
 }
 machine overwrite<'storage>(slot: &mut View<'storage>) -> u64 { slot.bytes = "123456789"; 0 }
 machine seven(value: u64) -> u64 requires value == 7 ensures result == 7 { value }
-boundary trait SelectedReceive {
-    machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64 reaches
-ensures result == 7;
-}
-CheckedReceive satisfies SelectedReceive {
-    machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
+windows_x86_64 machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
 ensures result == 7
 { let saved: Counted<'storage, 7> = selected; seven(saved.view.bytes.len) }
-}
 
+linux_x86_64 machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<'storage, 7> = selected; seven(saved.view.bytes.len) }
 
+macos_arm64 machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<'storage, 7> = selected; seven(saved.view.bytes.len) }
 
-
-
-
+linux_arm64 machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
+ensures result == 7
+{ let saved: Counted<'storage, 7> = selected; seven(saved.view.bytes.len) }
 machine receive_ordered<'storage>(earlier: u64, selected: Counted<'storage, 7>, ignored: u64) -> u64
 ensures result == 7
-{ SelectedReceive::receive(selected, ignored) }
+{ receive(selected, ignored) }
 machine install<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64
 ensures slot.bytes.len == replacement.len
 { slot.bytes = replacement; 0 }

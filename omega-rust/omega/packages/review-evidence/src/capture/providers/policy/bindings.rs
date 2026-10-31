@@ -1,14 +1,14 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
-use crate::capture::semantics::declarations::nominal_identity;
+use crate::capture::semantics::declarations::{nominal_identity, producer_callable_identity};
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyProviderBinding,
     PackagePolicyProviderEvaluatedSyscall, PackageReviewForeignLocator,
     PackageReviewNominalIdentity,
 };
 use diagnostics::Diagnostic;
-use effects::provider_plan::EvaluatedNativeBinding;
 use effects::provider_plan::ProviderBinding;
+use provider_planning::evaluated_via_bindings::{EvaluatedNativeBinding, EvaluatedViaBindingRow};
 use symbols::SymbolHandle;
 
 pub(super) fn project(
@@ -34,13 +34,43 @@ pub(super) fn project(
         };
     }
     Ok(match binding {
-        ProviderBinding::Import { .. } => {
-            return Err(rejected("native import has no BuildNative source origin"));
+        ProviderBinding::Import { evaluated } => {
+            let row = evaluated_row(compilation, requirement, realization)?.ok_or_else(|| {
+                rejected("evaluated import has no exact selected realization row")
+            })?;
+            if row.evaluated().as_import() != Some(evaluated) {
+                return Err(rejected(
+                    "evaluated import differs from its selected binding",
+                ));
+            }
+            PackagePolicyProviderBinding::Import {
+                target: evaluated.locator().target().identity().as_str().to_owned(),
+                locator: PackageReviewForeignLocator::from_candidate(evaluated.locator().locator()),
+                producer: producer(compilation, row)?,
+            }
         }
-        ProviderBinding::Syscall { number } => PackagePolicyProviderBinding::Syscall {
-            number: *number,
-            evaluated: None,
-        },
+        ProviderBinding::Syscall { number } => {
+            let evaluated = evaluated_row(compilation, requirement, realization)?
+                .map(|row| {
+                    let Some(syscall) = row.evaluated().as_syscall() else {
+                        return Err(rejected("selected syscall has a non-syscall evaluated row"));
+                    };
+                    if syscall.number() != *number {
+                        return Err(rejected(
+                            "evaluated syscall number differs from selected binding",
+                        ));
+                    }
+                    Ok(PackagePolicyProviderEvaluatedSyscall {
+                        target: syscall.target().identity().as_str().to_owned(),
+                        producer: producer(compilation, row)?,
+                    })
+                })
+                .transpose()?;
+            PackagePolicyProviderBinding::Syscall {
+                number: *number,
+                evaluated,
+            }
+        }
         ProviderBinding::CompilerIntrinsic { machine } => {
             PackagePolicyProviderBinding::CompilerIntrinsic {
                 machine: machine.clone(),
@@ -73,6 +103,56 @@ pub(super) fn project(
     })
 }
 
+fn evaluated_row<'a>(
+    compilation: &'a PackageReviewInput<'_>,
+    requirement: SymbolHandle,
+    realization: SymbolHandle,
+) -> Result<Option<&'a EvaluatedViaBindingRow>, Vec<Diagnostic>> {
+    let machines = compilation
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == realization)
+        .collect::<Vec<_>>();
+    let [machine] = machines.as_slice() else {
+        return Err(rejected("binding realization has no exact typed machine"));
+    };
+    let conformances = compilation
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter(|conformance| {
+            conformance.requirement_symbol == requirement && conformance.via_expression.is_valid()
+        })
+        .collect::<Vec<_>>();
+    match conformances.as_slice() {
+        [] => Ok(None),
+        [conformance] => compilation
+            .custody
+            .providers()
+            .evaluated_via_bindings
+            .exact(realization, conformance.symbol, requirement)
+            .map(Some)
+            .ok_or_else(|| rejected("ordinary via expression has no exact evaluated row")),
+        _ => Err(rejected(
+            "binding realization has ambiguous evaluated conformance rows",
+        )),
+    }
+}
+
+fn producer(
+    compilation: &PackageReviewInput<'_>,
+    row: &EvaluatedViaBindingRow,
+) -> Result<PackagePolicyEvaluatedBindingProducer, Vec<Diagnostic>> {
+    let receipt = match row.evaluated() {
+        EvaluatedNativeBinding::Import(import) => import.receipt(),
+        EvaluatedNativeBinding::Syscall(syscall) => syscall.receipt(),
+    };
+    Ok(PackagePolicyEvaluatedBindingProducer {
+        declaration: nominal_identity(compilation, row.producer_machine())?,
+        package: receipt.producer_package(),
+        callable_identity: producer_callable_identity(compilation, receipt),
+    })
+}
+
 fn table_declaration(
     compilation: &PackageReviewInput<'_>,
     realization: SymbolHandle,
@@ -98,7 +178,7 @@ fn table_declaration(
     nominal_identity(compilation, table.symbol)
 }
 
-pub(crate) fn native_producer(
+pub(super) fn native_producer(
     compilation: &PackageReviewInput<'_>,
     native: &provider_planning::native_bindings::NativeBuildRowOrigin,
 ) -> Result<PackagePolicyEvaluatedBindingProducer, Vec<Diagnostic>> {
@@ -107,32 +187,22 @@ pub(crate) fn native_producer(
     let origin = receipt
         .build_origin()
         .ok_or_else(|| rejected("native Build row has no Build-origin receipt"))?;
-    let schema = provider_planning::service_schema::from_typed_requirement_application(
-        provider_planning::ProviderPlanningContext::new(
-            &compilation.typed,
-            source::DependencyScope::Product,
-        ),
-        &compilation
-            .custody
-            .providers()
-            .boundary_calling_plan_realizations,
-        native.selection.application.requirement,
-        native.selection.application.trait_scope,
-        native.selection.application.closed_requirement,
-    )
-    .ok_or_else(|| rejected("native Build producer lost its exact requirement application"))?;
-    let [method] = schema.methods.as_slice() else {
-        return Err(rejected(
-            "native Build producer has no unique callable requirement",
-        ));
-    };
-    let requirement = schema.identity_text(method.requirement_identity);
+    let requirement = compilation
+        .typed
+        .trait_machine_signature(native.requirement)
+        .map(|(owner, signature)| {
+            compilation
+                .typed
+                .trait_requirement_callable_identity_text(owner, signature)
+        })
+        .ok_or_else(|| rejected("native Build producer lost its exact requirement"))?;
     if origin.requirement_identity != requirement
         || receipt.producer_package() != Some(production.producer.package)
         || compilation
             .custody
             .providers()
-            .native_binding_identities
+            .evaluated_via_bindings
+            .identities()
             .text(receipt.producer_callable_identity())
             != Some(production.producer.callable_identity.as_str())
     {
@@ -162,32 +232,6 @@ pub(crate) fn project_native(
     }
     let producer = native_producer(compilation, native)?;
     match &native.origin.primary.evaluated {
-        EvaluatedNativeBinding::Table {
-            table,
-            field,
-            drops_receiver,
-            ..
-        } => {
-            let build_time_evaluation::native_bindings::NativeBindingSupply::Table(designation) =
-                &native.selection.supply
-            else {
-                return Err(rejected("native table receipt lost its typed declaration"));
-            };
-            let table_declaration = nominal_identity(compilation, designation.table)?;
-            if *drops_receiver {
-                Ok(PackagePolicyProviderBinding::TableFunction {
-                    table: table.clone(),
-                    field: field.clone(),
-                    table_declaration,
-                })
-            } else {
-                Ok(PackagePolicyProviderBinding::VtableField {
-                    table: table.clone(),
-                    field: field.clone(),
-                    table_declaration,
-                })
-            }
-        }
         EvaluatedNativeBinding::Import(import) => Ok(PackagePolicyProviderBinding::Import {
             target: import.locator().target().identity().as_str().to_owned(),
             locator: PackageReviewForeignLocator::from_candidate(import.locator().locator()),

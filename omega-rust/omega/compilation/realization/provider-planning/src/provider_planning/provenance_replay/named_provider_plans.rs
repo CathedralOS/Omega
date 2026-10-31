@@ -165,11 +165,12 @@ pub(super) fn derive(
                 ),
                 row_requirements: Vec::new(),
                 row_realizations: Vec::new(),
-
+                row_target_machine_origins: Vec::new(),
                 row_placed_accessors: Vec::new(),
             };
             for row in rows {
-                // The row binds the exact entry of its resolved ordinary machine.
+                // The row binds the entry of the machine resolution named; a
+                // family head's entry stands for every member's.
                 let named = typed.machine_by_symbol(row.realization_machine)?;
                 if typed.machine_states(named).first()?.symbol != row.realization_state {
                     return None;
@@ -179,7 +180,11 @@ pub(super) fn derive(
                 } else {
                     row.realization_machine
                 };
-                let machine = crate::target_machines::scoped_row_machine(context, realization)?;
+                let machine = crate::target_machines::realized_row_machine(
+                    context,
+                    realization,
+                    selected_target,
+                )?;
                 if typed.symbols.symbol_package_identity(machine.symbol) != origin_package {
                     return None;
                 }
@@ -194,9 +199,10 @@ pub(super) fn derive(
                         implementation,
                         row.declaring_trait,
                     )?;
-                let (binding, lifetime_partition, same_stack_bytes) =
-                    if machine.supply_mode.is_checked_body() && machine.body_is_present {
-                        (
+                let (binding, lifetime_partition, origin) = if machine.supply_mode.is_checked_body()
+                    && machine.body_is_present
+                {
+                    (
                         ProviderBinding::CheckedAdapter {
                             machine_identity: plan
                                 .identities
@@ -208,63 +214,72 @@ pub(super) fn derive(
                         language_semantics::type_identity::normalize_requirement_lifetime_partition(
                             lifetime_arguments,
                         ),
-                        0,
+                        None,
                     )
-                    } else {
-                        // Catalogue candidates retain the exact resolved identity,
-                        // just as checked adapters do.
-                        let mut matched = Vec::new();
-                        for candidate in candidates {
-                            for (index, binding) in candidate.plan.rows.iter().enumerate() {
-                                if candidate.provenance.row_requirements.get(index)
-                                    == Some(&row.requirement)
-                                    && candidate
-                                        .provenance
-                                        .row_realizations
-                                        .get(index)
-                                        .and_then(ProviderRowRealization::authored)
-                                        == Some(machine.symbol)
-                                    && candidate.plan.identities.text(binding.requirement_identity)
-                                        == identity.as_str()
-                                {
-                                    matched.push((candidate, binding));
-                                }
+                } else {
+                    // Foreign candidates belong to the selected target member,
+                    // while the authored map can name its portable family head.
+                    // Join the resolved identity, just as checked adapters do.
+                    let mut matched = Vec::new();
+                    for candidate in candidates {
+                        for (index, binding) in candidate.plan.rows.iter().enumerate() {
+                            if candidate.provenance.row_requirements.get(index)
+                                == Some(&row.requirement)
+                                && candidate
+                                    .provenance
+                                    .row_realizations
+                                    .get(index)
+                                    .and_then(ProviderRowRealization::authored)
+                                    == Some(machine.symbol)
+                                && candidate.plan.identities.text(binding.requirement_identity)
+                                    == identity.as_str()
+                            {
+                                matched.push((
+                                    candidate,
+                                    binding,
+                                    candidate.provenance.row_target_machine_origins.get(index)?,
+                                ));
                             }
                         }
-                        let (candidate, binding) = *matched.first()?;
-                        if matched.iter().any(|(_, other)| *other != binding) {
-                            return None;
-                        }
-                        let bound = match &binding.binding {
-                            ProviderBinding::CheckedAdapter {
-                                machine_identity,
-                                machine_package_identity,
-                            } => ProviderBinding::CheckedAdapter {
-                                machine_identity: plan
-                                    .identities
-                                    .intern(candidate.plan.identity_text(*machine_identity)),
-                                machine_package_identity: *machine_package_identity,
-                            },
-                            bound => bound.clone(),
-                        };
-                        (
-                            bound,
-                            binding.requirement_lifetime_partition.clone(),
-                            binding.admitted_same_stack_bytes,
-                        )
+                    }
+                    let (candidate, binding, origin) = *matched.first()?;
+                    if matched.iter().any(|(_, other, other_origin)| {
+                        *other != binding || *other_origin != origin
+                    }) {
+                        return None;
+                    }
+                    let origin = origin.clone();
+                    let bound = match &binding.binding {
+                        ProviderBinding::CheckedAdapter {
+                            machine_identity,
+                            machine_package_identity,
+                        } => ProviderBinding::CheckedAdapter {
+                            machine_identity: plan
+                                .identities
+                                .intern(candidate.plan.identity_text(*machine_identity)),
+                            machine_package_identity: *machine_package_identity,
+                        },
+                        bound => bound.clone(),
                     };
+                    (
+                        bound,
+                        binding.requirement_lifetime_partition.clone(),
+                        origin,
+                    )
+                };
                 let requirement_identity = plan.identities.intern(&identity);
                 plan.rows.push(ProviderPlanRow {
                     method: row.requirement_name.as_str().to_owned(),
                     requirement_identity,
                     requirement_lifetime_partition: lifetime_partition,
-                    admitted_same_stack_bytes: same_stack_bytes,
+                    admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
                 provenance.row_requirements.push(row.requirement);
                 provenance
                     .row_realizations
                     .push(ProviderRowRealization::Authored(machine.symbol));
+                provenance.row_target_machine_origins.push(origin);
                 provenance.row_placed_accessors.push(None);
             }
             Some(DerivedProviderPlan { plan, provenance })

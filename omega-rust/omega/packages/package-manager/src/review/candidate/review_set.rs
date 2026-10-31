@@ -42,10 +42,7 @@ impl CompilerIssuedPackageReview {
     pub(crate) fn checked_context(&self) -> crate::lock::PackageCheckedContext {
         crate::lock::PackageCheckedContext::new(
             self.build_handoff.purpose(),
-            self.build_handoff
-                .package_source()
-                .expect("an issued package review retains its package Build source")
-                .target,
+            self.build_handoff.target(),
             self.build_handoff.build_execution_profile(),
         )
     }

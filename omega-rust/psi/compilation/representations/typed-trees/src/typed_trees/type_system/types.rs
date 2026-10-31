@@ -48,11 +48,6 @@ pub struct TypeReferenceTable {
     /// A substituted operand retains its original lifetime environment after
     /// copying into a private declaration. Zero means ordinary lexical lookup.
     operand_lifetime_owners: Arena<SymbolHandle>,
-    /// Ordered resolved region slots on a copied nominal/reference operand.
-    /// One operand may combine captured and invocation-local declarations;
-    /// its lexical owner alone cannot represent that simultaneous application.
-    operand_lifetime_spans: Arena<HandleSpan<crate::type_identity::LifetimeParameterIdentity>>,
-    operand_lifetimes: Arena<crate::type_identity::LifetimeParameterIdentity>,
     operand_origins: Arena<TypeOperandOrigin>,
     named_rows: NamedRowIndex,
     arithmetic_rows: ArithmeticRowIndex,
@@ -69,8 +64,6 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("constant_origin_spans", &self.constant_origin_spans)
             .field("constant_origins", &self.constant_origins)
             .field("operand_lifetime_owners", &self.operand_lifetime_owners)
-            .field("operand_lifetime_spans", &self.operand_lifetime_spans)
-            .field("operand_lifetimes", &self.operand_lifetimes)
             .field("operand_origins", &self.operand_origins)
             .finish()
     }
@@ -122,8 +115,6 @@ impl TypeReferenceTable {
             constant_origin_spans: Arena::new(),
             constant_origins: Arena::new(),
             operand_lifetime_owners: Arena::new(),
-            operand_lifetime_spans: Arena::new(),
-            operand_lifetimes: Arena::new(),
             operand_origins: Arena::new(),
             named_rows: NamedRowIndex::default(),
             arithmetic_rows: ArithmeticRowIndex::default(),
@@ -140,8 +131,6 @@ impl TypeReferenceTable {
             .wrapping_add(self.constant_origins.revision())
             .wrapping_add(self.constant_origin_spans.revision())
             .wrapping_add(self.operand_lifetime_owners.revision())
-            .wrapping_add(self.operand_lifetime_spans.revision())
-            .wrapping_add(self.operand_lifetimes.revision())
             .wrapping_add(self.operand_origins.revision())
     }
 
@@ -154,8 +143,6 @@ impl TypeReferenceTable {
         let handle = self.type_references.insert(type_reference);
         let origins = self.constant_origin_spans.insert(HandleSpan::empty());
         let lifetime_owner = self.operand_lifetime_owners.insert(SymbolHandle::invalid());
-        let lifetime_span = self.operand_lifetime_spans.insert(HandleSpan::empty());
-        debug_assert_eq!(handle.arena_index(), lifetime_span.arena_index());
         let operand_origin = self.operand_origins.insert(TypeOperandOrigin::Lexical);
         debug_assert_eq!(handle.arena_index(), operand_origin.arena_index());
         debug_assert_eq!(handle.arena_index(), lifetime_owner.arena_index());
@@ -215,64 +202,6 @@ impl TypeReferenceTable {
             reference.arena_index(),
             reference.generation(),
         ))
-    }
-
-    /// Resolved regions retain declaration/ordinal identity independently for
-    /// every nominal slot. An absent slot remains ordinary lexical/inference
-    /// input; it is never supplied by a neighboring captured region.
-    pub fn operand_lifetimes(
-        &self,
-        reference: TypeReferenceHandle,
-    ) -> &[crate::type_identity::LifetimeParameterIdentity] {
-        if !self.contains_type_reference(reference) {
-            return &[];
-        }
-        let row = Handle::from_parts(reference.arena_index(), reference.generation());
-        self.operand_lifetimes
-            .span_or_empty(*self.operand_lifetime_spans.get(row))
-    }
-
-    pub fn has_resolved_operand_lifetimes(&self, reference: TypeReferenceHandle) -> bool {
-        let lifetimes = self.operand_lifetimes(reference);
-        let expected = match self.type_reference(reference) {
-            TypeReferenceNode::Generic {
-                lifetime_arguments, ..
-            } => lifetime_arguments.len(),
-            TypeReferenceNode::Reference {
-                lifetime: Some(_), ..
-            } => 1,
-            _ => 0,
-        };
-        !lifetimes.is_empty()
-            && lifetimes.len() == expected
-            && lifetimes.iter().all(|region| region.declaration.is_valid())
-    }
-
-    pub fn retain_operand_lifetimes(
-        &mut self,
-        reference: TypeReferenceHandle,
-        lifetimes: impl IntoIterator<Item = crate::type_identity::LifetimeParameterIdentity>,
-    ) -> Result<(), &'static str> {
-        if !self.contains_type_reference(reference) {
-            return Err("resolved regions have no registered type row");
-        }
-        let lifetimes = lifetimes.into_iter().collect::<Vec<_>>();
-        let expected = match self.type_reference(reference) {
-            TypeReferenceNode::Generic {
-                lifetime_arguments, ..
-            } => lifetime_arguments.len(),
-            TypeReferenceNode::Reference {
-                lifetime: Some(_), ..
-            } => 1,
-            _ => 0,
-        };
-        if !lifetimes.is_empty() && lifetimes.len() != expected {
-            return Err("resolved regions do not match the complete type lifetime roster");
-        }
-        let span = self.operand_lifetimes.insert_many(lifetimes);
-        let row = Handle::from_parts(reference.arena_index(), reference.generation());
-        *self.operand_lifetime_spans.get_mut(row) = span;
-        Ok(())
     }
 
     /// Preserve the original selected declaration at its actual receiving type

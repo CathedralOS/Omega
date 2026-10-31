@@ -268,7 +268,7 @@ reaches Console {
     machine land(protocol: &mut Protocol, scaled: f64, exponent: i32 in Wrapping)
     requires scaled == scaled && scaled >= 0.0 && scaled < 1000000000.0
     {
-        let mantissa: i32 = I32FromF64::from_f64(scaled);
+        let mantissa: i32 = I32::from_f64(scaled);
         Protocol::integer(protocol, mantissa as i32 in Wrapping);
         Console::write("e");
         Protocol::integer(protocol, exponent - 8);

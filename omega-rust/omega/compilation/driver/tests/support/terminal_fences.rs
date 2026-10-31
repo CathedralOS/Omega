@@ -132,16 +132,9 @@ fn observe_target(
     allowance: u64,
 ) -> Result<(), String> {
     let program = TerminalProgram::borrow(artifact.view());
-    let selected = terminal_interpreter::target_context(artifact.view(), target);
-    let layouts = terminal_interpreter::admit_target_layouts(
-        artifact.view(),
-        &selected,
-        &target::TargetProfile::from_canonical_target_name(target)
-            .map_err(|reason| reason.to_string())?
-            .layout_target_facts()
-            .ok_or("target has no layout context")?,
-    )
-    .map_err(|error| error.to_string())?;
+    let selected = terminal_interpreter::admit_target_machine_selections(artifact.view(), target);
+    let layouts = terminal_interpreter::admit_target_layouts(artifact.view(), &selected)
+        .map_err(|error| error.to_string())?;
     let supplies = |model| {
         program.admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
@@ -149,7 +142,7 @@ fn observe_target(
             entry: None,
             installation: None,
             host_imports: &[],
-            target_context: Some(&selected),
+            target_machines: Some(&selected),
             target_layouts: Some(&layouts),
         })
     };

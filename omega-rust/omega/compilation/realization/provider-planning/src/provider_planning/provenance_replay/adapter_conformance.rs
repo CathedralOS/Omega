@@ -95,8 +95,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
     let adapter = exact_checked_adapter(context, plan, row)?;
     let declaration = match crate::provider_identity::named_provider(context, plan) {
         Some(owner) => owner.symbol,
-        None => crate::provider_identity::provider_owner_symbol(typed, adapter)
-            .unwrap_or_else(symbols::SymbolHandle::invalid),
+        None => adapter.attached_data_symbol,
     };
     if !declaration.is_valid() || !context.contains(declaration) {
         return Err(diagnostics::Diagnostic::error(
@@ -142,11 +141,22 @@ pub fn exact_checked_adapter<'typed>(
     let target_identity_text = plan.identity_text(*machine_identity);
     let target_callable_identity = typed.callable_identity_by_text(target_identity_text);
     let identity_matches = if target_callable_identity.is_valid() {
-        typed
+        let mut matches = typed
             .machines_by_callable_identity(target_callable_identity)
             .into_iter()
-            .filter(|candidate| context.contains(candidate.symbol))
-            .collect::<Vec<_>>()
+            .filter(|candidate| {
+                crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
+            })
+            .collect::<Vec<_>>();
+        for candidate in typed.machines() {
+            if candidate.target.is_some()
+                && crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
+                && typed.machine_callable_identity(candidate) == target_callable_identity
+            {
+                matches.push(candidate);
+            }
+        }
+        matches
     } else {
         Vec::new()
     };
@@ -191,9 +201,7 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    if crate::provider_identity::provider_owner_symbol(typed, adapter)
-        .is_some_and(|owner| !context.contains(owner))
-    {
+    if adapter.attached_data_symbol.is_valid() && !context.contains(adapter.attached_data_symbol) {
         return Err(diagnostics::Diagnostic::error(format!(
             "checked adapter `{}` for ProviderPlan `{}` retains a provider outside the {:?} planning context",
             plan.identity_text(*machine_identity),

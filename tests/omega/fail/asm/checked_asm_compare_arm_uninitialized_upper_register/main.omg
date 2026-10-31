@@ -1,2 +1,1 @@
-machine main()
-{ asm { cmp w28, w28 } }
+linux_arm64 machine main() { asm { cmp w28, w28 } }

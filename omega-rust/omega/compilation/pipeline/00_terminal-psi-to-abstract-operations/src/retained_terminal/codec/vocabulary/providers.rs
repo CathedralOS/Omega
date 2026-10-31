@@ -80,8 +80,9 @@ record_variants!(backend_plan::DirectBoundaryExecution {
 record_fields!(backend_plan::DirectBoundaryLeaf {
     declaration_identity,
     callable_identity,
-    semantic_plan,
+    satisfied_schema,
     plan,
+    satisfied_requirement_identity,
     execution
 });
 
@@ -138,12 +139,33 @@ record_fields!(effects::SelectedExternalRequirementApplication {
     requirement_identity
 });
 
+record_fields!(backend_plan::SelectedFamilyRealizationSource {
+    head_declaration_identity,
+    head_callable_identity,
+    target,
+    selected_requirement_identity,
+    provider_plan_report_identity,
+    provider_plan_digest
+});
+
 record_fields!(effects::SelectedRequirementSpecialization {
     provider_plan_report_identity,
     selected_requirement_identity,
     selected_machine_identity,
     requirement_identity,
     machine_identity
+});
+
+record_fields!(effects::SelectedTargetFamilyRealization {
+    terminal,
+    target,
+    head,
+    member,
+    head_identity,
+    member_identity,
+    selected_requirement_identity,
+    provider_plan_report_identity,
+    provider_plan_digest
 });
 
 record_variants!(effects::provider_plan::ServiceEntryAuthorityFlow {

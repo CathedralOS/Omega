@@ -6,14 +6,45 @@ public boundary trait ZeroLeafProvider {
  machine make() -> Packet reaches;
  machine shift(packet: Packet) -> Packet reaches;
 }
-
+public macos_arm64 machine macos_arm64_make_binding() -> ForeignBinding<31, 15, 0> {
+ ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_zeroleaf_fixture.dylib", symbol: "_zero_leaf_make" } }
+}
+public macos_arm64 boundary machine make() -> Packet satisfies ZeroLeafProvider::make via macos_arm64_make_binding();
+public linux_x86_64 machine linux_x86_64_make_binding() -> ForeignBinding<28, 14, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_make", version: "ZEROLEAF_1.0" } }
+}
+public linux_x86_64 boundary machine make() -> Packet satisfies ZeroLeafProvider::make via linux_x86_64_make_binding();
+public linux_arm64 machine linux_arm64_make_binding() -> ForeignBinding<28, 14, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_make", version: "ZEROLEAF_1.0" } }
+}
+public linux_arm64 boundary machine make() -> Packet satisfies ZeroLeafProvider::make via linux_arm64_make_binding();
+public windows_x86_64 machine windows_x86_64_make_binding() -> ForeignBinding<26, 14, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_zeroleaf_fixture.dll", export: "zero_leaf_make" } }
+}
+public windows_x86_64 boundary machine make() -> Packet satisfies ZeroLeafProvider::make via windows_x86_64_make_binding();
+public macos_arm64 machine macos_arm64_shift_binding() -> ForeignBinding<31, 16, 0> {
+ ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_zeroleaf_fixture.dylib", symbol: "_zero_leaf_shift" } }
+}
+public macos_arm64 boundary machine shift(packet: Packet) -> Packet satisfies ZeroLeafProvider::shift via macos_arm64_shift_binding();
+public linux_x86_64 machine linux_x86_64_shift_binding() -> ForeignBinding<28, 15, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_shift", version: "ZEROLEAF_1.0" } }
+}
+public linux_x86_64 boundary machine shift(packet: Packet) -> Packet satisfies ZeroLeafProvider::shift via linux_x86_64_shift_binding();
+public linux_arm64 machine linux_arm64_shift_binding() -> ForeignBinding<28, 15, 12> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_zeroleaf_fixture.so", symbol: "zero_leaf_shift", version: "ZEROLEAF_1.0" } }
+}
+public linux_arm64 boundary machine shift(packet: Packet) -> Packet satisfies ZeroLeafProvider::shift via linux_arm64_shift_binding();
+public windows_x86_64 machine windows_x86_64_shift_binding() -> ForeignBinding<26, 15, 0> {
+ ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_zeroleaf_fixture.dll", export: "zero_leaf_shift" } }
+}
+public windows_x86_64 boundary machine shift(packet: Packet) -> Packet satisfies ZeroLeafProvider::shift via windows_x86_64_shift_binding();
 
 machine empty_row(row: &[u8; 0]) -> bool {
  let view: &[u8] = &row[..];
  view.len == 0
 }
 machine consume(first: Packet, copied: Packet) -> bool reaches ZeroLeafProvider {
- let shifted: Packet = ZeroLeafProvider::shift(copied);
+ let shifted: Packet = shift(copied);
  first.before == 17 && first.after == 31
  && shifted.before == 28 && shifted.after == 60
  && shifted.empty.len == 512 && shifted.empty[511].len == 512
@@ -24,8 +55,8 @@ machine receive(value: Packet) -> bool reaches ZeroLeafProvider { consume(value,
 data Selection { packet: Packet; branch: bool; }
 machine select(choice: bool) -> Selection reaches ZeroLeafProvider {
  match choice {
-  true -> Selection { packet: ZeroLeafProvider::make(), branch: true }
-  _ -> Selection { packet: ZeroLeafProvider::make(), branch: false }
+  true -> Selection { packet: make(), branch: true }
+  _ -> Selection { packet: make(), branch: false }
  }
 }
 machine observe() -> bool reaches ZeroLeafProvider {

@@ -295,9 +295,6 @@ pub fn validate_selected_provider_bodies(
     else {
         return Ok(());
     };
-    // Every row is checked against this same immutable evaluation graph.
-    // Share its query memos without sharing authority or a mutable program.
-    let checking = validation::CheckingContext::new(program);
     for row in selected.iter() {
         // A provider body retains exactly one current use: a spelled
         // occurrence, named operator call or normalized requirement call.
@@ -427,8 +424,12 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider state is not the provider's executable entry".into(),
             );
         }
-        if row.target_scope.is_empty() {
-            return Err("selected build-time provider has no target capsule".into());
+        if row.target_scope.is_empty()
+            || program
+                .source_target_context(provider)
+                .is_some_and(|target| target != row.target_scope)
+        {
+            return Err("selected build-time provider belongs to another target capsule".into());
         }
         if program
             .machine_contracts(provider)
@@ -485,7 +486,7 @@ pub fn validate_selected_provider_bodies(
                 // Named code owns a closed map, not an implicit data receiver.
                 // Rejoin its exact requirement and entry. Ordinary checking of
                 // the evaluation graph retains all conformance obligations.
-                validation::revalidate_named_implementation(&checking, declaration)
+                validation::revalidate_named_implementation(program, declaration)
                     .map_err(|diagnostics| format!("selected build-time implementation does not satisfy its contracts: {diagnostics:?}"))?;
                 declaration
                     .rows
@@ -493,15 +494,23 @@ pub fn validate_selected_provider_bodies(
                     .filter(|mapping| {
                         mapping.declaring_trait == owner.symbol
                             && mapping.requirement == row.requirement
-                            && mapping.realization_machine == provider.symbol
-                            && mapping.realization_state == entry.symbol
+                            && (mapping.realization_machine == provider.symbol
+                                && mapping.realization_state == entry.symbol
+                                || program.target_machine_families.iter().any(|family| {
+                                    family.canonical == mapping.realization_machine
+                                        && family.members.iter().any(|member| {
+                                            member.machine == provider.symbol
+                                                && member.target.as_str() == row.target_scope
+                                        })
+                                }))
                     })
                     .count()
             } else {
-                validation::revalidate_machine_trait_conformances(&checking, provider)
+                validation::revalidate_machine_trait_conformances(program, provider)
                     .map_err(|diagnostics| format!("selected build-time provider does not satisfy its contracts: {diagnostics:?}"))?;
                 program.machine_trait_conformances(provider).iter().filter(|conformance| {
-                    matches!(typed_trees::machine::resolve_satisfied_declaration(program, provider, conformance),
+                    conformance.external_binding.is_none()
+                        && matches!(typed_trees::machine::resolve_satisfied_declaration(program, provider, conformance),
                             Some(typed_trees::machine::SatisfiedDeclaration::Trait { definition, requirement })
                                 if definition.symbol == owner.symbol && requirement.symbol == row.requirement)
                 }).count()
@@ -556,6 +565,9 @@ pub fn validate_selected_provider_bodies(
                 .machine_trait_conformances(provider)
                 .iter()
                 .filter(|conformance| {
+                    if conformance.external_binding.is_some() {
+                        return false;
+                    }
                     let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
                         required,
                     )) = typed_trees::machine::resolve_satisfied_declaration(
@@ -659,7 +671,8 @@ pub fn validate_selected_provider_bodies(
                 .machine_trait_conformances(provider)
                 .iter()
                 .filter(|conformance| {
-                    conformance.name.as_str() == namespace.as_str()
+                    conformance.external_binding.is_none()
+                    && conformance.name.as_str() == namespace.as_str()
                     && conformance.requirement.as_ref().map(|name| name.as_str())
                         == Some(requirement.as_str())
                     && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
@@ -767,22 +780,44 @@ pub fn validate_selected_operators(
         if operands != row.operands {
             return miss!("selected build-time operation differs from current authored selection");
         }
-        let requirement = program
-            .sealed_numeric_requirement_by_symbol(row.requirement)
-            .ok_or("selected build-time requirement has no exact Core catalogue signature")?;
-        if typed_trees::operator::primitive_float_semantics(program, row.requirement)
+        let matching: Vec<_> = program
+            .operators()
+            .iter()
+            .chain(program.machine_token_bindings())
+            .filter(|operator| operator.symbol == row.requirement)
+            .collect();
+        let [operator] = matching.as_slice() else {
+            return Err("selected build-time requirement is not unique".into());
+        };
+        if let Some(requirement) = program.machine(row.requirement) {
+            let [entry] = program.machine_states(requirement) else {
+                return Err("selected build-time Float requirement has no unique entry".into());
+            };
+            if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
+                || requirement.body_is_present
+                || requirement.spelling != operator.spelling
+                || entry.parameters != operator.parameters
+                || entry.return_type != operator.return_type
+                || requirement.type_parameters != operator.type_parameters
+                || requirement.contracts != operator.contracts
+            {
+                return miss!("selected build-time token view differs from its actual requirement");
+            }
+        }
+        if typed_trees::operator::primitive_float_binary_semantics(program, operator)
             != Some((row.operation, row.format))
         {
             return miss!("selected build-time operation has no matching sealed Float meaning");
         }
-        let [left, right] = requirement.parameters else {
+        let [left, right] = program.operator_parameters(operator) else {
             return Err("selected build-time binary requirement has wrong arity".into());
         };
         let primitive = match row.format {
             numerics::literals::FloatFormat::F32 => typed_trees::types::PrimitiveType::F32,
             numerics::literals::FloatFormat::F64 => typed_trees::types::PrimitiveType::F64,
         };
-        if program.primitive_type_reference(left.type_reference) != Some(primitive)
+        if !operator.is_boundary
+            || program.primitive_type_reference(left.type_reference) != Some(primitive)
             || program.primitive_type_reference(right.type_reference) != Some(primitive)
         {
             return Err(
@@ -967,7 +1002,7 @@ fn specialization_copies_template(
     if application.template != source {
         return Ok(false);
     }
-    let (Some(template), Some(_copy)) = (program.machine(source), program.machine(instance)) else {
+    let (Some(template), Some(copy)) = (program.machine(source), program.machine(instance)) else {
         return Ok(false);
     };
     let binding = program
@@ -989,5 +1024,5 @@ fn specialization_copies_template(
     // tuples. The copied operation keeps the same provider/requirement meaning;
     // ordinary checking and invocation admission still judge its actual tuple,
     // lexical lifetime arguments, requires, and executable body independently.
-    Ok(true)
+    Ok(program.source_target_context(template) == program.source_target_context(copy))
 }

@@ -1,7 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedByTarget, CheckedByTarget>(builder, linux_x86_64);
-    Build::select_provider<SelectedByTarget, CheckedByTarget>(builder, macos_arm64);
-
     Build::application(builder, "runtime_generic_boundary_relay_places_exit");
     Build::select_provider<Forward, Identity>(builder, linux_arm64);
     Build::select_provider<Forward, Identity>(builder, linux_x86_64);

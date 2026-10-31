@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedView, CheckedView>(builder, linux_x86_64);
-    Build::select_provider<SelectedView, CheckedView>(builder, linux_arm64);
-    Build::select_provider<SelectedView, CheckedView>(builder, macos_arm64);
-    Build::select_provider<SelectedView, CheckedView>(builder, windows_x86_64);
-
     Build::application(builder, "applied_target_family_distinct_const_extents");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

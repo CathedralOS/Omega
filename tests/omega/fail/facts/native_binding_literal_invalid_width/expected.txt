@@ -1,1 +1,0 @@
-requires exactly 2; fixed-array literal copying neither truncates nor pads

@@ -1,10 +1,5 @@
 
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedCanaryTargetProvidersProviderDefaults, CheckedCanaryTargetProvidersProviderDefaults>(builder, windows_x86_64);
-    Build::select_provider<SelectedCanaryTargetProvidersProviderDefaults, CheckedCanaryTargetProvidersProviderDefaults>(builder, linux_x86_64);
-    Build::select_provider<SelectedCanaryTargetProvidersProviderDefaults, CheckedCanaryTargetProvidersProviderDefaults>(builder, linux_arm64);
-    Build::select_provider<SelectedCanaryTargetProvidersProviderDefaults, CheckedCanaryTargetProvidersProviderDefaults>(builder, macos_arm64);
-
     Build::application(builder, "provider_type_target_default_override");
     Build::select_provider<Pick, SecondProvider>(builder, linux_arm64);
     Build::select_provider<Pick, SecondProvider>(builder, linux_x86_64);

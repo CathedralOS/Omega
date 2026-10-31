@@ -2,27 +2,36 @@
 // Invalid: val lower bound weakened to 20u8 so shifted can be 80u8, underflowing subtraction by 100u8.
 // Expected exit: 0
 
-boundary trait SelectedShiftTarget {
-    machine shift_target(val: u8, shift: u32) -> u8 reaches
-requires val >= 20 && val <= 25 && shift == 2;
-}
-CheckedShiftTarget satisfies SelectedShiftTarget {
-    machine shift_target(val: u8, shift: u32) -> u8
+linux_x86_64 machine shift_target(val: u8, shift: u32) -> u8
 requires val >= 20 && val <= 25 && shift == 2
 {
     let shifted: u8 = val << shift;
     shifted - 100u8
 }
+
+linux_arm64 machine shift_target(val: u8, shift: u32) -> u8
+requires val >= 20 && val <= 25 && shift == 2
+{
+    let shifted: u8 = val << shift;
+    shifted - 100u8
 }
 
+macos_arm64 machine shift_target(val: u8, shift: u32) -> u8
+requires val >= 20 && val <= 25 && shift == 2
+{
+    let shifted: u8 = val << shift;
+    shifted - 100u8
+}
 
-
-
-
-
+windows_x86_64 machine shift_target(val: u8, shift: u32) -> u8
+requires val >= 20 && val <= 25 && shift == 2
+{
+    let shifted: u8 = val << shift;
+    shifted - 100u8
+}
 
 machine probe() -> u8 {
-    SelectedShiftTarget::shift_target(20u8, 2)
+    shift_target(20u8, 2)
 }
 
 machine main() crashes Trap {

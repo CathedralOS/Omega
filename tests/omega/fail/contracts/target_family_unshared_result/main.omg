@@ -5,18 +5,11 @@ public boundary trait Reports {
 }
 public ForwardedReports satisfies Reports {
     machine status() -> Status ensures result.code == 7; {
-        SelectedSelectedStatus::selected_status()
+        selected_status()
     }
 }
-boundary trait SelectedSelectedStatus {
-    machine selected_status() -> Status reaches
-ensures result.code == 7;
-}
-CheckedSelectedStatus satisfies SelectedSelectedStatus {
-    machine selected_status() -> Status
-ensures result.code == 7;
-{ Status { code: 7 } }
-}
+windows_x86_64 machine selected_status() -> Status
+ensures result.code == 7; { Status { code: 7 } }
 reserved_target machine selected_status() -> Status
 ensures result.code == 8; { Status { code: 8 } }
 machine main() { }

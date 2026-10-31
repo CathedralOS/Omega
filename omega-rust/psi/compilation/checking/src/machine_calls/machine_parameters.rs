@@ -4,9 +4,11 @@
 //! machine must be concrete, match the authored callable shape, stay within
 //! the required service and operational ceilings, and conservatively refine
 //! conjunctive requires/ensures facts. This pass never invents a callback
-//! contract. Each ordinary callable retains its own selection demands.
+//! contract. Portable family calls share one specialization, but admit its
+//! selections against every retained member's demands before effects settle.
 
 mod callable_shape;
+mod family_demands;
 mod selected_dependencies;
 pub(crate) use selected_dependencies::{
     call_selection_dependency_symbols, machine_selection_dependency_symbols,
@@ -441,6 +443,7 @@ fn validate_call_selection(
     };
     let mut occurrence = FormedStaticMachineSelections::default();
     form_call_selection(program, index, call, &[], diagnostics, &mut occurrence);
+    family_demands::form(program, index, call, diagnostics, &mut occurrence);
     selections
         .rows
         .nominal_uses
@@ -454,7 +457,8 @@ fn validate_call_selection(
         .extend(occurrence.pending_effects);
 }
 
-/// The authored occurrence retains its exact specialization identity.
+/// The authored occurrence has one identity even when its family contributes
+/// several independently checked generic-demand telescopes.
 #[derive(Clone, Copy)]
 struct CallSelection<'call> {
     site: ValidatedNominalMachineUseSite,
@@ -968,8 +972,7 @@ fn machine_parameter_contract(
     symbol: SymbolHandle,
 ) -> Option<(&TypeParameter, &typed_trees::signature::StateSignature)> {
     let (parameter, contract) = machine_parameter_contract_definition(program, symbol)?;
-    let view = program.machine_parameter_contract_view(contract)?;
-    Some((parameter, view.signature()))
+    Some((parameter, machine_parameter_signature(program, contract)))
 }
 
 fn machine_parameter_contract_definition(
@@ -1018,11 +1021,7 @@ fn machine_parameter_contract_definition_in<'program>(
         if parameter.symbol == symbol {
             return Some((parameter, contract));
         }
-        let Some(view) = program.machine_parameter_contract_view(contract) else {
-            // Identity-only operands have no nested callable telescope.
-            continue;
-        };
-        let signature = view.signature();
+        let signature = machine_parameter_signature(program, contract);
         if let Some(found) = machine_parameter_contract_definition_in(
             program,
             program.state_signature_type_parameters(signature),
@@ -1202,23 +1201,6 @@ fn validate_conformance_machine_selections(
                     .expression_table
                     .static_machine_application(view.provider);
                 provider_tuple_matches_source(program, original, view.provider)
-                    && program.applied_machine_callable_matches(
-                        invocation,
-                        ordinal,
-                        argument.symbol,
-                        parameter.symbol,
-                        program
-                            .expression_table
-                            .static_machine_application_bindings(view.provider),
-                        program
-                            .expression_table
-                            .static_machine_application_lifetimes(view.provider),
-                        required,
-                        &substitutions,
-                        program
-                            .expression_table
-                            .static_machine_application_lifetimes(invocation),
-                    )
                     && provider.registration_operation
                         == program
                             .machine_by_symbol(original.symbol)

@@ -32,7 +32,11 @@ pub(crate) fn legalize_target_operations(
     source: &ValidatedOptimizedAbstractPlan,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     let (abstract_plan, unit) = (source.plan(), source.unit());
-    scalar_graph_input::call_origin::validate_boundary_origins(target, source.verified_input())?;
+    scalar_graph_input::call_origin::validate_boundary_origins(
+        target,
+        unit,
+        source.verified_input(),
+    )?;
     let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
@@ -74,7 +78,11 @@ pub fn verify_target_operation_plan(
     source: &ValidatedOptimizedAbstractPlan,
 ) -> Result<(), LegalizationError> {
     let (abstract_plan, unit) = (source.plan(), source.unit());
-    scalar_graph_input::call_origin::validate_boundary_origins(target, source.verified_input())?;
+    scalar_graph_input::call_origin::validate_boundary_origins(
+        target,
+        unit,
+        source.verified_input(),
+    )?;
     audit_target_operation_plan(target, abstract_plan, unit)
 }
 

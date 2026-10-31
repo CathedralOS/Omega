@@ -8,7 +8,7 @@ machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> compute(main,value) _ -> fail(main)}
  machine compute(main:&mut Main,value:i32) {
-  main.value=F64FromI32::from_i32(value)-48.0;
+  main.value=F64::from_i32(value)-48.0;
   transition max(main.value,2.0) == 3.0 && abs_f64(main.value-1.0) <= 0.000000001 {
    true -> good(main) _ -> fail(main)
   }

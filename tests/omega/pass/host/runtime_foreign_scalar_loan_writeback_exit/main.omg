@@ -10,9 +10,21 @@ blocks;
 public boundary requirement DescriptorIo::write(descriptor: i32, buffer: &i32, count: u32) -> i32
 reaches Console;
 
-
+windows_x86_64 machine read_binding() -> ForeignBinding<10, 5, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "msvcrt.dll", export: "_read" },
+    }
+}
+windows_x86_64 machine write_binding() -> ForeignBinding<10, 6, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "msvcrt.dll", export: "_write" },
+    }
+}
 data DescriptorImports {}
-
+windows_x86_64 machine DescriptorImports::read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    satisfies DescriptorIo::read via read_binding();
+windows_x86_64 machine DescriptorImports::write(descriptor: i32, buffer: &i32, count: u32) -> i32
+    satisfies DescriptorIo::write via write_binding();
 
 machine receive(buffer: &mut i32, count: u32) -> i32 reaches Console blocks; {
     block DescriptorIo::read(0, buffer, count)

@@ -8,20 +8,13 @@ machine capacity<Length [copy], machine Callback, Count: u64, const Capacity: u6
 requires machine Callback() -> u64;
 where Length == [u8; Capacity]
 { Observation { capacity: Capacity, callback: Callback(), value: Count, evidence: Probe::probe<Length, Evidence>(&items) } }
-boundary trait SelectedConsume {
-    machine consume(items: [u8; 2]) -> Observation reaches
-;
-}
-CheckedConsume satisfies SelectedConsume {
-    machine consume(items: [u8; 2]) -> Observation
-{ capacity<[u8; 2], marker, 7, Positive>(items) }
-}
-
-
-
+linux_x86_64 machine consume(items: [u8; 2]) -> Observation { capacity<[u8; 2], marker, 7, Positive>(items) }
+windows_x86_64 machine consume(items: [u8; 2]) -> Observation { capacity<[u8; 2], marker, 7, Positive>(items) }
+macos_arm64 machine consume(items: [u8; 2]) -> Observation { capacity<[u8; 2], marker, 7, Positive>(items) }
+linux_arm64 machine consume(items: [u8; 2]) -> Observation { capacity<[u8; 2], marker, 7, Positive>(items) }
 machine main() crashes Trap {
     let items: [u8; 2] = [7, 11];
-    let observed: Observation = SelectedConsume::consume(items);
+    let observed: Observation = consume(items);
     transition observed.capacity == 2 && observed.callback == 7 && observed.value == 7 && observed.evidence == 7 { true -> done() _ -> bad() }
     machine done() {} machine bad() crashes Trap { crash Trap; }
 }

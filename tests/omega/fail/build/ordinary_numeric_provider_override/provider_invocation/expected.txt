@@ -1,2 +1,0 @@
-does not refine `F32IsNan::is_nan`
-requirement omits `invokes Input;`

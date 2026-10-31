@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedEvaluateSum, CheckedEvaluateSum>(builder, linux_x86_64);
-    Build::select_provider<SelectedEvaluateSum, CheckedEvaluateSum>(builder, linux_arm64);
-    Build::select_provider<SelectedEvaluateSum, CheckedEvaluateSum>(builder, macos_arm64);
-    Build::select_provider<SelectedEvaluateSum, CheckedEvaluateSum>(builder, windows_x86_64);
-
     Build::application(builder, "unsigned_16bit_saturating_arithmetic_bound_target_body");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

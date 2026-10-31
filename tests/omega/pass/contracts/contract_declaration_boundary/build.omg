@@ -1,6 +1,4 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "contract_declaration_boundary");
     // Declaration checking does not activate the UEFI-only provider.
-
- Build::bind_table_function<RawNativeForeignReports::read, Table::read>(builder, uefi_x86_64);
 }

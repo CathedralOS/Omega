@@ -6,10 +6,19 @@ boundary trait ByteObserver {
     machine observe(bytes: &[u8], destination: &mut Observation) reaches;
 }
 data Observation [copy] { count: u64; }
+data ByteProvider {}
 Selected satisfies ByteObserver {
-    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 { validated_count(prefix, bytes, suffix) }
-    machine observe(bytes: &[u8], destination: &mut Observation) { destination.count = validated_count(17, bytes, 23); }
+    ByteObserver::count = ByteProvider::count;
+    ByteObserver::observe = ByteProvider::observe;
 }
+macos_arm64 machine ByteProvider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteObserver::count { validated_count(prefix, bytes, suffix) }
+linux_arm64 machine ByteProvider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteObserver::count { validated_count(prefix, bytes, suffix) }
+linux_x86_64 machine ByteProvider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteObserver::count { validated_count(prefix, bytes, suffix) }
+windows_x86_64 machine ByteProvider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteObserver::count { validated_count(prefix, bytes, suffix) }
+macos_arm64 machine ByteProvider::observe(bytes: &[u8], destination: &mut Observation) satisfies ByteObserver::observe { destination.count = validated_count(17, bytes, 23); }
+linux_arm64 machine ByteProvider::observe(bytes: &[u8], destination: &mut Observation) satisfies ByteObserver::observe { destination.count = validated_count(17, bytes, 23); }
+linux_x86_64 machine ByteProvider::observe(bytes: &[u8], destination: &mut Observation) satisfies ByteObserver::observe { destination.count = validated_count(17, bytes, 23); }
+windows_x86_64 machine ByteProvider::observe(bytes: &[u8], destination: &mut Observation) satisfies ByteObserver::observe { destination.count = validated_count(17, bytes, 23); }
 
 machine validated_count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
     transition prefix == 17 && suffix == 23 { true -> window(bytes) false -> (255) }

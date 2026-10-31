@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedComputeGeometry, CheckedComputeGeometry>(builder, linux_x86_64);
-    Build::select_provider<SelectedComputeGeometry, CheckedComputeGeometry>(builder, linux_arm64);
-    Build::select_provider<SelectedComputeGeometry, CheckedComputeGeometry>(builder, macos_arm64);
-    Build::select_provider<SelectedComputeGeometry, CheckedComputeGeometry>(builder, windows_x86_64);
-
     Build::application(builder, "record_layout_geometry_unproved_target_body");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedOrdered, LinuxX8664Ordered>(builder, linux_x86_64);
-    Build::select_provider<SelectedOrdered, LinuxX8664Ordered>(builder, windows_x86_64);
-    Build::select_provider<SelectedOrdered, LinuxArm64Ordered>(builder, linux_arm64);
-    Build::select_provider<SelectedOrdered, LinuxArm64Ordered>(builder, macos_arm64);
-
     Build::application(builder, "checked_asm_fence_contracts_call_result_invalid");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

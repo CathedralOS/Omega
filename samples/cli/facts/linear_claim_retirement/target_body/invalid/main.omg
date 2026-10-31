@@ -11,27 +11,29 @@ machine retire(token: Token) -> u64 {
     v
 }
 
-boundary trait SelectedConsume {
-    machine consume(token: Token) -> u64 reaches
-;
-}
-CheckedConsume satisfies SelectedConsume {
-    machine consume(token: Token) -> u64
-{
+linux_x86_64 machine consume(token: Token) -> u64 {
     let first: u64 = retire(token);
     retire(token)
 }
+
+linux_arm64 machine consume(token: Token) -> u64 {
+    let first: u64 = retire(token);
+    retire(token)
 }
 
+macos_arm64 machine consume(token: Token) -> u64 {
+    let first: u64 = retire(token);
+    retire(token)
+}
 
-
-
-
-
+windows_x86_64 machine consume(token: Token) -> u64 {
+    let first: u64 = retire(token);
+    retire(token)
+}
 
 machine probe() -> u64 {
     let token: Token = Token { value: 42 };
-    SelectedConsume::consume(token)
+    consume(token)
 }
 
 machine main() crashes Trap {

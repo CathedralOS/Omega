@@ -2,11 +2,6 @@
 // target's exact entry.
 
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedTransfer, LinuxArm64Transfer>(builder, linux_arm64);
-    Build::select_provider<SelectedTransfer, LinuxArm64Transfer>(builder, macos_arm64);
-    Build::select_provider<SelectedTransfer, WindowsX8664Transfer>(builder, windows_x86_64);
-    Build::select_provider<SelectedTransfer, WindowsX8664Transfer>(builder, linux_x86_64);
-
     Build::application(builder, "asm_memory_transfer_compile");
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

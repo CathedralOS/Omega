@@ -19,9 +19,6 @@ mod callback_layout;
 mod layout_plan;
 mod packing;
 mod sizing;
-mod target_context;
-
-pub use target_context::LayoutTarget;
 
 pub use boundary_values::{
     BOUNDARY_VALUE_FIELD_CAPACITY, BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryOpaqueRepresentationUse,

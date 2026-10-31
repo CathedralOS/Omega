@@ -24,8 +24,6 @@ pub struct DataDefinitionStorage {
     pub type_parameters: HandleSpan<TypeParameter>,
     /// Resolved structural origin of a generated concrete generic instance.
     pub generic_instance: Option<TypeReference>,
-    /// Exact contracts for implementation operands in this data telescope.
-    pub conformance_bounds: Vec<crate::machine::GenericConformanceBound>,
     pub properties: DataProperties,
     /// Selected default-domain cleanup, independent from the data namespace.
     pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,

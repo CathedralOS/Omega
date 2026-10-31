@@ -125,8 +125,8 @@ impl ObjectArtifact {
             entry
         } else {
             match module.entry {
-                Some(terminal_psi::TerminalCallable::Machine(machine)) => machine,
-                Some(terminal_psi::TerminalCallable::Boundary(_)) | None => {
+                Some(terminal_psi::TargetMachineCallable::Machine(machine)) => machine,
+                Some(terminal_psi::TargetMachineCallable::Boundary(_)) | None => {
                     return Err("native entry requires retained deployment selection");
                 }
             }

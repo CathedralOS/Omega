@@ -7,20 +7,13 @@ data Token<const Setting: Configuration> [copy] { marker: u8; }
 machine read<Item [copy], const Setting: Configuration>(items: Item) -> u64
 where Item == Token<Setting>
 { Setting.minimum }
-boundary trait SelectedConsume {
-    machine consume(items: Token<SEVEN>) -> u64 reaches
-;
-}
-CheckedConsume satisfies SelectedConsume {
-    machine consume(items: Token<SEVEN>) -> u64
-{ read<Token<SEVEN>, EIGHT>(items) }
-}
-
-
-
+linux_x86_64 machine consume(items: Token<SEVEN>) -> u64 { read<Token<SEVEN>, EIGHT>(items) }
+windows_x86_64 machine consume(items: Token<SEVEN>) -> u64 { read<Token<SEVEN>, EIGHT>(items) }
+macos_arm64 machine consume(items: Token<SEVEN>) -> u64 { read<Token<SEVEN>, EIGHT>(items) }
+linux_arm64 machine consume(items: Token<SEVEN>) -> u64 { read<Token<SEVEN>, EIGHT>(items) }
 machine main() crashes Trap {
     let items: Token<SEVEN> = Token { marker: 1 };
-    let observed: u64 = SelectedConsume::consume(items);
+    let observed: u64 = consume(items);
     transition observed == 7 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

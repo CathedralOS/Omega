@@ -1,6 +1,6 @@
 //! Capture source ownership before executable Build bodies are erased.
 use language_semantics::declaration_selection::{
-    BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
+    BuildOperation, BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
 };
 use std::sync::Arc;
 pub(crate) fn capture(
@@ -10,7 +10,7 @@ pub(crate) fn capture(
 ) -> Result<Vec<NativeBindingFormation>, diagnostics::Diagnostic> {
     if !declared
         .iter()
-        .any(|request| request.operation.is_native_intent())
+        .any(|request| request.operation == BuildOperation::NativeBinding)
     {
         return Ok(Vec::new());
     }
@@ -50,7 +50,7 @@ pub(crate) fn capture(
                     else {
                         continue;
                     };
-                    if !request.operation.is_native_intent() {
+                    if request.operation != BuildOperation::NativeBinding {
                         continue;
                     }
                     let scope = typed_trees::product_operand::native_binding_formation(
@@ -76,7 +76,7 @@ pub(crate) fn capture(
     }
     for request in declared
         .iter()
-        .filter(|request| request.operation.is_native_intent())
+        .filter(|request| request.operation == BuildOperation::NativeBinding)
     {
         if !scopes.iter().any(|scope| scope.request == *request) {
             return Err(diagnostics::Diagnostic::error(

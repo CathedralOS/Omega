@@ -3,11 +3,11 @@ use omega::language::core::float_operations;
 // Both return paths import the selected slot's normal-result guarantee.
 machine rounded(value: i32, first: bool) -> f32
 ensures
-    F32Classify::classify(result) == F32Classify::classify(F32FromI32::from_i32(value)) &&
-    (F32IsNan::is_nan(result) || result == F32FromI32::from_i32(value)) {
+    F32::classify(result) == F32::classify(F32::from_i32(value)) &&
+    (F32::is_nan(result) || result == F32::from_i32(value)) {
     transition first {
-        true -> (F32FromI32::from_i32(value))
-        false -> (F32FromI32::from_i32(value))
+        true -> (F32::from_i32(value))
+        false -> (F32::from_i32(value))
     }
 }
 

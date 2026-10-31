@@ -400,11 +400,6 @@ fn resolve(
     if !reference.is_valid() {
         return None;
     }
-    // The policy is erased code evidence. Contents, loans and nominal cleanup
-    // belong to T's complete application; physical geometry is independent.
-    if let Some(storage) = program.layout_storage_arguments(reference) {
-        return resolve(program, storage.semantic_type, arguments, requirement);
-    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some(argument) = crate::substitutions::actual_for(arguments, *symbol) {

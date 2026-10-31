@@ -24,7 +24,7 @@ use numerics::literals::FloatFormat;
 use typed_trees::domain::DomainDefinition;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::operator::resolve_named_expression_call;
+use typed_trees::operator::{primitive_float_binary_semantics, resolve_named_expression_call};
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
@@ -347,9 +347,16 @@ fn subtraction_has_ieee_meaning(
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
-    typed_trees::operator::primitive_float_semantics(program, call.target_symbol).is_some_and(
-        |(operator, format)| operator == BinaryOperator::Subtract && format == expected_format,
-    )
+    let Some((target, _)) = validation::find_machine_by_entry_state(program, call.target_symbol)
+    else {
+        return false;
+    };
+    let Some(binding) = program.machine_token_binding_by_symbol(target.symbol) else {
+        return false;
+    };
+    primitive_float_binary_semantics(program, binding).is_some_and(|(operator, format)| {
+        operator == BinaryOperator::Subtract && format == expected_format
+    })
 }
 
 fn operand_is_finite(

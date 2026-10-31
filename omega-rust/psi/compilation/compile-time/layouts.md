@@ -184,10 +184,3 @@ strict decoder cannot satisfy a preservation demand; preserving realization
 remains separate work.
 The [codec specification](../../../../wiki/spec/layouts/codecs.md) owns byte
 grammar, destination establishment, and failure behavior.
-
-A complete `TargetInputs([])` roster describes a retained application with no
-physical demand; it does not authorize invariant packing. Checking intersects
-the participating families' rosters for one physical judgment. Recast formation
-still checks access polarity, placed authority, qualification preservation and
-raw-byte fact obligations before that geometry loop. An executing application
-must obtain validated geometry and undergo strict physical replay.

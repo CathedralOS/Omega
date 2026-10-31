@@ -19,8 +19,6 @@ mod observations;
 mod output_custody;
 mod restricted_requests;
 mod snapshot_request;
-mod source_custody;
-pub use source_custody::CapturedBuildSource;
 
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;

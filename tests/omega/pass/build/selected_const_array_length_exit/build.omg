@@ -47,7 +47,7 @@ linux_x86_64 machine checked_target_capacity() -> u64 {
 
 machine slot_count() -> u64 {
     let half: f32 in Saturating = 0.5f32;
-    let whole: f32 = FloatAdd::add(half, half) as f32;
+    let whole: f32 = Float::add(half, half) as f32;
     // Anonymous arguments and returns each land once, without an f64 detour.
     let precision: f32 = round_trip(8388609.499999999999999);
     // The whole anonymous tree lands once, not each arithmetic operand.

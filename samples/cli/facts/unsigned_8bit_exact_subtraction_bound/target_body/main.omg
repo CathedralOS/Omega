@@ -2,12 +2,7 @@
 // Place: another target body. Each of four target-scoped machine bodies subtracts bounded 8-bit operands and discharges interval.
 // Expected exit: 0
 
-boundary trait SelectedSubTarget {
-    machine sub_target(lhs: u8, rhs: u8) -> u8 reaches
-requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40;
-}
-CheckedSubTarget satisfies SelectedSubTarget {
-    machine sub_target(lhs: u8, rhs: u8) -> u8
+linux_x86_64 machine sub_target(lhs: u8, rhs: u8) -> u8
 requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
 {
     let diff: u8 = lhs - rhs;
@@ -15,16 +10,36 @@ requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
     let margin: u8 = diff - 60u8;
     headroom + margin
 }
+
+linux_arm64 machine sub_target(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+{
+    let diff: u8 = lhs - rhs;
+    let headroom: u8 = 160u8 - diff;
+    let margin: u8 = diff - 60u8;
+    headroom + margin
 }
 
+macos_arm64 machine sub_target(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+{
+    let diff: u8 = lhs - rhs;
+    let headroom: u8 = 160u8 - diff;
+    let margin: u8 = diff - 60u8;
+    headroom + margin
+}
 
-
-
-
-
+windows_x86_64 machine sub_target(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+{
+    let diff: u8 = lhs - rhs;
+    let headroom: u8 = 160u8 - diff;
+    let margin: u8 = diff - 60u8;
+    headroom + margin
+}
 
 machine probe() -> u8 {
-    SelectedSubTarget::sub_target(140u8, 30u8)
+    sub_target(140u8, 30u8)
 }
 
 machine main() crashes Trap {

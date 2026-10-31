@@ -13,8 +13,8 @@ use psi::typing::typer;
 // replaced by the clause's static arguments: as many parameters, each of
 // the substituted type, and the same result. A requirement with generic
 // parameters of its own, or a trait with parameters other than types and
-// lifetimes, rejects as unsupported. Native bindings belong to Build. A
-// `terminates by` witness's subjects and view type like any expression.
+// lifetimes, rejects as unsupported. The `via` payload and a `terminates by`
+// witness's subjects and view type like any expression.
 public machine Typer::type_clauses(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
@@ -100,7 +100,7 @@ crashes Trap
 }
 
 // One `satisfies` clause of `satisfier`: bind the trait's parameters to the
-// clause's arguments and compare the exact signatures.
+// clause's arguments, compare the signatures, then type the `via` payload.
 machine Typer::type_satisfied_requirement(
     typer: &mut Typer,
     sources: &SourceSet,
@@ -267,10 +267,21 @@ crashes Trap
         required: MachineItem
     ) {
         let same: bool = Typer::same_satisfied_signature(typer, syntax, satisfier, required, clause.source_span);
-        transition same && !clause.has_expression {
-            true -> done()
+        transition same {
+            true -> payload(typer, sources, syntax, resolution, clause)
             _ -> reject(typer, TypeDiagnosticCode::SatisfierMismatch, clause.source_span)
         }
+    }
+
+    machine payload(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause) {
+        transition clause.has_expression {
+            true -> typed_payload(typer, sources, syntax, resolution, clause)
+            _ -> done()
+        }
+    }
+
+    machine typed_payload(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause) {
+        Typer::type_tree(typer, sources, syntax, resolution, clause.expression);
     }
 
     machine reject(typer: &mut Typer, code: TypeDiagnosticCode, source_span: SourceSpan) {

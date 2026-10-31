@@ -22,22 +22,21 @@ ensures result.len == Count
 machine require_four(length: u64) -> u64
 requires length == 4
 { length }
-boundary trait SelectedExtent {
-    machine extent(view: &[Entry], original: addr) -> u64 reaches
-crashes Trap
-requires view.len == 4;
-}
-CheckedExtent satisfies SelectedExtent {
-    machine extent(view: &[Entry], original: addr) -> u64 crashes Trap
+linux_x86_64 machine extent(view: &[Entry], original: addr) -> u64 crashes Trap
 requires view.len == 4
 { verify_view(view, original, require_four(view.len)) }
-}
-
-
-
+linux_arm64 machine extent(view: &[Entry], original: addr) -> u64 crashes Trap
+requires view.len == 4
+{ verify_view(view, original, require_four(view.len)) }
+macos_arm64 machine extent(view: &[Entry], original: addr) -> u64 crashes Trap
+requires view.len == 4
+{ verify_view(view, original, require_four(view.len)) }
+windows_x86_64 machine extent(view: &[Entry], original: addr) -> u64 crashes Trap
+requires view.len == 4
+{ verify_view(view, original, require_four(view.len)) }
 machine main() crashes Trap {
     let entries: [Entry; 4] = [Entry { value: 7 }, Entry { value: 8 }, Entry { value: 9 }, Entry { value: 10 }];
-    transition SelectedExtent::extent(whole_view<Entry, 4>(&entries), address_of(&entries[0].value)) == 4 { true -> done() _ -> bad() }
+    transition extent(whole_view<Entry, 4>(&entries), address_of(&entries[0].value)) == 4 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

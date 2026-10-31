@@ -27,7 +27,7 @@ public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; bloc
         }
     }
     machine digit(raw: &mut Raw, bytes: u64, accumulator: f64, scale: f64, negative: bool, fraction: bool, digits: u64, decimals: u64, character: i32) -> bool {
-        let next_accumulator: f64 = accumulator * 10.0 + F64FromI32::from_i32(character) - 48.0;
+        let next_accumulator: f64 = accumulator * 10.0 + F64::from_i32(character) - 48.0;
         transition fraction {
             true -> next(raw, bytes + 1, next_accumulator, scale * 10.0, negative, true, true, digits + 1, decimals + 1)
             false -> next(raw, bytes + 1, next_accumulator, scale, negative, true, false, digits + 1, decimals)
@@ -53,10 +53,10 @@ public machine read(raw: &mut Raw) -> bool reaches Console invokes Console; bloc
 }
 machine sign(accumulator: f64, negative: bool) -> f64 { transition negative { true -> minus(accumulator) false -> plus(accumulator) } machine minus(accumulator: f64) -> f64 { 0.0 - accumulator } machine plus(accumulator: f64) -> f64 { accumulator } }
 public machine decode(raw: &Raw, problem: &mut Problem) -> bool {
-    let count: u64 in Saturating = U64FromF64::from_f64(raw.values[0]);
-    let queries: u64 in Saturating = U64FromF64::from_f64(raw.values[1]);
+    let count: u64 in Saturating = U64::from_f64(raw.values[0]);
+    let queries: u64 in Saturating = U64::from_f64(raw.values[1]);
     transition raw.count >= 5 && count >= 2 && count <= 8 && queries >= 1 && queries <= 8
-        && F64FromU64::from_u64(count as u64) == raw.values[0] && F64FromU64::from_u64(queries as u64) == raw.values[1]
+        && F64::from_u64(count as u64) == raw.values[0] && F64::from_u64(queries as u64) == raw.values[1]
         && raw.count == 5 + (count as u64) * 3 + (queries as u64) * 2
         && raw.values[2] > 0.0 && raw.values[3] > 0.0 && raw.values[4] >= 0.0 {
         true -> start(raw, problem, count as u64, queries as u64) false -> bad()

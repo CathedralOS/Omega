@@ -414,7 +414,12 @@ pub(crate) fn require_complete_invocation_conditions(
             .any(|plan| {
                 (!plan.pending_scalar_requires.is_empty()
                     || !plan.pending_scalar_recipes.is_empty())
-                    && (demanded(plan.machine) || demanded(plan.state))
+                    && (demanded(plan.machine)
+                        || demanded(plan.state)
+                        || checked.typed.target_machine_families.iter().any(|family| {
+                            family.canonical == plan.machine
+                                && family.members.iter().any(|member| demanded(member.machine))
+                        }))
             })
     {
         return Err(

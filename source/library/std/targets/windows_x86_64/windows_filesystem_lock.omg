@@ -13,12 +13,12 @@ use targets::windows_x86_64::windows_filesystem_transfer;
 use targets::windows_x86_64::windows_filesystem_transfer_native;
 use targets::windows_x86_64::windows_filesystem_lock_native;
 
-machine windows_filesystem_native_lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32
+windows_x86_64 machine WindowsFilesystemNativeProvider::lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32
 satisfies WindowsFilesystemHost::lock_file {
     let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
     transition duplicate != 0 {
         true -> block flags(duplicate, exclusive, nonblocking)
-        false -> (windows_filesystem_native_failure_i32())
+        false -> (WindowsFilesystemNativeProvider::failure_i32())
     }
     machine flags(duplicate: i64 in WindowsSynchronousFileOrAbsent, exclusive: bool, nonblocking: bool) -> i32
     requires duplicate != 0 {
@@ -39,28 +39,28 @@ satisfies WindowsFilesystemHost::lock_file {
     requires duplicate != 0 && flags <= 3 {
         let mut request: WindowsNativeLockRequest;
         let succeeded: i32 = block WindowsFilesystemLockIo::acquire(duplicate, flags, 0, 4294967295, 4294967295, &mut request);
-        let status: i32 = windows_filesystem_native_completion_status(succeeded);
+        let status: i32 = WindowsFilesystemNativeProvider::completion_status(succeeded);
         block windows_lock_completion(duplicate, status)
     }
 }
 
-machine windows_filesystem_native_unlock_file(handle: u64) -> i32
+windows_x86_64 machine WindowsFilesystemNativeProvider::unlock_file(handle: u64) -> i32
 satisfies WindowsFilesystemHost::unlock_file {
     let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
     transition duplicate != 0 {
         true -> block release(duplicate)
-        false -> (windows_filesystem_native_failure_i32())
+        false -> (WindowsFilesystemNativeProvider::failure_i32())
     }
     machine release(duplicate: i64 in WindowsSynchronousFileOrAbsent) -> i32
     requires duplicate != 0 {
         let succeeded: i32 = block WindowsFilesystemLockIo::release(duplicate, 0, 0, 4294967295, 4294967295);
-        let status: i32 = windows_filesystem_native_completion_status(succeeded);
+        let status: i32 = WindowsFilesystemNativeProvider::completion_status(succeeded);
         block windows_lock_completion(duplicate, status)
     }
 }
 
-machine windows_lock_completion(duplicate: i64 in WindowsSynchronousFileOrAbsent, status: i32) -> i32
+windows_x86_64 machine windows_lock_completion(duplicate: i64 in WindowsSynchronousFileOrAbsent, status: i32) -> i32
 requires duplicate != 0 {
-    let closed: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(duplicate as i64));
+    let closed: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(duplicate as i64));
     transition status < 0 { true -> (status) false -> (closed) }
 }

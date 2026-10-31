@@ -12,8 +12,8 @@
 //! `component_eras/` owns era ledgers and progress evidence.
 //! These are realization records, not the source language's effect analysis.
 
+pub mod external_providers;
 mod fnv1a;
-pub mod numeric_realizations;
 mod provider_evidence;
 pub mod provider_grants;
 
@@ -52,7 +52,7 @@ pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
     AssumedBindingContractSelection, InstallationReachResolution,
     SelectedExternalRequirementApplication, SelectedProviderPlanCandidate,
-    SelectedProviderPlanFacts, SelectedRequirementSpecialization,
+    SelectedProviderPlanFacts, SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
 };
 
 #[cfg(test)]

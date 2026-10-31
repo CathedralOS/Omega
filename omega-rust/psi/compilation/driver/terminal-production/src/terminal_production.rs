@@ -19,7 +19,7 @@ pub struct TerminalProductionRequest<'a> {
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     /// Reuse the declaration product already owned by this exact checked input.
-    pub external_declarations: Option<&'a crate::PreparedDeclarationCatalog>,
+    pub external_declarations: Option<&'a crate::PreparedExternalProviderDeclarations>,
     pub machine: TerminalMachineSelection<'a>,
     /// Complete callable/interface roots requested by the owning product.
     /// These retain bodies/declarations without granting execution authority.

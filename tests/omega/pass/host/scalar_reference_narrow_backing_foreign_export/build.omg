@@ -1,9 +1,4 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "scalar_reference_narrow_backing_foreign_export");
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-
- Build::bind<Compare::compare>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
-    } });
 }

@@ -1,9 +1,4 @@
 machine build(builder: &mut Build) {
-    Build::select_provider<SelectedShiftTarget, CheckedShiftTarget>(builder, linux_x86_64);
-    Build::select_provider<SelectedShiftTarget, CheckedShiftTarget>(builder, linux_arm64);
-    Build::select_provider<SelectedShiftTarget, CheckedShiftTarget>(builder, macos_arm64);
-    Build::select_provider<SelectedShiftTarget, CheckedShiftTarget>(builder, windows_x86_64);
-
     Build::application(builder, "unsigned_32bit_shift_right_bound");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

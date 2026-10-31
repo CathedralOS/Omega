@@ -21,9 +21,6 @@ pub(super) struct SourceContext {
     /// Freshly acquired parsed declarations remain lookup context when their
     /// resolved/typed owners leave the new cohort's worklist.
     pub declaration_syntax: Arc<SyntaxTrees>,
-    /// Exact inherited normalization lookup, including prepared instances from
-    /// every preceding cohort. These roots never become current work.
-    pub normalization_context: Option<Arc<SyntaxTrees>>,
     pub bindings: Vec<SourceScopedTopLevelBinding>,
     pub authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     pub build_helper_identity: std::borrow::Cow<'static, str>,
@@ -35,11 +32,6 @@ impl SourceContext {
         self.recorded_authority.is_none()
             && other.recorded_authority.is_none()
             && Arc::ptr_eq(&self.declaration_syntax, &other.declaration_syntax)
-            && match (&self.normalization_context, &other.normalization_context) {
-                (None, None) => true,
-                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
-                _ => false,
-            }
             && self.bindings == other.bindings
             && self.build_helper_identity == other.build_helper_identity
             && match (&self.authority, &other.authority) {
@@ -136,7 +128,6 @@ pub(super) struct ActivatedSource {
     pub typing: SeededTypingBase,
     pub pre_checks: Vec<PreCheckEvaluation>,
     sources: Arc<SourceMap>,
-    template_context: Arc<SyntaxTrees>,
 }
 
 impl ActivatedSource {
@@ -144,7 +135,7 @@ impl ActivatedSource {
         &self,
         syntax: &mut SyntaxTrees,
         source_items: &[(SourceId, Vec<syntax_trees::item::ItemHandle>)],
-    ) -> SyntaxTrees {
+    ) {
         let retained = source_items
             .iter()
             .filter(|(source, _)| self.sources.source_is_selected(*source))
@@ -171,77 +162,6 @@ impl ActivatedSource {
             let copied = syntax.copy_expression_from(&selected, *expression);
             syntax.roots.constant_extent_probes.push((copied, *public));
         }
-        // The prepared predecessor also owns already materialized generic
-        // instances. Reusing only raw parsed templates would synthesize their
-        // variants twice in the receiving symbol world.
-        let prepared = self.template_context.as_ref();
-        let items = prepared
-            .root_item_handles()
-            .iter()
-            .copied()
-            .filter(|item| {
-                use syntax_trees::item::Item;
-                let span = match prepared.root_item(*item) {
-                    Item::Data(value) => Some(value.name.source_span()),
-                    Item::Const(value) => Some(value.name.source_span()),
-                    Item::Domain(value) => Some(value.name.source_span()),
-                    Item::Machine(value) => Some(value.name.source_span()),
-                    Item::Trait(value) => Some(value.name.source_span()),
-                    Item::Module(value) => prepared
-                        .items
-                        .identifier_path_members(value.path)
-                        .first()
-                        .map(|name| name.source_span()),
-                    Item::Use(value) => prepared
-                        .items
-                        .identifier_path_members(value.path)
-                        .first()
-                        .map(|name| name.source_span()),
-                    Item::Package(value) => prepared
-                        .items
-                        .identifier_path_members(value.path)
-                        .first()
-                        .map(|name| name.source_span()),
-                    Item::Operator(value) => prepared
-                        .items
-                        .identifier_path_members(value.name)
-                        .first()
-                        .map(|name| name.source_span()),
-                    Item::Measure(value) => prepared
-                        .items
-                        .identifier_path_members(value.name)
-                        .first()
-                        .map(|name| name.source_span()),
-                    Item::Capability(value) => Some(value.name.source_span()),
-                    Item::Proposition(value) => Some(value.name.source_span()),
-                    Item::Conformance(value) => Some(
-                        value
-                            .alias
-                            .as_ref()
-                            .unwrap_or(&value.trait_name)
-                            .source_span(),
-                    ),
-                };
-                span.is_some_and(|span| self.sources.source_is_selected(span.source_id))
-            })
-            .collect::<Vec<_>>();
-        let mathematics = prepared
-            .root_mathematical_definition_handles()
-            .iter()
-            .copied()
-            .filter(|handle| {
-                self.sources.source_is_selected(
-                    prepared
-                        .root_mathematical_definition(*handle)
-                        .name
-                        .source_span()
-                        .source_id,
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut context = SyntaxTrees::new(prepared.source_id);
-        context.extend_selected_roots_from(prepared, &items, &mathematics);
-        context
     }
 }
 
@@ -295,18 +215,6 @@ pub(super) fn select_retained_source(
     }
     candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
     for (count, source, sources) in candidates {
-        let prepared = source.pending_bodies.generic_normalization_context();
-        let template_context = match &source.context.normalization_context {
-            Some(inherited) => {
-                // New cohort roots and inherited lookup roots are disjoint by
-                // construction: normalization removes its borrowed input roots
-                // before publishing the resolved cohort.
-                let mut complete = inherited.as_ref().clone();
-                complete.extend_from(&prepared);
-                Arc::new(complete)
-            }
-            None => prepared,
-        };
         let (typing, pending_pre_checks) = super::SourceContinuation::complete_selected(
             source,
             Arc::clone(&sources),
@@ -388,7 +296,6 @@ pub(super) fn select_retained_source(
             typing,
             pre_checks,
             sources,
-            template_context,
         }));
     }
     Ok(None)

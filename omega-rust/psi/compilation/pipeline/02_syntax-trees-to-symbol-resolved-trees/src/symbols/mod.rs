@@ -30,6 +30,8 @@ mod scope;
 pub(crate) use scope::{owned_conformance_namespace, owned_conformance_realization};
 mod scoped_paths;
 mod statements;
+pub(crate) mod target_machine_families;
+pub(crate) mod target_siblings;
 mod targets;
 mod top_level;
 pub(crate) mod type_predicates;

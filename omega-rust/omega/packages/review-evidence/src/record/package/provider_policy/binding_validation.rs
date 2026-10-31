@@ -26,22 +26,6 @@ impl PackagePolicyProviderBinding {
             {
                 validate_producer(&evaluated.producer)
             }
-            Self::VtableField {
-                table,
-                field,
-                table_declaration,
-            }
-            | Self::TableFunction {
-                table,
-                field,
-                table_declaration,
-            } => {
-                table_declaration.validate_resolved()?;
-                if table.is_empty() || field.is_empty() {
-                    return Err("native table binding has an empty field coordinate");
-                }
-                Ok(())
-            }
             _ => Err("native inventory has an invalid target, coordinate or producer"),
         }
     }

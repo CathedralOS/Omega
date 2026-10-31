@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 
 machine radius(value: f64) -> f64
 requires value == value && value >= 0.0 {
-    F64SquareRootTowardZero::square_root_toward_zero(value)
+    F64::square_root_toward_zero(value)
 }
 
 data Control { observed: f64; }

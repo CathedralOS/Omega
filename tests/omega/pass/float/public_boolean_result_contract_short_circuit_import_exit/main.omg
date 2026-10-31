@@ -2,8 +2,8 @@ use omega::language::core::float_operations;
 
 // Each selected expression outcome retains only its own normal-call facts.
 machine finite(value: f32) -> bool
-ensures result == F32IsFinite::is_finite(value) {
-    let observed: bool = F32IsFinite::is_finite(value) || F32IsFinite::is_finite(value);
+ensures result == F32::is_finite(value) {
+    let observed: bool = F32::is_finite(value) || F32::is_finite(value);
     transition { _ -> forward(observed) }
     machine forward(observed: bool) -> bool { observed }
 }

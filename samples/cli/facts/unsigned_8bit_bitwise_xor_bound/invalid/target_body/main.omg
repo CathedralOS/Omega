@@ -10,27 +10,36 @@ machine verify_xored(res: u8) -> i32
     sum - 23
 }
 
-boundary trait SelectedComputeTargetBody {
-    machine compute_target_body(raw: u8) -> i32 reaches
-requires raw >= 64 && raw <= 64;
-}
-CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
-    machine compute_target_body(raw: u8) -> i32
+linux_x86_64 machine compute_target_body(raw: u8) -> i32
     requires raw >= 64 && raw <= 64
 {
     let xored: u8 = raw ^ 15;
     verify_xored(xored)
 }
+
+linux_arm64 machine compute_target_body(raw: u8) -> i32
+    requires raw >= 64 && raw <= 64
+{
+    let xored: u8 = raw ^ 15;
+    verify_xored(xored)
 }
 
+macos_arm64 machine compute_target_body(raw: u8) -> i32
+    requires raw >= 64 && raw <= 64
+{
+    let xored: u8 = raw ^ 15;
+    verify_xored(xored)
+}
 
-
-
-
-
+windows_x86_64 machine compute_target_body(raw: u8) -> i32
+    requires raw >= 64 && raw <= 64
+{
+    let xored: u8 = raw ^ 15;
+    verify_xored(xored)
+}
 
 machine evaluate() -> i32 {
-    SelectedComputeTargetBody::compute_target_body(64)
+    compute_target_body(64)
 }
 
 machine main() crashes Trap {

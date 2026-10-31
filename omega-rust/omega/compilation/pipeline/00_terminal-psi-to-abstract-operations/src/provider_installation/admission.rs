@@ -28,7 +28,10 @@ pub(crate) fn admit_provider_installation_with_projection(
             .or_default()
             .push(candidate);
     }
-    let mut selected_by_req = std::collections::BTreeMap::<&str, Vec<(&str, &str, &str)>>::new();
+    let mut selected_by_req = std::collections::BTreeMap::<
+        &str,
+        Vec<(&str, &str, &str)>,
+    >::new();
     for row in selected {
         selected_by_req
             .entry(row.requirement_identity.as_str())

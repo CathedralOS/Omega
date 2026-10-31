@@ -12,7 +12,7 @@ data WindowsPathCharacter {
     next_input: u64;
 }
 
-machine windows_wide_path(path: &[u8], output: &mut [u16; 4096]) -> i64 {
+windows_x86_64 machine windows_wide_path(path: &[u8], output: &mut [u16; 4096]) -> i64 {
     windows_path_encode(path, output, 0, 0, path.len)
 }
 

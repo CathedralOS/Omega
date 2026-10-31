@@ -77,6 +77,7 @@ impl ValidatedFunctionFragmentEmissionManifest {
     pub fn record(&self) -> &FunctionFragmentEmissionManifest {
         &self.record
     }
+
 }
 
 #[derive(Debug)]

@@ -113,9 +113,6 @@ pub(super) fn validate_nominal_machine_selection(
     let mut operand_mismatch = None::<String>;
     let mut arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
                                actual_owner: SymbolHandle,
-                               owned_scope: Option<
-        &typed_trees::trait_definition::AppliedTraitScope<'_>,
-    >,
                                bindings: &mut Vec<TypeBinding>| {
         if actual.len() != required_arguments.len() {
             return false;
@@ -172,38 +169,24 @@ pub(super) fn validate_nominal_machine_selection(
                 })
                 .collect::<Vec<_>>();
             retain_conformance_operands(program, application, &mut operands);
-            let receiving = program.symbols.get(parameter.symbol).parent;
-            let lifetimes = match program
-                .static_application_lifetimes_for_declaration(application, receiving)
-            {
-                Ok(lifetimes) => lifetimes,
-                Err(reason) => {
-                    operand_mismatch = Some(reason.to_owned());
-                    return false;
-                }
+            let lifetimes = if application.is_valid() {
+                program
+                    .expression_table
+                    .static_machine_application_lifetimes(application)
+            } else {
+                &[]
             };
             let lifetimes =
-                crate::machine_calls::static_bindings::lifetime_identity_rows(&lifetimes);
+                crate::machine_calls::static_bindings::lifetime_identity_rows(lifetimes);
             let provider_lifetimes = provider_application
                 .map(|handle| {
-                    let provider = program.expression_table.static_machine_application(handle);
-                    program
-                        .static_application_lifetimes_for_declaration(
-                            handle,
-                            provider.binding_declaration,
-                        )
-                        .map(|bindings| {
-                            crate::machine_calls::static_bindings::lifetime_identity_rows(&bindings)
-                        })
+                    crate::machine_calls::static_bindings::lifetime_identity_rows(
+                        program
+                            .expression_table
+                            .static_machine_application_lifetimes(handle),
+                    )
                 })
-                .transpose();
-            let provider_lifetimes = match provider_lifetimes {
-                Ok(lifetimes) => lifetimes.unwrap_or_default(),
-                Err(reason) => {
-                    operand_mismatch = Some(reason.to_owned());
-                    return false;
-                }
-            };
+                .unwrap_or_default();
             let provider_scopes = provider_application
                 .map(|handle| {
                     let provider = program.expression_table.static_machine_application(handle);
@@ -247,13 +230,11 @@ pub(super) fn validate_nominal_machine_selection(
                 .all(|((actual, required), parameter)| {
                     let (actual, required) = if parameter.kind.is_const_or_value() {
                         (
-                            nominal_actual_identity(
+                            applied_index_identity(
                                 program,
-                                *actual,
-                                parameter,
+                                IndexIdentityArgument::TypeReference(*actual),
                                 actual_owner,
                                 &provider_scopes,
-                                owned_scope,
                             ),
                             applied_index_identity(
                                 program,
@@ -264,14 +245,7 @@ pub(super) fn validate_nominal_machine_selection(
                         )
                     } else {
                         (
-                            nominal_actual_identity(
-                                program,
-                                *actual,
-                                parameter,
-                                actual_owner,
-                                &provider_scopes,
-                                owned_scope,
-                            ),
+                            applied_type_identity(program, *actual, actual_owner, &provider_scopes),
                             applied_type_identity(program, *required, caller_owner, &[scope]),
                         )
                     };
@@ -300,30 +274,15 @@ pub(super) fn validate_nominal_machine_selection(
             .expression_table
             .static_machine_application(application)
             .lexical_owner;
-        let provider_lifetime_rows = match program.static_application_lifetimes_for_declaration(
-            provider_application.expect("applied provider tuple"),
-            provider.binding_declaration,
-        ) {
-            Ok(lifetimes) => lifetimes,
-            Err(reason) => {
-                operand_mismatch = Some(reason.to_owned());
-                return false;
-            }
-        };
-        let provider_lifetimes =
-            crate::machine_calls::static_bindings::lifetime_identity_rows(&provider_lifetime_rows);
-        let caller_lifetimes = match program.static_application_lifetimes_for_declaration(
-            application,
-            program.symbols.get(parameter.symbol).parent,
-        ) {
-            Ok(lifetimes) => lifetimes,
-            Err(reason) => {
-                operand_mismatch = Some(reason.to_owned());
-                return false;
-            }
-        };
+        let provider_lifetimes = crate::machine_calls::static_bindings::lifetime_identity_rows(
+            program
+                .expression_table
+                .static_machine_application_lifetimes(
+                    provider_application.expect("applied provider tuple"),
+                ),
+        );
         let caller_lifetimes =
-            crate::machine_calls::static_bindings::lifetime_identity_rows(&caller_lifetimes);
+            crate::machine_calls::static_bindings::lifetime_identity_rows(applied.caller_lifetimes);
         let provider_scope = AppliedTypeIdentityScope {
             declaration: provider.binding_declaration,
             arguments: provider_operands
@@ -361,13 +320,11 @@ pub(super) fn validate_nominal_machine_selection(
                 |((actual, required), parameter)| {
                     let (actual, required) = if parameter.kind.is_const_or_value() {
                         (
-                            nominal_actual_identity(
+                            applied_index_identity(
                                 program,
-                                *actual,
-                                parameter,
+                                IndexIdentityArgument::TypeReference(*actual),
                                 provider.lexical_owner,
                                 &[provider_scope],
-                                owned_scope,
                             ),
                             applied_index_identity(
                                 program,
@@ -378,13 +335,11 @@ pub(super) fn validate_nominal_machine_selection(
                         )
                     } else {
                         (
-                            nominal_actual_identity(
+                            applied_type_identity(
                                 program,
                                 *actual,
-                                parameter,
                                 provider.lexical_owner,
                                 &[provider_scope],
-                                owned_scope,
                             ),
                             applied_type_identity(
                                 program,
@@ -430,7 +385,6 @@ pub(super) fn validate_nominal_machine_selection(
                 program.lifetime_declaration_owner(
                     program.declaration_scope_parent(selected_parameter.symbol),
                 ),
-                None,
                 &mut scratch,
             ) {
                 *bindings = scratch;
@@ -518,33 +472,10 @@ pub(super) fn validate_nominal_machine_selection(
                 .type_reference_table
                 .type_reference_handles(conformance.arguments),
             selected_machine.symbol,
-            None,
             &mut scratch,
         ) {
             matching_rows += 1;
             admitted_bindings = Some(scratch);
-        }
-    }
-    if let Some(scope) = program.owned_conformance_requirement_scope(
-        satisfaction_owner.symbol,
-        *required_trait,
-        *required_requirement,
-    ) {
-        let actual = program
-            .trait_type_parameters(scope.declaration)
-            .iter()
-            .map(|parameter| {
-                scope
-                    .parameter_application(parameter.symbol)
-                    .map(|(reference, _)| reference)
-            })
-            .collect::<Option<Vec<_>>>();
-        if let Some(actual) = actual {
-            let mut scratch = bindings.clone();
-            if arguments_match(&actual, scope.argument_owner, Some(&scope), &mut scratch) {
-                matching_rows += 1;
-                admitted_bindings = Some(scratch);
-            }
         }
     }
     if matching_rows == 1
@@ -608,51 +539,4 @@ pub(super) fn validate_nominal_machine_selection(
         canonical_requirement_overload: program
             .trait_requirement_callable_identity_text(trait_definition, requirement),
     }))
-}
-
-/// Compare an authored argument in the complete map/inheritance prefix that
-/// supplied it. A compound reference never loses its simultaneous scope or
-/// captures another declaration's equally spelled regions. Provider actuals
-/// and caller actuals remain independent owners.
-fn nominal_actual_identity(
-    program: &dyn crate::CheckingInput,
-    reference: typed_trees::types::TypeReferenceHandle,
-    parameter: &TypeParameter,
-    argument_owner: SymbolHandle,
-    provider_scopes: &[typed_trees::type_identity::AppliedTypeIdentityScope<'_>],
-    owned: Option<&typed_trees::trait_definition::AppliedTraitScope<'_>>,
-) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
-    use typed_trees::type_identity::{
-        IndexIdentityArgument, applied_index_identity, applied_type_identity_in_scope,
-    };
-    let normalize = |scopes: &[typed_trees::type_identity::AppliedTypeIdentityScope<'_>]| {
-        if parameter.kind.is_const_or_value() {
-            applied_index_identity(
-                program,
-                IndexIdentityArgument::TypeReference(reference),
-                argument_owner,
-                scopes,
-            )
-        } else {
-            applied_type_identity_in_scope(
-                program,
-                reference,
-                owned.map_or(argument_owner, |scope| scope.argument_owner),
-                argument_owner,
-                scopes,
-            )
-        }
-    };
-    match owned {
-        None => normalize(provider_scopes),
-        Some(owned) => owned.with_identity_scopes(program.typed_program(), |frames| {
-            let (_, visible) = owned.parameter_application(parameter.symbol)?;
-            let scopes = provider_scopes
-                .iter()
-                .copied()
-                .chain(frames.get(..visible)?.iter().copied())
-                .collect::<Vec<_>>();
-            normalize(&scopes)
-        }),
-    }
 }

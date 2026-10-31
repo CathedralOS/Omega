@@ -85,17 +85,20 @@ pub fn structural_match_pattern_case(
     // Preserve the fieldless literal classifier accepted before payload
     // patterns, without imposing copyability or a source-location roster.
     if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(head)
+        && literal.type_symbol == data.symbol
         && program
             .expression_table
             .struct_fields(literal.fields)
             .is_empty()
         && let Some(case) = literal.case_symbol
-        && let Some(selected) = program.data_constructor_case(reference, literal.type_symbol, case)
-        && selected.payload.is_empty()
+        && program.data_members(data).iter().any(|member| {
+            member
+                .as_variant()
+                .is_some_and(|variant| variant.symbol == case)
+        })
     {
-        return Some(selected.symbol);
+        return Some(case);
     }
-
     None
 }
 
@@ -172,26 +175,22 @@ pub(super) fn validate(
             .iter()
             .any(|declared| declared.symbol == field_symbol)
         {
-            return Some(field_symbol);
+            return field_symbol;
         }
         program
-            .data_constructor_field(reference, data.symbol, field_symbol)
+            .closed_data_constructor_field(reference, data.symbol, field_symbol)
             .map(|selected| selected.symbol)
+            .unwrap_or(field_symbol)
     };
     for (ordinal, field) in fields.iter().enumerate() {
-        let selected = selected_field_symbol(field.field_symbol);
-        let exact = selected.and_then(|selected| {
-            declared.iter().find(|declared| {
-                declared.symbol == selected && declared.name.as_str() == field.member.as_str()
-            })
+        let exact = declared.iter().find(|declared| {
+            declared.symbol == selected_field_symbol(field.field_symbol)
+                && declared.name.as_str() == field.member.as_str()
         });
         if exact.is_none()
-            || fields[..ordinal].iter().any(|prior| {
-                let prior = selected_field_symbol(prior.field_symbol);
-                prior
-                    .zip(selected)
-                    .is_some_and(|(prior, selected)| prior == selected)
-            })
+            || fields[..ordinal]
+                .iter()
+                .any(|prior| prior.field_symbol == field.field_symbol)
         {
             diagnostics.push(
                 Diagnostic::error(format!(
@@ -230,7 +229,7 @@ pub(super) fn validate(
         && declared.iter().any(|declared| {
             !fields
                 .iter()
-                .any(|field| selected_field_symbol(field.field_symbol) == Some(declared.symbol))
+                .any(|field| selected_field_symbol(field.field_symbol) == declared.symbol)
         })
     {
         diagnostics.push(

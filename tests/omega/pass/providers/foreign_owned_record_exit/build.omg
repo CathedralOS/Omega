@@ -1,32 +1,6 @@
-use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_owned_record_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-
- Build::bind<AddressParts::make>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_inet_makeaddr",
-        },
-    });
- Build::bind<AddressParts::make>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "inet_makeaddr", version: "GLIBC_2.2.5",
-        },
-    });
- Build::bind<AddressParts::host>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_inet_lnaof",
-        },
-    });
- Build::bind<AddressParts::host>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6",
-            symbol: "inet_lnaof", version: "GLIBC_2.2.5",
-        },
-    });
 }

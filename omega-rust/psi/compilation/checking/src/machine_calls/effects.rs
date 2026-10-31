@@ -64,7 +64,9 @@ fn validate_service_reach_ceilings(
         // A family interface's envelope is derived from all separately checked
         // members. It has no body whose inferred row could violate an authored
         // declaration copied from one prototype.
-
+        if machine.target_family_interface {
+            continue;
+        }
         let Some(summary) = service_reaches.for_machine(machine.symbol) else {
             continue;
         };

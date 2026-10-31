@@ -616,6 +616,13 @@ impl TerminalExecution<'_> {
         let Some(callee_result) = callee.result.structural() else {
             return Err(malformed());
         };
+        if let crate::execution::ResultClaimOrigin::TargetFamilyReturn { head, member } =
+            claim_origin
+        {
+            if member != callee_id || !program.is_target_family_head(head) {
+                return Err(malformed());
+            }
+        }
         let mut preserved_projected_qualifications = Vec::new();
         if claim_origin == crate::execution::ResultClaimOrigin::CalleeReturn
             && result

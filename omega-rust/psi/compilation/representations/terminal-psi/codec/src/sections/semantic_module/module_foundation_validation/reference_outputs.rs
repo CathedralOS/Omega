@@ -12,6 +12,17 @@ pub(super) fn validate(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
+    if terminal_semantics::closed_conformances::is_checked_body_family_contract(module, boundary) {
+        // Checked members execute ordinary calls and return actual custody.
+        // These rows issue opaque replacements, so they are not a substitute
+        // for a member's checked return. The family validator independently
+        // authenticates the complete catalog and target membership.
+        return if boundary.reference_outputs.is_empty() {
+            Ok(())
+        } else {
+            malformed("checked-body family contract carries opaque reference outputs")
+        };
+    }
     if !terminal_semantics::descriptor_results::provider_outputs_cover_writable_slots(
         &module.structural_types,
         boundary,

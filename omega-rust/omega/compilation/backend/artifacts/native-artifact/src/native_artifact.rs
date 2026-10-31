@@ -651,7 +651,8 @@ pub struct NativeSelectedProviderPlan {
     plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
     external_requirement_applications: Vec<effects::SelectedExternalRequirementApplication>,
-    requirement_application_identities: terminal_psi::TerminalIdentityTable,
+    family_realization_rows: Vec<effects::SelectedTargetFamilyRealization>,
+    family_realization_identities: terminal_psi::TerminalIdentityTable,
     /// Closed requirement identity paired with the template-keyed row that
     /// serves it, projected from the closure's specialization roster.
     closed_requirement_rows: Vec<(String, String)>,
@@ -689,7 +690,13 @@ impl NativeSelectedProviderPlan {
                     ),
                     requirements,
                 );
-                projected.requirement_application_identities = selection.identities().clone();
+                projected.family_realization_rows = selection
+                    .family_realization_rows()
+                    .iter()
+                    .filter(|row| row.provider_plan_report_identity == report_identity)
+                    .cloned()
+                    .collect();
+                projected.family_realization_identities = selection.identities().clone();
                 projected.closed_requirement_rows = selection
                     .specialized_requirement_rows()
                     .iter()
@@ -753,7 +760,8 @@ impl NativeSelectedProviderPlan {
             plan_digest,
             requirement_identities,
             external_requirement_applications: Vec::new(),
-            requirement_application_identities: terminal_psi::TerminalIdentityTable::from(vec![
+            family_realization_rows: Vec::new(),
+            family_realization_identities: terminal_psi::TerminalIdentityTable::from(vec![
                 String::new(),
             ]),
             closed_requirement_rows: Vec::new(),
@@ -823,6 +831,10 @@ impl NativeSelectedProviderPlan {
         &self.requirement_identities
     }
 
+    pub fn family_realization_rows(&self) -> &[effects::SelectedTargetFamilyRealization] {
+        &self.family_realization_rows
+    }
+
     pub fn external_requirement_applications(
         &self,
     ) -> &[effects::SelectedExternalRequirementApplication] {
@@ -833,12 +845,12 @@ impl NativeSelectedProviderPlan {
         let mut previous = None;
         for row in &self.external_requirement_applications {
             let requirement = self
-                .requirement_application_identities
+                .family_realization_identities
                 .text(row.requirement_identity)
                 .filter(|identity| !identity.is_empty())
                 .ok_or("native external coordinate lost its closed requirement")?;
             let selected = self
-                .requirement_application_identities
+                .family_realization_identities
                 .text(row.selected_requirement_identity)
                 .filter(|identity| !identity.is_empty())
                 .ok_or("native external coordinate lost its selected requirement")?;
@@ -857,10 +869,15 @@ impl NativeSelectedProviderPlan {
                         closed == requirement
                             && selected.as_str()
                                 != self
-                                    .requirement_application_identities
+                                    .family_realization_identities
                                     .text(row.selected_requirement_identity)
                                     .unwrap_or_default()
                     })
+                || self.family_realization_rows.iter().any(|family| {
+                    (family.head_identity == row.requirement_identity
+                        || family.member_identity == row.requirement_identity)
+                        && family.selected_requirement_identity != row.selected_requirement_identity
+                })
             {
                 return Err(
                     "native external coordinate changed its exact selected plan or requirement roster",
@@ -871,16 +888,17 @@ impl NativeSelectedProviderPlan {
         Ok(())
     }
 
-    /// Identity table the stored external application row indices resolve
+    /// Identity table the stored family-realization row indices resolve
     /// against, cloned from the selected facts that projected them.
-    pub fn requirement_application_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.requirement_application_identities
+    pub fn family_realization_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.family_realization_identities
     }
 
     /// Recover the authority requirement without rewriting the original
     /// callable occurrence. These rows were projected from the exact selected
     /// closure and remain committed by both closure and artifact identities.
-    /// A closed application of a requirement template resolves to the template row
+    /// A family alias resolves through its realization row; a closed
+    /// application of a requirement template resolves to the template row
     /// that serves it; any other requirement is its own authority.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
         if let Some((_, supplied)) = self
@@ -892,12 +910,21 @@ impl NativeSelectedProviderPlan {
         }
 
         if let Some(row) = self.external_requirement_applications.iter().find(|row| {
-            self.requirement_application_identities
+            self.family_realization_identities
                 .text(row.requirement_identity)
                 == Some(requirement)
         }) {
             return self
-                .requirement_application_identities
+                .family_realization_identities
+                .text(row.selected_requirement_identity)
+                .unwrap_or(requirement);
+        }
+        if let Some(row) = self.family_realization_rows.iter().find(|row| {
+            self.family_realization_identities.text(row.head_identity) == Some(requirement)
+                || self.family_realization_identities.text(row.member_identity) == Some(requirement)
+        }) {
+            return self
+                .family_realization_identities
                 .text(row.selected_requirement_identity)
                 .unwrap_or(requirement);
         }

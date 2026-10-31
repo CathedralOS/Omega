@@ -1771,8 +1771,10 @@ public machine Resolver::empty_scope() -> TypeScope {
 // parameters' names, and a member's generic parameters may shadow its
 // container's. Two machines of one module may share a path (owner and name,
 // a member's owner being its container) only as overloads: identical generic
-// parameter kinds and parameter types make the later one a duplicate.
-// Different implementations have distinct ordinary conformance owners.
+// parameter kinds and parameter types make the later one a duplicate, unless
+// both are target-scoped bodies for different targets, which form one family
+// keyed by target (wiki/spec/language/machines.md#target-scoped-families). An
+// untargeted body beside a targeted one of the same signature is a duplicate.
 machine Resolver::check_machines(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
@@ -1946,8 +1948,37 @@ crashes Trap
         right_owner.owner.source_span
     );
     transition left.parent == right.parent && same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner) {
-        true -> Resolver::same_parameters(resolver, sources, syntax, left_handle, right_handle)
+        true -> parameters(resolver, sources, syntax, left_handle, right_handle, left, right)
         _ -> different()
+    }
+
+    machine parameters(
+        resolver: &Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        left_handle: u64 in Trapping,
+        right_handle: u64 in Trapping,
+        left: MachineItem,
+        right: MachineItem
+    ) -> bool {
+        let same: bool = Resolver::same_parameters(resolver, sources, syntax, left_handle, right_handle);
+        transition same {
+            true -> targets(sources, left, right)
+            _ -> different()
+        }
+    }
+
+    // Bodies for two different targets are members of one family.
+    machine targets(sources: &SourceSet, left: MachineItem, right: MachineItem) -> bool {
+        let same_target: bool = SourceSet::spans_equal(sources, left.target.source_span, right.target.source_span);
+        transition left.has_target && right.has_target && !same_target {
+            true -> different()
+            _ -> same()
+        }
+    }
+
+    machine same() -> bool {
+        true
     }
 
     machine different() -> bool {
