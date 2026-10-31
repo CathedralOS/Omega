@@ -5,6 +5,7 @@ use crate::checked_interpreter_dispatch::boundary_dispatch::signature_families::
     FamilyProbe, finite_signature_family,
 };
 use diagnostics::Diagnostic;
+use effects::provider_plan::ServiceMethod;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use language_semantics::MachineSupplyMode;
 use provider_planning::service_schema::schema_binds_exact_boundary_operator;
@@ -77,11 +78,11 @@ pub(crate) enum ResolvedAdapterRow {
 /// binding, or a schema bound to an exact boundary operator.
 pub(crate) enum SelectedAdapterTarget<'a> {
     TopLevelRequirement {
-        method: &'a effects::provider_plan::ServiceMethod,
+        method: &'a ServiceMethod,
         requirement: &'a Machine,
     },
     TraitRequirement {
-        method: &'a effects::provider_plan::ServiceMethod,
+        method: &'a ServiceMethod,
         receiver_trait: &'a typed_trees::trait_definition::TraitDefinition,
         requirement_owner: &'a typed_trees::trait_definition::TraitDefinition,
         signature: &'a typed_trees::signature::StateSignature,
@@ -323,16 +324,13 @@ fn resolve_template_adapter_rows(
 }
 
 /// Exact selected Plan text for one service method's requirement identity.
-fn method_identity<'a>(
-    plan: &'a ProviderPlan,
-    method: &'a effects::provider_plan::ServiceMethod,
-) -> &'a str {
+fn method_identity<'a>(plan: &'a ProviderPlan, method: &'a ServiceMethod) -> &'a str {
     plan.schema.identity_text(method.requirement_identity)
 }
 
 fn require_parameter_count(
     plan: &ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
+    method: &ServiceMethod,
     actual: usize,
 ) -> Result<(), Diagnostic> {
     if actual != method.parameter_count {
@@ -369,7 +367,7 @@ fn resolve_top_level_requirement_adapter_row(
     declarations: &typed_trees::references::DeclarationSelection,
     plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-    method: &effects::provider_plan::ServiceMethod,
+    method: &ServiceMethod,
     requirement: &Machine,
     machine_identity: &str,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
@@ -456,7 +454,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
     declarations: &typed_trees::references::DeclarationSelection,
     plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-    method: &effects::provider_plan::ServiceMethod,
+    method: &ServiceMethod,
     requirement: &Machine,
     adapter: &Machine,
     machine_identity: &str,
@@ -609,7 +607,7 @@ fn resolve_family_adapter_row(
     typed: &TypedTrees,
     plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-    method: &effects::provider_plan::ServiceMethod,
+    method: &ServiceMethod,
     receiver_trait: &typed_trees::trait_definition::TraitDefinition,
     requirement_owner: &typed_trees::trait_definition::TraitDefinition,
     signature: &typed_trees::signature::StateSignature,
@@ -811,7 +809,7 @@ fn sole_boundary_conformance(
     requirement: &Machine,
     machine_identity: &str,
     plan: &ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
+    method: &ServiceMethod,
     spelled: &str,
 ) -> Result<(), Diagnostic> {
     let conformances = typed
