@@ -1,0 +1,1340 @@
+{
+  "candidate": "6be51d41cc3751abd266c6e5717daccedb3af73d",
+  "published": "6ac592511e88fd440bc4bef8a55c854f9102b087",
+  "archive_sha256": "418b82899074c0d746fe27b23422fb1c69fca4ce3d2d71648134b2e7443b738d",
+  "files": [
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/application-build2.jsonl",
+      "archive_path": "structured-rank/application-build2.jsonl",
+      "sha256": "71ec126d75ec7e2454794ab62c57961d4ea11c10050751293ad235062229686c",
+      "bytes": 390456
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/application-build2.stderr",
+      "archive_path": "structured-rank/application-build2.stderr",
+      "sha256": "88e36dbe8d356a19438eb7df6809d8a3d21645efe02fbdab89736554e89be6c3",
+      "bytes": 3725
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/application-check1.jsonl",
+      "archive_path": "structured-rank/application-check1.jsonl",
+      "sha256": "e436495d32c14b705af24fbeba19c8df028611b4ebf9f99916ac3ea5ce1d434f",
+      "bytes": 78006
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/application-check1.stderr",
+      "archive_path": "structured-rank/application-check1.stderr",
+      "sha256": "666ecd7e9eeb399886b926302aab402cd5238aca630aa505543ac3d6d81afe5c",
+      "bytes": 226
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/application-check2.jsonl",
+      "archive_path": "structured-rank/application-check2.jsonl",
+      "sha256": "d8f6ae0a38d987f7e83c3a525c2bea2832a54608be0ab748062ca75f3129a3b9",
+      "bytes": 79281
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/application-check2.stderr",
+      "archive_path": "structured-rank/application-check2.stderr",
+      "sha256": "30ed148159ed7dcf9ba8561e62036e24f10ec74f4defcbdc68de9782ba8fef0a",
+      "bytes": 196
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/attribute-neighbors.py",
+      "archive_path": "structured-rank/attribute-neighbors.py",
+      "sha256": "0a85bf6ecfeb4f1ec4060553700e71eca0010849ba89b866a288c349fb38fc06",
+      "bytes": 1540
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/baseline-build.jsonl",
+      "archive_path": "structured-rank/baseline-build.jsonl",
+      "sha256": "f2e3786c25dea4a3ac23e23c29e0470fd6c7df17aa5daaaa8c9cf6967bb7aa72",
+      "bytes": 380423
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/baseline-build.stderr",
+      "archive_path": "structured-rank/baseline-build.stderr",
+      "sha256": "f1a974080d8c361913cef06477975572e0612ae4b354e015f64408919e8bfb54",
+      "bytes": 5033
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/baseline-probe.json",
+      "archive_path": "structured-rank/baseline-probe.json",
+      "sha256": "b6cc310a1e7e8e762819ffffd2400aebc064c0b52f9294edf44ed217eff41540",
+      "bytes": 1652
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/baseline-producer/producer.json",
+      "archive_path": "structured-rank/baseline-producer/producer.json",
+      "sha256": "379a692545f5029b121a6b16a190bd8825a65ee6f32717addf610be83dfb2c89",
+      "bytes": 706
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/baseline-row.json",
+      "archive_path": "structured-rank/baseline-row.json",
+      "sha256": "05529f067a5ecda14207748dcd3fdcda2222bfa7c04c41dc8caca725c553ff03",
+      "bytes": 10639
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/build-completed-ingress.sh",
+      "archive_path": "structured-rank/build-completed-ingress.sh",
+      "sha256": "a8297e297dd674f02e06ae00c96be0922550fd67c3516f9ab83138453a4faedf",
+      "bytes": 394
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/claim.json",
+      "archive_path": "structured-rank/claim.json",
+      "sha256": "e83aa8edb1df532ba46415274407c209336b507cf7bcfeff5b88c8ae2b0965eb",
+      "bytes": 841
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/claims.json",
+      "archive_path": "structured-rank/claims.json",
+      "sha256": "42d748393fa49ced8b275d05aeee57abb581672e46da0b6c571b1af3b2ff53d1",
+      "bytes": 404949
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-ingress-cli-build.jsonl",
+      "archive_path": "structured-rank/completed-ingress-cli-build.jsonl",
+      "sha256": "3cdd89032f2fb025e352058e33d2beaf7182efbb65088308133b5efe62662cf4",
+      "bytes": 315596
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-ingress-cli-build.stderr",
+      "archive_path": "structured-rank/completed-ingress-cli-build.stderr",
+      "sha256": "4f81dfbbe2e55e5db5f520412a0d49071894e7f6e51ba52b42077e985a30f79e",
+      "bytes": 431
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-ingress-cli-build2.jsonl",
+      "archive_path": "structured-rank/completed-ingress-cli-build2.jsonl",
+      "sha256": "754e436d4a45abac50dba6fa7514668b0e7b83f2a1c46079061e1479c4bf211a",
+      "bytes": 380457
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-ingress-cli-build2.stderr",
+      "archive_path": "structured-rank/completed-ingress-cli-build2.stderr",
+      "sha256": "f768312d557b5d5de755f87ae654c9a97a2c5b187b850dc35a3dab8eac38b5bb",
+      "bytes": 2361
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-ingress-corpus-build2.jsonl",
+      "archive_path": "structured-rank/completed-ingress-corpus-build2.jsonl",
+      "sha256": "4fca20bd609685939f7e70f4f8b03294a4df134904a4373bf25073ddbc3706e0",
+      "bytes": 375773
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-ingress-corpus-build2.stderr",
+      "archive_path": "structured-rank/completed-ingress-corpus-build2.stderr",
+      "sha256": "a41132b87373fd63d3cc719c2dfd12a4e9f10d6129926d478aa14738cfd28953",
+      "bytes": 1428
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-ingress-source.diff",
+      "archive_path": "structured-rank/completed-ingress-source.diff",
+      "sha256": "0a0181fa102216e09d0cc33848f6c43dc460ab0f9bae829bb426e1771f0c5b5e",
+      "bytes": 16853
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-ingress-source2.diff",
+      "archive_path": "structured-rank/completed-ingress-source2.diff",
+      "sha256": "0a3e83bb70b530dea72dce2c2e821f557ef891ee81e36376de7e9365e2084fea",
+      "bytes": 17235
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/completed-outcome.json",
+      "archive_path": "structured-rank/completed-outcome.json",
+      "sha256": "542170a8f8c1e6c9db8ac15d5b52f340eb9065827099d935ed27423080583622",
+      "bytes": 6216
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-build1.jsonl",
+      "archive_path": "structured-rank/conditional-build1.jsonl",
+      "sha256": "da2990aa4c1a21d6681ca7a8048323fb91af56e304f536c6d714ec6b425c4041",
+      "bytes": 383419
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-build1.stderr",
+      "archive_path": "structured-rank/conditional-build1.stderr",
+      "sha256": "ca91b60e1f04f28733b312aabf783602307d51044125d2e73d43f4b0f03a406e",
+      "bytes": 3725
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-check1.jsonl",
+      "archive_path": "structured-rank/conditional-check1.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-check1.stderr",
+      "archive_path": "structured-rank/conditional-check1.stderr",
+      "sha256": "e5e9c6e4cac34d1b5bdf0855bc85312f7b342d51ae3344b147da5d6665f53e1e",
+      "bytes": 70
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-check2.jsonl",
+      "archive_path": "structured-rank/conditional-check2.jsonl",
+      "sha256": "6804230eea10b2a72cec5c7f6a3fb7d05fb2c21b5e93236773e3722b7796bf66",
+      "bytes": 78203
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-check2.stderr",
+      "archive_path": "structured-rank/conditional-check2.stderr",
+      "sha256": "6bff2594165a217dd5373899cfeef35043685e286e7b75d0cac151dbd1bcddf4",
+      "bytes": 1346
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-check3.jsonl",
+      "archive_path": "structured-rank/conditional-check3.jsonl",
+      "sha256": "e2eec4706529771486abca223fc236669f2dbd61c5ef9dd90ffe4f3485f9616a",
+      "bytes": 78196
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-check3.stderr",
+      "archive_path": "structured-rank/conditional-check3.stderr",
+      "sha256": "e72bd64a06ce1a4fa4d37e5bea8f7244e387ad59bc037fa2b15ff77852fff644",
+      "bytes": 225
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-check4.jsonl",
+      "archive_path": "structured-rank/conditional-check4.jsonl",
+      "sha256": "ce5397b3917dc38a497b2306d01da4cc42613b814f5e3197b7754b9ab39c80c4",
+      "bytes": 72244
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/conditional-check4.stderr",
+      "archive_path": "structured-rank/conditional-check4.stderr",
+      "sha256": "487d93d5930cc9703914fbb33aa37699c5e73b9712bd13e19fea64b434580417",
+      "bytes": 196
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/branch_requires/build.omg",
+      "archive_path": "structured-rank/controls/branch_requires/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/branch_requires/main.omg",
+      "archive_path": "structured-rank/controls/branch_requires/main.omg",
+      "sha256": "338e877a4b620693fea23909510743b9bae62a87930f78d7a2d306fab2364bc4",
+      "bytes": 2820
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/connectives/build.omg",
+      "archive_path": "structured-rank/controls/connectives/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/connectives/main.omg",
+      "archive_path": "structured-rank/controls/connectives/main.omg",
+      "sha256": "8926f7e7b7d117b6d507db2db45d56c8e85e01ce510af6b1423e0be398b6c0b6",
+      "bytes": 2831
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/guarded_division/build.omg",
+      "archive_path": "structured-rank/controls/guarded_division/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/guarded_division/main.omg",
+      "archive_path": "structured-rank/controls/guarded_division/main.omg",
+      "sha256": "a5cae934b4fd475509543701a030706687738ea1b28384e09c351b97c3a5fde5",
+      "bytes": 2827
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/nonmonotone/build.omg",
+      "archive_path": "structured-rank/controls/nonmonotone/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/nonmonotone/main.omg",
+      "archive_path": "structured-rank/controls/nonmonotone/main.omg",
+      "sha256": "5bf87e1ece39c72b72a114fd012b7df265dc73d55ea3f8291679c1e063f2fc25",
+      "bytes": 2801
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/owned_ingress/baseline.omit_ranks.omg",
+      "archive_path": "structured-rank/controls/owned_ingress/baseline.omit_ranks.omg",
+      "sha256": "344d430425e5e566984b3bf0f916034afb3243a48877cbb768829850c79280f7",
+      "bytes": 2306
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/owned_ingress/build.omg",
+      "archive_path": "structured-rank/controls/owned_ingress/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/owned_ingress/invalid/build.omg",
+      "archive_path": "structured-rank/controls/owned_ingress/invalid/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/owned_ingress/invalid/main.omg",
+      "archive_path": "structured-rank/controls/owned_ingress/invalid/main.omg",
+      "sha256": "b8b19fbaa2623f10d57c149b4252ad7511bd908f9462e0a036fcd121ac9477b3",
+      "bytes": 2370
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/owned_ingress/main.omg",
+      "archive_path": "structured-rank/controls/owned_ingress/main.omg",
+      "sha256": "270cdf6b5e21cbe0133aff74a5bdc8cef69e70e11b8a0a56bc590aa355ccf133",
+      "bytes": 2370
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/partial_subject/build.omg",
+      "archive_path": "structured-rank/controls/partial_subject/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/partial_subject/main.omg",
+      "archive_path": "structured-rank/controls/partial_subject/main.omg",
+      "sha256": "b1cf4eefe2077058e4d3928df378e6e5d192f27812d60a4d8a87ee084a76c52e",
+      "bytes": 2808
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/wrong_guard/build.omg",
+      "archive_path": "structured-rank/controls/wrong_guard/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/controls/wrong_guard/main.omg",
+      "archive_path": "structured-rank/controls/wrong_guard/main.omg",
+      "sha256": "e8a157468c0d32a0b96143c0bc42e1fa997f360ad1c937640d2efad6df3dfb46",
+      "bytes": 2828
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core1-probe.json",
+      "archive_path": "structured-rank/core1-probe.json",
+      "sha256": "add86d93eadef9b17692f9c44246256753776df75cec62de7dc83aae2d70e8cc",
+      "bytes": 1798
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core1-producer/producer.json",
+      "archive_path": "structured-rank/core1-producer/producer.json",
+      "sha256": "5960dc199742dcd10a6584898df9a36085f9e39ad2df5bcbf48b4794529159c1",
+      "bytes": 879
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core1-producer/source.diff",
+      "archive_path": "structured-rank/core1-producer/source.diff",
+      "sha256": "05104d73f8974c7929e815d3242f1af889c8b304b2d44e0c66c331f4af20f436",
+      "bytes": 7048
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core1-producer/untracked/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/application_formation/dispatch.rs",
+      "archive_path": "structured-rank/core1-producer/untracked/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/application_formation/dispatch.rs",
+      "sha256": "a56e33d0e2d9eb86baa2651d7ff1cba32be6884fe13959c0fbdba458604edc4e",
+      "bytes": 8772
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core1-producer/untracked/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/conditional_values.rs",
+      "archive_path": "structured-rank/core1-producer/untracked/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/conditional_values.rs",
+      "sha256": "efc385123334b00caa1f164db19c8c5dec338abee5825e9d5bea59ca35a95b9f",
+      "bytes": 4307
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core1-trace.stdout",
+      "archive_path": "structured-rank/core1-trace.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core2-probe.json",
+      "archive_path": "structured-rank/core2-probe.json",
+      "sha256": "0ec7a57683e736939deaae097c2962ed8dfff2bf1ef540b41d884f7d9562fdb8",
+      "bytes": 1639
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core2-producer/producer.json",
+      "archive_path": "structured-rank/core2-producer/producer.json",
+      "sha256": "e15c19d60547fa6c8e69a4a1f88bd155a2c744e7ec39e71455affd1b2af26b51",
+      "bytes": 879
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core2-producer/source.diff",
+      "archive_path": "structured-rank/core2-producer/source.diff",
+      "sha256": "5af454dc605f71283241f79e49fe2f593e03dc97e7144cae7b63680e4ba8742f",
+      "bytes": 16629
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core2-producer/untracked/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/application_formation/dispatch.rs",
+      "archive_path": "structured-rank/core2-producer/untracked/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/application_formation/dispatch.rs",
+      "sha256": "2b43c36eedee6f32fb982ae629bcc22ee0b560d8632d77b3261e8e3aa6328ed2",
+      "bytes": 10258
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core2-producer/untracked/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/conditional_values.rs",
+      "archive_path": "structured-rank/core2-producer/untracked/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/conditional_values.rs",
+      "sha256": "09e8b6428364b73424b6f0736278a41d3760299f1f0552ce057c6a51aa9f6722",
+      "bytes": 5993
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core3-controls.json",
+      "archive_path": "structured-rank/core3-controls.json",
+      "sha256": "72247bd1cd22df765627498b6d2271ae934172bbfa18723e1405699d5fad2df0",
+      "bytes": 6187
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core3-neighbors.json",
+      "archive_path": "structured-rank/core3-neighbors.json",
+      "sha256": "b80b57938278475aa5737a87a1ca86d65a0c417fb4f9826827fb4eb6ee02d0bf",
+      "bytes": 3392
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core3-probe.json",
+      "archive_path": "structured-rank/core3-probe.json",
+      "sha256": "377ad8c90c36a9acc0661a9c062c49baf76b0a1ef8bc2899641e9aae4b26f4bc",
+      "bytes": 1209
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core3-producer/producer.json",
+      "archive_path": "structured-rank/core3-producer/producer.json",
+      "sha256": "7c66ae64d8eeafce8cb0a8e83bde52d04c3274348b569d09fa17f7ebdf3811aa",
+      "bytes": 699
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core3-producer/source.diff",
+      "archive_path": "structured-rank/core3-producer/source.diff",
+      "sha256": "c7e69782e333a236c00ac46a6c077c42d4786dc4eef0f40848353ee1a1006dd6",
+      "bytes": 17154
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core3-producer/untracked/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/entry_rank.rs",
+      "archive_path": "structured-rank/core3-producer/untracked/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/emission/entry_rank.rs",
+      "sha256": "8ba970b27ca8efe15755c211657a549cc14eb47b583ce903c5b59ec75399087e",
+      "bytes": 7941
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/core3-row.json",
+      "archive_path": "structured-rank/core3-row.json",
+      "sha256": "40277ec4269982b4d635c908752a80b3fdffa54a33fd41857749e25a135b6787",
+      "bytes": 16069
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-ingress-both.json",
+      "archive_path": "structured-rank/corpus-ingress-both.json",
+      "sha256": "4e30e7787644a3174d71455138ee243e00fcdcf93793f3edc3c9cbd11fce8a5f",
+      "bytes": 1865
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-ingress-both.stderr",
+      "archive_path": "structured-rank/corpus-ingress-both.stderr",
+      "sha256": "9d2f1026839451d0cdc3dde4bf9b60736cfde8ec7f49efbe0fbd1cf7c1d6f6ed",
+      "bytes": 589
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-ingress-both.stdout",
+      "archive_path": "structured-rank/corpus-ingress-both.stdout",
+      "sha256": "b62246005d074f2290f52fd7557ea7ac6100d9ac9b2ac829a9dc6824ad133975",
+      "bytes": 447
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-ingress-source.json",
+      "archive_path": "structured-rank/corpus-ingress-source.json",
+      "sha256": "02ef590a8c80e6b86a32a0feb20c4db1f95a21e45f8a286323c7dd29cccee22d",
+      "bytes": 2149
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-ingress-source.stderr",
+      "archive_path": "structured-rank/corpus-ingress-source.stderr",
+      "sha256": "85b65d7f7b98ceee97a52c15b8b313a2eca1876d308708f5c7b53dc4b413dd8c",
+      "bytes": 291
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-ingress-source.stdout",
+      "archive_path": "structured-rank/corpus-ingress-source.stdout",
+      "sha256": "2fb39a1ec0d231e3ace5d7d17b438b4a2497a2f85f1bb0b0661f92301c46848d",
+      "bytes": 824
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-neighbors-both.json",
+      "archive_path": "structured-rank/corpus-neighbors-both.json",
+      "sha256": "f215467d145e30a870e1c6984932124bc7b06026ef9bcde8d81334f75b414ae8",
+      "bytes": 19819
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-neighbors-both.stderr",
+      "archive_path": "structured-rank/corpus-neighbors-both.stderr",
+      "sha256": "dd16692fa519035925c8707f4dfa5cf5f4103062b4bca8c790e2c7ba07e06aaf",
+      "bytes": 91
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-neighbors-both.stdout",
+      "archive_path": "structured-rank/corpus-neighbors-both.stdout",
+      "sha256": "f93e236ff9f1aff36d7d80edc7a126f44b00e08b815cf6fce5ba475bfbbf8fd1",
+      "bytes": 978
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-neighbors-source.json",
+      "archive_path": "structured-rank/corpus-neighbors-source.json",
+      "sha256": "05c6ace3ee1a380007e85a4efcaa422f585043c6c2918b7bcd9207406a0c94dd",
+      "bytes": 65755
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-neighbors-source.stderr",
+      "archive_path": "structured-rank/corpus-neighbors-source.stderr",
+      "sha256": "c2079927a234fe85ebfa4eddfdc4d7d5f47c793ff0cb0d6304ff845764ad971a",
+      "bytes": 94
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-neighbors-source.stdout",
+      "archive_path": "structured-rank/corpus-neighbors-source.stdout",
+      "sha256": "5a1ca446f48cd9f390f48ab43d630ac4263cd1879289081985a4ff01caf2b21d",
+      "bytes": 2495
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-new-both.json",
+      "archive_path": "structured-rank/corpus-new-both.json",
+      "sha256": "fa9de2a014beda28d642c979bf9f506db907bef02fe6a0c1b129fc614be2e59d",
+      "bytes": 5743
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-new-both.stderr",
+      "archive_path": "structured-rank/corpus-new-both.stderr",
+      "sha256": "db9e3da019495e985699ef79fc244fb5201b5e71828c01ec0c6ef7f0debf965c",
+      "bytes": 292
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-new-both.stdout",
+      "archive_path": "structured-rank/corpus-new-both.stdout",
+      "sha256": "535749f9476834e0cd685d7c9b878c4812fc9980d21d1983bd951e1fc6844f93",
+      "bytes": 273
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-new-source.json",
+      "archive_path": "structured-rank/corpus-new-source.json",
+      "sha256": "278794af5b6a7e28ea49de7a8376fc6bac048ef1201828d3c92c9515db68e8cf",
+      "bytes": 12594
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-new-source.stderr",
+      "archive_path": "structured-rank/corpus-new-source.stderr",
+      "sha256": "d1eeb8909e8c0d30b7e07f7018dfb5021c9f292c004830d8e0dd954ad1f32d9b",
+      "bytes": 293
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/corpus-new-source.stdout",
+      "archive_path": "structured-rank/corpus-new-source.stdout",
+      "sha256": "3d3f9c64b76a7c55c553f9d6e699c7a936547d966ce6fbb1d226af0167d26509",
+      "bytes": 825
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/enqueue.json",
+      "archive_path": "structured-rank/enqueue.json",
+      "sha256": "774d00e448000b39f5b4f56536cb2dcbf46e682cde0f8f32689c22ad061545ea",
+      "bytes": 56
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/erasure-implementation-context.json",
+      "archive_path": "structured-rank/erasure-implementation-context.json",
+      "sha256": "22c8a2b737bfb3a7796f84a853733b3b8f4c4b5c30ffa9fda38ec6294e5b805e",
+      "bytes": 39329
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/evidence-runs.json",
+      "archive_path": "structured-rank/evidence-runs.json",
+      "sha256": "51209e0ca4c50acf9029e4673d9dfdb4d374895d60475b0c2959e2137bce824f",
+      "bytes": 20312
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-corpus-build.jsonl",
+      "archive_path": "structured-rank/final-corpus-build.jsonl",
+      "sha256": "d2fe63499407b3b7d8047348dee16f694c7233d5764705c9cf3a7e8ae9f958f0",
+      "bytes": 375773
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-corpus-build.stderr",
+      "archive_path": "structured-rank/final-corpus-build.stderr",
+      "sha256": "c45585c0b88d32c6e9244d56687c06811e972bc12db97bdd1ec9a96634b27859",
+      "bytes": 1428
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-producer/corpus-producer.json",
+      "archive_path": "structured-rank/final-producer/corpus-producer.json",
+      "sha256": "627c8b8f036969ba5c87b6f7fb5623feaad7c6618751811807c61ced0f282163",
+      "bytes": 640
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-producer/producer.json",
+      "archive_path": "structured-rank/final-producer/producer.json",
+      "sha256": "c06260a6a33c4ede648ea6ab5b9511dffb167e785edc40488366c629fa1dedf4",
+      "bytes": 1590
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-review-context.json",
+      "archive_path": "structured-rank/final-review-context.json",
+      "sha256": "165d09cea77e5e1edc83acbcb6d2f934ef6ad4df7c2cd81774b22caf1994f7c7",
+      "bytes": 49217
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-review-context2.json",
+      "archive_path": "structured-rank/final-review-context2.json",
+      "sha256": "586c47163ac490360cd9302a5c252dc0fd781fadcb7455b9d117548a558cf3ce",
+      "bytes": 49125
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-review.json",
+      "archive_path": "structured-rank/final-review.json",
+      "sha256": "5da7ce5b4454d17f39a6dd2ed3acd7195fd40282b653ee62a88ba76bc8b3e5b5",
+      "bytes": 17465
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-row.json",
+      "archive_path": "structured-rank/final-row.json",
+      "sha256": "f0b3f0c5e909b6bf6798e6b32460a240ac3945388d60da071f921f7182bf02ca",
+      "bytes": 26738
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-row.stderr",
+      "archive_path": "structured-rank/final-row.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/final-row.stdout",
+      "archive_path": "structured-rank/final-row.stdout",
+      "sha256": "74d00024abada36a55ad5a30ababb2fe2cac0e1a5b93cbc22dab239c0fd58ef5",
+      "bytes": 22255
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/frozen-probe.json",
+      "archive_path": "structured-rank/frozen-probe.json",
+      "sha256": "85663f6d89ef3578bfae8451732bf94d1266afee3672fa9d332512ed613e1d07",
+      "bytes": 754
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/implementation-context.json",
+      "archive_path": "structured-rank/implementation-context.json",
+      "sha256": "bef30465be76d231c531fe573d446d06c6bb4342184d97b56fdf8af3e7f6144f",
+      "bytes": 16870
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/ingress-build.jsonl",
+      "archive_path": "structured-rank/ingress-build.jsonl",
+      "sha256": "3ef05f9e59da72c4b2dd73210f24033bb40c695a3fc04fa50d605686af9e572d",
+      "bytes": 375778
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/ingress-build.stderr",
+      "archive_path": "structured-rank/ingress-build.stderr",
+      "sha256": "ba21e97de3e829fe5d0439f0aae4bdf1a2b516303f9b3240b634dd152a0bfffa",
+      "bytes": 2231
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/ingress-cli-build.jsonl",
+      "archive_path": "structured-rank/ingress-cli-build.jsonl",
+      "sha256": "c53786c7058d0572c2ab614561ad59df7395c3bd488dd437a0c2a8ee83a2b4e0",
+      "bytes": 380452
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/ingress-cli-build.stderr",
+      "archive_path": "structured-rank/ingress-cli-build.stderr",
+      "sha256": "dae63cddd7c923dec2713f9ce1032f5a7f5775f23f80db1651c68241c54a5cac",
+      "bytes": 1558
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/ingress-producer/corpus-producer.json",
+      "archive_path": "structured-rank/ingress-producer/corpus-producer.json",
+      "sha256": "8f509bfe82f1ccd881dec789366631996c3e92d0fbb995243987cf0ecf092d67",
+      "bytes": 470
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/ingress-producer/producer.json",
+      "archive_path": "structured-rank/ingress-producer/producer.json",
+      "sha256": "d12d852ff4ad2bcb27fae9b5a72abe9666bfe68dedd6479ef2fbf71eb67b3853",
+      "bytes": 462
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/ingress-producer/source.diff",
+      "archive_path": "structured-rank/ingress-producer/source.diff",
+      "sha256": "c42753ac5b7db402f78c1f593457d991f01e965783383a2869583a7cbefa8a7f",
+      "bytes": 8801
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/landing-wait.json",
+      "archive_path": "structured-rank/landing-wait.json",
+      "sha256": "b0bafc35926f0ffd51877a281157b12da246baa850c75f88d106f77edb9f0513",
+      "bytes": 321
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/landing-wait2.json",
+      "archive_path": "structured-rank/landing-wait2.json",
+      "sha256": "b0bafc35926f0ffd51877a281157b12da246baa850c75f88d106f77edb9f0513",
+      "bytes": 321
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/landing-wait3.json",
+      "archive_path": "structured-rank/landing-wait3.json",
+      "sha256": "57575806ef60a9d31e892d107adba492407c2566cf6280c96e80ca098e9b2b74",
+      "bytes": 333
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-keep.stderr",
+      "archive_path": "structured-rank/long-cycle-keep.stderr",
+      "sha256": "95128ece570c4f90ad737ae273dbcc2ee7b4fadb395412808cccd5d9a2d79252",
+      "bytes": 114
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-keep.stdout",
+      "archive_path": "structured-rank/long-cycle-keep.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/.omega-owner",
+      "archive_path": "structured-rank/long-cycle-product/.omega-owner",
+      "sha256": "89f52ffcce97db046891236856f764d4bd331e2a6c3d66a1460b16c889cd3c7c",
+      "bytes": 179
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/native.identity.txt",
+      "archive_path": "structured-rank/long-cycle-product/native.identity.txt",
+      "sha256": "0cfa47d334f3ab4310951b7203605583391086ac88ad1f1c842405a6b5bcdf16",
+      "bytes": 65
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/omega-components.tsv",
+      "archive_path": "structured-rank/long-cycle-product/omega-components.tsv",
+      "sha256": "ac39fe7770c833316e3802a76ba1d44b0538df6e8608b4fea2cff8884775e02f",
+      "bytes": 27
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/omega-program",
+      "archive_path": "structured-rank/long-cycle-product/omega-program",
+      "sha256": "ea425e9ee80f374408c0ec71f6e11601858af37878d36efc9f233c7d5ac5bbe0",
+      "bytes": 16640
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/program.oterm",
+      "archive_path": "structured-rank/long-cycle-product/program.oterm",
+      "sha256": "67c005766d293482f8cf74c580984523c3d1f00b836bf9a20d4579b45a1324c4",
+      "bytes": 429780
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/terminal.effects",
+      "archive_path": "structured-rank/long-cycle-product/terminal.effects",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/terminal.fuel.tsv",
+      "archive_path": "structured-rank/long-cycle-product/terminal.fuel.tsv",
+      "sha256": "2a5c8d18754cb996c5b7636f9983f827b306c0b33f44f4dd9a03d446197ce26b",
+      "bytes": 65
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/terminal.stderr",
+      "archive_path": "structured-rank/long-cycle-product/terminal.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-product/terminal.stdout",
+      "archive_path": "structured-rank/long-cycle-product/terminal.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/long-cycle-stack.json",
+      "archive_path": "structured-rank/long-cycle-stack.json",
+      "sha256": "c7ad9e8d313d74b306b78e6f8343f6568eb2a4ff7b478b208eff970354de855c",
+      "bytes": 1031
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/neighbors-baseline-attribution.json",
+      "archive_path": "structured-rank/neighbors-baseline-attribution.json",
+      "sha256": "ca13a1d61b8e860e4d06a81b211edff0a0b8cb14b1d4c32e8525059b0aeb730b",
+      "bytes": 8187
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/neighbors-baseline-attribution.stderr",
+      "archive_path": "structured-rank/neighbors-baseline-attribution.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/neighbors-baseline-attribution.stdout",
+      "archive_path": "structured-rank/neighbors-baseline-attribution.stdout",
+      "sha256": "07af28a8a37b58d0cb2d3af2900c991ed1cb99e4e87fae21106227f434ce1e43",
+      "bytes": 6791
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/owned-ingress-2.stderr",
+      "archive_path": "structured-rank/owned-ingress-2.stderr",
+      "sha256": "1f9a78813a24759d0f3d5334e76a1c2f40228eea8723bc18ec30c910a1a5bd63",
+      "bytes": 340
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/owned-ingress-2.stdout",
+      "archive_path": "structured-rank/owned-ingress-2.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/owned-ingress-after.json",
+      "archive_path": "structured-rank/owned-ingress-after.json",
+      "sha256": "942d899fe2c928d09b9dae2c793f0ce7d9590440880002c889289bc12b7a0289",
+      "bytes": 2205
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/owned-ingress-baseline-simple.stderr",
+      "archive_path": "structured-rank/owned-ingress-baseline-simple.stderr",
+      "sha256": "ff9b9526919c69769ae4fecf73406c79dcda5e9839d70af31107fd7888b8b0eb",
+      "bytes": 365
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/owned-ingress-baseline-simple.stdout",
+      "archive_path": "structured-rank/owned-ingress-baseline-simple.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/owned-ingress-before.json",
+      "archive_path": "structured-rank/owned-ingress-before.json",
+      "sha256": "79743325ca5e2143f2241a597998f635e143e0b296eff0e6ef5a953371e8fb9d",
+      "bytes": 4903
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/owned-ingress.stderr",
+      "archive_path": "structured-rank/owned-ingress.stderr",
+      "sha256": "24e8d6dfa7bd3ddd4b67f09a4979bfbe2b5442d4cec22978681a6b43aa7a2421",
+      "bytes": 392
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/owned-ingress.stdout",
+      "archive_path": "structured-rank/owned-ingress.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/pr-before-ready.json",
+      "archive_path": "structured-rank/pr-before-ready.json",
+      "sha256": "f17dff6fa6f7c7e1fced914d4139b8b7995503f27cc9c58a4e05f62c9c181b52",
+      "bytes": 425
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/pr-body.md",
+      "archive_path": "structured-rank/pr-body.md",
+      "sha256": "d6142490454ed1dfec6ab3dd0cd54b3960839d23c3227417a391611cec0298c9",
+      "bytes": 1217
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/pr-final-body.md",
+      "archive_path": "structured-rank/pr-final-body.md",
+      "sha256": "133d7d03dc7d3a4aaca36d98b9d32b97f9492ce00b11cbc4372bd0ba44c0c3de",
+      "bytes": 1893
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/pr-final-status.json",
+      "archive_path": "structured-rank/pr-final-status.json",
+      "sha256": "0759d1d81b54f4fe2d13369096b0acb5459c850bbb799c839b156e4dd73a2fe4",
+      "bytes": 430
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/pr-required-checks.txt",
+      "archive_path": "structured-rank/pr-required-checks.txt",
+      "sha256": "b2dc20f398207be7f9f32ee837ed9cb5b59177b9b491d1c11c81f9a13d42627d",
+      "bytes": 104
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/pr-status.json",
+      "archive_path": "structured-rank/pr-status.json",
+      "sha256": "90d3bbe922a8b6193fad31df23d197964ab1512ac148dc79a295a21100fe1a21",
+      "bytes": 428
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/probe/build.omg",
+      "archive_path": "structured-rank/probe/build.omg",
+      "sha256": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+      "bytes": 341
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/probe/main.omg",
+      "archive_path": "structured-rank/probe/main.omg",
+      "sha256": "c2ce5e88307116ff18bd885ace0b4c1c811e2a5a36e81521d534b3f2561012ed",
+      "bytes": 2801
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/publication-status-final.json",
+      "archive_path": "structured-rank/publication-status-final.json",
+      "sha256": "b0bafc35926f0ffd51877a281157b12da246baa850c75f88d106f77edb9f0513",
+      "bytes": 321
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/publication-status.json",
+      "archive_path": "structured-rank/publication-status.json",
+      "sha256": "b0bafc35926f0ffd51877a281157b12da246baa850c75f88d106f77edb9f0513",
+      "bytes": 321
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-amend.json",
+      "archive_path": "structured-rank/qualification-amend.json",
+      "sha256": "b3bb20fb49ab09609a463b8e755428c04ca4ec7661c662b43abd9f4ba0888de4",
+      "bytes": 9352
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-amend2.json",
+      "archive_path": "structured-rank/qualification-amend2.json",
+      "sha256": "3450334121493dab5c7cf30b45cbc6985995afd2d005ec665f6792ee7460bf4d",
+      "bytes": 38825
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-assess-candidate.json",
+      "archive_path": "structured-rank/qualification-assess-candidate.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-assess-candidate2.json",
+      "archive_path": "structured-rank/qualification-assess-candidate2.json",
+      "sha256": "e5365e05a36287f01bdb122bd7df8ba06430736b0212191a2f2840770da6fca1",
+      "bytes": 38825
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-assess-final.json",
+      "archive_path": "structured-rank/qualification-assess-final.json",
+      "sha256": "0198f64ae7f05c9bbc8b00ecbfd6f0849941b66c1ec0367758cadf13d19d4fcd",
+      "bytes": 38823
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-config.json",
+      "archive_path": "structured-rank/qualification-config.json",
+      "sha256": "b37e6f23f6ab78bceca97d6561797cc6deac02725b9aff5dae76f62bdde2597a",
+      "bytes": 17512
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-corpus-observations-accepted.json",
+      "archive_path": "structured-rank/qualification-corpus-observations-accepted.json",
+      "sha256": "0440c87f7a91b23485d105bad0a5a0b776098d33bb601ffa3972cc8a558b7495",
+      "bytes": 38818
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-final-assess.json",
+      "archive_path": "structured-rank/qualification-final-assess.json",
+      "sha256": "2c8bd9cd813cfa8df3a3d640d8765f17fba51e953589f469044e2b398bd76dd0",
+      "bytes": 38540
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-independent-review.json",
+      "archive_path": "structured-rank/qualification-independent-review.json",
+      "sha256": "2b2f9b4277abd073147e59467c18ad0c76ab5103f2fa7051a396cb5382405135",
+      "bytes": 38823
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-preflight.json",
+      "archive_path": "structured-rank/qualification-preflight.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-row.json",
+      "archive_path": "structured-rank/qualification-row.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-source-preflight-accepted.json",
+      "archive_path": "structured-rank/qualification-source-preflight-accepted.json",
+      "sha256": "7cf9b6dce55fb10e9fe3d1d0d2a04204c829b091b9b0abadbd30291f59b92cd5",
+      "bytes": 38815
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-source-preflight-completed.json",
+      "archive_path": "structured-rank/qualification-source-preflight-completed.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-source-preflight-final.json",
+      "archive_path": "structured-rank/qualification-source-preflight-final.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-source-preflight.json",
+      "archive_path": "structured-rank/qualification-source-preflight.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-start.json",
+      "archive_path": "structured-rank/qualification-start.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification-structured-row-accepted.json",
+      "archive_path": "structured-rank/qualification-structured-row-accepted.json",
+      "sha256": "d782ac982498f98b2fe339c4ec455f53c28c84a3c5b28335664c045317975b46",
+      "bytes": 38818
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualification.json.lock",
+      "archive_path": "structured-rank/qualification.json.lock",
+      "sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+      "bytes": 1
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-neighbors-both.json",
+      "archive_path": "structured-rank/qualified-corpus-neighbors-both.json",
+      "sha256": "cc9133927d8bb1a4afb880aece0067c37988fd4f8d149d61fc0ce08af0cc954f",
+      "bytes": 18370
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-neighbors-both.stderr",
+      "archive_path": "structured-rank/qualified-corpus-neighbors-both.stderr",
+      "sha256": "de02e4ebada7f9af67574ccd66280f2aa74bcec9e1bc80d78ab5c918a143447c",
+      "bytes": 91
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-neighbors-both.stdout",
+      "archive_path": "structured-rank/qualified-corpus-neighbors-both.stdout",
+      "sha256": "5ad4f6642b14f2c18b1bd984e9ac676abc19278f85d65ac081b1b0a11c88a727",
+      "bytes": 427
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-neighbors-source.json",
+      "archive_path": "structured-rank/qualified-corpus-neighbors-source.json",
+      "sha256": "043b89b1c66d2da3def57669ef81e12f0dc5a10ee0a56a0d488b4e0188e81a2f",
+      "bytes": 65755
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-neighbors-source.stderr",
+      "archive_path": "structured-rank/qualified-corpus-neighbors-source.stderr",
+      "sha256": "806b7ac5e37faafa5a6b475eb5c03cc26340b17bc482d751d563def95baa918c",
+      "bytes": 94
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-neighbors-source.stdout",
+      "archive_path": "structured-rank/qualified-corpus-neighbors-source.stdout",
+      "sha256": "97a8310a21c6a6923109ab143ad48e2f207361e4abc73501d11a7cd6ea2dd858",
+      "bytes": 2495
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-new-both.json",
+      "archive_path": "structured-rank/qualified-corpus-new-both.json",
+      "sha256": "351c213db7ad9c781ffae32e2be932e3656a1e8e2dfa47c3be3b3a4dd61f9600",
+      "bytes": 6188
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-new-both.stderr",
+      "archive_path": "structured-rank/qualified-corpus-new-both.stderr",
+      "sha256": "132bda1cccaf3e4c904ad5efce8af3a44c963d315b89da786fbbe5b426407fd1",
+      "bytes": 292
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-new-both.stdout",
+      "archive_path": "structured-rank/qualified-corpus-new-both.stdout",
+      "sha256": "9b1d7e29e58d57665ec3f28560c728976aace715fbd4ebed31d7b8581a71bba1",
+      "bytes": 273
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-new-source.json",
+      "archive_path": "structured-rank/qualified-corpus-new-source.json",
+      "sha256": "d9eff2a9383955d7bf5020b72f66c3a5585c86057954a35f9cb3d95453d92ce9",
+      "bytes": 13626
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-new-source.stderr",
+      "archive_path": "structured-rank/qualified-corpus-new-source.stderr",
+      "sha256": "00fb7e4b88c5f71407e79f5c4491e83bc6322db5cd2b0b90517a1efdc10f0c77",
+      "bytes": 293
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-corpus-new-source.stdout",
+      "archive_path": "structured-rank/qualified-corpus-new-source.stdout",
+      "sha256": "e51c536a5f5d2f6d9a279991da50b151f496fd8f623b0b20e6d9f7c1a2a67110",
+      "bytes": 825
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/.omega-owner",
+      "archive_path": "structured-rank/qualified-long-cycle-product/.omega-owner",
+      "sha256": "89f52ffcce97db046891236856f764d4bd331e2a6c3d66a1460b16c889cd3c7c",
+      "bytes": 179
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/native.identity.txt",
+      "archive_path": "structured-rank/qualified-long-cycle-product/native.identity.txt",
+      "sha256": "0cfa47d334f3ab4310951b7203605583391086ac88ad1f1c842405a6b5bcdf16",
+      "bytes": 65
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/omega-components.tsv",
+      "archive_path": "structured-rank/qualified-long-cycle-product/omega-components.tsv",
+      "sha256": "ac39fe7770c833316e3802a76ba1d44b0538df6e8608b4fea2cff8884775e02f",
+      "bytes": 27
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/omega-program",
+      "archive_path": "structured-rank/qualified-long-cycle-product/omega-program",
+      "sha256": "ea425e9ee80f374408c0ec71f6e11601858af37878d36efc9f233c7d5ac5bbe0",
+      "bytes": 16640
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/program.oterm",
+      "archive_path": "structured-rank/qualified-long-cycle-product/program.oterm",
+      "sha256": "67c005766d293482f8cf74c580984523c3d1f00b836bf9a20d4579b45a1324c4",
+      "bytes": 429780
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/terminal.effects",
+      "archive_path": "structured-rank/qualified-long-cycle-product/terminal.effects",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/terminal.fuel.tsv",
+      "archive_path": "structured-rank/qualified-long-cycle-product/terminal.fuel.tsv",
+      "sha256": "2a5c8d18754cb996c5b7636f9983f827b306c0b33f44f4dd9a03d446197ce26b",
+      "bytes": 65
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/terminal.stderr",
+      "archive_path": "structured-rank/qualified-long-cycle-product/terminal.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-product/terminal.stdout",
+      "archive_path": "structured-rank/qualified-long-cycle-product/terminal.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-long-cycle-stack.json",
+      "archive_path": "structured-rank/qualified-long-cycle-stack.json",
+      "sha256": "47af578a6d78e86c300ed9ef40004652336a920a0ea33669a01c0aa01b6f14a6",
+      "bytes": 2222
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-producer/build-producer.json",
+      "archive_path": "structured-rank/qualified-producer/build-producer.json",
+      "sha256": "98db9c01f8bd64e67faa3d71175141cd962ab2435fd104d02c8fd8f9da17ac82",
+      "bytes": 754
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-producer/corpus-build-producer.json",
+      "archive_path": "structured-rank/qualified-producer/corpus-build-producer.json",
+      "sha256": "662fc117f22684f4db530c0af1e55583afee5afc2f21dc383e48b70298c29aa3",
+      "bytes": 768
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-producer/corpus-producer.json",
+      "archive_path": "structured-rank/qualified-producer/corpus-producer.json",
+      "sha256": "c3d71b0acc79907dc60e154a60c44a804245958017337ed0ae8e08fbfcca7578",
+      "bytes": 1363
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-producer/producer.json",
+      "archive_path": "structured-rank/qualified-producer/producer.json",
+      "sha256": "36df949c060d54076100d1df18ae19a7cd847fe831432d08a7ca8a7798cedda3",
+      "bytes": 1349
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-producer/source.diff",
+      "archive_path": "structured-rank/qualified-producer/source.diff",
+      "sha256": "0a3e83bb70b530dea72dce2c2e821f557ef891ee81e36376de7e9365e2084fea",
+      "bytes": 17235
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/qualified-row.json",
+      "archive_path": "structured-rank/qualified-row.json",
+      "sha256": "513c3ff2eba96eee3134324657feecbec5e6518c4bdbb97b57c34c9f5222a14f",
+      "bytes": 28324
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/queue-check-status.json",
+      "archive_path": "structured-rank/queue-check-status.json",
+      "sha256": "c20d24bee93cfe498599a1bb8b8e3d75ff38001fa6a677d2fec323b9648a9f01",
+      "bytes": 320
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/queue-ci.json",
+      "archive_path": "structured-rank/queue-ci.json",
+      "sha256": "5c6861f003b3ca0e088f6c4bdd7f26b369d619b4bce8be911e038acf873d22d5",
+      "bytes": 2177
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/queue-entry.json",
+      "archive_path": "structured-rank/queue-entry.json",
+      "sha256": "fab12f774ebe0dd560d8bd0e2a475332a35a2e65ad17efe3bda05ac75e70d3f5",
+      "bytes": 64
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/queue-runs.json",
+      "archive_path": "structured-rank/queue-runs.json",
+      "sha256": "e28189e29277d84abda519716a5960a196c636a5a33c8e58a85ff8952fa974ff",
+      "bytes": 918
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/rank-phi-build1.jsonl",
+      "archive_path": "structured-rank/rank-phi-build1.jsonl",
+      "sha256": "e1837b31cee07245f80c5cb2a7b8debe95d1059102c12542dff2926b2a2d6acf",
+      "bytes": 380417
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/rank-phi-build1.stderr",
+      "archive_path": "structured-rank/rank-phi-build1.stderr",
+      "sha256": "5463bae758a88f35fec4ea68a225368a0077d432de21e736fca7d30ead8b578a",
+      "bytes": 4067
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/rank-phi-check1.jsonl",
+      "archive_path": "structured-rank/rank-phi-check1.jsonl",
+      "sha256": "1c77dcdacf2fa489f2d6dbfaa161c5cc12615ccdf454b6d18db0631952635ddc",
+      "bytes": 81631
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/rank-phi-check1.stderr",
+      "archive_path": "structured-rank/rank-phi-check1.stderr",
+      "sha256": "c86cade0edd8f3e467c9d98ebd4d2e561e758c06f16a0b99cc67afc33baf0a23",
+      "bytes": 887
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/retired-producer-backups.json",
+      "archive_path": "structured-rank/retired-producer-backups.json",
+      "sha256": "0cb46d937bd257a615a513ca053989cecedecf0fb020db714944e9cedf902627",
+      "bytes": 3179
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/rustfmt.stderr",
+      "archive_path": "structured-rank/rustfmt.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/rustfmt.stdout",
+      "archive_path": "structured-rank/rustfmt.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/start.json",
+      "archive_path": "structured-rank/start.json",
+      "sha256": "c89fbc71c03091b5964fc97b3daac1107a0c7fdebae904036e35f3544fc4d32e",
+      "bytes": 1502
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/submitted-source.bundle",
+      "archive_path": "structured-rank/submitted-source.bundle",
+      "sha256": "cfc70b5fa8016a9e773c7f4590ad030cf8e3ee3013ec918d53a949c528c02cbd",
+      "bytes": 41245
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/validate-qualified-corpus.py",
+      "archive_path": "structured-rank/validate-qualified-corpus.py",
+      "sha256": "0e1def9afd32c4a69acd836fca3e7eb32f431a21019a14baf0241832b532eecc",
+      "bytes": 2079
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/validate-qualified-row.py",
+      "archive_path": "structured-rank/validate-qualified-row.py",
+      "sha256": "44190de49205a7cddc795cff6c97a4c05bd36b11c51529b5c2dec8838f7828a1",
+      "bytes": 2430
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/validate-row.py",
+      "archive_path": "structured-rank/validate-row.py",
+      "sha256": "19b520972e4c5cab4b4e51cf54b28e20943ab8d1cd1e5370cc5a712baa467fe4",
+      "bytes": 2266
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/structured-rank/validated-corpus-summary.stdout",
+      "archive_path": "structured-rank/validated-corpus-summary.stdout",
+      "sha256": "7cfc2fba092bb2713966cd8c283c942c668d603f9ccd35e7ef32656e340b5354",
+      "bytes": 222
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.json",
+      "archive_path": "qualification/qualification.json",
+      "sha256": "09c9640531e824f07086580280c5619406edd602a71435d27ec97ada4b2838dd",
+      "bytes": 166127
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/b1299d849d2e4a1d98a8f9db3fe7af11.json",
+      "archive_path": "qualification/records/b1299d849d2e4a1d98a8f9db3fe7af11.json",
+      "sha256": "e35c4a8576ca3def20397c239c354889debc862a5edae365a777c4211b42be95",
+      "bytes": 27266249
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/b1299d849d2e4a1d98a8f9db3fe7af11.stdout",
+      "archive_path": "qualification/records/b1299d849d2e4a1d98a8f9db3fe7af11.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/b1299d849d2e4a1d98a8f9db3fe7af11.stderr",
+      "archive_path": "qualification/records/b1299d849d2e4a1d98a8f9db3fe7af11.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/87f88f87774a47cb9ee68d12a38ee823.json",
+      "archive_path": "qualification/records/87f88f87774a47cb9ee68d12a38ee823.json",
+      "sha256": "ea0d88532fc30107032b4dabdeda0817f98ceb5d533f3b4dca0bb6878c7d1ad1",
+      "bytes": 3397082
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/87f88f87774a47cb9ee68d12a38ee823.stdout",
+      "archive_path": "qualification/records/87f88f87774a47cb9ee68d12a38ee823.stdout",
+      "sha256": "1afb2422a5ee2f2247b6d477c9de3141f7a86947efe7b69e71b78d2c2d37f296",
+      "bytes": 23912
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/87f88f87774a47cb9ee68d12a38ee823.stderr",
+      "archive_path": "qualification/records/87f88f87774a47cb9ee68d12a38ee823.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/75c39c27c6304ceb9696197a082b178d.json",
+      "archive_path": "qualification/records/75c39c27c6304ceb9696197a082b178d.json",
+      "sha256": "1e66ab0b5803213c106ccb81e173c22b659529aebd5f6f727871b82d12219140",
+      "bytes": 27276756
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/75c39c27c6304ceb9696197a082b178d.stdout",
+      "archive_path": "qualification/records/75c39c27c6304ceb9696197a082b178d.stdout",
+      "sha256": "7cfc2fba092bb2713966cd8c283c942c668d603f9ccd35e7ef32656e340b5354",
+      "bytes": 222
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/75c39c27c6304ceb9696197a082b178d.stderr",
+      "archive_path": "qualification/records/75c39c27c6304ceb9696197a082b178d.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/19d72896aa154d13a353853238da272e.json",
+      "archive_path": "qualification/records/19d72896aa154d13a353853238da272e.json",
+      "sha256": "ceaf0243273ad53a506b03546d04daba04ec68ce02393ace0fa90e4231a18ed9",
+      "bytes": 27267304
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/19d72896aa154d13a353853238da272e.stdout",
+      "archive_path": "qualification/records/19d72896aa154d13a353853238da272e.stdout",
+      "sha256": "997c66eaccfaff9fe6dbc2bb2c137c5c24aca157b06fd9a82ca7e723729f1c7c",
+      "bytes": 85
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/19d72896aa154d13a353853238da272e.stderr",
+      "archive_path": "qualification/records/19d72896aa154d13a353853238da272e.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/fc2f5d0739daf4a0812b54a9849a62ebffdd408f9f87ce643d9c07f0ee1e1abb.assessment.json",
+      "archive_path": "qualification/records/fc2f5d0739daf4a0812b54a9849a62ebffdd408f9f87ce643d9c07f0ee1e1abb.assessment.json",
+      "sha256": "fc2f5d0739daf4a0812b54a9849a62ebffdd408f9f87ce643d9c07f0ee1e1abb",
+      "bytes": 34790
+    }
+  ],
+  "prior_qualification_history": "evidence/pr1028 at712388d3021c75a771deb4305a679fdff36c4be0 contains previous outcome capture receipts retained by the continued workbench state. Current accepted runs are the four exported records. Executable snapshots stay local in qualified-producer and baseline-producer; retired executable bytes are in hash-verified local gzip backups."
+}
