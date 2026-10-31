@@ -8,6 +8,7 @@ use syntax_trees::item::CapabilityContractKind;
 use syntax_trees::item::CapabilityMember;
 use syntax_trees::item::CrashCause;
 use syntax_trees::item::Item;
+use syntax_trees::item::Machine;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::statement::TransitionExit;
 
@@ -491,15 +492,13 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
             })
             .unwrap_or_else(|| panic!("machine {name}"))
     };
-    let reach_count = |machine: &syntax_trees::item::Machine| {
+    let reach_count = |machine: &Machine| {
         parsed
             .items
             .identifier_path_members(machine.service_reaches)
             .len()
     };
-    let contracts = |machine: &syntax_trees::item::Machine| {
-        parsed.items.capability_contracts(machine.contracts)
-    };
+    let contracts = |machine: &Machine| parsed.items.capability_contracts(machine.contracts);
 
     for (name, reaches, contracts_count) in [
         ("App::reaches_then_requires", 1usize, 1usize),

@@ -5,6 +5,7 @@ use source_files_to_tokens::Lexer;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceNode;
@@ -322,9 +323,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
     let rate = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Data(data) if data.name.as_str(&parsed) == "Rate" => {
-                Some(data)
-            }
+            Item::Data(data) if data.name.as_str(&parsed) == "Rate" => Some(data),
             _ => None,
         })
         .expect("Rate data");
@@ -673,11 +672,7 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
     let transition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "inspect" =>
-            {
-                Some(machine)
-            }
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "inspect" => Some(machine),
             _ => None,
         })
         .into_iter()
@@ -735,9 +730,7 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
         let inspect = parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine)
-                    if machine.name.as_str(&parsed) == "inspect" =>
-                {
+                Item::Machine(machine) if machine.name.as_str(&parsed) == "inspect" => {
                     Some(machine)
                 }
                 _ => None,

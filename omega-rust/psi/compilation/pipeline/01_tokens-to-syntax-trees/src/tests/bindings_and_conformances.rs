@@ -3,6 +3,7 @@ use language_core::BindingRelevance;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::Item;
 use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::TypeReferenceNode;
 
@@ -21,9 +22,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "console_write_byte" =>
-            {
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "console_write_byte" => {
                 Some(machine)
             }
             _ => None,
@@ -64,11 +63,7 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "read" =>
-            {
-                Some(machine)
-            }
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "read" => Some(machine),
             _ => None,
         })
         .expect("realizing machine");
@@ -124,9 +119,7 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "kernel32_write_file" =>
-            {
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "kernel32_write_file" => {
                 Some(machine)
             }
             _ => None,
@@ -400,9 +393,7 @@ fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "zero_is_none" =>
-            {
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "zero_is_none" => {
                 Some(machine)
             }
             _ => None,
@@ -935,9 +926,7 @@ fn parses_trait_header_evidence_binder() {
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Trait(trait_definition)
-                if trait_definition.name.as_str(&parsed) == "Calling" =>
-            {
+            Item::Trait(trait_definition) if trait_definition.name.as_str(&parsed) == "Calling" => {
                 Some(trait_definition)
             }
             _ => None,

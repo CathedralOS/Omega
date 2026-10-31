@@ -2,6 +2,7 @@ use crate::parser::parse_syntax_trees;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::DataMember;
 use syntax_trees::item::ProofFact;
 use syntax_trees::types::TypeReferenceNode;
 
@@ -299,9 +300,7 @@ fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
                 let syntax_trees::item::Item::Data(data) = item else {
                     panic!("expected data");
                 };
-                let [syntax_trees::item::DataMember::Field(field)] =
-                    trees.items.data_members(data.members)
-                else {
+                let [DataMember::Field(field)] = trees.items.data_members(data.members) else {
                     panic!("expected one field");
                 };
                 let TypeReferenceNode::Constrained { constraints, .. } =
