@@ -213,7 +213,9 @@ pub fn retained_runtime_natural_components(
     admitted
         .runtime_components
         .iter()
-        .filter(|(_, row)| row.diagnostic.is_empty() && !row.states.is_empty())
+        .filter(|(_, row)| {
+            row.diagnostic.is_empty() && (!row.states.is_empty() || !row.edges.is_empty())
+        })
         .filter_map(|(_, row)| {
             let states = admitted
                 .runtime_states

@@ -104,23 +104,13 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 // Named/aggregate prefixes need no selector receipt. Only an
                 // indexed destination asks the entry projection owner for its
                 // exact state-local bounds, before executable observation.
-                let has_index = |coordinate: &validation::RankSubjectCoordinate| {
-                    coordinate
-                        .path
-                        .iter()
-                        .any(|step| matches!(step, facts::PlaceSegment::Index { .. }))
-                };
                 let values = if inputs.iter().any(|input| has_index(&input.destination)) {
                     let paths = inputs
                         .iter()
                         .map(|input| input.destination.path.clone())
                         .collect::<Vec<_>>();
-                    let execution = program
-                        .statement_table
-                        .admitted_execution_order(state.statement_nodes);
-                    let first = *execution.indices().first()?;
-                    Some(crate::checks::current_scalar_values::CurrentScalarValues::at_observing_projections(
-                        program, machine, state, first, Default::default(), frames, &paths,
+                    Some(super::super::rank_inputs::at_entry(
+                        program, machine, state, frames, &paths,
                     )?)
                 } else {
                     None
@@ -128,34 +118,14 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 let bindings = inputs
                     .into_iter()
                     .map(|binding| {
-                        let mut retain = |coordinate: validation::RankSubjectCoordinate| {
-                            let path = admitted.path_segments.insert_many(coordinate.path);
-                            admitted
-                                .coordinates
-                                .insert(checked_trees::CheckedRankCoordinate {
-                                    parameter: coordinate.parameter,
-                                    path,
-                                    entry_indexes: Default::default(),
-                                })
-                        };
-                        let entry = retain(binding.entry);
-                        let destination = if !has_index(&binding.destination) {
-                            retain(binding.destination)
-                        } else {
-                            let (_, _, _, indexes) = values
-                                .as_ref()?
-                                .entry_scalar_field_observations(binding.destination.parameter)
-                                .find(|(path, _, _, _)| *path == binding.destination.path)?;
-                            let path = admitted.path_segments.insert_many(binding.destination.path);
-                            let entry_indexes = admitted.entry_indexes.insert_many(indexes);
-                            admitted
-                                .coordinates
-                                .insert(checked_trees::CheckedRankCoordinate {
-                                    parameter: binding.destination.parameter,
-                                    path,
-                                    entry_indexes,
-                                })
-                        };
+                        // The entry is a measure-formal template, while its
+                        // destination is an executable state-local observation.
+                        let entry = retain_coordinate(admitted, binding.entry, Vec::new());
+                        let destination = retain_observed_coordinate(
+                            admitted,
+                            binding.destination,
+                            values.as_ref(),
+                        )?;
                         Some(checked_trees::CheckedRankCoordinateBinding {
                             entry,
                             destination,
@@ -187,15 +157,19 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 if !primitive_type.is_fixed_integer() {
                     return None;
                 }
-                let path = admitted.path_segments.insert_many(destination.path.clone());
+                let inputs = if has_index(&destination) {
+                    Some(super::super::rank_inputs::at_entry(
+                        program,
+                        machine,
+                        state,
+                        frames,
+                        std::slice::from_ref(&destination.path),
+                    )?)
+                } else {
+                    None
+                };
                 let coordinate =
-                    admitted
-                        .coordinates
-                        .insert(checked_trees::CheckedRankCoordinate {
-                            parameter: destination.parameter,
-                            path,
-                            entry_indexes: Default::default(),
-                        });
+                    retain_observed_coordinate(admitted, destination.clone(), inputs.as_ref())?;
                 CheckedNaturalRankMeasure::IntegerValue {
                     coordinate,
                     primitive_type,
@@ -231,4 +205,55 @@ fn distance_measure(
         primitive_type,
         upper,
     })
+}
+
+fn has_index(coordinate: &validation::RankSubjectCoordinate) -> bool {
+    coordinate
+        .path
+        .iter()
+        .any(|step| matches!(step, facts::PlaceSegment::Index { .. }))
+}
+
+fn retain_observed_coordinate(
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    coordinate: validation::RankSubjectCoordinate,
+    inputs: Option<&super::super::rank_inputs::EntryInputs<'_>>,
+) -> Option<checked_trees::CheckedRankCoordinateHandle> {
+    if !has_index(&coordinate) {
+        return Some(retain_coordinate(admitted, coordinate, Vec::new()));
+    }
+    let prepared = inputs?;
+    // Copied selector expressions need not share AST handles. Retain the
+    // captured path with its own bounds; never retarget an index receipt.
+    let captured = prepared.coordinates.iter().find(|captured| {
+        captured.parameter == coordinate.parameter
+            && captured.observation == validation::RankPremiseObservation::Value
+            && prepared
+                .values
+                .same_scalar_projection(&captured.path, &coordinate.path)
+    })?;
+    Some(retain_coordinate(
+        admitted,
+        validation::RankSubjectCoordinate {
+            parameter: captured.parameter,
+            path: captured.path.clone(),
+        },
+        captured.entry_indexes.clone(),
+    ))
+}
+
+fn retain_coordinate(
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    coordinate: validation::RankSubjectCoordinate,
+    entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
+) -> checked_trees::CheckedRankCoordinateHandle {
+    let path = admitted.path_segments.insert_many(coordinate.path);
+    let entry_indexes = admitted.entry_indexes.insert_many(entry_indexes);
+    admitted
+        .coordinates
+        .insert(checked_trees::CheckedRankCoordinate {
+            parameter: coordinate.parameter,
+            path,
+            entry_indexes,
+        })
 }

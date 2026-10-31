@@ -186,6 +186,27 @@ impl StructuralJudge<'_> {
         state: &State,
         dependencies: CapturedStorageReadBacking,
     ) -> CapturedScalarReadBacking {
+        self.freeze_scalar_read_backing_with(state, dependencies, |place| {
+            self.capture_storage_place(place)
+        })
+    }
+
+    pub(super) fn freeze_entry_scalar_read_backing(
+        &self,
+        state: &State,
+        dependencies: CapturedStorageReadBacking,
+    ) -> CapturedScalarReadBacking {
+        self.freeze_scalar_read_backing_with(state, dependencies, |place| {
+            self.capture_entry_storage_place(place)
+        })
+    }
+
+    fn freeze_scalar_read_backing_with(
+        &self,
+        state: &State,
+        dependencies: CapturedStorageReadBacking,
+        capture: impl Fn(crate::CanonicalPlace) -> Option<CapturedStorageCoordinate>,
+    ) -> CapturedScalarReadBacking {
         let identity = (|| {
             let [source] = dependencies.sources.as_slice() else {
                 return None;
@@ -194,10 +215,7 @@ impl StructuralJudge<'_> {
             if !scalar.preserves_scalar_value || scalar.source_primitive != scalar.view_primitive {
                 return None;
             }
-            Some((
-                self.capture_storage_place(scalar.place)?,
-                scalar.view_primitive,
-            ))
+            Some((capture(scalar.place)?, scalar.view_primitive))
         })();
         CapturedScalarReadBacking {
             dependencies,

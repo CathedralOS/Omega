@@ -130,6 +130,10 @@ pub(super) fn natural_rank_plans_for_fused(
             .states
             .iter()
             .any(|rank| members.contains(&rank.state))
+            && !component
+                .edges
+                .iter()
+                .any(|edge| members.contains(&edge.source) || members.contains(&edge.target))
         {
             continue;
         }
