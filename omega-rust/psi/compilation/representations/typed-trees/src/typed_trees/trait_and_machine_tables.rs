@@ -1,5 +1,8 @@
 //! The trait, conformance, boundary calling plan, machine and state tables.
 
+use crate::name::Identifier;
+use crate::state::state_by_symbol;
+use crate::statement::StatementNode::LocalData;
 use crate::typed_trees::TypedTrees;
 use crate::{data, machine, signature, trait_definition};
 use symbols::SymbolHandle;
@@ -312,7 +315,7 @@ impl TypedTrees {
         state_symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &crate::state::State)> {
         let machine = self.machine(machine_symbol)?;
-        let state = crate::state::state_by_symbol(self.machine_states(machine), state_symbol)?;
+        let state = state_by_symbol(self.machine_states(machine), state_symbol)?;
         Some((machine, state))
     }
 
@@ -383,7 +386,7 @@ impl TypedTrees {
         &self,
         machine: &machine::Machine,
         same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
-    ) -> (Vec<data::TypeParameter>, Vec<crate::name::Identifier>) {
+    ) -> (Vec<data::TypeParameter>, Vec<Identifier>) {
         let mut type_parameters = self.machine_type_parameters(machine).to_vec();
         let mut lifetime_parameters = machine.lifetime_parameters.clone();
         // A named map's owned row captures its public regions. They are
@@ -454,7 +457,7 @@ impl TypedTrees {
         &self,
         machine: &machine::Machine,
         same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
-    ) -> (Vec<data::TypeParameter>, Vec<crate::name::Identifier>) {
+    ) -> (Vec<data::TypeParameter>, Vec<Identifier>) {
         let (type_parameters, mut lifetime_parameters) =
             self.machine_declaration_scope(machine, same_type_parameter);
         // A type operand can carry regions arbitrarily deep in its arguments.
@@ -685,7 +688,7 @@ impl TypedTrees {
         machine: &machine::Machine,
         symbol: SymbolHandle,
     ) -> Option<&crate::state::State> {
-        crate::state::state_by_symbol(self.machine_states(machine), symbol)
+        state_by_symbol(self.machine_states(machine), symbol)
     }
 
     #[inline]
@@ -721,17 +724,14 @@ impl TypedTrees {
         &self,
         machine: &machine::Machine,
         state: &crate::state::State,
-    ) -> Option<&crate::name::Identifier> {
+    ) -> Option<&Identifier> {
         self.data_binding_parameter(machine, self.state_parameters(state))
             .map(|parameter| &parameter.name)
     }
 
     /// The data binding of `machine`'s entry state, for the callers that hold
     /// a machine without one of its states.
-    pub fn machine_data_binding(
-        &self,
-        machine: &machine::Machine,
-    ) -> Option<&crate::name::Identifier> {
+    pub fn machine_data_binding(&self, machine: &machine::Machine) -> Option<&Identifier> {
         let entry = self.machine_states(machine).first()?;
         self.state_data_binding(machine, entry)
     }
@@ -860,9 +860,7 @@ impl TypedTrees {
     /// machine's span rather than a whole-program state scan.
     pub fn state_by_symbol(&self, state_symbol: SymbolHandle) -> Option<&crate::state::State> {
         self.machine_holding_state(state_symbol)
-            .and_then(|machine| {
-                crate::state::state_by_symbol(self.machine_states(machine), state_symbol)
-            })
+            .and_then(|machine| state_by_symbol(self.machine_states(machine), state_symbol))
     }
 
     /// `state`'s parameter carrying `symbol`, if any.
@@ -927,9 +925,7 @@ impl TypedTrees {
             .iter()
             .enumerate()
             .filter_map(|(ordinal, statement)| match statement {
-                crate::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
-                    Some((ordinal, local))
-                }
+                LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
                 _ => None,
             });
         let declaration = declarations.next()?;
@@ -954,7 +950,7 @@ impl TypedTrees {
             .iter()
             .take(statement_index)
             .filter(|statement| {
-                matches!(statement, crate::statement::StatementNode::LocalData(local)
+                matches!(statement, LocalData(local)
                     if !local.is_mutable
                         && self.primitive_type_reference(local.type_reference).is_some())
             })

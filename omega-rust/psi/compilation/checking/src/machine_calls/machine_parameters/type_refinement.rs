@@ -1,5 +1,6 @@
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameter;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Copy)]
@@ -406,8 +407,7 @@ pub fn infer_call_type_arguments(
         .filter(|parameter| {
             matches!(
                 parameter.kind,
-                typed_trees::data::TypeParameterKind::Type
-                    | typed_trees::data::TypeParameterKind::Const { .. }
+                TypeParameterKind::Type | TypeParameterKind::Const { .. }
             )
         })
         .collect::<Vec<_>>();
@@ -426,15 +426,13 @@ pub fn infer_call_type_arguments(
             else {
                 return false;
             };
-            !matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Const { .. }
-            ) || crate::value_custody::type_references::const_argument_matches_parameter(
-                program,
-                parameter,
-                binding.actual,
-                caller_parameters,
-            )
+            !matches!(parameter.kind, TypeParameterKind::Const { .. })
+                || crate::value_custody::type_references::const_argument_matches_parameter(
+                    program,
+                    parameter,
+                    binding.actual,
+                    caller_parameters,
+                )
         })
     {
         *bindings = inferred

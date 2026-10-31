@@ -6,6 +6,8 @@ use crate::record::PackagePolicyServiceMethod;
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
+use language_semantics::DomainPredicatePresence;
+use semantic_vocabulary::BoundaryCompletion;
 
 pub(in crate::encoding::encode) fn method(
     encoder: &mut Encoder,
@@ -36,12 +38,8 @@ pub(in crate::encoding::encode) fn method(
             encoder.field("domain", |encoder| encoder.string(&claim.domain))?;
             encoder.field("predicate_presence", |encoder| {
                 match claim.predicate_presence {
-                    language_semantics::DomainPredicatePresence::Absent => {
-                        encoder.tag("bodyless", 0)
-                    }
-                    language_semantics::DomainPredicatePresence::Present => {
-                        encoder.tag("present", 1)
-                    }
+                    DomainPredicatePresence::Absent => encoder.tag("bodyless", 0),
+                    DomainPredicatePresence::Present => encoder.tag("present", 1),
                 };
                 Ok(())
             })?;
@@ -61,10 +59,8 @@ pub(in crate::encoding::encode) fn method(
     })?;
     encoder.field("completion", |encoder| {
         match method.completion {
-            semantic_vocabulary::BoundaryCompletion::NormalReturn => {
-                encoder.tag("normal_return", 0)
-            }
-            semantic_vocabulary::BoundaryCompletion::External(
+            BoundaryCompletion::NormalReturn => encoder.tag("normal_return", 0),
+            BoundaryCompletion::External(
                 semantic_vocabulary::ExternalCompletionKind::ProcessExit,
             ) => encoder.tag("process_exit", 1),
         };

@@ -3,12 +3,12 @@
 //! checking proves the concrete value fits when the semantic carrier is wider
 //! than storage. Borrowing or recasting the destination does not change that law.
 
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
+use layout_plans::LayoutPlacementReport;
+use typed_trees::data::DataField;
 
-pub(crate) fn validate_plans(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+pub(crate) fn validate_plans(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     let mut data_symbols = Vec::with_capacity(program.plan_laid_layouts.len());
     for plan in &program.plan_laid_layouts {
         macro_rules! laid {
@@ -139,9 +139,9 @@ pub(crate) fn validate_plans(
 /// An empty span is valid only for an actually empty live schema; the option
 /// distinguishes that input from missing family-fold custody.
 fn schema_argument_matches(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     plan: &typed_trees::PlanLaidLayout,
-    schema_fields: &[&typed_trees::data::DataField],
+    schema_fields: &[&DataField],
 ) -> bool {
     let Some(schema) = program.closed_data_field_definition(plan.semantic_type) else {
         return false;
@@ -184,9 +184,9 @@ fn schema_argument_matches(
 }
 
 fn schema_argument_rows_match(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     argument: typed_trees::PlanLaidSchemaArgument,
-    schema_fields: &[&typed_trees::data::DataField],
+    schema_fields: &[&DataField],
 ) -> bool {
     if argument.abi_version != 3 {
         return false;
@@ -256,10 +256,10 @@ fn schema_argument_rows_match(
 }
 
 fn target_neutral_report_matches(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     plan: &typed_trees::PlanLaidGeometry,
     schema: &typed_trees::data::DataDefinition,
-    schema_fields: &[&typed_trees::data::DataField],
+    schema_fields: &[&DataField],
 ) -> bool {
     let report = &plan.validated_layout;
     if report.schema_report_fingerprint
@@ -286,9 +286,8 @@ fn target_neutral_report_matches(
         matched_entries += entries.len();
         match entries.as_slice() {
             [entry] => match entry.placement {
-                layout_plans::LayoutPlacementReport::At { offset } => offsets.push(offset),
-                layout_plans::LayoutPlacementReport::IntegerAt { .. }
-                | layout_plans::LayoutPlacementReport::Bits { .. } => {
+                LayoutPlacementReport::At { offset } => offsets.push(offset),
+                LayoutPlacementReport::IntegerAt { .. } | LayoutPlacementReport::Bits { .. } => {
                     has_only_single_at_entries = false;
                 }
             },
@@ -300,9 +299,9 @@ fn target_neutral_report_matches(
 }
 
 fn stored_integer_capabilities_match(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     plan: &typed_trees::PlanLaidGeometry,
-    schema_fields: &[&typed_trees::data::DataField],
+    schema_fields: &[&DataField],
 ) -> bool {
     plan.integer_fields.iter().all(|integer| {
         let Some(field) = schema_fields.get(integer.field_index) else {
@@ -318,7 +317,7 @@ fn stored_integer_capabilities_match(
 }
 
 fn stored_integer_write_is_total(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     field_type: typed_trees::types::TypeReferenceHandle,
     stored_width: u64,
     interpretation: layout_plans::IntegerInterpretation,
@@ -352,10 +351,7 @@ fn stored_integer_bounds(
     Some(interpretation.stored_bounds(stored_width))
 }
 
-fn geometry_matches(
-    plan: &typed_trees::PlanLaidGeometry,
-    schema_fields: &[&typed_trees::data::DataField],
-) -> bool {
+fn geometry_matches(plan: &typed_trees::PlanLaidGeometry, schema_fields: &[&DataField]) -> bool {
     let report = &plan.validated_layout;
     if report.size.and_then(|size| usize::try_from(size).ok()) != Some(plan.size)
         || usize::try_from(report.align).ok() != Some(plan.align)
@@ -377,13 +373,8 @@ fn geometry_matches(
             })
             .collect::<Vec<_>>();
         match entries.as_slice() {
-            [entry]
-                if matches!(
-                    entry.placement,
-                    layout_plans::LayoutPlacementReport::At { .. }
-                ) =>
-            {
-                let layout_plans::LayoutPlacementReport::At { offset } = entry.placement else {
+            [entry] if matches!(entry.placement, LayoutPlacementReport::At { .. }) => {
+                let LayoutPlacementReport::At { offset } = entry.placement else {
                     unreachable!()
                 };
                 let Ok(offset) = usize::try_from(offset) else {
@@ -391,13 +382,8 @@ fn geometry_matches(
                 };
                 offsets.push(offset);
             }
-            [entry]
-                if matches!(
-                    entry.placement,
-                    layout_plans::LayoutPlacementReport::IntegerAt { .. }
-                ) =>
-            {
-                let layout_plans::LayoutPlacementReport::IntegerAt {
+            [entry] if matches!(entry.placement, LayoutPlacementReport::IntegerAt { .. }) => {
+                let LayoutPlacementReport::IntegerAt {
                     offset,
                     stored_width,
                     interpretation,
@@ -428,16 +414,13 @@ fn geometry_matches(
             entries
                 if entries.len() > 1
                     && entries.iter().all(|entry| {
-                        matches!(
-                            entry.placement,
-                            layout_plans::LayoutPlacementReport::At { .. }
-                        )
+                        matches!(entry.placement, LayoutPlacementReport::At { .. })
                     }) =>
             {
                 let mut element_offsets = entries
                     .iter()
                     .map(|entry| match entry.placement {
-                        layout_plans::LayoutPlacementReport::At { offset } => offset,
+                        LayoutPlacementReport::At { offset } => offset,
                         _ => unreachable!(),
                     })
                     .collect::<Vec<_>>();
@@ -466,15 +449,12 @@ fn geometry_matches(
             entries
                 if !entries.is_empty()
                     && entries.iter().all(|entry| {
-                        matches!(
-                            entry.placement,
-                            layout_plans::LayoutPlacementReport::Bits { .. }
-                        )
+                        matches!(entry.placement, LayoutPlacementReport::Bits { .. })
                     }) =>
             {
                 let mut fragments = Vec::with_capacity(entries.len());
                 for entry in entries {
-                    let layout_plans::LayoutPlacementReport::Bits {
+                    let LayoutPlacementReport::Bits {
                         container,
                         container_width,
                         destination_lsb,
@@ -527,9 +507,9 @@ fn geometry_matches(
 }
 
 fn runtime_fields<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     data: &typed_trees::data::DataDefinition,
-) -> Vec<&'program typed_trees::data::DataField> {
+) -> Vec<&'program DataField> {
     program
         .live_data_fields(program.data_members(data))
         .collect()

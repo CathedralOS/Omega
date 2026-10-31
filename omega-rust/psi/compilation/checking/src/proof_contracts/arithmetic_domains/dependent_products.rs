@@ -7,6 +7,7 @@ use super::{
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::place_label;
+use typed_trees::name::Identifier;
 
 /// R3's ONE closed bounded-product rule: `a * self.Fb + c` where
 /// `a <= self.Fa - 1` (a STRICT dependent atom), `c <= self.Fb - 1` (strict,
@@ -71,11 +72,7 @@ fn dependent_product_atoms(
     state: &State,
     left: ExpressionHandle,
     right: ExpressionHandle,
-) -> Option<(
-    ExpressionHandle,
-    typed_trees::name::Identifier,
-    typed_trees::name::Identifier,
-)> {
+) -> Option<(ExpressionHandle, Identifier, Identifier)> {
     use typed_trees::dependent_ranges::{DependentBoundClass, dependent_bound_class};
 
     let (a_expr, fb_expr) = {
@@ -105,7 +102,7 @@ fn strict_dependent_atom_field(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-) -> Option<typed_trees::name::Identifier> {
+) -> Option<Identifier> {
     let raw = crate::value_custody::places::declared_place_type_raw(
         program,
         machine,
@@ -122,8 +119,8 @@ fn strict_dependent_atom_field(
 fn preserved_product_coupling(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    fa: &typed_trees::name::Identifier,
-    fb: &typed_trees::name::Identifier,
+    fa: &Identifier,
+    fb: &Identifier,
 ) -> Option<i64> {
     let k = requires_product_coupling(program, machine, fa, fb)?;
     for field in [fa, fb] {
@@ -147,8 +144,8 @@ fn preserved_product_coupling(
 fn requires_product_coupling(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    fa: &typed_trees::name::Identifier,
-    fb: &typed_trees::name::Identifier,
+    fa: &Identifier,
+    fb: &Identifier,
 ) -> Option<i64> {
     let data_binding = program.machine_data_binding(machine)?.as_str();
     let fa_label = place_label(data_binding, fa.as_str());

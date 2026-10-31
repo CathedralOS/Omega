@@ -9,13 +9,15 @@ use crate::flow::indexed_statements;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
-    AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind as SelectionKind,
+    AuthoredDeclarationSelectionLateBinding as LateBinding,
+    AuthoredDeclarationSelectionTarget as SelectionTarget,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use validation::compiler_operations::classify_statement_call_intrinsic;
 use validation::selection_resolution::{
-    AuthoredSelectionResolution, AuthoredSelectionResolutionTarget,
+    AuthoredSelectionResolution as SelectionResolution,
+    AuthoredSelectionResolutionTarget as ResolutionTarget,
 };
 use validation::selection_resolution::{
     collect_checked_transition_target_selections, declaration_target, push_consistent_resolution,
@@ -47,7 +49,7 @@ pub(crate) fn checked_struct_literal_type_symbol(
 pub(crate) fn collect_checked_proof_membership_selections(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    resolutions: &mut Vec<AuthoredSelectionResolution>,
+    resolutions: &mut Vec<SelectionResolution>,
 ) -> Result<(), Diagnostic> {
     for (fact_handle, fact) in typed_trees::references::program_proof_facts(program) {
         let Some(membership) = fact.as_membership() else {
@@ -62,17 +64,13 @@ pub(crate) fn collect_checked_proof_membership_selections(
                 occurrence.ordinal(),
             )));
         };
-        if selection.kind() != AuthoredDeclarationSelectionKind::DomainMembership {
+        if selection.kind() != SelectionKind::DomainMembership {
             return Err(Diagnostic::error(
                 "proof membership retains mismatched authored domain-selection evidence",
             )
             .with_source_span(selection.source_span()));
         }
-        if selection.target()
-            != AuthoredDeclarationSelectionTarget::LateBound(
-                AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
-            )
-        {
+        if selection.target() != SelectionTarget::LateBound(LateBinding::CheckedDomainMembership) {
             continue;
         }
 
@@ -96,18 +94,18 @@ pub(crate) fn collect_checked_proof_membership_selections(
                 permission = Some(candidate);
             }
             permission.map(|permission| {
-                AuthoredSelectionResolutionTarget::Intrinsic(
-                    AuthoredDeclarationSelectionIntrinsic::CarryPermission(permission),
-                )
+                ResolutionTarget::Intrinsic(AuthoredDeclarationSelectionIntrinsic::CarryPermission(
+                    permission,
+                ))
             })
         });
         if let Some(target) = target {
             push_consistent_resolution(
                 program,
                 resolutions,
-                AuthoredSelectionResolution {
+                SelectionResolution {
                     occurrence,
-                    binding: AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
+                    binding: LateBinding::CheckedDomainMembership,
                     target,
                 },
             )?;
@@ -134,7 +132,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
 /// directly and retain its call-expression association in checked facts.
 pub(crate) fn collect_checked_proof_view_call_selections(
     program: &dyn ::validation::CheckingInput,
-    resolutions: &mut Vec<AuthoredSelectionResolution>,
+    resolutions: &mut Vec<SelectionResolution>,
     unoccurred_view_calls: &mut Vec<(
         source::SourceSpan,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
@@ -221,21 +219,18 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                         occurrence.ordinal(),
                     )));
                 };
-                if selection.kind() != AuthoredDeclarationSelectionKind::Call
-                    || selection.target()
-                        != AuthoredDeclarationSelectionTarget::LateBound(
-                            AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                        )
+                if selection.kind() != SelectionKind::Call
+                    || selection.target() != SelectionTarget::LateBound(LateBinding::CheckedCall)
                 {
                     continue;
                 }
                 push_consistent_resolution(
                     program,
                     resolutions,
-                    AuthoredSelectionResolution {
+                    SelectionResolution {
                         occurrence,
-                        binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                        target: AuthoredSelectionResolutionTarget::Intrinsic(
+                        binding: LateBinding::CheckedCall,
+                        target: ResolutionTarget::Intrinsic(
                             AuthoredDeclarationSelectionIntrinsic::ProofView,
                         ),
                     },
@@ -245,9 +240,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                 program
                     .authored_declaration_selections()
                     .get(occurrence)
-                    .is_some_and(|selection| {
-                        selection.kind() == AuthoredDeclarationSelectionKind::Call
-                    })
+                    .is_some_and(|selection| selection.kind() == SelectionKind::Call)
             });
             if !has_call_occurrence {
                 unoccurred_view_calls.push((
@@ -264,7 +257,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
 pub(crate) fn collect_checked_statement_selections(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    resolutions: &mut Vec<AuthoredSelectionResolution>,
+    resolutions: &mut Vec<SelectionResolution>,
 ) -> Result<(), Diagnostic> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -303,7 +296,7 @@ pub(crate) fn collect_checked_statement_selections(
                     ))
                     .with_source_span(call.source_span));
                 };
-                if selection.kind() != AuthoredDeclarationSelectionKind::Call
+                if selection.kind() != SelectionKind::Call
                     || selection.exposure()
                         != language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
                     || selection.source_span() != call.source_span
@@ -314,24 +307,21 @@ pub(crate) fn collect_checked_statement_selections(
                     .with_source_span(call.source_span));
                 }
                 let resolution_target = classify_statement_call_intrinsic(program, call)
-                    .map(AuthoredSelectionResolutionTarget::Intrinsic)
+                    .map(ResolutionTarget::Intrinsic)
                     .or_else(|| {
                         crate::flow::resolved_operator_statement_symbol(program, call)
                             .and_then(declaration_target)
                     })
                     .or_else(|| declaration_target(target));
-                if selection.target()
-                    == AuthoredDeclarationSelectionTarget::LateBound(
-                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                    )
+                if selection.target() == SelectionTarget::LateBound(LateBinding::CheckedCall)
                     && let Some(target) = resolution_target
                 {
                     push_consistent_resolution(
                         program,
                         resolutions,
-                        AuthoredSelectionResolution {
+                        SelectionResolution {
                             occurrence,
-                            binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                            binding: LateBinding::CheckedCall,
                             target,
                         },
                     )?;

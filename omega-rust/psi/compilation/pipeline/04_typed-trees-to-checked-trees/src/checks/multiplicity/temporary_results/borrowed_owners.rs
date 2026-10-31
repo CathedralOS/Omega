@@ -1,6 +1,7 @@
 //! Borrowed access to an anonymous owner ends before its call cleanup.
 //! Every contained linear obligation needs an authorized disposition on normal
 //! completion, including obligations outside a borrowed projection.
+use super::super::owned_cleanup::claim_receipts;
 use super::owners::{TemporaryConsumption, TemporaryOwner};
 use super::{
     CheckFacts, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
@@ -37,17 +38,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
         .filter(|(owner, _, _)| owner.consumer == consumer && owner.evaluation == evaluation)
     {
         let root = facts::PlaceRoot::Expression(owner.expression);
-        if super::super::owned_cleanup::claim_receipts(
-            program,
-            owner.type_reference,
-            root,
-            &[],
-            places,
-            &[],
-            &[],
-        )
-        .is_none()
-        {
+        if claim_receipts(program, owner.type_reference, root, &[], places, &[], &[]).is_none() {
             let boundary = match owner.consumer {
                 PermissionEventSource::Call {
                     target_symbol,

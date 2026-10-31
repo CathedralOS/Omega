@@ -5,6 +5,7 @@
 //! before constructing the selected nominal case. Scalar and structural
 //! operands share the same exact case declaration and operand ordering.
 
+use crate::value_custody::storage_contents::ContentsRequirement;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -56,12 +57,7 @@ fn is_case_value(
     // This value route has no numeric field-establishment obligations yet.
     // Keep constrained constructors with the proof-bearing return producer;
     // selecting this plan must not displace a supported bounded-field return.
-    if !crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
-    ) {
+    if !crate::has_contents(program, reference, &[], ContentsRequirement::PlainOwned) {
         return false;
     }
     let expected = program.normalized_type_identity(reference);
@@ -189,15 +185,11 @@ fn case_constructor_parts(
     // The scalar-only interface still requires numeric-owned payloads and has
     // no vocabulary for common fields or structural children.
     if (!erased_member_owner
-        && (!crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        ) || program
-            .data_members(owner)
-            .iter()
-            .any(|member| matches!(member, DataMember::Field(_)))))
+        && (!crate::has_contents(program, reference, &[], ContentsRequirement::NumericOwned)
+            || program
+                .data_members(owner)
+                .iter()
+                .any(|member| matches!(member, DataMember::Field(_)))))
         || program.symbols.get(selected).parent != authored_owner.symbol
     {
         return None;

@@ -14,14 +14,19 @@
 //! carriers still need this check; declared semantic and provenance atoms are
 //! independent obligations even at an integer delivery.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
+use language_semantics::const_value::CanonicalConstValue;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
+use typed_trees::expression::TableAtomicExpression;
+use typed_trees::expression::TableCastExpression;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::state::State;
+use typed_trees::types::DomainConstraint;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone)]
@@ -69,7 +74,7 @@ impl Eq for DomainAtom {}
 /// fresh explicit result surface: `value as T` deliberately has `T`'s atoms,
 /// while `value as T in D` deliberately has `D` as well.
 pub(crate) fn validate_implicit_domain_weakening(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -101,7 +106,7 @@ pub(crate) fn validate_implicit_domain_weakening(
 /// own result delivery obligations.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_argument_domain_weakening(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -131,7 +136,7 @@ pub(crate) fn validate_argument_domain_weakening(
 /// premise at a call. Preserving that atom is not implicit forgetting. The
 /// exit checker must still prove it from the actual returned value.
 pub(crate) fn validate_return_domain_weakening(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -155,7 +160,7 @@ pub(crate) fn validate_return_domain_weakening(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_domain_delivery(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -291,7 +296,7 @@ fn validate_domain_delivery(
 /// declared-atom expansion is the same one a declared qualification gets, so an
 /// alias premise contributes its constituents and a refinement its parents.
 fn parameter_premise_atoms(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     parameter: &StateParameter,
 ) -> Vec<DomainAtom> {
     if !parameter.symbol.is_valid() {
@@ -334,7 +339,7 @@ fn parameter_premise_atoms(
 /// instance, which `is_deferred_index_compatibility` leaves to checked
 /// lowering. Arithmetic policy is an operand property, never a target's
 /// assumption, so only declared atoms participate.
-fn atom_requires_carried_evidence(program: &dyn crate::CheckingInput, atom: &DomainAtom) -> bool {
+fn atom_requires_carried_evidence(program: &dyn CheckingInput, atom: &DomainAtom) -> bool {
     let DomainAtom::Declared { family: symbol, .. } = atom else {
         return false;
     };
@@ -350,7 +355,7 @@ fn atom_requires_carried_evidence(program: &dyn crate::CheckingInput, atom: &Dom
 /// stays a fresh explicit result surface and never consults the callee's
 /// ensures.
 fn append_call_ensured_domain_atoms(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     value: ExpressionHandle,
     atoms: &mut Vec<DomainAtom>,
 ) {
@@ -367,7 +372,7 @@ fn append_call_ensured_domain_atoms(
 }
 
 fn append_callable_ensured_domain_atoms(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     callable: SymbolHandle,
     atoms: &mut Vec<DomainAtom>,
 ) {
@@ -416,7 +421,7 @@ fn append_callable_ensured_domain_atoms(
 /// targets. A value-position call passes its target symbol; an argument passes
 /// the parameter's owning callable.
 fn callable_signature_contracts<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     target: SymbolHandle,
 ) -> Option<Vec<&'program typed_trees::signature::SignatureContract>> {
     if let Some((machine, state)) =
@@ -468,7 +473,7 @@ fn is_deferred_index_compatibility(left: &DomainAtom, right: &DomainAtom) -> boo
 }
 
 fn expression_atoms(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
@@ -478,10 +483,7 @@ fn expression_atoms(
         ExpressionNode::Borrow(inner) => {
             return expression_atoms(program, machine, state, inner.target);
         }
-        ExpressionNode::Atomic(typed_trees::expression::TableAtomicExpression {
-            value: inner,
-            ..
-        }) => {
+        ExpressionNode::Atomic(TableAtomicExpression { value: inner, .. }) => {
             return expression_atoms(program, machine, state, *inner);
         }
         ExpressionNode::Cast(cast) => {
@@ -522,7 +524,7 @@ fn expression_atoms(
 }
 
 fn append_type_atoms(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
     atoms: &mut Vec<DomainAtom>,
     stack: &mut Vec<SymbolHandle>,
@@ -566,7 +568,7 @@ fn append_type_atoms(
 }
 
 fn append_declared_atom(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     symbol: SymbolHandle,
     instance: language_semantics::SemanticDomainId,
     indexed: bool,
@@ -630,7 +632,7 @@ fn push_unique(atoms: &mut Vec<DomainAtom>, atom: DomainAtom) {
     }
 }
 
-fn atom_requires_explicit_removal(program: &dyn crate::CheckingInput, atom: &DomainAtom) -> bool {
+fn atom_requires_explicit_removal(program: &dyn CheckingInput, atom: &DomainAtom) -> bool {
     match atom {
         DomainAtom::Arithmetic(_) => true,
         DomainAtom::Declared {
@@ -646,11 +648,7 @@ fn atom_requires_explicit_removal(program: &dyn crate::CheckingInput, atom: &Dom
     }
 }
 
-fn atoms_equivalent(
-    program: &dyn crate::CheckingInput,
-    left: &DomainAtom,
-    right: &DomainAtom,
-) -> bool {
+fn atoms_equivalent(program: &dyn CheckingInput, left: &DomainAtom, right: &DomainAtom) -> bool {
     match (left, right) {
         (DomainAtom::Arithmetic(left), DomainAtom::Arithmetic(right)) => left == right,
         (
@@ -691,23 +689,15 @@ fn atom_label(atom: &DomainAtom) -> String {
 
 /// A semantic-domain argument renders as its canonical const value display
 /// when it names one, otherwise as the type reference itself.
-fn domain_argument_display(
-    program: &dyn crate::CheckingInput,
-    argument: TypeReferenceHandle,
-) -> String {
+fn domain_argument_display(program: &dyn CheckingInput, argument: TypeReferenceHandle) -> String {
     match program.type_reference_table.type_reference(argument) {
-        TypeReferenceNode::Named { name, .. } => {
-            language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-                .map_or_else(|| name.to_string(), |value| value.display)
-        }
+        TypeReferenceNode::Named { name, .. } => CanonicalConstValue::from_atom(name.as_str())
+            .map_or_else(|| name.to_string(), |value| value.display),
         _ => program.display_type_reference(argument),
     }
 }
 
-fn domain_constraint_label(
-    program: &dyn crate::CheckingInput,
-    domain: &typed_trees::types::DomainConstraint,
-) -> String {
+fn domain_constraint_label(program: &dyn CheckingInput, domain: &DomainConstraint) -> String {
     if domain.arguments.is_empty() {
         return domain.name.to_string();
     }
@@ -721,10 +711,7 @@ fn domain_constraint_label(
     format!("{}<{arguments}>", domain.name)
 }
 
-fn qualification_cast_label(
-    program: &dyn crate::CheckingInput,
-    cast: &typed_trees::expression::TableCastExpression,
-) -> String {
+fn qualification_cast_label(program: &dyn CheckingInput, cast: &TableCastExpression) -> String {
     let name = expression_table(program).name_path_string(cast.semantic_domain);
     if cast.semantic_domain_arguments.is_empty() {
         return name;

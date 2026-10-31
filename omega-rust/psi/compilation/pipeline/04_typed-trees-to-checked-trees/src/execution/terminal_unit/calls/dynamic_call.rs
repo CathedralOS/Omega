@@ -17,6 +17,10 @@
 //! `requires` against these operands, and every selectable implementation
 //! refines it where its conformance is checked.
 
+use super::CallTarget;
+use super::ResolvedCallTarget;
+use super::call_operations::call_value_result_matches;
+use super::structural_result_call::with_structural_custody;
 use crate::execution::terminal_unit::calls::argument_paths::checked_call_scalar_arguments;
 use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, structural_call_arguments,
@@ -59,12 +63,7 @@ pub(super) fn build(
     phase("call operation: dynamic result shape");
     let result_matches = match expected_call_result {
         None => is_unit(program, slot.return_type),
-        Some(expected) => super::call_operations::call_value_result_matches(
-            program,
-            slot.return_type,
-            expected,
-            &[],
-        ),
+        Some(expected) => call_value_result_matches(program, slot.return_type, expected, &[]),
     };
     if !result_matches {
         return None;
@@ -80,7 +79,7 @@ pub(super) fn build(
         state,
         caller_parameters,
         caller_trivial_affine_locals,
-        super::CallTarget::dynamic_slot(slot),
+        CallTarget::dynamic_slot(slot),
         call_site,
         call.statement_index,
         caller_structural_results,
@@ -156,7 +155,7 @@ pub(super) fn build(
     } else {
         Vec::new()
     };
-    let (target_machine, target_state) = super::ResolvedCallTarget::DynamicSlot(slot).identity();
+    let (target_machine, target_state) = ResolvedCallTarget::DynamicSlot(slot).identity();
     let parts = CheckedUnitCallParts {
         coordinate,
         completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
@@ -192,14 +191,7 @@ pub(super) fn build(
     };
     if structural_result.is_some() {
         phase("call operation: dynamic structural custody");
-        super::structural_result_call::with_structural_custody(
-            program,
-            facts,
-            machine.symbol,
-            state.symbol,
-            trace,
-            parts,
-        )
+        with_structural_custody(program, facts, machine.symbol, state.symbol, trace, parts)
     } else {
         CheckedUnitCallPlan::new(parts).map(CheckedUnitEffectOperationPlan::Call)
     }

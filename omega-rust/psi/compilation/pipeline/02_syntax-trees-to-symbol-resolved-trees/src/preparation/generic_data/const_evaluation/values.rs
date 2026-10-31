@@ -26,6 +26,7 @@ use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
+use super::facts::prove_const_data_predicates;
 use crate::preparation::declaration_selection::{
     ConstantSelection, GenericApplicationSubstitution, resolved_generic_argument,
     substituted_generic_arguments,
@@ -37,7 +38,11 @@ use crate::preparation::generic_data::arguments::{
 };
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::qualified_const_name;
+use crate::preparation::generic_data::type_reference_slug;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::LandedIntegerType;
+use symbols::SymbolKind;
+use syntax_trees::item::TypeParameterKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::preparation::generic_data) enum CanonicalConstNode {
@@ -570,25 +575,14 @@ fn closed_application_argument_labels(
         .map(|(parameter, argument)| {
             closed_parameter_argument_identity(syntax, selection, *argument, &parameter.kind)
                 .ok_or("generic const carrier is not a closed monomorphizable application")?;
-            if matches!(
-                parameter.kind,
-                syntax_trees::item::TypeParameterKind::Implementation
-            ) {
+            if matches!(parameter.kind, TypeParameterKind::Implementation) {
                 return selected_implementation_label(syntax, *argument, selection);
             }
-            if let Some(slug) =
-                crate::preparation::generic_data::type_reference_slug(syntax, *argument, selection)
-            {
+            if let Some(slug) = type_reference_slug(syntax, *argument, selection) {
                 return Ok(slug);
             }
             let label = selected_type_label(syntax, *argument, selection)?;
-            qualify_application_label(
-                syntax,
-                *argument,
-                label,
-                symbols::SymbolKind::Data,
-                selection,
-            )
+            qualify_application_label(syntax, *argument, label, SymbolKind::Data, selection)
         })
         .collect()
 }
@@ -634,7 +628,7 @@ fn selected_implementation_label(
         syntax,
         reference,
         label,
-        symbols::SymbolKind::Conformance,
+        SymbolKind::Conformance,
         Some(selection),
     )
 }
@@ -643,7 +637,7 @@ fn qualify_application_label(
     syntax: &SyntaxTrees,
     reference: TypeReferenceHandle,
     label: String,
-    kind: symbols::SymbolKind,
+    kind: SymbolKind,
     selection: Option<&ConstantSelection>,
 ) -> Result<String, String> {
     let name = match syntax.type_references.type_reference(reference) {
@@ -1021,10 +1015,7 @@ pub(crate) fn closed_fixed_array_length(
                 &definition,
                 Some(selection),
             )?;
-            let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                value,
-                ..
-            }) = value.decode_encoding()
+            let Some(DecodedCanonicalConstValue::Integer { value, .. }) = value.decode_encoding()
             else {
                 return Err("array extent constant must have an integer carrier".to_owned());
             };
@@ -1810,13 +1801,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
         _ => Err(format!("expected a `{type_name}` structural literal")),
     }?;
     if admission == ConstPredicateAdmission::ProveSyntax {
-        super::facts::prove_const_data_predicates(
-            syntax,
-            definition,
-            &value,
-            substitution,
-            selection,
-        )?;
+        prove_const_data_predicates(syntax, definition, &value, substitution, selection)?;
     }
     Ok(value)
 }

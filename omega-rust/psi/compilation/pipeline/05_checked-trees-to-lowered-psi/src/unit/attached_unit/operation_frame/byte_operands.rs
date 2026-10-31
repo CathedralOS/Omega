@@ -6,6 +6,7 @@ use super::*;
 use crate::emission::operation_emission::buffer::structural_result_declaration;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::structural_byte_sequence_store as byte_store;
+use crate::expression_preparation::bindings::structural_paths::lower_argument_path;
 use checked_trees::{CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourcePlan as Source};
 
 impl OperationFrame<'_, '_> {
@@ -152,15 +153,13 @@ impl OperationFrame<'_, '_> {
         )?
         .into_iter();
         let mut path = home.path;
-        path.extend(
-            crate::expression_preparation::bindings::structural_paths::lower_argument_path(
-                identities,
-                &source.path,
-                Some(self.values.as_slice()),
-                &mut selectors,
-                Some(&mut *self.calls),
-            )?,
-        );
+        path.extend(lower_argument_path(
+            identities,
+            &source.path,
+            Some(self.values.as_slice()),
+            &mut selectors,
+            Some(&mut *self.calls),
+        )?);
         let destination = place_id(allocate_dense(self.next_place)?);
         let producer = self.operations.allocate();
         self.operations.push(Operation::unsuspended(

@@ -18,6 +18,8 @@ use super::{
     lower_unit_closure, obligation_id, unsupported,
 };
 use crate::checked_facts::value_facts;
+use crate::expression_preparation::computation_graph::reachable_nodes;
+use crate::machine_lowering::nominal_cleanup_subject;
 use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
@@ -378,9 +380,7 @@ pub(crate) fn computation_cleanups(
     let plans = &checked.facts.values.scalar_computations;
     let roots = plans.roots_for_machine(machine);
     let mut cleanups = Vec::new();
-    for identity in
-        crate::expression_preparation::computation_graph::reachable_nodes(checked, &roots)?
-    {
+    for identity in reachable_nodes(checked, &roots)? {
         let retained = match plans.nodes.get(identity).kind {
             checked_trees::CheckedScalarComputationKind::Call {
                 temporary_cleanups, ..
@@ -715,11 +715,8 @@ pub(super) fn bind_nominal_cleanup_subjects(
         // argument. A static named subject still carries the same selected
         // T::drop owner while its ordinary parameter carries the storage.
         emitted.attachment = Some(owner);
-        emitted.nominal_cleanup_subject = crate::machine_lowering::nominal_cleanup_subject(
-            checked,
-            cleanup.cleanup_machine,
-            type_ids,
-        )?;
+        emitted.nominal_cleanup_subject =
+            nominal_cleanup_subject(checked, cleanup.cleanup_machine, type_ids)?;
     }
     Ok(())
 }

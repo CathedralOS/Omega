@@ -4,8 +4,8 @@
 //! General domain predicates use the shared declaration-owned projection and
 //! remain conjoined with every retained interval shell.
 use super::{
-    CheckedUnitStructuralFieldType, DataMember, PrimitiveType, SymbolHandle, TypeReferenceHandle,
-    TypeReferenceNode, substituted_formal_type,
+    CheckedUnitStructuralFieldType as FieldType, DataMember, PrimitiveType, SymbolHandle,
+    TypeReferenceHandle, TypeReferenceNode, substituted_formal_type,
 };
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
@@ -31,9 +31,8 @@ pub(crate) fn field_requires_place_observation(
         primitive,
         stated_field_interval(program, field),
     ) {
-        Some(CheckedUnitStructuralFieldType::Scalar(_)) => false,
-        Some(CheckedUnitStructuralFieldType::BoundedInteger(_))
-        | Some(CheckedUnitStructuralFieldType::RefinedScalar { .. })
+        Some(FieldType::Scalar(_)) => false,
+        Some(FieldType::BoundedInteger(_)) | Some(FieldType::RefinedScalar { .. })
             if access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
         {
             false
@@ -55,11 +54,8 @@ pub(in crate::execution::terminal_unit) fn supports_primitive_storage(
         return false;
     };
     match retain_scalar_field(program, type_reference, &[], primitive, None) {
-        Some(CheckedUnitStructuralFieldType::Scalar(_)) => {
-            validation::is_plain_scalar_storage(program, type_reference)
-        }
-        Some(CheckedUnitStructuralFieldType::BoundedInteger(_))
-        | Some(CheckedUnitStructuralFieldType::RefinedScalar { .. }) => true,
+        Some(FieldType::Scalar(_)) => validation::is_plain_scalar_storage(program, type_reference),
+        Some(FieldType::BoundedInteger(_)) | Some(FieldType::RefinedScalar { .. }) => true,
         _ => false,
     }
 }
@@ -102,7 +98,7 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     primitive: PrimitiveType,
     stated: Option<(Option<i64>, Option<i64>)>,
-) -> Option<CheckedUnitStructuralFieldType> {
+) -> Option<FieldType> {
     // The owning data's interval-only `where` facts restrict the field as a
     // bracketed range did: every write establishes them and every read may
     // assume them. An unstated side is the carrier's own extreme.
@@ -254,7 +250,7 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
             return None;
         }
         if declared_bounds.is_none() {
-            return Some(CheckedUnitStructuralFieldType::Atomic(primitive));
+            return Some(FieldType::Atomic(primitive));
         }
     }
     if has_non_exact_domain && (declared_bounds.is_some() || predicate.is_some()) {
@@ -305,7 +301,7 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     };
     let bounds = BoundedIntegerType::new(integer_type, minimum, maximum).ok()?;
     if atomic {
-        return Some(CheckedUnitStructuralFieldType::AtomicBoundedInteger(bounds));
+        return Some(FieldType::AtomicBoundedInteger(bounds));
     }
     validation::scalar_field_restriction(primitive, Some(bounds), predicate)
 }

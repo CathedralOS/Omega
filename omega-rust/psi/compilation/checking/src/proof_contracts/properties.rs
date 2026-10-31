@@ -21,6 +21,7 @@
 //! a type property.
 
 use diagnostics::Diagnostic;
+use language_semantics::Multiplicity;
 use typed_trees::data::{DataDefinition, TypeParameter};
 use typed_trees::types::TypeReferenceNode;
 
@@ -96,7 +97,7 @@ pub(crate) fn validate_data_properties(
             continue;
         }
 
-        if properties.multiplicity == language_semantics::Multiplicity::Unrestricted {
+        if properties.multiplicity == Multiplicity::Unrestricted {
             validate_copy_property(program, data_definition, diagnostics);
         }
         if let Some(carry) = properties.carry {
@@ -203,7 +204,7 @@ fn validate_opaque_data_properties(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let properties = data_definition.properties;
-    if properties.multiplicity == language_semantics::Multiplicity::Unrestricted
+    if properties.multiplicity == Multiplicity::Unrestricted
         && !allow_pending_copy
         && !receipts.iter().any(|receipt| {
             receipt.declaration == data_definition.symbol
@@ -260,7 +261,7 @@ fn validate_opaque_property_receipts(
         match receipt.kind {
             OpaqueDataPropertyReceiptKind::Copy
                 if definition.properties.multiplicity
-                    == language_semantics::Multiplicity::Unrestricted => {}
+                    == Multiplicity::Unrestricted => {}
             OpaqueDataPropertyReceiptKind::Copy => diagnostics.push(Diagnostic::error(format!(
                 "opaque data property receipt grants `[copy]` to `{}`, but that declaration does not claim `[copy]`",
                 definition.name,
@@ -408,10 +409,10 @@ pub fn declared_property_requirements(
     properties: &typed_trees::data::DataProperties,
 ) -> Vec<DeclaredPropertyRequirement> {
     let mut names = Vec::new();
-    if properties.multiplicity == language_semantics::Multiplicity::Unrestricted {
+    if properties.multiplicity == Multiplicity::Unrestricted {
         names.push(DeclaredPropertyRequirement::Copy);
     }
-    if properties.multiplicity == language_semantics::Multiplicity::Linear {
+    if properties.multiplicity == Multiplicity::Linear {
         names.push(DeclaredPropertyRequirement::Linear);
     }
     if let Some(carry) = properties.carry {
@@ -437,8 +438,8 @@ fn type_parameter_for_reference<'program>(
 
 fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -> bool {
     match property {
-        "copy" => parameter.bounds.multiplicity == language_semantics::Multiplicity::Unrestricted,
-        "linear" => parameter.bounds.multiplicity == language_semantics::Multiplicity::Linear,
+        "copy" => parameter.bounds.multiplicity == Multiplicity::Unrestricted,
+        "linear" => parameter.bounds.multiplicity == Multiplicity::Linear,
         _ => false,
     }
 }
@@ -491,12 +492,8 @@ fn named_type_declares_property(
             }
         })
         .is_some_and(|definition| match property {
-            "copy" => {
-                definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
-            }
-            "linear" => {
-                definition.properties.multiplicity == language_semantics::Multiplicity::Linear
-            }
+            "copy" => definition.properties.multiplicity == Multiplicity::Unrestricted,
+            "linear" => definition.properties.multiplicity == Multiplicity::Linear,
             _ => false,
         })
 }

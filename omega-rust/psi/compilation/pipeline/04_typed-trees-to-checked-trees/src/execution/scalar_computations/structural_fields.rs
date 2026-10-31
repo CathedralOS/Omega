@@ -6,13 +6,13 @@
 //! completed value supplies the element. Established storage keeps its
 //! indexed-read selection, which also serves runtime selectors.
 use super::{
-    Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
-    ExpressionNode,
+    Builder, CheckedScalarComputationHandle as ComputationHandle,
+    CheckedScalarComputationKind as ComputationKind, ExpressionHandle, ExpressionNode,
 };
 use crate::places::place_at;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
 };
 
 /// A typed scalar observation keeps the complete source carrier and final
@@ -82,10 +82,10 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         receiver_value: checked_trees::CheckedStructuralValueHandle,
         observation: ScalarObservation,
-    ) -> CheckedScalarComputationHandle {
+    ) -> ComputationHandle {
         self.insert(
             observation.primitive_type,
-            CheckedScalarComputationKind::StructuralField {
+            ComputationKind::StructuralField {
                 atomic_ordering: None,
                 result_type: observation.result_type,
                 source_expression: expression,
@@ -94,9 +94,7 @@ impl Builder<'_, '_> {
                 receiver_value,
                 subject: CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        expression,
-                    },
+                    source: SourcePlan::StructuralExpression { expression },
                     path: observation.path,
                     type_identity: validation::stored_structural_type_identity(
                         self.program,
@@ -122,7 +120,7 @@ impl Builder<'_, '_> {
         indices: &[u32],
         leaf_type: typed_trees::types::TypeReferenceHandle,
         primitive_type: typed_trees::types::PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
+    ) -> Option<ComputationHandle> {
         let coordinate = self.canonical_place(row)?;
         let facts::PlaceRoot::Symbol(symbol) = coordinate.root else {
             return None;
@@ -189,7 +187,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: typed_trees::types::PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
+    ) -> Option<ComputationHandle> {
         let reference = self.expression_type(expression)?;
         let observation = self.scalar_observation_type(reference)?;
         if observation.primitive_type != expected {
@@ -208,7 +206,7 @@ impl Builder<'_, '_> {
     /// Nominal temporary owners retain their separately checked normal death.
     pub(super) fn observation_completion_actions(
         &mut self,
-        kind: &CheckedScalarComputationKind,
+        kind: &ComputationKind,
     ) -> arena::HandleSpan<checked_trees::CheckedNormalCleanupAction> {
         let receiver_value = kind.observed_receiver();
         if !receiver_value.is_valid() {
@@ -229,7 +227,7 @@ impl Builder<'_, '_> {
         {
             return arena::HandleSpan::empty();
         }
-        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+        let source = SourcePlan::StructuralExpression {
             expression: receiver.expression,
         };
         let Some(actions) = crate::execution::terminal_unit::cleanup::descriptor_retirement(
@@ -250,7 +248,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: typed_trees::types::PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
+    ) -> Option<ComputationHandle> {
         let observation = self.primitive_reference_observation_type(expression)?;
         if observation.primitive_type != expected {
             return None;
@@ -445,7 +443,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         field: validation::StructuralScalarField,
-    ) -> Option<CheckedScalarComputationHandle> {
+    ) -> Option<ComputationHandle> {
         let receiver_value = if let Some(captured) = self.captured_dispatch_value(expression)
             && captured.type_reference == field.type_reference
             && field.root == facts::PlaceRoot::Expression(captured.expression)
@@ -461,13 +459,13 @@ impl Builder<'_, '_> {
         let source = match field.root {
             facts::PlaceRoot::Symbol(symbol) => self.structural_source(symbol),
             facts::PlaceRoot::Expression(expression) => {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
+                SourcePlan::StructuralExpression { expression }
             }
             _ => return None,
         };
         Some(self.insert(
             field.primitive_type,
-            CheckedScalarComputationKind::StructuralField {
+            ComputationKind::StructuralField {
                 atomic_ordering: None,
                 result_type: field.result_type_reference,
                 source_expression: expression,

@@ -3,6 +3,9 @@
 //! A normal consuming call closes its exact actuals only after overlapping
 //! retained holders have all ended. Old scalar observations stay invalidated.
 
+use crate::borrow::call_reference_lifetime_sources;
+use crate::borrow::place_path_covers_owner;
+use crate::collections::push_unique;
 use checked_trees::{
     BorrowCallFact, BorrowFacts, BorrowLoanFact, BorrowLoanLineage, FlowControlFacts,
 };
@@ -31,7 +34,7 @@ impl RetainedBorrowHandback {
 
     fn require_supplies(&mut self, other: &Self) {
         for supply in &other.supplies {
-            crate::collections::push_unique(&mut self.supplies, supply.clone());
+            push_unique(&mut self.supplies, supply.clone());
         }
     }
 }
@@ -78,7 +81,7 @@ fn ending_inputs(
     let parameters = site.parameters(program, machine.symbol)?;
     let returned = match &site {
         validation::CallSite::Expression { call, .. } => {
-            crate::borrow::call_reference_lifetime_sources(program, state.symbol, call)?
+            call_reference_lifetime_sources(program, state.symbol, call)?
                 .into_iter()
                 .map(|source| source.parameter_index)
                 .collect::<Vec<_>>()
@@ -140,11 +143,7 @@ pub(super) fn handbacks(
     let covers = |holders: &[CanonicalPlace], loan: &BorrowLoanFact| {
         holders.iter().any(|holder| {
             holder.root == loan.storage_owner
-                && crate::borrow::place_path_covers_owner(
-                    program,
-                    &holder.segments,
-                    borrow.loan_owner_path(loan),
-                )
+                && place_path_covers_owner(program, &holder.segments, borrow.loan_owner_path(loan))
         })
     };
     let formed_before = |loan: &BorrowLoanFact, invocation: &BorrowCallFact| {

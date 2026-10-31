@@ -8,6 +8,8 @@
 //! at the storage that reference's loans captured, by the same place-access
 //! judgment as a read or a write through it.
 
+use crate::checks::ownership_occurrences::InvocationIdentity::Expression;
+use crate::checks::ownership_occurrences::statement_steps;
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
@@ -266,7 +268,7 @@ fn invocation_is_evaluated(
     else {
         return true;
     };
-    crate::checks::ownership_occurrences::statement_steps(
+    statement_steps(
         program,
         machine,
         state,
@@ -276,12 +278,5 @@ fn invocation_is_evaluated(
         &facts.operators,
     )
     .iter()
-    .any(|occurrence| {
-        occurrence.invocation
-            == Some(
-                crate::checks::ownership_occurrences::InvocationIdentity::Expression(
-                    call.authored_expression,
-                ),
-            )
-    })
+    .any(|occurrence| occurrence.invocation == Some(Expression(call.authored_expression)))
 }

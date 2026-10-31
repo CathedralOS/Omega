@@ -1,7 +1,23 @@
 //! Contextual domain, value and statement member targets.
 
-use validation::selection_resolution::AuthoredSelectionResolutionTarget;
+use arena::Arena;
+use typed_trees::data::DataMember;
+use typed_trees::machine::Machine;
+use typed_trees::operator::OperandType;
+use typed_trees::operator::binary_operator_spelling;
+use typed_trees::operator::resolve_spelling_for_operand_types;
+use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceHandle;
+use validation::expression_owners::OwnerEnvironmentIndex;
+use validation::expression_owners::OwnerMemberTarget;
+use validation::expression_owners::checked_member_target_from_exact_owner;
+use validation::expression_traversal::collect_statement_expression_trees;
+use validation::field_domains::data_definition_by_symbol_or_name;
 use validation::selection_resolution::declaration_target;
+use validation::selection_resolution::{
+    AuthoredSelectionResolutionTarget as ResolutionTarget, authored_data_member,
+};
 
 use crate::authored_selections::operator_targets::{
     authored_operand_descriptor, authored_operand_type,
@@ -9,68 +25,63 @@ use crate::authored_selections::operator_targets::{
 use crate::flow::indexed_statements;
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
-use validation::collection_operations::MeasureReceiver;
-use validation::declaration_type_reference;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
+use validation::collection_operations::{MeasureReceiver, collection_measure_member};
+use validation::{
+    data_member_symbol_by_name, declaration_type_reference, effective_member_symbol,
+    expression_type_reference_in_state,
+};
 
 pub(crate) fn checked_member_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
-    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
-) -> Option<AuthoredSelectionResolutionTarget> {
-    declaration_target(validation::effective_member_symbol(
-        program,
-        member.receiver,
-        member,
-    ))
-    .or_else(|| {
-        validation::expression_owners::checked_member_target_from_exact_owner(
-            program,
-            &facts.proof.contract_facts,
-            expression,
-            member,
-            owner_index,
-        )
-        .map(|target| match target {
-            validation::expression_owners::OwnerMemberTarget::Declaration(symbol) => {
-                AuthoredSelectionResolutionTarget::Declaration(symbol)
-            }
-            validation::expression_owners::OwnerMemberTarget::CollectionMeasure(measure) => {
-                AuthoredSelectionResolutionTarget::Intrinsic(measure.intrinsic())
-            }
-        })
-    })
-    .or_else(|| {
-        let matching = facts
-            .fact_call_projections
-            .iter()
-            .filter(|projection| projection.projection_expression == expression)
-            .collect::<Vec<_>>();
-        let [projection] = matching.as_slice() else {
-            return None;
-        };
-        declaration_target(projection.field)
-    })
-    .or_else(|| checked_value_member_target(program, facts, member))
-    .or_else(|| authored_member_target(program, member))
-    .or_else(|| contextual_statement_member_target(program, expression, member))
-    .map(|target| match target {
-        AuthoredSelectionResolutionTarget::Declaration(symbol) => {
-            AuthoredSelectionResolutionTarget::Declaration(
-                validation::selection_resolution::authored_data_member(program, symbol),
+    expression: ExpressionHandle,
+    member: &TableMemberExpression,
+    owner_index: Option<&OwnerEnvironmentIndex>,
+) -> Option<ResolutionTarget> {
+    declaration_target(effective_member_symbol(program, member.receiver, member))
+        .or_else(|| {
+            checked_member_target_from_exact_owner(
+                program,
+                &facts.proof.contract_facts,
+                expression,
+                member,
+                owner_index,
             )
-        }
-        target => target,
-    })
+            .map(|target| match target {
+                OwnerMemberTarget::Declaration(symbol) => ResolutionTarget::Declaration(symbol),
+                OwnerMemberTarget::CollectionMeasure(measure) => {
+                    ResolutionTarget::Intrinsic(measure.intrinsic())
+                }
+            })
+        })
+        .or_else(|| {
+            let matching = facts
+                .fact_call_projections
+                .iter()
+                .filter(|projection| projection.projection_expression == expression)
+                .collect::<Vec<_>>();
+            let [projection] = matching.as_slice() else {
+                return None;
+            };
+            declaration_target(projection.field)
+        })
+        .or_else(|| checked_value_member_target(program, facts, member))
+        .or_else(|| authored_member_target(program, member))
+        .or_else(|| contextual_statement_member_target(program, expression, member))
+        .map(|target| match target {
+            ResolutionTarget::Declaration(symbol) => {
+                ResolutionTarget::Declaration(authored_data_member(program, symbol))
+            }
+            target => target,
+        })
 }
 
 fn checked_value_member_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    member: &typed_trees::expression::TableMemberExpression,
-) -> Option<AuthoredSelectionResolutionTarget> {
+    member: &TableMemberExpression,
+) -> Option<ResolutionTarget> {
     let mut resolved = None;
     for (_, value) in facts.values.expression_values(member.receiver) {
         if !value.type_reference.is_valid() {
@@ -96,8 +107,8 @@ fn checked_value_member_target(
 
 fn authored_member_target(
     program: &dyn ::validation::CheckingInput,
-    member: &typed_trees::expression::TableMemberExpression,
-) -> Option<AuthoredSelectionResolutionTarget> {
+    member: &TableMemberExpression,
+) -> Option<ResolutionTarget> {
     let receiver_type = authored_operand_type(program, member.receiver)?;
     member_symbol_from_type_reference(program, receiver_type, member.member.as_str())
         .and_then(declaration_target)
@@ -108,23 +119,14 @@ fn authored_member_target(
 /// statement expression tree contains `needle`; `None` aborts the walk.
 pub(super) fn for_each_statement_containing(
     program: &dyn ::validation::CheckingInput,
-    needle: typed_trees::expression::ExpressionHandle,
-    mut visit: impl FnMut(
-        &typed_trees::machine::Machine,
-        &typed_trees::state::State,
-        usize,
-        &typed_trees::statement::StatementNode,
-    ) -> Option<()>,
+    needle: ExpressionHandle,
+    mut visit: impl FnMut(&Machine, &State, usize, &StatementNode) -> Option<()>,
 ) -> Option<()> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let mut expressions = Vec::new();
-                validation::expression_traversal::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
+                collect_statement_expression_trees(program, statement, &mut expressions);
                 if !expressions.contains(&needle) {
                     continue;
                 }
@@ -137,12 +139,12 @@ pub(super) fn for_each_statement_containing(
 
 fn contextual_statement_member_target(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-    member: &typed_trees::expression::TableMemberExpression,
-) -> Option<AuthoredSelectionResolutionTarget> {
+    expression: ExpressionHandle,
+    member: &TableMemberExpression,
+) -> Option<ResolutionTarget> {
     let mut resolved = None;
     for_each_statement_containing(program, expression, |_, state, statement_index, _| {
-        let receiver_type = validation::expression_type_reference_in_state(
+        let receiver_type = expression_type_reference_in_state(
             program,
             state.symbol,
             statement_index,
@@ -163,7 +165,7 @@ fn contextual_statement_member_target(
 
 fn member_symbol_from_type_reference(
     program: &dyn ::validation::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
     use typed_trees::types::TypeReferenceNode;
@@ -187,13 +189,13 @@ fn member_symbol_from_type_reference(
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => return None,
     };
-    let data = validation::field_domains::data_definition_by_symbol_or_name(program, symbol, name)?;
-    validation::data_member_symbol_by_name(program, data, member_name).or_else(|| {
+    let data = data_definition_by_symbol_or_name(program, symbol, name)?;
+    data_member_symbol_by_name(program, data, member_name).or_else(|| {
         program
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant) => program
+                DataMember::Variant(variant) => program
                     .data_payload_fields(variant)
                     .iter()
                     .find_map(|field| (field.name.as_str() == member_name).then_some(field.symbol)),
@@ -207,17 +209,12 @@ fn member_symbol_from_type_reference(
 /// declaration. Anything else yields no intrinsic target.
 fn collection_measure_target(
     program: &dyn ::validation::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    member: &typed_trees::expression::TableMemberExpression,
-) -> Option<AuthoredSelectionResolutionTarget> {
-    let measure = validation::collection_operations::collection_measure_member(
-        program,
-        member,
-        MeasureReceiver::Declared(type_reference),
-    )?;
-    Some(AuthoredSelectionResolutionTarget::Intrinsic(
-        measure.intrinsic(),
-    ))
+    type_reference: TypeReferenceHandle,
+    member: &TableMemberExpression,
+) -> Option<ResolutionTarget> {
+    let measure =
+        collection_measure_member(program, member, MeasureReceiver::Declared(type_reference))?;
+    Some(ResolutionTarget::Intrinsic(measure.intrinsic()))
 }
 
 /// With a walk's `owners` index the statements containing the expression come
@@ -227,9 +224,9 @@ fn collection_measure_target(
 pub(crate) fn expression_is_contextual_statement_primitive(
     program: &dyn ::validation::CheckingInput,
     _facts: &CheckFacts,
-    containing_expression: typed_trees::expression::ExpressionHandle,
-    operand: typed_trees::expression::ExpressionHandle,
-    owners: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
+    containing_expression: ExpressionHandle,
+    operand: ExpressionHandle,
+    owners: Option<&OwnerEnvironmentIndex>,
 ) -> bool {
     if let Some(owners) = owners {
         let sites = owners.containing_statement_sites(containing_expression);
@@ -237,12 +234,9 @@ pub(crate) fn expression_is_contextual_statement_primitive(
         for (machine, state, statement_index) in sites {
             let machine = &program.machines()[machine];
             let state = &program.machine_states(machine)[state];
-            let Some(type_reference) = validation::expression_type_reference_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                operand,
-            ) else {
+            let Some(type_reference) =
+                expression_type_reference_in_state(program, state.symbol, statement_index, operand)
+            else {
                 return false;
             };
             if program.primitive_type_reference(type_reference).is_none() {
@@ -257,12 +251,9 @@ pub(crate) fn expression_is_contextual_statement_primitive(
         program,
         containing_expression,
         |_, state, statement_index, _| {
-            let Some(type_reference) = validation::expression_type_reference_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                operand,
-            ) else {
+            let Some(type_reference) =
+                expression_type_reference_in_state(program, state.symbol, statement_index, operand)
+            else {
                 return None;
             };
             if program.primitive_type_reference(type_reference).is_none() {
@@ -280,8 +271,8 @@ pub(crate) fn expression_is_contextual_statement_primitive(
 /// facts (`OwnerEnvironmentIndex::program_only`).
 pub(crate) fn expression_is_intrinsic_primitive_without_origin(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-    program_owners: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
+    expression: ExpressionHandle,
+    program_owners: Option<&OwnerEnvironmentIndex>,
 ) -> bool {
     let type_reference = match program.tables.expression_table.expression(expression) {
         ExpressionNode::Boolean(_)
@@ -299,30 +290,27 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::Member(member) => {
             if matches!(
-                validation::expression_owners::checked_member_target_from_exact_owner(
+                checked_member_target_from_exact_owner(
                     program,
-                    &arena::Arena::default(),
+                    &Arena::default(),
                     expression,
                     member,
                     program_owners,
                 ),
-                Some(validation::expression_owners::OwnerMemberTarget::CollectionMeasure(_))
+                Some(OwnerMemberTarget::CollectionMeasure(_))
             ) {
                 return true;
             }
             declaration_type_reference(
                 program,
-                validation::effective_member_symbol(program, member.receiver, member),
+                effective_member_symbol(program, member.receiver, member),
             )
         }
-        ExpressionNode::Binary(binary)
-            if typed_trees::operator::binary_operator_spelling(binary.operator).is_none() =>
-        {
+        ExpressionNode::Binary(binary) if binary_operator_spelling(binary.operator).is_none() => {
             return true;
         }
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
-            else {
+            let Some(spelling) = binary_operator_spelling(binary.operator) else {
                 unreachable!("handled above")
             };
             let operand_types = [
@@ -339,7 +327,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                 return expression_is_anonymous_arithmetic(program, binary.left)
                     && expression_is_anonymous_arithmetic(program, binary.right);
             }
-            if !typed_trees::operator::resolve_spelling_for_operand_types(
+            if !resolve_spelling_for_operand_types(
                 program,
                 spelling,
                 &operand_types,
@@ -353,17 +341,19 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
             // a comparison result, a boolean literal -- answers this question
             // directly; it is exactly a builtin primitive with nothing to
             // point at.
-            return operand_types.iter().any(|operand| {
-                matches!(operand, typed_trees::operator::OperandType::Primitive(_))
-            }) || expression_is_intrinsic_primitive_without_origin(
-                program,
-                binary.left,
-                program_owners,
-            ) || expression_is_intrinsic_primitive_without_origin(
-                program,
-                binary.right,
-                program_owners,
-            );
+            return operand_types
+                .iter()
+                .any(|operand| matches!(operand, OperandType::Primitive(_)))
+                || expression_is_intrinsic_primitive_without_origin(
+                    program,
+                    binary.left,
+                    program_owners,
+                )
+                || expression_is_intrinsic_primitive_without_origin(
+                    program,
+                    binary.right,
+                    program_owners,
+                );
         }
         ExpressionNode::Unary(_) => return true,
         ExpressionNode::Borrow(inner) => {
@@ -386,7 +376,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
 /// until it lands, so no authored operator spelling applies to it.
 fn expression_is_anonymous_arithmetic(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> bool {
     use typed_trees::expression::BinaryOperator;
     match program.tables.expression_table.expression(expression) {

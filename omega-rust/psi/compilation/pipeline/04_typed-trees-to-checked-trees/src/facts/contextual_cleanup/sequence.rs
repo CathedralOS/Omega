@@ -9,6 +9,7 @@
 //! The selected receiver's captured path identifies its storage; ordering uses
 //! geometry inside that value, not the runtime selector that located it.
 
+use crate::flow;
 use validation::CanonicalPlace;
 
 use crate::facts::boolean_predicates::{self, BoundPredicate};
@@ -108,22 +109,17 @@ impl CurrentCleanupFacts {
         let machine = program.machine_by_symbol(hook)?;
         let state = program.machine_states(machine).first()?;
         let receiver = program.state_parameters(state).first()?;
-        let writes = crate::flow::state_storage_writes(
-            program,
-            &facts.borrow,
-            summaries,
-            state,
-            call_frames,
-        )
-        .and_then(|writes| {
-            writes
-                .into_iter()
-                .map(|write| rebase_place(receiver.symbol, place, write))
-                .collect::<Option<Vec<_>>>()
-        });
+        let writes =
+            flow::state_storage_writes(program, &facts.borrow, summaries, state, call_frames)
+                .and_then(|writes| {
+                    writes
+                        .into_iter()
+                        .map(|write| rebase_place(receiver.symbol, place, write))
+                        .collect::<Option<Vec<_>>>()
+                });
         if let Some(writes) = writes {
             self.contexts.retain(|context| {
-                crate::flow::context_survives_place_mutations(
+                flow::context_survives_place_mutations(
                     program,
                     &facts.semantic,
                     &facts.domains,
@@ -283,11 +279,7 @@ fn overlaps(
     right: &CanonicalPlace,
 ) -> bool {
     left.root == right.root
-        && crate::flow::canonical_place_segments_may_overlap(
-            program,
-            &left.segments,
-            &right.segments,
-        )
+        && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
 }
 
 #[derive(Clone)]
@@ -316,10 +308,10 @@ pub(super) fn ordered_hooks(
             continue;
         };
         let relative_path = path.strip_prefix(selected_path)?;
-        let paths = crate::flow::concrete_cleanup_paths(relative_path)?;
+        let paths = flow::concrete_cleanup_paths(relative_path)?;
         hooks.try_reserve_exact(paths.len()).ok()?;
         for relative_path in paths {
-            let order = crate::flow::cleanup_path_order(program, &relative_path)?;
+            let order = flow::cleanup_path_order(program, &relative_path)?;
             let mut path = selected_path.to_vec();
             path.extend(relative_path);
             hooks.push(SelectedHook {

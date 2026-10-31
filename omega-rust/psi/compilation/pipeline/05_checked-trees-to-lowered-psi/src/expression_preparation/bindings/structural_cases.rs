@@ -7,6 +7,7 @@ use super::{
     LoweringError, PlaceId, StructuralAccess, StructuralParameterDeclaration,
     StructuralTypeDeclaration, unsupported,
 };
+use crate::emission::structural_observations::explicit_path;
 use crate::structural_types::unique_declaration;
 
 #[derive(Clone)]
@@ -250,12 +251,7 @@ fn prepare_observation_path(
     structural_type: StructuralTypeId,
     steps: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<(StructuralTypeId, Vec<terminal_psi::StructuralPathSegment>), LoweringError> {
-    let observation = crate::emission::structural_observations::explicit_path(
-        identities,
-        structural_type,
-        steps,
-        declarations,
-    )?;
+    let observation = explicit_path(identities, structural_type, steps, declarations)?;
     let selected = observation.declaration.ok_or(LoweringError::Unsupported(
         "case observation requires a structural carrier endpoint",
     ))?;

@@ -2,6 +2,8 @@
 //! register instructions. The normalized atomic decoder owns source meaning;
 //! no ordinary assignment or fence can publish a release-store event.
 use super::FlowBuildContext;
+use super::call_phases::CallFlowContexts;
+use super::reference_spans::append_semantic_context;
 use arena::HandleSpan;
 use checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
 use facts::{
@@ -38,17 +40,11 @@ pub(super) fn append(
     });
     let mut references = HandleSpan::empty();
     semantic.append_ref(&mut references, fact);
-    let mut completed = super::call_phases::CallFlowContexts {
+    let mut completed = CallFlowContexts {
         contexts: *contexts,
         constraints: *constraints,
     };
-    super::reference_spans::append_semantic_context(
-        semantic,
-        build,
-        &mut completed,
-        point,
-        references,
-    );
+    append_semantic_context(semantic, build, &mut completed, point, references);
     *contexts = completed.contexts;
     *constraints = completed.constraints;
 }

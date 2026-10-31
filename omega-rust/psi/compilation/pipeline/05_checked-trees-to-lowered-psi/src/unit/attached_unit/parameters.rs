@@ -13,14 +13,18 @@ use super::{
     require_valid_service_row, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
+use crate::expression_preparation::bindings::structural_fields::resolve_typed;
+use crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path;
 use crate::expression_preparation::bindings::structural_paths::{
     lower_typed_argument_path, structural_access_can_supply, structural_argument, terminal_access,
 };
 use crate::expression_preparation::bindings::{
     StructuralLocalBinding, StructuralScalarFieldBinding,
 };
+use crate::terminal_identities::structural_multiplicity;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use semantic_vocabulary::ValueId;
 mod reference_sources;
@@ -233,9 +237,7 @@ pub(crate) fn lower_unit_parameters(
                     LoweringError::Unsupported("Unit structural parameter count exceeds u32")
                 })?,
                 structural_type: lookup_type_id(type_ids, &parameter.type_identity)?,
-                multiplicity: crate::terminal_identities::structural_multiplicity(
-                    parameter.multiplicity,
-                ),
+                multiplicity: structural_multiplicity(parameter.multiplicity),
                 access: terminal_access(parameter.access),
                 qualifications,
                 projected_qualifications: lower_projected_qualifications(
@@ -446,12 +448,7 @@ pub(crate) fn mint_runtime_index_selectors(
                 ) => bindings.runtime_index_storage(*symbol)?,
                 CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::StructuralField(field),
-                ) => crate::expression_preparation::bindings::structural_fields::resolve_typed(
-                    identities,
-                    fields,
-                    field.parameter_position,
-                    &field.path,
-                )?,
+                ) => resolve_typed(identities, fields, field.parameter_position, &field.path)?,
                 _ => continue,
             };
             if !matches!(observation.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
@@ -479,10 +476,7 @@ pub(crate) fn lower_structural_arguments(
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
-    completed_results: &[(
-        u32,
-        crate::emission::operation_emission::buffer::StructuralBinding,
-    )],
+    completed_results: &[(u32, StructuralBinding)],
     byte_argument_places: &[PlaceId],
     primitive_locals: &[super::primitive_locals::PrimitiveLocal],
     structural_locals: &[StructuralLocalBinding],
@@ -561,10 +555,7 @@ pub(crate) fn prepare_structural_argument(
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
-    completed_results: &[(
-        u32,
-        crate::emission::operation_emission::buffer::StructuralBinding,
-    )],
+    completed_results: &[(u32, StructuralBinding)],
     byte_argument_places: &[PlaceId],
     next_byte_argument: &mut usize,
     primitive_locals: &[super::primitive_locals::PrimitiveLocal],
@@ -589,13 +580,7 @@ pub(crate) fn prepare_structural_argument(
                        root_type: Option<StructuralTypeId>|
      -> Result<PreparedStructuralArgument, LoweringError> {
         let suffix =
-            crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
-                identities,
-                checked,
-                argument,
-                root,
-                structural_types,
-            )?;
+            prepare_call_argument_path(identities, checked, argument, root, structural_types)?;
         let path = prefix
             .iter()
             .cloned()
@@ -769,16 +754,13 @@ struct ProjectedAliasBinding<'results> {
 }
 
 fn projected_alias<'results>(
-    completed_results: &'results [(
-        u32,
-        crate::emission::operation_emission::buffer::StructuralBinding,
-    )],
+    completed_results: &'results [(u32, StructuralBinding)],
     binding_ordinal: u32,
 ) -> Option<ProjectedAliasBinding<'results>> {
     let (_, binding) = completed_results
         .iter()
         .find(|(ordinal, _)| *ordinal == binding_ordinal)?;
-    let crate::emission::operation_emission::buffer::StructuralBinding::ProjectedAlias {
+    let StructuralBinding::ProjectedAlias {
         place,
         path,
         structural_type,

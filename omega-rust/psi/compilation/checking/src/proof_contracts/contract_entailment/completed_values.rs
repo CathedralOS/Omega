@@ -14,7 +14,10 @@ use super::structural_prefix::{
 };
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::PrimitiveType;
 use typed_trees::{machine::Machine, state::State, types::TypeReferenceHandle};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -30,10 +33,7 @@ pub(super) enum CompletedValueSource {
     /// Meaning survives transport; consumers still owe formation and bounds.
     ScalarBinary {
         operator: typed_trees::expression::BinaryOperator,
-        meaning: [(
-            typed_trees::types::PrimitiveType,
-            numerics::arithmetic::ArithmeticDomain,
-        ); 2],
+        meaning: [(PrimitiveType, numerics::arithmetic::ArithmeticDomain); 2],
         operands: Box<[Self; 2]>,
     },
 }
@@ -46,10 +46,7 @@ struct CompletedSources<'query, 'program> {
     program: &'program dyn crate::CheckingInput,
     judge: &'query StructuralJudge<'program>,
     candidates: &'query [(CompletedValueSource, StructuralTerm)],
-    formals: &'query [(
-        &'program typed_trees::signature::StateParameter,
-        StructuralTerm,
-    )],
+    formals: &'query [(&'program StateParameter, StructuralTerm)],
 }
 
 impl CompletedSources<'_, '_> {
@@ -156,8 +153,8 @@ fn field_projections(
         .data_members(data)
         .iter()
         .flat_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
+            DataMember::Field(field) => std::slice::from_ref(field),
+            DataMember::Variant(variant) => program.data_payload_fields(variant),
         })
         .filter(|field| field.name.as_str() == name)
         .filter_map(|field| {
@@ -249,10 +246,8 @@ pub(super) fn observed_projections(
                 .data_members(data)
                 .iter()
                 .flat_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-                    typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == case.as_str() =>
-                    {
+                    DataMember::Field(field) => std::slice::from_ref(field),
+                    DataMember::Variant(variant) if variant.name.as_str() == case.as_str() => {
                         program.data_payload_fields(variant)
                     }
                     _ => &[],

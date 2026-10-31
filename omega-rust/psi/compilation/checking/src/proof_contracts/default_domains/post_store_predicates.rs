@@ -30,6 +30,7 @@ use crate::{
     scoped_arithmetic_implication,
 };
 use numerics::bignum::BigInt;
+use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -44,7 +45,7 @@ pub(super) fn post_store_predicate_holds(
     statement_index: usize,
     receiver: ExpressionHandle,
     place: &TrackedPlace<'_>,
-    written_field: symbols::SymbolHandle,
+    written_field: SymbolHandle,
     written_value: ExpressionHandle,
     predicate: ExpressionHandle,
 ) -> bool {
@@ -254,10 +255,7 @@ pub(super) fn post_store_predicate_holds(
         )
 }
 
-fn scalar_binding(
-    symbol: symbols::SymbolHandle,
-    primitive: PrimitiveType,
-) -> ScopedArithmeticBinding {
+fn scalar_binding(symbol: SymbolHandle, primitive: PrimitiveType) -> ScopedArithmeticBinding {
     ScopedArithmeticBinding {
         binder: ScopedArithmeticBinder::Symbol(symbol),
         value: ScopedArithmeticValue::Atom {

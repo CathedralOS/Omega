@@ -2,7 +2,9 @@
 //! index, typed-indexed instance discovery, and ensured-instance plumbing.
 
 use super::labels::{domain_label, qualification_label};
+use crate::flow::call_flows;
 use crate::flow::expressions;
+use crate::proof::contracts::call_signatures::owns_contract;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedOperatorFacts, ContractProofFactKind, FlowFacts, FlowSemanticContextRef, ProofFacts,
@@ -73,7 +75,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
         flow: &'flow FlowFacts,
         state_flow: &'flow checked_trees::FlowStateFact,
     ) -> Self {
-        let calls = crate::flow::call_flows(&flow.control, state_flow.calls)
+        let calls = call_flows(&flow.control, state_flow.calls)
             .iter()
             .filter_map(|fact| {
                 validation::find_call_site(
@@ -321,12 +323,7 @@ pub(super) fn append_call_result_ensured_instances(
     {
         let contract = proof.contract_facts.get(reference.fact);
         if contract.kind != ContractProofFactKind::Ensures
-            || !crate::proof::contracts::call_signatures::owns_contract(
-                program,
-                proof,
-                contract_call,
-                contract,
-            )
+            || !owns_contract(program, proof, contract_call, contract)
         {
             continue;
         }

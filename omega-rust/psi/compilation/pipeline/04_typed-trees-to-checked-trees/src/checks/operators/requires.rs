@@ -37,19 +37,30 @@
 //! declares it, and the spelling that resolved to it, so the user can browse
 //! to the operator declaration and read the governing contract.
 
+use arena::Handle;
 use std::cmp::Ordering;
+use typed_trees::data::TypeParameter;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::proposition::ProofSubstitutions;
+use validation::canonical_place_from_expression;
+use validation::field_domains::domain_membership_implies;
 
-use checked_trees::{CheckFacts, CheckedOperatorFacts, CheckedOperatorResolutionStatus};
+use checked_trees::{
+    CheckFacts, CheckedNamedOperatorUseFact, CheckedOperatorFacts, CheckedOperatorOccurrence,
+    CheckedOperatorResolutionStatus, CheckedOperatorUseFact, CheckedValueOrigin, FlowFacts,
+};
 use diagnostics::Diagnostic;
-use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
+use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use language_core::operator_spelling::OperatorSpelling;
 use numerics::bignum::{BigInt, BigRational, ExactFloat, IeeeRounding};
 use numerics::literals::{FloatFormat, FloatLiteral};
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::operator::OperatorDefinition;
-use typed_trees::signature::{SignatureContractKind, StateParameter};
+use typed_trees::domain::{ProofFact, has_symbol_only_proof};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableNamePath, UnaryOperator,
+};
+use typed_trees::operator::{OperatorDefinition, declaration_by_symbol};
+use typed_trees::signature::{SignatureContractKind, StateParameter, state_parameter_position};
 use typed_trees::types::PrimitiveType;
 
 use crate::flow::expressions;
@@ -65,10 +76,10 @@ pub(crate) use invocation::InvocationContexts;
 /// selected comparisons have no inferred arithmetic/complement laws here.
 pub(crate) fn operator_route_is_false(
     program: &dyn ::validation::CheckingInput,
-    point: facts::ProgramPoint,
-    flow: &checked_trees::FlowFacts,
+    point: ProgramPoint,
+    flow: &FlowFacts,
     semantic: &FactPlan,
-    operator_use: arena::Handle<checked_trees::CheckedOperatorUseFact>,
+    operator_use: Handle<CheckedOperatorUseFact>,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -98,10 +109,10 @@ pub(crate) fn operator_route_is_false(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn named_operator_route_is_false(
     program: &dyn ::validation::CheckingInput,
-    point: facts::ProgramPoint,
-    flow: &checked_trees::FlowFacts,
+    point: ProgramPoint,
+    flow: &FlowFacts,
     semantic: &FactPlan,
-    named_use: arena::Handle<checked_trees::CheckedNamedOperatorUseFact>,
+    named_use: Handle<CheckedNamedOperatorUseFact>,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
     operand_labels: &[String],
@@ -122,19 +133,19 @@ pub(crate) fn named_operator_route_is_false(
 
 /// Only an executable occurrence supplies a caller payload namespace. Other
 /// origins have no invocation field premises to expand.
-fn operator_consumer_point(origin: checked_trees::CheckedValueOrigin) -> facts::ProgramPoint {
+fn operator_consumer_point(origin: CheckedValueOrigin) -> ProgramPoint {
     match origin {
-        checked_trees::CheckedValueOrigin::StateStatement {
+        CheckedValueOrigin::StateStatement {
             machine_symbol,
             state_symbol,
             statement_index,
             ..
-        } => facts::ProgramPoint::Statement {
+        } => ProgramPoint::Statement {
             machine_symbol,
             state_symbol,
             statement_index,
         },
-        _ => facts::ProgramPoint::Global,
+        _ => ProgramPoint::Global,
     }
 }
 
@@ -146,19 +157,14 @@ fn operand_labels(
 ) -> Vec<String> {
     operands
         .iter()
-        .map(|operand| {
-            program.render_proof_expression(
-                *operand,
-                typed_trees::proposition::ProofSubstitutions::None,
-            )
-        })
+        .map(|operand| program.render_proof_expression(*operand, ProofSubstitutions::None))
         .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
 fn expression_has_polarity(
     program: &dyn ::validation::CheckingInput,
-    point: facts::ProgramPoint,
+    point: ProgramPoint,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -187,7 +193,7 @@ fn expression_has_polarity(
 
 fn leaf_has_polarity(
     program: &dyn ::validation::CheckingInput,
-    point: facts::ProgramPoint,
+    point: ProgramPoint,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -241,8 +247,7 @@ pub(super) fn selected_binary_requires_diagnostics(
         if operator_use.status != checked_trees::CheckedOperatorResolutionStatus::Resolved {
             continue;
         }
-        if let checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm } =
-            operator_use.occurrence
+        if let CheckedOperatorOccurrence::MatchEquality { source_arm } = operator_use.occurrence
             && let ExpressionNode::Match(dispatch) =
                 program.expression_table.expression(operator_use.expression)
             && let Some(ordinal) = source_arm
@@ -252,7 +257,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                 .match_arms(dispatch.arms)
                 .iter()
                 .take(ordinal as usize)
-                .any(|arm| matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard))
+                .any(|arm| matches!(arm.pattern, MatchPattern::Wildcard))
         {
             continue;
         }
@@ -334,10 +339,8 @@ pub(super) fn selected_binary_requires_diagnostics(
     // a path. A reference formal reads its referent in the predicate, so the
     // operand labels name referents rather than borrow expressions.
     for (named_use_handle, named_use) in facts.operators.named_uses.iter() {
-        let Some(operator) = typed_trees::operator::declaration_by_symbol(
-            program,
-            named_use.selected_operator_symbol,
-        ) else {
+        let Some(operator) = declaration_by_symbol(program, named_use.selected_operator_symbol)
+        else {
             continue;
         };
         // The ranges seam owns `[]`/`[..]` discharge for the spelling it
@@ -428,9 +431,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                     continue;
                 };
                 let Some(operator) = crate::flow::resolved_operator_statement_symbol(program, call)
-                    .and_then(|symbol| {
-                        typed_trees::operator::declaration_by_symbol(program, symbol)
-                    })
+                    .and_then(|symbol| declaration_by_symbol(program, symbol))
                 else {
                     continue;
                 };
@@ -507,13 +508,13 @@ fn operator_path_label(
 #[allow(clippy::too_many_arguments)]
 fn check_requires_facts(
     program: &dyn ::validation::CheckingInput,
-    point: facts::ProgramPoint,
+    point: ProgramPoint,
     facts: &CheckFacts,
     invocation_contexts: &InvocationContexts<'_>,
-    origin: checked_trees::CheckedValueOrigin,
+    origin: CheckedValueOrigin,
     source_expression: ExpressionHandle,
     parameters: &[StateParameter],
-    type_parameters: &[typed_trees::data::TypeParameter],
+    type_parameters: &[TypeParameter],
     operands: &[ExpressionHandle],
     operand_labels: &[String],
     requires_facts: Vec<&ProofFact>,
@@ -548,12 +549,12 @@ fn check_requires_facts(
 
 fn requires_fact_proven(
     program: &dyn ::validation::CheckingInput,
-    point: facts::ProgramPoint,
+    point: ProgramPoint,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
-    type_parameters: &[typed_trees::data::TypeParameter],
+    type_parameters: &[TypeParameter],
     operands: &[ExpressionHandle],
     operand_labels: &[String],
     fact: &ProofFact,
@@ -640,7 +641,7 @@ fn requires_fact_proven(
 /// membership whose body states the clause) or is a closed-literal claim.
 fn contexts_prove_boolean_expression(
     program: &dyn ::validation::CheckingInput,
-    point: facts::ProgramPoint,
+    point: ProgramPoint,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
@@ -703,7 +704,7 @@ fn contexts_prove_boolean_expression(
 
 fn contexts_prove_boolean_leaf(
     program: &dyn ::validation::CheckingInput,
-    point: facts::ProgramPoint,
+    point: ProgramPoint,
     semantic: &FactPlan,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
@@ -739,7 +740,7 @@ fn context_proves_membership_label(
     value_label: &str,
     required_domain: SymbolHandle,
 ) -> bool {
-    if !typed_trees::domain::has_symbol_only_proof(program, required_domain) {
+    if !has_symbol_only_proof(program, required_domain) {
         return false;
     }
     let context = semantic.contexts.get(context);
@@ -757,15 +758,11 @@ fn context_proves_membership_label(
             } => (domain_symbol, value),
             _ => return false,
         };
-        if !typed_trees::domain::has_symbol_only_proof(program, fact_domain) {
+        if !has_symbol_only_proof(program, fact_domain) {
             return false;
         }
         if !semantic.domain_implies(fact_domain, required_domain)
-            && !validation::field_domains::domain_membership_implies(
-                program,
-                fact_domain,
-                required_domain,
-            )
+            && !domain_membership_implies(program, fact_domain, required_domain)
         {
             return false;
         }
@@ -851,7 +848,7 @@ enum ClosedScalar {
 fn reflexive_comparison_holds(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
-    type_parameters: &[typed_trees::data::TypeParameter],
+    type_parameters: &[TypeParameter],
     expression: ExpressionHandle,
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
@@ -869,9 +866,8 @@ fn reflexive_comparison_holds(
     ) else {
         return false;
     };
-    let single = |path: &typed_trees::expression::TableNamePath| {
-        expressions(program).name_path_members(path.members).len() == 1
-    };
+    let single =
+        |path: &TableNamePath| expressions(program).name_path_members(path.members).len() == 1;
     if !left.symbol.is_valid() || left.symbol != right.symbol || !single(left) || !single(right) {
         return false;
     }
@@ -884,10 +880,8 @@ fn reflexive_comparison_holds(
                 .iter()
                 .find(|parameter| parameter.symbol == left.symbol)
                 .and_then(|parameter| match parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
-                        Some(type_reference)
-                    }
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => Some(type_reference),
                     _ => None,
                 })
         });
@@ -984,7 +978,7 @@ fn operand_for_parameter(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
-    path: &typed_trees::expression::TableNamePath,
+    path: &TableNamePath,
 ) -> Option<ExpressionHandle> {
     if !path.symbol.is_valid() || expressions(program).name_path_members(path.members).len() != 1 {
         return None;
@@ -1159,7 +1153,7 @@ pub(crate) fn closed_operators_are_builtin(
 fn operator_use_is_builtin_meaning(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
-    operator_use: &checked_trees::CheckedOperatorUseFact,
+    operator_use: &CheckedOperatorUseFact,
 ) -> bool {
     match operator_use.status {
         CheckedOperatorResolutionStatus::BuiltinFallback => true,
@@ -1188,19 +1182,18 @@ fn contexts_prove_case_membership(
     let Some((subject, case)) = crate::proof::exact_outcome_case_test(program, expression) else {
         return false;
     };
-    let Some(formal) = validation::canonical_place_from_expression(program, subject) else {
+    let Some(formal) = canonical_place_from_expression(program, subject) else {
         return false;
     };
     let Some(symbol) = formal.root.as_symbol() else {
         return false;
     };
-    let Some(position) = typed_trees::signature::state_parameter_position(parameters, symbol)
-    else {
+    let Some(position) = state_parameter_position(parameters, symbol) else {
         return false;
     };
     let Some(mut place) = operands
         .get(position)
-        .and_then(|operand| validation::canonical_place_from_expression(program, *operand))
+        .and_then(|operand| canonical_place_from_expression(program, *operand))
     else {
         return false;
     };

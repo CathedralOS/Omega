@@ -5,6 +5,10 @@
 use super::super::{BinaryOperator, Machine, SymbolHandle, TraitDefinition, structural_term_pair};
 use super::StructuralTerm;
 use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
+use std::collections::HashMap;
+use typed_trees::expression::StaticMachineArgument;
+use typed_trees::machine::TraitConformance;
+use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 /// REARRANGE-MODE license (settle 2026-07-18, rung C): a carrier EARNS ring
@@ -265,8 +269,8 @@ pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) ->
 /// re-walking every machine and conformance per license.
 fn conformance_slot_carriers_uncached(
     program: &dyn crate::CheckingInput,
-) -> std::collections::HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
-    let mut slot_carriers = std::collections::HashMap::new();
+) -> HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
+    let mut slot_carriers = HashMap::new();
     for candidate in program.machines() {
         for conformance in program.machine_trait_conformances(candidate) {
             let Some(requirement_name) = bound_requirement_name(conformance, candidate) else {
@@ -488,10 +492,7 @@ fn algebraic_law_slots<'program>(
 }
 
 fn ring_license_candidates(
-    slot_carriers: &std::collections::HashMap<
-        (SymbolHandle, String),
-        Vec<(TypeReferenceHandle, SymbolHandle)>,
-    >,
+    slot_carriers: &HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>>,
     program: &dyn crate::CheckingInput,
 ) -> Vec<RingCandidate> {
     let mut candidates = Vec::new();
@@ -546,10 +547,7 @@ fn ring_license_candidates(
 /// The requirement name a conformance binds: the authored `as Name` alias
 /// when present, else the standalone machine's own name. Attached machines
 /// bind nothing implicitly.
-fn bound_requirement_name(
-    conformance: &typed_trees::machine::TraitConformance,
-    machine: &Machine,
-) -> Option<String> {
+fn bound_requirement_name(conformance: &TraitConformance, machine: &Machine) -> Option<String> {
     conformance
         .requirement
         .as_ref()
@@ -567,10 +565,7 @@ fn bound_requirement_name(
 /// `.is_some()`. Law-slot membership and op-slot lookups share this one
 /// traversal.
 fn slot_satisfier(
-    slot_carriers: &std::collections::HashMap<
-        (SymbolHandle, String),
-        Vec<(TypeReferenceHandle, SymbolHandle)>,
-    >,
+    slot_carriers: &HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>>,
     program: &dyn crate::CheckingInput,
     trait_symbol: SymbolHandle,
     requirement_name: &str,
@@ -679,10 +674,7 @@ fn distributivity_shape(
 /// that conformed ALL FIVE law slots. Same no-circularity rule: the judged
 /// machine binding ANY involved law slot gets nothing from this trait.
 fn semiring_license_candidates(
-    slot_carriers: &std::collections::HashMap<
-        (SymbolHandle, String),
-        Vec<(TypeReferenceHandle, SymbolHandle)>,
-    >,
+    slot_carriers: &HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>>,
     program: &dyn crate::CheckingInput,
 ) -> Vec<SemiringCandidate> {
     let mut candidates = Vec::new();
@@ -874,11 +866,7 @@ fn associativity_shape(
 fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm) -> bool {
     fn visit<'term>(
         term: &'term StructuralTerm,
-        seen: &mut Vec<(
-            &'term str,
-            SymbolHandle,
-            &'term [typed_trees::expression::StaticMachineArgument],
-        )>,
+        seen: &mut Vec<(&'term str, SymbolHandle, &'term [StaticMachineArgument])>,
     ) -> bool {
         let term = term.semantic_value();
         if let StructuralTerm::Application {
@@ -921,10 +909,7 @@ fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm
 /// and non-integer primitives never fold.
 pub(super) fn fold_scalar_binary(
     operator: BinaryOperator,
-    meaning: [(
-        typed_trees::types::PrimitiveType,
-        numerics::arithmetic::ArithmeticDomain,
-    ); 2],
+    meaning: [(PrimitiveType, numerics::arithmetic::ArithmeticDomain); 2],
     left: &StructuralTerm,
     right: &StructuralTerm,
 ) -> Option<StructuralTerm> {
@@ -934,7 +919,7 @@ pub(super) fn fold_scalar_binary(
     let right = right.semantic_value();
     if meaning
         .iter()
-        .all(|(primitive, _)| *primitive == typed_trees::types::PrimitiveType::Bool)
+        .all(|(primitive, _)| *primitive == PrimitiveType::Bool)
     {
         let truth = |term: &StructuralTerm| term.boolean_constructor();
         // Operands here are already formed Boolean observations. Preserve
@@ -1060,10 +1045,7 @@ pub(super) fn fold_scalar_binary(
 /// The caller checks recursive observation authority before entering this owner.
 fn completed_integer_comparison(
     operator: BinaryOperator,
-    meaning: [(
-        typed_trees::types::PrimitiveType,
-        numerics::arithmetic::ArithmeticDomain,
-    ); 2],
+    meaning: [(PrimitiveType, numerics::arithmetic::ArithmeticDomain); 2],
     left: &StructuralTerm,
     right: &StructuralTerm,
 ) -> Option<bool> {
@@ -1086,10 +1068,7 @@ fn completed_integer_comparison(
     {
         return None;
     }
-    fn polynomial(
-        term: &StructuralTerm,
-        primitive: typed_trees::types::PrimitiveType,
-    ) -> Option<Polynomial> {
+    fn polynomial(term: &StructuralTerm, primitive: PrimitiveType) -> Option<Polynomial> {
         match term.semantic_value() {
             StructuralTerm::Integer(value) => Some(Polynomial::constant(value.clone())),
             StructuralTerm::ScalarBinary {

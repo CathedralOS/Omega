@@ -11,6 +11,7 @@ use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
+use typed_trees::signature::SignatureContractKind;
 use typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
@@ -373,7 +374,7 @@ fn validate_state_signature_contracts(
 ) {
     for contract in signature.contracts {
         if matches!(owner, StateSignatureOwner::Machine(_))
-            && contract.kind != typed_trees::signature::SignatureContractKind::Requires
+            && contract.kind != SignatureContractKind::Requires
         {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} state `{}` admits only arrival `requires` contracts",
@@ -490,7 +491,7 @@ fn validate_crash_route_shapes(
     contract: &typed_trees::signature::SignatureContract,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let typed_trees::signature::SignatureContractKind::Crashes { cause } = &contract.kind else {
+    let SignatureContractKind::Crashes { cause } = &contract.kind else {
         return;
     };
     for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -502,14 +503,12 @@ fn validate_crash_route_shapes(
     }
 }
 
-fn contract_kind_label(kind: &typed_trees::signature::SignatureContractKind) -> &'static str {
+fn contract_kind_label(kind: &SignatureContractKind) -> &'static str {
     match kind {
-        typed_trees::signature::SignatureContractKind::Requires => "requires",
-        typed_trees::signature::SignatureContractKind::Ensures => "ensures",
-        typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. } => {
-            "outcome-specific ensures"
-        }
-        typed_trees::signature::SignatureContractKind::Crashes { .. } => "crashes",
+        SignatureContractKind::Requires => "requires",
+        SignatureContractKind::Ensures => "ensures",
+        SignatureContractKind::EnsuresForResultCase { .. } => "outcome-specific ensures",
+        SignatureContractKind::Crashes { .. } => "crashes",
     }
 }
 

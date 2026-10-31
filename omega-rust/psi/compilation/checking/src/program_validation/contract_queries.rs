@@ -4,6 +4,7 @@ use crate::program_validation::finish_diagnostics;
 use crate::proof_contracts::contract_entailment;
 use crate::proof_contracts::contract_entailment::validate_machine_contract_entailment;
 use diagnostics::Diagnostic;
+use typed_trees::data::TypeParameterKind;
 
 /// Recheck one already-resolved checked-body operator realization at a
 /// compiler-internal evidence boundary. Callers must still establish the exact
@@ -34,12 +35,7 @@ pub fn validate_generic_machine_contract_entailment(
         if program
             .machine_type_parameters(machine)
             .iter()
-            .any(|parameter| {
-                matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Machine { .. }
-                )
-            })
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
         {
             validate_machine_contract_entailment(
                 program,

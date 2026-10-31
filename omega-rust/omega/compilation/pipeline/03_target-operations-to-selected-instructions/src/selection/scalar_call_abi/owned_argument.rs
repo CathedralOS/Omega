@@ -1,5 +1,6 @@
 //! Rejoin owned aggregate actuals to exact incoming, produced or block-owned backing.
 use crate::selection::place_declaration::{arrivals, declares_block_parameter};
+use crate::structural_inputs::structural_reference_input::runtime_projection;
 
 use super::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction, StructuralAccess,
@@ -29,11 +30,7 @@ pub(super) fn validate_owned_arguments(
         let shape = super::owned_value_shape(source, target.structural_type)?;
         let types = &source.structural.as_ref()?.structural_types;
         let (selected, offset, elements) =
-            crate::structural_inputs::structural_reference_input::runtime_projection(
-                target.root_structural_type,
-                &semantic.path,
-                types,
-            )?;
+            runtime_projection(target.root_structural_type, &semantic.path, types)?;
         if semantic.access != StructuralAccess::Owned
             || target.place != semantic.place
             || target.access != semantic.access

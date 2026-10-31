@@ -1,9 +1,13 @@
 //! Return exact ABI fragments from an incoming value or established aggregate home.
+use super::structural_case::{frame_address_pointer, memory};
 use super::{
     Builder, LegalizedScalarFunction, SelectedInstructionKind, SelectedInstructionProvenance,
     ValueLocation,
 };
 use crate::SelectedInstructionError;
+use crate::selection::aggregate_result_input::{
+    indirect_result, returned_descriptor, returned_parameter,
+};
 use crate::selection::construction::scalar_graph::row;
 use selected_instructions::SelectedMemoryAccessRole;
 use selected_instructions::SelectedTerminator;
@@ -19,33 +23,30 @@ pub(super) fn build(
     )],
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
-    let (place, placement, slot) = if let Some(descriptor) =
-        crate::selection::aggregate_result_input::returned_descriptor(source, &returned.value)
-    {
-        descriptor
-    } else if let Some((parameter, placement)) =
-        crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
-    {
-        let place = parameter.semantic.place;
-        let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
-        let slot = builder
-            .transport
-            .local_slots
-            .iter()
-            .any(|home| home.id == slot)
-            .then_some(slot);
-        (place, placement, slot)
-    } else {
-        let (slot, placement) =
-            crate::selection::aggregate_result_input::returned(source, &returned.value)
-                .ok_or_else(|| SelectedInstructionError::custody())?;
-        (
-            slot.structural_place()
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-            placement,
-            Some(slot),
-        )
-    };
+    let (place, placement, slot) =
+        if let Some(descriptor) = returned_descriptor(source, &returned.value) {
+            descriptor
+        } else if let Some((parameter, placement)) = returned_parameter(source, &returned.value) {
+            let place = parameter.semantic.place;
+            let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+            let slot = builder
+                .transport
+                .local_slots
+                .iter()
+                .any(|home| home.id == slot)
+                .then_some(slot);
+            (place, placement, slot)
+        } else {
+            let (slot, placement) =
+                crate::selection::aggregate_result_input::returned(source, &returned.value)
+                    .ok_or_else(|| SelectedInstructionError::custody())?;
+            (
+                slot.structural_place()
+                    .ok_or_else(|| SelectedInstructionError::custody())?,
+                placement,
+                Some(slot),
+            )
+        };
     let empty_return = crate::selection::scalar_call_abi::empty_aggregate_placement(placement);
     let slot = slot.filter(|_| !empty_return);
     if slot.is_some_and(|slot| {
@@ -67,13 +68,8 @@ pub(super) fn build(
     // Inline inputs with no addressable home retain their captured fragments.
     // Both direct and hidden-pointer results consume this same source choice.
     let pointer = if let Some(slot) = slot {
-        let pointer = super::structural_case::frame_address_pointer(
-            builder,
-            block.id,
-            place,
-            slot,
-            placement.shape.byte_size,
-        )?;
+        let pointer =
+            frame_address_pointer(builder, block.id, place, slot, placement.shape.byte_size)?;
         Some(pointer)
     } else {
         builder
@@ -83,9 +79,7 @@ pub(super) fn build(
             .find(|(owner, _)| *owner == place)
             .map(|(_, pointer)| *pointer)
     };
-    if crate::selection::aggregate_result_input::indirect_result(placement, source.call_plan.policy)
-        .is_some()
-    {
+    if indirect_result(placement, source.call_plan.policy).is_some() {
         super::structural::indirect_results::returned(
             source,
             block,
@@ -151,7 +145,7 @@ pub(super) fn build(
                 Default::default(),
             )?;
             let register = super::structural_case::register(builder, place, offset, 64, false)?;
-            super::structural_case::memory(
+            memory(
                 builder,
                 block.id,
                 place,

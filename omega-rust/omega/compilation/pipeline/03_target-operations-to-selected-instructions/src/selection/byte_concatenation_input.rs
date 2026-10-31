@@ -1,4 +1,5 @@
 //! Reconstruct owned byte storage and readable operands from exact declarations.
+use super::aggregate_result_input::call_result;
 use crate::selection::place_declaration::declares_operation_result;
 
 use legalized_operations::{
@@ -20,9 +21,7 @@ pub(super) fn owned_type(
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                 result, ..
             } => result,
-            LegalizedScalarInstructionKind::Call(call) => {
-                super::aggregate_result_input::call_result(function, call)?.0
-            }
+            LegalizedScalarInstructionKind::Call(call) => call_result(function, call)?.0,
             _ => return None,
         };
         (result.place == place

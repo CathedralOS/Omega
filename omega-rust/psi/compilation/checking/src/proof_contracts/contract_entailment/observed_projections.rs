@@ -6,6 +6,8 @@
 
 use super::structural_judgment::StructuralTerm;
 use facts::PlaceSegment;
+use symbols::SymbolHandle;
+use symbols::SymbolKind;
 use typed_trees::types::TypeReferenceHandle;
 
 /// Select from a complete uniform value without executing a machine or
@@ -66,11 +68,7 @@ fn project_observed_value_under_cases(
     mut reference: TypeReferenceHandle,
     mut value: StructuralTerm,
     path: &[PlaceSegment],
-    mut case_is_proved: impl FnMut(
-        &StructuralTerm,
-        symbols::SymbolHandle,
-        symbols::SymbolHandle,
-    ) -> bool,
+    mut case_is_proved: impl FnMut(&StructuralTerm, SymbolHandle, SymbolHandle) -> bool,
 ) -> Option<StructuralTerm> {
     for segment in path {
         (reference, value) = inline_projection_source(program, reference, value)?;
@@ -359,9 +357,7 @@ pub(super) fn declared_scalar_field_read(
         member.member.as_str(),
         member.case_variant.as_ref().map(|case| case.as_str()),
     )?;
-    if !field.symbol.is_valid()
-        || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
-    {
+    if !field.symbol.is_valid() || program.symbols.get(field.symbol).kind != SymbolKind::Field {
         return None;
     }
     let reference = crate::expression_result_type_reference(program, machine, state, expression)?;

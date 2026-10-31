@@ -1,4 +1,13 @@
-use validation::CanonicalPlace;
+use checked_trees::CheckedOperatorOccurrence;
+use checked_trees::CheckedValueOrigin;
+use facts::PlaceSegment;
+use language_semantics::Multiplicity;
+use typed_trees::operator::declaration_by_symbol;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
+use validation::{
+    CanonicalPlace, ContentsRequirement, canonical_place_type_reference, has_contents,
+};
 
 use crate::flow::FlowOwnershipEventSource;
 
@@ -71,7 +80,7 @@ pub(super) fn append_indexed_operands(
     source: FlowOwnershipEventSource,
 ) -> Option<bool> {
     let operator_symbol = selected_operator(sink, state, statement, expression)?;
-    let operator = typed_trees::operator::declaration_by_symbol(program, operator_symbol)?;
+    let operator = declaration_by_symbol(program, operator_symbol)?;
     let indexed = program.expression_table.indexed_node(expression)?;
     let operands = match program.expression_table.expression(indexed.index) {
         ExpressionNode::Range(range) => [indexed.collection, range.start, range.end],
@@ -128,8 +137,8 @@ pub(super) fn selected_operator(
 ) -> Option<SymbolHandle> {
     sink.operators.resolved_uses().find_map(|operator_use| {
         (operator_use.expression == expression
-            && operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-            && matches!(operator_use.origin, checked_trees::CheckedValueOrigin::StateStatement {
+            && operator_use.occurrence == CheckedOperatorOccurrence::Expression
+            && matches!(operator_use.origin, CheckedValueOrigin::StateStatement {
                 state_symbol, statement_index, ..
             } if state_symbol == state && statement_index == statement))
         .then_some(operator_use.selected_operator_symbol)
@@ -174,9 +183,7 @@ pub(super) fn detached_borrowed_copy_admitted(
     let Some(_) = place.root.as_symbol() else {
         return false;
     };
-    let Some(projected) =
-        validation::canonical_place_type_reference(program, state, statement, place)
-    else {
+    let Some(projected) = canonical_place_type_reference(program, state, statement, place) else {
         return false;
     };
 
@@ -198,7 +205,7 @@ pub(super) fn detached_borrowed_copy_admitted(
             segments: place.segments[..length].to_vec(),
         };
         note(
-            validation::canonical_place_type_reference(program, state, statement, &prefix)
+            canonical_place_type_reference(program, state, statement, &prefix)
                 .and_then(|reference| reference_access(program, reference)),
         );
     }
@@ -220,17 +227,16 @@ pub(super) fn detached_borrowed_copy_admitted(
         && place.segments.iter().any(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
+                PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. }
             )
         })
     {
-        return program.type_multiplicity(projected)
-            == language_semantics::Multiplicity::Unrestricted
-            && validation::has_contents(
+        return program.type_multiplicity(projected) == Multiplicity::Unrestricted
+            && has_contents(
                 program,
                 projected,
                 &[],
-                validation::ContentsRequirement::StableObservation,
+                ContentsRequirement::StableObservation,
             );
     }
     // A service-receiver invocation detaches its stable arguments at the ABI
@@ -241,12 +247,7 @@ pub(super) fn detached_borrowed_copy_admitted(
         return false;
     };
     call_target_is_service_signature(program, target_symbol)
-        && validation::has_contents(
-            program,
-            projected,
-            &[],
-            validation::ContentsRequirement::SeamMarshal,
-        )
+        && has_contents(program, projected, &[], ContentsRequirement::SeamMarshal)
 }
 
 /// Whether `target_symbol` names a machine signature of a `boundary` trait —
@@ -281,13 +282,11 @@ fn call_target_is_service_signature(
 /// The access of a possibly-constrained reference type.
 fn reference_access(
     program: &dyn ::validation::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> Option<ReferenceAccess> {
     match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { access, .. } => Some(*access),
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            reference_access(program, *base_type)
-        }
+        TypeReferenceNode::Reference { access, .. } => Some(*access),
+        TypeReferenceNode::Constrained { base_type, .. } => reference_access(program, *base_type),
         _ => None,
     }
 }

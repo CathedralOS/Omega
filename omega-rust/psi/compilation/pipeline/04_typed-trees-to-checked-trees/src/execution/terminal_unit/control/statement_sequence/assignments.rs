@@ -10,28 +10,26 @@
 use super::super::super::borrowed_windows::{OpenWindows, ValueReplacement};
 use super::super::call_results::checked_copied_result_type;
 use super::{
-    CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
+    CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan as ParameterPlan,
+    CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, Construction, LocalConstructionTrace, Multiplicity,
-    ShapeCollector, SymbolHandle, checked_structural_result_type, is_unit, statement_call_target,
-    structural_operands,
+    CheckedUnitStructuralResultBindingPlan as BindingPlan, Construction, LocalConstructionTrace,
+    Multiplicity, ShapeCollector, SymbolHandle, checked_structural_result_type, is_unit,
+    statement_call_target, structural_operands,
 };
 
 /// The sequence state an assignment reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) construction: Construction<'a, 'program, 'shapes>,
     pub(super) binders: &'a [(SymbolHandle, String)],
-    pub(super) scalar_parameters: &'a [CheckedStructuralScalarParameterPlan],
+    pub(super) scalar_parameters: &'a [ParameterPlan],
     pub(super) parameter_storage: &'a [checked_trees::CheckedUnitParameterStoragePlan],
-    pub(super) stores:
-        &'a mut std::iter::Peekable<std::vec::IntoIter<CheckedUnitEffectOperationPlan>>,
-    pub(super) operations: &'a mut Vec<CheckedUnitEffectOperationPlan>,
+    pub(super) stores: &'a mut std::iter::Peekable<std::vec::IntoIter<OperationPlan>>,
+    pub(super) operations: &'a mut Vec<OperationPlan>,
     pub(super) scalar_count: &'a mut usize,
     pub(super) structural_count: &'a mut usize,
     pub(super) windows: &'a mut OpenWindows,
-    pub(super) structural_results:
-        &'a mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
+    pub(super) structural_results: &'a mut Vec<(BindingPlan, facts::PlaceRoot)>,
 }
 
 /// What an assignment left for its own call.
@@ -41,13 +39,11 @@ pub(super) enum AssignmentPlan {
     /// The right-hand side is a scalar call; `store` consumes its result.
     ScalarCall {
         result: CheckedUnitScalarResultBindingPlan,
-        store: CheckedUnitEffectOperationPlan,
+        store: OperationPlan,
     },
     /// The right-hand side produces an owned structural value. Its store is
     /// planned after argument evaluation establishes the actual window frontier.
-    StructuralCall {
-        result: CheckedUnitStructuralResultBindingPlan,
-    },
+    StructuralCall { result: BindingPlan },
 }
 
 pub(super) fn plan(
@@ -131,7 +127,7 @@ pub(super) fn plan(
         )?;
         trace.phase("statement sequence: assignment: completed array type");
         trace.statement(Some(statement_index));
-        let produced = CheckedUnitStructuralResultBindingPlan {
+        let produced = BindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity: shapes.add_type(expected, binders, &[])?,
@@ -159,7 +155,7 @@ pub(super) fn plan(
             trace,
         )?;
         *structural_count = structural_count.checked_add(1 + replacement.displaced_bindings())?;
-        operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+        operations.push(OperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::ScalarArray {
                 qualifications: facts.qualifications.formation_domains_at(
                     machine.symbol,
@@ -215,7 +211,7 @@ pub(super) fn plan(
             windows,
         )?;
         if completion == checked_trees::CheckedValueCompletion::NoNormal {
-            operations.push(CheckedUnitEffectOperationPlan::EvaluateStructuralValue {
+            operations.push(OperationPlan::EvaluateStructuralValue {
                 statement_index,
                 value: root.root,
                 calls,
@@ -356,11 +352,11 @@ pub(super) fn call_result_replacement(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    scalar_parameters: &[ParameterPlan],
     parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     windows: &mut OpenWindows,
     assignment: &typed_trees::statement::TableAssignment,
-    result: &CheckedUnitStructuralResultBindingPlan,
+    result: &BindingPlan,
     trace: &LocalConstructionTrace,
 ) -> Option<ValueReplacement> {
     let declared =
@@ -411,11 +407,11 @@ fn completed_value_replacement(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    scalar_parameters: &[ParameterPlan],
     parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     windows: &mut OpenWindows,
     assignment: &typed_trees::statement::TableAssignment,
-    result: &CheckedUnitStructuralResultBindingPlan,
+    result: &BindingPlan,
     result_type: typed_trees::types::TypeReferenceHandle,
     trace: &LocalConstructionTrace,
 ) -> Option<ValueReplacement> {

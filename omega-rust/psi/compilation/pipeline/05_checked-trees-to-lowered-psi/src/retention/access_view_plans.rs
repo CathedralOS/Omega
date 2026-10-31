@@ -2,6 +2,7 @@
 //! The normalizer-issued access key and source symbols are the only joins;
 //! names remain normalized identity/export payloads, never late target selection.
 use crate::lowering_error::LoweringError;
+use crate::machine_lowering::declarations::nominal;
 use checked_trees::CheckedTrees;
 use terminal_psi::{
     TerminalAccessFieldPlan, TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind,
@@ -80,20 +81,10 @@ pub(crate) fn retain(
                 ))?;
             let mut operations = Vec::new();
             for target in &field.accessor_targets {
-                let identity = crate::machine_lowering::declarations::nominal(
-                    identities,
-                    checked,
-                    sources,
-                    target.state_symbol,
-                )
-                .map_err(LoweringError::Unsupported)?;
-                let machine_identity = crate::machine_lowering::declarations::nominal(
-                    identities,
-                    checked,
-                    sources,
-                    target.machine_symbol,
-                )
-                .map_err(LoweringError::Unsupported)?;
+                let identity = nominal(identities, checked, sources, target.state_symbol)
+                    .map_err(LoweringError::Unsupported)?;
+                let machine_identity = nominal(identities, checked, sources, target.machine_symbol)
+                    .map_err(LoweringError::Unsupported)?;
                 if let Some(boundary) = module.boundary_machines.iter().find(|boundary| {
                     boundary.owner == identity || boundary.owner == machine_identity
                 }) {

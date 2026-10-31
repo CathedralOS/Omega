@@ -3,6 +3,7 @@ use checked_trees::{
     CheckFacts, CheckedMachineResourceEnvelopes, CheckedTrees, MachineContractCommitment,
     MachineServiceReachRows, RealizedMachineContractEnvelope,
 };
+use std::ptr::from_ref;
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, machine::Machine, state::State};
 
@@ -67,7 +68,7 @@ fn program(rows: &[(SymbolHandle, Vec<SymbolHandle>)]) -> CheckedTrees {
 
 fn selection<'a, T: 'a>(rows: impl Iterator<Item = &'a T>) -> Result<usize, Vec<String>> {
     exactly_one(rows, "literal raw selection", "row")
-        .map(|row| std::ptr::from_ref(row) as usize)
+        .map(|row| from_ref(row) as usize)
         .map_err(|errors| errors.into_iter().map(|error| error.message).collect())
 }
 
@@ -108,12 +109,10 @@ fn compare(program: &CheckedTrees, keys: &[SymbolHandle]) {
                     && typed_trees::state::state_by_symbol(program.machine_states(machine), symbol)
                         .is_some()
             })
-            .map(std::ptr::from_ref)
+            .map(from_ref)
             .collect();
         assert_eq!(
-            rows.state_owners(symbol)
-                .map(std::ptr::from_ref)
-                .collect::<Vec<_>>(),
+            rows.state_owners(symbol).map(from_ref).collect::<Vec<_>>(),
             original
         );
     }

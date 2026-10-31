@@ -27,10 +27,7 @@ pub(crate) fn validate_native_service_method(
     method: &PackagePolicyServiceMethod,
     target: target::TargetProfile,
 ) -> Result<(), &'static str> {
-    validate_service_methods(
-        std::slice::from_ref(method),
-        &method.requirement_owner,
-        target,
-    )
+    validate_service_methods(from_ref(method), &method.requirement_owner, target)
 }
 pub(crate) use signature::PackagePolicyServiceSignature;
+use std::slice::from_ref;

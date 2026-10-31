@@ -1,14 +1,14 @@
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
 };
+use numerics::float_projection::FloatProjectionOperation;
+use symbols::SymbolHandle;
 use symbols::SymbolKind;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-fn is_sealed_toolchain_float_projection(
-    program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> bool {
+fn is_sealed_toolchain_float_projection(program: &dyn CheckingInput, symbol: SymbolHandle) -> bool {
     let Some(operator) = typed_trees::operator::declaration_by_symbol(program, symbol) else {
         return false;
     };
@@ -16,10 +16,7 @@ fn is_sealed_toolchain_float_projection(
         return false;
     };
     let Some(projection) =
-        numerics::float_projection::FloatProjectionOperation::from_source_identity(
-            namespace.as_str(),
-            name.as_str(),
-        )
+        FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())
     else {
         return false;
     };
@@ -30,7 +27,7 @@ fn is_sealed_toolchain_float_projection(
 }
 
 pub(crate) fn collect_declaration_visibility_diagnostics(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_public_const_declared_types(program, diagnostics);
@@ -101,7 +98,7 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
 }
 
 fn validate_public_conformance_headers(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for conformance in program
@@ -119,9 +116,9 @@ fn validate_public_conformance_headers(
 }
 
 fn validate_public_conformance_header_selection(
-    program: &dyn crate::CheckingInput,
-    conformance_symbol: symbols::SymbolHandle,
-    selected_symbol: symbols::SymbolHandle,
+    program: &dyn CheckingInput,
+    conformance_symbol: SymbolHandle,
+    selected_symbol: SymbolHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if program.symbols.get(selected_symbol).kind == SymbolKind::TypeParameter
@@ -150,16 +147,14 @@ fn validate_public_conformance_header_selection(
     }
 }
 
-pub fn validate_declaration_visibility(
-    program: &dyn crate::CheckingInput,
-) -> Result<(), Vec<Diagnostic>> {
+pub fn validate_declaration_visibility(program: &dyn CheckingInput) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     collect_declaration_visibility_diagnostics(program, &mut diagnostics);
     crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
 fn validate_public_const_declared_types(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for declaration in program
@@ -179,8 +174,8 @@ fn validate_public_const_declared_types(
 }
 
 fn validate_public_const_type_reference(
-    program: &dyn crate::CheckingInput,
-    const_symbol: symbols::SymbolHandle,
+    program: &dyn CheckingInput,
+    const_symbol: SymbolHandle,
     type_reference: TypeReferenceHandle,
     visited: &mut Vec<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -238,9 +233,9 @@ fn validate_public_const_type_reference(
 }
 
 fn validate_public_const_data_visibility(
-    program: &dyn crate::CheckingInput,
-    const_symbol: symbols::SymbolHandle,
-    selected_symbol: symbols::SymbolHandle,
+    program: &dyn CheckingInput,
+    const_symbol: SymbolHandle,
+    selected_symbol: SymbolHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if program.symbols.get(selected_symbol).kind != SymbolKind::Data {

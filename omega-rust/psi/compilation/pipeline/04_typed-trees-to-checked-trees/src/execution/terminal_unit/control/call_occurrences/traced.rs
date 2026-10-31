@@ -13,8 +13,10 @@ use super::collecting::{
     collect_owned_root_calls, collect_range_calls, collect_root_calls,
 };
 use super::{is_terminal_call_occurrence, ordered_statement_call};
+use crate::execution::terminal_unit::calls::boundary_authority_refusal;
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
 use crate::flow::indexed_statements;
+use crate::flow::state_statements;
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 
@@ -252,7 +254,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         }
         if matches!(statement, StatementNode::Expression(_))
             && statement_index.checked_add(1)?
-                == crate::flow::state_statements(program, state.statement_nodes).len()
+                == state_statements(program, state.statement_nodes).len()
             && let Some(root) = facts.values.scalar_computations.root_at(
                 state.symbol,
                 u32::try_from(statement_index).ok()?,
@@ -338,10 +340,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             prior.statement_index == call.statement_index
         }) {
             for unclaimed in outer.iter().copied().chain(std::iter::once(call)) {
-                if let Some(reason) =
-                    crate::execution::terminal_unit::calls::boundary_authority_refusal(
-                        program, machine, state, unclaimed,
-                    )
+                if let Some(reason) = boundary_authority_refusal(program, machine, state, unclaimed)
                 {
                     trace.phase(reason);
                     break;

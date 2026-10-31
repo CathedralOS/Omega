@@ -7,28 +7,29 @@
 //! omit loans the other sees. Every reconstruction joins the loan's
 //! activation and weakening rows through the lifecycle reader.
 
+use crate::checks::borrows::details::binding_reference_access;
 use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
 use crate::checks::borrows::resources::lifecycle::{
     exact_loan_lifecycle_rows, span_handle, weakening_boundary_key,
 };
 use crate::checks::borrows::resources::reborrow_drafts::{
-    CheckedReborrowDispositionEventDraft, CheckedReborrowLoanResourceDraft, ParentResourceIndex,
-    ResourceHandles,
+    CheckedReborrowDispositionEventDraft, CheckedReborrowLoanResourceDraft as ResourceDraft,
+    ParentResourceIndex, ResourceHandles,
 };
 use crate::checks::borrows::resources::reborrow_resource_drift;
 use checked_trees::{
-    BorrowFacts, BorrowLoanLineage, CheckedDirectBorrowLoanResource,
+    BorrowFacts, BorrowLoanLineage, CheckedDirectBorrowLoanResource as LoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
     CheckedParentBorrowResource, CheckedReborrowLoanResource, FlowFacts, FlowInvalidationSource,
-    ParentLexicalStatusAtChildEnd,
+    ParentLexicalStatusAtChildEnd as ChildEnd,
 };
 use diagnostics::Diagnostic;
 
 /// Resolve the entire parent graph before either retained arena is reset.
 /// Installation is therefore a purely indexed, infallible rewrite.
 pub(crate) fn plan_resource_installation(
-    direct: &[CheckedDirectBorrowLoanResource],
-    reborrows: &[CheckedReborrowLoanResourceDraft],
+    direct: &[LoanResource],
+    reborrows: &[ResourceDraft],
 ) -> Result<Vec<ParentResourceIndex>, Vec<Diagnostic>> {
     let mut plan = Vec::with_capacity(reborrows.len());
     for (child_index, child) in reborrows.iter().enumerate() {
@@ -56,8 +57,8 @@ pub(crate) fn plan_resource_installation(
 
 pub(crate) fn install_borrow_resources(
     borrow: &mut BorrowFacts,
-    direct: Vec<CheckedDirectBorrowLoanResource>,
-    reborrows: &[CheckedReborrowLoanResourceDraft],
+    direct: Vec<LoanResource>,
+    reborrows: &[ResourceDraft],
     installation: &[ParentResourceIndex],
     dispositions: &[CheckedReborrowDispositionEventDraft],
 ) {
@@ -108,13 +109,7 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
-) -> Result<
-    (
-        Vec<CheckedDirectBorrowLoanResource>,
-        Vec<CheckedReborrowLoanResourceDraft>,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<(Vec<LoanResource>, Vec<ResourceDraft>), Vec<Diagnostic>> {
     let mut direct = Vec::new();
     let mut reborrows = Vec::new();
     let mut diagnostics = Vec::new();
@@ -145,15 +140,13 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                     // derive write authority from a shared referent. This is
                     // the same edge `Reborrow` loans face above the resource
                     // arenas, applied at the declared-access boundary.
-                    if let Some(parent_access) =
-                        crate::checks::borrows::details::binding_reference_access(
-                            program,
-                            state.machine_symbol,
-                            state.state_symbol,
-                            loan.statement_index,
-                            loan.root,
-                        )
-                        && parent_access.direct_reborrow_effect(&loan.kind).is_none()
+                    if let Some(parent_access) = binding_reference_access(
+                        program,
+                        state.machine_symbol,
+                        state.state_symbol,
+                        loan.statement_index,
+                        loan.root,
+                    ) && parent_access.direct_reborrow_effect(&loan.kind).is_none()
                     {
                         diagnostics.push(invalid_reborrow_attenuation_diagnostic(
                             &parent_access,
@@ -187,7 +180,7 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         weakening_source: weakening.source,
                         weakening_reason: weakening.reason,
                     };
-                    direct.push(CheckedDirectBorrowLoanResource {
+                    direct.push(LoanResource {
                         loan: loan_handle,
                         machine_symbol: state.machine_symbol,
                         state_symbol: state.state_symbol,
@@ -298,7 +291,7 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         continue;
                     };
 
-                    reborrows.push(CheckedReborrowLoanResourceDraft {
+                    reborrows.push(ResourceDraft {
                         loan: loan_handle,
                         machine_symbol: state.machine_symbol,
                         state_symbol: state.state_symbol,
@@ -348,12 +341,12 @@ fn parent_lexical_status_at_child_end(
     parent_reason: checked_trees::FlowBorrowWeakeningReason,
     child_source: FlowInvalidationSource,
     child_reason: checked_trees::FlowBorrowWeakeningReason,
-) -> Option<ParentLexicalStatusAtChildEnd> {
+) -> Option<ChildEnd> {
     let parent = weakening_boundary_key(parent_source, parent_reason)?;
     let child = weakening_boundary_key(child_source, child_reason)?;
     Some(match parent.cmp(&child) {
-        std::cmp::Ordering::Less => ParentLexicalStatusAtChildEnd::RetiredBeforeChild,
-        std::cmp::Ordering::Equal => ParentLexicalStatusAtChildEnd::RetiredWithChild,
-        std::cmp::Ordering::Greater => ParentLexicalStatusAtChildEnd::LivePastChild,
+        std::cmp::Ordering::Less => ChildEnd::RetiredBeforeChild,
+        std::cmp::Ordering::Equal => ChildEnd::RetiredWithChild,
+        std::cmp::Ordering::Greater => ChildEnd::LivePastChild,
     })
 }

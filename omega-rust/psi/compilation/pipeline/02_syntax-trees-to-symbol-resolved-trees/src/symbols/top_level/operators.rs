@@ -4,6 +4,7 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::top_level::next_child_of_kind;
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints;
+use symbol_resolved_trees::data::TypeParameterKind;
 
 pub(super) fn assign_root_operator_symbols(
     program: &mut SymbolResolvedTrees,
@@ -72,10 +73,8 @@ fn assign_operator_children(
             .clone();
         let mut resolved_kind = kind;
         let type_reference = match &mut resolved_kind {
-            symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
-            | symbol_resolved_trees::data::TypeParameterKind::Value { type_reference } => {
-                type_reference
-            }
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => type_reference,
             _ => continue,
         };
         assign_type_reference_symbol_with_locals_and_constraints(

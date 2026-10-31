@@ -15,6 +15,8 @@ use crate::emission::operation_emission::buffer::{
 };
 
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::emission::structural_scalar_store::lower_structural_field_path;
+use crate::emission::structural_scalar_store::lower_structural_field_place;
 use checked_trees::{CheckedByteSequenceValue as ByteValue, CheckedByteSequenceValuePlan};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
@@ -456,15 +458,13 @@ pub(crate) fn emit_content_store(
         }
         Some((CheckedUnitStructuralPathSegment::Field(field_identity), carrier_path)) => {
             let (path, field) = match &root {
-                StoreRoot::Parameter(parameter) => {
-                    crate::emission::structural_scalar_store::lower_structural_field_place(
-                        identities,
-                        carrier_path,
-                        field_identity,
-                        parameter,
-                        structural_types,
-                    )?
-                }
+                StoreRoot::Parameter(parameter) => lower_structural_field_place(
+                    identities,
+                    carrier_path,
+                    field_identity,
+                    parameter,
+                    structural_types,
+                )?,
                 StoreRoot::DescriptorHome { .. } => {
                     return unsupported("a descriptor home has no byte field");
                 }
@@ -474,14 +474,13 @@ pub(crate) fn emit_content_store(
                     access,
                     ..
                 } => {
-                    let (path, field) =
-                        crate::emission::structural_scalar_store::lower_structural_field_path(
-                            identities,
-                            *structural_type,
-                            carrier_path,
-                            field_identity,
-                            structural_types,
-                        )?;
+                    let (path, field) = lower_structural_field_path(
+                        identities,
+                        *structural_type,
+                        carrier_path,
+                        field_identity,
+                        structural_types,
+                    )?;
                     // The local resolver authenticated this occurrence's home.
                     // Owning a descriptor still cannot grant mutation through
                     // a shared pointer anywhere in the selected carrier path.
@@ -1304,14 +1303,13 @@ impl ValueEmitter<'_> {
                 capacity,
             } => {
                 let (source_place, source_type) = self.field_source(*root)?;
-                let (path, field) =
-                    crate::emission::structural_scalar_store::lower_structural_field_path(
-                        identities,
-                        source_type,
-                        carrier_path,
-                        field_identity,
-                        self.emission.structural_types,
-                    )?;
+                let (path, field) = lower_structural_field_path(
+                    identities,
+                    source_type,
+                    carrier_path,
+                    field_identity,
+                    self.emission.structural_types,
+                )?;
                 if !field
                     .field_type
                     .byte_sequence_carrier()

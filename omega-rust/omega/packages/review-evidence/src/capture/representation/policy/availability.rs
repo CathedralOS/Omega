@@ -6,6 +6,7 @@ use crate::capture::api::policy::conformances as project_public_conformances;
 use crate::capture::semantics::declarations::{nominal_identity, owned_identity};
 use crate::record::PackagePolicyRepresentationAvailability;
 use diagnostics::Diagnostic;
+use language_semantics::DataSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
@@ -59,9 +60,7 @@ pub(super) fn project(
                 "producer opaque argument is not one exact declaration",
             ));
         };
-        if !opaque.is_public
-            || opaque.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
-        {
+        if !opaque.is_public || opaque.supply_mode != DataSupplyMode::BoundaryOpaque {
             return Err(rejected(
                 "producer does not expose a public boundary-opaque declaration",
             ));
@@ -79,9 +78,7 @@ pub(super) fn project(
                 "producer carrier is not one exact concrete data declaration",
             ));
         };
-        if !carrier.is_public
-            || carrier.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-        {
+        if !carrier.is_public || carrier.supply_mode != DataSupplyMode::CheckedShape {
             return Err(rejected(
                 "producer does not expose an ordinary public checked carrier",
             ));

@@ -49,10 +49,12 @@ use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
 use source::SourceSpan;
+use source::Span;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::TypeParameter;
 use symbol_resolved_trees::machine::Machine;
 use symbol_resolved_trees::signature::StateParameter;
+use symbol_resolved_trees::types::TypeConstraint;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind};
 use syntax_trees::operator_spelling::OperatorSpelling;
@@ -388,10 +390,7 @@ fn operator_token_binding<'program>(
     let name_span = members.first().map_or_else(SourceSpan::default, |first| {
         let first = first.source_span();
         let last = leaf.expect("nonempty members").source_span();
-        SourceSpan::new(
-            first.source_id,
-            source::Span::new(first.span.start, last.span.end),
-        )
+        SourceSpan::new(first.source_id, Span::new(first.span.start, last.span.end))
     });
     let (owner_spelling, owner) = match domain {
         Some(domain) => (
@@ -560,7 +559,7 @@ fn extend_name_positions<'program>(
                 .constraints
                 .span_or_empty(constrained.constraints)
             {
-                if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint {
+                if let TypeConstraint::Domain(domain) = constraint {
                     positions.push(TypePosition::Domain {
                         name: domain.name.as_str(),
                     });
@@ -879,9 +878,7 @@ impl<'program> ShapeNormalizer<'program> {
                     .span_or_empty(constrained.constraints)
                     .iter()
                     .map(|constraint| match constraint {
-                        symbol_resolved_trees::types::TypeConstraint::Domain(domain)
-                            if !domain.arguments.is_empty() =>
-                        {
+                        TypeConstraint::Domain(domain) if !domain.arguments.is_empty() => {
                             let arguments = self
                                 .program
                                 .child_type_references(domain.arguments)

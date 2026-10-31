@@ -6,6 +6,8 @@ use super::canonical_projection::canonical_place_from_expression_in_state;
 use crate::value_custody::type_references::substituted_identity;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
 /// The declared type an expression's value carries. The canonical place walk
@@ -334,12 +336,10 @@ fn observation_type_identity_text(
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> String {
     program
-        .type_identity_text(program.type_identity(
-            typed_trees::type_identity::TypeIdentityRequest {
-                substitutions,
-                ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
-            },
-        ))
+        .type_identity_text(program.type_identity(TypeIdentityRequest {
+            substitutions,
+            ..TypeIdentityRequest::ordinary(reference)
+        }))
         .unwrap_or_default()
 }
 
@@ -878,9 +878,7 @@ fn field_type_reference(
                         .type_reference_table
                         .type_reference_handles(*arguments),
                 )
-                .filter(|&(parameter, _argument)| {
-                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                })
+                .filter(|&(parameter, _argument)| matches!(parameter.kind, TypeParameterKind::Type))
                 .map(|(parameter, argument)| {
                     (
                         parameter.symbol,

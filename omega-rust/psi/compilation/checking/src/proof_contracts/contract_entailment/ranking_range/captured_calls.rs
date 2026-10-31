@@ -12,6 +12,7 @@ use crate::proof_contracts::contract_entailment::{
     structural_judgment::{CapturedIntegerRank, FormedIntegerRank, StructuralJudge},
     structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor},
 };
+use std::borrow::Cow;
 use symbols::SymbolHandle;
 use typed_trees::{signature::SignatureContractKind, types::PrimitiveType};
 
@@ -248,9 +249,7 @@ impl CallProgress {
                         call_parameter_scope(program, machine.symbol, &owner, site)
                             .ok_or("the arriving rank reference has no applied public telescope")?
                     }
-                    crate::CallSite::TransitionNamed { .. } => {
-                        std::borrow::Cow::Borrowed(parameters.as_slice())
-                    }
+                    crate::CallSite::TransitionNamed { .. } => Cow::Borrowed(parameters.as_slice()),
                     crate::CallSite::Statement(_) => {
                         return Err("the rank call has no completing invocation");
                     }

@@ -1,10 +1,13 @@
+use crate::CheckingInput;
 use crate::StateSignatureOwner;
 use crate::frozen_program::expression_table;
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use facts::FactPlan;
 use std::fmt;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
@@ -38,9 +41,9 @@ pub(crate) enum ProofFactOwner<'program> {
 /// resolved, implicit, nor a carried permission — the unknown-domain
 /// rejection both validation loops emit.
 fn unknown_membership_domain_diagnostic(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner: ProofFactOwner<'_>,
-    domain: arena::HandleSpan<Identifier>,
+    domain: HandleSpan<Identifier>,
     domain_symbol: symbols::SymbolHandle,
 ) -> Option<Diagnostic> {
     if domain_symbol.is_valid()
@@ -56,7 +59,7 @@ fn unknown_membership_domain_diagnostic(
 }
 
 pub(crate) fn validate_proposition_definitions(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for proposition in program.propositions() {
@@ -79,7 +82,7 @@ pub(crate) fn validate_proposition_definitions(
 }
 
 fn validate_witness_evidence_interface(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     proposition: &str,
     evidence: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
@@ -167,7 +170,7 @@ fn validate_witness_evidence_interface(
 }
 
 fn evidence_argument_is_resolved(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     argument: TypeReferenceHandle,
 ) -> bool {
     if !argument.is_valid() {
@@ -206,7 +209,7 @@ fn evidence_argument_is_resolved(
 /// a boundary trait, directly or through an inherited parent, describes
 /// externally executed services instead.
 fn evidence_trait_violation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     trait_definition: &TraitDefinition,
     visiting: &mut Vec<SymbolHandle>,
 ) -> Option<String> {
@@ -234,7 +237,7 @@ fn evidence_trait_violation(
 }
 
 fn transparent_proposition_cycle(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     symbol: symbols::SymbolHandle,
     visiting: &mut Vec<symbols::SymbolHandle>,
 ) -> bool {
@@ -282,7 +285,7 @@ impl fmt::Display for ProofFactOwner<'_> {
 }
 
 pub(crate) fn validate_domain_fact_payloads(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     fact_plan: &FactPlan,
     domain: &typed_trees::domain::DomainDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -316,7 +319,7 @@ pub(crate) fn validate_domain_fact_payloads(
 }
 
 pub(crate) fn validate_proof_facts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &[ProofFact],
     diagnostics: &mut Vec<Diagnostic>,
     owner: ProofFactOwner<'_>,
@@ -416,7 +419,7 @@ pub(crate) fn validate_proof_facts(
 }
 
 fn abstract_trait_self_member_in_fact(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     fact: &ProofFact,
 ) -> Option<String> {
     let mut visited = Vec::new();
@@ -437,7 +440,7 @@ fn abstract_trait_self_member_in_fact(
 }
 
 fn abstract_trait_self_member_in_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     visited: &mut Vec<ExpressionHandle>,
 ) -> Option<String> {
@@ -513,7 +516,7 @@ fn abstract_trait_self_member_in_expression(
 }
 
 fn proof_argument_declared_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     argument: ExpressionHandle,
     owner: ProofFactOwner<'_>,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
@@ -541,9 +544,7 @@ fn proof_argument_declared_type(
                 .data_members(definition)
                 .iter()
                 .find_map(|field| match field {
-                    typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == member_name =>
-                    {
+                    DataMember::Field(field) if field.name.as_str() == member_name => {
                         Some(field.type_reference)
                     }
                     _ => None,
@@ -586,10 +587,7 @@ fn proof_fact_machine_name(owner: ProofFactOwner<'_>) -> Option<&str> {
     }
 }
 
-fn self_member_name(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<&str> {
+fn self_member_name(program: &dyn CheckingInput, expression: ExpressionHandle) -> Option<&str> {
     match expression_table(program).expression(expression) {
         ExpressionNode::Member(member) => {
             let Some(path) = expression_table(program).name_path_node(member.receiver) else {
@@ -612,17 +610,14 @@ fn self_member_name(
 }
 
 pub(crate) fn carry_permission(
-    program: &dyn crate::CheckingInput,
-    domain: arena::HandleSpan<Identifier>,
+    program: &dyn CheckingInput,
+    domain: HandleSpan<Identifier>,
 ) -> Option<language_semantics::CarryPermission> {
     let name = domain_path_label(program, domain);
     language_semantics::CarryPermission::from_name(&name)
 }
 
-fn is_implicit_case_domain(
-    program: &dyn crate::CheckingInput,
-    domain: arena::HandleSpan<Identifier>,
-) -> bool {
+fn is_implicit_case_domain(program: &dyn CheckingInput, domain: HandleSpan<Identifier>) -> bool {
     let [type_name, case_name] = program.domain_path_members(domain) else {
         return false;
     };
@@ -631,7 +626,7 @@ fn is_implicit_case_domain(
             && program.data_members(definition).iter().any(|member| {
                 matches!(
                     member,
-                    typed_trees::data::DataMember::Variant(variant)
+                    DataMember::Variant(variant)
                         if variant.name.as_str() == case_name.as_str()
                 )
             })
@@ -645,7 +640,7 @@ fn is_implicit_case_domain(
 /// validators; this does not demand executable Boolean results from logical
 /// proposition applications.
 fn is_boolean_domain_fact_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     domain: &typed_trees::domain::DomainDefinition,
     expression: ExpressionHandle,
 ) -> bool {
@@ -678,7 +673,7 @@ fn is_boolean_domain_fact_expression(
 /// A logical match keeps the exact declaration/current frame for its result
 /// carrier. Context-free spelling cannot classify an integer match as Boolean.
 fn is_boolean_owned_fact_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     owner: ProofFactOwner<'_>,
 ) -> bool {
@@ -712,7 +707,7 @@ fn is_boolean_owned_fact_expression(
 }
 
 fn boolean_record_match_shape(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     type_of: impl Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> bool {
@@ -726,10 +721,7 @@ fn boolean_record_match_shape(
         })
 }
 
-fn is_boolean_fact_expression(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
+fn is_boolean_fact_expression(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
     match expression_table(program).expression(expression) {
         ExpressionNode::SavedSubject(_) | ExpressionNode::Match(_) => false,
         ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
@@ -779,7 +771,7 @@ fn is_boolean_fact_expression(
 /// shape check cannot resolve those scoped names. Computed predicates keep the
 /// same accepted proof-expression surface as ordinary contracts.
 pub(crate) fn is_boolean_asm_fact_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
@@ -807,10 +799,7 @@ pub(crate) fn is_boolean_asm_fact_expression(
     }
 }
 
-fn domain_path_label(
-    program: &dyn crate::CheckingInput,
-    domain: arena::HandleSpan<Identifier>,
-) -> String {
+fn domain_path_label(program: &dyn CheckingInput, domain: HandleSpan<Identifier>) -> String {
     let path = program.domain_path_members(domain);
     if path.is_empty() {
         return "<unknown>".to_owned();
@@ -820,7 +809,7 @@ fn domain_path_label(
 }
 
 pub(crate) fn string_literal_grants_domain(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
@@ -832,7 +821,7 @@ pub(crate) fn string_literal_grants_domain(
 }
 
 pub(crate) fn domain_admits_zero_bytes(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> bool {
     program
@@ -849,7 +838,7 @@ pub(crate) fn domain_admits_zero_bytes(
 /// The `Expression` facts carried by `Ensures` contracts in `contracts`, in
 /// order — the entitlement surface every entailment/seed loop filters down to.
 pub(crate) fn ensures_expression_facts<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     contracts: &'a [typed_trees::signature::SignatureContract],
 ) -> impl Iterator<Item = ExpressionHandle> + 'a {
     ensures_facts(program, contracts).filter_map(|fact| {
@@ -860,7 +849,7 @@ pub(crate) fn ensures_expression_facts<'a>(
 
 /// Every fact carried by `Ensures` contracts in `contracts`, in order.
 pub(crate) fn ensures_facts<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     contracts: &'a [typed_trees::signature::SignatureContract],
 ) -> impl Iterator<Item = &'a ProofFact> + 'a {
     contracts
@@ -872,7 +861,7 @@ pub(crate) fn ensures_facts<'a>(
 /// Every `Expression` fact inside `contracts` of `kind` — Requires and
 /// Ensures bodies read through the same vocabulary.
 pub(crate) fn contract_expression_facts<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     contracts: impl Iterator<Item = &'a typed_trees::signature::SignatureContract> + 'a,
     kind: typed_trees::signature::SignatureContractKind,
 ) -> impl Iterator<Item = ExpressionHandle> + 'a {

@@ -75,10 +75,12 @@ use super::{
     StructuralAccess, StructuralFieldId, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, allocate_dense, place_id,
 };
+use crate::emission::claim_bindings::emit_establishment_claims;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::{self, ProjectionStep};
 use crate::emission::structural_scalar_store::{WindowLeaf, lower_window_path};
+use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::lookup_type_id;
 use checked_trees::{
@@ -490,11 +492,7 @@ impl BorrowedWindowLedger {
         let Some(capture) = self.assignment_destination(statement_index, source, path) else {
             return Ok(None);
         };
-        let suffix =
-            crate::expression_preparation::bindings::structural_paths::lower_structural_path(
-                identities,
-                &path[capture.destination.path.len()..],
-            )?;
+        let suffix = lower_structural_path(identities, &path[capture.destination.path.len()..])?;
         let mut retained = capture.path.clone();
         retained.extend_from_slice(&suffix);
         let mut original_path = capture.original_path.clone();
@@ -525,11 +523,7 @@ impl BorrowedWindowLedger {
         }) else {
             return Ok(None);
         };
-        let suffix =
-            crate::expression_preparation::bindings::structural_paths::lower_structural_path(
-                identities,
-                &path[capture.normalized_path.len()..],
-            )?;
+        let suffix = lower_structural_path(identities, &path[capture.normalized_path.len()..])?;
         let mut retained = capture.path.clone();
         retained.extend_from_slice(&suffix);
         let mut original_path = capture.original_path.clone();
@@ -606,10 +600,7 @@ impl BorrowedWindowLedger {
     ) -> Result<EvaluatedStoragePlace, LoweringError> {
         if let Some(capture) = capture {
             let descendants =
-                crate::expression_preparation::bindings::structural_paths::lower_structural_path(
-                    identities,
-                    &plan.path[capture.destination.path.len()..],
-                )?;
+                lower_structural_path(identities, &plan.path[capture.destination.path.len()..])?;
             let mut path = capture.path.clone();
             path.extend_from_slice(&descendants);
             let mut original_path = capture.original_path.clone();
@@ -778,10 +769,7 @@ impl BorrowedWindowLedger {
         let result_claims = if place.restoration_required {
             // Opening a borrowed hole creates this frame's checked debt names;
             // the caller's resource is not an owned source in this frame.
-            crate::emission::claim_bindings::emit_establishment_claims(
-                prepared_claims,
-                &mut evaluation.calls.claims,
-            )?
+            emit_establishment_claims(prepared_claims, &mut evaluation.calls.claims)?
         } else {
             let argument = StructuralArgument {
                 place: source,

@@ -15,9 +15,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// the shape static type queries can resolve without an evaluation owner.
 /// Computed roots and dynamic selectors instead retain their producers in
 /// the structural value graph through the common reference-source capture.
-pub(in crate::execution::scalar_computations) fn canonical_place_is_borrowable(
-    place: &validation::CanonicalPlace,
-) -> bool {
+pub(in super::super) fn canonical_place_is_borrowable(place: &validation::CanonicalPlace) -> bool {
     matches!(place.root, facts::PlaceRoot::Symbol(_))
         && place.segments.iter().all(|segment| {
             matches!(
@@ -148,7 +146,7 @@ pub(super) fn readable_place(
 /// contents copy out whole, no loan involved.
 /// Retain that snapshot at the operand's evaluation point; passing an earlier
 /// constructor's result would confuse mutable storage with its initial value.
-pub(in crate::execution::scalar_computations) fn needs_copied_place_root(
+pub(in super::super) fn needs_copied_place_root(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,

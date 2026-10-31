@@ -21,6 +21,7 @@ use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::places::place_at;
+use crate::values::scalar_expression_type;
 use checked_trees::expression::ExpressionHandle;
 
 /// The terminator family an edge is built for. The trace names the guard
@@ -1019,8 +1020,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         != target_parameters
                             .get(target.source_position as usize)?
                             .symbol
-                    || crate::values::scalar_expression_type(expression)
-                        != Some(target.primitive_type)
+                    || scalar_expression_type(expression) != Some(target.primitive_type)
                 {
                     return None;
                 }
@@ -1074,8 +1074,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         != target_parameters
                             .get(target.source_position as usize)?
                             .symbol
-                    || crate::values::scalar_expression_type(expression)
-                        != Some(target.primitive_type)
+                    || scalar_expression_type(expression) != Some(target.primitive_type)
                 {
                     return None;
                 }

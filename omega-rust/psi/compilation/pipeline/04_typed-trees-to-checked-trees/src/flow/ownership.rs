@@ -9,6 +9,7 @@
 //! Exact place types stay with validation's value-custody projection owner.
 
 use crate::flow::canonical_place_from_symbol;
+use crate::flow::state_statements;
 use crate::places::place_at;
 use checked_trees::BorrowFacts;
 use checked_trees::statement::StatementNode;
@@ -190,9 +191,7 @@ pub(super) fn append_statement_ownership_events(
             state_symbol,
             statement_index,
             *expression,
-            if statement_index + 1
-                == crate::flow::state_statements(program, sink.state.statement_nodes).len()
-            {
+            if statement_index + 1 == state_statements(program, sink.state.statement_nodes).len() {
                 sink.state.return_type
             } else {
                 Default::default()

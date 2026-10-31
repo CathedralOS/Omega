@@ -5,6 +5,7 @@
 //! Geometry does not grant permission: source occurrence, access and live-loan
 //! checks still precede this join, and Terminal validates its concrete endpoint.
 
+use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::lowering_error::{LoweringError, unsupported};
 
@@ -1105,10 +1106,7 @@ pub(crate) fn emit_captured_argument_path(
     caller_values: Option<&[ValueDeclaration]>,
     selectors: &mut dyn Iterator<Item = ValueId>,
     mut calls: Option<&mut CallEmissionContext<'_>>,
-    emission: Option<(
-        &mut u64,
-        &mut crate::emission::operation_emission::buffer::OperationBuffer,
-    )>,
+    emission: Option<(&mut u64, &mut OperationBuffer)>,
 ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
     use crate::emission::operation_emission::expressions::{
         emit_byte_length, emit_element_length, emit_scalar_leaf,

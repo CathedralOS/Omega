@@ -6,6 +6,7 @@ use crate::collection_operations::MeasureReceiver;
 use language_semantics::declaration_selection::CollectionMeasure;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -300,14 +301,12 @@ pub(super) fn resolve_member_symbol(
     let mut candidates = Vec::new();
     for data_member in program.data_members(data) {
         match data_member {
-            typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == member.member.as_str() =>
-            {
+            DataMember::Field(field) if field.name.as_str() == member.member.as_str() => {
                 if !candidates.contains(&field.symbol) {
                     candidates.push(field.symbol);
                 }
             }
-            typed_trees::data::DataMember::Variant(variant) => {
+            DataMember::Variant(variant) => {
                 if member
                     .case_variant
                     .as_ref()

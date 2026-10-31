@@ -2,9 +2,14 @@ use super::{
     BTreeMap, BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER,
     SymbolHandle, proof_nat_cast,
 };
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::proof_integer_expression;
+use std::sync::Arc;
+use typed_trees::expression::TableCastExpression;
+use typed_trees::expression::TableMatchExpression;
 use typed_trees::expression::UnaryOperator;
+use typed_trees::types::TypeReferenceHandle;
 mod application_formation;
 pub use application_formation::IntegerApplicationFormation;
 #[cfg(test)]
@@ -294,14 +299,14 @@ pub(super) struct SavedCondition {
 
 #[derive(Clone)]
 pub(super) struct Engine<'program> {
-    pub(super) program: &'program dyn crate::CheckingInput,
+    pub(super) program: &'program dyn CheckingInput,
     /// The machine this engine judges (entry-range hypotheses resolve
     /// through it).
     machine_symbol: SymbolHandle,
     /// Source declaration for the currently installed scoped expression.
     /// Nested actual terms retain their own owner before formal substitution.
     source_owner: SymbolHandle,
-    source_type_bindings: Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
+    source_type_bindings: Vec<(SymbolHandle, TypeReferenceHandle)>,
     /// Canonical atom names for the machine's parameters.
     pub(super) parameter_atoms: Vec<String>,
     /// Authority-bearing adapters bind resolved symbols directly. When this
@@ -355,9 +360,9 @@ pub(super) struct Engine<'program> {
     opaque_terms: Vec<(String, OpaqueTerm)>,
     /// Forked proof paths share only the mint namespace, not logical facts.
     /// Dense IDs avoid embedding entire nested definitions in atom strings.
-    denotation_identities: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    denotation_identities: Arc<std::sync::atomic::AtomicU64>,
     conditional_terms: Vec<usize>,
-    conditional_work_remaining: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    conditional_work_remaining: Arc<std::sync::atomic::AtomicUsize>,
     /// Difference-bound matrix over atoms + the virtual ZERO atom:
     /// `matrix[a][b]` = best known lower bound of `a - b`.
     matrix: difference_matrix::DifferenceBounds,
@@ -368,7 +373,7 @@ const ZERO_ATOM: &str = "\u{0}zero";
 const SUBSTITUTION_ROUNDS: usize = 8;
 
 impl<'program> Engine<'program> {
-    pub(super) fn new(program: &'program dyn crate::CheckingInput, machine: &Machine) -> Self {
+    pub(super) fn new(program: &'program dyn CheckingInput, machine: &Machine) -> Self {
         let mut engine = Self::for_owner(program, machine.symbol, None);
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
@@ -413,7 +418,7 @@ impl<'program> Engine<'program> {
     /// stay outside the language, so the roster lives here once: a new engine
     /// field is initialized in one place instead of once per constructor.
     fn for_owner(
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         owner: SymbolHandle,
         strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
     ) -> Self {
@@ -438,11 +443,9 @@ impl<'program> Engine<'program> {
             nonzero_differences: Vec::new(),
             arithmetic_intervals: BTreeMap::new(),
             opaque_terms: Vec::new(),
-            denotation_identities: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            denotation_identities: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             conditional_terms: Vec::new(),
-            conditional_work_remaining: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(
-                1 << 20,
-            )),
+            conditional_work_remaining: Arc::new(std::sync::atomic::AtomicUsize::new(1 << 20)),
             matrix: difference_matrix::DifferenceBounds::default(),
             requires_unsatisfiable: false,
         }
@@ -667,7 +670,7 @@ impl<'program> Engine<'program> {
     }
 
     pub(super) fn for_proof_integer_formation(
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         owner: SymbolHandle,
         hypotheses: &[ExpressionHandle],
         selections: &[crate::proof_contracts::arithmetic_domains::DispatchSelection],
@@ -702,7 +705,7 @@ impl<'program> Engine<'program> {
     /// Start with an empty explicit roster. Declaration-scoped judgments supply
     /// every binder themselves; scanning all program names only to discard that
     /// roster makes each local predicate proportional to the entire program.
-    pub(super) fn for_explicit_bindings(program: &'program dyn crate::CheckingInput) -> Self {
+    pub(super) fn for_explicit_bindings(program: &'program dyn CheckingInput) -> Self {
         Self::for_owner(program, SymbolHandle::default(), Some(Vec::new()))
     }
 
@@ -711,7 +714,7 @@ impl<'program> Engine<'program> {
     /// the call-site binder rule). Used by the inductive transition path,
     /// where each arm binds or shares `result`.
     pub(super) fn with_result_atom(
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         machine: &Machine,
         root: &typed_trees::state::State,
     ) -> Self {
@@ -1655,10 +1658,7 @@ impl<'program> Engine<'program> {
         }
     }
 
-    fn normalize_matched_integer(
-        &mut self,
-        dispatch: &typed_trees::expression::TableMatchExpression,
-    ) -> Option<Polynomial> {
+    fn normalize_matched_integer(&mut self, dispatch: &TableMatchExpression) -> Option<Polynomial> {
         let arms = expression_table(self.program)
             .match_arms(dispatch.arms)
             .to_vec();
@@ -1716,10 +1716,7 @@ impl<'program> Engine<'program> {
         }
     }
 
-    fn value_preserving_integer_cast(
-        &self,
-        cast: &typed_trees::expression::TableCastExpression,
-    ) -> bool {
+    fn value_preserving_integer_cast(&self, cast: &TableCastExpression) -> bool {
         if cast.form.is_recast() || self.proof_integer_formation {
             return false;
         }
@@ -1812,10 +1809,7 @@ impl<'program> Engine<'program> {
 /// `is_signed_integer` is false exactly for the unsigned integer primitives
 /// (floats/bool/string report true), so this marks precisely the carriers whose
 /// atoms carry the implicit `>= 0`.
-fn unsigned_parameter_carrier(
-    program: &dyn crate::CheckingInput,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
+fn unsigned_parameter_carrier(program: &dyn CheckingInput, reference: TypeReferenceHandle) -> bool {
     program
         .type_reference_table
         .primitive_type(reference)
@@ -1825,7 +1819,7 @@ fn unsigned_parameter_carrier(
 /// The declaration symbol a member chain bottoms out on, or None when the
 /// receiver is not a name place (a literal, a call result, a projection).
 fn member_receiver_root_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let mut handle = expression;
@@ -1846,10 +1840,7 @@ fn member_receiver_root_symbol(
 /// source forms and calls without established value identity use occurrence
 /// identity rather than guessing equivalence. A declared result carrier grants
 /// standing bounds on one observation, not equality between two invocations.
-fn integer_source_identity(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> String {
+fn integer_source_identity(program: &dyn CheckingInput, expression: ExpressionHandle) -> String {
     match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) if path.symbol.is_valid() => format!("name:{:?}", path.symbol),
         ExpressionNode::Integer(literal) => format!("literal:{literal:?}"),
@@ -1908,7 +1899,7 @@ fn integer_source_identity(
 /// exact transient identity as arithmetic normalization. No display label or
 /// bare call spelling can establish equality.
 pub fn integer_embedding_sources_equal(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {

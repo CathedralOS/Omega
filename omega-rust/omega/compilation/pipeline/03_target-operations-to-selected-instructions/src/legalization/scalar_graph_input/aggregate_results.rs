@@ -5,6 +5,9 @@ use super::{
     ValueDefinitionSite, evaluate_call_plan, scalar_shape,
 };
 use crate::LegalizationError;
+use crate::structural_inputs::structural_reference_input::{
+    field_shape, owned_storage_shape, primitive_array_shape,
+};
 use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
@@ -97,12 +100,8 @@ pub(in crate::legalization) fn sum_type_layout(
         return Err(LegalizationError::custody());
     }
     let shape_of = |field: &terminal_psi::StructuralFieldDeclaration| {
-        crate::structural_inputs::structural_reference_input::field_shape(
-            &field.field_type,
-            &plan.structural_types,
-            &mut Vec::new(),
-        )
-        .ok_or(LegalizationError::custody())
+        field_shape(&field.field_type, &plan.structural_types, &mut Vec::new())
+            .ok_or(LegalizationError::custody())
     };
     let common = common
         .iter()
@@ -457,11 +456,7 @@ pub(in crate::legalization) fn call_argument_invocation(
         );
     }
     if argument.access != terminal_psi::StructuralAccess::Owned
-        && crate::structural_inputs::structural_reference_input::owned_storage_shape(
-            destination.structural_type,
-            &plan.structural_types,
-        )
-        .is_some()
+        && owned_storage_shape(destination.structural_type, &plan.structural_types).is_some()
     {
         return borrowed_arguments::reconstruct(
             argument,
@@ -670,12 +665,11 @@ pub(in crate::legalization) fn type_home_layout(
         // Claims and qualifications ride the home origin verbatim as custody
         // evidence; the layout is the carrier's physical shape alone.
         return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
-            crate::structural_inputs::structural_reference_input::primitive_array_shape(
-                structural_type,
-                &plan.structural_types,
-            )
-            .or_else(|| crate::structural_inputs::shape(structural_type, &plan.structural_types))
-            .ok_or(LegalizationError::custody())?,
+            primitive_array_shape(structural_type, &plan.structural_types)
+                .or_else(|| {
+                    crate::structural_inputs::shape(structural_type, &plan.structural_types)
+                })
+                .ok_or(LegalizationError::custody())?,
         ));
     }
     Ok(target_operations::TargetStructuralHomeLayout::Sum(

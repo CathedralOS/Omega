@@ -1,5 +1,6 @@
 //! Declaration queries over typed-owned indexes and invocation-owned field rows.
 use crate::frozen_program::expression_table;
+use typed_trees::data::DataMember;
 
 /// The declaration-table answer for a symbol: absent, exactly one
 /// definition at a position, or a duplicate.
@@ -46,9 +47,7 @@ pub(crate) fn data_field_named<'a>(
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(data_field) if data_field.name == name => {
-                Some(data_field)
-            }
+            DataMember::Field(data_field) if data_field.name == name => Some(data_field),
             _ => None,
         })
 }
@@ -64,9 +63,7 @@ pub(crate) fn data_field_type_by_symbol(
         .iter()
         .flat_map(|data| program.data_members(data))
         .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field)
-                if symbol.is_valid() && field.symbol == symbol =>
-            {
+            DataMember::Field(field) if symbol.is_valid() && field.symbol == symbol => {
                 Some(field.type_reference)
             }
             _ => None,
@@ -90,7 +87,7 @@ pub(crate) fn data_field_is_where_independent(
         .data_members(definition)
         .iter()
         .find_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
+            let DataMember::Variant(variant) = member else {
                 return None;
             };
             program

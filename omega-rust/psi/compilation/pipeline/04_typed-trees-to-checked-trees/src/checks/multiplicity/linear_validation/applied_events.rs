@@ -5,18 +5,25 @@
 //! an unestablished value, overwriting a live linear value), never to record
 //! them a second time.
 
+use super::super::instruction_dispositions::valid_receipt;
+use super::super::selected_evaluation::ExpressionRoutes;
+use super::super::selected_evaluation::SelectedEvaluation;
+use super::super::selected_evaluation::place_bindings::SelectionSite;
+use super::super::selected_evaluation::place_bindings::join_recorded_places;
+use super::affine_cleanup::exit_evaluation;
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
-use checked_trees::{CheckFacts, FlowPermissionEventFact};
+use crate::flow::call_permission_evaluation;
+use checked_trees::{CheckFacts, FlowPermissionEventFact as EventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity as ClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
 use symbols::SymbolHandle;
 
 pub(crate) fn apply_recorded_state_entry_events(
-    events: &[&FlowPermissionEventFact],
+    events: &[&EventFact],
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     places: &mut [LinearPlace],
 ) {
@@ -46,7 +53,7 @@ pub(crate) fn apply_recorded_statement_events(
     state: &typed_trees::state::State,
     statement_index: usize,
     evaluation: checked_trees::FlowPermissionEvaluation,
-    events: &[&FlowPermissionEventFact],
+    events: &[&EventFact],
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -58,7 +65,7 @@ pub(crate) fn apply_recorded_statement_events(
         return;
     }
     let segments = &facts.flow.ownership.segments;
-    let routes = super::super::selected_evaluation::ExpressionRoutes::new(
+    let routes = ExpressionRoutes::new(
         program,
         machine,
         state,
@@ -73,22 +80,16 @@ pub(crate) fn apply_recorded_statement_events(
         .map_or(&[][..], |flow| {
             facts.flow.control.calls.span_or_empty(flow.calls)
         });
-    let mut selected = super::super::selected_evaluation::SelectedEvaluation::new();
+    let mut selected = SelectedEvaluation::new();
     let mut current = places.to_vec();
-    let site = super::super::selected_evaluation::place_bindings::SelectionSite {
+    let site = SelectionSite {
         machine: machine.symbol,
         state: state.symbol,
         statement: statement_index,
         evaluation,
     };
     let join = |branch, current: &mut Vec<LinearPlace>, sibling: &Vec<LinearPlace>| {
-        super::super::selected_evaluation::place_bindings::join_recorded_places(
-            &facts.flow.ownership,
-            site,
-            branch,
-            current,
-            sibling,
-        )
+        join_recorded_places(&facts.flow.ownership, site, branch, current, sibling)
     };
     for event in events.iter().copied().filter(|event| {
         permission_event_statement_index(event.source) == Some(statement_index)
@@ -107,9 +108,8 @@ pub(crate) fn apply_recorded_statement_events(
         if matches!(
             event.source,
             PermissionEventSource::InstructionDisposition { .. }
-        ) && !super::super::instruction_dispositions::valid_receipt(
-            program, facts, machine, state, event,
-        ) {
+        ) && !valid_receipt(program, facts, machine, state, event)
+        {
             diagnostics.push(Diagnostic::error(
                 "instruction disposition has no matching checked effect receipt",
             ));
@@ -168,7 +168,7 @@ pub(crate) fn apply_recorded_statement_events(
 }
 
 fn apply_recorded_consumption(
-    event: &FlowPermissionEventFact,
+    event: &EventFact,
     place: &mut LinearPlace,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -187,10 +187,7 @@ fn apply_recorded_consumption(
             "{ownership} value `{}` was already transferred or consumed; it cannot be moved here",
             place.name
         )));
-    } else if place
-        .claim_identity
-        .unwrap_or(PermissionClaimIdentity::Unknown)
-        != event.claim_identity
+    } else if place.claim_identity.unwrap_or(ClaimIdentity::Unknown) != event.claim_identity
         || place.provenance.unwrap_or(PermissionProvenance::Unknown) != event.provenance
     {
         // Reconciliation rewrites an entire occurrence, including
@@ -212,22 +209,20 @@ pub(crate) fn apply_recorded_exit_dispositions(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     coordinate: checked_trees::FlowClaimJoinExit,
-    events: &[&FlowPermissionEventFact],
+    events: &[&EventFact],
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let source = PermissionEventSource::InstructionExitDisposition {
         statement_index: coordinate.statement_index,
     };
-    let evaluation = super::affine_cleanup::exit_evaluation(program, state, coordinate);
+    let evaluation = exit_evaluation(program, state, coordinate);
     for event in events
         .iter()
         .copied()
         .filter(|event| event.source == source && event.evaluation == evaluation)
     {
-        if !super::super::instruction_dispositions::valid_receipt(
-            program, facts, machine, state, event,
-        ) {
+        if !valid_receipt(program, facts, machine, state, event) {
             diagnostics.push(Diagnostic::error(
                 "instruction exit disposition has no matching checked effect receipt",
             ));
@@ -259,7 +254,7 @@ pub(crate) fn permission_event_statement_index(source: PermissionEventSource) ->
 pub(crate) fn append_borrow_permission_events(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-    permission_events: &mut Vec<FlowPermissionEventFact>,
+    permission_events: &mut Vec<EventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
 ) {
     // Clone only the small state/span index so the ownership-segment arena can
@@ -335,7 +330,7 @@ pub(crate) fn append_borrow_permission_events(
                     (claim.loan == weakening.loan).then_some(claim.claim_identity)
                 })
                 .last()
-                .unwrap_or(PermissionClaimIdentity::Unknown);
+                .unwrap_or(ClaimIdentity::Unknown);
             append_borrow_permission_event(
                 program,
                 facts,
@@ -354,13 +349,13 @@ pub(crate) fn append_borrow_permission_events(
 fn append_borrow_permission_event(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-    permission_events: &mut Vec<FlowPermissionEventFact>,
+    permission_events: &mut Vec<EventFact>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
     source: PermissionEventSource,
     kind: PermissionEventKind,
-    claim_identity: PermissionClaimIdentity,
+    claim_identity: ClaimIdentity,
 ) {
     let loan = facts.borrow.loans.get(loan_handle).clone();
     let segments = facts
@@ -391,18 +386,12 @@ fn append_borrow_permission_event(
             .machine_by_symbol(machine_symbol)
             .zip(program.state_by_symbol(state_symbol))
             .map(|(machine, state)| {
-                crate::flow::call_permission_evaluation(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    call_ordinal,
-                )
+                call_permission_evaluation(program, machine, state, statement_index, call_ordinal)
             })
             .unwrap_or(checked_trees::FlowPermissionEvaluation::Unknown),
         _ => checked_trees::FlowPermissionEvaluation::Statement,
     };
-    permission_events.push(FlowPermissionEventFact {
+    permission_events.push(EventFact {
         expression: Default::default(),
         evaluation,
         machine_symbol,

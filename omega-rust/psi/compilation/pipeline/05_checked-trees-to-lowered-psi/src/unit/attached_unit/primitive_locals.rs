@@ -33,6 +33,8 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::structural_result_declaration;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::terminal_identities::obligation_id;
 use crate::unit::StructuralTypeDeclaration;
 
 /// One immutable module namespace for scalar-to-storage correspondence.
@@ -113,18 +115,16 @@ pub(super) fn register_mut_formal_storage_homes(
         // Stores, projected consumers and loans resolve the established home,
         // including its exact restricted declaration. The scalar binding only
         // supplies its dense signature position; it is not another storage type.
-        evaluation.bind_structural_local(
-            crate::expression_preparation::bindings::StructuralLocalBinding {
-                result_binding_ordinal: None,
-                root,
-                structural_type,
-                argument: terminal_psi::StructuralArgument {
-                    place: storage.local.declaration.id,
-                    path: Vec::new(),
-                    access: terminal_psi::StructuralAccess::Owned,
-                },
+        evaluation.bind_structural_local(StructuralLocalBinding {
+            result_binding_ordinal: None,
+            root,
+            structural_type,
+            argument: terminal_psi::StructuralArgument {
+                place: storage.local.declaration.id,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::Owned,
             },
-        );
+        });
     }
     Ok(())
 }
@@ -151,9 +151,7 @@ pub(crate) fn initialization_obligation(
             // The shared receiving-predicate owner covers intervals and closed
             // refinements alike. Explicit initialization owes that complete
             // predicate on its completed operand; zero membership is unrelated.
-            Ok(Some(crate::terminal_identities::obligation_id(
-                allocate_dense(next_obligation)?,
-            )))
+            Ok(Some(obligation_id(allocate_dense(next_obligation)?)))
         }
         _ => unsupported("primitive storage has no supported initialization restriction"),
     }
@@ -386,8 +384,8 @@ impl OperationFrame<'_, '_> {
             .register_structural_materialization(place, self.state, *statement_index)?;
         // Publish the original home once, rather than copying its initializer
         // or leaving constructor consumers with a private primitive index.
-        self.evaluation.bind_structural_local(
-            crate::expression_preparation::bindings::StructuralLocalBinding {
+        self.evaluation
+            .bind_structural_local(StructuralLocalBinding {
                 result_binding_ordinal: None,
                 root: facts::PlaceRoot::Symbol(*symbol),
                 structural_type,
@@ -396,8 +394,7 @@ impl OperationFrame<'_, '_> {
                     path: Vec::new(),
                     access: terminal_psi::StructuralAccess::Owned,
                 },
-            },
-        );
+            });
         Ok(PrimitiveLocal {
             symbol: *symbol,
             declaration,
@@ -599,7 +596,7 @@ impl super::argument_evaluation::Evaluation {
             state_symbol,
             local.statement_index,
         )?;
-        let home = crate::expression_preparation::bindings::StructuralLocalBinding {
+        let home = StructuralLocalBinding {
             result_binding_ordinal: None,
             root: facts::PlaceRoot::Symbol(symbol),
             structural_type,

@@ -3,13 +3,15 @@
 
 use super::to_strings;
 use crate::TypedTrees;
+use crate::expression::MatchFieldAction;
+use crate::expression::MatchPattern;
 use crate::expression::{ExpressionHandle, ExpressionNode};
+use crate::statement::TransitionExit;
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use crate::typed_trees::inspection::snapshot::TypeReferenceSnapshot;
-use crate::typed_trees::inspection::snapshot::type_snapshots::{
-    path_snapshot, type_reference_snapshot,
-};
+use crate::typed_trees::inspection::snapshot;
 use serde::Serialize;
+use snapshot::TypeReferenceSnapshot;
+use snapshot::type_snapshots::{path_snapshot, type_reference_snapshot};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
@@ -400,13 +402,9 @@ pub(crate) fn statement_snapshot(
                 })
                 .collect(),
             crash_cause: match transition.exit {
-                crate::statement::TransitionExit::Ordinary => None,
-                crate::statement::TransitionExit::Crash(crate::signature::CrashCause::Trap) => {
-                    Some("Trap")
-                }
-                crate::statement::TransitionExit::Crash(crate::signature::CrashCause::Abort) => {
-                    Some("Abort")
-                }
+                TransitionExit::Ordinary => None,
+                TransitionExit::Crash(crate::signature::CrashCause::Trap) => Some("Trap"),
+                TransitionExit::Crash(crate::signature::CrashCause::Abort) => Some("Abort"),
             },
         },
     }
@@ -490,58 +488,52 @@ pub(crate) fn expression_snapshot(
                     source_start: arm.source_span.span.start,
                     source_end: arm.source_span.span.end,
                     pattern: match arm.pattern {
-                        crate::expression::MatchPattern::Value(value) => {
-                            MatchPatternSnapshot::Value {
-                                value: Box::new(expression_snapshot(program, value)),
-                            }
-                        }
-                        crate::expression::MatchPattern::Destructure(pattern) => {
-                            MatchPatternSnapshot::Destructure {
-                                head: Box::new(expression_snapshot(program, pattern.head)),
-                                fields: program
-                                    .expression_table
-                                    .match_fields(pattern.fields)
-                                    .iter()
-                                    .map(|field| MatchFieldSnapshot {
-                                        member: field.member.as_str().to_owned(),
-                                        action: match &field.action {
-                                            crate::expression::MatchFieldAction::Bind(binding) => {
-                                                MatchFieldActionSnapshot::Bind {
-                                                    binding: binding.as_str().to_owned(),
-                                                }
+                        MatchPattern::Value(value) => MatchPatternSnapshot::Value {
+                            value: Box::new(expression_snapshot(program, value)),
+                        },
+                        MatchPattern::Destructure(pattern) => MatchPatternSnapshot::Destructure {
+                            head: Box::new(expression_snapshot(program, pattern.head)),
+                            fields: program
+                                .expression_table
+                                .match_fields(pattern.fields)
+                                .iter()
+                                .map(|field| MatchFieldSnapshot {
+                                    member: field.member.as_str().to_owned(),
+                                    action: match &field.action {
+                                        MatchFieldAction::Bind(binding) => {
+                                            MatchFieldActionSnapshot::Bind {
+                                                binding: binding.as_str().to_owned(),
                                             }
-                                            crate::expression::MatchFieldAction::Equal(value) => {
-                                                MatchFieldActionSnapshot::Equal {
-                                                    value: Box::new(expression_snapshot(
-                                                        program, *value,
-                                                    )),
-                                                }
+                                        }
+                                        MatchFieldAction::Equal(value) => {
+                                            MatchFieldActionSnapshot::Equal {
+                                                value: Box::new(expression_snapshot(
+                                                    program, *value,
+                                                )),
                                             }
-                                            crate::expression::MatchFieldAction::Waive => {
-                                                MatchFieldActionSnapshot::Waive
-                                            }
-                                        },
-                                    })
-                                    .collect(),
-                                has_rest: pattern.has_rest,
-                                guard: pattern
-                                    .guard
-                                    .is_valid()
-                                    .then(|| Box::new(expression_snapshot(program, pattern.guard))),
-                                proof_selectors: program
-                                    .expression_table
-                                    .match_proof_selectors(pattern.proof_selectors)
-                                    .iter()
-                                    .map(|selector| {
-                                        (
-                                            selector.output_field.as_str().to_owned(),
-                                            selector.binding.as_str().to_owned(),
-                                        )
-                                    })
-                                    .collect(),
-                            }
-                        }
-                        crate::expression::MatchPattern::Wildcard => MatchPatternSnapshot::Wildcard,
+                                        }
+                                        MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
+                                    },
+                                })
+                                .collect(),
+                            has_rest: pattern.has_rest,
+                            guard: pattern
+                                .guard
+                                .is_valid()
+                                .then(|| Box::new(expression_snapshot(program, pattern.guard))),
+                            proof_selectors: program
+                                .expression_table
+                                .match_proof_selectors(pattern.proof_selectors)
+                                .iter()
+                                .map(|selector| {
+                                    (
+                                        selector.output_field.as_str().to_owned(),
+                                        selector.binding.as_str().to_owned(),
+                                    )
+                                })
+                                .collect(),
+                        },
+                        MatchPattern::Wildcard => MatchPatternSnapshot::Wildcard,
                     },
                     value: expression_snapshot(program, arm.value),
                 })

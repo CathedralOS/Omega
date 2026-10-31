@@ -22,16 +22,18 @@ use crate::authored_selections::selection_collection::{
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelection, AuthoredDeclarationSelectionIntrinsic,
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
-    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
-    AuthoredDeclarationSelections, BuildOperation,
+    AuthoredDeclarationSelection, AuthoredDeclarationSelectionIntrinsic as SelectionIntrinsic,
+    AuthoredDeclarationSelectionKind as SelectionKind,
+    AuthoredDeclarationSelectionLateBinding as LateBinding,
+    AuthoredDeclarationSelectionOccurrenceId,
+    AuthoredDeclarationSelectionTarget as SelectionTarget, AuthoredDeclarationSelections,
+    BuildOperation,
 };
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::ExpressionNode;
 use validation::selection_resolution::{
-    AuthoredSelectionResolution, AuthoredSelectionResolutionTarget, declaration_target,
-    finalization_diagnostic, push_consistent_resolution,
+    AuthoredSelectionResolution, AuthoredSelectionResolutionTarget as ResolutionTarget,
+    declaration_target, finalization_diagnostic, push_consistent_resolution,
 };
 
 pub(crate) fn finalize_checked_authored_selections(
@@ -80,15 +82,14 @@ pub(crate) fn finalize_checked_authored_selections(
                     )));
                 };
 
-                let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target()
-                else {
+                let SelectionTarget::LateBound(binding) = selection.target() else {
                     continue;
                 };
 
                 if product_operands.contains(&occurrence) {
                     continue;
                 }
-                if binding == AuthoredDeclarationSelectionLateBinding::CheckedOperator {
+                if binding == LateBinding::CheckedOperator {
                     for selected_symbol in checked_operator_conformance_targets(facts, expression) {
                         let inferred = (
                             selection.source_span(),
@@ -106,11 +107,11 @@ pub(crate) fn finalize_checked_authored_selections(
                         Diagnostic::error(reason).with_source_span(selection.source_span())
                     })?;
                 let target = if let Some(intrinsic) = request_target {
-                    Some(AuthoredSelectionResolutionTarget::Intrinsic(intrinsic))
+                    Some(ResolutionTarget::Intrinsic(intrinsic))
                 } else {
                     match (binding, node) {
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
+                    LateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
                 ) if BuildOperation::from_call_target(call.target.as_str())
                     .is_some_and(BuildOperation::selects_product_declarations) =>
@@ -135,7 +136,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 // as a proof-only intrinsic. Its representative and theorem
                 // operands are separate static-argument selections.
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    LateBinding::CheckedCall,
                     ExpressionNode::Call(call),
                 ) if call.quotient_operation.is_some() => {
                     let request = call
@@ -148,17 +149,17 @@ pub(crate) fn finalize_checked_authored_selections(
                         )
                         .with_source_span(selection.source_span()));
                     }
-                    Some(AuthoredSelectionResolutionTarget::Intrinsic(match request.kind {
+                    Some(ResolutionTarget::Intrinsic(match request.kind {
                         typed_trees::expression::QuotientOperationKind::Define => {
-                            AuthoredDeclarationSelectionIntrinsic::QuotientDefine
+                            SelectionIntrinsic::QuotientDefine
                         }
                         typed_trees::expression::QuotientOperationKind::Lift => {
-                            AuthoredDeclarationSelectionIntrinsic::QuotientLift
+                            SelectionIntrinsic::QuotientLift
                         }
                     }))
                 }
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    LateBinding::CheckedCall,
                     ExpressionNode::Call(call),
                 ) => {
                     let _s = phase_profile::guard("05.d.11_13.a.3.call");
@@ -169,7 +170,7 @@ pub(crate) fn finalize_checked_authored_selections(
                         _ => None,
                     })
                     .or_else(|| validation::compiler_operations::classify_expression_call_intrinsic(program, call))
-                    .map(AuthoredSelectionResolutionTarget::Intrinsic)
+                    .map(ResolutionTarget::Intrinsic)
                     .or_else(|| {
                         declaration_target(
                             implementation_call_selection(
@@ -189,14 +190,14 @@ pub(crate) fn finalize_checked_authored_selections(
                     })
                 }
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedMember,
+                    LateBinding::CheckedMember,
                     ExpressionNode::Member(member),
                 ) => {
                     let _s = phase_profile::guard("05.d.11_13.a.3.member");
                     checked_member_target(program, facts, expression, member, Some(&owner_index))
                 }
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
+                    LateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
                 ) => {
                     let _s = phase_profile::guard("05.d.11_13.a.3.name_path");
@@ -208,7 +209,7 @@ pub(crate) fn finalize_checked_authored_selections(
                     ))
                 }
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralType,
+                    LateBinding::CheckedStructLiteralType,
                     ExpressionNode::StructLiteral(literal),
                 ) => declaration_target(checked_struct_literal_type_symbol(
                     program,
@@ -216,11 +217,11 @@ pub(crate) fn finalize_checked_authored_selections(
                     selection.source_span(),
                 )),
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralCase,
+                    LateBinding::CheckedStructLiteralCase,
                     ExpressionNode::StructLiteral(literal),
                 ) => declaration_target(literal.case_symbol.unwrap_or_else(SymbolHandle::invalid)),
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralField,
+                    LateBinding::CheckedStructLiteralField,
                     ExpressionNode::StructLiteral(literal),
                 ) => declaration_target(
                     expressions
@@ -248,7 +249,7 @@ pub(crate) fn finalize_checked_authored_selections(
                         })
                         .unwrap_or_else(SymbolHandle::invalid),
                 ),
-                (AuthoredDeclarationSelectionLateBinding::CheckedOperator, _)
+                (LateBinding::CheckedOperator, _)
                     if matches!(
                         node,
                         ExpressionNode::Binary(_)
@@ -275,8 +276,8 @@ pub(crate) fn finalize_checked_authored_selections(
                     ))
                     .or_else(|| {
                         typed_operator_has_no_authored_selection(program, expression).then_some(
-                            AuthoredSelectionResolutionTarget::Intrinsic(
-                                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                            ResolutionTarget::Intrinsic(
+                                SelectionIntrinsic::BuiltinOperator,
                             ),
                         )
                     })
@@ -285,12 +286,12 @@ pub(crate) fn finalize_checked_authored_selections(
                 // builtin operator with its literal result while retaining the
                 // source operator's custody occurrence on that result.
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                    LateBinding::CheckedOperator,
                     ExpressionNode::Boolean(_)
                     | ExpressionNode::Float(_)
                     | ExpressionNode::Integer(_),
-                ) => Some(AuthoredSelectionResolutionTarget::Intrinsic(
-                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                ) => Some(ResolutionTarget::Intrinsic(
+                    SelectionIntrinsic::BuiltinOperator,
                 )),
                 // A spelled use rewritten to a compiler-synthesized call keeps
                 // its authored operator occurrence: `==` behind a written
@@ -298,14 +299,14 @@ pub(crate) fn finalize_checked_authored_selections(
                 // to a token-bearing machine's own body settles to that exact
                 // declaration.
                 (
-                    AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                    LateBinding::CheckedOperator,
                     ExpressionNode::Call(call),
                 ) if call.operational_acknowledgement.origin
                     == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized =>
                 {
                     checked_structural_equality_call(program, facts, expression, call)
-                        .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
-                            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                        .then_some(ResolutionTarget::Intrinsic(
+                            SelectionIntrinsic::BuiltinOperator,
                         ))
                         .or_else(|| {
                             declaration_target(
@@ -353,13 +354,14 @@ pub(crate) fn finalize_checked_authored_selections(
     let _s_apply = phase_profile::guard("05.d.11_13.a.7.apply_resolutions");
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
-        let result =
-            match resolution.target {
-                AuthoredSelectionResolutionTarget::Declaration(selected) => selections
-                    .finalize_late_bound(resolution.occurrence, resolution.binding, selected),
-                AuthoredSelectionResolutionTarget::Intrinsic(intrinsic) => selections
-                    .finalize_intrinsic(resolution.occurrence, resolution.binding, intrinsic),
-            };
+        let result = match resolution.target {
+            ResolutionTarget::Declaration(selected) => {
+                selections.finalize_late_bound(resolution.occurrence, resolution.binding, selected)
+            }
+            ResolutionTarget::Intrinsic(intrinsic) => {
+                selections.finalize_intrinsic(resolution.occurrence, resolution.binding, intrinsic)
+            }
+        };
         result.map_err(|error| finalization_diagnostic(resolution, error))?;
     }
     // A contract clause may spell a bare uninterpreted view atom
@@ -387,8 +389,8 @@ pub(crate) fn finalize_checked_authored_selections(
                     .record_late_bound(
                         source_span,
                         exposure,
-                        AuthoredDeclarationSelectionKind::Call,
-                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                        SelectionKind::Call,
+                        LateBinding::CheckedCall,
                     )
                     .map_err(|error| {
                         Diagnostic::error(format!(
@@ -399,8 +401,8 @@ pub(crate) fn finalize_checked_authored_selections(
                 selections
                     .finalize_intrinsic(
                         occurrence,
-                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                        AuthoredDeclarationSelectionIntrinsic::ProofView,
+                        LateBinding::CheckedCall,
+                        SelectionIntrinsic::ProofView,
                     )
                     .map_err(|error| {
                         Diagnostic::error(format!(
@@ -450,10 +452,8 @@ pub(crate) fn finalize_checked_authored_selections(
     let descriptor_occurrences =
         validation::execution_projection::descriptor_selection_occurrences(program);
     if let Some(selection) = selections.iter().find(|selection| {
-        if !matches!(
-            selection.target(),
-            AuthoredDeclarationSelectionTarget::LateBound(_)
-        ) || descriptor_occurrences.contains(&selection.occurrence_id())
+        if !matches!(selection.target(), SelectionTarget::LateBound(_))
+            || descriptor_occurrences.contains(&selection.occurrence_id())
         {
             return false;
         }
@@ -462,11 +462,11 @@ pub(crate) fn finalize_checked_authored_selections(
             .source_file(selection.source_span())
             .is_none_or(|source| source.origin != source::SourceOrigin::Toolchain)
     }) {
-        let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
+        let SelectionTarget::LateBound(binding) = selection.target() else {
             unreachable!("guarded late-bound authored selection")
         };
-        if selection.kind() == AuthoredDeclarationSelectionKind::Call
-            && binding == AuthoredDeclarationSelectionLateBinding::CheckedCall
+        if selection.kind() == SelectionKind::Call
+            && binding == LateBinding::CheckedCall
             && let Some(callee) = undeclared_checked_call_callee(program, *selection)
         {
             return Err(Diagnostic::error(format!(
@@ -494,7 +494,7 @@ pub(crate) fn finalize_checked_authored_selections(
 fn late_binding_ordinal(
     program: &dyn ::validation::CheckingInput,
     prior_occurrences: &[AuthoredDeclarationSelectionOccurrenceId],
-    binding: AuthoredDeclarationSelectionLateBinding,
+    binding: LateBinding,
 ) -> usize {
     prior_occurrences
         .iter()
@@ -502,9 +502,7 @@ fn late_binding_ordinal(
             program
                 .authored_declaration_selections()
                 .get(**occurrence)
-                .is_some_and(|selection| {
-                    selection.target() == AuthoredDeclarationSelectionTarget::LateBound(binding)
-                })
+                .is_some_and(|selection| selection.target() == SelectionTarget::LateBound(binding))
         })
         .count()
 }

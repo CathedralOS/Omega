@@ -2,6 +2,7 @@
 //! evaluator. Boundary declarations and checked bodies retain their own identities.
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::checked_facts::flow_facts;
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedUnitStructuralParameterPlan;
 use symbols::SymbolHandle;
 
@@ -34,10 +35,7 @@ pub(super) fn structural_parameters(
         }
         return Ok(&plan.structural_parameters);
     }
-    let target =
-        crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
-            checked, machine,
-        )?;
+    let target = CheckedScalarCallee::find_for_unit_call(checked, machine)?;
     if target.entry_state()? != state {
         return unsupported("computed call disagrees with its selected callee signature");
     }

@@ -7,8 +7,8 @@
 use super::{Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind};
 use crate::places::place_at;
 use checked_trees::{
-    CheckedNaturalRankMeasure, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStateNaturalRank,
+    CheckedNaturalRankMeasure as RankMeasure, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStateNaturalRank as NaturalRank,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -34,7 +34,7 @@ pub(super) fn record(
     if admitted.observations.is_empty() {
         return;
     }
-    let mut roster = Vec::<CheckedStateNaturalRank>::new();
+    let mut roster = Vec::<NaturalRank>::new();
     for machine in program.machines() {
         if let Some((ranks, _)) = crate::execution::terminal_unit::state_graph::natural_rank_plans(
             program, machine, admitted,
@@ -91,7 +91,7 @@ pub(super) fn record(
             .collect::<Vec<_>>();
         let subject = typed_trees::ranking::resolve_machine_witness_subjects(program, owner)
             .and_then(|subjects| subjects.first().copied());
-        if let CheckedNaturalRankMeasure::DeclaredMeasure { bindings, .. } = rank.measure {
+        if let RankMeasure::DeclaredMeasure { bindings, .. } = rank.measure {
             let Some(inputs) = admitted.bindings.span(bindings).and_then(|inputs| {
                 inputs
                     .iter()
@@ -164,7 +164,7 @@ pub(super) fn record(
 
 fn input_coordinate(
     builder: &mut Builder<'_, '_>,
-    rank: &CheckedStateNaturalRank,
+    rank: &NaturalRank,
     subject: Option<ExpressionHandle>,
     bindings: &validation::RankStateBindings,
     primitive_type: PrimitiveType,
@@ -216,13 +216,13 @@ fn input_coordinate(
 
 fn observation<'program>(
     builder: &mut Builder<'program, '_>,
-    rank: &CheckedStateNaturalRank,
+    rank: &NaturalRank,
     subject: Option<ExpressionHandle>,
     bindings: &validation::RankStateBindings,
     admitted: &'program checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedScalarComputationHandle> {
     let observed = match rank.measure {
-        CheckedNaturalRankMeasure::DeclaredMeasure {
+        RankMeasure::DeclaredMeasure {
             formation,
             measure,
             bindings: application_inputs,
@@ -291,7 +291,7 @@ fn observation<'program>(
             builder.declaration_parameters = std::slice::from_ref(formal);
             builder.expression(*body, primitive_type)
         }
-        CheckedNaturalRankMeasure::IntegerValue {
+        RankMeasure::IntegerValue {
             coordinate,
             primitive_type,
         } => {
@@ -318,7 +318,7 @@ fn observation<'program>(
                 admitted.entry_indexes.span(coordinate.entry_indexes)?,
             )
         }
-        CheckedNaturalRankMeasure::SequenceLength { coordinate } => {
+        RankMeasure::SequenceLength { coordinate } => {
             let (_, state) = validation::find_state(builder.program, builder.state)?;
             let coordinate = admitted.coordinates.get(coordinate);
             let coordinate = validation::RankSubjectCoordinate {
@@ -333,7 +333,7 @@ fn observation<'program>(
                 CheckedScalarComputationKind::Value(expression),
             ))
         }
-        CheckedNaturalRankMeasure::BoundedDistance { primitive_type, .. } => {
+        RankMeasure::BoundedDistance { primitive_type, .. } => {
             let lower = input_coordinate(builder, rank, subject, bindings, primitive_type)?;
             distance(builder, lower, primitive_type)
         }
@@ -342,12 +342,10 @@ fn observation<'program>(
         checked_trees::CheckedNaturalRankFunction::Identity => Some(observed),
         checked_trees::CheckedNaturalRankFunction::Complement => {
             let primitive = match rank.measure {
-                CheckedNaturalRankMeasure::SequenceLength { .. } => PrimitiveType::U64,
-                CheckedNaturalRankMeasure::DeclaredMeasure { primitive_type, .. }
-                | CheckedNaturalRankMeasure::IntegerValue { primitive_type, .. }
-                | CheckedNaturalRankMeasure::BoundedDistance { primitive_type, .. } => {
-                    primitive_type
-                }
+                RankMeasure::SequenceLength { .. } => PrimitiveType::U64,
+                RankMeasure::DeclaredMeasure { primitive_type, .. }
+                | RankMeasure::IntegerValue { primitive_type, .. }
+                | RankMeasure::BoundedDistance { primitive_type, .. } => primitive_type,
             };
             distance(builder, observed, primitive)
         }

@@ -12,6 +12,9 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
 use crate::selection::construction::scalar_graph::structural;
+use crate::selection::scalar_call_abi::{
+    incoming_float_transfer, integer_carrier_normalization, outgoing_float_transfer, scalar_shape,
+};
 use calling_conventions::ValueLocation;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
@@ -178,20 +181,16 @@ pub(super) fn emit_invocation(
             .resolve(value)
             .ok_or_else(|| SelectedInstructionError::custody())?;
         if scalar_type != argument.source.scalar_type()
-            || crate::selection::scalar_call_abi::scalar_shape(scalar_type)
-                != Some(argument.placement.shape)
+            || scalar_shape(scalar_type) != Some(argument.placement.shape)
         {
             return Err(SelectedInstructionError::custody());
         }
         let output = builder.register(value, site, scalar_type)?;
-        let (kind, transfer_key) = crate::selection::scalar_call_abi::outgoing_float_transfer(
-            scalar_type,
-            &builder.constraints.keys,
-        )
-        .unwrap_or((
-            SelectedInstructionKind::CopyI64,
-            builder.constraints.keys.copy_i64,
-        ));
+        let (kind, transfer_key) = outgoing_float_transfer(scalar_type, &builder.constraints.keys)
+            .unwrap_or((
+                SelectedInstructionKind::CopyI64,
+                builder.constraints.keys.copy_i64,
+            ));
         builder.registers[output.0 as usize].class = row(builder.catalog, transfer_key)?
             .operands
             .get(1)
@@ -413,13 +412,10 @@ pub(super) fn emit_invocation(
         let floating_transfer = if indirect_scalar {
             None
         } else {
-            crate::selection::scalar_call_abi::incoming_float_transfer(
-                result.scalar_type,
-                &builder.constraints.keys,
-            )
+            incoming_float_transfer(result.scalar_type, &builder.constraints.keys)
         };
         let (kind, transfer_key) = floating_transfer.unwrap_or((
-            crate::selection::scalar_call_abi::integer_carrier_normalization(result.scalar_type),
+            integer_carrier_normalization(result.scalar_type),
             builder.constraints.keys.copy_i64,
         ));
         builder.emit(

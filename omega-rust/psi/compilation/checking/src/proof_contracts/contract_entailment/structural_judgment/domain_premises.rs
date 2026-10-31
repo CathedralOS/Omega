@@ -8,10 +8,13 @@
 
 use super::{StructuralJudge, StructuralTerm};
 use crate::frozen_program::expression_table;
+use language_semantics::content::ContentPlaceVersion;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameter;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::signature::{SignatureContractKind, StateParameter};
+use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
@@ -390,10 +393,7 @@ impl StructuralJudge<'_> {
             && crate::field_domains::readable_nominal_definition(program, projected_type).is_some()
             && same_application(projected_type)
             && let Some(captured) = self
-                .captured_place_projection(
-                    place,
-                    language_semantics::content::ContentPlaceVersion::Entry,
-                )
+                .captured_place_projection(place, ContentPlaceVersion::Entry)
                 .or_else(|| {
                     // Invocation admission establishes a readable formal's referent
                     // domain too, without making the reference an owned value.
@@ -473,13 +473,7 @@ impl StructuralJudge<'_> {
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         environment: &[(String, StructuralTerm)],
-    ) -> Option<
-        Vec<(
-            typed_trees::data::TypeParameter,
-            typed_trees::data::DataField,
-            StructuralTerm,
-        )>,
-    > {
+    ) -> Option<Vec<(TypeParameter, typed_trees::data::DataField, StructuralTerm)>> {
         use typed_trees::types::TypeReferenceNode;
         let program = self.program;
         let binders = program.data_type_parameters(definition);
@@ -592,7 +586,7 @@ impl StructuralJudge<'_> {
                 self.captured_parameter_projection(
                     parameter.symbol,
                     &[],
-                    language_semantics::content::ContentPlaceVersion::Entry,
+                    ContentPlaceVersion::Entry,
                 )
                 .map(|value| (parameter.symbol, value))
             })
@@ -784,10 +778,7 @@ impl StructuralJudge<'_> {
     fn intake_observed_integer_bound(
         &mut self,
         reference: TypeReferenceHandle,
-        meaning: (
-            typed_trees::types::PrimitiveType,
-            numerics::arithmetic::ArithmeticDomain,
-        ),
+        meaning: (PrimitiveType, numerics::arithmetic::ArithmeticDomain),
         value: &StructuralTerm,
         operator: BinaryOperator,
         bound: numerics::bignum::BigInt,

@@ -1,3 +1,4 @@
+use super::types;
 use crate::flow::expressions;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableRangeExpression};
 
@@ -190,9 +191,8 @@ fn symbolic_extent_index_is_proven(
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
     let index_label = program.expression_table.display_name(index);
-    let floor = super::types::collection_symbolic_extent_floor(
-        program, machine, state, collection, extent, facts,
-    );
+    let floor =
+        types::collection_symbolic_extent_floor(program, machine, state, collection, extent, facts);
     facts.index_is_proven(&collection_label, &index_label)
         // `index < N` (and `index <= N - k` for k >= 1) names this extent
         // binder directly. The row is seeded from the guard and carried into
@@ -206,13 +206,13 @@ fn symbolic_extent_index_is_proven(
             .zip(floor)
             .is_some_and(|(value, floor)| value < floor)
         // `index`'s declared `u64[..N]` is the assertion `index < N` itself.
-        || super::types::declared_bound_names_symbolic_extent(
+        || types::declared_bound_names_symbolic_extent(
             program, machine, state, index, extent.0,
         )
         .is_some_and(|end_inclusive| !end_inclusive)
         // A closed declared high or a guard-seeded literal bound below the
         // binder's floor: `index <= h` and `h < floor <= N` give `index < N`.
-        || super::types::expression_enforced_declared_range(program, machine, state, index)
+        || types::expression_enforced_declared_range(program, machine, state, index)
             .zip(floor)
             .is_some_and(|((_, high), floor)| high < floor)
         || facts
@@ -239,15 +239,14 @@ fn symbolic_extent_range_bound_is_proven(
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
     let bound_label = program.expression_table.display_name(bound);
-    let floor = super::types::collection_symbolic_extent_floor(
-        program, machine, state, collection, extent, facts,
-    );
+    let floor =
+        types::collection_symbolic_extent_floor(program, machine, state, collection, extent, facts);
     facts.range_bound_is_proven(&collection_label, &bound_label)
         || validation::completed_value_is_bounded_by_static(program, machine, state, facts.statement_index, bound, extent.0, false)
         || symbolic_extent_is_named(program, machine, state, facts, collection, bound, extent)
         // A declared `u64[..N]` or `u64[..=N]` bound asserts `bound <= N`
         // under either inclusivity.
-        || super::types::declared_bound_names_symbolic_extent(
+        || types::declared_bound_names_symbolic_extent(
             program, machine, state, bound, extent.0,
         )
         .is_some()
@@ -258,7 +257,7 @@ fn symbolic_extent_range_bound_is_proven(
             .proven_index_upper_bound(&bound_label)
             .zip(floor)
             .is_some_and(|(upper, floor)| upper - 1 <= floor)
-        || super::types::expression_enforced_declared_range(program, machine, state, bound)
+        || types::expression_enforced_declared_range(program, machine, state, bound)
             .zip(floor)
             .is_some_and(|((_, high), floor)| high <= floor)
         || ensured_call_result_bounds(program, facts.caller, bound)
@@ -422,8 +421,8 @@ pub(in crate::checks::ranges) fn length_difference_is_within_collection(
     let nonnegative = if let Some(value) = expression_integer_value(program, facts, binary.right) {
         value >= 0
     } else {
-        super::types::expression_is_unsigned_integer(program, machine, state, binary.right)
-            || super::types::expression_enforced_declared_range(
+        types::expression_is_unsigned_integer(program, machine, state, binary.right)
+            || types::expression_enforced_declared_range(
                 program,
                 machine,
                 state,

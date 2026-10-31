@@ -11,7 +11,9 @@ use crate::selection::construction::scalar_graph::structural::operation_provenan
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::scaled_element_index;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::established_view_input::element_view_type;
 use crate::selection::scalar_call_abi::load_transfer;
+use crate::structural_inputs::structural_reference_input::{align, element_leaf_projection};
 use terminal_psi::StructuralTypeShape;
 
 /// The byte stride of the view's element. A derived view home already carries
@@ -26,7 +28,7 @@ pub(super) fn element_stride(
     if let Some(view) = builder.transport.element_view(source) {
         return Some(view.element_stride);
     }
-    let view_type = crate::selection::established_view_input::element_view_type(function, source)?;
+    let view_type = element_view_type(function, source)?;
     let signature = function.structural.as_ref()?;
     let declaration =
         terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)?;
@@ -34,8 +36,7 @@ pub(super) fn element_stride(
         return None;
     };
     let shape = crate::structural_inputs::shape(*element, signature.structural_types.as_slice())?;
-    crate::structural_inputs::structural_reference_input::align(shape.byte_size, shape.alignment)
-        .filter(|stride| *stride != 0)
+    align(shape.byte_size, shape.alignment).filter(|stride| *stride != 0)
 }
 
 pub(in crate::selection) fn element_observation(
@@ -45,9 +46,7 @@ pub(in crate::selection) fn element_observation(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     match &row.kind {
         LegalizedScalarInstructionKind::ElementViewRead { source, .. } => {
-            if crate::selection::established_view_input::element_view_type(function, *source)
-                .is_none()
-            {
+            if element_view_type(function, *source).is_none() {
                 return Err(invalid());
             }
             element_view_read(function, builder, row)
@@ -103,9 +102,7 @@ fn element_view_read(
     };
     // Reconstruct the leaf independently from the declared element. Its width
     // and offset must not replace the stride used to scale the runtime index.
-    let Some(view_type) =
-        crate::selection::established_view_input::element_view_type(function, source)
-    else {
+    let Some(view_type) = element_view_type(function, source) else {
         return Err(invalid());
     };
     let element =
@@ -115,14 +112,13 @@ fn element_view_read(
                 _ => None,
             })
             .ok_or_else(|| invalid())?;
-    let (byte_offset, byte_count, elements) =
-        crate::structural_inputs::structural_reference_input::element_leaf_projection(
-            element,
-            path,
-            definition.scalar_type,
-            signature.structural_types.as_slice(),
-        )
-        .ok_or_else(|| invalid())?;
+    let (byte_offset, byte_count, elements) = element_leaf_projection(
+        element,
+        path,
+        definition.scalar_type,
+        signature.structural_types.as_slice(),
+    )
+    .ok_or_else(|| invalid())?;
     if !crate::structural_inputs::runtime_indices_match(indices, &elements) {
         return Err(invalid());
     }

@@ -9,7 +9,11 @@ use super::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralPlaceKind, unsupported,
 };
+use crate::emission::claim_bindings::direct_establishment_claims;
+use crate::emission::claim_bindings::emit_establishment_claims;
+use crate::emission::formation_memberships::publish;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 
 impl Emission<'_, '_, '_> {
     /// A private value edge changes storage identity, not membership.
@@ -80,13 +84,7 @@ impl Emission<'_, '_, '_> {
         )
         .map_err(LoweringError::Unsupported)?
         .into_iter()
-        .map(|domain| {
-            crate::terminal_identities::lookup_domain_id_for_carrier(
-                self.domain_ids,
-                domain,
-                self.structural_type,
-            )
-        })
+        .map(|domain| lookup_domain_id_for_carrier(self.domain_ids, domain, self.structural_type))
         .collect::<Result<Vec<_>, _>>()?;
         whole.sort();
         whole.dedup();
@@ -179,25 +177,22 @@ impl Emission<'_, '_, '_> {
         decision: &checked_trees::CheckedValueQualification,
         carrier: semantic_vocabulary::StructuralTypeId,
     ) -> Result<semantic_vocabulary::StructuralDomainId, LoweringError> {
-        crate::terminal_identities::lookup_domain_id_for_carrier(
-            self.domain_ids,
-            decision.semantic_domain,
-            carrier,
+        lookup_domain_id_for_carrier(self.domain_ids, decision.semantic_domain, carrier).map_err(
+            |cause| LoweringError::InvalidOccurrenceMembership {
+                machine: self.checked.symbols.display_path(self.machine, "::"),
+                state: self.checked.symbols.display_path(self.state, "::"),
+                statement_index: self.statement,
+                domain: self
+                    .checked
+                    .typed
+                    .semantic_domains
+                    .name(decision.semantic_domain)
+                    .unwrap_or("<unregistered domain>")
+                    .to_owned(),
+                carrier,
+                cause: Box::new(cause),
+            },
         )
-        .map_err(|cause| LoweringError::InvalidOccurrenceMembership {
-            machine: self.checked.symbols.display_path(self.machine, "::"),
-            state: self.checked.symbols.display_path(self.state, "::"),
-            statement_index: self.statement,
-            domain: self
-                .checked
-                .typed
-                .semantic_domains
-                .name(decision.semantic_domain)
-                .unwrap_or("<unregistered domain>")
-                .to_owned(),
-            carrier,
-            cause: Box::new(cause),
-        })
     }
 
     /// The Terminal domains of checked memberships on their exact subject.
@@ -273,23 +268,12 @@ impl Emission<'_, '_, '_> {
                     root_candidates: prepared.len(),
                 });
             }
-            let claims = crate::emission::claim_bindings::emit_establishment_claims(
-                &prepared,
-                &mut self.calls.claims,
-            )?;
-            let introductions = crate::emission::claim_bindings::direct_establishment_claims(
-                &prepared,
-                &self.calls.claims,
-            )?;
+            let claims = emit_establishment_claims(&prepared, &mut self.calls.claims)?;
+            let introductions = direct_establishment_claims(&prepared, &self.calls.claims)?;
             Self::bind_completion_claims(self.operations, place, &claims, &introductions)?;
         }
         let domains = self.checked_membership_domains(decisions, self.structural_type)?;
-        crate::emission::formation_memberships::publish(
-            self.operations,
-            place,
-            self.structural_type,
-            domains,
-        )?;
+        publish(self.operations, place, self.structural_type, domains)?;
         self.completed(identities, place, completion, continuation)
     }
 

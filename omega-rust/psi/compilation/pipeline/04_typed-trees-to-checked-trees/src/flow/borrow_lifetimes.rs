@@ -3,6 +3,7 @@
 //! loans carried by the place an assignment overwrites. Each dropped loan
 //! records a `FlowBorrowWeakeningFact`.
 
+use crate::borrow::place_path_covers_owner;
 use validation::CanonicalPlace;
 
 use crate::flow::reference_spans;
@@ -114,7 +115,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                     !effect.may_select
                         && facts::PlaceRoot::Symbol(incoming.parameter_symbol())
                             == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
-                        && crate::borrow::place_path_covers_owner(
+                        && place_path_covers_owner(
                             program,
                             &effect.destination.local_segments,
                             borrow.owner_segments.span_or_empty(incoming.owner_path),
@@ -130,7 +131,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                     !effect.may_select
                         && active.storage_owner
                             == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
-                        && crate::borrow::place_path_covers_owner(
+                        && place_path_covers_owner(
                             program,
                             &effect.destination.local_segments,
                             &homes.owner_path(program, active),
@@ -214,7 +215,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                         && authored_carrier.as_ref() == Some(&destination)
                         && borrow.loan_owner_path(active).len() == destination.segments.len())
                     || active.statement_index == statement_index
-                    || !crate::borrow::place_path_covers_owner(
+                    || !place_path_covers_owner(
                         program,
                         &destination.segments,
                         &homes.owner_path(program, active),
@@ -237,11 +238,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                     || (writes_referent
                         && authored_carrier.as_ref() == Some(&destination)
                         && owner.len() == destination.segments.len())
-                    || !crate::borrow::place_path_covers_owner(
-                        program,
-                        &destination.segments,
-                        owner,
-                    )
+                    || !place_path_covers_owner(program, &destination.segments, owner)
             }
             FlowConstraintKind::Unknown
             | FlowConstraintKind::SemanticContext { .. }

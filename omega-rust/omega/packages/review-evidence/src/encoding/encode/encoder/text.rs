@@ -3,6 +3,7 @@ use crate::record::PackagePolicyBaseline;
 
 mod framing;
 mod writer;
+use crate::encoding::PackagePolicyRecoveryLimits;
 pub(in crate::encoding) use framing::{HEADER, MAXIMUM_MARKUP_DEPTH, label};
 pub(in crate::encoding) use writer::Writer;
 
@@ -41,9 +42,7 @@ fn render_with_element_count(
     let remaining = encoder
         .policy_elements
         .expect("policy text bounds aggregate elements");
-    let elements = crate::encoding::PackagePolicyRecoveryLimits::default()
-        .maximum_sequence_elements
-        - remaining;
+    let elements = PackagePolicyRecoveryLimits::default().maximum_sequence_elements - remaining;
     encoder.finish_text().map(|text| (text, elements))
 }
 

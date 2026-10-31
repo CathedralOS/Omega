@@ -7,6 +7,7 @@
 
 use super::{FramePlaceOrigin, FrameSourcePlace, SlotSource};
 use facts::PlaceSegment;
+use typed_trees::expression::ExpressionHandle;
 
 pub(super) fn coarsen(program: &dyn crate::CheckingInput, source: &mut SlotSource) {
     coarsen_origin(program, &mut source.origin);
@@ -42,10 +43,7 @@ fn coarsen_place(program: &dyn crate::CheckingInput, place: &mut FrameSourcePlac
     changed
 }
 
-fn coarsen_path(
-    path: &mut Vec<PlaceSegment>,
-    is_range: impl Fn(typed_trees::expression::ExpressionHandle) -> bool,
-) -> bool {
+fn coarsen_path(path: &mut Vec<PlaceSegment>, is_range: impl Fn(ExpressionHandle) -> bool) -> bool {
     let is_window = |part| match part {
         PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange => true,
         PlaceSegment::Index { expression } => expression.is_valid() && is_range(expression),

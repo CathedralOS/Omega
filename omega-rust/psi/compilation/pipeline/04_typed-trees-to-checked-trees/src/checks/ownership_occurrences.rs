@@ -2,13 +2,30 @@
 //! This inventory orders existing move candidates; it does not classify them.
 
 mod selected_evaluation;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedOperatorOccurrence;
+use checked_trees::CheckedValueOrigin;
+use checked_trees::FlowControlFacts;
+use checked_trees::FlowPermissionEvaluation;
+use facts::PlaceRoot;
+use language_semantics::Multiplicity;
 pub(super) use selected_evaluation::SelectedEvaluation;
+use typed_trees::machine::Machine;
+use typed_trees::operator::declaration_by_symbol;
+use typed_trees::state::State;
+use typed_trees::types::TypeReferenceHandle;
 
 use crate::places::place_at;
-use validation::CanonicalPlace;
+use validation::{
+    CallSite, CanonicalPlace, atomic_execution_children, canonical_place_type_reference,
+    expression_result_type_reference, ownership_place_from_expression_in_state,
+    saved_dispatch_subject,
+};
 
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::statement::{
+    StatementNode, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
+};
 
 /// One binary decision in an expression. Match patterns carry the failed
 /// prefix, not their eventual arm: a later pattern cannot execute after an
@@ -50,7 +67,7 @@ pub(super) struct StatementOccurrence {
     pub(super) step: StatementStep,
     /// Guards and selected target operands have distinct resource boundaries,
     /// even when their source expressions share a structural shape.
-    pub(super) evaluation: checked_trees::FlowPermissionEvaluation,
+    pub(super) evaluation: FlowPermissionEvaluation,
     /// Exact invocation completed here, independent of its syntax's scalar
     /// expression handle (named transitions and statement calls have none).
     pub(super) invocation: Option<InvocationIdentity>,
@@ -65,20 +82,18 @@ pub(super) struct StatementOccurrence {
 pub(super) enum InvocationIdentity {
     Expression(ExpressionHandle),
     Statement,
-    Transition(typed_trees::statement::TransitionTargetHandle),
+    Transition(TransitionTargetHandle),
 }
 
 impl InvocationIdentity {
     pub(super) fn from_call_site(
-        site: validation::CallSite<'_>,
-        target: Option<typed_trees::statement::TransitionTargetHandle>,
+        site: CallSite<'_>,
+        target: Option<TransitionTargetHandle>,
     ) -> Option<Self> {
         match site {
-            validation::CallSite::Expression { expression, .. } => {
-                Some(Self::Expression(expression))
-            }
-            validation::CallSite::Statement(_) => Some(Self::Statement),
-            validation::CallSite::TransitionNamed { .. } => target.map(Self::Transition),
+            CallSite::Expression { expression, .. } => Some(Self::Expression(expression)),
+            CallSite::Statement(_) => Some(Self::Statement),
+            CallSite::TransitionNamed { .. } => target.map(Self::Transition),
         }
     }
 }
@@ -115,12 +130,12 @@ pub(super) enum StatementStep {
 
 pub(super) fn statement_steps(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: usize,
     statement: &StatementNode,
     moves: &[crate::flow::DiscoveredMoveEvent],
-    operators: &checked_trees::CheckedOperatorFacts,
+    operators: &CheckedOperatorFacts,
 ) -> Vec<StatementOccurrence> {
     statement_steps_at_evaluation(
         program,
@@ -139,11 +154,11 @@ pub(super) fn statement_steps(
 /// separate authored completions and cannot select their parent's disposition.
 pub(crate) fn completed_expressions(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: usize,
     statement: &StatementNode,
-    operators: &checked_trees::CheckedOperatorFacts,
+    operators: &CheckedOperatorFacts,
 ) -> Vec<ExpressionHandle> {
     statement_steps(
         program,
@@ -166,13 +181,13 @@ pub(crate) fn completed_expressions(
 /// selections inside that evaluation remain conditional for cleanup custody.
 pub(super) fn statement_steps_at_evaluation(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: usize,
     statement: &StatementNode,
     moves: &[crate::flow::DiscoveredMoveEvent],
-    operators: &checked_trees::CheckedOperatorFacts,
-    evaluation: Option<checked_trees::FlowPermissionEvaluation>,
+    operators: &CheckedOperatorFacts,
+    evaluation: Option<FlowPermissionEvaluation>,
 ) -> Vec<StatementOccurrence> {
     let mut order = StatementOrder {
         program,
@@ -208,7 +223,7 @@ pub(super) fn statement_steps_at_evaluation(
                 program,
                 machine.symbol,
                 state.symbol,
-                &validation::CallSite::Statement(call),
+                &CallSite::Statement(call),
                 statement_index,
             ) {
                 order.push(StatementStep::Observe {
@@ -238,13 +253,12 @@ pub(super) fn statement_steps_at_evaluation(
         StatementNode::Transition(transition) => {
             if !matches!(
                 evaluation,
-                Some(checked_trees::FlowPermissionEvaluation::TransitionTarget(_))
-            ) && let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
+                Some(FlowPermissionEvaluation::TransitionTarget(_))
+            ) && let TransitionGuardNode::When(guard) = transition.guard
             {
                 order.expression(guard, false);
                 for occurrence in &mut order.steps {
-                    occurrence.evaluation =
-                        checked_trees::FlowPermissionEvaluation::TransitionGuard;
+                    occurrence.evaluation = FlowPermissionEvaluation::TransitionGuard;
                 }
             }
             for (alternative, target) in [transition.target, transition.continuation]
@@ -255,14 +269,12 @@ pub(super) fn statement_steps_at_evaluation(
                     continue;
                 }
                 if evaluation.is_some_and(|evaluation| {
-                    evaluation != checked_trees::FlowPermissionEvaluation::TransitionTarget(target)
+                    evaluation != FlowPermissionEvaluation::TransitionTarget(target)
                 }) {
                     continue;
                 }
-                let conditional = evaluation
-                    != Some(checked_trees::FlowPermissionEvaluation::TransitionTarget(
-                        target,
-                    ));
+                let conditional =
+                    evaluation != Some(FlowPermissionEvaluation::TransitionTarget(target));
                 if conditional {
                     order.route.push(EvaluationBranch {
                         expression: ExpressionHandle::invalid(),
@@ -272,14 +284,12 @@ pub(super) fn statement_steps_at_evaluation(
                 }
                 let first_target_step = order.steps.len();
                 match program.statement_table.transition_target(target) {
-                    typed_trees::statement::TransitionTargetNode::Value(value) => {
-                        order.expression(*value, conditional)
-                    }
+                    TransitionTargetNode::Value(value) => order.expression(*value, conditional),
                     // Transition arguments live in the statement table's
                     // handle arena, as statement-call arguments do; the
                     // expression table's span at the same offset names
                     // unrelated expressions.
-                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+                    TransitionTargetNode::Named { arguments, .. } => {
                         let first = order.steps.len();
                         for argument in program.statement_table.expression_handles(*arguments) {
                             order.expression(*argument, conditional);
@@ -295,8 +305,7 @@ pub(super) fn statement_steps_at_evaluation(
                     _ => {}
                 }
                 for occurrence in &mut order.steps[first_target_step..] {
-                    occurrence.evaluation =
-                        checked_trees::FlowPermissionEvaluation::TransitionTarget(target);
+                    occurrence.evaluation = FlowPermissionEvaluation::TransitionTarget(target);
                 }
                 if conditional {
                     order.route.pop();
@@ -319,10 +328,10 @@ pub(super) fn statement_steps_at_evaluation(
 
 fn observed_owned_temporaries_from_occurrences(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: usize,
     occurrences: &[StatementOccurrence],
-) -> Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> {
+) -> Vec<(ExpressionHandle, TypeReferenceHandle)> {
     let mut owners = Vec::new();
     for occurrence in occurrences {
         let StatementStep::Observe { place, .. } = &occurrence.step else {
@@ -341,15 +350,12 @@ fn observed_owned_temporaries_from_occurrences(
             root: place.root,
             segments: Vec::new(),
         };
-        let Some(reference) = validation::canonical_place_type_reference(
-            program,
-            state.symbol,
-            statement_index,
-            &root,
-        ) else {
+        let Some(reference) =
+            canonical_place_type_reference(program, state.symbol, statement_index, &root)
+        else {
             continue;
         };
-        if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
+        if program.type_multiplicity(reference) != Multiplicity::Unrestricted {
             owners.push((expression, reference));
         }
     }
@@ -374,18 +380,18 @@ fn observed_owned_temporaries_from_occurrences(
 /// own residual owner for exit cleanup. Production alone does not establish
 /// that residual-cleanup role.
 pub(super) struct OwnedTemporaryOccurrences {
-    pub(super) completed: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)>,
-    pub(super) observed: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)>,
+    pub(super) completed: Vec<(ExpressionHandle, TypeReferenceHandle)>,
+    pub(super) observed: Vec<(ExpressionHandle, TypeReferenceHandle)>,
 }
 
 pub(super) fn owned_temporary_occurrences(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: usize,
     statement: &StatementNode,
-    operators: &checked_trees::CheckedOperatorFacts,
-    control: &checked_trees::FlowControlFacts,
+    operators: &CheckedOperatorFacts,
+    control: &FlowControlFacts,
 ) -> OwnedTemporaryOccurrences {
     let occurrences = statement_steps(
         program,
@@ -409,15 +415,14 @@ pub(super) fn owned_temporary_occurrences(
         let Some(place) = place_at(program, state.symbol, statement_index, expression) else {
             continue;
         };
-        if place.root != facts::PlaceRoot::Expression(expression) || !place.segments.is_empty() {
+        if place.root != PlaceRoot::Expression(expression) || !place.segments.is_empty() {
             continue;
         }
-        let Some(reference) =
-            validation::expression_result_type_reference(program, machine, state, expression)
+        let Some(reference) = expression_result_type_reference(program, machine, state, expression)
         else {
             continue;
         };
-        if program.type_multiplicity(reference) == language_semantics::Multiplicity::Unrestricted {
+        if program.type_multiplicity(reference) == Multiplicity::Unrestricted {
             continue;
         }
         // These immutable carrier/root checks cannot grant custody. Authenticate
@@ -444,9 +449,9 @@ pub(super) fn owned_temporary_occurrences(
 
 struct StatementOrder<'a> {
     program: &'a dyn ::validation::CheckingInput,
-    state: &'a typed_trees::state::State,
+    state: &'a State,
     statement_index: usize,
-    operators: &'a checked_trees::CheckedOperatorFacts,
+    operators: &'a CheckedOperatorFacts,
     remaining: Vec<(usize, &'a crate::flow::DiscoveredMoveEvent)>,
     steps: Vec<StatementOccurrence>,
     route: Vec<EvaluationBranch>,
@@ -457,7 +462,7 @@ impl StatementOrder<'_> {
         let position = self.steps.len();
         self.steps.push(StatementOccurrence {
             step,
-            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+            evaluation: FlowPermissionEvaluation::Statement,
             invocation: None,
             route: self.route.clone(),
             held_until: position,
@@ -511,12 +516,8 @@ impl StatementOrder<'_> {
         // Later guards and payload receivers name the dispatch's saved
         // result. They neither invoke the producer nor observe its consumed
         // operands again; its canonical occurrence keeps the ordinary walk.
-        let saved_subject = validation::saved_dispatch_subject(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        );
+        let saved_subject =
+            saved_dispatch_subject(self.program, self.state, self.statement_index, expression);
         if saved_subject.is_some_and(|(statement, subject)| {
             statement != self.statement_index || subject != expression
         }) {
@@ -536,7 +537,7 @@ impl StatementOrder<'_> {
                 // not every enclosing owner. Computed receivers and selectors
                 // still execute before that observation.
                 self.selectors(expression, conditional);
-                if let Some(place) = validation::ownership_place_from_expression_in_state(
+                if let Some(place) = ownership_place_from_expression_in_state(
                     self.program,
                     self.state.symbol,
                     self.statement_index,
@@ -562,7 +563,7 @@ impl StatementOrder<'_> {
                 // home before dispatch observes it. Publish that observation
                 // through the same owner inventory as member/index reads;
                 // saved payload aliases do not evaluate the producer again.
-                if let Some(place) = validation::ownership_place_from_expression_in_state(
+                if let Some(place) = ownership_place_from_expression_in_state(
                     self.program,
                     self.state.symbol,
                     self.statement_index,
@@ -607,13 +608,8 @@ impl StatementOrder<'_> {
             }
             ExpressionNode::Binary(binary) => {
                 self.expression(binary.left, conditional);
-                if matches!(
-                    binary.operator,
-                    typed_trees::expression::BinaryOperator::And
-                        | typed_trees::expression::BinaryOperator::Or
-                ) {
-                    let evaluate_when =
-                        binary.operator == typed_trees::expression::BinaryOperator::And;
+                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                    let evaluate_when = binary.operator == BinaryOperator::And;
                     // Only closed selected values can skip a subtree here.
                     // Runtime bindings may have changed during earlier operands.
                     let left = crate::values::evaluate_closed_boolean_expression(
@@ -642,7 +638,7 @@ impl StatementOrder<'_> {
             ExpressionNode::Unary(unary) => self.expression(unary.operand, conditional),
             ExpressionNode::Cast(cast) => self.expression(cast.value, conditional),
             ExpressionNode::Atomic(atomic) => {
-                for child in validation::atomic_execution_children(self.program, atomic) {
+                for child in atomic_execution_children(self.program, atomic) {
                     self.expression(child, conditional);
                 }
             }
@@ -679,13 +675,13 @@ impl StatementOrder<'_> {
         // observation of a completed value. Named subjects already observe
         // their existing storage above.
         if saved_subject.is_some()
-            && let Some(place) = validation::ownership_place_from_expression_in_state(
+            && let Some(place) = ownership_place_from_expression_in_state(
                 self.program,
                 self.state.symbol,
                 self.statement_index,
                 expression,
             )
-            && place.root == facts::PlaceRoot::Expression(expression)
+            && place.root == PlaceRoot::Expression(expression)
             && place.segments.is_empty()
         {
             self.push(StatementStep::Observe { place, expression });
@@ -721,15 +717,11 @@ impl StatementOrder<'_> {
     fn selected_index(&self, expression: ExpressionHandle) -> bool {
         self.operators.resolved_uses().any(|usage| {
             usage.expression == expression
-                && usage.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                && matches!(usage.origin, checked_trees::CheckedValueOrigin::StateStatement {
+                && usage.occurrence == CheckedOperatorOccurrence::Expression
+                && matches!(usage.origin, CheckedValueOrigin::StateStatement {
                     state_symbol, statement_index, ..
                 } if state_symbol == self.state.symbol && statement_index == self.statement_index)
-                && typed_trees::operator::declaration_by_symbol(
-                    self.program,
-                    usage.selected_operator_symbol,
-                )
-                .is_some()
+                && declaration_by_symbol(self.program, usage.selected_operator_symbol).is_some()
         })
     }
 }

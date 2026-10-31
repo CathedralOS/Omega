@@ -25,20 +25,54 @@
 //! pre-RHS assignment captures. Mutable selector spelling alone cannot prove
 //! agreement with an earlier captured selection.
 
-use validation::CanonicalPlace;
+use super::calls::projected_evaluated_path;
+use super::calls::value_index_segment;
+use super::control::LocalConstructionTrace;
+use super::control::statement_sequence::consume_result;
+use super::structural_scalar_store::scalar_capture_destination;
+use super::types::byte_sequence_carrier;
+use super::types::machine_binders;
+use crate::checks;
+use crate::execution::terminal_unit::initialized_locals::initialized_local;
+use crate::flow::reference_route_source;
+use crate::flow::reference_source_place;
+use language_semantics::PermissionEventSource;
+use language_semantics::ReferenceAccess;
+use typed_trees::machine::Machine;
+use typed_trees::signature::state_parameter_position;
+use typed_trees::state::State;
+use typed_trees::statement::TableAssignment;
+use typed_trees::statement::TableLocalData;
+use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::TypeReferenceHandle;
+use validation::reference_result_custody::initial_parameter_reference_establishment;
+use validation::reference_result_custody::replaced_reference_carrier;
+use validation::{
+    CallFrameResolver, CanonicalPlace, ImmutableBoundLookup, array_window_shape,
+    assignment_stored_value_type, assignment_value_type, canonical_place_type_reference,
+    declared_place_type_raw, find_state, reference_shell, stored_structural_type_identity,
+    stores_reference_shape,
+};
 
 use super::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, Multiplicity, StatementNode, SymbolHandle,
+    CheckedStructuralAccess as StructuralAccess, CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan as ArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
+    CheckedUnitStructuralParameterPlan as ParameterPlan,
+    CheckedUnitStructuralPathSegment as PathSegment,
+    CheckedUnitStructuralResultBindingPlan as BindingPlan, Multiplicity, StatementNode,
+    SymbolHandle,
 };
 use crate::execution::terminal_unit::structural_scalar_store::TargetSelectors;
 use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::flow::expressions;
 use crate::places::place_at;
 
-use checked_trees::CheckFacts;
+use checked_trees::{
+    CapturedPlaceContainment, CheckFacts, CheckedNormalCleanupAction, CheckedStoreLeaf,
+    CheckedStoreRoot, CheckedStoreValue, CheckedUnitCleanupBoundary,
+    CheckedUnitParameterStoragePlan, CheckedUnitStructuralTypeShape,
+};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionHandle;
 
@@ -52,16 +86,16 @@ fn same_storage_place(
     right: &CanonicalPlace,
 ) -> bool {
     left.root == right.root
-        && crate::checks::storage_path_compatibility(
+        && checks::storage_path_compatibility(
             program,
-            crate::checks::StorageSelectorFacts {
+            checks::StorageSelectorFacts {
                 flow: &facts.flow,
                 semantic: &facts.semantic,
             },
             &left.segments,
             &right.segments,
         )
-        .1 == checked_trees::CapturedPlaceContainment::Same
+        .1 == CapturedPlaceContainment::Same
 }
 
 /// Assignment owns selector evaluation, even when the selector spells a
@@ -70,15 +104,15 @@ fn same_storage_place(
 fn assignment_path(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: u32,
     target: ExpressionHandle,
     place: &CanonicalPlace,
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+) -> Option<Vec<PathSegment>> {
     let selectors =
         TargetSelectors::resolve(program, facts, machine, state, statement_index, target)?;
-    super::calls::projected_evaluated_path(
+    projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
@@ -95,12 +129,12 @@ fn assignment_path(
 pub(super) fn captured_assignment_path(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: u32,
     target: ExpressionHandle,
     owner: &CanonicalPlace,
-) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+) -> Option<Vec<PathSegment>> {
     let control = &facts.flow.control;
     let flow = control.state(machine.symbol, state.symbol)?;
     let statement = facts
@@ -141,7 +175,7 @@ pub(super) fn captured_assignment_path(
     // the captured constant to be rediscovered from a symbolic call path would
     // discard the value identity the operation already retained.
     if place_at(program, state.symbol, statement_index as usize, target).as_ref() != Some(owner)
-        || !validation::CallFrameResolver::new(program)?
+        || !CallFrameResolver::new(program)?
             .captured_assignment_destination_remains_current(machine, authored, &captured)
     {
         return None;
@@ -163,21 +197,18 @@ pub(super) fn captured_assignment_path(
 /// geometry and never gain a pointer crossing merely from reference syntax.
 fn retain_assignment_referent(
     program: &dyn validation::CheckingInput,
-    source: &CheckedUnitStructuralArgumentSourcePlan,
-    path: &mut Vec<CheckedUnitStructuralPathSegment>,
-    declared: typed_trees::types::TypeReferenceHandle,
-    receiving: typed_trees::type_identity::TypeIdentityId,
+    source: &SourcePlan,
+    path: &mut Vec<PathSegment>,
+    declared: TypeReferenceHandle,
+    receiving: TypeIdentityId,
 ) {
-    let stored_descriptor = !path.is_empty()
-        || matches!(
-            source,
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-        );
+    let stored_descriptor =
+        !path.is_empty() || matches!(source, SourcePlan::StructuralLocal { .. });
     if stored_descriptor
-        && validation::stores_reference_shape(program, declared, &[])
-        && validation::stored_structural_type_identity(program, declared, &[], &[]) != receiving
+        && stores_reference_shape(program, declared, &[])
+        && stored_structural_type_identity(program, declared, &[], &[]) != receiving
     {
-        path.push(CheckedUnitStructuralPathSegment::Referent);
+        path.push(PathSegment::Referent);
     }
 }
 
@@ -191,17 +222,17 @@ fn retain_assignment_referent(
 /// displace or borrowed hole to restore.
 pub(super) fn owned_assignment_source(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
+    state: &State,
+    parameters: &[ParameterPlan],
     statement_index: usize,
     place: &CanonicalPlace,
-    replacement_type: Option<typed_trees::type_identity::TypeIdentityId>,
-) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+    replacement_type: Option<TypeIdentityId>,
+) -> Option<SourcePlan> {
     // Owned descriptors do not own storage reached through them. Classify
     // every crossed prefix, including the selected slot when its replacement
     // has the referent's type rather than the descriptor's type.
     for depth in 0..=place.segments.len() {
-        let reference = validation::canonical_place_type_reference(
+        let reference = canonical_place_type_reference(
             program,
             state.symbol,
             statement_index,
@@ -210,10 +241,10 @@ pub(super) fn owned_assignment_source(
                 segments: place.segments[..depth].to_vec(),
             },
         )?;
-        if validation::reference_shell(program, reference).is_some()
+        if reference_shell(program, reference).is_some()
             && (depth < place.segments.len()
                 || replacement_type
-                    != Some(validation::stored_structural_type_identity(
+                    != Some(stored_structural_type_identity(
                         program,
                         reference,
                         &[],
@@ -226,43 +257,42 @@ pub(super) fn owned_assignment_source(
     let symbol = place.root.as_symbol()?;
     if let Some((ordinal, local)) = program.state_local_declaration(state, symbol) {
         return (ordinal < statement_index
-            && (!crate::checks::type_reference_is_reference(program, local.type_reference)
+            && (!checks::type_reference_is_reference(program, local.type_reference)
                 || (place.segments.is_empty()
                     && replacement_type
-                        == Some(validation::stored_structural_type_identity(
+                        == Some(stored_structural_type_identity(
                             program,
                             local.type_reference,
                             &[],
                             &[],
                         )))))
-        .then_some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
+        .then_some(SourcePlan::StructuralLocal { symbol });
     }
-    let position =
-        typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)?;
+    let position = state_parameter_position(program.state_parameters(state), symbol)?;
     let formal = program.state_parameters(state).get(position)?;
     let (parameter_index, _) = parameters.iter().enumerate().find(|(_, parameter)| {
         parameter.position as usize == position
-            && (parameter.access == CheckedStructuralAccess::Owned
+            && (parameter.access == StructuralAccess::Owned
                 // Borrowed ingress presents the pointee to the body. A whole
                 // mutable shared binding instead replaces its own descriptor,
                 // whose exact stored type was checked above. It never owns
                 // storage reached through the incoming shared loan.
-                || (parameter.access == CheckedStructuralAccess::SharedBorrow
+                || (parameter.access == StructuralAccess::SharedBorrow
                     && formal.is_mutable
                     && place.segments.is_empty()
-                    && validation::reference_shell(program, formal.type_reference)
+                    && reference_shell(program, formal.type_reference)
                         .is_some_and(|shell| {
-                            shell.access == language_semantics::ReferenceAccess::Shared
+                            shell.access == ReferenceAccess::Shared
                         })
                     && replacement_type
-                        == Some(validation::stored_structural_type_identity(
+                        == Some(stored_structural_type_identity(
                             program,
                             formal.type_reference,
                             &[],
                             &[],
                         ))))
     })?;
-    Some(CheckedUnitStructuralArgumentSourcePlan::Parameter {
+    Some(SourcePlan::Parameter {
         parameter_index: u32::try_from(parameter_index).ok()?,
     })
 }
@@ -274,16 +304,16 @@ pub(super) fn capture_assignment_destination(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
+    machine: &Machine,
+    state: &State,
+    parameters: &[ParameterPlan],
     scalar_parameters: &[super::CheckedStructuralScalarParameterPlan],
-    parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
+    parameter_storage: &[CheckedUnitParameterStoragePlan],
     binders: &[(SymbolHandle, String)],
     statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    trace: &super::control::LocalConstructionTrace,
-) -> Option<CheckedUnitEffectOperationPlan> {
+    assignment: &TableAssignment,
+    trace: &LocalConstructionTrace,
+) -> Option<OperationPlan> {
     let ordinal = usize::try_from(statement_index).ok()?;
     // A region captures its collection prefix. Selected element coordinates
     // are descendants of that one capture, not independently evaluated targets.
@@ -303,17 +333,12 @@ pub(super) fn capture_assignment_destination(
             .values
             .structural_values
             .root_for_expression(state.symbol, statement_index, assignment.value)
-            .map(|value| {
-                validation::stored_structural_type_identity(program, value.type_reference, &[], &[])
-            }),
+            .map(|value| stored_structural_type_identity(program, value.type_reference, &[], &[])),
     );
     if collection.is_none()
         && matches!(
             owned_source,
-            Some(
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-                    | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-            )
+            Some(SourcePlan::StructuralLocal { .. } | SourcePlan::Parameter { .. })
         )
         && access.segments.is_empty()
     {
@@ -324,7 +349,7 @@ pub(super) fn capture_assignment_destination(
         return None;
     }
     if collection.is_none()
-        && let Some(destination) = super::structural_scalar_store::scalar_capture_destination(
+        && let Some(destination) = scalar_capture_destination(
             program,
             facts,
             shapes,
@@ -339,13 +364,11 @@ pub(super) fn capture_assignment_destination(
             trace,
         )
     {
-        return Some(
-            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
-                statement_index,
-                destination_expression: target,
-                destination,
-            },
-        );
+        return Some(OperationPlan::CaptureAssignmentDestination {
+            statement_index,
+            destination_expression: target,
+            destination,
+        });
     }
     let root = access.root.as_symbol()?;
     let (root, segments) = resolve_storage_place(
@@ -380,23 +403,23 @@ pub(super) fn capture_assignment_destination(
             ordinal,
             parameters,
             &access,
-            language_semantics::ReferenceAccess::WriteOnly,
+            ReferenceAccess::WriteOnly,
             &|expression| selectors.runtime_segment(expression),
         )?;
         (place.source, place.path)
     };
-    let declared = validation::declared_place_type_raw(program, machine, Some(state), target)?;
+    let declared = declared_place_type_raw(program, machine, Some(state), target)?;
     let stored = if collection.is_some() {
-        validation::assignment_value_type(program, declared)
+        assignment_value_type(program, declared)
     } else {
-        validation::assignment_stored_value_type(program, machine, state, assignment)?
+        assignment_stored_value_type(program, machine, state, assignment)?
     };
     retain_assignment_referent(
         program,
         &source,
         &mut path,
         declared,
-        validation::stored_structural_type_identity(program, stored, &[], &[]),
+        stored_structural_type_identity(program, stored, &[], &[]),
     );
     let declared = stored;
     // A destination the source names as a whole local or parameter selects no
@@ -409,28 +432,26 @@ pub(super) fn capture_assignment_destination(
     if access.segments.is_empty()
         && collection.is_none()
         && (program.primitive_type_reference(declared).is_some()
-            || super::types::byte_sequence_carrier(program, declared, &[]).is_some())
+            || byte_sequence_carrier(program, declared, &[]).is_some())
     {
         return None;
     }
-    Some(
-        CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
-            statement_index,
-            destination_expression: target,
-            destination: CheckedUnitStructuralArgumentPlan {
-                projection_evaluations: Default::default(),
-                source,
-                path,
-                // Capture the assigned storage, including a pointer when the
-                // assignment replaces a reference descriptor. `stored` has
-                // already distinguished that from a write to its referent;
-                // peeling another reference shell would capture the wrong
-                // type even though the destination path still names the slot.
-                type_identity: shapes.add_stored_type(declared, binders, &[])?,
-                access: CheckedStructuralAccess::Owned,
-            },
+    Some(OperationPlan::CaptureAssignmentDestination {
+        statement_index,
+        destination_expression: target,
+        destination: ArgumentPlan {
+            projection_evaluations: Default::default(),
+            source,
+            path,
+            // Capture the assigned storage, including a pointer when the
+            // assignment replaces a reference descriptor. `stored` has
+            // already distinguished that from a write to its referent;
+            // peeling another reference shell would capture the wrong
+            // type even though the destination path still names the slot.
+            type_identity: shapes.add_stored_type(declared, binders, &[])?,
+            access: StructuralAccess::Owned,
         },
-    )
+    })
 }
 
 /// Restoration debt and the selected access route are separate coordinates.
@@ -440,8 +461,8 @@ pub(super) fn capture_assignment_destination(
 /// authority or a narrowed view's captured offset.
 pub(in crate::execution::terminal_unit) struct WindowPlace {
     storage: CanonicalPlace,
-    source: CheckedUnitStructuralArgumentSourcePlan,
-    path: Vec<CheckedUnitStructuralPathSegment>,
+    source: SourcePlan,
+    path: Vec<PathSegment>,
     restoration_required: bool,
 }
 
@@ -459,13 +480,13 @@ pub(in crate::execution::terminal_unit) struct WindowPlace {
 /// assignment targets consume their retained pre-RHS selector slots.
 pub(in crate::execution::terminal_unit) fn window_place(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     statements: &[StatementNode],
     statement_index: usize,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    structural_parameters: &[ParameterPlan],
     place: &CanonicalPlace,
-    required_access: language_semantics::ReferenceAccess,
-    selector: &dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>,
+    required_access: ReferenceAccess,
+    selector: &dyn Fn(ExpressionHandle) -> Option<PathSegment>,
 ) -> Option<WindowPlace> {
     let root_symbol = place.root.as_symbol()?;
     let (root, segments) = resolve_storage_place(
@@ -485,18 +506,15 @@ pub(in crate::execution::terminal_unit) fn window_place(
         .state_local_declaration(state, root_symbol)
         .filter(|(ordinal, _)| *ordinal < statement_index);
     let (source, path, restoration_required) = if let Some((_, local)) = local {
-        let borrowed = crate::checks::type_reference_is_reference(program, local.type_reference);
+        let borrowed = checks::type_reference_is_reference(program, local.type_reference);
         if borrowed
             && !matches!(
                 (
                     required_access,
-                    validation::reference_shell(program, local.type_reference)?.access
+                    reference_shell(program, local.type_reference)?.access
                 ),
-                (_, language_semantics::ReferenceAccess::Mutable)
-                    | (
-                        language_semantics::ReferenceAccess::WriteOnly,
-                        language_semantics::ReferenceAccess::WriteOnly
-                    )
+                (_, ReferenceAccess::Mutable)
+                    | (ReferenceAccess::WriteOnly, ReferenceAccess::WriteOnly)
             )
         {
             return None;
@@ -505,7 +523,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
             return None;
         }
         (
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            SourcePlan::StructuralLocal {
                 symbol: root_symbol,
             },
             place.segments.as_slice(),
@@ -513,10 +531,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
         )
     } else {
         let symbol = root.as_symbol()?;
-        let position = typed_trees::signature::state_parameter_position(
-            program.state_parameters(state),
-            symbol,
-        )?;
+        let position = state_parameter_position(program.state_parameters(state), symbol)?;
         let position = u32::try_from(position).ok()?;
         let (parameter_index, parameter) = structural_parameters
             .iter()
@@ -524,12 +539,12 @@ pub(in crate::execution::terminal_unit) fn window_place(
             .find(|(_, parameter)| parameter.position == position)?;
         if !matches!(
             parameter.access,
-            CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
-        ) && !(required_access == language_semantics::ReferenceAccess::WriteOnly
-            && parameter.access == CheckedStructuralAccess::WriteOnlyBorrow)
-            || (parameter.access == CheckedStructuralAccess::MutableBorrow
+            StructuralAccess::Owned | StructuralAccess::MutableBorrow
+        ) && !(required_access == ReferenceAccess::WriteOnly
+            && parameter.access == StructuralAccess::WriteOnlyBorrow)
+            || (parameter.access == StructuralAccess::MutableBorrow
                 && parameter.multiplicity == Multiplicity::Linear)
-            || (parameter.access == CheckedStructuralAccess::Owned && storage.segments.is_empty())
+            || (parameter.access == StructuralAccess::Owned && storage.segments.is_empty())
         {
             return None;
         }
@@ -538,21 +553,19 @@ pub(in crate::execution::terminal_unit) fn window_place(
         // retains the exact selected memberships and rejects any replacement
         // that would leave a qualified ancestor or the hole unestablished.
         (
-            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            SourcePlan::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
             storage.segments.as_slice(),
-            parameter.access != CheckedStructuralAccess::Owned,
+            parameter.access != StructuralAccess::Owned,
         )
     };
-    let (machine, _) = validation::find_state(program, state.symbol)?;
+    let (machine, _) = find_state(program, state.symbol)?;
     let path_root = match source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            PlaceRoot::Symbol(symbol)
-        }
+        SourcePlan::StructuralLocal { symbol } => PlaceRoot::Symbol(symbol),
         _ => storage.root,
     };
-    let (_, path) = super::calls::projected_evaluated_path(
+    let (_, path) = projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
@@ -578,7 +591,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
 /// windows key on the resolved storage place, not the access route.
 pub(in crate::execution::terminal_unit) fn resolve_storage_place(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     statements: &[StatementNode],
     statement_index: usize,
     root_symbol: SymbolHandle,
@@ -590,17 +603,12 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
         let Some(symbol) = root.as_symbol() else {
             break;
         };
-        let Some(source) = crate::flow::reference_route_source(
-            program,
-            state,
-            statements,
-            statement_index,
-            symbol,
-        ) else {
+        let Some(source) =
+            reference_route_source(program, state, statements, statement_index, symbol)
+        else {
             break;
         };
-        let Some(source) =
-            crate::flow::reference_source_place(program, state.symbol, statement_index, source)
+        let Some(source) = reference_source_place(program, state.symbol, statement_index, source)
         else {
             break;
         };
@@ -645,12 +653,12 @@ struct OpenWindow {
 /// window, and a mutable or reference-typed local binds nothing to restore.
 pub(in crate::execution::terminal_unit) fn move_out_candidate(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: usize,
-    local: &typed_trees::statement::TableLocalData,
+    local: &TableLocalData,
 ) -> Option<validation::CanonicalPlace> {
     if local.is_mutable
-        || crate::checks::type_reference_is_reference(program, local.type_reference)
+        || checks::type_reference_is_reference(program, local.type_reference)
         || program.type_multiplicity(local.type_reference) == Multiplicity::Unrestricted
     {
         return None;
@@ -670,17 +678,14 @@ impl OpenWindows {
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         shapes: &mut ShapeCollector<'_>,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        machine: &Machine,
+        state: &State,
+        structural_parameters: &[ParameterPlan],
         binders: &[(SymbolHandle, String)],
         statement_index: u32,
-        local: &typed_trees::statement::TableLocalData,
+        local: &TableLocalData,
         binding_ordinal: u32,
-    ) -> Option<(
-        CheckedUnitEffectOperationPlan,
-        CheckedUnitStructuralResultBindingPlan,
-    )> {
+    ) -> Option<(OperationPlan, BindingPlan)> {
         let index = usize::try_from(statement_index).ok()?;
         let place = move_out_candidate(program, state, index, local)?;
         let multiplicity = program.type_multiplicity(local.type_reference);
@@ -692,26 +697,16 @@ impl OpenWindows {
             index,
             structural_parameters,
             &place,
-            language_semantics::ReferenceAccess::Mutable,
-            &|expression| {
-                super::calls::value_index_segment(
-                    program,
-                    &facts.operators,
-                    state,
-                    index,
-                    expression,
-                )
-            },
+            ReferenceAccess::Mutable,
+            &|expression| value_index_segment(program, &facts.operators, state, index, expression),
         )?;
         let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
-        let result = CheckedUnitStructuralResultBindingPlan {
+        let result = BindingPlan {
             statement_index,
             binding_ordinal,
             type_identity: type_identity.clone(),
             multiplicity,
-            local: crate::execution::terminal_unit::initialized_locals::initialized_local(
-                program, machine, state, local,
-            ),
+            local: initialized_local(program, machine, state, local),
         };
         self.bind_extraction(program, facts, place, result, local.initial_value)
     }
@@ -726,17 +721,14 @@ impl OpenWindows {
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         shapes: &mut ShapeCollector<'_>,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        machine: &Machine,
+        state: &State,
+        structural_parameters: &[ParameterPlan],
         statement_index: u32,
         expression: ExpressionHandle,
-        type_reference: typed_trees::types::TypeReferenceHandle,
+        type_reference: TypeReferenceHandle,
         binding_ordinal: u32,
-    ) -> Option<(
-        CheckedUnitEffectOperationPlan,
-        CheckedUnitStructuralResultBindingPlan,
-    )> {
+    ) -> Option<(OperationPlan, BindingPlan)> {
         let ordinal = usize::try_from(statement_index).ok()?;
         let place = place_at(program, state.symbol, ordinal, expression)?;
         let place = window_place(
@@ -746,23 +738,15 @@ impl OpenWindows {
             ordinal,
             structural_parameters,
             &place,
-            language_semantics::ReferenceAccess::Mutable,
-            &|selector| {
-                super::calls::value_index_segment(
-                    program,
-                    &facts.operators,
-                    state,
-                    ordinal,
-                    selector,
-                )
-            },
+            ReferenceAccess::Mutable,
+            &|selector| value_index_segment(program, &facts.operators, state, ordinal, selector),
         )?;
-        let result = CheckedUnitStructuralResultBindingPlan {
+        let result = BindingPlan {
             statement_index,
             binding_ordinal,
             type_identity: shapes.add_type(
                 type_reference,
-                &super::types::machine_binders(program, machine),
+                &machine_binders(program, machine),
                 &[],
             )?,
             multiplicity: program.type_multiplicity(type_reference),
@@ -782,12 +766,9 @@ impl OpenWindows {
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         place: WindowPlace,
-        result: CheckedUnitStructuralResultBindingPlan,
+        result: BindingPlan,
         expression: ExpressionHandle,
-    ) -> Option<(
-        CheckedUnitEffectOperationPlan,
-        CheckedUnitStructuralResultBindingPlan,
-    )> {
+    ) -> Option<(OperationPlan, BindingPlan)> {
         let type_identity = result.type_identity.clone();
         let binding_ordinal = result.binding_ordinal;
         if self
@@ -803,15 +784,15 @@ impl OpenWindows {
             restoration_required: place.restoration_required,
         });
         Some((
-            CheckedUnitEffectOperationPlan::MoveStructuralField {
+            OperationPlan::MoveStructuralField {
                 result: result.clone(),
                 expression,
-                source: CheckedUnitStructuralArgumentPlan {
+                source: ArgumentPlan {
                     projection_evaluations: Default::default(),
                     source: place.source,
                     path: place.path,
                     type_identity,
-                    access: CheckedStructuralAccess::Owned,
+                    access: StructuralAccess::Owned,
                 },
             },
             result,
@@ -831,15 +812,15 @@ impl OpenWindows {
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         shapes: &super::types::ShapeCollector<'_>,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        machine: &Machine,
+        state: &State,
+        structural_parameters: &[ParameterPlan],
         statement_index: u32,
-        assignment: &typed_trees::statement::TableAssignment,
-        produced: &CheckedUnitStructuralResultBindingPlan,
+        assignment: &TableAssignment,
+        produced: &BindingPlan,
         displaced_ordinal: u32,
-        value: CheckedUnitStructuralArgumentPlan,
-        trace: &super::control::LocalConstructionTrace,
+        value: ArgumentPlan,
+        trace: &LocalConstructionTrace,
     ) -> Option<ValueReplacement> {
         trace.phase("structural replacement: destination identity");
         let ordinal = usize::try_from(statement_index).ok()?;
@@ -851,17 +832,17 @@ impl OpenWindows {
             if !assignment.receiving_type.is_valid() {
                 return None;
             }
-            let shape = validation::array_window_shape(
+            let shape = array_window_shape(
                 program,
                 machine,
                 state,
                 assignment.target,
-                &mut validation::ImmutableBoundLookup::new(program),
+                &mut ImmutableBoundLookup::new(program),
             )?;
             let length = u64::try_from(shape.length()?).ok()?;
             let start = shape.start?;
             let declared = shapes.types.get(&produced.type_identity)?;
-            let checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+            let CheckedUnitStructuralTypeShape::FixedArray {
                 element_type_identity,
                 length: source_length,
             } = declared.shape
@@ -871,18 +852,10 @@ impl OpenWindows {
             // Geometry does not grant reception. The receiving declaration and
             // completed source must retain the same full element identity.
             if source_length.literal() != Some(length)
-                || validation::stored_structural_type_identity(
-                    program,
-                    assignment.receiving_type,
-                    &[],
-                    &[],
-                ) != produced.type_identity
-                || validation::stored_structural_type_identity(
-                    program,
-                    shape.element_type,
-                    &[],
-                    &[],
-                ) != element_type_identity
+                || stored_structural_type_identity(program, assignment.receiving_type, &[], &[])
+                    != produced.type_identity
+                || stored_structural_type_identity(program, shape.element_type, &[], &[])
+                    != element_type_identity
             {
                 return None;
             }
@@ -894,15 +867,11 @@ impl OpenWindows {
                     index: start.checked_add(usize::try_from(element_ordinal).ok()?)?,
                 });
                 let mut element = value.clone();
-                element
-                    .path
-                    .push(CheckedUnitStructuralPathSegment::FixedIndex(
-                        element_ordinal,
-                    ));
+                element.path.push(PathSegment::FixedIndex(element_ordinal));
                 element.type_identity = element_type_identity;
-                let produced_element = CheckedUnitStructuralResultBindingPlan {
+                let produced_element = BindingPlan {
                     type_identity: element_type_identity,
-                    multiplicity: crate::checks::type_multiplicity(program, shape.element_type),
+                    multiplicity: checks::type_multiplicity(program, shape.element_type),
                     ..produced.clone()
                 };
                 let replacement = self.replace_place(
@@ -918,9 +887,7 @@ impl OpenWindows {
                     &produced_element,
                     next_displacement,
                     element,
-                    vec![CheckedUnitStructuralPathSegment::FixedIndex(
-                        element_ordinal,
-                    )],
+                    vec![PathSegment::FixedIndex(element_ordinal)],
                     trace,
                 )?;
                 next_displacement =
@@ -953,7 +920,7 @@ impl OpenWindows {
                 part.store.store().is_some_and(|store| {
                     matches!(
                         store.destination.leaf,
-                        checked_trees::CheckedStoreLeaf::StructuralStore {
+                        CheckedStoreLeaf::StructuralStore {
                             opening_binding: Some(binding), ..
                         } if binding == open.opening_binding
                     )
@@ -974,17 +941,17 @@ impl OpenWindows {
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         shapes: &super::types::ShapeCollector<'_>,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        machine: &Machine,
+        state: &State,
+        structural_parameters: &[ParameterPlan],
         statement_index: u32,
         selector_target: ExpressionHandle,
         destination_place: CanonicalPlace,
-        produced: &CheckedUnitStructuralResultBindingPlan,
+        produced: &BindingPlan,
         displaced_ordinal: u32,
-        value: CheckedUnitStructuralArgumentPlan,
-        receiver_path: Vec<CheckedUnitStructuralPathSegment>,
-        trace: &super::control::LocalConstructionTrace,
+        value: ArgumentPlan,
+        receiver_path: Vec<PathSegment>,
+        trace: &LocalConstructionTrace,
     ) -> Option<FieldReplacement> {
         trace.phase("structural replacement: owned destination");
         let index = usize::try_from(statement_index).ok()?;
@@ -1037,9 +1004,7 @@ impl OpenWindows {
                 // without replacing the executable AssignmentIndex above.
                 let captured_path = path
                     .iter()
-                    .any(|segment| {
-                        matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
-                    })
+                    .any(|segment| matches!(segment, PathSegment::RuntimeIndex(_)))
                     .then(|| {
                         captured_assignment_path(
                             program,
@@ -1056,7 +1021,7 @@ impl OpenWindows {
                 let transferred = facts.contextual_cleanup.replaces_transferred_storage(
                     machine.symbol,
                     state.symbol,
-                    language_semantics::PermissionEventSource::Statement {
+                    PermissionEventSource::Statement {
                         statement_index: index,
                     },
                     destination_place.root,
@@ -1064,7 +1029,7 @@ impl OpenWindows {
                 );
                 let occupied = slot_occupied(facts, machine, state, index, &destination_place)
                     || (!transferred
-                        && validation::reference_result_custody::replaced_reference_carrier(
+                        && replaced_reference_carrier(
                             program,
                             facts,
                             machine.symbol,
@@ -1090,22 +1055,19 @@ impl OpenWindows {
                 // statement occurrence; later replacements still require the
                 // exact old-carrier retirement or ordinary storage facts.
                 let establishes_ingress_descriptor = !occupied
-                && path.is_empty()
-                && matches!(
-                    source,
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-                )
-                && destination_place.root.as_symbol().is_some_and(|owner| {
-                    validation::reference_result_custody::initial_parameter_reference_establishment(
-                        program,
-                        facts,
-                        machine.symbol,
-                        state,
-                        owner,
-                        statement_index,
-                    )
-                    .is_some()
-                });
+                    && path.is_empty()
+                    && matches!(source, SourcePlan::Parameter { .. })
+                    && destination_place.root.as_symbol().is_some_and(|owner| {
+                        initial_parameter_reference_establishment(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state,
+                            owner,
+                            statement_index,
+                        )
+                        .is_some()
+                    });
                 trace.phase("structural replacement: exact receiving establishment");
                 if !occupied
                     && opening.is_none()
@@ -1116,7 +1078,7 @@ impl OpenWindows {
                             establishment.machine == machine.symbol
                                 && establishment.state == state.symbol
                                 && establishment.source
-                                    == language_semantics::PermissionEventSource::Statement {
+                                    == PermissionEventSource::Statement {
                                         statement_index: index,
                                     }
                                 && establishment.destination.root == destination_place.root
@@ -1149,7 +1111,7 @@ impl OpenWindows {
                     index,
                     structural_parameters,
                     &access_place,
-                    language_semantics::ReferenceAccess::WriteOnly,
+                    ReferenceAccess::WriteOnly,
                     &|expression| selectors.runtime_segment(expression),
                 )?;
                 let opening_binding = self
@@ -1179,12 +1141,7 @@ impl OpenWindows {
                 )
             };
         trace.phase("structural replacement: receiving carrier");
-        let declared = validation::canonical_place_type_reference(
-            program,
-            state.symbol,
-            index,
-            &access_place,
-        )?;
+        let declared = canonical_place_type_reference(program, state.symbol, index, &access_place)?;
         retain_assignment_referent(
             program,
             &source,
@@ -1198,18 +1155,18 @@ impl OpenWindows {
         if produced.multiplicity == Multiplicity::Linear && needs_displacement {
             return None;
         }
-        let place = CheckedUnitStructuralArgumentPlan {
+        let place = ArgumentPlan {
             projection_evaluations: Default::default(),
             source,
             path,
             type_identity: produced.type_identity.clone(),
-            access: CheckedStructuralAccess::Owned,
+            access: StructuralAccess::Owned,
         };
         let old_value = if needs_displacement {
-            CheckedUnitStructuralArgumentPlan::structural_result(
+            ArgumentPlan::structural_result(
                 displaced_ordinal,
                 produced.type_identity.clone(),
-                CheckedStructuralAccess::Owned,
+                StructuralAccess::Owned,
             )
         } else {
             place.clone()
@@ -1217,56 +1174,50 @@ impl OpenWindows {
         // The store names the window by its authored root; the move-out and
         // cleanup keep the ledger's dense spelling of the same place.
         let root = match place.source {
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                checked_trees::CheckedStoreRoot::Parameter {
-                    position: structural_parameters
-                        .get(parameter_index as usize)?
-                        .position,
-                }
-            }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                checked_trees::CheckedStoreRoot::Local { symbol }
-            }
+            SourcePlan::Parameter { parameter_index } => CheckedStoreRoot::Parameter {
+                position: structural_parameters
+                    .get(parameter_index as usize)?
+                    .position,
+            },
+            SourcePlan::StructuralLocal { symbol } => CheckedStoreRoot::Local { symbol },
             _ => return None,
         };
         let type_identity = produced.type_identity.clone();
         let leaf = if owned_rebind && place.path.is_empty() {
-            checked_trees::CheckedStoreLeaf::OwnedRebind { type_identity }
+            CheckedStoreLeaf::OwnedRebind { type_identity }
         } else {
-            checked_trees::CheckedStoreLeaf::StructuralStore {
+            CheckedStoreLeaf::StructuralStore {
                 type_identity,
                 multiplicity: produced.multiplicity,
                 opening_binding,
             }
         };
-        let mut store = CheckedUnitEffectOperationPlan::new_store(
+        let mut store = OperationPlan::new_store(
             statement_index,
             root,
             place.path.clone(),
             leaf,
-            checked_trees::CheckedStoreValue::Place(value),
+            CheckedStoreValue::Place(value),
         );
-        if let CheckedUnitEffectOperationPlan::Store(store) = &mut store {
+        if let OperationPlan::Store(store) = &mut store {
             store.captured_selection = receiver_path.clone();
         }
         Some(FieldReplacement {
-            move_out: needs_displacement.then(|| {
-                CheckedUnitEffectOperationPlan::MoveStructuralField {
-                    result: CheckedUnitStructuralResultBindingPlan {
-                        statement_index,
-                        binding_ordinal: displaced_ordinal,
-                        type_identity: produced.type_identity.clone(),
-                        multiplicity: produced.multiplicity,
-                        local: Default::default(),
-                    },
-                    source: place.clone(),
-                    expression: selector_target,
-                }
+            move_out: needs_displacement.then(|| OperationPlan::MoveStructuralField {
+                result: BindingPlan {
+                    statement_index,
+                    binding_ordinal: displaced_ordinal,
+                    type_identity: produced.type_identity.clone(),
+                    multiplicity: produced.multiplicity,
+                    local: Default::default(),
+                },
+                source: place.clone(),
+                expression: selector_target,
             }),
             cleanup: needs_cleanup.then(|| {
-                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                OperationPlan::ContinuationCleanup {
                     selected_regions: Vec::new(),
-                    boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                    boundary: CheckedUnitCleanupBoundary::Replacement {
                         statement_index,
                         destination: place.clone(),
                         old_value: old_value.clone(),
@@ -1276,7 +1227,7 @@ impl OpenWindows {
                     // death disposition once the hook catalog exists. Owned
                     // children retire in place; a borrowed replacement has a
                     // separately displaced value and restoration debt.
-                    cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
+                    cleanup_actions: vec![CheckedNormalCleanupAction::Discard(
                         CheckedUnitPartialAffineDiscardPlan {
                             source: old_value.source,
                             path: old_value.path,
@@ -1302,21 +1253,21 @@ impl OpenWindows {
 /// One store, with displacement and disposal only when its destination was
 /// occupied. A vacant destination is repaired without inventing an old value.
 struct FieldReplacement {
-    move_out: Option<CheckedUnitEffectOperationPlan>,
-    store: CheckedUnitEffectOperationPlan,
-    cleanup: Option<CheckedUnitEffectOperationPlan>,
+    move_out: Option<OperationPlan>,
+    store: OperationPlan,
+    cleanup: Option<OperationPlan>,
 }
 
 /// One complete replacement value, distributed over the selected destination
 /// region. Its producer's disposal debt is consumed once, even when several
 /// projected stores install its elements. This plan owns no source evaluation.
 pub(super) struct ValueReplacement {
-    pub(super) source: Option<CheckedUnitStructuralArgumentPlan>,
+    pub(super) source: Option<ArgumentPlan>,
     parts: Vec<FieldReplacement>,
 }
 
 impl ValueReplacement {
-    pub(super) fn from_store(store: CheckedUnitEffectOperationPlan) -> Self {
+    pub(super) fn from_store(store: OperationPlan) -> Self {
         Self {
             source: store.installed_value().cloned(),
             parts: vec![FieldReplacement {
@@ -1334,26 +1285,18 @@ impl ValueReplacement {
             .count()
     }
 
-    pub(super) fn consume_source(
-        &self,
-        operations: &mut [CheckedUnitEffectOperationPlan],
-    ) -> Option<()> {
+    pub(super) fn consume_source(&self, operations: &mut [OperationPlan]) -> Option<()> {
         if let Some(source) = &self.source
             && let Some(binding) = source.source_structural_result_binding_ordinal()
         {
-            super::control::statement_sequence::consume_result(
-                operations,
-                binding,
-                source.access,
-                !source.path.is_empty(),
-            )?;
+            consume_result(operations, binding, source.access, !source.path.is_empty())?;
         }
         Some(())
     }
 
     /// All RHS values already exist. Displace, clean up every old value, then
     /// install: no later element may observe an earlier installation's effects.
-    pub(super) fn into_operations(self) -> impl Iterator<Item = CheckedUnitEffectOperationPlan> {
+    pub(super) fn into_operations(self) -> impl Iterator<Item = OperationPlan> {
         let mut displacements = Vec::new();
         let mut cleanup = Vec::new();
         let mut stores = Vec::new();
@@ -1378,8 +1321,8 @@ impl ValueReplacement {
 /// checked custody, not the initializer's spelling.
 fn slot_occupied(
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     statement_index: usize,
     destination: &CanonicalPlace,
 ) -> bool {
@@ -1390,8 +1333,7 @@ fn slot_occupied(
         .any(|(_, disposition)| {
             disposition.machine == machine.symbol
                 && disposition.state == state.symbol
-                && disposition.source
-                    == language_semantics::PermissionEventSource::Statement { statement_index }
+                && disposition.source == PermissionEventSource::Statement { statement_index }
                 && disposition.root == destination.root
                 && facts
                     .flow

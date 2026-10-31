@@ -9,6 +9,7 @@ mod literal_projection;
 
 pub(crate) use coverage::segments_cover_subject;
 pub(crate) use domain_membership::MembershipEvidence;
+use facts::PlaceSegment;
 pub(crate) use facts::compose_captured_view_segments;
 
 pub(crate) use canonicalization::{
@@ -34,11 +35,9 @@ pub(crate) use validation::storage_path_relations::{
 /// statically known fixed-array element. A runtime `Index`, a window, and an
 /// opaque selector stay variable, so a path through them names no single
 /// storage.
-pub(crate) fn fixed_selection_segment(segment: &facts::PlaceSegment) -> bool {
+pub(crate) fn fixed_selection_segment(segment: &PlaceSegment) -> bool {
     matches!(
         segment,
-        facts::PlaceSegment::Field { .. }
-            | facts::PlaceSegment::Case { .. }
-            | facts::PlaceSegment::FixedIndex { .. }
+        PlaceSegment::Field { .. } | PlaceSegment::Case { .. } | PlaceSegment::FixedIndex { .. }
     )
 }

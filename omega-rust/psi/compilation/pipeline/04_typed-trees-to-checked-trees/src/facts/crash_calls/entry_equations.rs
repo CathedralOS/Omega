@@ -3,6 +3,7 @@
 //! requirements substitute closed literal values and retain checked comparison
 //! polarity over those original operands, independently of subsequent writes.
 //! Unknown origins and unselected arithmetic supply no entry evidence.
+use crate::facts::crash_entry_values::statement_may_overwrite_place;
 use crate::facts::crash_plan_facts::declared_parameter_names;
 use crate::places::place_at;
 use checked_trees::{
@@ -267,12 +268,7 @@ pub(super) fn completed_operand(
             caller.state_symbol,
         )?;
         let containing = program.statement_table.statement_at(state, statement)?;
-        if crate::facts::crash_entry_values::statement_may_overwrite_place(
-            program,
-            caller.machine_symbol,
-            containing,
-            &place,
-        ) {
+        if statement_may_overwrite_place(program, caller.machine_symbol, containing, &place) {
             return None;
         }
         let captured =
@@ -422,7 +418,7 @@ pub(super) fn completed_operand(
                 continue;
             };
             if let Some(actual_place) = place_at(program, state_symbol, statement_index, *actual)
-                && crate::facts::crash_entry_values::statement_may_overwrite_place(
+                && statement_may_overwrite_place(
                     program,
                     machine_symbol,
                     producer_statement,
