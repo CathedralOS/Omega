@@ -1362,7 +1362,7 @@ fn prove_edge(
                 &floor,
                 &ceiling,
                 range.end_inclusive,
-            ));
+            )?);
         } else if !matches!(
             measure,
             RankingRangeMeasure::IncreasingTo { .. } | RankingRangeMeasure::Distance { .. }
@@ -1375,7 +1375,7 @@ fn prove_edge(
             comparisons.push((
                 BinaryOperator::GreaterOrEqual,
                 rank.clone(),
-                Polynomial::default(),
+                rank_minimum(measure)?,
             ));
         }
     }
@@ -1414,6 +1414,7 @@ fn prove_edge(
     // interval tier for entries where subject <= limit is not established.
     // A computed rank is a value of its carrier only while the body forms
     // there; the same hypotheses that bound the subject must bound the rank.
+    let carrier_minimum = rank_minimum(measure)?;
     let carrier_maximum = match measure {
         RankingRangeMeasure::Computed { carrier, .. } => Some(carrier_maximum(carrier)?),
         _ => None,
@@ -1429,7 +1430,11 @@ fn prove_edge(
                 range.end_inclusive,
             )
         } else {
-            clamped || engine.prove_at_least(&engine.substituted(value), &BigInt::zero())
+            clamped
+                || engine.prove_at_least(
+                    &engine.substituted(&value.sub(&carrier_minimum)),
+                    &BigInt::zero(),
+                )
         };
         natural
             && carrier_maximum.as_ref().is_none_or(|maximum| {
@@ -1646,7 +1651,7 @@ fn prove_edge(
             range.end_inclusive,
         )
     } else {
-        clamped || prove(next_rank.clone(), 0)
+        clamped || prove(next_rank.sub(&carrier_minimum), 0)
     };
     let membership_and_pinning = entry_membership
         && next_membership
@@ -1654,7 +1659,7 @@ fn prove_edge(
             .as_ref()
             .is_none_or(|maximum| prove(maximum.sub(&next_rank), 0));
     let difference = rank.sub(&next_rank);
-    let natural_next = clamped || prove(next_rank.clone(), 0);
+    let natural_next = clamped || prove(next_rank.sub(&carrier_minimum), 0);
     let non_increasing = natural_next
         && (prove(difference.clone(), 0)
             || (clamped && prove(Polynomial::default().sub(&next_rank), 0)));
@@ -1718,17 +1723,28 @@ pub(super) fn hypothesis_landed_endpoints(
     Some(())
 }
 
-/// The greatest value of an unsigned carrier, as the formation ceiling of a
-/// computed rank.
+/// The produced fixed integer domain, independent of an authored rank range.
+/// Signed words have a finite lower endpoint too; zero is not their floor.
+pub(super) fn carrier_bounds(
+    carrier: symbols::BuiltinTypeAtom,
+) -> Option<(Polynomial, Polynomial)> {
+    let primitive = PrimitiveType::from_builtin_atom(carrier)?;
+    let (minimum, maximum) = integer_carrier_bounds(primitive)?;
+    Some((Polynomial::constant(minimum), Polynomial::constant(maximum)))
+}
+
 pub(super) fn carrier_maximum(carrier: symbols::BuiltinTypeAtom) -> Option<Polynomial> {
-    let maximum = match carrier {
-        symbols::BuiltinTypeAtom::U8 => u64::from(u8::MAX),
-        symbols::BuiltinTypeAtom::U16 => u64::from(u16::MAX),
-        symbols::BuiltinTypeAtom::U32 => u64::from(u32::MAX),
-        symbols::BuiltinTypeAtom::U64 => u64::MAX,
-        _ => return None,
-    };
-    Some(Polynomial::constant(BigInt::from_u64(maximum)))
+    Some(carrier_bounds(carrier)?.1)
+}
+
+/// Declared computations retain their result domain. Builtin natural views
+/// keep their nonnegative interpretation; clamped distance owners separately
+/// decide when this lower bound applies to their raw subtraction.
+pub(super) fn rank_minimum(measure: RankingRangeMeasure) -> Option<Polynomial> {
+    match measure {
+        RankingRangeMeasure::Computed { carrier, .. } => Some(carrier_bounds(carrier)?.0),
+        _ => Some(Polynomial::default()),
+    }
 }
 
 /// The representable range of an exact integer primitive as BigInt endpoints.

@@ -24,6 +24,7 @@ pub(in crate::proof_contracts::contract_entailment) struct FormedIntegerRank {
         Option<crate::IntegerApplicationFormation>,
     value: IntegerDenotation,
     atoms: Vec<(String, StructuralTerm, PrimitiveType)>,
+    minimum: BigInt,
     maximum: BigInt,
 }
 
@@ -71,12 +72,20 @@ impl StructuralJudge<'_> {
         if !engine.integer_value_lands(primitive, &value) {
             return Err("the entry rank has no independently proved result carrier bound");
         }
-        if !engine.prove_at_least(&value, &BigInt::zero()) {
-            return Err("the entry rank is not independently nonnegative");
-        }
-        let (_, maximum) = primitive
+        let (minimum, maximum) = primitive
             .integer_bounds()
             .ok_or("the entry rank has no fixed integer carrier bounds")?;
+        let minimum = if rank.measure.is_valid() {
+            BigInt::from_i128(minimum)
+        } else {
+            BigInt::zero()
+        };
+        if !engine.prove_at_least(
+            &value.sub(&Polynomial::constant(minimum.clone())),
+            &BigInt::zero(),
+        ) {
+            return Err("the entry rank has no independently established lower bound");
+        }
         let value = engine
             .capture_integer_denotation(&value)
             .ok_or("the formed rank has an incomplete opaque dependency graph")?;
@@ -106,6 +115,7 @@ impl StructuralJudge<'_> {
             application,
             value,
             atoms,
+            minimum,
             maximum: BigInt::from_i128(maximum),
         })
     }
@@ -149,7 +159,7 @@ impl StructuralJudge<'_> {
             (
                 BinaryOperator::GreaterOrEqual,
                 source_value.clone(),
-                Polynomial::constant(BigInt::zero()),
+                Polynomial::constant(source.minimum.clone()),
             ),
             (
                 BinaryOperator::LessOrEqual,
@@ -159,18 +169,37 @@ impl StructuralJudge<'_> {
         ]) {
             return Err("the saved rank bounds could not enter the current observation scope");
         }
-        let destination_value = if destination.measure.is_valid() {
-            engine
+        let (destination_value, destination_minimum) = if destination.measure.is_valid() {
+            let primitive = self
+                .program
+                .measures()
+                .iter()
+                .find(|declaration| declaration.symbol == destination.measure)
+                .and_then(|declaration| {
+                    self.program
+                        .primitive_type_reference(declaration.return_type)
+                })
+                .ok_or("the arriving rank lost its declared integer carrier")?;
+            let (minimum, _) = primitive
+                .integer_bounds()
+                .ok_or("the arriving rank has no fixed integer bounds")?;
+            let value = engine
                 .form_declared_integer_application(destination.measure, &destination_input)
                 .ok_or("the arriving rank application has no independent formation")?
-                .value
+                .value;
+            if !engine.integer_value_lands(primitive, &value) {
+                return Err("the arriving rank does not fit its declared carrier");
+            }
+            (value, BigInt::from_i128(minimum))
         } else {
-            destination_input
+            (destination_input, BigInt::zero())
         };
         let source_value = engine.substituted(&source_value);
         let destination_value = engine.substituted(&destination_value);
-        if !engine.prove_at_least(&destination_value, &BigInt::zero())
-            || !engine.prove_at_least(&source_value.sub(&destination_value), &BigInt::zero())
+        if !engine.prove_at_least(
+            &destination_value.sub(&Polynomial::constant(destination_minimum)),
+            &BigInt::zero(),
+        ) || !engine.prove_at_least(&source_value.sub(&destination_value), &BigInt::zero())
         {
             return Err("captured ranks do not prove natural nonincrease");
         }
