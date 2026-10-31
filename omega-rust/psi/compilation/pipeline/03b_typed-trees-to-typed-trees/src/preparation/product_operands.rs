@@ -16,6 +16,13 @@ use typed_trees::{
     types::{self, TypeReferenceHandle, TypeReferenceNode},
 };
 
+/// A declaration table's symbols beside the visibility their owner carries.
+macro_rules! public_symbols {
+    ($table:expr) => {
+        $table.iter().map(|value| (value.symbol, value.is_public))
+    };
+}
+
 mod nominal;
 pub use nominal::{prepare_product_operand_application, prepare_retained_product_application};
 
@@ -353,10 +360,7 @@ impl Lower<'_> {
     }
     fn candidates(&self) -> Vec<(SymbolHandle, bool)> {
         let program = self.program.product_declarations();
-        program
-            .data_definitions()
-            .iter()
-            .map(|value| (value.symbol, value.is_public))
+        public_symbols!(program.data_definitions())
             .chain(program.data_definitions().iter().flat_map(|owner| {
                 program
                     .data_members(owner)
@@ -377,36 +381,11 @@ impl Lower<'_> {
                         }
                     })
             }))
-            .chain(
-                program
-                    .traits()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
-            .chain(
-                program
-                    .conformances()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
-            .chain(
-                program
-                    .const_declarations()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
-            .chain(
-                program
-                    .domain_definitions()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
-            .chain(
-                program
-                    .machines()
-                    .iter()
-                    .map(|value| (value.symbol, value.is_public)),
-            )
+            .chain(public_symbols!(program.traits()))
+            .chain(public_symbols!(program.conformances()))
+            .chain(public_symbols!(program.const_declarations()))
+            .chain(public_symbols!(program.domain_definitions()))
+            .chain(public_symbols!(program.machines()))
             .chain(program.traits().iter().flat_map(|owner| {
                 program
                     .trait_machine_signatures(owner)
