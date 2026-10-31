@@ -584,13 +584,7 @@ pub(crate) fn type_reference_is_reference(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_is_reference(program, *base_type)
-        }
-        _ => false,
-    }
+    crate::checks::reference_access(program, type_reference).is_some()
 }
 
 fn nominal_drop_place_name<'program>(
