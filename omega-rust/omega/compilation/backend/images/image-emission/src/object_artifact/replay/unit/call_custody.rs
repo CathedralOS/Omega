@@ -9,6 +9,12 @@
 //! call's facts through `call_facts`, checks the roster against the callee
 //! ABI in `roster`, and checks the call site and each argument's custody
 //! in `argument_custody`.
+use crate::object_artifact::replay::structural::condition_layout::replay_bounded_byte_field;
+use crate::object_artifact::replay::structural::condition_layout::replay_runtime_projection;
+use crate::object_artifact::replay::structural::condition_layout::replay_structural_projection;
+use crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape;
+use crate::object_artifact::replay::structural::return_record::has_claim_free_affine_identity_custody;
+use crate::object_artifact::replay::unit::scalar_call_custody::scalar_home_shape;
 
 pub(crate) mod argument_custody;
 mod call_facts;
@@ -109,11 +115,7 @@ pub(crate) fn validate_mixed_structural_scalar_abi(
         .iter()
         .map(|parameter| fixed_integer_abi_shape(parameter.scalar_type).ok_or_else(invalid))
         .collect::<Result<Vec<_>, _>>()?;
-    let result_shape =
-        crate::object_artifact::replay::unit::scalar_call_custody::scalar_home_shape(
-            abi.result.scalar_type,
-        )
-        .ok_or_else(invalid)?;
+    let result_shape = scalar_home_shape(abi.result.scalar_type).ok_or_else(invalid)?;
     let expected = mixed_structural_scalar_call_plan(target, &scalar_shapes, abi, result_shape)
         .ok_or_else(invalid)?;
     let scalar_count = abi.scalar_parameters.len();
@@ -270,7 +272,7 @@ pub(crate) fn structural_result_matches_return(
                 && result.returned_claims.as_slice() == [result.operation_result.claims[0].claim]
         }
         terminal_psi::StructuralMultiplicity::Affine => {
-            crate::object_artifact::replay::structural::return_record::has_claim_free_affine_identity_custody(returned)
+            has_claim_free_affine_identity_custody(returned)
                 && result.operation_result.claims.is_empty()
                 && result.returned_claims.is_empty()
         }
@@ -316,102 +318,85 @@ pub(crate) fn exact_borrowed_projection(
                 )
         })
     };
-    let (leaf_type, expected_shape, byte_offset, runtime_reach) = if argument.path.iter().any(
-        |segment| {
+    let (leaf_type, expected_shape, byte_offset, runtime_reach) =
+        if argument.path.iter().any(|segment| {
             matches!(
                 segment,
                 terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
             )
-        },
-    ) {
-        let Some((leaf_type, leaf_shape, byte_offset, elements)) =
-            crate::object_artifact::replay::structural::condition_layout::replay_runtime_projection(
-                source.structural_type,
-                &argument.path,
-                structural_types,
+        }) {
+            let Some((leaf_type, leaf_shape, byte_offset, elements)) =
+                replay_runtime_projection(source.structural_type, &argument.path, structural_types)
+            else {
+                return false;
+            };
+            if !leaf_is_material(leaf_type) {
+                return false;
+            }
+            let Some(reach) = elements.iter().try_fold(
+                u64::from(leaf_shape.byte_size),
+                |reach, (extent, stride)| {
+                    extent
+                        .checked_sub(1)?
+                        .checked_mul(u64::from(*stride))
+                        .and_then(|span| reach.checked_add(span))
+                },
+            ) else {
+                return false;
+            };
+            (
+                leaf_type,
+                ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment),
+                byte_offset,
+                Some(reach),
             )
-        else {
-            return false;
-        };
-        if !leaf_is_material(leaf_type) {
-            return false;
-        }
-        let Some(reach) = elements.iter().try_fold(
-            u64::from(leaf_shape.byte_size),
-            |reach, (extent, stride)| {
-                extent
-                    .checked_sub(1)?
-                    .checked_mul(u64::from(*stride))
-                    .and_then(|span| reach.checked_add(span))
-            },
-        ) else {
-            return false;
-        };
-        (
-            leaf_type,
-            ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment),
-            byte_offset,
-            Some(reach),
-        )
-    } else if let Some((leaf_type, leaf_shape, byte_offset)) =
-        crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
-            source.structural_type,
-            &argument.path,
-            structural_types,
-        )
-    {
-        if !leaf_is_material(leaf_type) {
-            return false;
-        }
-        (
-            leaf_type,
-            ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment),
-            byte_offset,
-            None,
-        )
-    } else {
-        // An inline bounded byte field presents the callee's borrowed byte
-        // view: the field has no catalog identity of its own, so the record
-        // walk supplies the offset and the destination supplies the view type.
-        let Some((byte_offset, field_capacity)) =
-            crate::object_artifact::replay::structural::condition_layout::replay_bounded_byte_field(
-                source.structural_type,
-                &argument.path,
-                structural_types,
+        } else if let Some((leaf_type, leaf_shape, byte_offset)) =
+            replay_structural_projection(source.structural_type, &argument.path, structural_types)
+        {
+            if !leaf_is_material(leaf_type) {
+                return false;
+            }
+            (
+                leaf_type,
+                ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment),
+                byte_offset,
+                None,
             )
-        else {
-            return false;
+        } else {
+            // An inline bounded byte field presents the callee's borrowed byte
+            // view: the field has no catalog identity of its own, so the record
+            // walk supplies the offset and the destination supplies the view type.
+            let Some((byte_offset, field_capacity)) =
+                replay_bounded_byte_field(source.structural_type, &argument.path, structural_types)
+            else {
+                return false;
+            };
+            // The presented view's referent cell and static bound come from the
+            // destination carrier: a slice view stages a fat descriptor, a
+            // bounded view a single pointer to the whole field.
+            let Some(referent_size) = structural_types.iter().find_map(|declaration| {
+                (declaration.id == destination.structural_type)
+                    .then_some(match &declaration.shape {
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                        ) => Some(16),
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                        ) if *capacity == field_capacity => Some(8),
+                        _ => None,
+                    })
+                    .flatten()
+            }) else {
+                return false;
+            };
+            (
+                destination.structural_type,
+                ValueShape::borrowed_reference(referent_size, 8),
+                byte_offset,
+                None,
+            )
         };
-        // The presented view's referent cell and static bound come from the
-        // destination carrier: a slice view stages a fat descriptor, a
-        // bounded view a single pointer to the whole field.
-        let Some(referent_size) = structural_types.iter().find_map(|declaration| {
-            (declaration.id == destination.structural_type)
-                .then_some(match &declaration.shape {
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                    ) => Some(16),
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
-                    ) if *capacity == field_capacity => Some(8),
-                    _ => None,
-                })
-                .flatten()
-        }) else {
-            return false;
-        };
-        (
-            destination.structural_type,
-            ValueShape::borrowed_reference(referent_size, 8),
-            byte_offset,
-            None,
-        )
-    };
-    let Some(root_shape) =
-        crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(
-            source.structural_type,
-            structural_types,
-        )
+    let Some(root_shape) = replay_structural_value_shape(source.structural_type, structural_types)
     else {
         return false;
     };
