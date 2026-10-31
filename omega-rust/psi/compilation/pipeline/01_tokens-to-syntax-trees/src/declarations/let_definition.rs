@@ -68,14 +68,10 @@ pub(super) fn parse_let_definition<'tokens, 'source>(
                 .append_mathematical_parameter_handle(handle);
             parameters.push(handle);
             input = rest;
-
             let Some(next) = input.take_comma()? else {
                 break;
             };
-
             input = next;
-
-            continue;
         }
     }
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;

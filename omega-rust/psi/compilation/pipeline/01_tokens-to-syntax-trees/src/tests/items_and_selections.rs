@@ -526,19 +526,11 @@ fn provider_selection_retains_two_structural_type_paths() {
 
     assert_eq!(call.machine_arguments.len(), 2);
     assert_eq!(
-        call.machine_arguments[0]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[0].path),
         ["host", "Console"]
     );
     assert_eq!(
-        call.machine_arguments[1]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[1].path),
         ["application", "ConsoleProvider"]
     );
     assert!(!call.target.as_str(&parsed).contains('#'));
@@ -569,11 +561,7 @@ fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
 
     assert_eq!(call.machine_arguments.len(), 1);
     assert_eq!(
-        call.machine_arguments[0]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[0].path),
         ["host", "Console"]
     );
     assert!(call.machine_arguments[0].application.is_none());
@@ -775,19 +763,11 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
 
     assert_eq!(call.machine_arguments.len(), 2);
     assert_eq!(
-        call.machine_arguments[0]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[0].path),
         ["interrupt", "Ack"]
     );
     assert_eq!(
-        call.machine_arguments[1]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[1].path),
         ["platform", "AckRepresentation"]
     );
 }
@@ -858,13 +838,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
         proposition reflexive(value: i32) = related(value, value);
     "#;
     let parsed = super::parse_source(source, "all settled proposition forms should parse");
-    let propositions = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Proposition(proposition) => Some(proposition),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let propositions = super::root_propositions(&parsed);
 
     assert_eq!(propositions.len(), 3);
     assert!(propositions[0].is_public);
@@ -1021,13 +995,7 @@ fn parses_trait_proposition_parameter_with_authored_signature() {
         }
     "#;
     let parsed = super::parse_source(source, "proposition parameter should parse");
-    let trait_definitions = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let trait_definitions = super::root_traits(&parsed);
     let [trait_definition] = trait_definitions.as_slice() else {
         panic!("one trait expected");
     };

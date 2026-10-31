@@ -23,11 +23,9 @@ pub(super) fn admit(
     layouts: &[NativeBorrowedStorageLayout],
     implementation: ClockImplementation,
 ) -> Result<NativeBorrowedStorageLayout, TerminalRuntimeError> {
-    let invalid = || {
-        TerminalRuntimeError::InvalidProvision(
-            "clock timespec requires an admitted loan covering aligned native storage",
-        )
-    };
+    let invalid = super::super::unprovisioned(
+        "clock timespec requires an admitted loan covering aligned native storage",
+    );
     let [parameter] = signature.structural_parameters.as_slice() else {
         return Err(invalid());
     };
@@ -63,22 +61,13 @@ pub(super) fn read(
     clock: &Arc<Mutex<TerminalClockEnvironment>>,
     namespace: ClockNamespace,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-    let invalid = || {
-        TerminalEffectRejection::new("clock timespec operands differ from the installed contract")
-    };
-    let TerminalEffect::BoundaryCall {
-        arguments,
-        structural_arguments,
-        byte_sequence_arguments,
-        ..
-    } = effect
-    else {
-        return Err(invalid());
-    };
-    let selector = super::selector(arguments, signature)?;
-    if structural_arguments.len() != 1
-        || structural_arguments[0].structural_type != layout.structural_type
-        || !matches!(byte_sequence_arguments.as_slice(), [None])
+    let invalid =
+        super::super::refusal("clock timespec operands differ from the installed contract");
+    let call = super::super::call_operands(effect, &invalid)?;
+    let selector = super::selector(call.arguments, signature)?;
+    if call.structural_arguments.len() != 1
+        || call.structural_arguments[0].structural_type != layout.structural_type
+        || !matches!(call.byte_sequence_arguments, [None])
     {
         return Err(invalid());
     }
@@ -120,32 +109,23 @@ pub(super) fn sleep(
     clock: &Arc<Mutex<TerminalClockEnvironment>>,
     namespace: ClockNamespace,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-    let invalid =
-        || TerminalEffectRejection::new("nanosleep operands differ from the installed contract");
-    let TerminalEffect::BoundaryCall {
-        arguments,
-        structural_arguments,
-        byte_sequence_arguments,
-        ..
-    } = effect
-    else {
-        return Err(invalid());
-    };
+    let invalid = super::super::refusal("nanosleep operands differ from the installed contract");
+    let call = super::super::call_operands(effect, &invalid)?;
     let [
         TerminalScalarValue::Integer {
             scalar_type,
             value: IntegerValue::Unsigned(remainder),
         },
-    ] = arguments.as_slice()
+    ] = call.arguments
     else {
         return Err(invalid());
     };
     if signature.scalar_parameters.as_slice()
         != [semantic_vocabulary::ScalarType::Integer(*scalar_type)]
         || !scalar_type.admits(IntegerValue::Unsigned(*remainder))
-        || structural_arguments.len() != 1
-        || structural_arguments[0].structural_type != layout.structural_type
-        || !matches!(byte_sequence_arguments.as_slice(), [None])
+        || call.structural_arguments.len() != 1
+        || call.structural_arguments[0].structural_type != layout.structural_type
+        || !matches!(call.byte_sequence_arguments, [None])
     {
         return Err(invalid());
     }

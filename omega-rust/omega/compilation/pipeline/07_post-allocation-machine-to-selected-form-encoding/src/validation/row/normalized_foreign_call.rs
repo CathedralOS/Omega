@@ -17,7 +17,7 @@ use target::{Architecture, NativeTarget};
 
 use super::{
     admit_decoded_footprint, decoded_effects_footprint, decoded_footprint, decoded_row_footprint,
-    operand_accesses, operand_views,
+    encoded_row, operand_accesses, operand_views,
 };
 use crate::OptimizedSelectedFormEncodingError;
 use crate::row_encoding::normalized_foreign_call_record;
@@ -69,12 +69,7 @@ pub(super) fn validate(
         return Ok(());
     }
     if let Some(binding) = record.call.binding.system_call() {
-        if !matches!(row.state, SelectedFormEncodingState::Encoded) {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-        }
-        let Some((bytes, footprint)) = encoded.encoded(row) else {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-        };
+        let (bytes, footprint) = encoded_row(row, encoded)?;
         if !record.call.callbacks.is_empty() {
             return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
         }

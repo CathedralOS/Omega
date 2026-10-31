@@ -1,7 +1,7 @@
 # Content conservation and custody
 
 [Storage](storage.md) defines capacity and installed root introduction.
-[Placed access](placed_access.md) defines resident views.
+[Access policies](access.md) define resident views.
 Checking establishes the corresponding evidence under the
 [fact-validity rules](../terminal-psi/fact_validity.md).
 [Authority establishment](authority.md) defines qualified claim origins.

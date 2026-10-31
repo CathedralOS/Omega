@@ -5,7 +5,7 @@
 //! exceptional division regions. It does not infer control-flow evidence,
 //! select calling conventions, or emit instructions.
 
-use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+use crate::object_artifact::replay::{x86_region_decoder, x86_register_info_writes_stack_pointer};
 use crate::order::strictly_increasing;
 
 use machine_code::{ScalarDivisionBranchEvidence, ScalarStackEvidence};
@@ -54,12 +54,7 @@ pub(crate) fn decode_exact_x86_instruction(
         .checked_add(byte_count)
         .filter(|end| *end <= bytes.len())
         .ok_or(ObjectError::InvalidScalarConditionalEvidence { machine, offset })?;
-    let mut decoder = iced_x86::Decoder::with_ip(
-        64,
-        &bytes[offset..end],
-        offset as u64,
-        iced_x86::DecoderOptions::NONE,
-    );
+    let mut decoder = x86_region_decoder(bytes, offset, end);
     let instruction = decoder.decode();
     if instruction.is_invalid() || instruction.len() != byte_count || decoder.can_decode() {
         return Err(ObjectError::InvalidScalarConditionalEvidence { machine, offset });
@@ -109,12 +104,7 @@ fn replay_x86_scalar_linear_region(
     if start > end || end > bytes.len() {
         return Err(rejected(machine, start));
     }
-    let mut decoder = iced_x86::Decoder::with_ip(
-        64,
-        &bytes[start..end],
-        start as u64,
-        iced_x86::DecoderOptions::NONE,
-    );
+    let mut decoder = x86_region_decoder(bytes, start, end);
     let mut info_factory = iced_x86::InstructionInfoFactory::new();
     let mut saw_return = false;
     while decoder.can_decode() {

@@ -41,7 +41,9 @@ data ForeignRecord {
 
 public data RegistrarPolicy { }
 public RegistrarPolicyCallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = RegistrarPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        RegistrarPolicy::plan(signature)
+    }
 }
 
 machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult

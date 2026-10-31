@@ -48,7 +48,7 @@ drop-in replacement either.
 [`placed_views.rs`](../../../../../omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs)
 retains the invocation locations and passes each to
 `require_common_floor_for_invocation` before evaluating the placement policy.
-The [placed-access contract](../../../../../wiki/spec/resources/placed_access.md)
+The [placed-access contract](../../../../../wiki/spec/resources/access.md)
 requires exact policy/schema identities, visibility and direct-dependency
 authority before synthesis. Losing these inputs is a semantic difference even
 when the local examples emit identical machine code. The four invalid controls

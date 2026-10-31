@@ -62,11 +62,9 @@ impl AddressValues {
         application: [u8; 32],
         multiplicity: StructuralMultiplicity,
     ) -> Result<HostInternetAddress, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "inet owned occurrence differs from the admitted application or multiplicity",
-            )
-        };
+        let invalid = super::refusal(
+            "inet owned occurrence differs from the admitted application or multiplicity",
+        );
         let slot = self.values.get_mut(ordinal).ok_or_else(invalid)?;
         let owned = slot.as_ref().ok_or_else(invalid)?;
         if owned.application != application || owned.multiplicity != multiplicity {
@@ -120,30 +118,15 @@ impl TerminalImportAdapter for NetworkAddressImport {
 }
 
 impl TerminalEffectHandler for NetworkAddressImport {
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "inet operation requires an authenticated typed result",
-        ))
-    }
+    handle_effect_requires_dispatch!("inet operation requires an authenticated typed result");
 
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "inet operands or owned occurrence differ from the admitted contract",
-            )
-        };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
+        let invalid =
+            super::refusal("inet operands or owned occurrence differ from the admitted contract");
+        let call = super::call_operands(effect, &invalid)?;
         let word = IntegerType::new(IntegerSign::Unsigned, 32).map_err(|_| invalid())?;
         let mut values = self.values.lock().map_err(|_| {
             TerminalEffectRejection::new("inet owned occurrence store was poisoned")
@@ -159,16 +142,16 @@ impl TerminalEffectHandler for NetworkAddressImport {
                         scalar_type: host_type,
                         value: IntegerValue::Unsigned(host),
                     },
-                ] = arguments.as_slice()
+                ] = call.arguments
                 else {
                     return Err(invalid());
                 };
-                let BoundaryMachineResult::Structural(result) = result else {
+                let BoundaryMachineResult::Structural(result) = call.result else {
                     return Err(invalid());
                 };
                 if *network_type != word
                     || *host_type != word
-                    || !structural_arguments.is_empty()
+                    || !call.structural_arguments.is_empty()
                     || result.structural_type != self.contract.structural_type
                     || result.multiplicity != self.contract.multiplicity
                     || !result.qualifications.is_empty()
@@ -205,11 +188,11 @@ impl TerminalEffectHandler for NetworkAddressImport {
                 ))
             }
             AddressOperation::Host => {
-                let [address] = structural_arguments.as_slice() else {
+                let [address] = call.structural_arguments else {
                     return Err(invalid());
                 };
-                if !arguments.is_empty()
-                    || result != &self.signature.result
+                if !call.arguments.is_empty()
+                    || call.result != &self.signature.result
                     || address.structural_type != self.contract.structural_type
                     || !address.path.is_empty()
                     || !address.projected_qualifications.is_empty()

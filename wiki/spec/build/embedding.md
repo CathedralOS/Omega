@@ -236,7 +236,7 @@ execution mechanism; no hidden polling or automatic event thread is implied.
 ## Reflection and debugging
 
 The SDK exposes retained exact import/export descriptions and requested
-[semantic metadata](../language/reflection.md#runtime-descriptions-and-placed-access).
+[semantic metadata](../language/reflection.md#runtime-descriptions-and-access-views).
 Selected schemas and checked adapters support dynamic invocation, inspectors,
 serialization, and editors. Dynamic lookup chooses an already retained entry; it
 cannot instantiate arbitrary new generic code or acquire private access.

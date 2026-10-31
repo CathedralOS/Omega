@@ -914,3 +914,36 @@ predicate, including stored `p=40`, `dist=-23` and both nested counters at 100.
 The focused seven-sample gate passes. These are native/Terminal observations,
 separate from older checked-tree notes; physical timing is not newly qualified.
 Other hosted targets and the full parent migration remain open.
+
+## Audited stdin byte parameters
+
+The three stdin customers retain their original `7a9a7b8287e6` byte-input
+formals: checksum `acc.value`, rot1 `wr.value`, and upper `chk.value`.
+Each remains an ordinary `i32` with `requires value >= 0 && value <= 0xFF`.
+The standard library's guarded `ByteRead` data predicate establishes these
+bounds on the exact payload when the caller matches `ByteRead::Byte`.
+The match establishes the obligation before the call; a desired callee result
+does not justify its input. EOF remains a distinct case from a zero byte.
+
+Exactly 13 calls acknowledge the existing blocking read path. Wrapping sums
+and counts, algorithms, and all 14 original `INPUT-GRID` vectors remain.
+Upper's ASCII literals use the same integer values in hex.
+
+The frozen rot1 `0xFF` case exposed a shared Terminal adapter defect: it
+rejected valid i32 output 256 while native execution emitted its low byte.
+The adapter now emits the low eight bits after checking the full i32 carrier;
+wrong operand types and values outside that carrier still reject. Selection,
+provisions, authority, and the program's input requirement remain unchanged.
+A focused corpus program writes positive, negative and integer-limit inputs
+with exact bytes `41 00 FF 00 00 FF` and exit zero in both engines.
+
+Optimized repaired producer `ae2dd53d3518` executes all 20 byte-exact cases in both the
+working and separately prepared fresh projects on macOS ARM64. All 40 case
+observations agree between native and Terminal execution on exact exit,
+stdout, and stderr. Additional cases distinguish empty EOF from NUL, check
+rot1's `0xFF` to `0x00` output, and preserve upper's `0xFF` byte. The six
+copied-header endpoint pairs accept zero and 255, and reject representable
+-1 and 256 at the intended requires contract. These controls are source checks;
+checksum exit values beyond 255 are not a runtime claim here. The focused
+three-sample gate passes their default empty-input oracles. Other hosted
+targets and the full parent migration remain open.

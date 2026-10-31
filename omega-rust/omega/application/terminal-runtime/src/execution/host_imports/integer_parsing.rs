@@ -197,11 +197,7 @@ impl TerminalEffectHandler for IntegerParsingImport {
         }
     }
 
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "strtol needs captured storage and typed completion",
-        ))
-    }
+    handle_effect_requires_dispatch!("strtol needs captured storage and typed completion");
 
     fn handle_effect_with_buffers(
         &mut self,
@@ -209,32 +205,21 @@ impl TerminalEffectHandler for IntegerParsingImport {
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "strtol invocation differs from its admitted storage/ABI contract",
-            )
-        };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
+        let invalid =
+            super::refusal("strtol invocation differs from its admitted storage/ABI contract");
+        let call = super::call_operands(effect, &invalid)?;
         let [
             TerminalScalarValue::Integer {
                 scalar_type,
                 value: IntegerValue::Signed(base),
             },
-        ] = arguments.as_slice()
+        ] = call.arguments
         else {
             return Err(invalid());
         };
         if *scalar_type != self.base_type
-            || *result != self.signature.result
-            || structural_arguments.len() != 2
+            || *call.result != self.signature.result
+            || call.structural_arguments.len() != 2
             || !byte_buffers.is_empty()
             || buffers.len() != 2
         {

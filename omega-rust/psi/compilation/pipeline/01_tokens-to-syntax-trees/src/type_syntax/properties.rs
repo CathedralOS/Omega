@@ -164,7 +164,6 @@ fn parse_carry_policy<'tokens, 'source>(
             break;
         };
         input = next;
-        continue;
     }
 
     let missing = [

@@ -57,11 +57,9 @@ impl DescriptorModeImport {
         if offered != *locator {
             return Ok(None);
         }
-        let invalid = || {
-            TerminalRuntimeError::InvalidProvision(
-                "descriptor-mode adapter differs from its exact admitted declaration/ABI",
-            )
-        };
+        let invalid = super::unprovisioned(
+            "descriptor-mode adapter differs from its exact admitted declaration/ABI",
+        );
         let word = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
         let signature = TerminalImportSignature::from(declaration);
         let native_signature = CallSignature {
@@ -105,25 +103,15 @@ impl TerminalImportAdapter for DescriptorModeImport {
 }
 
 impl TerminalEffectHandler for DescriptorModeImport {
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "descriptor mode requires authenticated scalar dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("descriptor mode requires authenticated scalar dispatch");
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         storage_buffers: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new(
-                "descriptor-mode operands differ from the installed contract",
-            )
-        };
-        let TerminalEffect::BoundaryCall { arguments, .. } = effect else {
-            return Err(invalid());
-        };
+        let invalid = super::refusal("descriptor-mode operands differ from the installed contract");
+        let call = super::call_operands(effect, &invalid)?;
         if !byte_buffers.is_empty() || !storage_buffers.is_empty() {
             return Err(invalid());
         }
@@ -136,7 +124,7 @@ impl TerminalEffectHandler for DescriptorModeImport {
                 scalar_type: mode_type,
                 value: IntegerValue::Signed(mode),
             },
-        ] = arguments.as_slice()
+        ] = call.arguments
         else {
             return Err(invalid());
         };

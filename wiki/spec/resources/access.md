@@ -1,21 +1,68 @@
-# Placed access and resident custody
+# Access policies, views, and resident custody
+
+Named decision: `access-policy-vocabulary`, settled 2026-10-30.
 
 [Content custody](content_custody.md) defines claim-local roles.
 [Boundary realization](../terminal-psi/boundary_calls.md) defines demanded
 applications and selected provider evidence.
 
-These are language contracts, not a claim that every source operation or target
-realization is implemented. [The execution board](../../../TASKS.md) tracks the
-remaining placement and lowering work.
-
 ## Plans and admitted supply
 
-`LayoutPlan` defines physical geometry. `AccessPlan` defines requested primitive
-operations and exposure. A nominal build-time `Placement` policy evaluates
-`plan(schema: Schema) -> PlacementPlan`, bundling layout, access, and static
-boundary reach. An `Access` policy receives the same schema and validated layout;
-it does not restate transfer geometry. Runtime range provenance proves that the
-declared reach may access the region; it never edits a machine's reach row.
+`LayoutPlan` defines representation and physical geometry, with no access rights.
+`AccessPlan { layout, fields, reach }` contains one `LayoutPlan`, per-field
+operation/exposure decisions, and required static boundary reach. An access plan
+contains a layout plan; a layout plan carries no access policy. `FieldEntry` uses
+`representation: FieldPlan`: the alternatives describe offsets, bit fragments,
+integer representations, and wire encodings, not merely positions.
+
+An ordinary named implementation of `AccessPolicy` supplies
+`plan(schema: Schema) -> AccessPlan`. Its complete checked execution closure is
+effect-free and terminating under compile-time admission: no boundary services,
+suspension, blocking, or unadmitted linear carriers. It may call ordinary layout
+policies and helpers; there is no separate two-argument composition trait. Such a
+call returns plan data, not a validation certificate. The final validator
+independently establishes layout, field coverage, operation, and reach obligations;
+it trusts no intermediate calculation or asserted property of the policy result.
+Runtime range provenance proves that the declared reach may access the region;
+constructing a plan grants no reach and never edits a machine's reach row.
+
+`AccessPlan::inaccessible(layout)` retains the supplied layout, starts with empty
+required reach, and seeds one inaccessible decision for each distinct schema-field
+key appearing in its entries. Several fragments of one field seed one decision.
+Erased bindings have no physical entries and seed none. `AccessPlan::with` changes
+the decision for an existing key; it does not authorize an unknown field. Final
+validation independently requires exactly one decision for every runtime-relevant
+schema field, no decisions for erased or foreign fields, and valid complete layout
+coverage. An omitted field cannot become valid merely because both the layout and
+the seeded decisions omitted it. Access decisions use schema-field identity, not the
+layout entry count or entry positions.
+
+`Access<P, T>`, `Accessor<T>`, `AccessPolicy`, `AccessPlan`, and `LayoutPlan` are
+core names, not language keywords. Ordinary name resolution and import rules apply;
+there is no special local-wins rule for a user declaration named `Access`.
+
+Ordinary `&T`, `&mut T`, and `&write T` loans, together with domain-owned access
+restrictions, suffice when the whole-value loan and ordinary projections express
+the intended operations. Access policies express field-specific operations,
+exposure, and observation behavior. Access or mutation outside ordinary Omega
+loan discipline requires the appropriate external/atomic backing contract; it
+does not justify manufacturing ordinary readable or mutable references. Another
+cooperating Omega thread alone does not require an access policy.
+
+There are two sources of backing authority:
+
+- Ordinary RAM views retain the lender's existing loan and compatible Stable
+  supply. They need no provider admission and cannot strengthen that loan.
+- Boundary-backed views use exact admitted provider evidence: `Granted` from
+  issuance, `ResourceProfile` from supply, and, for a device interpretation,
+  schema correspondence with its datasheet/platform provenance. Build accepts
+  the boundary requirements and selects their providers; package acceptance
+  records those trust decisions. A boundary may supply an established view or
+  qualified backing from which the view is established under these obligations.
+
+Neither route dispenses with content validity, resident custody, lifetime, or
+operation-specific obligations. Policy evaluation and the demand/supply join are
+checked against the evidence; constructing their data cannot establish it.
 
 Opaque compiler-issued field keys bind the exact canonical layout with a
 domain-separated strong commitment; compact layout coordinates are report-only. Each
@@ -32,7 +79,7 @@ semantics or normalized identity; overflow rejects.
 | `Atomic(operations, exposure)` | Only the listed atomic operation families. |
 
 Exposure is `Exported` or `BindingPrivate`. The latter restricts naming and
-issuance to the placement-policy package, not range authority. Possession may
+issuance to the access-policy package, not range authority. Possession may
 delegate public accessor requirements to generic code. Copyability,
 cross-activation sharing, and counted permits independently govern duplication,
 concurrency, and bounded delegation. A legitimate range holder may establish
@@ -83,19 +130,30 @@ container snapshot and project bits; a field wider than one admitted transfer
 requires an authored protocol. Shadows are valid only if software owns every
 bit rewritten.
 
-A separate admitted schema-correspondence fact relates the nominal placement
+A separate admitted schema-correspondence fact relates the nominal access policy
 to the actual provider/device, retaining its datasheet/platform provenance.
 Revision checks may condition this fact on an observed ID only when observation,
-grant, placement, and stable device instance agree. Compatibility does not prove
+grant, access plan, and stable device instance agree. Compatibility does not prove
 that the schema describes the physical device.
 
 ## Establishment and retirement
 
-`Placed<P, T>` interprets one exact qualified owned extent or ordinary borrow;
+`Access<P, T>` interprets one exact qualified owned extent or ordinary borrow;
 it adds no authority. There is no source `ExtentLoan` or accepted-admission
 object. Weakening a borrow to unqualified `&Extent` loses `Granted` and cannot
-establish placement. Ordinary owned RAM remains ordinary `T` and lvalue borrows;
-placed access is needed when a loan or field policy must remain visible.
+establish an access view. Ordinary owned RAM remains ordinary `T` and lvalue
+borrows; access views retain the selected field policy and exact source authority.
+
+The ordinary-RAM routes are `Access::view<P, T>(&T)` and
+`Access::view_mut<P, T>(&mut T)`. Existing resident backing uses
+`Access::view_resident_mut<P, T>(&mut Extent in Granted & Resident<P, T>)`.
+These routes preserve their distinct source polarity and custody contracts;
+they are not an overloaded `over` operation. The whole handle is `Access<P, T>`;
+field projection returns `Accessor<FieldType>`, not an unrestricted field loan.
+Even `&mut Access<P, T>` cannot enable a field operation the policy denies.
+There is no unwrap to unrestricted `&mut T`. An ordinary lender resumes its
+original access when the view's loan ends; attenuation does not permanently
+restrict the lender's ownership.
 
 | Family | Meaning |
 | --- | --- |
@@ -124,7 +182,7 @@ range, including padding and transfer footprint, and every non-runtime Type
 field. Its invariant type indices are semantic identity; addresses, revisions,
 mapping, and claim occurrences are dynamic evidence. It cannot be weakened
 away and is mutually exclusive with `Vacant`. Ordinary extent split/merge reject
-resident content: object extraction uses placed partial-move state, not an
+resident content: object extraction uses access-view partial-move state, not an
 inferred multi-object algebra. `Vacant` means no established live value on that
 range; it says nothing about zeroing, readability, allocation strategy, or
 capacity, and cannot be inferred from the absence of an active view.
@@ -147,16 +205,16 @@ checked operation. Route authorization alone proves neither absence of content
 nor possession of a resident; predicates and custody obligations remain separate.
 
 Non-runtime Type fields use an ordinary authored custody record `C` and one
-explicit named implementation of `PlacementCustody<C, P, T>`. Agreement
+explicit named implementation of `AccessCustody<C, P, T>`. Agreement
 checks exact canonical field paths, types, multiplicities, and the evaluated
 plan's represented/custody decisions. It grants no storage, content, provider,
 or domain authority. Case-dependent custody requires an authored machine that
 classifies first and transfers the selected authority; no ambient matching or
 call-site-generated conformance is permitted.
 
-`PlacementOutcome<View, Returned, Reason>` declares dynamic establishment
+`AccessOutcome<View, Returned, Reason>` declares dynamic establishment
 outcomes. Borrowed rejection returns custody and ends the loan; owned rejection
-returns `PlacementReturn<Extent in Granted, C>`. Every moved Type input is
+returns `AccessReturn<Extent in Granted, C>`. Every moved Type input is
 embedded in the view, returned, or consumed by a named authorized operation;
 every borrow is retained or released. Checked `ensures` conclusions have no
 custody disposition. Missing outputs cannot prove consumption. Known static
@@ -177,7 +235,7 @@ paths, non-runtime custody, active operation, and provider dependencies. It prov
 neither `Vacant` nor `Resident`. Reclamation requires structural isolation plus
 admitted reset, recovery, quarantine, or custody exit; otherwise it stays abandoned.
 
-Package-aware `Placed<P, S>` discovery resolves exact policy/schema identities
+Package-aware `Access<P, S>` discovery resolves exact policy/schema identities
 and checks both declarations' visibility and direct-dependency authority before
 synthesis. Because the compiler shell is erased before ordinary type-selection
 capture, both inputs must be public even for local use. The inert opaque field
@@ -189,21 +247,26 @@ launder private declarations through a source-free shell.
 ## Occurrences and views
 
 Terminal Psi does not serialize a concrete address as authority or re-resolve
-source fields, placement `P`, or resident type `T`. A `PlacedOccurrenceId`
-binds the qualified root occurrence, normalized placement, provider/profile
+source fields, access policy `P`, or resident type `T`. An `AccessOccurrenceId`
+binds the qualified root occurrence, normalized access plan, provider/profile
 receipt, mapping/revision, range, lifetime, and boundary reach without an address.
+
+`TerminalAccessViewPlan` retains the composite plan for its consumers. These
+semantic identifiers do not prescribe a new wire tag or digest merely because
+an implementation identifier is renamed; the encoding contract specifies the
+serialized fields and canonical commitments independently.
 
 A separate `ResidentClaimId` names owned dormant content.
 
 | View | Establishment | Resident-preserving retirement |
 | --- | --- | --- |
-| Owned | Transfer the dormant claim into one temporary placed occurrence. | Return the same dormant claim. |
+| Owned | Transfer the dormant claim into one temporary access occurrence. | Return the same dormant claim. |
 | Borrowed | Establish a loan naming exact parent claim, range, polarity, and lifetime. | Release the loan; do not remint custody. |
 
 Installation metadata describes the demanded binding; the installer must consume
 the corresponding provider receipt and custody. Metadata alone is not authority.
 
-Provider-backed Stable and Atomic resident lifecycles replay exact placement,
+Provider-backed Stable and Atomic resident lifecycles replay exact access plan,
 profile/resource, observation, origin, lineage, geometry, provenance, era, claim,
 and receipt relationships. Atomic borrowed views retain the lender's authority;
 exclusive borrowing adds no Atomic permission. Rejection returns the complete
@@ -211,12 +274,14 @@ inputs or active carrier unchanged.
 
 ## Projected events
 
-Projection is pure and returns accessors, not lvalues. No public primitive takes
+Projection is pure and returns `Accessor<T>`, not lvalues. `read`, `write`,
+`take`, `swap`, and the atomic families retain their exact operation requirements;
+the accessor's value type alone grants none of them. No public primitive takes
 an arbitrary base/offset. A sealed operation authorization binds exact plan,
 receipt, loan, field, geometry, observation, borrow polarity, lifetime, reach,
 and atomic ordering. Specialization failure returns its unchanged custody.
 
-Each event retains its placed occurrence, normalized `P`/`T`, canonical field
+Each event retains its access occurrence, normalized `P`/`T`, canonical field
 key, normalized displacement and width, logical extent, physical effect footprint,
 operation family, plan receipt, and applicable lifetime, revision, reach, and
 custody identities.
@@ -262,17 +327,17 @@ trait. The exact atomic families likewise name their argument types explicitly.
 External guarantees a non-elided transfer at its declared width and preserves
 relative External order within one region and activation. It does not guarantee
 posted-write observation or completion. See [device protocols](device_access.md).
-Placed primitives require stable addressable lifetimes, finite compiler-owned
+Access primitives require stable addressable lifetimes, finite compiler-owned
 non-suspending operations, and no recoverable failure under the admitted
 contract. Demand-paged/truncatable mappings, disks, streams, RPC, and device-only
 storage use fallible services, not this view contract. Durability remains a
 protocol. A live view retains a lease or claim preventing asynchronous revocation
 until retirement; a revocable mapping requires a distinct fallible provider
 protocol. View-to-view recast is not an establishment route: request another
-placement explicitly through the underlying qualified authority.
+access view explicitly through the underlying qualified authority.
 
 Each atomic primitive has an independent sealed core requirement shared by
-ordinary atomics and placed accessors. Subject parameters are shared and ordering is
+ordinary atomics and accessors. Subject parameters are shared and ordering is
 explicit proof-static operation data. Only exact forwarding derives wrappers
 automatically; other implementations need checked proof or admitted evidence.
 Every operation fits one admitted fixed width/alignment. Load needs duplication,
@@ -309,7 +374,7 @@ whether it may be discarded. Key and encoding law remain call evidence; they are
 not runtime outcome parameters.
 
 An independently checked join between a provider-backed request and a resident
-contract compares the complete placement structure, field key/width, claim,
+contract compares the complete access-plan structure, field key/width, claim,
 occurrence, operation axes, and result shape. It returns the unchanged non-clonable
 request on rejection. This join is not an attempt, result, source call, provider
 selection/installation, or Terminal/native lowering authority.
@@ -318,12 +383,12 @@ selection/installation, or Terminal/native lowering authority.
 
 [Deferred-establishment recasts](../layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
 provide an ordinary exclusive-storage route to initializing a stricter shape.
-They do not recast `Placed<P, T>` or bypass its access plan. Only a legitimate
+They do not recast `Access<P, T>` or bypass its access plan. Only a legitimate
 underlying storage claim with the required geometry, authority and custody can
 support that ordinary route. Opening a pending view does not mint `Resident`,
 discard occupied content or infer `Vacant`; the declared content-establishment
-and conservation obligations still apply. Explicit placed `Initialize` remains
-the route for encoding into placement-governed storage.
+and conservation obligations still apply. Explicit access `Initialize` remains
+the route for encoding into access-policy-governed storage.
 
 ## Generic provider demand
 

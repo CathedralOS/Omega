@@ -23,14 +23,10 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
             let handle = syntax_trees.items.append_state_parameter_handle(parameter);
             parameters.push(handle);
             input = rest;
-
             let Some(next) = input.take_comma()? else {
                 break;
             };
-
             input = next;
-
-            continue;
         }
     }
 

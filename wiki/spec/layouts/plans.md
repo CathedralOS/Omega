@@ -25,7 +25,7 @@ public trait FixedLayout<T> {
   machine plan(
     schema: Schema,
     target: LayoutTarget
-  ) -> Plan
+  ) -> LayoutPlan
   reaches
   terminates;
 }
@@ -38,7 +38,7 @@ host calls, runtime-only assumed bindings, and imported effects are not.
 geometry, alignment, endianness and applicable ABI facts. It grants no access
 to host services, private source structure, or compiler storage.
 
-`Plan` is the source spelling of `LayoutPlan` in
+`LayoutPlan` is the core representation-plan type in
 `omega::language::core::layout`. It is ordinary data, not a certificate that its
 contents are valid. A returned plan must validate before storage, projection,
 recast, or ABI consumers use it. A package-defined implementation has the same
@@ -51,7 +51,7 @@ public DarwinStatLayout satisfies FixedLayout<DarwinStatRecord> {
   machine plan(
     schema: Schema,
     target: LayoutTarget
-  ) -> Plan {
+  ) -> LayoutPlan {
     darwin_stat_plan(schema, target)
   }
 }
@@ -145,7 +145,9 @@ The compiler owns a closed placement vocabulary; policies select and compose
 its primitives. A new format normally needs a library policy, whereas a new
 primitive needs compiler support. Entries use compiler-issued schema-field
 keys, not array positions. Fragmentation or overlays may require multiple
-entries for one field.
+entries for one field. Each `FieldEntry` contains its schema `key` and
+`representation: FieldPlan`; representation includes encoding and fragmentation,
+not only a byte position.
 
 The intended vocabulary covers byte offsets and alignment, fixed/runtime
 strides, tagged/untagged overlays, bit ranges and fragmented placement,
@@ -221,10 +223,14 @@ have no physical field key, access decision, or initialization bytes. A
 complete erased-only value can therefore materialize zeroed plan storage
 without inventing a runtime field or discarding its semantic custody.
 
-Access behavior is not layout geometry. [Placement and access](../resources/placed_access.md)
-combine layout, access demand, and boundary reach; a separate provider receipt
-gives a resource profile standing as supply. Layout compatibility alone grants
-neither backing authority, resident custody, nor device correspondence.
+An [access plan](../resources/access.md) contains a `LayoutPlan`, per-field
+operation/exposure decisions, and required boundary reach. A layout plan carries
+no access policy. Ordinary layout policies remain reusable without access views;
+an `AccessPolicy` composes them through ordinary checked calls, not a separate
+composition trait. Their returned data is independently validated before use.
+A separate provider receipt gives a resource profile standing as supply. Layout
+compatibility alone grants neither backing authority, resident custody, nor
+device correspondence.
 
 ## Representation applications
 

@@ -26,6 +26,13 @@ under `LIBRARY-REPRESENTATION-FAMILIES`, `PREFIX-CASE-IDENTITIES` and
 
 ## Ownership
 
+The access contract uses `AccessPolicy::plan(schema) -> AccessPlan`, containing
+`LayoutPlan`, field decisions and required reach. Layout helpers return data;
+the final validator independently checks complete schema coverage and permitted
+operations. Seeding inaccessible decisions deduplicates keys across fragments,
+not obligations across fields. `ACCESS-POLICY-VOCABULARY` owns the coordinated
+core, consumer, internal-identifier and fixture migration in [TASKS.md](../../../../TASKS.md).
+
 `layout_plans/` reflects checked schemas, evaluates authored plans and validates
 them. `plan_laid.rs` discovers exact closed representation applications in the
 existing Psi checking facade; `plan_laid/layout_installation.rs` installs the

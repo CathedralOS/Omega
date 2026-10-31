@@ -5,21 +5,19 @@
 //! their different provider owners. Default native plans are materialized only
 //! when an actual external or component boundary requests an ABI application.
 
+use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 
 /// Resolve implementation evidence only through the provider candidate that
 /// selection admitted. The public provider/schema identity carries the
-/// canonical fingerprint; the typed program retains the corresponding plan
-/// internally so lowering never has to rediscover or re-run policy source.
+/// canonical fingerprint; source preparation retained the exact declaration
+/// and requirement correspondence, so selection never rediscovers source.
 pub(crate) fn selected_source_calling_application(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    boundary_calling_plan_realizations: &[
-        crate::calling_policy_plans::BoundaryCallingPlanRealization
-    ],
+    services: ServiceCatalog<'_>,
+    boundary_calling_plan_realizations: &[super::BoundaryCallingPlanRealization],
     plan: &effects::provider_plan::ProviderPlan,
-    trait_name: &str,
-    method_name: &str,
-    requirement_identity: &str,
+    provenance: &crate::ProviderPlanProvenance,
+    row_index: usize,
 ) -> Result<Option<calling_conventions::BoundaryCallingApplication>, Diagnostic> {
     if plan.name.is_empty() {
         return Err(Diagnostic::error(
@@ -27,204 +25,95 @@ pub(crate) fn selected_source_calling_application(
         ));
     }
     let provider_plan_name = plan.name.as_str();
-    if plan
+    let trait_name = plan
         .schema
-        .identity_text(plan.schema.declaration.trait_name)
-        != trait_name
-    {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry ProviderPlan `{}` serves schema `{}`, not exact requested schema `{trait_name}`",
-            plan.name,
-            plan.schema
-                .identity_text(plan.schema.declaration.trait_name)
-        )));
-    }
+        .identity_text(plan.schema.declaration.trait_name);
+    let row = plan
+        .rows
+        .get(row_index)
+        .ok_or_else(|| Diagnostic::error("selected source boundary entry lost its provider row"))?;
+    let method_name = row.method.as_str();
+    let requirement_identity = plan.identities.text(row.requirement_identity);
     if requirement_identity.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry `{trait_name}::{method_name}` has an empty exact requirement overload identity"
         )));
     }
+    if services.context().scope != source::DependencyScope::Product {
+        return Err(Diagnostic::error(
+            "selected source boundary entry requires the exact Product declaration catalog",
+        ));
+    }
 
-    let matching_methods = plan
+    // The deriving owner retained this association. A captured named map and
+    // an abstract declaration are different origins, not fallback searches.
+    let prepared = match &provenance.named_application {
+        Some(application) => services.named_application(
+            application.declaration,
+            application.capture,
+            provenance.schema.symbol(),
+        ),
+        None => services.declaration(provenance.schema),
+    }
+    .ok_or_else(|| {
+        Diagnostic::error("selected source boundary entry lost its exact prepared declaration")
+    })?;
+    if prepared.declaration != &plan.schema.declaration {
+        return Err(Diagnostic::error(
+            "selected source boundary entry changed its exact prepared service surface",
+        ));
+    }
+    let source_symbol = provenance.row_requirements.get(row_index);
+    let source_symbol = source_symbol.ok_or_else(|| {
+        Diagnostic::error("selected source boundary entry lost its provider requirement")
+    })?;
+    let mut matching_sources = prepared
+        .requirements
+        .iter()
+        .enumerate()
+        .filter(|(_, requirement)| &requirement.source.symbol == source_symbol);
+    let Some((method_index, source)) = matching_sources.next() else {
+        return Err(Diagnostic::error(
+            "selected source boundary entry lost its ordered requirement correspondence",
+        ));
+    };
+    if matching_sources.next().is_some() {
+        return Err(Diagnostic::error(
+            "selected source boundary entry has ambiguous requirement correspondence",
+        ));
+    }
+    let method = plan
         .schema
         .declaration
         .methods
-        .iter()
-        .filter(|method| {
-            method.name == method_name
-                && plan.schema.identity_text(method.requirement_identity) == requirement_identity
-        })
-        .collect::<Vec<_>>();
-    let [method] = matching_methods.as_slice() else {
+        .get(method_index)
+        .ok_or_else(|| {
+            Diagnostic::error("selected source boundary entry lost its corresponding public method")
+        })?;
+    if method.name != method_name
+        || plan.schema.identity_text(method.requirement_identity) != requirement_identity
+    {
         return Err(Diagnostic::error(format!(
-            "selected source boundary entry ProviderPlan `{provider_plan_name}` binds {} exact schema methods for `{trait_name}::{method_name}` / `{requirement_identity}`",
-            matching_methods.len()
+            "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact schema method `{trait_name}::{method_name}` / `{requirement_identity}`"
         )));
-    };
+    }
     if method.requirement_owner.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry ProviderPlan `{provider_plan_name}` method `{method_name}` has an empty exact requirement owner"
         )));
     }
-
-    let provider_context =
-        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-    let schema_operators = typed
-        .operators()
-        .iter()
-        .filter(|operator| {
-            crate::service_schema::schema_binds_exact_boundary_operator(
-                provider_context,
-                &plan.schema,
-                operator,
-            )
-        })
-        .collect::<Vec<_>>();
-    if !schema_operators.is_empty() {
-        let [operator] = schema_operators.as_slice() else {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry schema `{}` resolves to {} exact typed boundary operators",
-                plan.schema
-                    .identity_text(plan.schema.declaration.trait_name),
-                schema_operators.len()
-            )));
-        };
-        let operator_identity =
-            checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
-                typed, operator,
-            );
-        if method.name != "realize"
-            || method.requirement_owner != operator_identity
-            || plan.schema.identity_text(method.requirement_identity) != operator_identity
-        {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact boundary operator `{operator_identity}`"
-            )));
-        }
+    if !matches!(
+        prepared.schema,
+        crate::ProviderSchemaDeclaration::BoundaryTrait(_)
+    ) {
         return match plan.schema.calling_plan(method.requirement_identity) {
             None => Ok(None),
-            Some(_) => Err(Diagnostic::error(format!(
-                "selected source boundary operator `{operator_identity}` retains a trait calling-plan fingerprint"
-            ))),
+            Some(_) => Err(Diagnostic::error(
+                "selected source non-trait boundary retains a trait calling-plan fingerprint",
+            )),
         };
     }
-
-    let top_level_requirements = typed
-        .machines()
-        .iter()
-        .filter(|requirement| {
-            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && crate::service_schema::from_typed_boundary_requirement(
-                    provider_context,
-                    requirement,
-                )
-                .as_ref()
-                    == Some(&plan.schema)
-        })
-        .collect::<Vec<_>>();
-    if !top_level_requirements.is_empty() {
-        let [requirement] = top_level_requirements.as_slice() else {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry schema `{}` resolves to {} exact typed top-level boundary requirements",
-                plan.schema
-                    .identity_text(plan.schema.declaration.trait_name),
-                top_level_requirements.len(),
-            )));
-        };
-        let exact_requirement_identity = typed
-            .machine_callable_identity_text(requirement)
-            .unwrap_or_default();
-        let requirement_path = typed.symbols.display_path(requirement.symbol, "::");
-        let Some((requirement_owner, requirement_method)) = requirement_path.rsplit_once("::")
-        else {
-            return Err(Diagnostic::error(format!(
-                "selected source top-level boundary requirement `{}` has no exact owner and method path",
-                requirement.name,
-            )));
-        };
-        if requirement_path
-            != plan
-                .schema
-                .identity_text(plan.schema.declaration.trait_name)
-            || requirement_method != method_name
-            || method.requirement_owner != requirement_owner
-            || plan.schema.identity_text(method.requirement_identity) != exact_requirement_identity
-            || requirement_identity != exact_requirement_identity
-        {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact top-level boundary requirement `{}`",
-                requirement.name,
-            )));
-        }
-        return match plan.schema.calling_plan(method.requirement_identity) {
-            None => Ok(None),
-            Some(_) => Err(Diagnostic::error(format!(
-                "selected source top-level boundary requirement `{}` retains a trait calling-plan fingerprint",
-                requirement.name,
-            ))),
-        };
-    }
-
-    let schema_owners = typed
-        .traits()
-        .iter()
-        .filter(|definition| {
-            crate::service_schema::schema_binds_exact_boundary_trait(
-                provider_context,
-                &plan.schema,
-                definition,
-            )
-        })
-        .collect::<Vec<_>>();
-    let [schema_owner] = schema_owners.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry schema `{}` resolves to {} exact typed boundary traits",
-            plan.schema
-                .identity_text(plan.schema.declaration.trait_name),
-            schema_owners.len()
-        )));
-    };
-
-    let requirement_owners = typed
-        .traits()
-        .iter()
-        .filter(|definition| {
-            typed.trait_declaration_path(definition) == method.requirement_owner
-                && crate::service_schema::is_product_declaration(typed, definition.symbol)
-                && typed.symbols.symbol_package_identity(definition.symbol)
-                    == method.requirement_owner_package_identity
-        })
-        .collect::<Vec<_>>();
-    let [requirement_owner] = requirement_owners.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry requirement owner `{}` resolves to {} exact typed traits",
-            method.requirement_owner,
-            requirement_owners.len()
-        )));
-    };
-    if !requirement_owner.is_boundary {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry requirement owner `{}` is not an exact boundary trait",
-            method.requirement_owner
-        )));
-    }
-
-    let matching_signatures = typed
-        .trait_machine_signatures(requirement_owner)
-        .iter()
-        .filter(|signature| {
-            signature.name.as_str() == method_name
-                && typed.trait_requirement_callable_identity_text(requirement_owner, signature)
-                    == requirement_identity
-        })
-        .collect::<Vec<_>>();
-    let [signature] = matching_signatures.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry requirement `{}` binds {} exact typed signatures for `{method_name}` / `{requirement_identity}`",
-            method.requirement_owner,
-            matching_signatures.len()
-        )));
-    };
+    source.require_calling_owner()?;
 
     let Some(calling) = plan.schema.calling_plan(method.requirement_identity) else {
         return Ok(None);
@@ -242,8 +131,8 @@ pub(crate) fn selected_source_calling_application(
         .filter(|realization| {
             realization.report_fingerprint == fingerprint
                 && realization.commitment == commitment
-                && realization.boundary_trait == schema_owner.symbol
-                && realization.requirement_machine == signature.symbol
+                && realization.boundary_trait == prepared.schema.symbol()
+                && realization.requirement_machine == source.source.symbol
         })
         .collect::<Vec<_>>();
     let [realization] = matching_realizations.as_slice() else {
@@ -282,14 +171,16 @@ pub(crate) fn selected_source_calling_application(
 /// typed signature and selected opaque representations are still available.
 /// Fused internal calls need no compatibility ABI and never enter this route.
 pub fn component_calling_applications(
-    typed: &checked_trees::typed_trees::TypedTrees,
+    services: ServiceCatalog<'_>,
     native_target: target::NativeTarget,
-    plans: &[&effects::provider_plan::ProviderPlan],
+    providers: &[&crate::SelectedProviderReviewProvenance],
     explicit: &[super::BoundaryCallingPlanRealization],
     representations: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
+    let typed = services.context().typed;
     let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
-    for plan in plans {
+    for provider in providers {
+        let plan = &provider.plan;
         if !plan.rows.iter().any(|row| {
             matches!(
                 row.binding,
@@ -307,7 +198,7 @@ pub fn component_calling_applications(
                 "component ABI request names another selected native target",
             )]);
         }
-        for row in &plan.rows {
+        for (row_index, row) in plan.rows.iter().enumerate() {
             if !matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
@@ -319,12 +210,11 @@ pub fn component_calling_applications(
                 .identity_text(plan.schema.declaration.trait_name);
             let requirement = plan.identities.text(row.requirement_identity);
             let application = selected_source_calling_application(
-                typed,
+                services,
                 explicit,
                 plan,
-                trait_name,
-                &row.method,
-                requirement,
+                &provider.provider,
+                row_index,
             )
             .map_err(|error| vec![error])?;
             let application = match application {

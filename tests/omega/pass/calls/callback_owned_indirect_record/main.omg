@@ -4,13 +4,19 @@ use omega::language::core::external_binding;
 
 public data Policies { }
 public PrepareCalling satisfies CallingPolicy {
-    CallingPolicy::plan = Policies::prepare;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        Policies::prepare(signature)
+    }
 }
 public InvokeCalling satisfies CallingPolicy {
-    CallingPolicy::plan = Policies::invoke;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        Policies::invoke(signature)
+    }
 }
 public TransformCalling satisfies CallingPolicy {
-    CallingPolicy::plan = Policies::transform;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        Policies::transform(signature)
+    }
 }
 
 macos_arm64 machine Policies::prepare(signature: BoundarySignature) -> BoundaryPlanResult

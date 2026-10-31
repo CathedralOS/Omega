@@ -74,11 +74,9 @@ pub(super) fn validate(
     namespace: ClockNamespace,
     storage_layouts: &[NativeBorrowedStorageLayout],
 ) -> Result<ClockOperation, TerminalRuntimeError> {
-    let invalid = || {
-        TerminalRuntimeError::InvalidProvision(
-            "clock adapter differs from its exact admitted declaration/ABI",
-        )
-    };
+    let invalid = super::super::unprovisioned(
+        "clock adapter differs from its exact admitted declaration/ABI",
+    );
     let signed = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
     let unsigned = IntegerType::new(IntegerSign::Unsigned, 32).map_err(|_| invalid())?;
     let wide = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
