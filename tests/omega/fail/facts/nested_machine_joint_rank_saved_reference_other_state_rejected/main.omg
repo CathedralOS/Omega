@@ -4,7 +4,7 @@ data Leaf { count: u64; stamp: u64; }
 data Payload<'storage> { guard: u64; case Pending(value: &'storage mut Leaf); case Empty; }
 data Remaining { canary: u64; child: &mut Payload; }
 machine input<'storage>(value: &'storage mut Leaf, other: &'storage mut Leaf, select: bool) -> Payload<'storage>
-ensures (result in Payload::Pending) && result.value.count <= 7;
+ensures (result in Payload::Pending) && result.value.count <= 7
 {
     value.count = match select { true -> 8 false -> 0 };
     let mut current: &'storage mut Leaf = value;
@@ -26,16 +26,16 @@ machine perform_payload(counter: &mut u64, value: &mut Leaf, select: bool) crash
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
     machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
-    terminates;
-    terminates by remaining.child.value.count;
-    requires remaining.child in Payload::Pending, remaining.child.value.count <= 7;
+    terminates
+    terminates by remaining.child.value.count
+    requires remaining.child in Payload::Pending, remaining.child.value.count <= 7
     {
         transition remaining.child.value.count > 0 {
             true -> forward(remaining, counter)
             false -> finish(remaining.canary)
         }
         machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
-        requires pending.child in Payload::Pending, pending.child.value.count > 0 && pending.child.value.count <= 7;
+        requires pending.child in Payload::Pending, pending.child.value.count > 0 && pending.child.value.count <= 7
         {
             counter = ((counter as u64 in Wrapping) + 1) as u64;
             pending.child.value.count = pending.child.value.count - 1;
@@ -48,7 +48,7 @@ machine perform_payload(counter: &mut u64, value: &mut Leaf, select: bool) crash
         machine bad() crashes Trap { crash Trap; }
     }
     machine invoke(counter: &mut u64, payload: &mut Payload) crashes Trap
-    requires payload in Payload::Pending, payload.value.count <= 7;
+    requires payload in Payload::Pending, payload.value.count <= 7
     {
         let mut remaining: Remaining = Remaining { canary: 641, child: payload };
         count(counter, &mut remaining);

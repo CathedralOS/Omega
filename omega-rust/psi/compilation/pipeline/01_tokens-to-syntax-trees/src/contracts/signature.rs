@@ -50,7 +50,6 @@ pub(crate) struct SignatureClauses {
 pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-    allow_clauses_after_operational_separator: bool,
     type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
 ) -> Result<(SignatureClauses, Input<'tokens, 'source>), crate::diagnostics::parse_error::ParseError>
 {
@@ -138,36 +137,27 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             input = input.take_contextual("invokes")?;
             let (binding, after_binding) = input.take_identifier()?;
             invokes.push(binding);
-            input = take_invokes_signature_clause(
-                after_binding,
-                allow_clauses_after_operational_separator,
-            )?;
+            input = after_binding;
             continue;
         }
 
         if input.at_contextual("suspends") {
             suspends_keyword_source_spans.push(input.current_source_span());
             if suspends {
-                return Err(input.error_here("duplicate `suspends;` operational clause"));
+                return Err(input.error_here("duplicate `suspends` operational clause"));
             }
             suspends = true;
-            input = take_invokes_signature_clause(
-                input.take_contextual("suspends")?,
-                allow_clauses_after_operational_separator,
-            )?;
+            input = input.take_contextual("suspends")?;
             continue;
         }
 
         if input.at_contextual("blocks") {
             blocks_keyword_source_spans.push(input.current_source_span());
             if blocks {
-                return Err(input.error_here("duplicate `blocks;` operational clause"));
+                return Err(input.error_here("duplicate `blocks` operational clause"));
             }
             blocks = true;
-            input = take_invokes_signature_clause(
-                input.take_contextual("blocks")?,
-                allow_clauses_after_operational_separator,
-            )?;
+            input = input.take_contextual("blocks")?;
             continue;
         }
 
@@ -240,8 +230,6 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                      the witness that discharges it",
                 ));
             }
-            input =
-                take_invokes_signature_clause(input, allow_clauses_after_operational_separator)?;
             terminates_guarantee = true;
             continue;
         }
@@ -278,40 +266,4 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         },
         input,
     ))
-}
-
-fn take_invokes_signature_clause<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    allow_following_contract_clauses: bool,
-) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    // The next header clause or body delimits an unseparated operational clause.
-    // Its owner still requires the final terminator on a bodyless declaration.
-    if !input.at_punctuation(PunctuationKind::Semicolon) {
-        return Ok(input);
-    }
-    let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    // An explicit second semicolon belongs to the enclosing callable
-    // contract. Consume this operational clause's separator and leave that
-    // distinct terminator to its owner.
-    if after_semicolon.at_punctuation(PunctuationKind::Semicolon)
-        || (allow_following_contract_clauses
-            && after_semicolon.at_punctuation(PunctuationKind::LeftBrace))
-        || after_semicolon.at_contextual("reaches")
-        || after_semicolon.at_contextual("effects")
-        || after_semicolon.at_contextual("invokes")
-        || after_semicolon.at_contextual("suspends")
-        || after_semicolon.at_contextual("blocks")
-        || after_semicolon.at_contextual("crashes")
-        || after_semicolon.at_contextual("terminates")
-        || (allow_following_contract_clauses
-            && (after_semicolon.at_contextual("requires")
-                || after_semicolon.at_contextual("ensures")
-                || after_semicolon.at_contextual("where")))
-    {
-        Ok(after_semicolon)
-    } else {
-        // A bodyless requirement shares its final clause semicolon with the
-        // signature terminator; leave it for the owning parser.
-        Ok(input)
-    }
 }

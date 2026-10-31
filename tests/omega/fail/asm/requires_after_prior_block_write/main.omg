@@ -2,7 +2,7 @@
 // assembly body. The next body must prove its own entry condition.
 data Subject { ready: bool; }
 machine Subject::change(subject: &mut Subject)
-requires subject.ready;
+requires subject.ready
 {
     asm { mov subject.ready, false }
     asm where requires subject.ready { nop }

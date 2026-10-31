@@ -28,7 +28,7 @@ machine Counter::bump(counter: &mut Counter)
 requires
     counter.count < counter.slots.len
 ensures
-    counter.count > 0;
+    counter.count > 0,
     counter.count <= counter.slots.len
 {
     counter.count = counter.count + 1;
@@ -36,7 +36,7 @@ ensures
 
 machine Counter::release(counter: &mut Counter)
 requires
-    counter.count > 0;
+    counter.count > 0,
     counter.count <= counter.slots.len
 {
     counter.count = counter.count - 1;

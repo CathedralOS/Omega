@@ -56,11 +56,19 @@ impl RankValue {
     }
 
     pub fn forms(&self, engine: &mut Engine<'_>) -> bool {
+        self.formation(engine).is_some()
+    }
+
+    pub fn formation(
+        &self,
+        engine: &mut Engine<'_>,
+    ) -> Option<Option<super::super::IntegerApplicationFormation>> {
         let Some(application) = &self.application else {
-            return true;
+            return Some(None);
         };
-        engine
-            .form_declared_integer_application(application.measure, &application.input)
-            .is_some_and(|formed| engine.substituted(&formed) == engine.substituted(&self.value))
+        let formed =
+            engine.form_declared_integer_application(application.measure, &application.input)?;
+        (engine.substituted(&formed.value) == engine.substituted(&self.value))
+            .then_some(formed.formation)
     }
 }

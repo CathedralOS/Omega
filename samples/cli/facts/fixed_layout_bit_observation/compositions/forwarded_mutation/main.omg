@@ -1,7 +1,7 @@
 // Expected exit: 0
 use omega::language::core::layout;
 CompactBits satisfies FixedLayout<PackedFlags> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,

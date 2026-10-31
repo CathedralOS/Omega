@@ -5,7 +5,7 @@ use physics::model;
 // Fixed twelve-digit signed decimal fields avoid a host formatting dependency.
 // All values in this bounded model fit; the validator checks each numeric field.
 public machine integer(value: i64 in Saturating) reaches Console
-invokes Console;
+invokes Console
 {
     transition value < 0 {
         true -> negative(value)
@@ -29,7 +29,7 @@ invokes Console;
 }
 
 public machine field(value: f64) reaches Console
-invokes Console;
+invokes Console
 {
     let scaled: f64 = value * 1000000.0;
     transition scaled == scaled && scaled >= -99999999999.0 && scaled <= 99999999999.0 {
@@ -51,7 +51,7 @@ invokes Console;
 public machine report(tick: u64, tree: &ReflectionTree)
 requires tick < 24
 reaches Console
-invokes Console;
+invokes Console
 {
     Console::write("W,");
     integer(tick as i64 in Saturating);

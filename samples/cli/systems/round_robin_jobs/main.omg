@@ -33,7 +33,7 @@ machine complete_jobs(selected: Job, waiting: Job) -> u32 {
 }
 
 machine dispatch(first: Job, second: Job, remaining: u32) -> u32
-terminates by remaining;
+terminates by remaining
 requires remaining <= 5
 {
     transition { _ -> cycle(first, second, remaining) }
@@ -49,7 +49,7 @@ requires remaining <= 5
 }
 
 machine rotate_workers(first: &mut Worker, second: &mut Worker, remaining: u32)
-terminates by remaining;
+terminates by remaining
 requires remaining > 0 && remaining <= 5
 {
     transition { _ -> cycle(first, second, remaining) }

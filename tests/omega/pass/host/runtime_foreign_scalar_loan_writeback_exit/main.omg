@@ -26,7 +26,7 @@ windows_x86_64 machine DescriptorImports::read(descriptor: i32, buffer: &mut i32
 windows_x86_64 machine DescriptorImports::write(descriptor: i32, buffer: &i32, count: u32) -> i32
     satisfies DescriptorIo::write via write_binding();
 
-machine receive(buffer: &mut i32, count: u32) -> i32 reaches Console blocks; {
+machine receive(buffer: &mut i32, count: u32) -> i32 reaches Console blocks {
     block DescriptorIo::read(0, buffer, count)
 }
 

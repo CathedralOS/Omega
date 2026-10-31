@@ -8,14 +8,14 @@ data Main {}
 
 machine read(counter: &mut Counter, selected: u64) -> Status
 requires selected == 42
-ensures result.code == 7; {
+ensures result.code == 7 {
     counter.value = 9;
     Status { code: 7 }
 }
 
 machine forward(selected: u64, counter: &mut Counter) -> Status
 requires selected == 42
-ensures result.code == 7; {
+ensures result.code == 7 {
     let saved: u64 = selected;
     let status: Status = read(counter, saved);
     status

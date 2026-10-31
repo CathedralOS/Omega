@@ -1,5 +1,5 @@
 // Expected exit: 0. Saving a comparison preserves both dispatch polarities.
-machine drain(remaining: u64) terminates by remaining; -> u64 {
+machine drain(remaining: u64) -> u64 terminates by remaining {
     let empty: bool = remaining <= 0;
     let nonempty: bool = empty == false;
     transition nonempty {

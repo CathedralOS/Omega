@@ -8,6 +8,7 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
+use crate::provider_planning::type_reference_node;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
 };
@@ -23,12 +24,6 @@ use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use layout::BoundaryValueLayout;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
-
-pub(crate) struct BoundarySignatureInstance<'a> {
-    pub(crate) signature: &'a checked_trees::typed_trees::signature::StateSignature,
-    pub(crate) requirement_identity: String,
-    pub(crate) bindings: Vec<BoundaryTypeBinding>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterializedBoundarySignature {
@@ -342,67 +337,6 @@ pub(crate) fn compatibility_call_signature(
     })
 }
 
-pub(crate) fn collect_boundary_signatures<'a>(
-    typed: &'a TypedTrees,
-    definition: &'a checked_trees::typed_trees::trait_definition::TraitDefinition,
-    arguments: &[TypeReferenceHandle],
-    visited: &mut Vec<symbols::SymbolHandle>,
-    signatures: &mut Vec<BoundarySignatureInstance<'a>>,
-) {
-    if visited.contains(&definition.symbol) {
-        return;
-    }
-    visited.push(definition.symbol);
-    let bindings = trait_type_bindings(typed, definition, arguments);
-    for requirement in typed.trait_requirements(definition) {
-        if let Some(parent) = typed
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
-        {
-            let parent_arguments = typed
-                .type_reference_table
-                .type_reference_handles(requirement.arguments)
-                .iter()
-                .map(|argument| substitute_boundary_type_reference(typed, *argument, &bindings))
-                .collect::<Vec<_>>();
-            collect_boundary_signatures(typed, parent, &parent_arguments, visited, signatures);
-        }
-    }
-    for signature in typed.trait_machine_signatures(definition) {
-        let requirement_identity =
-            typed.trait_requirement_callable_identity_text(definition, signature);
-        if !signatures
-            .iter()
-            .any(|candidate| candidate.requirement_identity == requirement_identity)
-        {
-            signatures.push(BoundarySignatureInstance {
-                signature,
-                requirement_identity,
-                bindings: bindings.clone(),
-            });
-        }
-    }
-    visited.pop();
-}
-
-pub(crate) fn trait_type_bindings(
-    typed: &TypedTrees,
-    definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
-    arguments: &[TypeReferenceHandle],
-) -> Vec<BoundaryTypeBinding> {
-    typed
-        .trait_type_parameters(definition)
-        .iter()
-        .zip(arguments.iter().copied())
-        .map(|(parameter, actual)| BoundaryTypeBinding {
-            parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name.as_str().to_owned(),
-            actual,
-        })
-        .collect()
-}
-
 /// Materialize the source owner's already-prepared declaration. Type recipes
 /// remain per-parameter work so a refused value stops before later values; the
 /// declaration telescope itself is shared across target requests.
@@ -492,7 +426,7 @@ pub(crate) fn exact_boundary_layout_root_symbol(
     mut type_reference: TypeReferenceHandle,
 ) -> symbols::SymbolHandle {
     loop {
-        match typed.type_reference_table.type_reference(type_reference) {
+        match type_reference_node(typed, type_reference) {
             TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => return *symbol,

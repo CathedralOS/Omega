@@ -37,7 +37,7 @@ machine Spread16::plan(spread16: &mut Spread16, schema: Schema) -> Plan {
 }
 machine Spread16::evaluate(spread16: &mut Spread16, schema: Schema, fuel: u64) -> Plan
 requires fuel >= 1 && fuel <= 128
-terminates by fuel;
+terminates by fuel
 {
     let mut entries: [FieldEntry; 64];
     spread16.index = 0;

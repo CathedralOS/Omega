@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner};
@@ -46,11 +47,7 @@ pub(crate) fn dangerous_authority_class(
             .symbols
             .symbol_provenance_source_span(definition.symbol)
             .and_then(|span| compilation.typed.symbols.source_file(span))
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "critical service has no retained toolchain source",
-                )]
-            })?;
+            .or_evidence("critical service has no retained toolchain source")?;
         if source
             .package_root
             .file_name()
@@ -93,11 +90,9 @@ pub(crate) fn dangerous_authority_class(
             .execution()
             .resolved_semantic_binding(role)
         {
-            let services = compilation.service_declarations.ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "authority review has no independent service declaration projection",
-                )]
-            })?;
+            let services = compilation.service_declarations.or_evidence(
+                "authority review has no independent service declaration projection",
+            )?;
             if services
                 .identifies(definition.symbol, binding.declaration())
                 .map_err(|diagnostic| vec![diagnostic])?

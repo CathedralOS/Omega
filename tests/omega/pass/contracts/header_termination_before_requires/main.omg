@@ -1,0 +1,5 @@
+trait Worker {
+    machine value(input: u64) -> u64
+    terminates
+    requires input < 10;
+}

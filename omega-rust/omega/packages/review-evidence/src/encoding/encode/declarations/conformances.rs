@@ -16,7 +16,5 @@ pub(crate) fn encode_conformance_bound(
             Ok(())
         })
     })?;
-    encoder.field("arguments", |encoder| {
-        encoder.sequence(&bound.arguments, encode_type_identity)
-    })
+    encoder.sequence_field("arguments", &bound.arguments, encode_type_identity)
 }

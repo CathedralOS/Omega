@@ -18,7 +18,7 @@ use crate::limits::{
     GIT_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT, LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT,
     LocalSourceLimits,
 };
-use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{IoResultAt, open_absolute_directory_nofollow};
 use cap_fs_ext::DirExt;
 use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
 use platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
@@ -65,9 +65,7 @@ pub(crate) fn read_bounded_cache_record_from_open_directory(
     relative_path: &Path,
     maximum_bytes: usize,
 ) -> Result<Vec<u8>, SourceResolveError> {
-    let directory = directory
-        .try_clone()
-        .map_err(|error| io_error(root, error))?;
+    let directory = directory.try_clone().at(root)?;
     let record_root =
         RecordFileRoot::from_directory(directory, root.to_path_buf()).map_err(|error| {
             cache_custody_invalid(
@@ -125,7 +123,7 @@ pub(crate) fn verify_cache_custody_root(
     kind: CacheCustodyKind,
 ) -> Result<(), SourceResolveError> {
     verify_cache_ancestry(kind, root)?;
-    let metadata = std::fs::symlink_metadata(root).map_err(|error| io_error(root, error))?;
+    let metadata = std::fs::symlink_metadata(root).at(root)?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err(cache_custody_invalid(
             kind,
@@ -192,7 +190,7 @@ fn classify_retained_cache_directory(
     kind: CacheCustodyKind,
     root: &Path,
 ) -> Result<std::fs::Metadata, SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(root).map_err(|error| io_error(root, error))?;
+    let metadata = std::fs::symlink_metadata(root).at(root)?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err(cache_custody_invalid(
             kind,
@@ -212,9 +210,7 @@ fn verify_retained_cache_directory(
     retained: &CapabilityDirectory,
     replaced: &'static str,
 ) -> Result<(), SourceResolveError> {
-    let opened = named
-        .dir_metadata()
-        .map_err(|error| io_error(root, error))?;
+    let opened = named.dir_metadata().at(root)?;
     if !opened.is_dir() || !same_std_and_capability_file_identity(metadata, &opened) {
         return Err(cache_custody_invalid(
             kind,
@@ -223,9 +219,7 @@ fn verify_retained_cache_directory(
         ));
     }
     verify_macos_opened_cache_directory_acl_custody(kind, root, named)?;
-    let retained_metadata = retained
-        .dir_metadata()
-        .map_err(|error| io_error(root, error))?;
+    let retained_metadata = retained.dir_metadata().at(root)?;
     if !same_capability_file_identity(&retained_metadata, &opened) {
         return Err(cache_custody_invalid(kind, root, replaced));
     }
@@ -245,8 +239,7 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
     let ancestors: Vec<&Path> = root.ancestors().skip(1).collect();
     let mut verified_parent: Option<CapabilityDirectory> = None;
     for ancestor in ancestors.into_iter().rev() {
-        let metadata =
-            std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
+        let metadata = std::fs::symlink_metadata(ancestor).at(ancestor)?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
             return Err(cache_custody_invalid(
                 kind,
@@ -287,8 +280,7 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
     let ancestors: Vec<&Path> = root.ancestors().collect();
     let mut verified_parent: Option<CapabilityDirectory> = None;
     for ancestor in ancestors.into_iter().rev() {
-        let metadata =
-            std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
+        let metadata = std::fs::symlink_metadata(ancestor).at(ancestor)?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
             return Err(cache_custody_invalid(
                 kind,
@@ -354,9 +346,7 @@ pub(crate) fn verify_cache_custody_from_open_root(
     kind: CacheCustodyKind,
     byte_limit: u64,
 ) -> Result<CacheCustodyMeasurement, SourceResolveError> {
-    let root_metadata = root_directory
-        .dir_metadata()
-        .map_err(|error| io_error(root, error))?;
+    let root_metadata = root_directory.dir_metadata().at(root)?;
     let mut pending = vec![(PathBuf::new(), root.to_path_buf(), root_metadata, 0usize)];
     let mut observed = 0usize;
     let mut logical_bytes = 0u64;
@@ -376,29 +366,20 @@ pub(crate) fn verify_cache_custody_from_open_root(
             &classified,
             kind,
         )?;
-        let metadata = directory
-            .dir_metadata()
-            .map_err(|error| io_error(&path, error))?;
+        let metadata = directory.dir_metadata().at(&path)?;
         verify_capability_cache_node_owner_and_mode(kind, &path, &metadata)?;
-        let directory_file = directory
-            .try_clone()
-            .map_err(|error| io_error(&path, error))?
-            .into_std_file();
+        let directory_file = directory.try_clone().at(&path)?.into_std_file();
         verify_macos_open_cache_extended_acl_custody(kind, &path, &directory_file)?;
 
-        let children = directory
-            .entries()
-            .map_err(|error| io_error(&path, error))?;
+        let children = directory.entries().at(&path)?;
         for child in children {
-            let child = child.map_err(|error| io_error(&path, error))?;
+            let child = child.at(&path)?;
             let name = child.file_name();
             let child_path = path.join(&name);
             if !cache_custody_has_capacity(observed, pending.len()) {
                 return Err(entry_ceiling_exceeded(kind, root));
             }
-            let metadata = directory
-                .symlink_metadata(&name)
-                .map_err(|error| io_error(&child_path, error))?;
+            let metadata = directory.symlink_metadata(&name).at(&child_path)?;
             verify_capability_cache_node_owner_and_mode(kind, &child_path, &metadata)?;
             let file_type = metadata.file_type();
             if file_type.is_file() {
@@ -490,9 +471,7 @@ pub(crate) fn open_cache_custody_directory(
     classified: &CapabilityMetadata,
     kind: CacheCustodyKind,
 ) -> Result<CapabilityDirectory, SourceResolveError> {
-    let mut directory = root
-        .try_clone()
-        .map_err(|error| io_error(display_path, error))?;
+    let mut directory = root.try_clone().at(display_path)?;
     for component in relative_path.components() {
         use std::path::Component;
 
@@ -507,9 +486,7 @@ pub(crate) fn open_cache_custody_directory(
             .open_dir_nofollow(name)
             .map_err(|error| cache_custody_invalid(kind, display_path, error.to_string()))?;
     }
-    let opened = directory
-        .dir_metadata()
-        .map_err(|error| io_error(display_path, error))?;
+    let opened = directory.dir_metadata().at(display_path)?;
     if !opened.is_dir() || !same_capability_file_identity(classified, &opened) {
         return Err(cache_custody_invalid(
             kind,

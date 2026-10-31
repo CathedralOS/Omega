@@ -17,8 +17,7 @@ semantic tokens, and a fail-closed whole-file parser for ordinary
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
 `[#N] name: Type;` and payload-free `case [#N] Name;` or structured
-`case [#N] Name([#N] field: Type, ...);` members that may carry their own
-`where` facts (`#N` is a stable schema identity), and
+`case [#N] Name([#N] field: Type, ...);` members (`#N` is a stable schema identity); case predicates reject, and
 `[pub] [target] [boundary] machine [token] [Owner::]name [<generic
 parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
 declarations, where a target name before `machine` scopes one body of a
@@ -28,28 +27,26 @@ operator syntax to the declaration (a conformance member binds none). Each
 `requires machine Name [<generic parameters>] [(parameters)] [-> Type] clauses`
 contract, or nominal `requires machine Name satisfies Trait::requirement`,
 gives a static machine binder its signature; the contracts precede the
-other clauses, end at their `;` or at the next `requires machine`, and form one
-flat list whose binders resolution matches, since a contract may name a
-binder of an earlier contract. The clauses are `reaches`, `invokes`,
-`suspends;`, `blocks;`, `crashes`, `requires`/`ensures` facts separated by
-`,` or `;`, `satisfies Trait[<arguments>]::requirement [as Label] [via
-value]` exact requirement edges (a bare trait rejects: whole-trait
-satisfaction is a named conformance), and `terminates [by subjects [->
-View]];`, whose subjects are one expression or a parenthesized list and whose
-view is a path or an argumented view call; a bare `terminates` may end at
-the body's `{`. A machine's return type may follow its clauses, further
-clauses continuing the same run. Bodies hold their executable statements followed
-by nested `machine` declarations.
+other clauses or interleave with them. Each requirement owns exactly one
+terminating `;`, and its nested requirements have independent signatures,
+clause ranges, and direct-child ranges. The declaration's own generic and
+parameter ranges freeze before its children append rows. The header owner in
+[`parse/callable_header.omg`](parse/callable_header.omg) stages direct rows
+and publishes descendants before their parent; it never infers ownership by
+looking past a semicolon.
+The clauses are `reaches`, `invokes`, `suspends`, `blocks`, `crashes`,
+`requires`/`ensures` facts separated by `,`, exact `satisfies` requirements,
+and `terminates [by subjects [-> View]]`. Callable clauses have no trailing
+semicolons. A bodyless callable consumes its own `;`; a callable with a body
+starts that body at `{`. Non-callable declarations and refinement rows retain
+their own punctuation. For example, after a trait member's terminator,
+`requires Parent;` belongs to the trait body.
 Every declaration has its own complete signature, result (Unit when omitted),
 contracts and exact body ranges. A stable parent handle scopes names and static
 binders at arbitrary nesting depth; children need not occupy contiguous rows.
-Once trailing declarations begin, executable statements cannot resume. A
-bodyless machine ends at `;`; a `;` that ends a contract fact, a
-satisfaction, a termination or an operational clause belongs to the clause
-only while the declaration continues after it with `{`, another clause or
-another fact, and otherwise ends the declaration; a trait member's `;` before
-`requires` ends the member, whose trait reads `requires Parent;` as its body
-parent ([`parse/clause.omg`](parse/clause.omg)).
+Once trailing declarations begin, executable statements cannot resume. The
+product resolver still refuses unsupported higher-order contracts explicitly;
+retaining their syntax does not claim that their checking is implemented.
 Statements are `let [mut] name: Type [= value];`,
 `crash Trap;`/`crash Abort;`, `place = value;`, the intentional discard
 `_ = value;`, `value;`, `transition [subject] { arms }` and a final

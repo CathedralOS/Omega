@@ -57,7 +57,7 @@ machine windows_filesystem_metadata_result(outcome: WindowsMetadataResult) -> Me
 
 windows_x86_64 machine windows_filesystem_metadata(file: File) -> MetadataResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost;
+invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block query(file)
@@ -71,7 +71,7 @@ invokes WindowsFilesystemHost;
 
 windows_x86_64 machine windows_filesystem_metadata_path(path: &[u8] in Path, no_follow: bool) -> MetadataResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost;
+invokes WindowsFilesystemHost
 {
     let outcome: WindowsMetadataResult = block WindowsFilesystemHost::read_metadata(path, no_follow);
     windows_filesystem_metadata_result(outcome)
@@ -79,7 +79,7 @@ invokes WindowsFilesystemHost;
 
 windows_x86_64 machine windows_filesystem_exists(path: &[u8] in Path) -> bool
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost;
+invokes WindowsFilesystemHost
 {
     let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition outcome { MetadataResult::Ok { meta } -> true _ -> false }
@@ -87,7 +87,7 @@ invokes WindowsFilesystemHost;
 
 windows_x86_64 machine windows_filesystem_try_exists(path: &[u8] in Path) -> ExistsResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost;
+invokes WindowsFilesystemHost
 {
     let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition outcome {
@@ -132,7 +132,7 @@ machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEnc
 
 windows_x86_64 machine windows_filesystem_set_times(file: File, accessed: i64, modified: i64) -> UnitResult
 reaches FilesystemMetadataMutation
-invokes WindowsFilesystemHost;
+invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block access_time(file, accessed, modified)
@@ -162,7 +162,7 @@ invokes WindowsFilesystemHost;
 // read-only request is translated; Default restores the ordinary writable bit.
 windows_x86_64 machine windows_filesystem_set_permissions(path: &[u8] in Path, permissions: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
-invokes WindowsFilesystemHost;
+invokes WindowsFilesystemHost
 {
     transition permissions {
         Permissions::Default -> block update(path, false)
@@ -177,7 +177,7 @@ invokes WindowsFilesystemHost;
 
 windows_x86_64 machine windows_filesystem_set_file_permissions(file: File, permissions: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
-invokes WindowsFilesystemHost;
+invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block select(file, permissions)

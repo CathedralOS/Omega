@@ -35,10 +35,8 @@ pub(in crate::selection) fn entry(
     // stay on the retained structural signature and returning edge, exactly as
     // for register results. Width can select indirection (even a 12-byte
     // record on Win64), but cannot change which semantic results may return.
-    if crate::structural_inputs::structural_reference_input::shape(
-        result.structural_type,
-        &signature.structural_types,
-    ) != Some(placement.shape)
+    if crate::structural_inputs::shape(result.structural_type, &signature.structural_types)
+        != Some(placement.shape)
     {
         return Err(invalid());
     }

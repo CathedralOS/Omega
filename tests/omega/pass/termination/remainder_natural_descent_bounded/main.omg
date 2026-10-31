@@ -2,7 +2,7 @@
 // The same remainder arrival also proves an explicitly bounded natural rank.
 machine greatest_common_divisor(left: u64, right: u64) -> u64
 requires right <= 48
-terminates by right -> Nat::Descending in 0..=48;
+terminates by right -> Nat::Descending in 0..=48
 {
     transition right > 0 {
         true -> greatest_common_divisor(right, left % right)

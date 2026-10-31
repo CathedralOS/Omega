@@ -12,8 +12,8 @@ public data Sequence {
 // Status: 0 valid, 1 empty, 2 alphabet, 3 capacity, 4 unavailable line.
 public machine read_sequence(sequence: &mut Sequence) -> i32
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     sequence.length = 0;

@@ -6,7 +6,7 @@ use omega_language_std::console;
 data Main { values: [i32; 6]; }
 
 machine countdown(values: &mut [i32; 6], position: u64) -> u64
-terminates by position -> Nat::Descending;
+terminates by position -> Nat::Descending
 requires position < 6
 {
     values[position] = 10 + position as i32;

@@ -3,9 +3,9 @@ use omega::language::core::filesystem_authority;
 
 // Direct boundary use needs the write capability, even for a closed handle.
 public machine read_only(filesystem: &mut Filesystem) -> IoResult
-blocks;
+blocks
 reaches FilesystemContentRead
-invokes FilesystemService;
+invokes FilesystemService
 {
     block FilesystemService::write(File { handle: 0 }, "x")
 }

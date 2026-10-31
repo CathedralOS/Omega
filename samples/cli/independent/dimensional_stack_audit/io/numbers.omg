@@ -3,8 +3,8 @@ public data Input [copy] { value: i32 in Saturating; valid: bool; }
 // One signed decimal token terminated by LF or EOF, at most five digits.
 // Whitespace, CR, empty lines, embedded signs and overflow-shaped tokens reject.
 public machine read_integer(input: &mut Input) reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     input.value = 0;
@@ -52,7 +52,7 @@ crashes Trap
 }
 // Decimal rendering uses byte output, avoiding any invented UTF-8 obligations.
 public machine write_integer(value: i32 in Saturating) reaches Console
-invokes Console;
+invokes Console
 {
     transition value == -2147483648 {
         true -> minimum()

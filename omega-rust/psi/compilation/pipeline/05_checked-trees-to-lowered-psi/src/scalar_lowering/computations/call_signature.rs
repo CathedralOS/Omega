@@ -1,6 +1,7 @@
 //! The selected call signature owns custody independently of its mixed operand
 //! evaluator. Boundary declarations and checked bodies retain their own identities.
 use super::{CheckedTrees, LoweringError, unsupported};
+use crate::checked_facts::flow_facts;
 use checked_trees::CheckedUnitStructuralParameterPlan;
 use symbols::SymbolHandle;
 
@@ -9,9 +10,7 @@ pub(super) fn structural_parameters(
     machine: SymbolHandle,
     state: SymbolHandle,
 ) -> Result<&[CheckedUnitStructuralParameterPlan], LoweringError> {
-    let mut boundaries = checked
-        .facts
-        .flow
+    let mut boundaries = flow_facts(checked)
         .terminal_unit_effects
         .boundary_machines
         .iter()
@@ -24,9 +23,7 @@ pub(super) fn structural_parameters(
     }
     // A selector call's slot plan carries the call shape every
     // implementation realizes.
-    if let Some(plan) = checked
-        .facts
-        .flow
+    if let Some(plan) = flow_facts(checked)
         .terminal_unit_effects
         .dynamic_slots
         .iter()

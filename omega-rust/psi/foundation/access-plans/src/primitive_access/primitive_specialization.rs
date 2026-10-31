@@ -1,3 +1,4 @@
+use crate::access_plan::diagnostic::reject_when;
 use crate::plan_policy::authorization::validate_operation_ordering;
 use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
@@ -77,6 +78,23 @@ macro_rules! specialization_boundary {
     };
 }
 
+/// The lowering replay every operation-carrying specialization performs: run
+/// its own validator and require the replayed operation to equal the one the
+/// carrier retained. Rejection only borrows the carrier, so the sealed request
+/// survives for corrected retry.
+macro_rules! replayed_operation_lowering {
+    ($validator:ident, $message:literal, $doc:literal) => {
+        #[doc = $doc]
+        pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
+            let operation = $validator(&self.request)?;
+            if operation != self.operation {
+                return Err(AccessPlanDiagnostic($message.into()));
+            }
+            Ok(())
+        }
+    };
+}
+
 /// Operation subset accepted by ordinary Stable primitive lowering.
 ///
 /// Compound mutation needs its distinct bounded read-patch-write realization;
@@ -147,21 +165,11 @@ impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
     }
 
     primitive_request_read_surface!();
-    /// Independently replay the complete placed authority and Stable
-    /// operation specialization before an outward lowering consumer accepts
-    /// this request. Rejection only borrows the carrier, so its exact loan,
-    /// resident content, and authorization remain available for corrected
-    /// retry.
-    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
-        let operation = validate_stable_primitive_request(&self.request)?;
-        if operation != self.operation {
-            return Err(AccessPlanDiagnostic(
-                "Stable primitive lowering operation differs from its retained specialization"
-                    .into(),
-            ));
-        }
-        Ok(())
-    }
+    replayed_operation_lowering!(
+        validate_stable_primitive_request,
+        "Stable primitive lowering operation differs from its retained specialization",
+        "Independently replay the complete placed authority and Stable operation specialization before an outward lowering consumer accepts this request. Rejection only borrows the carrier, so its exact loan, resident content, and authorization remain available for corrected retry."
+    );
 
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
@@ -181,15 +189,11 @@ specialization_boundary!(
 fn validate_stable_primitive_request(
     request: &PrimitiveAccessRequest<'_, '_>,
 ) -> Result<StablePrimitiveOperation, AccessPlanDiagnostic> {
-    if request.observation != ObservationModel::Stable {
-        return Err(AccessPlanDiagnostic(
-            "ordinary Stable lowering requires a Stable observation".into(),
-        ));
-    }
-    if request.effective_supply.kind() != EffectiveSupplyKind::Stable {
-        return Err(AccessPlanDiagnostic(
-            "ordinary Stable lowering requires admitted Stable supply".into(),
-        ));
+    reject_when! {
+        request.observation != ObservationModel::Stable
+            => "ordinary Stable lowering requires a Stable observation",
+        request.effective_supply.kind() != EffectiveSupplyKind::Stable
+            => "ordinary Stable lowering requires admitted Stable supply",
     }
     let operation = match request.operation {
         AccessOperation::Read => StablePrimitiveOperation::Read,
@@ -247,15 +251,11 @@ specialization_boundary!(
 fn validate_stable_compound_mutation_request(
     request: &PrimitiveAccessRequest<'_, '_>,
 ) -> Result<(), AccessPlanDiagnostic> {
-    if request.observation != ObservationModel::Stable {
-        return Err(AccessPlanDiagnostic(
-            "Stable compound mutation requires a Stable observation".into(),
-        ));
-    }
-    if request.effective_supply.kind() != EffectiveSupplyKind::Stable {
-        return Err(AccessPlanDiagnostic(
-            "Stable compound mutation requires admitted Stable supply".into(),
-        ));
+    reject_when! {
+        request.observation != ObservationModel::Stable
+            => "Stable compound mutation requires a Stable observation",
+        request.effective_supply.kind() != EffectiveSupplyKind::Stable
+            => "Stable compound mutation requires admitted Stable supply",
     }
     request.validate_effective_supply_binding()?;
     if request.current_borrow != BorrowPolarity::Exclusive
@@ -306,21 +306,11 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
     }
 
     primitive_request_read_surface!();
-    /// Independently replay the complete placed authority, admitted supply
-    /// substitution, and exact External operation before an outward lowering
-    /// consumer accepts this request. Rejection only borrows the carrier, so
-    /// no external event occurs and the same request remains available for
-    /// corrected retry.
-    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
-        let operation = validate_external_primitive_request(&self.request)?;
-        if operation != self.operation {
-            return Err(AccessPlanDiagnostic(
-                "External primitive lowering operation differs from its retained specialization"
-                    .into(),
-            ));
-        }
-        Ok(())
-    }
+    replayed_operation_lowering!(
+        validate_external_primitive_request,
+        "External primitive lowering operation differs from its retained specialization",
+        "Independently replay the complete placed authority, admitted supply substitution, and exact External operation before an outward lowering consumer accepts this request. Rejection only borrows the carrier, so no external event occurs and the same request remains available for corrected retry."
+    );
 
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
@@ -398,20 +388,11 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
     }
 
     primitive_request_read_surface!();
-    /// Independently replay the complete placed authority, admitted Atomic
-    /// supply, operation family, and ordering law before an outward lowering
-    /// consumer accepts this request. Rejection only borrows the carrier; it
-    /// performs no atomic attempt and preserves the same request for retry.
-    pub fn validate_for_lowering(&self) -> Result<(), AccessPlanDiagnostic> {
-        let operation = validate_atomic_primitive_request(&self.request)?;
-        if operation != self.operation {
-            return Err(AccessPlanDiagnostic(
-                "Atomic primitive lowering operation differs from its retained specialization"
-                    .into(),
-            ));
-        }
-        Ok(())
-    }
+    replayed_operation_lowering!(
+        validate_atomic_primitive_request,
+        "Atomic primitive lowering operation differs from its retained specialization",
+        "Independently replay the complete placed authority, admitted Atomic supply, operation family, and ordering law before an outward lowering consumer accepts this request. Rejection only borrows the carrier; it performs no atomic attempt and preserves the same request for retry."
+    );
 
     /// Replay this request's complete retained placement authority against an
     /// independently checked placement plan.
@@ -452,15 +433,11 @@ specialization_boundary!(
 fn validate_atomic_primitive_request(
     request: &PrimitiveAccessRequest<'_, '_>,
 ) -> Result<AtomicAccessOperation, AccessPlanDiagnostic> {
-    if request.observation != ObservationModel::Atomic {
-        return Err(AccessPlanDiagnostic(
-            "Atomic lowering requires an Atomic observation".into(),
-        ));
-    }
-    if request.effective_supply.kind() != EffectiveSupplyKind::Atomic {
-        return Err(AccessPlanDiagnostic(
-            "Atomic lowering requires explicitly admitted Atomic supply".into(),
-        ));
+    reject_when! {
+        request.observation != ObservationModel::Atomic
+            => "Atomic lowering requires an Atomic observation",
+        request.effective_supply.kind() != EffectiveSupplyKind::Atomic
+            => "Atomic lowering requires explicitly admitted Atomic supply",
     }
     request.validate_effective_supply_binding()?;
     let AccessOperation::Atomic(operation) = request.operation else {

@@ -194,6 +194,13 @@ pub(super) fn row_bytes(row: &PackageAcceptanceRow) -> Result<usize, Error> {
         .and_then(|bytes| bytes.checked_add(row.canonical_text().len()))
         .ok_or(Error::AllocationFailed)
 }
+/// Reserve `additional` values before a projection appends them, so an
+/// allocation failure surfaces as a comparison error rather than a panic.
+pub(super) fn reserve<T>(items: &mut Vec<T>, additional: usize) -> Result<(), Error> {
+    items
+        .try_reserve_exact(additional)
+        .map_err(|_| Error::AllocationFailed)
+}
 fn charge(
     current: &mut usize,
     amount: usize,

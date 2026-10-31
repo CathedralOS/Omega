@@ -35,7 +35,7 @@ public boundary trait Gui {
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64 reaches;
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
             SurfacePresentation + WindowEventObservation + WindowEventDispatch +
@@ -290,7 +290,7 @@ machine Main::main(main: &mut Main) reaches
         main.translated = Gui::msg_translate(&window, main.message);
         main.dispatched = Gui::msg_dispatch(&window, main.message);
         // guard BEFORE the increment so its edge carries the bound (keystone).
-        transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
+        transition main.pumped >= 0 && main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
     machine pump_next(main: &mut Main, window: Window) {
         main.pumped = main.pumped + 1;

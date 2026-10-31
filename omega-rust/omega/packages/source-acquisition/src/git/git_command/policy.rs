@@ -3,7 +3,7 @@
 use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::request::GitExecutionTransport;
-use crate::tree::filesystem::io_error;
+use crate::tree::filesystem::IoResultAt;
 use resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
 use std::path::Path;
 
@@ -22,8 +22,7 @@ pub(crate) fn sealed_git_command(
             ),
         });
     }
-    let metadata =
-        std::fs::metadata(working_directory).map_err(|error| io_error(working_directory, error))?;
+    let metadata = std::fs::metadata(working_directory).at(working_directory)?;
     if !metadata.is_dir() {
         return Err(SourceResolveError::NotDirectory {
             path: working_directory.to_path_buf(),

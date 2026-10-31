@@ -3,7 +3,7 @@
 // Expected exit: 0
 
 linux_x86_64 machine extend_target(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 100i8;
+    requires narrow >= 30i8 && narrow <= 100i8
 {
     let wide: i32 = narrow as i32;
     let headroom: i32 = 100i32 - wide;
@@ -19,7 +19,7 @@ linux_x86_64 machine extend_target(narrow: i8) -> i32
 }
 
 linux_arm64 machine extend_target(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 100i8;
+    requires narrow >= 30i8 && narrow <= 100i8
 {
     let wide: i32 = narrow as i32;
     let headroom: i32 = 100i32 - wide;
@@ -35,7 +35,7 @@ linux_arm64 machine extend_target(narrow: i8) -> i32
 }
 
 macos_arm64 machine extend_target(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 100i8;
+    requires narrow >= 30i8 && narrow <= 100i8
 {
     let wide: i32 = narrow as i32;
     let headroom: i32 = 100i32 - wide;
@@ -51,7 +51,7 @@ macos_arm64 machine extend_target(narrow: i8) -> i32
 }
 
 windows_x86_64 machine extend_target(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 100i8;
+    requires narrow >= 30i8 && narrow <= 100i8
 {
     let wide: i32 = narrow as i32;
     let headroom: i32 = 100i32 - wide;

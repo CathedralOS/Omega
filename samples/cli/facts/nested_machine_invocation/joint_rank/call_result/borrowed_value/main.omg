@@ -2,16 +2,16 @@
 // Expected exit: 0
 data Remaining { canary: u64; count: u64; }
 machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
-terminates;
-terminates by remaining.count;
-requires remaining.count <= 7;
+terminates
+terminates by remaining.count
+requires remaining.count <= 7
 {
     transition remaining.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
-    requires pending.count > 0 && pending.count <= 7;
+    requires pending.count > 0 && pending.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         pending.count = pending.count - 1;
@@ -24,7 +24,7 @@ requires remaining.count <= 7;
     machine bad() crashes Trap { crash Trap; }
 }
 machine input(select: bool) -> Remaining
-ensures result.count <= 7;
+ensures result.count <= 7
 { match select { true -> Remaining { canary: 641, count: 7 } false -> Remaining { canary: 641, count: 0 } } }
 machine perform(counter: &mut u64, select: bool) crashes Trap {
     let mut remaining: Remaining = input(select);

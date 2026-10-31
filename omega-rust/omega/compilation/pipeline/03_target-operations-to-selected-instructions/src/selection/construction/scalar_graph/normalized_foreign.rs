@@ -345,13 +345,7 @@ pub(super) fn emit_invocation(
         .transport
         .normalized_foreign_calls
         .push(SelectedNormalizedForeignCall {
-            instruction: SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| SelectedInstructionError::custody())?,
-            ),
+            instruction: SelectedInstructionId(super::next_index(builder.instructions.len())?),
             invocation_site,
             call: call.clone(),
             effect,

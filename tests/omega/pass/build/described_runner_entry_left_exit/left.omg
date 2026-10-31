@@ -10,8 +10,8 @@ public ProviderReaderImplementation satisfies Reader {
 // Both modules export the same leaf name. The description must retain the
 // exact selected declaration; choosing the sibling changes the exit oracle.
 public machine run() reaches Reader, Console
-invokes Reader;
-invokes Console;
+invokes Reader
+invokes Console
 {
     let value: i32 = Reader::read();
     transition value == 11 { true -> deliver(value) _ -> wrong(value) }

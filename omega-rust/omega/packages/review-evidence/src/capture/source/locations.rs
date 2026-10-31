@@ -1,6 +1,7 @@
 use super::super::semantics::declarations::{
     is_canonical_virtual_toolchain_path, toolchain_source_identity,
 };
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
@@ -12,11 +13,11 @@ pub(crate) fn canonical_source_span_location(
     span: source::SourceSpan,
     role: PackageReviewSourceLocationRole,
 ) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
-    let source_file = compilation.typed.symbols.source_file(span).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "reviewed declaration source span has no retained source file",
-        )]
-    })?;
+    let source_file = compilation
+        .typed
+        .symbols
+        .source_file(span)
+        .or_evidence("reviewed declaration source span has no retained source file")?;
     if span.span.start >= span.span.end
         || span.span.end > source_file.source.len()
         || !source_file.source.is_char_boundary(span.span.start)
@@ -29,12 +30,10 @@ pub(crate) fn canonical_source_span_location(
     }
     let owner = match source_file.origin {
         source::SourceOrigin::User => PackageReviewSourceLocationOwner::Package(
-            source_file.package_identity.ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "reviewed package source `{}` has no reconciled package identity",
-                    source_file.path.display()
-                ))]
-            })?,
+            source_file.package_identity.or_evidence(format!(
+                "reviewed package source `{}` has no reconciled package identity",
+                source_file.path.display()
+            ))?,
         ),
         source::SourceOrigin::Toolchain => {
             PackageReviewSourceLocationOwner::Toolchain(toolchain_source_identity(
@@ -80,12 +79,10 @@ pub(crate) fn canonical_review_relative_path(
                 source_file.path.display()
             ))]);
         };
-        let component = component.to_str().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed source `{}` has a non-UTF-8 relative path component",
-                source_file.path.display()
-            ))]
-        })?;
+        let component = component.to_str().or_evidence(format!(
+            "reviewed source `{}` has a non-UTF-8 relative path component",
+            source_file.path.display()
+        ))?;
         if !path.is_empty() {
             path.push('/');
         }

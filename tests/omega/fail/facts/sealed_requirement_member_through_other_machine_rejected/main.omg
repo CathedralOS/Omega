@@ -21,14 +21,14 @@ Selected satisfies Sum {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures 0 <= result && result <= 100
-    blocks;
+    blocks
     {
         add(left, right)
     }
 }
 
 machine apply<Operations satisfies Sum>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures 0 <= result && result <= 100
@@ -38,20 +38,20 @@ ensures 0 <= result && result <= 100
 
 // Place: another machine. The forwarding machine lacks the right operand bound.
 machine forward(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 {
     block apply<Selected>(left, right)
 }
 
 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= 50
 {
     block forward(a, b)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22);
     transition result == 42 { true -> done() _ -> bad() }
 

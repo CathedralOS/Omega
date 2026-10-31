@@ -7,6 +7,7 @@ use super::super::super::{
     CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, ScalarType, unsupported,
 };
 use super::{Emission, ValueContinuation, ValueOutcome};
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 
 impl Emission<'_, '_, '_> {
@@ -38,10 +39,7 @@ impl Emission<'_, '_, '_> {
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
-        let arms = self
-            .checked
-            .facts
-            .values
+        let arms = value_facts(&self.checked)
             .structural_values
             .dispatch_arms
             .span(arms)

@@ -4,7 +4,7 @@
 // Expected rejection: cannot prove index
 
 machine read_element(values: [u64; 16], idx: u64, flag: bool) -> u64
-    requires idx <= 16u64;
+    requires idx <= 16u64
 {
     let joined_index: u64 = match flag { true -> idx, false -> 0u64 };
     values[joined_index]

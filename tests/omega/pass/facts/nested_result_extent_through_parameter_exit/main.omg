@@ -6,7 +6,7 @@ ensures result <= left && result <= right &&
     transition { left < right -> left _ -> right }
 }
 machine consume(buffer: &mut [u8], end: u64) -> u64
-requires end <= buffer.len;
+requires end <= buffer.len
 {
     let prefix: &mut [u8] = &mut buffer[0..end];
     prefix.len

@@ -1,7 +1,7 @@
 // Expected exit: 0
 // A private helper forwards the caller rank, then its captured remainder descends.
 machine reduce_pair(numerator: u64, denominator: u64) -> u64
-terminates by denominator -> Nat::Descending;
+terminates by denominator -> Nat::Descending
 {
     transition denominator > 0 {
         true -> advance(numerator, denominator)

@@ -2,8 +2,8 @@
 // Expected exit: 0
 machine count(counter: &mut u64, items: &[u8], cursor: u64)
 requires items.len == 13 && cursor <= 14
-terminates;
-terminates by cursor -> Nat::IncreasingTo(13);
+terminates
+terminates by cursor -> Nat::IncreasingTo(13)
 {
     transition cursor < items.len {
         true -> forward(counter, items, cursor)

@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine climb(remaining: u64, acc: u64) -> u64
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 ensures result == acc + remaining
 {
     transition remaining > 0 {

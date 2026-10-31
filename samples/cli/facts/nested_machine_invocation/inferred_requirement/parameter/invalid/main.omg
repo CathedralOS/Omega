@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Note { value: u64; tag: u64; }
 machine same(left: u64, right: u64) -> u64
-requires left == right; ensures result == left; { left }
+requires left == right ensures result == left { left }
 machine probe(value: u64, select: bool) -> Note {
     transition select {
         true -> forward(value, value, 11)

@@ -1,4 +1,4 @@
-machine main() blocks; {
+machine main() blocks {
     transition { _ -> block next() }
     machine next() {}
 }

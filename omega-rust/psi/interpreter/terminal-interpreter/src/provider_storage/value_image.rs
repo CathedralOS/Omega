@@ -43,7 +43,7 @@ pub(crate) fn prepare(
             "placement image requires its exact owned schema value",
         ));
     }
-    let types = execution.program.structural_types();
+    let types = execution.structural_types();
     let Some(StructuralTypeShape::Record { fields, .. }) = types
         .get(&plan.schema)
         .map(|declaration| &declaration.shape)
@@ -154,7 +154,7 @@ impl ValueImageReader<'_, '_, '_> {
             ));
         }
         self.active.push(root);
-        let types = self.execution.program.structural_types();
+        let types = self.execution.structural_types();
         let declaration = types.declaration(&root)?;
         let (size, alignment) = terminal_semantics::reference_storage_layout(types.values(), root)
             .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -225,7 +225,7 @@ fn field_schema(
     name: &str,
     member_identity: Option<u64>,
 ) -> Result<AggregateFieldSchema, TerminalInterpretError> {
-    let types = execution.program.structural_types();
+    let types = execution.structural_types();
     let size = match field.field_type.scalar_type() {
         Some(scalar) => terminal_semantics::reference_storage_byte_width(scalar).map(u64::from),
         None => field
@@ -272,7 +272,7 @@ fn record_layout(
     size: u64,
     alignment: u64,
 ) -> Result<LayoutPlanReport, TerminalInterpretError> {
-    let types = execution.program.structural_types();
+    let types = execution.structural_types();
     let mut layout = LayoutPlanReport {
         schema_report_fingerprint: 0,
         entries: Vec::new(),
@@ -394,7 +394,7 @@ fn require_runtime_fields(
     execution: &TerminalExecution<'_>,
     fields: &[StructuralFieldDeclaration],
 ) -> Result<(), TerminalInterpretError> {
-    let types = execution.program.structural_types();
+    let types = execution.structural_types();
     for field in fields {
         if field.relevance.is_erased()
             || field.field_type.as_structural().is_some_and(|child| {

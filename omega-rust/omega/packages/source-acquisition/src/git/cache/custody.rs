@@ -13,6 +13,7 @@ use crate::SourceResolveError;
 use crate::custody::platform::same_capability_file_identity;
 use crate::custody::tree::{CacheCustodyKind, open_cache_custody_directory};
 use crate::limits::{CACHE_CUSTODY_DEPTH_LIMIT, CACHE_CUSTODY_ENTRY_LIMIT};
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 
 use crate::error::cache_invalid;
@@ -23,18 +24,14 @@ pub(super) fn open_retained_git_directory(
     path: &Path,
     message: &str,
 ) -> Result<(CapabilityDirectory, CapabilityMetadata), SourceResolveError> {
-    let classified = parent
-        .symlink_metadata(name)
-        .map_err(|error| io_error(path, error))?;
+    let classified = parent.symlink_metadata(name).at(path)?;
     if classified.file_type().is_symlink() || !classified.is_dir() {
         return Err(cache_invalid(path, message));
     }
     let directory = parent
         .open_dir_nofollow(name)
         .map_err(|error| cache_invalid(path, error.to_string()))?;
-    let opened = directory
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
+    let opened = directory.dir_metadata().at(path)?;
     if !opened.is_dir() || !same_capability_file_identity(&classified, &opened) {
         return Err(cache_invalid(
             path,
@@ -52,12 +49,8 @@ pub(super) fn verify_retained_git_directory_identity(
     path: &Path,
     message: &str,
 ) -> Result<(), SourceResolveError> {
-    let named = parent
-        .symlink_metadata(name)
-        .map_err(|error| io_error(path, error))?;
-    let opened = retained
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
+    let named = parent.symlink_metadata(name).at(path)?;
+    let opened = retained.dir_metadata().at(path)?;
     if named.file_type().is_symlink()
         || !named.is_dir()
         || !opened.is_dir()
@@ -73,9 +66,7 @@ pub(super) fn verify_git_repository_tree_from_open_root(
     repository: &CapabilityDirectory,
     repository_path: &Path,
 ) -> Result<(), SourceResolveError> {
-    let root_metadata = repository
-        .dir_metadata()
-        .map_err(|error| io_error(repository_path, error))?;
+    let root_metadata = repository.dir_metadata().at(repository_path)?;
     let mut pending = vec![(
         PathBuf::new(),
         repository_path.to_path_buf(),
@@ -100,16 +91,11 @@ pub(super) fn verify_git_repository_tree_from_open_root(
             &classified,
             CacheCustodyKind::Git,
         )?;
-        for child in directory
-            .entries()
-            .map_err(|error| io_error(&path, error))?
-        {
-            let child = child.map_err(|error| io_error(&path, error))?;
+        for child in directory.entries().at(&path)? {
+            let child = child.at(&path)?;
             let name = child.file_name();
             let child_path = path.join(&name);
-            let metadata = directory
-                .symlink_metadata(&name)
-                .map_err(|error| io_error(&child_path, error))?;
+            let metadata = directory.symlink_metadata(&name).at(&child_path)?;
             if metadata.file_type().is_symlink() {
                 return Err(cache_invalid(
                     &child_path,
@@ -165,7 +151,7 @@ fn verify_retained_git_regular_file(
     let file = parent
         .open_with(name, &options)
         .map_err(|error| cache_invalid(path, error.to_string()))?;
-    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    let opened = file.metadata().at(path)?;
     if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
         return Err(cache_invalid(
             path,
@@ -207,9 +193,7 @@ pub(super) fn reject_retained_git_path(
     let Some((leaf, parents)) = components.split_last() else {
         return Err(cache_invalid(root_path, "forbidden Git path is empty"));
     };
-    let mut directory = root
-        .try_clone()
-        .map_err(|error| io_error(root_path, error))?;
+    let mut directory = root.try_clone().at(root_path)?;
     let mut path = root_path.to_path_buf();
     for parent in parents {
         path.push(parent);
@@ -227,9 +211,7 @@ pub(super) fn reject_retained_git_path(
         let opened = directory
             .open_dir_nofollow(parent)
             .map_err(|error| cache_invalid(&path, error.to_string()))?;
-        let opened_metadata = opened
-            .dir_metadata()
-            .map_err(|error| io_error(&path, error))?;
+        let opened_metadata = opened.dir_metadata().at(&path)?;
         if !same_capability_file_identity(&metadata, &opened_metadata) {
             return Err(cache_invalid(
                 &path,

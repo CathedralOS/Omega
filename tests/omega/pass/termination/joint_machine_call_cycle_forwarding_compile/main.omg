@@ -7,9 +7,8 @@ machine Main::main(main: &mut Main) -> u64 {
     transition { _ -> Main::scan_a(main, 4) }
 }
 
-machine Main::scan_a(main: &mut Main, remaining: u64)
-terminates by remaining;
--> u64
+machine Main::scan_a(main: &mut Main, remaining: u64) -> u64
+terminates by remaining
 {
     transition remaining > 0 {
         true -> Main::scan_b(main, remaining)
@@ -17,9 +16,8 @@ terminates by remaining;
     }
 }
 
-machine Main::scan_b(main: &mut Main, remaining: u64)
-terminates by remaining;
--> u64
+machine Main::scan_b(main: &mut Main, remaining: u64) -> u64
+terminates by remaining
 {
     transition remaining > 0 {
         true -> Main::scan_a(main, remaining - 1)

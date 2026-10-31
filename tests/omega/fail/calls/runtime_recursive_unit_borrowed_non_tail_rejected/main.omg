@@ -5,7 +5,7 @@ data Counter { value: u64 in Trapping; }
 machine visit(counter: &mut Counter, depth: u64) {
     transition depth > 0 { true -> next(counter, depth) false -> done() }
     machine next(counter: &mut Counter, depth: u64)
-    requires depth > 0;
+    requires depth > 0
     {
         let mut retained: Counter;
         retained.value = depth as u64 in Trapping;

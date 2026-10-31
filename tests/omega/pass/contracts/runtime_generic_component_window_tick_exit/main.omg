@@ -16,18 +16,18 @@ data Commands<const Capacity: u64> where Capacity >= 1 { items: [Command; Capaci
 data Main { actors: Actors<2, 4>; commands: Commands<2>; }
 
 machine turn<const Rooms: u64>(mut actor: Actor<Rooms>) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 {
     actor.facing = 1;
     actor
 }
 machine consume<const Rooms: u64>(actor: Actor<Rooms>, direction: i32) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4 { actor }
 
 machine advance<const Rooms: u64>(actors: &mut [Actor<Rooms>], commands: &[Command])
-terminates;
-terminates by actors -> Slice::Length;
+terminates
+terminates by actors -> Slice::Length
 requires Rooms >= 1 && actors.len == commands.len {
     transition actors.len > 0 { true -> head(actors, commands) _ -> done() }
     machine head(actors: &mut [Actor<Rooms>], commands: &[Command])
@@ -39,7 +39,7 @@ requires Rooms >= 1 && actors.len == commands.len {
     machine done() {}
 }
 machine tick<const Capacity: u64, const Rooms: u64>(actors: &mut Actors<Capacity, Rooms>, commands: &Commands<Capacity>)
-terminates;
+terminates
 requires Capacity >= 1 && Rooms >= 1 {
     let count: u64 = actors.count;
     advance<Rooms>(&mut actors.items[..count], &commands.items[..count]);

@@ -34,9 +34,7 @@ pub(super) fn policy(
                 encoder.sequence(&service.static_parameters, encode_type_parameter)
             })?;
             encoder.u32_field("lifetime_parameter_count", service.lifetime_parameter_count)?;
-            encoder.field("methods", |encoder| {
-                encoder.sequence(&service.methods, encode_service_method)
-            })?;
+            encoder.sequence_field("methods", &service.methods, encode_service_method)?;
             encoder.field("permissions", |encoder| {
                 encoder.sequence(&service.permissions, |encoder, permission_value| {
                     permission(encoder, permission_value)

@@ -4,9 +4,8 @@ data Math {}
 boundary machine - Math::subtract(left: u32, right: u32) -> u32;
 
 data Main {}
-machine Main::count(remaining: u32)
-terminates by remaining in 0..=9;
--> u32
+machine Main::count(remaining: u32) -> u32
+terminates by remaining in 0..=9
 requires remaining <= 9
 {
     transition remaining > 0 {
@@ -21,9 +20,8 @@ requires remaining <= 9
     }
 }
 
-machine Main::step(remaining: u32)
-terminates by remaining in 0..=9;
--> u32
+machine Main::step(remaining: u32) -> u32
+terminates by remaining in 0..=9
 requires remaining <= 9
 {
     transition { _ -> Main::count(remaining) }

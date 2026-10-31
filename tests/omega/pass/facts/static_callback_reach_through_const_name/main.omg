@@ -4,46 +4,46 @@ public boundary trait Console {}
 public boundary trait Extra {}
 public trait StepContract {
     machine step(value: u64) -> u64
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 machine quiet(value: u64) -> u64
 satisfies StepContract::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine second(value: u64) -> u64
 satisfies StepContract::step
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { value }
 machine console_step(value: u64) -> u64
 satisfies StepContract::step
-reaches Console terminates;
+reaches Console terminates
 requires value <= 37
 ensures result <= 37
 { value }
 trait Traversal {
     machine traverse<machine Step>(value: u64) -> u64
     requires machine Step satisfies StepContract::step;
-    reaches Console terminates;
+    reaches Console terminates
     requires value <= 37
     ensures result <= 37;
 }
 TraversalCode satisfies Traversal {
     machine traverse<machine Step>(value: u64) -> u64
     requires machine Step satisfies StepContract::step;
-    terminates;
+    terminates
     requires value <= 37
     ensures result <= 37
     { Step(value) }
 }
 machine ordinary<machine Step>(value: u64) -> u64
 requires machine Step satisfies StepContract::step;
-terminates;
+terminates
 requires value <= 37
 ensures result <= 37
 { transition { _ -> Step(value) } }

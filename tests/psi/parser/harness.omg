@@ -18,9 +18,9 @@ public data ParserHarness {
 // context storage and passes that borrow explicitly to the harness.
 public machine parser_entry_start()
 reaches Console
-invokes Console;
+invokes Console
 crashes Trap
-blocks;
+blocks
 {
     let mut parser_harness: ParserHarness;
     block ParserHarness::main(&mut parser_harness);
@@ -28,9 +28,9 @@ blocks;
 
 public machine ParserHarness::main(parser_harness: &mut ParserHarness)
 reaches Console
-invokes Console;
+invokes Console
 crashes Trap
-blocks;
+blocks
 {
     let mut lexer: Lexer;
     Lexer::initialize(&mut lexer, 1);
@@ -104,8 +104,8 @@ blocks;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR15`, version
-// 15, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR16`, version
+// 16, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, type-reference, and generic-parameter tables. Field and
 // case rows carry their stable-identity flag and literal span.
@@ -127,8 +127,8 @@ machine ParserHarness::write_parse_observation(
     ParserHarness::write_byte(parser_harness, 65);
     ParserHarness::write_byte(parser_harness, 82);
     ParserHarness::write_byte(parser_harness, 49);
-    ParserHarness::write_byte(parser_harness, 53);
-    ParserHarness::write_u64(parser_harness, 15);
+    ParserHarness::write_byte(parser_harness, 54);
+    ParserHarness::write_u64(parser_harness, 16);
     transition output.accepted {
         true -> parse_accepted_header(parser_harness, output)
         _ -> parse_rejected_header(parser_harness, output)
@@ -338,6 +338,8 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedArrayElementEnd -> parse_diagnostic(parser_harness, output, 193)
             ParseDiagnosticCode::MissingBoundaryReachCeiling -> parse_diagnostic(parser_harness, output, 200)
             ParseDiagnosticCode::RetiredWhereMachineRequirement -> parse_diagnostic(parser_harness, output, 201)
+            ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 202)
+            ParseDiagnosticCode::RetiredCasePredicate -> parse_diagnostic(parser_harness, output, 203)
         }
     }
 
@@ -1708,6 +1710,8 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, contract.first_clause);
         ParserHarness::write_u64(parser_harness, contract.clause_count);
         ParserHarness::write_source_span(parser_harness, contract.source_span);
+        ParserHarness::write_u64(parser_harness, contract.first_contract);
+        ParserHarness::write_u64(parser_harness, contract.contract_count);
         transition { _ -> contract_row(parser_harness, output, index + 1) }
     }
 

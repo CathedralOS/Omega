@@ -37,10 +37,7 @@ pub(super) fn project_call_expression(
     let static_parameter_kinds = match &target {
         PackageReviewContractCallTarget::Nominal(_) => {
             let target_symbol = resolved_symbol.ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` contract call has no exact resolved target symbol",
-                    context.subject_kind, context.subject_name
-                ))]
+                context.rejected("contract call has no exact resolved target symbol")
             })?;
             require_exact_contract_call_reference_arguments(
                 compilation,
@@ -57,37 +54,32 @@ pub(super) fn project_call_expression(
         }
         PackageReviewContractCallTarget::BuiltinFunction(_) => {
             if !call.machine_arguments.is_empty() {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` supplies static arguments to a compiler-owned builtin function",
-                    context.subject_kind, context.subject_name
-                ))]);
+                return Err(context
+                    .rejected("supplies static arguments to a compiler-owned builtin function"));
             }
             Vec::new()
         }
         PackageReviewContractCallTarget::ByteSequencePredicate(_) => {
             if !call.machine_arguments.is_empty() {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` supplies static arguments to a compiler-owned byte-sequence predicate",
-                    context.subject_kind, context.subject_name
-                ))]);
+                return Err(context.rejected(
+                    "supplies static arguments to a compiler-owned byte-sequence predicate",
+                ));
             }
             Vec::new()
         }
         PackageReviewContractCallTarget::ProofView { .. } => {
             if !call.machine_arguments.is_empty() {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` supplies static arguments to a compiler-owned proof view",
-                    context.subject_kind, context.subject_name
-                ))]);
+                return Err(
+                    context.rejected("supplies static arguments to a compiler-owned proof view")
+                );
             }
             Vec::new()
         }
     };
     if call.quotient_operation.is_some() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` uses a quotient contract call not yet represented by package review",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(
+            context.rejected("uses a quotient contract call not yet represented by package review")
+        );
     }
     let evidence_arguments = if call.evidence_arguments.is_empty() {
         Vec::new()
@@ -98,10 +90,7 @@ pub(super) fn project_call_expression(
             checked_fact,
             expression,
             resolved_symbol.ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` evidence-bearing call has no exact resolved target",
-                    context.subject_kind, context.subject_name,
-                ))]
+                context.rejected("evidence-bearing call has no exact resolved target")
             })?,
             call.evidence_arguments.len(),
         )?

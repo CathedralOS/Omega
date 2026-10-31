@@ -9,9 +9,8 @@ use omega::language::core::float_operations;
 // (`-> acc + 0.5`) remain the bail row (the binary serve is integer-only).
 use omega_language_std::console;
 data Main { }
-machine Main::pick(main: &mut Main, n: i32, acc: f64)
-terminates by n -> Nat::Descending;
--> f64
+machine Main::pick(main: &mut Main, n: i32, acc: f64) -> f64
+terminates by n -> Nat::Descending
 {
     transition n > 0 { true -> pick(main, n - 1, acc) false -> leaf(main, acc) }
     machine leaf(main: &mut Main, acc: f64) -> f64 { acc }

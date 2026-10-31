@@ -23,12 +23,12 @@ machine Shape::unit() -> Shape {
     Shape::Unit
 }
 machine Main::take(p: Point) -> u64
-    requires p == Point::zero();
+    requires p == Point::zero()
 {
     p.y
 }
 machine Main::count(s: Shape) -> u64
-    requires s == Shape::unit();
+    requires s == Shape::unit()
 {
     transition s {
         Shape::Unit -> (0)

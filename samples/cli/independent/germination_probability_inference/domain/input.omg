@@ -49,8 +49,8 @@ machine ended(reader: &mut Reader) -> bool reaches Console {
     }
 }
 public machine read_input(reader: &mut Reader, input: &mut Input) -> bool reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     input.count = 0;

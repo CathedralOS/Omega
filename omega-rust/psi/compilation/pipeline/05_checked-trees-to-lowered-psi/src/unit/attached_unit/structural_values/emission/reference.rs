@@ -11,6 +11,7 @@
 
 use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation};
 use super::{lookup_type_id, unsupported};
+use crate::checked_facts::value_facts;
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, prepare_structural_argument_path,
@@ -93,10 +94,7 @@ impl Emission<'_, '_, '_> {
                 ],
             )?;
         }
-        let evaluations = self
-            .checked
-            .facts
-            .values
+        let evaluations = value_facts(&self.checked)
             .scalar_computations
             .operands
             .span(selectors)

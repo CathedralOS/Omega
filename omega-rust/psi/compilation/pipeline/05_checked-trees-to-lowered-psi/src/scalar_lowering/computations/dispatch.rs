@@ -6,6 +6,7 @@ use super::{
     Argument, CheckedScalarComputationKind, Computation, Expansion, LoweringError,
     QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::claim_bindings::selections::SelectedDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
@@ -58,10 +59,7 @@ impl Expansion<'_> {
                 subject,
                 self.structural_types,
             )?;
-        let arms = self
-            .checked
-            .facts
-            .values
+        let arms = value_facts(&self.checked)
             .scalar_computations
             .dispatch_arms
             .span(arms)

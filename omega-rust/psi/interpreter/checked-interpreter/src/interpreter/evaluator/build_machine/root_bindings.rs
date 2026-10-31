@@ -1,5 +1,7 @@
 //! Executed Build declarations retain coordinates, not target-selection authority.
-use crate::interpreter::evaluator::{Cell, EvalResult, Evaluator, Frame, Halt, Value, trap};
+use crate::interpreter::evaluator::{
+    Cell, EvalResult, Evaluator, Frame, Halt, Value, expression_table, trap,
+};
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, CompositionMode,
     ExecutedBuildSelection as SourceBuildSelection, ExecutedProductSelection, RootBindingOperand,
@@ -50,9 +52,7 @@ impl<'program> Evaluator<'program> {
             }
             return Ok(None);
         }
-        let binding = self
-            .program
-            .expression_table
+        let binding = expression_table(self.program)
             .build_selection_request(call.build_selection)
             .ok_or_else(|| {
                 Halt::Trap("root binding lost its admitted selection request".to_owned())
@@ -83,10 +83,7 @@ impl<'program> Evaluator<'program> {
         else {
             return trap("root binding lost its toolchain boundary requirement");
         };
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
+        let arguments = expression_table(self.program).expression_handles(call.arguments);
         if preparation {
             let [receiver_expression] = arguments else {
                 return trap("root binding requires one explicit Build argument");
@@ -121,11 +118,7 @@ impl<'program> Evaluator<'program> {
         let issued = self
             .pending_build_selections
             .get(ticket)
-            .and_then(|request| {
-                self.program
-                    .expression_table
-                    .build_selection_request(*request)
-            });
+            .and_then(|request| expression_table(self.program).build_selection_request(*request));
         if issued != Some(&binding) {
             return trap(
                 "root binding activation ticket is missing, consumed, or belongs to another selection",

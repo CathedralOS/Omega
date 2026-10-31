@@ -9,7 +9,7 @@ machine trial(buffer: &mut [u8], other: &[u8], count: u64) -> u64 {
     let capacity: u64 = minimum(minimum(count, other.len), 2147483647);
     transition { _ -> consume(buffer, capacity) }
     machine consume(buffer: &mut [u8], end: u64) -> u64
-    requires end <= buffer.len;
+    requires end <= buffer.len
     {
     let prefix: &mut [u8] = &mut buffer[0..end];
     prefix.len

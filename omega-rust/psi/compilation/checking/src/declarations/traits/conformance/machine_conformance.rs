@@ -515,10 +515,10 @@ fn validate_top_level_requirement_effect_ceiling(
                 format!("{label} reaches service `{service_name}` outside the requirement ceiling")
             }
             super::OperationalCeilingBreach::Suspends => {
-                format!("{label} declares `suspends;` beyond the requirement ceiling")
+                format!("{label} declares `suspends` beyond the requirement ceiling")
             }
             super::OperationalCeilingBreach::Blocks => {
-                format!("{label} declares `blocks;` beyond the requirement ceiling")
+                format!("{label} declares `blocks` beyond the requirement ceiling")
             }
         },
         diagnostics,

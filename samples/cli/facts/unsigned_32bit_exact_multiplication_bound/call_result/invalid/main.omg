@@ -4,16 +4,16 @@
 // Expected rejection: may overflow `u32`
 
 machine compute_prod(l: u32, r: u32) -> u32
-    requires l >= 20u32 && l <= 30u32;
-    requires r >= 15u32 && r <= 26u32;
-    ensures result >= 300u32 && result <= 780u32;
+    requires l >= 20u32 && l <= 30u32
+    requires r >= 15u32 && r <= 26u32
+    ensures result >= 300u32 && result <= 780u32
 {
     l * r
 }
 
 machine divide_call_result(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 30u32;
-    requires rhs >= 15u32 && rhs <= 26u32;
+    requires lhs >= 20u32 && lhs <= 30u32
+    requires rhs >= 15u32 && rhs <= 26u32
 {
     let prod: u32 = compute_prod(lhs, rhs);
     let headroom: u32 = 750u32 - prod;

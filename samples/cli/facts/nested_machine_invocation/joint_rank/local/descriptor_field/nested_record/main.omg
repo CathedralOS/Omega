@@ -3,16 +3,16 @@
 data Payload { values: &[u8]; }
 data Remaining { canary: u64; payload: Payload; }
 machine count(counter: &mut u64, remaining: Remaining) crashes Trap
-terminates;
-terminates by remaining.payload.values -> Slice::Length;
-requires remaining.payload.values.len <= 7;
+terminates
+terminates by remaining.payload.values -> Slice::Length
+requires remaining.payload.values.len <= 7
 {
     transition remaining.payload.values.len > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: Remaining, counter: &mut u64) crashes Trap
-    requires pending.payload.values.len > 0 && pending.payload.values.len <= 7;
+    requires pending.payload.values.len > 0 && pending.payload.values.len <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         let next: Remaining = Remaining { canary: pending.canary, payload: Payload { values: pending.payload.values[1..] } };
@@ -25,7 +25,7 @@ requires remaining.payload.values.len <= 7;
     machine bad() crashes Trap { crash Trap; }
 }
 machine perform(counter: &mut u64, bytes: &[u8], select: bool) crashes Trap
-requires bytes.len <= 7;
+requires bytes.len <= 7
 {
     let remaining: Remaining = match select {
         true -> Remaining { canary: 641, payload: Payload { values: bytes } }

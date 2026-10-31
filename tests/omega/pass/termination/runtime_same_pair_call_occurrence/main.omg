@@ -1,8 +1,8 @@
 // Expected exit: 0
 // Every recursive occurrence is a tail edge; only the complete cycle is strict.
 machine first(remaining: u64) -> u64
-requires remaining <= 4;
-terminates by remaining in 0..=4;
+requires remaining <= 4
+terminates by remaining in 0..=4
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {
@@ -10,8 +10,8 @@ terminates by remaining in 0..=4;
     }
 }
 machine second(remaining: u64) -> u64
-requires remaining <= 4;
-terminates by remaining in 0..=4;
+requires remaining <= 4
+terminates by remaining in 0..=4
 {
     transition remaining > 0 { true -> step(remaining) false -> 0 }
     machine step(remaining: u64) -> u64 requires remaining > 0 && remaining <= 4 {

@@ -45,6 +45,7 @@ struct PreparedReceiving {
 }
 
 struct PreparedState {
+    application: Option<validation::IntegerApplicationFormation>,
     state: SymbolHandle,
     bindings: Vec<PreparedBinding>,
 }
@@ -152,7 +153,30 @@ impl RankArrivalAdmission {
                     receiving,
                 });
             }
+            let mut applications = self
+                .applications
+                .iter()
+                .filter(|(state, _)| *state == selected.state)
+                .map(|(_, application)| application);
+            let application = applications.next().cloned();
+            if let Some(first) = &application {
+                if applications.any(|other| other != first) {
+                    return None;
+                }
+                let declaration = program
+                    .measures()
+                    .iter()
+                    .find(|definition| definition.symbol == first.measure())?;
+                if program
+                    .expression_table
+                    .expression_handles(declaration.body)
+                    != [first.body()]
+                {
+                    return None;
+                }
+            }
             prepared.push(PreparedState {
+                application,
                 state: selected.state,
                 bindings,
             });
@@ -206,7 +230,18 @@ impl RankArrivalAdmission {
                 });
             }
             let bindings = plan.bindings.insert_many(bindings);
+            let application = match state.application {
+                Some(application) => checked_trees::CheckedRankApplicationFacts {
+                    measure: application.measure(),
+                    definition_body: application.body(),
+                    casts: plan
+                        .application_casts
+                        .insert_many(application.casts().iter().cloned()),
+                },
+                None => Default::default(),
+            };
             states.push(CheckedStateRankCorrespondence {
+                application,
                 state: state.state,
                 bindings,
             });

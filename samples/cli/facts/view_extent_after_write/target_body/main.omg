@@ -2,7 +2,7 @@
 // Expected exit: 0
 machine write_first(first: &mut u8) { first = 41; }
 linux_x86_64 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024;
+requires bytes.len >= 1024
 {
     let saved: u8 = bytes[bytes.len - 4];
     write_first(&mut bytes[0]);
@@ -10,7 +10,7 @@ requires bytes.len >= 1024;
 }
 
 linux_arm64 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024;
+requires bytes.len >= 1024
 {
     let saved: u8 = bytes[bytes.len - 4];
     write_first(&mut bytes[0]);
@@ -18,7 +18,7 @@ requires bytes.len >= 1024;
 }
 
 macos_arm64 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024;
+requires bytes.len >= 1024
 {
     let saved: u8 = bytes[bytes.len - 4];
     write_first(&mut bytes[0]);
@@ -26,7 +26,7 @@ requires bytes.len >= 1024;
 }
 
 windows_x86_64 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024;
+requires bytes.len >= 1024
 {
     let saved: u8 = bytes[bytes.len - 4];
     write_first(&mut bytes[0]);

@@ -9,7 +9,7 @@ use omega_language_std::console;
 data Main { }
 
 machine count_words(text: &[u8], index: u64, in_word: bool, count: u64) -> u64
-terminates by (index, text.len) -> Nat::BoundedDistance;
+terminates by (index, text.len) -> Nat::BoundedDistance
 requires count <= index
 {
     transition {
@@ -35,7 +35,7 @@ requires index < text.len
 }
 
 machine first_space(text: &[u8], index: u64) -> u64
-terminates by (index, text.len) -> Nat::BoundedDistance;
+terminates by (index, text.len) -> Nat::BoundedDistance
 {
     transition {
         index >= text.len -> (index)

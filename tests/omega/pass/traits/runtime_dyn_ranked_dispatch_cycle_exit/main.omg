@@ -7,7 +7,7 @@ trait Walk {
 
 Loop satisfies Walk {
     machine step(remaining: u64) -> u64
-    terminates by remaining;
+    terminates by remaining
     {
         transition remaining > 0u64 {
             true -> rewalk(remaining)
@@ -17,7 +17,7 @@ Loop satisfies Walk {
 }
 
 machine rewalk(remaining: u64) -> u64
-terminates by remaining;
+terminates by remaining
 {
     let again: dyn Walk = Loop as dyn Walk;
     transition remaining > 0u64 {

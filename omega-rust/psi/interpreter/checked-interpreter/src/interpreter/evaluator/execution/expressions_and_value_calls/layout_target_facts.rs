@@ -1,7 +1,9 @@
 //! Read-only observation of an evaluator-issued target context. The exact
 //! sealed declaration selects this operation; its argument must independently
 //! retain the private issuer tag. Authored records cannot supply that tag.
-use crate::interpreter::evaluator::{EvalResult, Evaluator, Frame, Halt, Value, trap};
+use crate::interpreter::evaluator::{
+    EvalResult, Evaluator, Frame, Halt, Value, expression_table, trap,
+};
 
 impl Evaluator<'_> {
     pub(super) fn try_layout_target_facts(
@@ -16,11 +18,7 @@ impl Evaluator<'_> {
         else {
             return Ok(None);
         };
-        let [argument] = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments)
-        else {
+        let [argument] = expression_table(self.program).expression_handles(call.arguments) else {
             return trap("layout target snapshot requires its single shared context argument");
         };
         let value = self.eval_expression(*argument, frame)?;

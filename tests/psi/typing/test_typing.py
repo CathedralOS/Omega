@@ -905,7 +905,7 @@ def main() -> None:
     accepted(
         program,
         "increasing-to-limit-is-typed",
-        b"machine g(index: u64, limit: u64) terminates by index -> Nat::IncreasingTo(limit); {}",
+        b'machine g(index: u64, limit: u64) terminates by index -> Nat::IncreasingTo(limit) {}',
         ((b"index!2", "u64"), (b"limit!2", "u64")),
     )
     rejected(
@@ -1346,13 +1346,13 @@ def main() -> None:
     accepted(
         program,
         "rank-range-endpoints-are-integers",
-        b"machine f(n: u64, limit: u64) -> u64 terminates by n in 0..=limit; { 0 }",
+        b'machine f(n: u64, limit: u64) -> u64 terminates by n in 0..=limit { 0 }',
         ((b"0", "u64"), (b"limit!2", "u64")),
     )
     rejected(
         program,
         "a-rank-range-endpoint-of-another-type",
-        b"machine f(n: u64, flag: bool) -> u64 terminates by n in 0..=flag; { 0 }",
+        b'machine f(n: u64, flag: bool) -> u64 terminates by n in 0..=flag { 0 }',
         "NonIntegerIndex",
         b"flag!2",
     )
@@ -1362,27 +1362,20 @@ def main() -> None:
     accepted(
         program,
         "measure-subjects-meet-their-measures",
-        b"data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\n"
-        b"measure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
-        b"measure Progress::Steps lexicographic { outer, inner }\n"
-        b"machine f(card: Card, progress: Progress) -> u64\n"
-        b"terminates by card -> Card::PowerOrder;\nterminates by progress -> Progress::Steps;\n{ 0 }",
+        b'data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\nmeasure Progress::Steps lexicographic { outer, inner }\nmachine f(card: Card, progress: Progress) -> u64\nterminates by card -> Card::PowerOrder\nterminates by progress -> Progress::Steps\n{ 0 }',
         ((b"card.power", "u64"),),
     )
     rejected(
         program,
         "a-measure-subject-of-another-type",
-        b"data Card { power: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
-        b"machine f(value: u64) -> u64 terminates by value -> Card::PowerOrder; { 0 }",
+        b'data Card { power: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\nmachine f(value: u64) -> u64 terminates by value -> Card::PowerOrder { 0 }',
         "MismatchedTypes",
         b"value!2",
     )
     rejected(
         program,
         "a-lexicographic-subject-of-another-data",
-        b"data Progress { outer: u64; inner: u64; }\ndata Other { outer: u64; inner: u64; }\n"
-        b"measure Progress::Steps lexicographic { outer, inner }\n"
-        b"machine f(other: Other) -> u64 terminates by other -> Progress::Steps; { 0 }",
+        b'data Progress { outer: u64; inner: u64; }\ndata Other { outer: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, inner }\nmachine f(other: Other) -> u64 terminates by other -> Progress::Steps { 0 }',
         "MismatchedTypes",
         b"other!2",
     )

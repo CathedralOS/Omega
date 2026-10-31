@@ -1,6 +1,6 @@
 // Every feasible private arrival carries offset < limit, so the helper can form offset + 1.
 // Expected exit: 0
-machine identity(value: u64) -> u64 ensures result == value; { value }
+machine identity(value: u64) -> u64 ensures result == value { value }
 machine probe(limit: u64, offset: u64, first: u8) -> u64 {
     transition offset < limit {
         true -> lead(limit, identity(offset), first)

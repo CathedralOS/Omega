@@ -10,21 +10,21 @@ data Tree {
     case Node(child: Tree);
 }
 machine empty_only(value: Tree) -> Tree
-requires value in Tree::Empty;
-terminates;
+requires value in Tree::Empty
+terminates
 { value }
 machine node_only(value: Tree) -> Tree
-requires value in Tree::Node;
-terminates;
+requires value in Tree::Node
+terminates
 { value }
 machine concrete()
-ensures empty_only(Tree::Empty { marked: true }) == empty_only(Tree::Empty { marked: true });
+ensures empty_only(Tree::Empty { marked: true }) == empty_only(Tree::Empty { marked: true })
 ensures node_only(Tree::Node { marked: true, child: Tree::Empty })
-    == node_only(Tree::Node { marked: true, child: Tree::Empty });
+    == node_only(Tree::Node { marked: true, child: Tree::Empty })
 {}
 machine symbolic(value: Tree)
-requires value in Tree::Empty;
-ensures empty_only(value) == empty_only(value);
+requires value in Tree::Empty
+ensures empty_only(value) == empty_only(value)
 {}
 data Main {}
 machine Main::main(main: &mut Main) { }

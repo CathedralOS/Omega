@@ -19,7 +19,7 @@ machine reset(input:&mut Input) {
  input.active=false; input.decimal=false; input.exponent_mode=false;
  input.negative_token=false; input.exponent_negative=false; input.exponent_sign=false;
 }
-public machine parse(input:&mut Input) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine parse(input:&mut Input) -> bool reaches Console invokes Console blocks crashes Trap {
  input.count=0; reset(input);
  transition { _ -> read(input,0) }
  machine read(input:&mut Input,bytes:u32 in Saturating) -> bool {

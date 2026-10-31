@@ -7,6 +7,7 @@
 
 use super::super::view_ranges::ViewRangeSite;
 use super::{OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result};
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
@@ -151,10 +152,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             local.declared_type,
         )?;
-        let predicates = self
-            .checked
-            .facts
-            .values
+        let predicates = value_facts(&self.checked)
             .scalar_type_refinement_predicates(local.declared_type)
             .ok_or(LoweringError::Unsupported(
                 "scalar local has no complete checked value refinement",
@@ -1372,10 +1370,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             cleanup_actions,
             selected_regions,
-            &self
-                .checked
-                .facts
-                .flow
+            &flow_facts(&self.checked)
                 .terminal_unit_effects
                 .cleanup_control,
             self.structural_types.declarations(),

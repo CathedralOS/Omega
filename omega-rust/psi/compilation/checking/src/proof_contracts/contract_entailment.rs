@@ -76,6 +76,7 @@
 //! `self_induction.rs` intakes self-induction hypotheses.
 
 pub(crate) mod arithmetic_judgment;
+pub use arithmetic_judgment::IntegerApplicationFormation;
 pub(crate) mod call_requirements;
 mod citations;
 pub(crate) mod collection_bounds;

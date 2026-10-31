@@ -1427,19 +1427,17 @@ def main() -> None:
     accepted(
         program,
         "terminates-ranks-parameters",
-        b"machine f(n: u64) requires n > 0 terminates by n; {}",
+        b'machine f(n: u64) requires n > 0 terminates by n {}',
         (builtin("u64"),),
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
-    rejected(program, "terminates-unknown-subject", b"machine f(n: u64) terminates by m; {}", UNKNOWN_NAME, b"m;", length=1)
+    rejected(program, "terminates-unknown-subject", b'machine f(n: u64) terminates by m {}', UNKNOWN_NAME, b"m", length=1)
     # A machine formal carries the entry subject its arrivals pass it, read
     # from the body bindings while resolution runs (clauses.omg).
     accepted(
         program,
         "ranked-state-arrivals-bind-carriers",
-        b"machine count(n: u64) -> u64\nterminates by n;\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n"
-        b"    machine step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
-        b"    machine done() -> u64 { 0 }\n}",
+        b'machine count(n: u64) -> u64\nterminates by n\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n    machine step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n    machine done() -> u64 { 0 }\n}',
         (builtin("u64"),) * 5,
     )
     # A view names the compiler's ranking vocabulary by spelling, not a
@@ -1447,15 +1445,14 @@ def main() -> None:
     accepted(
         program,
         "ranking-views-name-the-vocabulary",
-        b"machine f(i: u64, n: u64) terminates by (i, n) -> Nat::BoundedDistance; {}\n"
-        b"machine g(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n); {}",
+        b'machine f(i: u64, n: u64) terminates by (i, n) -> Nat::BoundedDistance {}\nmachine g(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n) {}',
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
         (parameter(0), parameter(1), NOT_A_NAME, parameter(2), NOT_A_NAME, parameter(3), NOT_A_NAME),
     )
     rejected(
         program,
         "ranking-view-outside-the-vocabulary",
-        b"machine f(n: u64) terminates by n -> Nat::Sideways; {}",
+        b'machine f(n: u64) terminates by n -> Nat::Sideways {}',
         UNSUPPORTED_RANKING_VIEW,
         b"Nat::Sideways",
     )
@@ -1464,22 +1461,17 @@ def main() -> None:
     accepted(
         program,
         "rank-range-endpoints-bind",
-        b"machine f(n: u64, limit: u64) terminates by n in 0..=limit; {}",
+        b'machine f(n: u64, limit: u64) terminates by n in 0..=limit {}',
         (builtin("u64"), builtin("u64")),
         (parameter(0), NOT_A_NAME, parameter(1), NOT_A_NAME),
     )
-    rejected(program, "rank-range-unknown-endpoint", b"machine f(n: u64) terminates by n in 0..=limit; {}", UNKNOWN_NAME, b"limit")
+    rejected(program, "rank-range-unknown-endpoint", b'machine f(n: u64) terminates by n in 0..=limit {}', UNKNOWN_NAME, b"limit")
     # A declared measure (wiki/spec/language/termination.md#ranking) is the
     # view its path names: a computed one takes one subject parameter and a
     # body, a lexicographic one names fields of its owner. A measure is never
     # a callee.
     measures = (
-        b"data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\n"
-        b"measure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
-        b"measure Progress::Steps lexicographic { outer, inner }\n"
-        b"machine f(card: Card, progress: Progress)\n"
-        b"terminates by card -> Card::PowerOrder;\n"
-        b"terminates by progress -> Progress::Steps;\n{}"
+        b'data Card { power: u64; }\ndata Progress { outer: u64; inner: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\nmeasure Progress::Steps lexicographic { outer, inner }\nmachine f(card: Card, progress: Progress)\nterminates by card -> Card::PowerOrder\nterminates by progress -> Progress::Steps\n{}'
     )
     accepted(
         program,

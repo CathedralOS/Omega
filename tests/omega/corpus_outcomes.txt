@@ -8,6 +8,8 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
+	machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])
 fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expected @00e93f641615+wt
 	cannot prove requires contract for call consume from exercise: items[slot] == constructor:78:package:15da86fb44407d53f7ef1b34e99f42239b2095b2bbbf8f19fc64c76c42030c65::Item10:name:Ready (needs fact `items[slot] == Item::Ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/case_requirement_referent_selector_changed rejected 593ms expected @00e93f641615+wt
@@ -143,6 +145,24 @@ fail/facts/induction_call_guarantee_through_parameter_rejected rejected 634ms ex
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
 fail/facts/induction_call_guarantee_through_target_body_rejected rejected 633ms expected @961147032a93+wt
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/nested_machine_header_contracts_call_result_rejected rejected 225ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_call_result_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_const_name_rejected rejected 269ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_const_name_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_field_rejected rejected 244ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_field_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_local_rejected rejected 214ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_local_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_match_join_rejected rejected 240ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_match_join_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_other_machine_rejected rejected 203ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_other_machine_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_other_state_rejected rejected 246ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_other_state_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_parameter_rejected rejected 200ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_parameter_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_header_contracts_target_body_rejected rejected 202ms expected @2fc408782574
+	tests/omega/fail/facts/nested_machine_header_contracts_target_body_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
 fail/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_rejected rejected 1651ms expected @be61262f3842
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_rejected rejected 1224ms expected @be61262f3842
@@ -170,6 +190,60 @@ fail/facts/nested_machine_joint_rank_authored_indexed_reset_before_decrease reje
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_authored_indexed_wrong_field_write rejected 1210ms expected @be61262f3842
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_boolean_bound_rejected rejected 522ms expected @248d6dbf7291
+	machine `wrong` cannot prove ensures contract proof fact `result <= 1` on the transition arm guarded by `<always>`
+fail/facts/nested_machine_joint_rank_complement_call_result_rejected rejected 1092ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_const_name_rejected rejected 1102ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_field_rejected rejected 1106ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_hidden_overflow_rejected rejected 1100ms expected @248d6dbf7291
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_local_rejected rejected 1098ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_match_join_rejected rejected 1104ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_call_result_rejected rejected 1139ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_const_name_rejected rejected 1170ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_field_rejected rejected 1647ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_local_rejected rejected 1125ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_match_join_rejected rejected 1104ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_other_machine_rejected rejected 1121ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_other_state_rejected rejected 1123ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_parameter_rejected rejected 1140ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_narrowed_target_body_rejected rejected 1079ms expected @dab430ca62e2
+	terminating machine count: cannot prove rank range `248..=251` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_other_machine_rejected rejected 1105ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_other_state_rejected rejected 1123ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_parameter_rejected rejected 1137ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_reverse_descent_rejected rejected 1125ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_target_body_rejected rejected 1108ms expected @248d6dbf7291
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_complement_wrong_contract_rejected rejected 438ms expected @248d6dbf7291
+	machine `wrong` cannot prove ensures contract proof fact `result == value` on the transition arm guarded by `<always>`
 fail/facts/nested_machine_joint_rank_computed_measure_call_result_rejected rejected 846ms expected @4518281b90b2+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_computed_measure_const_name_rejected rejected 796ms expected @4518281b90b2+wt
@@ -1934,6 +2008,12 @@ pass/contracts/folded_actual_requires checked 3653ms @ccdb99ca2214
 pass/contracts/generic_effective_result_comparison_exit checked 3300ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 3923ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/guard_conjunct_survives_disjoint_state_write_exit checked 16651ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/header_blocks_before_body checked 2158ms @2fc408782574
+pass/contracts/header_ranked_terminates_before_body checked 2133ms @2fc408782574
+pass/contracts/header_suspends_before_body checked 2531ms @2fc408782574
+pass/contracts/header_terminates_before_body checked 2444ms @2fc408782574
+pass/contracts/header_terminates_before_requires checked 2345ms @2fc408782574
+pass/contracts/header_termination_before_requires checked 2274ms @2fc408782574
 pass/contracts/indexed_crash_dense_scalar_namespace checked 3754ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/indexed_crash_entry_subfield_arrival checked 3683ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/invariant_identifier checked 3134ms @ccdb99ca2214
@@ -6506,6 +6586,15 @@ pass/facts/nested_machine_effectful_completion_other_state_exit checked 3381ms c
 pass/facts/nested_machine_effectful_completion_parameter_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_effectful_completion_renamed_formals_exit checked 4411ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_effectful_completion_target_body_exit checked 3122ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_header_contracts_call_result_exit checked 3283ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_const_name_exit checked 2815ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_field_exit checked 3201ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_local_exit checked 3823ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_match_join_exit checked 3445ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_other_machine_exit checked 3238ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_other_state_exit checked 3792ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_parameter_exit checked 2923ms check-target:macos_arm64 @2fc408782574
+pass/facts/nested_machine_header_contracts_target_body_exit checked 4424ms check-target:macos_arm64 @2fc408782574
 pass/facts/nested_machine_inferred_requirement_call_result_exit checked 3565ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_inferred_requirement_const_name_exit checked 3550ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_inferred_requirement_field_exit checked 3609ms check-target:macos_arm64 @ccdb99ca2214
@@ -6608,6 +6697,26 @@ pass/facts/nested_machine_joint_rank_case_value_other_machine_exit checked 1020m
 pass/facts/nested_machine_joint_rank_case_value_other_state_exit checked 1020ms check-target:macos_arm64 @836691c69aa1
 pass/facts/nested_machine_joint_rank_case_value_parameter_exit checked 1042ms check-target:macos_arm64 @836691c69aa1
 pass/facts/nested_machine_joint_rank_case_value_target_body_exit checked 998ms check-target:macos_arm64 @836691c69aa1
+pass/facts/nested_machine_joint_rank_complement_call_result_exit checked 1716ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_const_name_exit checked 1716ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_direct_contracts_exit checked 1484ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_double_measure_exit checked 1487ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_field_exit checked 1735ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_local_exit checked 1436ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_match_join_exit checked 1406ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_narrowed_call_result_exit checked 1714ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_const_name_exit checked 1714ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_field_exit checked 1504ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_local_exit checked 1804ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_match_join_exit checked 1495ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_other_machine_exit checked 1534ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_other_state_exit checked 1462ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_parameter_exit checked 1470ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_narrowed_target_body_exit checked 1470ms check-target:macos_arm64 @dab430ca62e2
+pass/facts/nested_machine_joint_rank_complement_other_machine_exit checked 1448ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_other_state_exit checked 1427ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_parameter_exit checked 1408ms check-target:macos_arm64 @248d6dbf7291
+pass/facts/nested_machine_joint_rank_complement_target_body_exit checked 1472ms check-target:macos_arm64 @248d6dbf7291
 pass/facts/nested_machine_joint_rank_computed_affine_view_exit checked 1181ms check-target:macos_arm64 @4518281b90b2+wt
 pass/facts/nested_machine_joint_rank_computed_measure_call_result_exit checked 1237ms check-target:macos_arm64 @4518281b90b2+wt
 pass/facts/nested_machine_joint_rank_computed_measure_const_name_exit checked 1181ms check-target:macos_arm64 @4518281b90b2+wt
@@ -12403,9 +12512,9 @@ pass/providers/service_fused_root checked 3420ms @ccdb99ca2214
 pass/providers/service_fused_root_establishment checked 3382ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/specialized_boundary_operator_physical_custody checked 13691ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/specialized_fixed_operator_physical_custody checked 11955ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked 4251ms @ccdb99ca2214
+pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked 11721ms check-target:macos_arm64 @71ac5d75fdc1
 pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 3945ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/specialized_structural_fixed_operator_hosted_native checked 3590ms @ccdb99ca2214
+pass/providers/specialized_structural_fixed_operator_hosted_native checked 11470ms check-target:macos_arm64 @71ac5d75fdc1
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 3570ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/staggered_installation_reach_exit checked 3868ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_membership_boundary_exit checked 3781ms check-target:macos_arm64 @ccdb99ca2214
@@ -15748,9 +15857,9 @@ fail/build/retired_service_exclusion_receiver rejected 2ms expected @ccdb99ca221
 	tests/omega/fail/build/retired_service_exclusion_receiver/main.omg:2:28: receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)
 fail/build/retired_wire_compatibility_receiver rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/build/retired_wire_compatibility_receiver/main.omg:2:39: receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)
-fail/build/root_binding_descriptor_helper_invocation rejected 262ms expected @ccdb99ca2214
-	machine `choose` omits `invokes Probe;` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
-	machine `choose` omits `invokes BuildProductOperations;` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
+fail/build/root_binding_descriptor_helper_invocation rejected 161ms expected @2fc408782574
+	machine `choose` omits `invokes Probe` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
+	machine `choose` omits `invokes BuildProductOperations` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
 fail/build/root_binding_fabricated_receiver rejected 68ms expected @ccdb99ca2214
 	the compiler-owned Build activation cannot be copied into local `other`
 	source cannot construct the compiler-owned Build activation
@@ -16183,8 +16292,8 @@ fail/calls/value_call_wrong_argument_count_rejected rejected 13761ms expected @c
 	state `pick` expects 2 argument(s), got 1
 fail/calls/void_value_callee_rejected rejected 17128ms expected @ccdb99ca2214
 	machine `Main::main` state `main`: `act(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
-fail/capabilities/blocking_beneath_no_block_root rejected 2014ms expected @ccdb99ca2214
-	machine `Main::main` omits `blocks;` from its published contract, but its body may block
+fail/capabilities/blocking_beneath_no_block_root rejected 1727ms expected @2fc408782574
+	machine `Main::main` omits `blocks` from its published contract, but its body may block
 fail/capabilities/boundary_qualification_subject_rejected rejected 651ms expected @ccdb99ca2214
 	boundary requirement `TokenIssuer::issue` may admit domain `Token::Issued` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in Token::Issued` or name a mutable parameter
 fail/capabilities/callback_synchronous_registration_cycle rejected 17888ms unexpected @ccdb99ca2214
@@ -16201,8 +16310,8 @@ fail/capabilities/native_slice_external_leaf_rejected rejected 644ms expected @c
 	external leaf `send` cannot use safe slice `&[u8]` as a default-native parameter for `NativeSlice::send`; declare the foreign pointer/length/terminator or record shape explicitly in a checked adapter, or select a custom `Calling<C>` policy that publishes a canonical representation
 fail/capabilities/provider_widens_requirement_ceiling rejected 9913ms expected @ccdb99ca2214
 	machine `sneaky` state `entry` does not satisfy trait `Meter` machine `read_value`: service `Filesystem` is not allowed by the trait requirement
-fail/capabilities/undeclared_synchronous_invocation rejected 1789ms expected @ccdb99ca2214
-	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler;` (requirement invokes: [])
+fail/capabilities/undeclared_synchronous_invocation rejected 1502ms expected @2fc408782574
+	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler` (requirement invokes: [])
 fail/capabilities/via_producer_without_target_body rejected 16700ms expected @ccdb99ca2214
 	ordinary external `via` producer `beeper_binding` has no body for target `windows_x86_64`
 fail/cases/borrowed_case_write_only_tag_read rejected 710ms expected @ccdb99ca2214
@@ -16756,22 +16865,6 @@ fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 1925ms un
 	cannot prove requires contract for call pop from second: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/static_type_requires_later_fact_rejected rejected 1226ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `partial` in machine `admitted` requires contract: establish its selected precondition in an independently formed prior requires fact
-fail/contracts/strict_clause_blocks_before_body rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_blocks_before_body/main.omg:1:24: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_invokes_before_body rejected 2ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_invokes_before_body/main.omg:1:33: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_ranked_terminates_before_body rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_ranked_terminates_before_body/main.omg:3:1: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_signature_terminates_before_requires rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_signature_terminates_before_requires/main.omg:4:5: expected `;`, found identifier `requires`
-fail/contracts/strict_clause_stack_before_body rejected 2ms unexpected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_stack_before_body/main.omg:1:17: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
-fail/contracts/strict_clause_suspends_before_body rejected 2ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_suspends_before_body/main.omg:1:26: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_terminates_before_body rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_terminates_before_body/main.omg:3:1: expected `;`, found punctuation `{`
-fail/contracts/strict_clause_terminates_before_requires rejected 2ms expected @ccdb99ca2214
-	tests/omega/fail/contracts/strict_clause_terminates_before_requires/main.omg:3:1: expected `;`, found identifier `requires`
 fail/contracts/target_family_recursive_guarantee rejected 2771ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
 	cannot prove ensures contract for exit from selected at statement 0: result == 7
@@ -35717,8 +35810,8 @@ fail/generics/selected_open_capture_wrong_extent rejected 859ms expected @ccdb99
 	argument `value` for state `forward` expects `[u64; 2]`, got `named value`
 fail/generics/selected_open_capture_wrong_nominal rejected 763ms expected @ccdb99ca2214
 	argument `value` for state `Selected::forward::forward` expects the `First` data type but got `Second` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/generics/selected_operator_preserves_blocking_ceiling rejected 1591ms expected @ccdb99ca2214
-	machine `choose` omits `blocks;` from its published contract, but its body may block
+fail/generics/selected_operator_preserves_blocking_ceiling rejected 1957ms expected @2fc408782574
+	machine `choose` omits `blocks` from its published contract, but its body may block
 fail/generics/selected_value_bool_public_contract_mismatch rejected 3086ms expected @ccdb99ca2214
 	cannot prove requires contract for call need_true from main: second == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 932ms unexpected @ccdb99ca2214
@@ -35733,8 +35826,8 @@ fail/generics/static_machine_borrowed_parameter_mismatch_after_substitution reje
 	machine argument `small` for `filter` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 	machine argument `small` for `filter` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 	machine argument `small` for `choose` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
-fail/generics/static_requirement_record_blocking_ceiling rejected 3026ms expected @ccdb99ca2214
-	machine `wrap` omits `blocks;` from its published contract, but its body may block
+fail/generics/static_requirement_record_blocking_ceiling rejected 3768ms expected @2fc408782574
+	machine `wrap` omits `blocks` from its published contract, but its body may block
 fail/generics/static_requirement_record_public_requires rejected 4195ms expected @ccdb99ca2214
 	cannot prove requires contract for call calculate from wrap: value > 0.0 (needs fact `value > 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call calculate from wrap$specialized$7aca5590afe02521$0: value > 0.0 (needs fact `value > 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -36739,8 +36832,8 @@ fail/packages/std_missing_dependency_rejected rejected 300ms expected @ccdb99ca2
 	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (145ac3c645f4d6d28016570d3481be506c9727f8ff632d12f4346c545db6c00e) declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, "omega_language_std", ...)` in its build.omg to add that dependency edge for the product scope
 fail/packages/std_mount_path_rejected rejected 579ms expected @ccdb99ca2214
 	package-aware import `omega::language::std::console` in tests/omega/fail/packages/std_mount_path_rejected/main.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
-fail/parse/machine_clause_garbage_rejected rejected 8ms expected @ccdb99ca2214
-	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
+fail/parse/machine_clause_garbage_rejected rejected 7ms expected @2fc408782574
+	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
 fail/parser/nesting_exceeds_max_depth rejected 5ms expected @ccdb99ca2214
 	tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg:7:1076: expression or type nesting is too deep (exceeds the maximum of 1024 levels)
 fail/ports/asm_port_in_unsettled checked 3772ms @ccdb99ca2214
@@ -38353,8 +38446,8 @@ fail/targets/family_callback_first_member_guarantee_only_rejected rejected 609ms
 	machine argument `yes` for `choose` does not refine `Callback`: its ensures facts are not a conservative refinement
 fail/targets/family_callback_first_member_only_rejected rejected 748ms expected @ccdb99ca2214
 	machine argument `narrow` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
-fail/targets/family_callback_member_effect_ceiling_rejected rejected 1846ms expected @ccdb99ca2214
-	machine argument `may_block` for `choose` does not refine `Callback`: it may block, but the requirement omits `blocks;`
+fail/targets/family_callback_member_effect_ceiling_rejected rejected 1636ms expected @2fc408782574
+	machine argument `may_block` for `choose` does not refine `Callback`: it may block, but the requirement omits `blocks`
 fail/targets/family_deep_nominal_callback_variance_rejected rejected 721ms expected @ccdb99ca2214
 	nested machine parameter `Inner` of nested machine parameter `Middle` of machine argument `incompatible` for `choose` strengthens its nested nominal input authority; the promised callback does not carry the exact demanded requirement application
 	nested machine parameter `Inner` of nested machine parameter `Middle` of machine argument `incompatible` for `choose` strengthens its nested nominal input authority; the promised callback does not carry the exact demanded requirement application
@@ -38362,8 +38455,8 @@ fail/targets/family_deep_nominal_callback_variance_rejected rejected 721ms expec
 fail/targets/family_forwarded_callback_first_member_only_rejected rejected 654ms expected @ccdb99ca2214
 	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 	machine argument `narrow` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
-fail/targets/family_forwarded_callback_member_effect_ceiling_rejected rejected 1051ms expected @ccdb99ca2214
-	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: it may block, but the requirement omits `blocks;`
+fail/targets/family_forwarded_callback_member_effect_ceiling_rejected rejected 461ms expected @2fc408782574
+	machine parameter `Forward` forwarded into `choose` does not refine `Callback`: it may block, but the requirement omits `blocks`
 fail/targets/family_forwarded_nominal_callback_application_rejected rejected 815ms expected @ccdb99ca2214
 	machine parameter `Action` forwarded into `choose` does not carry the exact nominal requirement of `Callback`; matching callable structure establishes no satisfaction row
 fail/targets/family_nested_nominal_callback_authority_rejected rejected 733ms expected @ccdb99ca2214
@@ -38425,8 +38518,8 @@ fail/targets/unrealized_family_signature_rejected rejected 932ms expected @ccdb9
 	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature; incompatible ordinary parameter relevance/calling shape or result", exceeded_provision: None, source_span: None, resolved_location: None })
 fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 2417ms expected @ccdb99ca2214
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
-fail/tasks/task_runtime_provider_contract_narrowing rejected 1282ms expected @ccdb99ca2214
-	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks;`
+fail/tasks/task_runtime_provider_contract_narrowing rejected 1574ms expected @2fc408782574
+	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks`
 fail/tasks/task_runtime_selected_provider_missing rejected 3059ms expected @ccdb99ca2214
 	TaskRuntime boundary slot has no retained selected provider plan
 fail/terminal_psi/inspection_scalar_library rejected 4064ms expected @ccdb99ca2214

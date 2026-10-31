@@ -5,6 +5,7 @@ use super::{
     budget::Budget,
     framing::{Reader, Writer},
 };
+use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 use effects::{
@@ -105,9 +106,7 @@ pub(super) fn read(
     budget.elements(count)?;
     budget.entries::<AcceptedSemanticBinding>(count)?;
     let mut bindings = Vec::new();
-    bindings
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(bindings, count, Error);
     for _ in 0..count {
         let role = [reader.count("role", u8::MAX as usize)? as u8];
         let role = recover_semantic_binding_role(&mut ObservationCursor::new(&role))
@@ -137,9 +136,7 @@ pub(super) fn read(
         budget.entries::<ServiceTerminalAuthorityPermission>(count)?;
         let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let mut permissions: Vec<ServiceTerminalAuthorityPermission> = Vec::new();
-        permissions
-            .try_reserve_exact(count)
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(permissions, count, Error);
         for _ in 0..count {
             let permission_schema =
                 ServiceSchemaDigest::from_digest(digest(reader.field("schema")?)?);
@@ -153,9 +150,7 @@ pub(super) fn read(
             budget.elements(count)?;
             budget.entries::<TerminalAuthorityClass>(count)?;
             let mut classes = Vec::new();
-            classes
-                .try_reserve_exact(count)
-                .map_err(|_| Error::AllocationFailed)?;
+            crate::reserve!(classes, count, Error);
             for _ in 0..count {
                 let tag = reader.count("class", u8::MAX as usize)? as u8;
                 classes.push(
@@ -189,19 +184,7 @@ fn hexadecimal(digest: [u8; 32]) -> String {
 }
 
 fn digest(text: &str) -> Result<[u8; 32], Error> {
-    if text.len() != 64
-        || !text
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
-        return Err(Error::InvalidFraming);
-    }
-    let mut bytes = [0; 32];
-    for (index, byte) in bytes.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&text[index * 2..index * 2 + 2], 16)
-            .map_err(|_| Error::InvalidFraming)?;
-    }
-    Ok(bytes)
+    hex_digest(text).ok_or(Error::InvalidFraming)
 }
 
 #[cfg(test)]

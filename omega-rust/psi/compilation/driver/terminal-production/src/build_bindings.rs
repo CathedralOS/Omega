@@ -164,14 +164,7 @@ pub(super) fn capture(
         let selecting_machine = if request.requires_lexical_subject() {
             Some(
                 checked
-                    .machines()
-                    .iter()
-                    .find(|machine| {
-                        checked
-                            .machine_states(machine)
-                            .iter()
-                            .any(|state| state.symbol == occurrence.source_state)
-                    })
+                    .machine_holding_state(occurrence.source_state)
                     .and_then(|machine| {
                         checked
                             .symbols
@@ -205,14 +198,7 @@ pub(super) fn capture(
             .any(|operand| operand.application.is_some())
         {
             checked
-                .machines()
-                .iter()
-                .find(|machine| {
-                    checked
-                        .machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == occurrence.source_state)
-                })
+                .machine_holding_state(occurrence.source_state)
                 .map(|machine| {
                     typed_trees::product_operand::capture_static_environment(
                         &checked.typed,

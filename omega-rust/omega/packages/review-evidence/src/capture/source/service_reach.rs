@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::locations::canonical_source_span_location;
@@ -154,11 +155,9 @@ fn derive_declared_service_reach(
             compilation
                 .service_reaches
                 .id_for_symbol(target.service)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
+                .or_evidence(format!(
                         "reviewed callable `{owner_name}` retains an authored service-reach target that is stale or not a boundary trait",
-                    ))]
-                })
+                    ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     let mut closure = Vec::new();

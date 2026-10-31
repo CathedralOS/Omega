@@ -1,6 +1,6 @@
 // Every private arrival supplies an integer from 0 through 255, so exact narrowing to u8 preserves its value.
 data Note { value: u8; tag: u64; }
-machine identity(value: i32) -> i32 ensures result == value; { value }
+machine identity(value: i32) -> i32 ensures result == value { value }
 machine probe(value: i32, select: bool) -> Note {
     transition value >= 0 && value <= 256 {
         true -> apply(identity(value), select)

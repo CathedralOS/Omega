@@ -1,15 +1,13 @@
 //! Shared synchronized stages and atomic replacement publication.
 use super::{
     CapabilityDirectory, CapabilityFile, CapabilityOpenOptions, FollowSymlinks, OsStr, OsString,
-    Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, SeekFrom, io_error,
-    read_bytes_bounded, record_error_message, synchronize_directory,
-    verify_capability_regular_identity,
+    Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, enforce_byte_limit, io_at,
+    io_error, replay_exact, synchronize_directory, unconfirmed_at,
 };
 use cap_fs_ext::OpenOptionsFollowExt;
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt;
 use cap_std::fs::Permissions;
-use std::io::Seek;
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -48,44 +46,16 @@ pub(super) fn prepare(
     limits: RecordFileLimits,
     permissions: Option<Permissions>,
 ) -> Result<PendingCapabilityRecord, RecordFileError> {
-    if bytes.len() > limits.maximum_bytes {
-        return Err(RecordFileError::ByteLimitExceeded {
-            actual: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
-            maximum: limits.maximum_bytes,
-        });
-    }
+    enforce_byte_limit(bytes.len(), limits)?;
     let mut stage = create_exclusive_capability_stage(&root.directory, &root.display_path)?;
-    stage
-        .file
-        .write_all(bytes)
-        .map_err(|error| io_error(&stage.display_path, error))?;
+    io_at(stage.file.write_all(bytes), &stage.display_path)?;
     // Apply captured permissions after writing, since a write can clear mode bits.
     if let Some(permissions) = permissions {
-        stage
-            .file
-            .set_permissions(permissions)
-            .map_err(|error| io_error(&stage.display_path, error))?;
+        io_at(stage.file.set_permissions(permissions), &stage.display_path)?;
     }
-    stage
-        .file
-        .sync_all()
-        .map_err(|error| io_error(&stage.display_path, error))?;
-    stage
-        .file
-        .seek(SeekFrom::Start(0))
-        .map_err(|error| io_error(&stage.display_path, error))?;
-    let staged = read_bytes_bounded(&mut stage.file, &stage.display_path, limits)?;
-    if staged != bytes {
-        return Err(RecordFileError::ContentsChanged {
-            path: stage.display_path.clone(),
-        });
-    }
-    verify_capability_regular_identity(
-        &root.directory,
-        &stage.file_name,
-        &stage.file,
-        &stage.display_path,
-    )?;
+    io_at(stage.file.sync_all(), &stage.display_path)?;
+    replay_exact(&mut stage.file, &stage.display_path, bytes, limits)?;
+    root.verify_regular(&stage.file_name, &stage.file)?;
     Ok(stage)
 }
 
@@ -104,7 +74,7 @@ pub(super) fn replace(
     stage.removed = true;
 
     let confirmation = (|| {
-        verify_capability_regular_identity(&root.directory, file_name, &stage.file, display_path)?;
+        root.verify_regular(file_name, &stage.file)?;
         synchronize_directory(&root.directory, &root.display_path)?;
         synchronize_directory(
             &stage.directory,
@@ -113,23 +83,11 @@ pub(super) fn replace(
                 .parent()
                 .expect("stage has a parent directory"),
         )?;
-        stage
-            .file
-            .seek(SeekFrom::Start(0))
-            .map_err(|error| io_error(display_path, error))?;
-        let published = read_bytes_bounded(&mut stage.file, display_path, limits)?;
-        if published != bytes {
-            return Err(RecordFileError::ContentsChanged {
-                path: display_path.to_path_buf(),
-            });
-        }
-        verify_capability_regular_identity(&root.directory, file_name, &stage.file, display_path)
+        replay_exact(&mut stage.file, display_path, bytes, limits)?;
+        root.verify_regular(file_name, &stage.file)
     })();
 
-    confirmation.map_err(|error| RecordFileError::PublishedButUnconfirmed {
-        path: display_path.to_path_buf(),
-        message: record_error_message(error),
-    })
+    confirmation.map_err(unconfirmed_at(display_path))
 }
 
 fn create_exclusive_capability_stage(
@@ -137,9 +95,7 @@ fn create_exclusive_capability_stage(
     display_directory: &Path,
 ) -> Result<PendingCapabilityRecord, RecordFileError> {
     // Clone before creation so a failed clone cannot leave an unguarded stage.
-    let directory = directory
-        .try_clone()
-        .map_err(|error| io_error(display_directory, error))?;
+    let directory = io_at(directory.try_clone(), display_directory)?;
     for _ in 0..MAXIMUM_STAGE_ATTEMPTS {
         let stage_id = NEXT_STAGE_ID.fetch_add(1, Ordering::Relaxed);
         let file_name = OsString::from(format!(

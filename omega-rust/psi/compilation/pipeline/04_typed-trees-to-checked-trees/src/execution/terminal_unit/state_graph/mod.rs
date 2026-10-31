@@ -163,6 +163,7 @@ pub(super) fn natural_rank_plans_for_fused(
                                 measure,
                                 bindings,
                                 primitive_type,
+                                ..
                             },
                         ) => {
                             let Some([binding]) = admitted.bindings.span(bindings) else {

@@ -3,6 +3,7 @@ use extents::{
     ExtentRootOrigin, MappingEraId,
 };
 
+use crate::access_plan::diagnostic::reject_when;
 use crate::normalized_identity;
 use crate::{
     AccessPlanDiagnostic, BoundaryReach, ResourceProfile, ValidatedResourceProfile,
@@ -91,11 +92,7 @@ impl ResourceProfileGrant {
         required_rights: ExtentRights,
         permitted_reach: BoundaryReach,
     ) -> Result<Self, AccessPlanDiagnostic> {
-        if length == 0 {
-            return Err(AccessPlanDiagnostic(
-                "resource-profile grant cannot bind an empty range".into(),
-            ));
-        }
+        reject_when! { length == 0 => "resource-profile grant cannot bind an empty range" }
         base.checked_add(length)
             .ok_or_else(|| AccessPlanDiagnostic("resource-profile grant range overflows".into()))?;
         Ok(Self {
@@ -233,35 +230,19 @@ impl AdmittedResourceProfile {
         &self,
         loan: &ExtentLoan<'_>,
     ) -> Result<ValidatedResourceProfile, AccessPlanDiagnostic> {
-        if loan.address_space() != self.address_space {
-            return Err(AccessPlanDiagnostic(
-                "extent address space does not match admitted resource profile".into(),
-            ));
-        }
-        if loan.provenance() != self.provenance {
-            return Err(AccessPlanDiagnostic(
-                "extent provenance does not match admitted resource profile".into(),
-            ));
-        }
-        if loan.era() != self.era {
-            return Err(AccessPlanDiagnostic(
-                "extent mapping era does not match admitted resource profile".into(),
-            ));
-        }
-        if loan.origin() != self.origin {
-            return Err(AccessPlanDiagnostic(
-                "extent sealed root origin does not match admitted resource profile".into(),
-            ));
-        }
-        if loan.lineage_root() != self.lineage_root {
-            return Err(AccessPlanDiagnostic(
-                "extent root lineage does not match admitted resource profile".into(),
-            ));
-        }
-        if !loan.rights().contains(&self.required_rights) {
-            return Err(AccessPlanDiagnostic(
-                "extent lacks rights bound into the admitted resource profile".into(),
-            ));
+        reject_when! {
+            loan.address_space() != self.address_space
+                => "extent address space does not match admitted resource profile",
+            loan.provenance() != self.provenance
+                => "extent provenance does not match admitted resource profile",
+            loan.era() != self.era
+                => "extent mapping era does not match admitted resource profile",
+            loan.origin() != self.origin
+                => "extent sealed root origin does not match admitted resource profile",
+            loan.lineage_root() != self.lineage_root
+                => "extent root lineage does not match admitted resource profile",
+            !loan.rights().contains(&self.required_rights)
+                => "extent lacks rights bound into the admitted resource profile",
         }
         let offset = loan.base().checked_sub(self.base).ok_or_else(|| {
             AccessPlanDiagnostic(

@@ -34,7 +34,6 @@ impl TerminalExecution<'_> {
         if carrier.is_shared_readable_view() {
             let bytes = binding.immutable()?;
             if !self
-                .program
                 .structural_types()
                 .get(&child.structural_type)
                 .is_some_and(|row| row.shape.is_shared_readable_byte_view())
@@ -62,7 +61,6 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
             if !child.path.is_empty()
                 || !self
-                    .program
                     .structural_types()
                     .get(&child.structural_type)
                     .is_some_and(|row| row.shape == StructuralTypeShape::ByteSequence(carrier))
@@ -73,7 +71,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         } else if carrier.is_borrowed() {
-            let declaration_type = self.program.structural_types();
+            let declaration_type = self.structural_types();
             let actual = declaration_type
                 .get(&child.structural_type)
                 .ok_or_else(malformed)?;

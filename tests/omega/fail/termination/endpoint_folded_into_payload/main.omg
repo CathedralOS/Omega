@@ -1,9 +1,8 @@
 // The computed arrival folds the range ceiling into an auxiliary payload, so
 // no destination slot carries the pinned endpoint premise.
-machine walk(remaining: u32, limit: u32, step: u32)
-requires remaining <= limit && limit <= 5 && step <= 5;
-terminates by remaining in 0..=limit;
--> u32 {
+machine walk(remaining: u32, limit: u32, step: u32) -> u32
+requires remaining <= limit && limit <= 5 && step <= 5
+terminates by remaining in 0..=limit {
     transition { _ -> tally(remaining, limit + step) }
     machine tally(count: u32, bound: u32) -> u32 requires count <= 5 && bound <= 10 {
         transition count > 0 {

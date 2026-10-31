@@ -19,7 +19,7 @@ public macos_arm64 boundary machine alternate(value: i32) -> i32
     satisfies Magnitude::alternate via absolute_binding()
     requires value > -2147483648;
 public macos_arm64 machine checked_offset(value: i32, macos_arm64: i32) -> i32
-    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }
+    requires value >= 0, macos_arm64 >= 0, value < 100 { value + 1 }
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Magnitude crashes Trap {

@@ -989,10 +989,10 @@ fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
     assert!(matches!(
         &snapshot.root_items[0],
         ItemSnapshot::Data {
-            conformance_bounds: Vec::new(),
+            conformance_bounds,
             generic_instance: Some(crate::snapshot::TypeReferenceSnapshot::Generic { .. }),
             ..
-        }
+        } if conformance_bounds.is_empty()
     ));
 }
 

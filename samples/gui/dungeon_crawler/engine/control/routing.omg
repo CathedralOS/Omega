@@ -13,7 +13,7 @@ use control::pursuit::pursue;
 use simulation::clock::FrameClock;
 
 public machine clear_intents<const Actors: u64>(intents: &mut IntentSet<Actors>)
-terminates;
+terminates
 requires Actors >= 1 {
     for_each<Command, clear_command>(&mut intents.items[..]);
 }
@@ -25,14 +25,14 @@ satisfies ElementStep<Command>::apply {
 }
 
 public machine route_autonomy<const Bindings: u64, const Actors: u64, const Rooms: u64>(controls: &ControllerSet<Bindings, Actors>, actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
-terminates;
+terminates
 requires Bindings >= 1 && Actors >= 1 && Rooms >= 1 {
     route_autonomous_bindings<Actors, Rooms>(&controls.bindings[..controls.count], actors, intents, clock);
 }
 
 machine route_autonomous_bindings<const Actors: u64, const Rooms: u64>(bindings: &[ControllerBinding<Actors>], actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
-terminates;
-terminates by bindings -> Slice::Length;
+terminates
+terminates by bindings -> Slice::Length
 requires Actors >= 1 && Rooms >= 1 {
     transition bindings.len > 0 { true -> head(bindings, actors, intents, clock) _ -> done() }
     machine head(bindings: &[ControllerBinding<Actors>], actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
@@ -44,7 +44,7 @@ requires Actors >= 1 && Rooms >= 1 {
 }
 
 machine route_autonomous_binding<const Actors: u64, const Rooms: u64>(binding: ControllerBinding<Actors>, actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)
-terminates;
+terminates
 requires Actors >= 1 && Rooms >= 1 {
     transition binding.source {
         ControlSource::Input { device } -> done()
@@ -62,13 +62,13 @@ requires Actors >= 1 && Rooms >= 1 {
 }
 
 public machine route_input<const Bindings: u64, const Actors: u64>(controls: &ControllerSet<Bindings, Actors>, intents: &mut IntentSet<Actors>, device: u32, command: Command)
-terminates;
+terminates
 requires Bindings >= 1 && Actors >= 1 {
     route_bindings<Actors>(&controls.bindings[..controls.count], intents, device, command);
 }
 
 machine route_bindings<const Actors: u64>(bindings: &[ControllerBinding<Actors>], intents: &mut IntentSet<Actors>, device: u32, command: Command)
-terminates by bindings -> Slice::Length;
+terminates by bindings -> Slice::Length
 requires Actors >= 1 {
     transition bindings.len > 0 { true -> head(bindings, intents, device, command) _ -> done() }
     machine head(bindings: &[ControllerBinding<Actors>], intents: &mut IntentSet<Actors>, device: u32, command: Command)
@@ -81,7 +81,7 @@ requires Actors >= 1 {
 }
 
 machine route_binding<const Actors: u64>(binding: ControllerBinding<Actors>, intents: &mut IntentSet<Actors>, device: u32, command: Command)
-terminates;
+terminates
 requires Actors >= 1 {
     let source: ControlSource<Actors> = binding.source;
     transition source {

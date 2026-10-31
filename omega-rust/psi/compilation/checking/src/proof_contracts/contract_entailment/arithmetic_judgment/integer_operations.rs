@@ -10,6 +10,40 @@ use typed_trees::operator::builtin_integer_result_carrier;
 use typed_trees::types::PrimitiveType;
 
 impl Engine<'_> {
+    /// Fixed-width complement is total in its selected carrier and does not
+    /// select an overflow policy. This mathematical candidate grants no
+    /// formation to its operand, including any erased unsafe children.
+    pub(super) fn integer_complement_value(
+        primitive: PrimitiveType,
+        operand: &Polynomial,
+    ) -> Option<Polynomial> {
+        if !primitive.is_fixed_integer() {
+            return None;
+        }
+        let (_, maximum) = primitive.integer_bounds()?;
+        let corner = if primitive.is_signed_integer() {
+            BigInt::from_i64(-1)
+        } else {
+            BigInt::from_i128(maximum)
+        };
+        Some(Polynomial::constant(corner).sub(operand))
+    }
+
+    /// The caller independently forms the child first. Only then may its
+    /// selected fixed carrier justify the complement's produced value. Both
+    /// queries are read-only, so refusal cannot publish speculative facts.
+    pub(in crate::proof_contracts::contract_entailment) fn admit_integer_complement(
+        &self,
+        primitive: PrimitiveType,
+        operand: &Polynomial,
+    ) -> Option<Polynomial> {
+        if !self.integer_value_lands(primitive, operand) {
+            return None;
+        }
+        let value = Self::integer_complement_value(primitive, &self.substituted(operand))?;
+        self.integer_value_lands(primitive, &value).then_some(value)
+    }
+
     /// Bitwise denotation belongs to the selected fixed carrier, independently
     /// of overflow policy. Substitute both operands before evaluation, but keep
     /// their declaration's operator selection and reject unlanded magnitudes.

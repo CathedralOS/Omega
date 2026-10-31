@@ -54,7 +54,7 @@ public data Main {
 }
 
 boundary machine Main::run(main: &mut Main, handle: addr, table: &EfiSystemTable) -> i32
-invokes TextOutput;
+invokes TextOutput
 {
     main.msg = utf16"Hello from Omega\r\n\0";
     // Project con_out through a frame local (the reference-param deref), then

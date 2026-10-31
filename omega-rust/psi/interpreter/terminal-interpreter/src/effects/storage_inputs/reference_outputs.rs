@@ -43,7 +43,7 @@ pub(super) fn stage(
         }
         return Ok(());
     }
-    let types = execution.program.structural_types();
+    let types = execution.structural_types();
     // Every published output needs a captured mutable destination, even when
     // the host supplied no request for it. Absence cannot erase an obligation.
     for output in &declaration.reference_outputs {

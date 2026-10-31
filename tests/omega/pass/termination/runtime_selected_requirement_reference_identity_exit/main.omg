@@ -1,35 +1,35 @@
 trait RankReader {
-    machine read(value: &u32) -> u32 terminates;
+    machine read(value: &u32) -> u32 terminates
     requires value <= 9
     ensures result == value;
-    machine keep(value: u32) -> u32 terminates;
+    machine keep(value: u32) -> u32 terminates
     requires value <= 9
     ensures result == value;
 }
 
 ReadOnly satisfies RankReader {
     machine read(value: &u32) -> u32
-    requires value <= 9;
-    ensures result == value;
+    requires value <= 9
+    ensures result == value
     {
         value
     }
     machine keep(value: u32) -> u32
-    requires value <= 9;
-    ensures result == value;
+    requires value <= 9
+    ensures result == value
     {
         value
     }
 }
 
 machine require_identity(actual: u32, expected: u32) -> u32
-requires actual == expected;
+requires actual == expected
 {
     actual
 }
 
 machine compare_results(selected: dyn RankReader, remaining: u32) -> u32
-requires remaining <= 9;
+requires remaining <= 9
 {
     let observed: u32 = RankReader::read(selected, &remaining);
     let direct_checked: u32 = require_identity(observed, remaining);

@@ -633,61 +633,40 @@ fn assert_atomic_specialization(
     assert_eq!(request.operation(), AccessOperation::Atomic(expected));
 }
 
-fn expect_exact_atomic_rejection<'view, 'extent>(
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic_fragment: &str,
-) -> PrimitiveAccessRequest<'view, 'extent> {
-    let before = primitive_request_snapshot(&request);
-    let rejection = request
-        .into_atomic_primitive_access()
-        .expect_err("corrupt request must fail Atomic specialization");
-    assert!(
-        rejection.diagnostic().0.contains(diagnostic_fragment),
-        "unexpected Atomic rejection: {}",
-        rejection.diagnostic()
-    );
-    let (request, diagnostic) = rejection.into_parts();
-    assert!(diagnostic.0.contains(diagnostic_fragment));
-    assert_eq!(primitive_request_snapshot(&request), before);
-    request
+/// Require that one corrupt request is rejected by the named specialization,
+/// that the diagnostic names the expected fragment both on the rejection and
+/// after it is dismantled, and that the returned request is byte-identical.
+macro_rules! expect_exact_rejections {
+    ($($name:ident => $into:ident, $model:literal),+ $(,)?) => {
+        $(
+            fn $name<'view, 'extent>(
+                request: PrimitiveAccessRequest<'view, 'extent>,
+                diagnostic_fragment: &str,
+            ) -> PrimitiveAccessRequest<'view, 'extent> {
+                let before = primitive_request_snapshot(&request);
+                let rejection = request.$into().expect_err(concat!(
+                    "corrupt request must fail ",
+                    $model,
+                    " specialization"
+                ));
+                assert!(
+                    rejection.diagnostic().0.contains(diagnostic_fragment),
+                    concat!("unexpected ", $model, " rejection: {}"),
+                    rejection.diagnostic()
+                );
+                let (request, diagnostic) = rejection.into_parts();
+                assert!(diagnostic.0.contains(diagnostic_fragment));
+                assert_eq!(primitive_request_snapshot(&request), before);
+                request
+            }
+        )+
+    };
 }
 
-fn expect_exact_stable_primitive_rejection<'view, 'extent>(
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic_fragment: &str,
-) -> PrimitiveAccessRequest<'view, 'extent> {
-    let before = primitive_request_snapshot(&request);
-    let rejection = request
-        .into_stable_primitive_access()
-        .expect_err("corrupt request must fail Stable primitive specialization");
-    assert!(
-        rejection.diagnostic().0.contains(diagnostic_fragment),
-        "unexpected Stable primitive rejection: {}",
-        rejection.diagnostic()
-    );
-    let (request, diagnostic) = rejection.into_parts();
-    assert!(diagnostic.0.contains(diagnostic_fragment));
-    assert_eq!(primitive_request_snapshot(&request), before);
-    request
-}
-
-fn expect_exact_stable_compound_rejection<'view, 'extent>(
-    request: PrimitiveAccessRequest<'view, 'extent>,
-    diagnostic_fragment: &str,
-) -> PrimitiveAccessRequest<'view, 'extent> {
-    let before = primitive_request_snapshot(&request);
-    let rejection = request
-        .into_stable_compound_mutation_access()
-        .expect_err("corrupt request must fail Stable compound specialization");
-    assert!(
-        rejection.diagnostic().0.contains(diagnostic_fragment),
-        "unexpected Stable compound rejection: {}",
-        rejection.diagnostic()
-    );
-    let (request, diagnostic) = rejection.into_parts();
-    assert!(diagnostic.0.contains(diagnostic_fragment));
-    assert_eq!(primitive_request_snapshot(&request), before);
-    request
+expect_exact_rejections! {
+    expect_exact_atomic_rejection => into_atomic_primitive_access, "Atomic",
+    expect_exact_stable_primitive_rejection => into_stable_primitive_access, "Stable primitive",
+    expect_exact_stable_compound_rejection => into_stable_compound_mutation_access, "Stable compound",
 }
 
 fn provider_existing_content(

@@ -5,13 +5,13 @@ public trait StepContract {
 machine selected(value: u64) -> u64
 satisfies StepContract::step
 reaches Console
-terminates;
+terminates
 {
     value
 }
 public machine traverse<machine Step>(value: u64) -> u64
 requires machine Step satisfies StepContract::step;
-terminates;
+terminates
 {
     Step(value)
 }

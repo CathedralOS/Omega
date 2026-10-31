@@ -12,9 +12,54 @@ use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+/// Query-owned snapshots share immutable rows. Only a write detaches a row;
+/// map order and value equality remain identical to the owned representation.
+#[derive(Clone, Default, PartialEq, Eq)]
+struct PayloadContracts(BTreeMap<PlaceId, Arc<PayloadMembershipContract>>);
+
+impl PayloadContracts {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, root: &PlaceId) -> Option<&PayloadMembershipContract> {
+        self.0.get(root).map(Arc::as_ref)
+    }
+    fn get_mut(&mut self, root: &PlaceId) -> Option<&mut PayloadMembershipContract> {
+        self.0.get_mut(root).map(Arc::make_mut)
+    }
+    fn insert(&mut self, root: PlaceId, contract: PayloadMembershipContract) {
+        self.0.insert(root, Arc::new(contract));
+    }
+    fn remove(&mut self, root: &PlaceId) -> Option<Arc<PayloadMembershipContract>> {
+        self.0.remove(root)
+    }
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut Arc<PayloadMembershipContract>> {
+        self.0.values_mut()
+    }
+}
+
+#[cfg(test)]
+impl<const N: usize> From<[(PlaceId, PayloadMembershipContract); N]> for PayloadContracts {
+    fn from(rows: [(PlaceId, PayloadMembershipContract); N]) -> Self {
+        Self(
+            rows.into_iter()
+                .map(|(root, contract)| (root, Arc::new(contract)))
+                .collect(),
+        )
+    }
+}
+
+#[cfg(test)]
+impl std::ops::Index<&PlaceId> for PayloadContracts {
+    type Output = PayloadMembershipContract;
+    fn index(&self, root: &PlaceId) -> &Self::Output {
+        self.get(root).unwrap()
+    }
+}
+
 #[derive(Clone, Default, PartialEq, Eq)]
 struct State {
-    values: BTreeMap<PlaceId, PayloadMembershipContract>,
+    values: PayloadContracts,
     // Published snapshots keep all premise rosters sorted and unique. An
     // edge join only removes evidence, so ordered intersection is sufficient.
     scalar_requirements: Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
@@ -42,6 +87,16 @@ impl State {
     /// their transfer suffix has no premise reader before this point.
     fn publish_requirements(&mut self) {
         for contract in self.values.values_mut() {
+            // Publication removes only local premises already in the ambient
+            // roster. Do not detach a shared row when that intersection is empty.
+            if !contract.scalar_requirements.iter().any(|premise| {
+                self.scalar_requirements
+                    .binary_search_by(|candidate| candidate.as_ref().cmp(premise))
+                    .is_ok()
+            }) {
+                continue;
+            }
+            let contract = Arc::make_mut(contract);
             let mut common = self
                 .scalar_requirements
                 .iter()
@@ -53,7 +108,10 @@ impl State {
                 }
                 !common.peek().is_some_and(|candidate| *candidate == premise)
             });
-            contract.scalar_requirements.shrink_to_fit();
+            // This roster is replay scratch: keep its capacity across publication
+            // instead of reallocating after every intersection. Unused capacity
+            // lives only with this query's snapshots; measure peak RSS alongside
+            // the avoided allocator traffic when changing that lifetime.
         }
         self.shared_requirements = self.scalar_requirements.clone();
     }
@@ -83,13 +141,14 @@ impl State {
         let mut changed =
             retain_common_snapshot(&mut self.scalar_requirements, &arrival.scalar_requirements);
         let previous_values = self.values.len();
-        self.values.retain(|place, contract| {
-            let Some(mut incoming) = arrival.values.remove(place) else {
+        self.values.0.retain(|place, contract| {
+            let Some(incoming) = arrival.values.remove(place) else {
                 return false;
             };
             if contract.carrier != incoming.carrier {
                 return false;
             }
+            let contract = Arc::make_mut(contract);
             let previous_premises = contract.scalar_requirements.len() + previous_shared.len();
             // Keep every cross term of (old local + old shared) intersected
             // with (incoming local + incoming shared). A fact can be shared
@@ -100,11 +159,11 @@ impl State {
                 &incoming.scalar_requirements,
                 &arrival.shared_requirements,
             );
-            retain_common_premises(&mut incoming.scalar_requirements, &previous_shared);
-            extend_canonical_premises(
-                &mut contract.scalar_requirements,
-                &incoming.scalar_requirements,
-            );
+            // Only this incoming cross-term is scratch; do not detach the
+            // incoming row's observations and membership vectors to filter it.
+            let mut incoming_premises = incoming.scalar_requirements.clone();
+            retain_common_premises(&mut incoming_premises, &previous_shared);
+            extend_canonical_premises(&mut contract.scalar_requirements, &incoming_premises);
             changed |= contract.scalar_requirements.len() + shared.len() != previous_premises;
             let previous_counts = (
                 contract.qualifications.len(),
@@ -620,6 +679,11 @@ fn payload_contract_at_cut(
             )
         };
         let mut completed = None;
+        // The transfer and edge batches must retain all simultaneous RHSs until
+        // their reads finish. Draining moves those rows without dropping the
+        // scratch allocation between worklist positions or successor edges.
+        let mut stores = Vec::new();
+        let mut bindings = Vec::new();
         let mut remaining = 65_536usize;
         while let Some(current) = pending.pop_front() {
             failure = "payload history worklist exceeded its finite budget";
@@ -692,7 +756,7 @@ fn payload_contract_at_cut(
             }
             // Snapshot all RHSs before applying any destination update. A repeated
             // or overlapping destination cannot acquire the last writer's theory.
-            let mut stores = Vec::new();
+            stores.clear();
             for (actual, destination) in &step.derivations {
                 if machine.payload_producers.get(&current) == Some(&destination.root)
                     || machine.storage_derivations.contains(&(
@@ -703,14 +767,22 @@ fn payload_contract_at_cut(
                 {
                     continue;
                 }
-                let incoming = source_values.get(&actual.root).and_then(|contract| {
+                let mut incoming = source_values.get(&actual.root).and_then(|contract| {
                     select_payload_memberships(types, domains, contract, &actual.path)
                 });
                 failure = "structural store backing is unresolved";
                 let destinations = analysis.storage_origins(identity, current, destination)?;
                 let strong = destinations.len() == 1;
-                for destination in destinations {
-                    stores.push((destination, incoming.clone(), strong));
+                let mut destinations = destinations.into_iter().peekable();
+                while let Some(destination) = destinations.next() {
+                    // Earlier aliases need independent snapshots; the final
+                    // destination owns the already selected contract directly.
+                    let selected = if destinations.peek().is_some() {
+                        incoming.clone()
+                    } else {
+                        incoming.take()
+                    };
+                    stores.push((destination, selected, strong));
                 }
             }
             // Decide simultaneous overlap before consuming the snapshots. The
@@ -726,7 +798,7 @@ fn payload_contract_at_cut(
                     stores[index].2 = false;
                 }
             }
-            for (destination, incoming, strong) in stores {
+            for (destination, incoming, strong) in stores.drain(..) {
                 let Some(contract) = after.values.get_mut(&destination.root) else {
                     continue;
                 };
@@ -879,10 +951,13 @@ fn payload_contract_at_cut(
             canonicalize_snapshot(&mut after.scalar_requirements);
             after.publish_requirements();
             for contract in after.values.values_mut() {
+                if !super::payload_predicates::closure_may_change(types, domains, contract) {
+                    continue;
+                }
                 super::payload_predicates::close_with_shared_requirements(
                     types,
                     domains,
-                    contract,
+                    Arc::make_mut(contract),
                     &after.shared_requirements,
                     None,
                 );
@@ -926,10 +1001,14 @@ fn payload_contract_at_cut(
                     );
                     canonicalize_snapshot(&mut arrival.scalar_requirements);
                     for contract in arrival.values.values_mut() {
+                        if !super::payload_predicates::closure_may_change(types, domains, contract)
+                        {
+                            continue;
+                        }
                         super::payload_predicates::close_with_shared_requirements(
                             types,
                             domains,
-                            contract,
+                            Arc::make_mut(contract),
                             &arrival.shared_requirements,
                             Some(predicate),
                         );
@@ -939,7 +1018,7 @@ fn payload_contract_at_cut(
                 // formal. Loop edges can read and rebind the same root, so the
                 // entire binding batch must observe the pre-arrival state.
                 // The other payloads need no second full-state snapshot.
-                let mut bindings = Vec::new();
+                bindings.clear();
                 for (actual, parameter) in edge.derivations() {
                     failure = "edge formal is not a whole payload root";
                     if !parameter.path.is_empty() {
@@ -1005,14 +1084,16 @@ fn payload_contract_at_cut(
                                 .iter()
                                 .any(|premise| premise.as_ref() == predicate)
                         {
-                            contract.scalar_requirements.push(predicate.clone());
+                            Arc::make_mut(contract)
+                                .scalar_requirements
+                                .push(predicate.clone());
                         }
                     }
                 }
                 for parameter in &edge.parameters {
                     arrival.values.remove(&parameter.root);
                 }
-                for (parameter, contract) in bindings {
+                for (parameter, contract) in bindings.drain(..) {
                     // All RHS readers have finished. The rebound formals are
                     // retired and published before another premise read.
                     arrival.values.insert(parameter, contract);
@@ -1053,17 +1134,26 @@ fn payload_contract_at_cut(
                     // order. Keep predicate normalization after the existing
                     // intermediate closure checks, but do not rescan unchanged
                     // rosters on ordinary edges.
-                    if edge_predicate.is_some() {
+                    if edge_predicate.is_some()
+                        && contract
+                            .scalar_requirements
+                            .windows(2)
+                            .any(|pair| pair[0] >= pair[1])
+                    {
+                        let contract = Arc::make_mut(contract);
                         contract.scalar_requirements.sort();
                         contract.scalar_requirements.dedup();
                     }
                 }
                 arrival.publish_requirements();
                 for contract in arrival.values.values_mut() {
+                    if !super::payload_predicates::closure_may_change(types, domains, contract) {
+                        continue;
+                    }
                     super::payload_predicates::close_with_shared_requirements(
                         types,
                         domains,
-                        contract,
+                        Arc::make_mut(contract),
                         &arrival.shared_requirements,
                         None,
                     );
@@ -1302,6 +1392,12 @@ fn retain_common_memberships<Membership: Ord>(
         retained.clear();
         return;
     }
+    // This operation only filters by membership; it never normalizes the
+    // retained order or duplicates. Identical rosters therefore need no work,
+    // including raw unsorted inputs (unlike scalar-observation intersection).
+    if retained.as_slice() == incoming {
+        return;
+    }
     let mut incoming_memberships: Vec<_> = incoming.iter().collect();
     incoming_memberships.sort_unstable();
     retained.retain(|membership| incoming_memberships.binary_search(&membership).is_ok());
@@ -1366,8 +1462,15 @@ fn observe_scalar(
     None
 }
 
-fn clear(state: &mut BTreeMap<PlaceId, PayloadMembershipContract>) {
+fn clear(state: &mut PayloadContracts) {
     for contract in state.values_mut() {
+        if contract.qualifications.is_empty()
+            && contract.projected_qualifications.is_empty()
+            && contract.scalar_observations.is_empty()
+        {
+            continue;
+        }
+        let contract = Arc::make_mut(contract);
         contract.qualifications.clear();
         contract.projected_qualifications.clear();
         contract.scalar_observations.clear();
@@ -1426,6 +1529,22 @@ fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary
         retire_payload_premises(Arc::make_mut(&mut state.shared_requirements), definitions);
     }
     for contract in state.values.values_mut() {
+        // Match both mutation cases below, including already-empty observations
+        // and opaque premises (whose retirement differs from ambient premises).
+        if !contract.scalar_observations.iter().any(|observation| {
+            (observation.value.is_none() && observation.entry.is_none())
+                || observation
+                    .value
+                    .as_ref()
+                    .is_some_and(|value| value.any_value_id(|value| definitions.contains(&value)))
+        }) && !contract
+            .scalar_requirements
+            .iter()
+            .any(|premise| !survives_payload_retirement(premise, definitions))
+        {
+            continue;
+        }
+        let contract = Arc::make_mut(contract);
         contract.scalar_observations.retain_mut(|observation| {
             if observation
                 .value
@@ -1680,6 +1799,207 @@ mod tests {
     }
 
     #[test]
+    fn published_payload_retains_capacity_and_its_complete_theory() {
+        let root = PlaceId::new(1).unwrap();
+        let carrier = StructuralTypeId::new(1).unwrap();
+        let mut requirements = Vec::with_capacity(32);
+        requirements.extend([condition(1), condition(2)]);
+        requirements.sort();
+        let retained_capacity = requirements.capacity();
+        let contract = PayloadMembershipContract {
+            carrier,
+            scalar_observations: Vec::new(),
+            scalar_requirements: requirements,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let mut state = State {
+            values: PayloadContracts::from([(root, contract)]),
+            scalar_requirements: Arc::new(vec![Arc::new(condition(1))]),
+            ..Default::default()
+        };
+        let before = state.contract(root, None).unwrap();
+        state.publish_requirements();
+        assert_eq!(state.contract(root, None).unwrap(), before);
+        let local = &state.values[&root].scalar_requirements;
+        assert_eq!(local, &[condition(2)]);
+        assert_eq!(local.capacity(), retained_capacity);
+        state.publish_requirements();
+        assert_eq!(state.contract(root, None).unwrap(), before);
+        assert_eq!(
+            state.values[&root].scalar_requirements.capacity(),
+            retained_capacity
+        );
+    }
+
+    #[test]
+    fn equal_raw_observations_still_normalize_at_meet() {
+        let root = PlaceId::new(1).unwrap();
+        let observed = super::super::PayloadScalarObservation {
+            path: Vec::new(),
+            value: Some(ScalarTerm::Boolean(true)),
+            entry: None,
+        };
+        // Raw ingress can contain ambiguous duplicate paths or empty rows.
+        // Equality of the states (or just their contracts) does not prove that
+        // intersect is a no-op: it also removes these unavailable observations.
+        for observations in [
+            vec![observed.clone(), observed],
+            vec![super::super::PayloadScalarObservation {
+                path: Vec::new(),
+                value: None,
+                entry: None,
+            }],
+        ] {
+            for different_ambient in [false, true] {
+                let mut retained = State {
+                    values: PayloadContracts::from([(
+                        root,
+                        PayloadMembershipContract {
+                            carrier: StructuralTypeId::new(1).unwrap(),
+                            scalar_observations: observations.clone(),
+                            scalar_requirements: Vec::new(),
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                        },
+                    )]),
+                    ..Default::default()
+                };
+                let mut arrival = retained.clone();
+                if different_ambient {
+                    // The payload rows and shared theory remain equal, but the
+                    // whole states differ. This independently pins row meet.
+                    arrival.scalar_requirements = Arc::new(vec![Arc::new(condition(1))]);
+                }
+                let changed = retained.meet(arrival);
+                assert!(
+                    retained
+                        .values
+                        .get(&root)
+                        .unwrap()
+                        .scalar_observations
+                        .is_empty()
+                );
+                // Duplicate paths set intersect's changed flag. The original
+                // intersection drops an already-empty row without setting it.
+                assert_eq!(changed, observations.len() == 2);
+            }
+        }
+    }
+
+    #[test]
+    fn untouched_payload_rows_stay_shared_and_changed_rows_detach() {
+        let root = PlaceId::new(1).unwrap();
+        let other = PlaceId::new(2).unwrap();
+        let contract = PayloadMembershipContract {
+            carrier: StructuralTypeId::new(1).unwrap(),
+            scalar_observations: Vec::new(),
+            scalar_requirements: vec![condition(1)],
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let original = State {
+            values: PayloadContracts::from([(root, contract.clone()), (other, contract)]),
+            ..Default::default()
+        };
+        let mut later = original.clone();
+        later.publish_requirements();
+        retire_scalar_instances(&mut later, &[ValueId::new(2).unwrap()]);
+        clear(&mut later.values);
+        assert!(!super::super::payload_predicates::closure_may_change(
+            &[],
+            &[],
+            later.values.get(&root).unwrap()
+        ));
+        for root in [root, other] {
+            assert!(Arc::ptr_eq(
+                &original.values.0[&root],
+                &later.values.0[&root]
+            ));
+        }
+        later
+            .values
+            .get_mut(&root)
+            .unwrap()
+            .scalar_requirements
+            .push(condition(2));
+        assert!(!Arc::ptr_eq(
+            &original.values.0[&root],
+            &later.values.0[&root]
+        ));
+        assert!(Arc::ptr_eq(
+            &original.values.0[&other],
+            &later.values.0[&other]
+        ));
+        assert_eq!(
+            original.values.get(&root).unwrap().scalar_requirements,
+            vec![condition(1)]
+        );
+        assert_eq!(
+            later.values.get(&root).unwrap().scalar_requirements,
+            vec![condition(1), condition(2)]
+        );
+    }
+
+    #[test]
+    fn publication_and_retirement_detach_only_affected_payload_rows() {
+        let root = PlaceId::new(1).unwrap();
+        let other = PlaceId::new(2).unwrap();
+        let contract = |premise| PayloadMembershipContract {
+            carrier: StructuralTypeId::new(1).unwrap(),
+            scalar_observations: Vec::new(),
+            scalar_requirements: vec![condition(premise)],
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let original = State {
+            values: PayloadContracts::from([(root, contract(1)), (other, contract(2))]),
+            ..Default::default()
+        };
+        let mut published = original.clone();
+        published.scalar_requirements = Arc::new(vec![Arc::new(condition(1))]);
+        published.publish_requirements();
+        assert!(!Arc::ptr_eq(
+            &original.values.0[&root],
+            &published.values.0[&root]
+        ));
+        assert!(Arc::ptr_eq(
+            &original.values.0[&other],
+            &published.values.0[&other]
+        ));
+        assert!(
+            published
+                .values
+                .get(&root)
+                .unwrap()
+                .scalar_requirements
+                .is_empty()
+        );
+        let mut retired = original.clone();
+        retire_scalar_instances(&mut retired, &[ValueId::new(1).unwrap()]);
+        assert!(!Arc::ptr_eq(
+            &original.values.0[&root],
+            &retired.values.0[&root]
+        ));
+        assert!(Arc::ptr_eq(
+            &original.values.0[&other],
+            &retired.values.0[&other]
+        ));
+        assert!(
+            retired
+                .values
+                .get(&root)
+                .unwrap()
+                .scalar_requirements
+                .is_empty()
+        );
+        assert_eq!(
+            original.values.get(&root).unwrap().scalar_requirements,
+            vec![condition(1)]
+        );
+    }
+
+    #[test]
     fn retained_payload_snapshot_survives_later_writes_retirement_and_closure() {
         use semantic_vocabulary::{PropositionId, StructuralDomainId};
 
@@ -1704,7 +2024,7 @@ mod tests {
             projected_qualifications: Vec::new(),
         };
         let retained = State {
-            values: BTreeMap::from([(root, original.clone())]),
+            values: PayloadContracts::from([(root, original.clone())]),
             ..Default::default()
         };
         enum Change {
@@ -1752,8 +2072,37 @@ mod tests {
                     expected.qualifications = vec![domain(1), domain(2)];
                 }
             }
+            assert!(!Arc::ptr_eq(
+                &retained.values.0[&root],
+                &later.values.0[&root]
+            ));
             assert_eq!(retained.contract(root, None).unwrap(), original);
             assert_eq!(later.contract(root, None).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn membership_filter_preserves_equal_raw_rosters_and_filters_different_ones() {
+        for original in [vec![], vec![1], vec![3, 1, 3, 2, 1]] {
+            let mut retained = original.clone();
+            retain_common_memberships(&mut retained, &original);
+            assert_eq!(retained, original);
+        }
+        for (original, incoming) in [
+            (vec![3, 1, 3, 2, 1], vec![2, 3, 2]),
+            (vec![3, 1, 3, 2, 1], vec![1, 2, 3]),
+            (vec![3, 1], vec![]),
+            (vec![], vec![3, 1]),
+            (vec![3, 1], vec![2]),
+        ] {
+            let expected: Vec<_> = original
+                .iter()
+                .copied()
+                .filter(|value| incoming.contains(value))
+                .collect();
+            let mut retained = original;
+            retain_common_memberships(&mut retained, &incoming);
+            assert_eq!(retained, expected);
         }
     }
 
@@ -1797,7 +2146,7 @@ mod tests {
         assert_eq!(contract.scalar_observations[0].value, Some(value(4)));
         let root = PlaceId::new(1).unwrap();
         let mut state = State {
-            values: BTreeMap::from([(root, other_branch)]),
+            values: PayloadContracts::from([(root, other_branch)]),
             scalar_requirements: Arc::default(),
             shared_requirements: Arc::default(),
         };

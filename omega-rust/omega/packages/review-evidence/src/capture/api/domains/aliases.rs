@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
     nominal_identity, nominal_owner, trait_requirement_identity,
@@ -111,11 +112,9 @@ pub(crate) fn project_domain_establishment_route(
             // a display path cannot distinguish declarations with one name.
             let path = compilation
                 .machine_callable_identity_text(declaration)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "package review exact-machine issuer has no normalized callable identity",
-                    )]
-                })?;
+                .or_evidence(
+                    "package review exact-machine issuer has no normalized callable identity",
+                )?;
             return Ok(PackageReviewDomainEstablishmentRoute::ExactMachine {
                 machine_identity: crate::record::PackageReviewNominalIdentity {
                     owner: nominal_owner(compilation, declaration.symbol)?,

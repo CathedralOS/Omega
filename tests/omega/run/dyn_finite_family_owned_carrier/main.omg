@@ -58,7 +58,7 @@ machine Item::poke(item: &mut Item, packet: Packet) satisfies Shape<Item>::poke 
 
 machine scan(selected: dyn Shape<Item>, item: &mut Item, seed: u64 in Wrapping, w: u32) -> u64
 requires
-    w == 16 || w == 32 || w == 64;
+    w == 16 || w == 32 || w == 64
 {
     let packet: Packet = Packet { token: issue(seed), marker: 0 };
     Item::poke(item, packet);

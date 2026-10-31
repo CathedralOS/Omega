@@ -13,6 +13,7 @@ use super::{
     PreparedScalarQualifications, QualifiedScalarType, ScalarType, scalar_carriers, unsupported,
     validate_direct_parameter_types,
 };
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
@@ -363,10 +364,7 @@ impl<'a> Expansion<'a> {
         result_type: QualifiedScalarType,
         target: usize,
     ) -> Result<usize, LoweringError> {
-        let mut roots = self
-            .checked
-            .facts
-            .values
+        let mut roots = value_facts(&self.checked)
             .scalar_computations
             .roots_for_statement_role(state, statement, role);
         let root = roots.next().ok_or(LoweringError::Unsupported(
@@ -625,10 +623,7 @@ impl<'a> Expansion<'a> {
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let completion_expression = node.completion_expression(&self.checked.facts.flow.control);
-        let completion = self
-            .checked
-            .facts
-            .flow
+        let completion = flow_facts(&self.checked)
             .terminal_unit_effects
             .cleanup_control
             .value_completion(

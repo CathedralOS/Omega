@@ -1,4 +1,5 @@
 use psi::parse::clause;
+use psi::parse::callable_header;
 use psi::parse::conformance;
 use psi::parse::constant;
 use psi::parse::data;
@@ -34,6 +35,9 @@ where
     pending_type_lifetime_count <= 32,
     pending_arm_count <= 64,
     ranked_subject_count <= 8,
+    header_depth <= 257,
+    header_clause_count <= 2048,
+    header_contract_count <= 256,
 {
     output: SyntaxTrees;
     source: SourceId;
@@ -125,6 +129,16 @@ where
     machine_token_start: u64 in Trapping;
     machine_token_end: u64 in Trapping;
     machine_first_contract: u64 in Trapping;
+    machine_contract_count: u64 in Trapping;
+    // Open callable scopes and their direct rows. Child headers publish before
+    // their parent; staging keeps each owner's clause and contract ranges
+    // contiguous without mistaking descendant rows for the parent's clauses.
+    header_frames: [CallableHeaderFrame; 257] in Trapping;
+    header_depth: u64;
+    header_clauses: [Clause; 2048] in Trapping;
+    header_clause_count: u64;
+    header_contracts: [Contract; 256] in Trapping;
+    header_contract_count: u64;
     machine_first_component: u64 in Trapping;
     machine_component_count: u64 in Trapping;
     // A `requires machine` or `where proposition` contract under way.
@@ -221,6 +235,7 @@ where
     declaration_first_parameter: u64 in Trapping;
     declaration_parameter_count: u64 in Trapping;
     declaration_first_contract: u64 in Trapping;
+    declaration_contract_count: u64 in Trapping;
     declaration_is_refinement: bool;
     // The last completed name path's handle.
     name_path_result: u64 in Trapping;

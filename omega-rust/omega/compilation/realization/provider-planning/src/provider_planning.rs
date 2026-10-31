@@ -52,6 +52,7 @@ pub use source_provider_selections::{
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
 /// PRV4c: select one fully covering provider type per applicable boundary
@@ -93,3 +94,32 @@ pub fn select_derived_provider_plans(
 }
 
 pub use provenance_replay::ProviderRowRealization;
+
+/// The text of the trait name a schema declares, which that schema's identity
+/// table interns under `declaration.trait_name`. A reader that would otherwise
+/// name the schema twice in one expression names it here once.
+pub(crate) fn trait_name_text(schema: &ServiceSchema) -> &str {
+    schema.identity_text(schema.declaration.trait_name)
+}
+
+/// One type reference node from the typed tree's reference table. A reader
+/// that would otherwise spell the table inside a scrutinee names it here once.
+pub(crate) fn type_reference_node(
+    typed: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> &TypeReferenceNode {
+    typed.type_reference_table.type_reference(handle)
+}
+
+/// Whether one type reference resolves to the unit node.
+pub(crate) fn is_unit_type(typed: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    matches!(type_reference_node(typed, handle), TypeReferenceNode::Unit)
+}
+
+/// The entry state of one machine, when its checked state list has one.
+pub(crate) fn entry_state<'typed>(
+    typed: &'typed TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> Option<&'typed checked_trees::state::State> {
+    typed.machine_states(machine).first()
+}

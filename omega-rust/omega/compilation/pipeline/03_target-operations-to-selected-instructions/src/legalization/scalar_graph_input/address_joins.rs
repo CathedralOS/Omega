@@ -22,6 +22,7 @@
 use super::{AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::control_flow::sources::dominates;
+use abstract_operations::control_flow::address_joins::is_address_join_in;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
 
@@ -31,20 +32,11 @@ pub(in crate::legalization) fn parameter<'a>(
     place: PlaceId,
     plan: &AbstractOperationPlan,
 ) -> Option<(BlockId, &'a StructuralParameterDeclaration)> {
-    let mut matching = function.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut matching = super::structural_case::arrivals(function, place);
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != function.entry
-        && abstract_operations::control_flow::address_joins::is_address_join_in(
-            parameter,
-            &plan.structural_types,
-        )
+        && is_address_join_in(parameter, &plan.structural_types)
         && function.structural_places.iter().any(|declaration| {
             declaration.id == place
                 && declaration.kind
@@ -220,10 +212,7 @@ pub(in crate::legalization) fn edge_bindings(
             .iter()
             .zip(&destination.structural_parameters)
             .all(|(binding, declaration)| {
-                if !abstract_operations::control_flow::address_joins::is_address_join_in(
-                    declaration,
-                    &plan.structural_types,
-                ) {
+                if !is_address_join_in(declaration, &plan.structural_types) {
                     return true;
                 }
                 binding.parameter == declaration.place

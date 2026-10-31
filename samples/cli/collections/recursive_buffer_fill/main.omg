@@ -4,7 +4,7 @@
 data Cells { bytes: [u8; 8]; }
 
 machine fill_field(cells: &mut Cells, position: u64) -> u64
-terminates by (position, cells.bytes.len) -> Nat::BoundedDistance;
+terminates by (position, cells.bytes.len) -> Nat::BoundedDistance
 requires position < cells.bytes.len
 {
     cells.bytes[position] = 7;
@@ -15,7 +15,7 @@ requires position < cells.bytes.len
 }
 
 machine fill_array(bytes: &mut [u8; 4], position: u64) -> u64
-terminates by (position, bytes.len) -> Nat::BoundedDistance;
+terminates by (position, bytes.len) -> Nat::BoundedDistance
 requires position < bytes.len
 {
     bytes[position] = 5;
@@ -42,7 +42,7 @@ machine main() crashes Trap {
 }
 
 machine fill_slice(bytes: &mut [u8], position: u64) -> u64
-terminates by (position, bytes.len) -> Nat::BoundedDistance in 0..=bytes.len;
+terminates by (position, bytes.len) -> Nat::BoundedDistance in 0..=bytes.len
 requires position < bytes.len
 {
     bytes[position] = 3;

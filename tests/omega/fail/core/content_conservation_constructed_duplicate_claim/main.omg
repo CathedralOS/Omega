@@ -20,8 +20,8 @@ public boundary trait Join {
 public boundary trait Sink { machine accept(value: Chunk in Held) reaches; }
 public machine combine(left: Chunk in Held, right: Chunk in Held)
 reaches Join, Sink
-    invokes join;
-    invokes sink;
+    invokes join
+    invokes sink
 {
     let joined: Chunk in Held = Join::merge(Pair { left: left, right: left });
     Sink::accept(joined);

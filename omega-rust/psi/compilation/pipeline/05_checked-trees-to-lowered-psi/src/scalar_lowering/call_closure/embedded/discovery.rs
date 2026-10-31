@@ -2,6 +2,7 @@
 
 use super::super::CheckedTerminalSignatureEligibility;
 use super::{CheckedTrees, LoweringError, unsupported};
+use crate::checked_facts::flow_facts;
 
 pub(crate) fn checked_scalar_call_closure_with_structural_roots(
     checked: &CheckedTrees,
@@ -18,9 +19,7 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
     let mut next = 0_usize;
     while let Some(machine) = closure.get(next).copied() {
         next += 1;
-        let selections = checked
-            .facts
-            .flow
+        let selections = flow_facts(checked)
             .terminal_machines
             .machines
             .iter()

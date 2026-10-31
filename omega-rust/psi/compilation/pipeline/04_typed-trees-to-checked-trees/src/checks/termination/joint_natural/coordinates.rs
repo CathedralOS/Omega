@@ -21,6 +21,7 @@ pub(super) struct Rank {
     pub(super) bound: Option<Bound>,
     pub(super) application: Option<super::applications::Application>,
     pub(super) entry_value: ScopedArithmeticValue,
+    pub(super) formation: Option<validation::IntegerApplicationFormation>,
 }
 
 impl Bound {

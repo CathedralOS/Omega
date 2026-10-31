@@ -53,7 +53,10 @@ pub(crate) use captured_calls::{CapturedScalarRank, prove_captured_scalar_rank_c
 mod captured_entry;
 mod identity_views;
 mod rank_value;
-pub use captured_entry::{CapturedRankEntry, prove_captured_ranking_range_entry};
+pub use captured_entry::{
+    CapturedRankEntry, prove_captured_ranking_range_entry,
+    prove_captured_ranking_range_entry_with_formation,
+};
 pub use identity_views::{
     ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
     ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
@@ -484,13 +487,23 @@ enum EdgeContext<'program> {
 }
 
 /// Separate results prevent a range-membership proof from authorizing descent.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct RankingRangeEdgeProof {
+    /// Source formation may depend on this edge's guard. Only an independent
+    /// entry query may use it to authorize an entry observation.
+    pub source_application: Option<super::IntegerApplicationFormation>,
+    pub arrival_application: Option<super::IntegerApplicationFormation>,
     /// Formed membership at both ends and any bound owned by the selected
     /// view. Optional interval endpoints are instantiated per arrival.
     pub membership_and_pinning: bool,
     pub strictly_decreases: bool,
     pub non_increasing: bool,
+}
+
+#[derive(Clone)]
+pub struct RankingRangeEntryProof {
+    pub membership_and_pinning: bool,
+    pub application: Option<super::IntegerApplicationFormation>,
 }
 
 /// The root formals, in every carrier, whose arrival value some range judgment
@@ -710,6 +723,17 @@ pub fn prove_ranking_range_entry(
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
 ) -> bool {
+    prove_ranking_range_entry_with_formation(program, machine, state, range, measure)
+        .is_some_and(|proof| proof.membership_and_pinning)
+}
+
+pub fn prove_ranking_range_entry_with_formation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    range: ExpressionHandle,
+    measure: RankingRangeMeasure,
+) -> Option<RankingRangeEntryProof> {
     // Without an authored range, a bounded distance produces the saturating
     // natural distance (stage 05 emits `MAX - lower`), so an entry whose
     // cursor already passed its bound is still a member: such a loop exits on
@@ -718,7 +742,7 @@ pub fn prove_ranking_range_entry(
     // arrival keeps proving the raw distance under its own guards.
     let unranged_distance =
         !range.is_valid() && matches!(measure, RankingRangeMeasure::Distance { .. });
-    prove_edge(
+    let proof = prove_edge(
         program,
         machine,
         state,
@@ -729,8 +753,12 @@ pub fn prove_ranking_range_entry(
         &[],
         None,
         EdgeContext::Root,
-    )
-    .is_some_and(|proof| proof.membership_and_pinning || unranged_distance)
+    )?;
+    let membership_and_pinning = proof.membership_and_pinning || unranged_distance;
+    Some(RankingRangeEntryProof {
+        membership_and_pinning,
+        application: proof.source_application.filter(|_| membership_and_pinning),
+    })
 }
 
 /// The natural coordinates builtin scalar subjects read through member
@@ -1376,9 +1404,11 @@ fn prove_edge(
     // Independent entry/guard facts are now installed. On a subsequent
     // arrival the source invariant was established, including formation, by
     // the entry and every arriving edge; it is not the destination goal.
-    if !engine.requires_unsatisfiable && !rank_value.forms(&mut engine) {
-        return None;
-    }
+    let source_application = if engine.requires_unsatisfiable {
+        None
+    } else {
+        rank_value.formation(&mut engine)?
+    };
     // For distance views raw subtraction represents the produced natural rank
     // only on this proved branch. The caller retains the separate clamped
     // interval tier for entries where subject <= limit is not established.
@@ -1409,6 +1439,8 @@ fn prove_edge(
     let entry_membership = rank_is_member(&rank);
     let Some(arguments) = arguments else {
         return Some(RankingRangeEdgeProof {
+            source_application,
+            arrival_application: None,
             membership_and_pinning: entry_membership || engine.requires_unsatisfiable,
             strictly_decreases: false,
             non_increasing: false,
@@ -1568,6 +1600,8 @@ fn prove_edge(
     // discharges comparisons, not missing or ambiguous substitutions.
     if engine.requires_unsatisfiable {
         return Some(RankingRangeEdgeProof {
+            source_application,
+            arrival_application: None,
             membership_and_pinning: true,
             strictly_decreases: true,
             non_increasing: true,
@@ -1575,9 +1609,7 @@ fn prove_edge(
     }
     // The same complete simultaneous map transports the application's input,
     // not only its simplified result. No destination membership is assumed.
-    if !next_rank_value.forms(&mut engine) {
-        return None;
-    }
+    let arrival_application = next_rank_value.formation(&mut engine)?;
     // Normalization may cancel an undefined destination operation. A proved
     // interval alone cannot supply formation, so replay every node
     // with the same simultaneous mapping used by the arrival's value proof.
@@ -1629,6 +1661,8 @@ fn prove_edge(
     let strictly_decreases =
         natural_next && (!clamped || prove(rank.clone(), 1)) && prove(difference, 1);
     Some(RankingRangeEdgeProof {
+        source_application,
+        arrival_application,
         membership_and_pinning,
         strictly_decreases,
         non_increasing,

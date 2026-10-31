@@ -63,7 +63,7 @@ impl TerminalExecution<'_> {
         }
         let source_value = self.structural_value(*source)?;
         if !source_value.projected_qualifications.is_empty()
-            || !matches!(self.program.structural_types().get(&source_value.structural_type), Some(declaration)
+            || !matches!(self.structural_types().get(&source_value.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_view()
                                 || declaration.shape.is_bounded_owned_byte_sequence())
         {
@@ -171,7 +171,7 @@ impl TerminalExecution<'_> {
                 let home = self.structural_value(*destination)?;
                 if !path.is_empty()
                     || !home.path.is_empty()
-                    || !matches!(self.program.structural_types().get(&home.structural_type),
+                    || !matches!(self.structural_types().get(&home.structural_type),
                     Some(declaration) if declaration.shape.is_shared_readable_byte_view())
                 {
                     return Err(malformed());
@@ -181,7 +181,7 @@ impl TerminalExecution<'_> {
         };
         let source_value = self.structural_value(*source)?;
         if !source_value.path.is_empty()
-            || !matches!(self.program.structural_types().get(&source_value.structural_type),
+            || !matches!(self.structural_types().get(&source_value.structural_type),
                 Some(declaration) if declaration.shape.is_borrowed_byte_view())
         {
             return Err(malformed());
@@ -282,25 +282,21 @@ impl TerminalExecution<'_> {
             }
             let descriptor_type = self.live_structural_type(root)?;
             let StructuralTypeShape::ElementView { element, .. } =
-                self.program.structural_declaration(descriptor_type)?.shape
+                self.structural_declaration(descriptor_type)?.shape
             else {
                 return Err(malformed());
             };
             let (collection, selected_path) = view.structural_projection(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 carrier_path,
                 requires_mutation,
             )?;
             let (backing_element, _) =
-                literal_fixed_array(&self.program.structural_types(), collection.structural_type)?;
+                literal_fixed_array(&self.structural_types(), collection.structural_type)?;
             if element != backing_element {
                 return Err(malformed());
             }
-            project_structural_value(
-                &self.program.structural_types(),
-                &collection,
-                &selected_path,
-            )?
+            project_structural_value(&self.structural_types(), &collection, &selected_path)?
         } else {
             // Authority belongs to the current binding, including an arrival
             // parameter. The static projection resolver checks every selected hop;

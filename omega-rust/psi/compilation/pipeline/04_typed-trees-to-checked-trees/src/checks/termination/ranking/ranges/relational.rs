@@ -33,6 +33,10 @@ pub(in crate::checks::termination) enum RankArrivalFailure {
 
 #[derive(Clone)]
 pub(in crate::checks::termination) struct RankArrivalAdmission {
+    pub applications: Vec<(
+        symbols::SymbolHandle,
+        validation::IntegerApplicationFormation,
+    )>,
     pub premises: validation::RankingRangePremises,
     pub states: Vec<validation::RankStateBindings>,
     pub origins: Vec<validation::StateEntryCorrespondence>,
@@ -110,6 +114,7 @@ impl RankArrivalAdmission {
                 }),
         );
         Some(Self {
+            applications: Vec::new(),
             premises: validation::RankingRangePremises::RankInvariant,
             states: selected,
             origins,
@@ -216,17 +221,17 @@ fn admit_complete(
     };
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
-    let entry_formed = super::super::super::rank_inputs::prove_integer_entry(
+    let entry_proof = super::super::super::rank_inputs::prove_integer_entry_with_formation(
         program,
         machine,
         range,
         measure,
         call_frames,
     )
-    .unwrap_or_else(|| {
-        validation::prove_ranking_range_entry(program, machine, root, range, measure)
-    });
-    if !entry_formed {
+    .or_else(|| {
+        validation::prove_ranking_range_entry_with_formation(program, machine, root, range, measure)
+    })?;
+    if !entry_proof.membership_and_pinning {
         return None;
     }
     // The judgment reads only these entry formals' arrival values; every
@@ -256,10 +261,12 @@ fn admit_complete(
             frames,
             premises,
             &premise_inputs,
+            entry_proof.application.clone(),
             accept,
             failure,
         )?;
         Some(RankArrivalAdmission {
+            applications: states.applications,
             premises,
             states: states.states,
             origins: states.origins,
@@ -359,6 +366,7 @@ fn prove_edges<'program>(
     frames: Option<&validation::CallFrameResolver<'program>>,
     premises: validation::RankingRangePremises,
     premise_inputs: &[validation::RankPremiseInput],
+    entry_application: Option<validation::IntegerApplicationFormation>,
     accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
     failure: &mut RankArrivalFailure,
 ) -> Option<state_edges::SelectedCorrespondence> {
@@ -372,6 +380,10 @@ fn prove_edges<'program>(
     }
     let protected = protected_input_paths(program, machine, root, None, premise_inputs)?;
     let mut root_edges = Vec::new();
+    let mut root_applications = entry_application
+        .into_iter()
+        .map(|application| (root.symbol, application))
+        .collect::<Vec<_>>();
     for edge in edges {
         let Some(evaluated_prefix) = preserved_entry_prefix(
             program,
@@ -411,6 +423,9 @@ fn prove_edges<'program>(
             };
             return None;
         }
+        if let Some(application) = proof.arrival_application {
+            root_applications.push((root.symbol, application));
+        }
         root_edges.push(checked_trees::CheckedRankArrivalEdge {
             source: root.symbol,
             destination: root.symbol,
@@ -429,10 +444,12 @@ fn prove_edges<'program>(
         premises,
         premise_inputs,
         &root_edges,
+        &root_applications,
         accept,
         failure,
     )?;
     selected.edges.extend(root_edges);
+    selected.applications.extend(root_applications);
     Some(selected)
 }
 

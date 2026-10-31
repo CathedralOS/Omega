@@ -4,7 +4,7 @@
 // Expected rejection: may overflow `u32`
 
 machine forward_eval(p: u32) -> i32
-    requires p >= 50u32 && p <= 210u32;
+    requires p >= 50u32 && p <= 210u32
 {
     let headroom: u32 = 200u32 - p;
     let margin: u32 = p - 50u32;
@@ -17,8 +17,8 @@ machine forward_eval(p: u32) -> i32
 }
 
 machine multiply_other_machine(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 10u32 && lhs <= 21u32;
-    requires rhs >= 5u32 && rhs <= 10u32;
+    requires lhs >= 10u32 && lhs <= 21u32
+    requires rhs >= 5u32 && rhs <= 10u32
 {
     let a: u32 in Wrapping = lhs as u32 in Wrapping;
     let b: u32 in Wrapping = rhs as u32 in Wrapping;

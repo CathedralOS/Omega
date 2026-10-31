@@ -17,7 +17,7 @@ data BranchValue { value: u64; arm: u64; }
 machine observe_arm(value: u64, arm: u64) -> BranchValue
     requires value <= 64 ensures result.value <= 64, result.arm == arm
 { BranchValue { value: value, arm: arm } }
-machine main() reaches CallbackApply invokes CallbackApply; crashes Trap {
+machine main() reaches CallbackApply invokes CallbackApply crashes Trap {
     let result: u64 = CallbackApply::apply<identity>(42);
     let joined: BranchValue = match true {
         true -> observe_arm(result, 17), false -> observe_arm(result, 29)

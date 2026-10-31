@@ -15,7 +15,7 @@ use configuration::ROOM_WIDTH;
 use configuration::ROOM_HEIGHT;
 
 public machine cooldowns<const Rooms: u64>(mut actor: Actor<Rooms>) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 {
     actor.attack = elapse<ATTACK_FRAMES>(actor.attack);
     actor.immunity = elapse<INVULNERABILITY_FRAMES>(actor.immunity);
@@ -23,7 +23,7 @@ requires Rooms >= 1 {
 }
 
 public machine attack_intent<const Rooms: u64>(mut actor: Actor<Rooms>, command: Command) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 {
     transition command.attack && actor.attack.remaining == 0 && actor.active && actor.vitality.current > 0 {
         true -> swing(actor)
@@ -36,7 +36,7 @@ requires Rooms >= 1 {
 }
 
 public machine strike<const Rooms: u64>(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 {
     transition attacker.active && victim.active && attacker.room == victim.room && attacker.attack.remaining == ATTACK_FRAMES - 1 && victim.vitality.current > 0 {
         true -> faction(attacker, victim)
@@ -63,7 +63,7 @@ requires Rooms >= 1 {
 }
 
 machine knock_back(position: Position, direction: i32) -> Position
-terminates;
+terminates
 requires direction >= 0 && direction < 4 {
     transition direction {
         0 -> north(position)
@@ -98,7 +98,7 @@ requires direction >= 0 && direction < 4 {
 }
 
 public machine contact<const Rooms: u64>(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms>
-terminates;
+terminates
 requires Rooms >= 1 {
     transition attacker.active && victim.active && attacker.room == victim.room && attacker.vitality.current > 0 && victim.vitality.current > 0 && victim.immunity.remaining == 0 {
         true -> faction(attacker, victim)

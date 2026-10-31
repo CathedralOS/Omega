@@ -4,7 +4,7 @@ const ZERO: u64 = 0;
 data View [copy] { value: &u64; }
 data Main { }
 machine View::zero() -> View { View { value: &ZERO } }
-machine take(point: View) -> u64 requires point.value == View::zero().value; { 0 }
+machine take(point: View) -> u64 requires point.value == View::zero().value { 0 }
 machine Main::main(main: &mut Main) reaches Console {
  let result: u64 = take(View { value: &ZERO }); Console::exit_process(0);
 }

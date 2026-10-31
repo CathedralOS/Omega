@@ -32,7 +32,7 @@ data EfiLoadedImage {
 EfiLoadedImageLayout satisfies FixedLayout<EfiLoadedImage> {
     machine plan(schema: Schema, target: LayoutTarget) -> Plan
     reaches
-    terminates; {
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
@@ -96,7 +96,7 @@ data EfiSystemTableView {
 EfiSystemTableViewLayout satisfies FixedLayout<EfiSystemTableView> {
     machine plan(schema: Schema, target: LayoutTarget) -> Plan
     reaches
-    terminates; {
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
@@ -123,7 +123,7 @@ data EfiBootServicesView {
 EfiBootServicesViewLayout satisfies FixedLayout<EfiBootServicesView> {
     machine plan(schema: Schema, target: LayoutTarget) -> Plan
     reaches
-    terminates; {
+    terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };

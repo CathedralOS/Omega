@@ -151,15 +151,15 @@ pub(super) enum OperationalCeilingBreach<'a> {
     /// The provider effectively reaches a service the requirement does not
     /// allow.
     ReachedService(&'a str),
-    /// The provider declares `suspends;` the requirement does not.
+    /// The provider declares `suspends` the requirement does not.
     Suspends,
-    /// The provider declares `blocks;` the requirement does not.
+    /// The provider declares `blocks` the requirement does not.
     Blocks,
 }
 
 /// The three operational-ceiling checks a machine must stay under to
-/// satisfy a requirement: its effectively reached services, `suspends;`,
-/// and `blocks;`. `describe` phrases each breach for the caller's own
+/// satisfy a requirement: its effectively reached services, `suspends`,
+/// and `blocks`. `describe` phrases each breach for the caller's own
 /// diagnostics.
 pub(super) fn require_operational_ceiling(
     program: &dyn crate::CheckingInput,

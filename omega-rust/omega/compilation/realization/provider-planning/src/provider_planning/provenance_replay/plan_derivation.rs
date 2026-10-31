@@ -22,6 +22,7 @@ use crate::provider_planning::provenance_replay::{
 use crate::provider_planning::source_provider_selections::{
     provider_type_package_identity, provider_type_symbol,
 };
+use crate::provider_planning::trait_name_text;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};
 use language_semantics::direct_calls::DirectCallDeclarations;
@@ -299,11 +300,7 @@ fn derive_top_level_requirement_plans(
                 _ => continue,
             };
             let target = selected_target.unwrap_or_default().to_owned();
-            let plan_name = satisfies_plan_name(
-                &target,
-                schema.identity_text(schema.declaration.trait_name),
-                &provider_type,
-            );
+            let plan_name = satisfies_plan_name(&target, trait_name_text(&schema), &provider_type);
             let position = derived_plan_position(
                 &mut plans,
                 plan_name,
@@ -357,13 +354,7 @@ fn provider_plan_schema_target(
     let source = ProviderSchemaDeclaration::BoundaryTrait(satisfied_trait_symbol);
     let prepared = services.declaration(source)?;
     let schema = crate::service_schema::attach_calling(&prepared, calling_plans);
-    Some((
-        source,
-        schema
-            .identity_text(schema.declaration.trait_name)
-            .to_owned(),
-        schema,
-    ))
+    Some((source, trait_name_text(&schema).to_owned(), schema))
 }
 
 fn derive_boundary_operator_plans(
@@ -427,11 +418,7 @@ fn derive_boundary_operator_plans(
             let schema = ServiceSchema::from_declaration(prepared.declaration.clone());
             let target = selected_target.unwrap_or_default().to_owned();
             let provider_type = typed.attached_data_path(machine).unwrap_or_default();
-            let plan_name = satisfies_plan_name(
-                &target,
-                schema.identity_text(schema.declaration.trait_name),
-                &provider_type,
-            );
+            let plan_name = satisfies_plan_name(&target, trait_name_text(&schema), &provider_type);
             let position = derived_plan_position(
                 &mut plans,
                 plan_name,

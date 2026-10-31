@@ -24,8 +24,8 @@ machine character(reader: &mut Reader) -> i32 reaches Console {
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 10 || value == 13 || value == 9) } }
 public machine number(reader: &mut Reader) -> Number
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> start(reader) }
@@ -77,8 +77,8 @@ crashes Trap
 }
 public machine ended(reader: &mut Reader) -> bool
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan(reader) }

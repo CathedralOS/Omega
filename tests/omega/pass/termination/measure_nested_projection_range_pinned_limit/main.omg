@@ -9,10 +9,9 @@ data Countdown { inner: Inner; bounds: Bounds; }
 measure Countdown::Remaining(countdown: Countdown) -> u64
 { countdown.inner.remaining }
 
-machine walk(countdown: Countdown)
-requires countdown.inner.remaining <= countdown.bounds.limit;
-terminates by countdown -> Countdown::Remaining in 0..=countdown.bounds.limit;
--> u64 {
+machine walk(countdown: Countdown) -> u64
+requires countdown.inner.remaining <= countdown.bounds.limit
+terminates by countdown -> Countdown::Remaining in 0..=countdown.bounds.limit {
     transition countdown.inner.remaining > 0 {
         true -> walk(Countdown {
             inner: Inner { remaining: countdown.inner.remaining - 1 },

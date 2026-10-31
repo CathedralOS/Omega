@@ -7,7 +7,7 @@ ensures result <= left && result <= right &&
 }
 data Bound { end: u64; }
 machine Bound::consume(bound: Bound, buffer: &mut [u8]) -> u64
-requires bound.end <= buffer.len;
+requires bound.end <= buffer.len
 {
     let prefix: &mut [u8] = &mut buffer[0..bound.end];
     prefix.len

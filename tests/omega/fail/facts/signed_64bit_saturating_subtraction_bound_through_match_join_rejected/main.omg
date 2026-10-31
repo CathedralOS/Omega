@@ -4,8 +4,8 @@
 // Expected rejection: not provably representable
 
 machine subtract_match_join(lhs: i64, rhs: i64, choose: bool) -> i32
-    requires lhs >= 80i64 && lhs <= 125i64;
-    requires rhs >= 20i64 && rhs <= 40i64;
+    requires lhs >= 80i64 && lhs <= 125i64
+    requires rhs >= 20i64 && rhs <= 40i64
 {
     let a: i64 in Saturating = lhs as i64 in Saturating;
     let b: i64 in Saturating = rhs as i64 in Saturating;

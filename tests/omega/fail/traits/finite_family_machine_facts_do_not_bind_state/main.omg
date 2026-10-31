@@ -8,7 +8,7 @@ machine produce<Width: u32>() -> Packet satisfies Factory::make {
 Selected satisfies Factory { Factory::make = produce; }
 
 machine choose(selected: dyn Factory, width: u32) -> Packet
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 {
     transition { _ -> unproved(selected, 7) }
     machine unproved(selected: dyn Factory, width: u32) -> Packet {

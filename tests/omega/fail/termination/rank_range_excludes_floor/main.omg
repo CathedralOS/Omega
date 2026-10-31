@@ -7,9 +7,8 @@ machine Main::main(main: &mut Main) {
     let value: u64 = Main::walk(main, 4, 0);
 }
 
-machine Main::walk(main: &mut Main, limit: u64, index: u64)
-terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;
--> u64
+machine Main::walk(main: &mut Main, limit: u64, index: u64) -> u64
+terminates by index -> Nat::IncreasingTo(limit) in 1..=limit
 {
     transition index < limit {
         true -> Main::walk(main, limit, index + 1)

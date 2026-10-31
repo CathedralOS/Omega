@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
 machine climb(remaining: u64, acc: u64) -> u64
 requires remaining <= 1000 && acc <= 1000
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 {
     transition remaining > 0 && acc < 1000 {
         true -> climb(remaining - 1, acc + 1)

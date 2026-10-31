@@ -1,7 +1,6 @@
-machine walk(remaining: u32)
+machine walk(remaining: u32) -> u32
 requires remaining <= 9
-terminates by remaining in 0..=9;
--> u32 {
+terminates by remaining in 0..=9 {
     transition { _ -> step(remaining, 4, 2, 0) }
 
     machine step(current: u32, mut ceiling: u32, scratch: u32, mut unrelated: u32) -> u32

@@ -73,7 +73,7 @@ satisfies ElementStep<Command>::apply {
 	command.attack = false;
 }
 
-machine clear_commands(commands: &mut [Command]) terminates; {
+machine clear_commands(commands: &mut [Command]) terminates {
 	for_each<Command, clear_one>(commands);
 }
 ```

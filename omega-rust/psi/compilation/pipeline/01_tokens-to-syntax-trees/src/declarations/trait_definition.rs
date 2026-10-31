@@ -174,7 +174,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         signature.spelling = spelling;
         let (clauses, rest) =
-            parse_signature_clauses(syntax_trees, rest, true, signature.type_parameters)?;
+            parse_signature_clauses(syntax_trees, rest, signature.type_parameters)?;
         crate::parameters::contracts::validate_machine_parameter_contracts(
             syntax_trees,
             signature.type_parameters,

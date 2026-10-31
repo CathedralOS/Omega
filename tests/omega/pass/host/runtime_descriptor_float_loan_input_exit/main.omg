@@ -41,14 +41,14 @@ macos_arm64 boundary machine FloatImports::write(descriptor: i32, value: &f32, c
 linux_x86_64 boundary machine FloatImports::write(descriptor: i32, value: &f32, count: u64) -> i64
     satisfies FloatIo::write via linux_x86_64_write_binding();
 
-machine receive(value: &mut f32) -> i64 reaches FloatIo blocks; {
+machine receive(value: &mut f32) -> i64 reaches FloatIo blocks {
     transition { _ -> read(value) }
     machine read(value: &mut f32) -> i64 {
         block FloatIo::read(0, value, 4)
     }
 }
 
-machine Main::main(main: &mut Main) reaches FloatIo blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches FloatIo blocks crashes Trap {
     let mut value: f32 = 100.0f32;
     let no_bytes: i64 = block FloatIo::read(0, &mut value, 0);
     let unchanged: bool = value == 100.0f32;
@@ -66,7 +66,7 @@ machine Main::main(main: &mut Main) reaches FloatIo blocks; crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches FloatIo blocks; crashes Trap {
+machine entry_start() reaches FloatIo blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

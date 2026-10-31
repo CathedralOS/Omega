@@ -71,12 +71,12 @@ reaches RegionSplit
         false -> changed(main, whole, head)
     }
     machine next(next_main: &mut Main, next_whole: Region in Owned, next_head: u64) -> SplitResult
-    requires next_head <= next_whole.remaining;
+    requires next_head <= next_whole.remaining
     {
         RegionSplit::split(next_whole, next_head)
     }
     machine changed(changed_main: &mut Main, changed_whole: Region in Owned, changed_head: u64) -> SplitResult
-    requires changed_head <= changed_whole.remaining;
+    requires changed_head <= changed_whole.remaining
     {
         let mut damaged: Region in Owned = changed_whole;
         damaged.remaining = changed_head;

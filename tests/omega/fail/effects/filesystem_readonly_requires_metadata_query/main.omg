@@ -4,7 +4,7 @@ use omega::language::core::filesystem_authority;
 
 machine mutate_without_query(path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation
-invokes FilesystemService;
+invokes FilesystemService
 {
     block FilesystemService::set_permissions(path, Permissions::Readonly { value: true })
 }

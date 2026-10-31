@@ -38,7 +38,7 @@ machine read(cell: &Cell) -> i32 {
     transition { _ -> cell.value }
 }
 
-machine Main::main(main: &mut Main) suspends; reaches Scheduler {
+machine Main::main(main: &mut Main) suspends reaches Scheduler {
     main.hits = 0;
     main.cell.value = 5;
     let message: Message = Message { body: &main.cell };
@@ -54,7 +54,7 @@ machine Main::main(main: &mut Main) suspends; reaches Scheduler {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() suspends; reaches Scheduler {
+machine entry_start() suspends reaches Scheduler {
     let mut entry_storage: Main;
     suspend Main::main(&mut entry_storage);
 }

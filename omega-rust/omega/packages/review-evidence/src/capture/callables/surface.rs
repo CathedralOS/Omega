@@ -10,6 +10,7 @@ use super::super::semantics::facts::{exactly_one, machine_invocation};
 use super::super::semantics::signatures::parameters::project_signature_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackagePolicyCallableConformance, PackagePolicyExternalRequirement, PackagePolicyTypeParameter,
@@ -170,20 +171,16 @@ pub(super) fn project<'a>(
         .facts
         .suspensions
         .for_machine(machine.symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed callable `{subject}` has no exact suspension fact"
-            ))]
-        })?;
+        .or_evidence(format!(
+            "reviewed callable `{subject}` has no exact suspension fact"
+        ))?;
     let blocking = compilation
         .facts
         .blocking
         .for_machine(machine.symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed callable `{subject}` has no exact blocking fact"
-            ))]
-        })?;
+        .or_evidence(format!(
+            "reviewed callable `{subject}` has no exact blocking fact"
+        ))?;
 
     let has_checked_body = machine.body_is_present
         && matches!(

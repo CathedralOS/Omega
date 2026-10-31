@@ -15,6 +15,7 @@
 //! This implements contracts.md (blob 0551b01c): matching result case and exact
 //! argument/result substitution, preserving witness identity through erasure.
 
+use crate::checked_facts::flow_facts;
 use crate::proofs::evidence_lowering::evidence_terms::{
     lower_evidence_contract_lanes, lower_evidence_interface,
 };
@@ -465,9 +466,7 @@ pub(super) fn lower_argument_subject(
         }
         _ => {}
     }
-    let Some(entry) = checked
-        .facts
-        .flow
+    let Some(entry) = flow_facts(checked)
         .terminal_unit_effects
         .callable_entry_for_machine(machine)
     else {

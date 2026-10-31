@@ -14,13 +14,13 @@ machine combine_fixed(
 ) -> u64
     requires index_u8 <= 3 && index_u16 <= 3 && index_u32 <= 3 && index_u64 <= 3
         && index_i8 >= 0 && index_i8 <= 3 && index_i16 >= 0 && index_i16 <= 3
-        && index_i32 >= 0 && index_i32 <= 3 && index_i64 >= 0 && index_i64 <= 3;
+        && index_i32 >= 0 && index_i32 <= 3 && index_i64 >= 0 && index_i64 <= 3
 {
     values[index_u8] ^ values[index_u16] ^ values[index_u32] ^ values[index_u64]
         ^ values[index_i8] ^ values[index_i16] ^ values[index_i32] ^ values[index_i64]
 }
 machine read_slice(values: &[u64], position: i32) -> u64
-    requires position >= 0 && position <= 3 && position < values.len;
+    requires position >= 0 && position <= 3 && position < values.len
 {
     values[position]
 }

@@ -2,9 +2,8 @@ data Countdown where remaining <= 5 { remaining: u64; }
 data Bundle { held: Countdown; spare: Countdown; }
 measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
 
-machine walk(countdown: Countdown)
-terminates by countdown -> Countdown::Remaining in 0..=5;
--> u64 {
+machine walk(countdown: Countdown) -> u64
+terminates by countdown -> Countdown::Remaining in 0..=5 {
     transition {
         _ -> iterate(Bundle {
             held: countdown,

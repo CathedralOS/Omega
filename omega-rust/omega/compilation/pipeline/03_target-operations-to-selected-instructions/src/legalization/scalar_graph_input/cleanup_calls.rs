@@ -45,11 +45,8 @@ pub(in crate::legalization) fn expected(
                 .structural_parameters
                 .iter()
                 .map(|parameter| {
-                    crate::structural_inputs::structural_reference_input::parameter_shape(
-                        parameter,
-                        &plan.structural_types,
-                    )
-                    .ok_or(LegalizationError::custody())
+                    crate::structural_inputs::parameter_shape(parameter, &plan.structural_types)
+                        .ok_or(LegalizationError::custody())
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let call_plan = evaluate_call_plan(

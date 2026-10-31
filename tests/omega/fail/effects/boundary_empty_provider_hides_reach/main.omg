@@ -4,5 +4,5 @@ public boundary trait Pure { machine evaluate() -> u64 reaches invokes Host; }
 
 data Provider {}
 machine Provider::evaluate() -> u64 satisfies Pure::evaluate reaches Read
-invokes Host;
+invokes Host
 { Host::read() }

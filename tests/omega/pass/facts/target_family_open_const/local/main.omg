@@ -11,10 +11,10 @@ PortableBoundedValue satisfies BoundedValue {
         requires value <= Cap ensures result <= Cap { value }
 }
 machine forward<const Maximum: u64>(value: u64) -> u64
-    reaches BoundedValue invokes BoundedValue;
+    reaches BoundedValue invokes BoundedValue
     requires value <= Maximum ensures result <= Maximum
 { BoundedValue::bound<Maximum>(value) }
-machine main() reaches BoundedValue invokes BoundedValue; crashes Trap {
+machine main() reaches BoundedValue invokes BoundedValue crashes Trap {
     let result: u64 = forward<64>(42);
     let remaining: u64 = 64u64 - result;
     transition remaining == 22 { true -> done() false -> bad() }

@@ -49,7 +49,7 @@ SaturatingIncrement satisfies Incrementable<Counter>
         }
 
         machine bump(counter: &mut Counter)
-        requires counter.value < integer::max<i32>();
+        requires counter.value < integer::max<i32>()
         {
             counter.value = counter.value + 1;
         }

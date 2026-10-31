@@ -20,6 +20,8 @@ use semantic_vocabulary::{
 };
 use symbols::SymbolHandle;
 
+pub mod calling_applications;
+
 pub struct BoundaryCallbackSource {
     pub parameter_symbol: SymbolHandle,
     pub requirement_trait: SymbolHandle,
@@ -61,6 +63,7 @@ impl Default for BoundarySignatureDeclaration {
 
 pub struct PreparedBoundarySignatures {
     declarations: Arena<BoundarySignatureDeclaration>,
+    calling: calling_applications::PreparedCallingApplications,
 }
 
 impl PreparedBoundarySignatures {
@@ -110,21 +113,30 @@ impl PreparedBoundarySignatures {
                 projection,
             });
         }
-        Self { declarations }
+        let calling =
+            calling_applications::PreparedCallingApplications::prepare(context, &declarations);
+        Self {
+            declarations,
+            calling,
+        }
     }
 
     pub fn declarations(&self) -> impl Iterator<Item = &BoundarySignatureDeclaration> {
         self.declarations.iter().map(|(_, declaration)| declaration)
     }
 
-    pub fn for_requirement(
+    pub fn calling(&self) -> &calling_applications::PreparedCallingApplications {
+        &self.calling
+    }
+
+    pub fn applied_declaration(
         &self,
-        symbol: SymbolHandle,
-        requirement: &str,
+        signature: &calling_applications::PreparedAppliedBoundarySignature,
     ) -> Option<&BoundarySignatureDeclaration> {
-        self.declarations().find(|declaration| {
-            declaration.symbol == symbol && declaration.requirement_identity == requirement
-        })
+        let declaration = self.calling.declaration(signature);
+        declaration
+            .is_valid()
+            .then(|| self.declarations.get(declaration))
     }
 }
 

@@ -4,7 +4,7 @@
 data R { v: u8 }
 
 machine byte_at(s: &[u8], position: u64) -> R
-    requires position < s.len;
+    requires position < s.len
 {
     s[position] as u64
 }

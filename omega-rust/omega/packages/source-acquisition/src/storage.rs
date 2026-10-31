@@ -3,7 +3,7 @@
 use super::SourceResolveError;
 use super::custody::publication::{create_private_cache_directory, retain_private_cache_directory};
 use super::custody::tree::{CacheCustodyKind, verify_retained_cache_custody_root};
-use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{IoResultAt, io_error, open_absolute_directory_nofollow};
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -24,10 +24,10 @@ impl RetainedStorageRoot {
                 message: format!("per-user cache base `{}` is not absolute", base.display()),
             });
         }
-        std::fs::create_dir_all(base).map_err(|error| io_error(base, error))?;
-        let canonical_base = base.canonicalize().map_err(|error| io_error(base, error))?;
-        let mut directory = open_absolute_directory_nofollow(&canonical_base)
-            .map_err(|error| io_error(&canonical_base, error))?;
+        std::fs::create_dir_all(base).at(base)?;
+        let canonical_base = base.canonicalize().at(base)?;
+        let mut directory =
+            open_absolute_directory_nofollow(&canonical_base).at(&canonical_base)?;
         let mut root = canonical_base;
 
         for component in STORAGE_COMPONENTS {

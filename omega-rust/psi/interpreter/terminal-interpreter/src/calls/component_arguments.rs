@@ -61,7 +61,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         crate::custody::bind_active_structural_arguments(
             &receiver.structural_parameters,
             &prepared.values,
-            &self.program.structural_types(),
+            &self.structural_types(),
             self.structural_cases.as_map(),
             self.account.as_ref(),
         )?;
@@ -70,7 +70,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         })?;
         let mut values = prepared.into_opaque_values(self.local_structural_identities.cursor())?;
         let mut remaining_affine = self.live_affine_frontier.clone();
-        let receiver_types = self.program.structural_types();
+        let receiver_types = self.structural_types();
         let provider_types = provider.program.structural_types();
         for (argument_index, (((argument, required), supplied), value)) in arguments
             .iter()

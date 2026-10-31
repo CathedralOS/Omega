@@ -4,7 +4,7 @@
 // Expected rejection: may overflow `u64`
 
 machine forward_eval(r: u64) -> i32
-    requires r <= 64u64;
+    requires r <= 64u64
 {
     let headroom: u64 = 63u64 - r;
     transition r == 13u64 && headroom == 50u64 {
@@ -16,7 +16,7 @@ machine forward_eval(r: u64) -> i32
 }
 
 machine remainder_other_machine(dividend: u64, divisor: u64) -> i32
-    requires divisor >= 64u64 && divisor <= 65u64;
+    requires divisor >= 64u64 && divisor <= 65u64
 {
     let rem: u64 = dividend % divisor;
     forward_eval(rem)

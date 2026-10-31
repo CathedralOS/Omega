@@ -7,8 +7,8 @@ data Tokens { values: [i32; 19]; count: i32 in Wrapping; separated: bool; }
 
 public machine read(pedigree: &mut Pedigree) -> bool
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let mut tokens: Tokens;

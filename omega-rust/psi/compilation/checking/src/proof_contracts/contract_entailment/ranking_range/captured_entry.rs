@@ -29,7 +29,18 @@ pub fn prove_captured_ranking_range_entry(
     measure: RankingRangeMeasure,
     observed: &CapturedRankEntry,
 ) -> bool {
-    prove(program, machine, range, measure, observed).unwrap_or(false)
+    prove_captured_ranking_range_entry_with_formation(program, machine, range, measure, observed)
+        .is_some_and(|proof| proof.membership_and_pinning)
+}
+
+pub fn prove_captured_ranking_range_entry_with_formation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    range: ExpressionHandle,
+    measure: RankingRangeMeasure,
+    observed: &CapturedRankEntry,
+) -> Option<super::RankingRangeEntryProof> {
+    prove(program, machine, range, measure, observed)
 }
 
 fn prove(
@@ -38,7 +49,7 @@ fn prove(
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
     observed: &CapturedRankEntry,
-) -> Option<bool> {
+) -> Option<super::RankingRangeEntryProof> {
     let root = program.machine_states(machine).first()?;
     let (subject, paired) = match measure {
         RankingRangeMeasure::Single(subject) | RankingRangeMeasure::Computed { subject, .. } => {
@@ -121,18 +132,27 @@ fn prove(
         _ => return None,
     };
     if engine.requires_unsatisfiable {
-        return Some(true);
+        return Some(super::RankingRangeEntryProof {
+            membership_and_pinning: true,
+            application: None,
+        });
     }
-    if !rank.forms(&mut engine) {
-        return Some(false);
-    }
+    let Some(application) = rank.formation(&mut engine) else {
+        return Some(super::RankingRangeEntryProof {
+            membership_and_pinning: false,
+            application: None,
+        });
+    };
     let Some(range) = authored_range else {
-        return Some(
-            matches!(
-                measure,
-                RankingRangeMeasure::Distance { .. } | RankingRangeMeasure::IncreasingTo { .. }
-            ) || engine.prove_at_least(&engine.substituted(&rank.value), &BigInt::zero()),
-        );
+        let membership_and_pinning = matches!(
+            measure,
+            RankingRangeMeasure::Distance { .. } | RankingRangeMeasure::IncreasingTo { .. }
+        ) || engine
+            .prove_at_least(&engine.substituted(&rank.value), &BigInt::zero());
+        return Some(super::RankingRangeEntryProof {
+            membership_and_pinning,
+            application: application.filter(|_| membership_and_pinning),
+        });
     };
     let mut endpoint = |expression: &ScopedArithmeticExpression| -> Option<Polynomial> {
         if !engine.install_scoped_expression(expression) {
@@ -151,12 +171,16 @@ fn prove(
     };
     let floor = endpoint(start.as_ref()?)?;
     let ceiling = endpoint(end.as_ref()?)?;
-    Some(super::calls::membership(
+    let membership_and_pinning = super::calls::membership(
         &engine,
         measure,
         &rank.value,
         &floor,
         &ceiling,
         range.end_inclusive,
-    ))
+    );
+    Some(super::RankingRangeEntryProof {
+        membership_and_pinning,
+        application: application.filter(|_| membership_and_pinning),
+    })
 }

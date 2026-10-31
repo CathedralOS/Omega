@@ -16,6 +16,7 @@ use super::{
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
@@ -1253,9 +1254,7 @@ impl Evaluation {
             });
         let value = match (computation.as_ref(), path) {
             (Some(root), _) => {
-                let source = checked
-                    .facts
-                    .values
+                let source = value_facts(checked)
                     .scalar_computations
                     .roots
                     .iter()

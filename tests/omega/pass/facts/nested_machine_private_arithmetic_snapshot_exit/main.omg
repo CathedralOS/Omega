@@ -1,7 +1,7 @@
 // Scalar actuals retain their value when a later argument changes the source storage.
 // Expected exit: 0
 data Cell { value: u64; canary: u64; }
-machine clear(cell: &mut Cell) -> bool ensures cell.value == 0; {
+machine clear(cell: &mut Cell) -> bool ensures cell.value == 0 {
     cell.value = 0;
     true
 }

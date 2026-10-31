@@ -166,76 +166,15 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
         self.authorize(AccessOperation::CompoundMutation)
     }
 
-    pub fn atomic_load<'access>(
-        &'access self,
-        ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
-        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Load(
-            ordering,
-        )))
-    }
-
-    pub fn atomic_store<'access>(
-        &'access self,
-        ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
-        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Store(
-            ordering,
-        )))
-    }
-
-    pub fn atomic_fetch_add<'access>(
-        &'access self,
-        ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
-        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(
-            ordering,
-        )))
-    }
-
-    pub fn atomic_fetch_sub<'access>(
-        &'access self,
-        ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
-        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchSub(
-            ordering,
-        )))
-    }
-
-    pub fn atomic_fetch_xor<'access>(
-        &'access self,
-        ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
-        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchXor(
-            ordering,
-        )))
-    }
-
-    pub fn atomic_fetch_or<'access>(
-        &'access self,
-        ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
-        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchOr(
-            ordering,
-        )))
-    }
-
-    pub fn atomic_fetch_and<'access>(
-        &'access self,
-        ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
-        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchAnd(
-            ordering,
-        )))
-    }
-
-    pub fn atomic_swap<'access>(
-        &'access self,
-        ordering: MemoryOrdering,
-    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
-        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Swap(
-            ordering,
-        )))
+    atomic_ordering_accessors! {
+        atomic_load => Load,
+        atomic_store => Store,
+        atomic_fetch_add => FetchAdd,
+        atomic_fetch_sub => FetchSub,
+        atomic_fetch_xor => FetchXor,
+        atomic_fetch_or => FetchOr,
+        atomic_fetch_and => FetchAnd,
+        atomic_swap => Swap,
     }
 
     pub fn atomic_compare_exchange<'access>(

@@ -1,8 +1,8 @@
 // Every admitted source cursor is at or above the clamp: its rank is zero.
 machine count(cursor: u64)
 requires cursor >= 13 && cursor <= 16
-terminates;
-terminates by cursor -> Nat::IncreasingTo(13);
+terminates
+terminates by cursor -> Nat::IncreasingTo(13)
 {
     transition cursor < 16 {
         true -> forward(cursor)

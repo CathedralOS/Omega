@@ -25,7 +25,7 @@ requires position < 6
 }
 
 machine sift(values: &mut [i32; 6], position: u64) -> bool
-terminates by position -> Nat::Descending;
+terminates by position -> Nat::Descending
 requires position < 6
 {
     let swapped: bool = swap_descending(values, position);
@@ -36,7 +36,7 @@ requires position < 6
 }
 
 machine sort(values: &mut [i32; 6], index: u64) -> bool
-terminates by (index, 6) -> Nat::BoundedDistance;
+terminates by (index, 6) -> Nat::BoundedDistance
 requires index < 6
 {
     let sifted: bool = sift(values, index);

@@ -22,7 +22,5 @@ pub(crate) fn encode_trait_parent(
             Ok(())
         })
     })?;
-    encoder.field("arguments", |encoder| {
-        encoder.sequence(&parent.arguments, encode_type_identity)
-    })
+    encoder.sequence_field("arguments", &parent.arguments, encode_type_identity)
 }

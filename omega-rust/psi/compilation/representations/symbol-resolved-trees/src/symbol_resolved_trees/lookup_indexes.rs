@@ -243,7 +243,7 @@ impl super::SymbolResolvedTrees {
             .types
             .generic_application_origins
             .revision()
-            .wrapping_add(self.tables.declarations.child_type_references.revision())
+            .wrapping_add(self.declarations().child_type_references.revision())
             .wrapping_add(self.roots.data_definitions.revision());
         self.resolution_indexes
             .with_generic_origin_index(revision, build, run)

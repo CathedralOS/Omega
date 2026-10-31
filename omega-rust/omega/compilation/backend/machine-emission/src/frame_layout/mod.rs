@@ -43,6 +43,7 @@ pub(crate) use geometry::committed_extent;
 
 pub(crate) use unwind::{FrameContinuationCustody, frame_unwind_policy};
 
+use crate::count_where;
 pub use machine_code::{
     CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore, FunctionTargetFrameLayout,
     ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutIdentity, TargetFrameLayoutPlan,
@@ -132,16 +133,8 @@ fn seal(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {
         abi: plan.abi,
         policy: plan.policy,
         function_count: plan.functions.len(),
-        framed_function_count: plan
-            .functions
-            .iter()
-            .filter(|row| row.frame_size_bytes != 0)
-            .count(),
-        calling_function_count: plan
-            .functions
-            .iter()
-            .filter(|row| row.contains_call)
-            .count(),
+        framed_function_count: count_where(&plan.functions, |row| row.frame_size_bytes != 0),
+        calling_function_count: count_where(&plan.functions, |row| row.contains_call),
         callee_save_slot_count: plan
             .functions
             .iter()
@@ -157,11 +150,7 @@ fn seal(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {
                 )
             })
             .count(),
-        probed_function_count: plan
-            .functions
-            .iter()
-            .filter(|row| row.stack_probe.touches != 0)
-            .count(),
+        probed_function_count: count_where(&plan.functions, |row| row.stack_probe.touches != 0),
         max_frame_size_bytes: plan
             .functions
             .iter()

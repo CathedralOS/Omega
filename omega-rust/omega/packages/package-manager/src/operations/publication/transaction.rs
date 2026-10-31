@@ -321,9 +321,7 @@ impl PackageFileTransaction {
             return Err(PackagePublicationError::ByteLimitExceeded);
         }
         let mut copied = Vec::new();
-        copied
-            .try_reserve_exact(bytes.len())
-            .map_err(|_| PackagePublicationError::AllocationFailed)?;
+        crate::reserve!(copied, bytes.len(), PackagePublicationError);
         copied.extend_from_slice(bytes);
         Ok(copied)
     }

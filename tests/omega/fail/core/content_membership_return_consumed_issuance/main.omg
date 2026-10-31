@@ -17,7 +17,7 @@ ensures result in Owned { ticket }
 
 machine combine(left: Ticket in Owned, right: Ticket in Owned) -> Ticket in Owned
 reaches Issuer
-invokes Issuer;
+invokes Issuer
 {
     Issuer::combine(Pair { left: forward(left), right: forward(right) })
 }
