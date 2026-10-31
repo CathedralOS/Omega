@@ -26,6 +26,7 @@ use crate::execution::terminal_unit::{
     strips_erased_parameter,
 };
 use crate::places::place_at;
+use crate::semantic::calls::shared_argument_referent;
 
 pub(crate) fn structural_call_arguments(
     program: &dyn ::validation::CheckingInput,
@@ -82,8 +83,7 @@ pub(crate) fn structural_call_arguments(
             if materialized(expression) {
                 Some(expression)
             } else {
-                let (referent, _) =
-                    crate::semantic::calls::shared_argument_referent(program, expression, formal)?;
+                let (referent, _) = shared_argument_referent(program, expression, formal)?;
                 materialized(referent).then_some(referent)
             }
         };
@@ -281,12 +281,7 @@ pub(crate) fn structural_call_arguments(
                     ..
                 } => (
                     CheckedStructuralAccess::SharedBorrow,
-                    crate::semantic::calls::shared_argument_referent(
-                        program,
-                        authored,
-                        target.type_reference,
-                    )?
-                    .1,
+                    shared_argument_referent(program, authored, target.type_reference)?.1,
                 ),
                 _ => return None,
             };
