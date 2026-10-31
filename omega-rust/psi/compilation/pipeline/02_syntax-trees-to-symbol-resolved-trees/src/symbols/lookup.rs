@@ -1,13 +1,11 @@
 use symbol_resolved_trees::name::DiagnosticName;
-use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
+use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
 /// The closed builtin type atom installed under `symbol_name`, or `None` for
 /// a name outside the roster. Every name-based builtin-type lookup reads the
 /// roster here instead of re-scanning `BuiltinTypeAtom::ALL`.
-pub(crate) fn builtin_type_atom_by_symbol_name(
-    symbol_name: &str,
-) -> Option<symbols::BuiltinTypeAtom> {
-    symbols::BuiltinTypeAtom::ALL
+pub(crate) fn builtin_type_atom_by_symbol_name(symbol_name: &str) -> Option<BuiltinTypeAtom> {
+    BuiltinTypeAtom::ALL
         .into_iter()
         .find(|atom| atom.symbol_name() == symbol_name)
 }

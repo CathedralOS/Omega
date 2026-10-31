@@ -36,7 +36,9 @@ mod argument_types;
 mod completion;
 use super::generic_data::canonicalize_selected_declared_const_definition;
 use super::generic_data::closed_argument_identity;
+use arena::HandleSpan;
 pub(crate) use argument_types::DeclaredTypeOrigin;
+use argument_types::call_constraints;
 use completion::complete_arguments;
 use numerics::arithmetic::ArithmeticDomain;
 use std::iter::once;
@@ -49,6 +51,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ItemHandle;
 use syntax_trees::statement::StatementHandle;
 use syntax_trees::statement::StatementNode;
+use type_equations::const_binder_envelope;
 
 #[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub(crate) struct SourceLinks {
@@ -184,14 +187,8 @@ pub(crate) fn complete(
                         "machine equation application lost its authored call",
                     )]);
                 };
-                let ordinary_types = argument_types::call_constraints(
-                    syntax,
-                    trees,
-                    sources,
-                    call,
-                    Some(*resolved),
-                    selection,
-                );
+                let ordinary_types =
+                    call_constraints(syntax, trees, sources, call, Some(*resolved), selection);
                 complete_authored_arguments(
                     syntax,
                     index,
@@ -399,10 +396,7 @@ fn require_closed_selected_arguments(
     Ok(())
 }
 
-fn append_type_children(
-    span: arena::HandleSpan<TypeReference>,
-    pending: &mut Vec<Handle<TypeReference>>,
-) {
+fn append_type_children(span: HandleSpan<TypeReference>, pending: &mut Vec<Handle<TypeReference>>) {
     pending.extend(span.handles());
 }
 
@@ -621,9 +615,7 @@ fn application_argument_reference(
                 match value.decode_encoding() {
                     Some(DecodedCanonicalConstValue::Boolean(_)) if boolean => {}
                     Some(DecodedCanonicalConstValue::Integer { .. })
-                        if !boolean
-                            && type_equations::const_binder_envelope(carrier.as_str(syntax))
-                                .is_some() => {}
+                        if !boolean && const_binder_envelope(carrier.as_str(syntax)).is_some() => {}
                     Some(
                         DecodedCanonicalConstValue::Array { .. }
                         | DecodedCanonicalConstValue::Record { .. }
@@ -663,7 +655,7 @@ fn application_argument_reference(
                     "has a constructor argument with a different integer meaning",
                 ));
             }
-            let (minimum, maximum) = type_equations::const_binder_envelope(carrier.as_str(syntax))
+            let (minimum, maximum) = const_binder_envelope(carrier.as_str(syntax))
                 .ok_or_else(|| reject("requires a builtin integer constructor parameter"))?;
             let value = literal
                 .value_bignum()

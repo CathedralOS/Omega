@@ -56,6 +56,7 @@ use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionHandle;
 use symbol_resolved_trees::expression::ExpressionNode;
+use symbols::SymbolHandle;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::ConstDefinition;
 
@@ -272,10 +273,7 @@ pub struct ConstArgumentSelection {
 }
 
 impl ConstArgumentSelection {
-    pub fn original_call_target(
-        &self,
-        expression: ExpressionHandle,
-    ) -> Option<symbols::SymbolHandle> {
+    pub fn original_call_target(&self, expression: ExpressionHandle) -> Option<SymbolHandle> {
         if !self.expressions.contains(&expression) {
             return None;
         }
@@ -604,7 +602,7 @@ fn finish_resolution(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
     inputs: &[CallSelectionInput],
-    completed_machines: &[symbols::SymbolHandle],
+    completed_machines: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let predecessor = lowerer.seed.as_ref().map(|seed| Arc::clone(&seed.source));
     settle_resolution(lowerer, syntax)?;
@@ -668,7 +666,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
 fn finish_resolved_tables(
     lowerer: &mut Lowerer,
     inputs: &[CallSelectionInput],
-    machines: &[symbols::SymbolHandle],
+    machines: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     route_conformance_requirement_calls(&mut lowerer.symbol_resolved_trees, inputs, machines)?;
     route_named_implementation_calls(&mut lowerer.symbol_resolved_trees, inputs, machines);

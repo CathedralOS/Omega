@@ -24,19 +24,23 @@ use crate::preparation::generic_data::const_evaluation::validate_anonymous_remai
 use crate::preparation::generic_data::evaluate_const_fact_binary;
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::{
-    ConstFactValue, ConstScalarSpelling, ConstScalarValue, domain_index_parameters,
-    syntax_type_identity,
+    ConstFactValue, ConstScalarSpelling, ConstScalarValue, canonicalize_const_definition,
+    domain_index_parameters, syntax_type_identity,
 };
 
 use super::anonymous::{
     authored_operator_can_bind, evaluate_anonymous_numeric_expression, has_builtin_const_operator,
 };
 use super::arguments::validate_declared_integer;
+use super::qualified_const_name;
 use super::values::CanonicalConstNode;
 use super::values::canonicalize_selected_declaration_value;
 use crate::preparation::generic_data::module_constants::lexical_integer_const_values;
 use crate::preparation::generic_data::module_constants::module_path;
 use crate::preparation::generic_data::module_constants::reject_module_constant_selection;
+use language_core::CarryPermission;
+use language_core::CarryPolicy;
+use language_core::Multiplicity;
 use numerics::literals::LandedIntegerType;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::DomainDefinition;
@@ -180,9 +184,7 @@ fn evaluate_const_fact_expression_at(
             // its unique declaration before a fact can use the payload in an
             // operation or as a nested membership subject.
             let mut definitions = syntax.root_items().filter_map(|item| match item {
-                Item::Const(definition)
-                    if super::qualified_const_name(syntax, definition) == name =>
-                {
+                Item::Const(definition) if qualified_const_name(syntax, definition) == name => {
                     Some(definition)
                 }
                 _ => None,
@@ -807,9 +809,7 @@ fn evaluate_named_const_domain(
         // A `Carry::*` atom is compiler-owned grant evidence, not a selectable
         // domain: membership needs an admitted carry receipt the const subject
         // cannot produce at its declaration site.
-        if authored == "Carry::Portable"
-            || language_core::CarryPermission::from_name(authored).is_some()
-        {
+        if authored == "Carry::Portable" || CarryPermission::from_name(authored).is_some() {
             return Err(format!(
                 "domain constraint `{authored}` names a compiler carry permission; const declarations cannot supply its boundary-grant evidence",
             ));
@@ -864,8 +864,8 @@ fn carrier_satisfies_declared_bounds(
 ) -> bool {
     let properties = crate::constant::is_builtin_scalar_carrier(carrier)
         .then_some(syntax_trees::item::DataProperties {
-            multiplicity: language_core::Multiplicity::Unrestricted,
-            carry: Some(language_core::CarryPolicy::PERMISSIVE),
+            multiplicity: Multiplicity::Unrestricted,
+            carry: Some(CarryPolicy::PERMISSIVE),
         })
         .or_else(|| {
             syntax.root_items().find_map(|item| match item {
@@ -879,22 +879,16 @@ fn carrier_satisfies_declared_bounds(
         return false;
     };
     match bounds.multiplicity {
-        language_core::Multiplicity::Unrestricted
-            if properties.multiplicity != language_core::Multiplicity::Unrestricted =>
-        {
+        Multiplicity::Unrestricted if properties.multiplicity != Multiplicity::Unrestricted => {
             return false;
         }
-        language_core::Multiplicity::Linear
-            if properties.multiplicity != language_core::Multiplicity::Linear =>
-        {
+        Multiplicity::Linear if properties.multiplicity != Multiplicity::Linear => {
             return false;
         }
         _ => {}
     }
     if let Some(required) = bounds.carry {
-        let effective = properties
-            .carry
-            .unwrap_or(language_core::CarryPolicy::STRICT);
+        let effective = properties.carry.unwrap_or(CarryPolicy::STRICT);
         if !effective.permits(required) {
             return false;
         }
@@ -1349,8 +1343,7 @@ fn evaluate_domain_index_argument(
                 Item::Const(definition)
                     if !crate::preparation::generic_data::module_constants::is_module_constant(
                         syntax, definition,
-                    ) && super::qualified_const_name(syntax, definition)
-                        == name.as_str(syntax) =>
+                    ) && qualified_const_name(syntax, definition) == name.as_str(syntax) =>
                 {
                     Some(definition)
                 }
@@ -1363,14 +1356,13 @@ fn evaluate_domain_index_argument(
                 return Ok(None);
             }
             reject_module_constant_selection(syntax, name.as_str(syntax), name.source_span())?;
-            let value = crate::preparation::generic_data::canonicalize_const_definition(
-                syntax,
-                definition,
-                parameter_type,
-            )
-            .map_err(|reason| {
-                format!("index argument for `{family_name}::{parameter_name}` is invalid: {reason}")
-            })?;
+            let value = canonicalize_const_definition(syntax, definition, parameter_type).map_err(
+                |reason| {
+                    format!(
+                        "index argument for `{family_name}::{parameter_name}` is invalid: {reason}"
+                    )
+                },
+            )?;
             Ok(ConstScalarValue::from_canonical(&value))
         }
         TypeReferenceNode::ConstExpression(expression) => {

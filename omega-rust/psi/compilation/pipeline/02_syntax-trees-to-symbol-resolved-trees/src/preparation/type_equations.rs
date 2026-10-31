@@ -67,6 +67,7 @@ use syntax_trees::item::{ProofFact, TypeParameter, TypeParameterKind};
 use syntax_trees::types::{
     IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use type_structure::collect_binder_mentions;
 
 mod type_structure;
 
@@ -77,7 +78,7 @@ pub(crate) fn type_reference_parameter_mentions(
 ) -> Vec<usize> {
     let mut mentions = Vec::new();
     if reference.is_valid() {
-        type_structure::collect_binder_mentions(syntax, reference, names, &mut mentions);
+        collect_binder_mentions(syntax, reference, names, &mut mentions);
     }
     mentions
 }
@@ -376,12 +377,7 @@ impl Structure {
                 collect_expression_binder_mentions(syntax, *expression, parameters, &mut mentions);
             }
             Structure::TypeReference(reference) => {
-                type_structure::collect_binder_mentions(
-                    syntax,
-                    *reference,
-                    parameters,
-                    &mut mentions,
-                );
+                collect_binder_mentions(syntax, *reference, parameters, &mut mentions);
             }
             Structure::RangeShell {
                 carrier,
@@ -436,7 +432,7 @@ enum Side {
 }
 
 fn binder_index<'parameters>(
-    syntax_trees: &syntax_trees::SyntaxTrees,
+    syntax_trees: &SyntaxTrees,
     parameters: &'parameters [TypeParameter],
     name: &str,
 ) -> Option<(usize, &'parameters TypeParameterKind)> {
@@ -619,11 +615,7 @@ fn classify_side(
     }
 }
 
-fn describe_side(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    parameters: &[TypeParameter],
-    side: &Side,
-) -> String {
+fn describe_side(syntax_trees: &SyntaxTrees, parameters: &[TypeParameter], side: &Side) -> String {
     match side {
         Side::AmbiguousTypeOperand(_) => "a reference or slice operand".to_owned(),
         Side::TypeStructure(_) => "a type structure".to_owned(),
@@ -793,7 +785,7 @@ fn collect_expression_binder_mentions(
             }
         }
         ExpressionNode::TypeExpression(reference) => {
-            type_structure::collect_binder_mentions(syntax, *reference, parameters, mentions);
+            collect_binder_mentions(syntax, *reference, parameters, mentions);
         }
         ExpressionNode::Name(path) => {
             if let [member] = syntax.expressions.identifier_path_members(*path)
@@ -848,12 +840,7 @@ fn collect_static_argument_binder_mentions(
     mentions: &mut Vec<usize>,
 ) {
     if argument.type_reference.is_valid() {
-        type_structure::collect_binder_mentions(
-            syntax,
-            argument.type_reference,
-            parameters,
-            mentions,
-        );
+        collect_binder_mentions(syntax, argument.type_reference, parameters, mentions);
     }
     let name = match (&*argument.path, &argument.evidence_projection) {
         ([name], _) => Some(name),
@@ -938,7 +925,7 @@ pub(crate) fn complete_equation_arguments_with_types(
         );
         for &(formal, actual) in ordinary_types {
             let mut mentions = Vec::new();
-            type_structure::collect_binder_mentions(
+            collect_binder_mentions(
                 solver.syntax,
                 formal,
                 base_info.parameter_names,

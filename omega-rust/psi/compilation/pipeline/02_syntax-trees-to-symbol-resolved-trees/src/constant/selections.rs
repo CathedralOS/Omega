@@ -1,6 +1,8 @@
 //! Finalizing const selections, declarations and argument selections.
 
 use crate::constant::carrier;
+use carrier::retain_declared_carrier;
+use carrier::same_resolved_carrier;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use language_semantics::declaration_selection::{
@@ -21,12 +23,7 @@ pub(crate) fn finalize_const_selections(
 ) -> Result<(), Diagnostic> {
     for selection in pending {
         let symbol = selection.declaration;
-        carrier::retain_declared_carrier(
-            program,
-            selection.expression,
-            symbol,
-            selection.source_span,
-        )?;
+        retain_declared_carrier(program, selection.expression, symbol, selection.source_span)?;
         let occurrence = program
             .record_resolved_authored_declaration_selection(
                 selection.source_span,
@@ -249,11 +246,7 @@ pub(crate) fn finalize_const_argument_selections(
                     || carrier::has_nominal_carrier(program, type_reference))
             {
                 if (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
-                    && !carrier::same_resolved_carrier(
-                        program,
-                        &declaration.declared_type,
-                        type_reference,
-                    )
+                    && !same_resolved_carrier(program, &declaration.declared_type, type_reference)
                 {
                     return Err(Diagnostic::error("selected constant nominal carrier differs from its receiving generic parameter").with_source_span(origin.reference));
                 }

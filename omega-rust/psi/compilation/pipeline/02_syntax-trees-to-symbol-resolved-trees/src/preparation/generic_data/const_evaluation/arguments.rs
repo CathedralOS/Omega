@@ -14,6 +14,7 @@ use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::discovery::ClosedApplication;
 
 use super::anonymous::evaluate_anonymous_integer_argument;
+use super::module_constant_selection_gate;
 use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
@@ -176,12 +177,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     );
                     continue;
                 }
-                super::module_constant_selection_gate(
-                    syntax,
-                    &name,
-                    const_values,
-                    const_definitions,
-                )?;
+                module_constant_selection_gate(syntax, &name, const_values, const_definitions)?;
                 if let Some(value) = const_values.get(name.as_str(syntax)) {
                     syntax.tables.type_references.replace_type_reference(
                         *argument,

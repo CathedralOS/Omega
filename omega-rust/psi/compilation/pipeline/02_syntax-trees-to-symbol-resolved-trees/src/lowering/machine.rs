@@ -29,6 +29,7 @@ use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use language_semantics::RankingViewId;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use language_semantics::declaration_selection::CollectionMeasure;
 use language_semantics::declaration_selection::CompilerDerivedSelectionPartition;
@@ -717,7 +718,7 @@ fn elaborate_ranking_view(
     states: HandleSpan<Handle<State>>,
     type_parameters: HandleSpan<TypeParameter>,
     subjects: &[syntax::expression::ExpressionHandle],
-) -> (language_semantics::RankingViewId, String) {
+) -> (RankingViewId, String) {
     use language_semantics::RankingViewId;
 
     let order = syntax_items(&syntax_trees).identifier_path_members(machine.ranking_view);
@@ -742,9 +743,7 @@ fn elaborate_ranking_view(
     }
 }
 
-fn canonical_view(
-    id: language_semantics::RankingViewId,
-) -> (language_semantics::RankingViewId, String) {
+fn canonical_view(id: RankingViewId) -> (RankingViewId, String) {
     (id, id.canonical_path().unwrap_or_default().to_string())
 }
 
@@ -762,7 +761,7 @@ fn elaborate_single_subject_default(
     states: HandleSpan<Handle<State>>,
     type_parameters: HandleSpan<TypeParameter>,
     subject: syntax::expression::ExpressionHandle,
-) -> (language_semantics::RankingViewId, String) {
+) -> (RankingViewId, String) {
     use language_semantics::RankingViewId;
     use symbol_resolved_trees::types::TypeReference;
 

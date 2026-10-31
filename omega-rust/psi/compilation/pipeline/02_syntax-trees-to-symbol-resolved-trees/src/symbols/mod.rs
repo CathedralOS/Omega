@@ -89,7 +89,7 @@ impl NamespaceDeclarations {
     fn record_import_selections(
         &self,
         program: &mut SymbolResolvedTrees,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    ) -> Result<(), Vec<Diagnostic>> {
         use language_semantics::declaration_selection::{
             AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
         };
@@ -117,7 +117,7 @@ impl NamespaceDeclarations {
                 )
                 .map_err(|error| {
                     vec![
-                        diagnostics::Diagnostic::error(format!(
+                        Diagnostic::error(format!(
                             "failed to retain module import selection: {error:?}"
                         ))
                         .with_source_span(span),
@@ -129,10 +129,7 @@ impl NamespaceDeclarations {
 
     /// Register namespace custody before all nonconstant headers are available.
     /// Import-target validation still runs when the complete table is installed.
-    pub(crate) fn register(
-        &self,
-        symbols: &mut symbols::SymbolTable,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    pub(crate) fn register(&self, symbols: &mut SymbolTable) -> Result<(), Vec<Diagnostic>> {
         for path in &self.modules {
             let Some(first) = path.first() else {
                 continue;
@@ -144,10 +141,7 @@ impl NamespaceDeclarations {
                         .map(|member| (member.as_str(&self.text), member.source_span())),
                 )
                 .map_err(|message| {
-                    vec![
-                        diagnostics::Diagnostic::error(message)
-                            .with_source_span(first.source_span()),
-                    ]
+                    vec![Diagnostic::error(message).with_source_span(first.source_span())]
                 })?;
         }
         for path in &self.imports {
@@ -160,10 +154,7 @@ impl NamespaceDeclarations {
         Ok(())
     }
 
-    fn install(
-        &self,
-        symbols: &mut symbols::SymbolTable,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    fn install(&self, symbols: &mut SymbolTable) -> Result<(), Vec<Diagnostic>> {
         self.register(symbols)?;
         for path in &self.imports {
             let Some(first) = path.first() else {
@@ -173,10 +164,7 @@ impl NamespaceDeclarations {
             symbols
                 .validate_source_module_import(first.source_span().source_id, &name)
                 .map_err(|message| {
-                    vec![
-                        diagnostics::Diagnostic::error(message)
-                            .with_source_span(first.source_span()),
-                    ]
+                    vec![Diagnostic::error(message).with_source_span(first.source_span())]
                 })?;
         }
         Ok(())
@@ -190,15 +178,11 @@ impl NamespaceDeclarations {
 /// the same sequence.
 fn assign_program_symbols(
     program: &mut SymbolResolvedTrees,
-    symbols: &symbols::SymbolTable,
+    symbols: &SymbolTable,
     generic_origin_frontier: usize,
-) -> Vec<diagnostics::Diagnostic> {
+) -> Vec<Diagnostic> {
     let mut diagnostics = assign_top_level_symbols(program, symbols);
-    type_references::assign_generic_application_origin_symbols(
-        program,
-        symbols,
-        generic_origin_frontier,
-    );
+    assign_generic_application_origin_symbols(program, symbols, generic_origin_frontier);
     assign_type_reference_symbols(program, symbols);
     type_references::assign_declaration_type_value_expression_symbols(program, symbols);
     propositions::assign_proposition_expression_symbols(program, symbols);
@@ -221,7 +205,7 @@ pub(crate) fn assign_symbols(
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
     generic_origin_frontier: usize,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     let mut symbols = build_symbol_table(
         program,
         sources.clone(),
@@ -231,8 +215,7 @@ pub(crate) fn assign_symbols(
     );
     namespace_declarations.install(&mut symbols)?;
     let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
-    let mut symbols =
-        symbol_table::insert_selected_machine_children(program, symbols, sources, 0, has_sources);
+    let mut symbols = insert_selected_machine_children(program, symbols, sources, 0, has_sources);
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
     let symbols = program.symbols.clone();
@@ -253,7 +236,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
     generic_origin_frontier: usize,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     symbol_table::extend_symbol_table(
         program,
         sources.clone(),
@@ -263,13 +246,8 @@ pub(crate) fn assign_symbols_against_resolved_base(
     );
     namespace_declarations.install(&mut program.symbols)?;
     let table = std::mem::take(&mut program.symbols);
-    program.symbols = symbol_table::insert_selected_machine_children(
-        program,
-        table,
-        Some(sources),
-        roots.machines,
-        true,
-    );
+    program.symbols =
+        insert_selected_machine_children(program, table, Some(sources), roots.machines, true);
     let mut symbols = program.symbols.clone();
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
@@ -330,7 +308,7 @@ pub(crate) use lookup::{
 /// Build the symbol table and give every reference its identity, then settle
 /// the static module calls and outcome-specific contracts that need it. A
 /// seeded lowerer extends its base's table in place.
-pub(crate) fn assign(lowerer: &mut Lowerer) -> Result<(), Vec<diagnostics::Diagnostic>> {
+pub(crate) fn assign(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     assign_declarations(lowerer)?;
     let machines = lowerer
         .symbol_resolved_trees
@@ -343,9 +321,7 @@ pub(crate) fn assign(lowerer: &mut Lowerer) -> Result<(), Vec<diagnostics::Diagn
 
 /// Allocate and resolve declaration identities before any body-local symbol
 /// batch. Both eager resolution and retained-body completion use this boundary.
-pub(crate) fn assign_declarations(
-    lowerer: &mut Lowerer,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let seeded_roots = lowerer.seed.as_ref().map(|seed| seed.roots);
     match seeded_roots {
         None => assign_symbols(
@@ -358,7 +334,7 @@ pub(crate) fn assign_declarations(
         )?,
         Some(roots) => {
             let sources = lowerer.sources.take().ok_or_else(|| {
-                vec![diagnostics::Diagnostic::error(
+                vec![Diagnostic::error(
                     "seeded symbol resolution requires retained source custody",
                 )]
             })?;
@@ -399,10 +375,10 @@ pub(crate) fn assign_declarations(
 pub(crate) fn assign_body_symbols(
     lowerer: &mut Lowerer,
     selected_machines: &[symbols::SymbolHandle],
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     symbol_table::append_body_symbols(&mut lowerer.symbol_resolved_trees, selected_machines)?;
     let symbols = lowerer.symbol_resolved_trees.symbols.clone();
-    type_references::assign_generic_application_origin_symbols(
+    assign_generic_application_origin_symbols(
         &mut lowerer.symbol_resolved_trees,
         &symbols,
         lowerer.bound_generic_application_origins,
@@ -437,7 +413,7 @@ pub(crate) fn assign_lexical_inputs(
     lowerer: &mut Lowerer,
     syntax: &syntax_trees::SyntaxTrees,
     demand: crate::lowering::state::LexicalInputDemand,
-) -> Result<Vec<crate::selection::body_calls::CallSelectionInput>, Vec<diagnostics::Diagnostic>> {
+) -> Result<Vec<crate::selection::body_calls::CallSelectionInput>, Vec<Diagnostic>> {
     let mut inputs =
         crate::lowering::machine::lower_pending_lexical_inputs(lowerer, syntax, demand)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -480,4 +456,8 @@ pub(crate) fn assign_lexical_inputs(
 }
 
 use crate::resolution::lowerer::Lowerer;
+use diagnostics::Diagnostic;
+use symbol_table::insert_selected_machine_children;
+use symbols::SymbolTable;
+use type_references::assign_generic_application_origin_symbols;
 pub(crate) use type_references::assign_nominal_machine_requirement_arguments;

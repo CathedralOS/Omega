@@ -41,6 +41,7 @@ use crate::preparation::generic_data::qualified_const_name;
 use crate::preparation::generic_data::type_reference_slug;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::LandedIntegerType;
+use symbols::SymbolKind;
 use syntax_trees::item::TypeParameterKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -581,13 +582,7 @@ fn closed_application_argument_labels(
                 return Ok(slug);
             }
             let label = selected_type_label(syntax, *argument, selection)?;
-            qualify_application_label(
-                syntax,
-                *argument,
-                label,
-                symbols::SymbolKind::Data,
-                selection,
-            )
+            qualify_application_label(syntax, *argument, label, SymbolKind::Data, selection)
         })
         .collect()
 }
@@ -633,7 +628,7 @@ fn selected_implementation_label(
         syntax,
         reference,
         label,
-        symbols::SymbolKind::Conformance,
+        SymbolKind::Conformance,
         Some(selection),
     )
 }
@@ -642,7 +637,7 @@ fn qualify_application_label(
     syntax: &SyntaxTrees,
     reference: TypeReferenceHandle,
     label: String,
-    kind: symbols::SymbolKind,
+    kind: SymbolKind,
     selection: Option<&ConstantSelection>,
 ) -> Result<String, String> {
     let name = match syntax.type_references.type_reference(reference) {

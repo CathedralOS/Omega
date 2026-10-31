@@ -1,5 +1,5 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolKind, SymbolTable};
+use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::top_level::{SignatureSymbolTables, next_child_of_kind};
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
     // because `self` inside its copied `requires` facts is the same binder
     // (see below). The stored generic origin's `base_symbol` is not yet bound
     // during this pass -- the base name is the available identity.
-    let mut template_subjects: HashMap<String, symbols::SymbolHandle> = HashMap::new();
+    let mut template_subjects: HashMap<String, SymbolHandle> = HashMap::new();
     program
         .roots
         .data_definitions
@@ -53,9 +53,7 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                         parameter.name == bound.binder_name
                             && parameter.kind == TypeParameterKind::Implementation
                     })
-                    .map_or(symbols::SymbolHandle::invalid(), |parameter| {
-                        parameter.symbol
-                    });
+                    .map_or(SymbolHandle::invalid(), |parameter| parameter.symbol);
             }
             crate::symbols::top_level::assign_conformance_bound_symbols(
                 symbols,
@@ -118,7 +116,7 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                 }
             }
             data_definition.predicate_subject_symbol = if data_definition.where_facts.is_empty() {
-                symbols::SymbolHandle::invalid()
+                SymbolHandle::invalid()
             } else if let Some(TypeReference::Generic(origin)) = &data_definition.generic_instance {
                 // A synthesized closed instance's `self` is the declared
                 // template's own predicate subject: the copied `requires`

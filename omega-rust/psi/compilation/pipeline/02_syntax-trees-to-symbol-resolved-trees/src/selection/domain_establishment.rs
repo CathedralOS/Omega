@@ -28,6 +28,7 @@ use crate::selection::signature_free_requirements::{
     resolve_signature_free_machine, resolve_signature_free_requirement,
 };
 use crate::symbols::prefer_module_local_domain;
+use language_core::ReferenceAccess;
 use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::expression::ExpressionHandle;
 
@@ -640,9 +641,7 @@ fn mutable_reference_parameter(
     type_reference: &TypeReference,
 ) -> bool {
     match type_reference {
-        TypeReference::Reference(reference) => {
-            reference.storage.access == language_core::ReferenceAccess::Mutable
-        }
+        TypeReference::Reference(reference) => reference.storage.access == ReferenceAccess::Mutable,
         TypeReference::Constrained(constrained) => mutable_reference_parameter(
             program,
             program.child_type_reference(constrained.storage.base_type),

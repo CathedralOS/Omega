@@ -3,6 +3,7 @@
 use super::super::generic_data::closed_argument_identity;
 use super::*;
 use crate::tables::syntax_items;
+use type_equations::type_reference_parameter_mentions;
 
 pub(super) fn complete_arguments(
     syntax: &mut SyntaxTrees,
@@ -78,9 +79,7 @@ pub(super) fn complete_arguments(
                 .chain(std::iter::once(entry.return_type))
         })
         .chain(result_type)
-        .flat_map(|reference| {
-            type_equations::type_reference_parameter_mentions(syntax, reference, &all_names)
-        })
+        .flat_map(|reference| type_reference_parameter_mentions(syntax, reference, &all_names))
         .collect::<Vec<_>>();
     // Removed telescope slots remain lexical binders, never same-named globals.
     for (index, name) in all_names.iter().enumerate() {

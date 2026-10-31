@@ -246,15 +246,12 @@ fn lower_item_with_exposure(
                     syntax_trees,
                     definition,
                     lowerer.constant_selection.as_ref().ok_or_else(|| {
-                        diagnostics::Diagnostic::error(
-                            "initializer preparation lost its declaration selector",
-                        )
-                        .with_source_span(definition.name.source_span())
+                        Diagnostic::error("initializer preparation lost its declaration selector")
+                            .with_source_span(definition.name.source_span())
                     })?,
                 )
                 .map_err(|reason| {
-                    diagnostics::Diagnostic::error(reason)
-                        .with_source_span(definition.name.source_span())
+                    Diagnostic::error(reason).with_source_span(definition.name.source_span())
                 })?
                 .is_empty();
             if lowerer.const_resolution_mode == ConstResolutionMode::Complete {
@@ -283,7 +280,7 @@ fn lower_item_with_exposure(
                         lowerer.constant_selection.as_ref(),
                     )
                     .map_err(|reason| {
-                        diagnostics::Diagnostic::error(format!(
+                        Diagnostic::error(format!(
                             "public const `{}` has no canonical declaration identity: {reason}",
                             crate::constant::semantic_const_name(syntax_trees, definition),
                         ))

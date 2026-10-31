@@ -81,6 +81,7 @@ pub(in crate::preparation::generic_data) use const_evaluation::{
 pub(in crate::preparation) use const_evaluation::{
     canonicalize_selected_const_definition, collect_type_positions,
 };
+use declaration_selection::ConstantSelection;
 pub(crate) use discovery::{ClosedArgumentIdentity, ClosedConstraintIdentity, selected_data_item};
 pub(in crate::preparation::generic_data) use discovery::{
     GenericData, GenericDataShape, Instantiation, PendingRewrite, selected_generic_data,
@@ -116,7 +117,7 @@ pub fn closed_const_arguments(
     let machine_public_positions: HashSet<TypeReferenceHandle> =
         machine_public_positions_vec.into_iter().collect();
     let (data_arguments, machine_arguments) = {
-        let selection = declaration_selection::ConstantSelection::with_retained_base(
+        let selection = ConstantSelection::with_retained_base(
             syntax,
             sources,
             top_level_bindings,
@@ -196,12 +197,8 @@ pub fn closed_data_const_argument_expressions(
     if !positions_may_have_closed_const_arguments(syntax, &positions) {
         return Ok(Vec::new());
     }
-    let selection = declaration_selection::ConstantSelection::with_retained_base(
-        syntax,
-        sources,
-        top_level_bindings,
-        retained_base,
-    )?;
+    let selection =
+        ConstantSelection::with_retained_base(syntax, sources, top_level_bindings, retained_base)?;
     let public_positions: HashSet<TypeReferenceHandle> =
         collect_data_type_reference_positions(syntax, true)
             .into_iter()
@@ -329,12 +326,8 @@ pub fn closed_machine_const_arguments(
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
     declaration_syntax: Option<&SyntaxTrees>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let selection = declaration_selection::ConstantSelection::with_retained_base(
-        syntax,
-        sources,
-        top_level_bindings,
-        retained_base,
-    )?;
+    let selection =
+        ConstantSelection::with_retained_base(syntax, sources, top_level_bindings, retained_base)?;
     let (positions, public_positions_vec) = collect_machine_type_reference_positions(syntax);
     let public_positions: HashSet<TypeReferenceHandle> = public_positions_vec.into_iter().collect();
     let mut arguments = collect_closed_const_arguments(
@@ -358,7 +351,7 @@ pub fn closed_machine_const_arguments(
 
 fn collect_closed_const_arguments(
     syntax: &mut SyntaxTrees,
-    selection: &declaration_selection::ConstantSelection<'_>,
+    selection: &ConstantSelection<'_>,
     declaration_syntax: Option<&SyntaxTrees>,
     positions: &[TypeReferenceHandle],
     public_positions: &HashSet<TypeReferenceHandle>,
@@ -492,7 +485,7 @@ fn collect_closed_const_arguments(
 
 fn unique_domain_index_parameters<'syntax>(
     syntax: &'syntax SyntaxTrees,
-    selection: &declaration_selection::ConstantSelection<'_>,
+    selection: &ConstantSelection<'_>,
     name: &str,
     reference: source::SourceSpan,
 ) -> Option<&'syntax [TypeParameter]> {
@@ -508,7 +501,7 @@ fn unique_domain_index_parameters<'syntax>(
 pub(crate) fn const_destination_requires_proof(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: Option<&declaration_selection::ConstantSelection>,
+    selection: Option<&ConstantSelection>,
 ) -> bool {
     const_evaluation::const_type_requires_declaration_proof(
         syntax,
@@ -533,7 +526,7 @@ pub(super) fn qualification_names_itself(definition: &ConstDefinition) -> bool {
 pub(crate) fn canonicalize_pending_initializer_payload(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: Option<&declaration_selection::ConstantSelection>,
+    selection: Option<&ConstantSelection>,
 ) -> Result<crate::resolution::ConstInitializerPayload, String> {
     let mut payload = definition.clone();
     while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -592,7 +585,7 @@ pub fn canonicalize_declared_const_definition(
 pub(crate) fn canonicalize_selected_declared_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
-    selection: Option<&declaration_selection::ConstantSelection>,
+    selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
     if definition.pending_qualification.is_some() {
         return Err("constant destination qualification remains pending".to_owned());
@@ -720,7 +713,7 @@ fn normalize_generic_data_in_mode(
         }
         return Ok(syntax);
     };
-    let selection = declaration_selection::ConstantSelection::with_retained_base(
+    let selection = ConstantSelection::with_retained_base(
         &syntax,
         Some(sources),
         top_level_bindings,
@@ -731,12 +724,7 @@ fn normalize_generic_data_in_mode(
     domain_heads::normalize(&mut syntax, Some(&selection))?;
     validate_with_const_resolution_mode(&syntax, &selection, mode)?;
     let mut warnings = Vec::new();
-    synthesis::desugar_generic_data_instances_in(
-        &mut syntax,
-        &mut warnings,
-        Some(&selection),
-        domain,
-    )?;
+    desugar_generic_data_instances_in(&mut syntax, &mut warnings, Some(&selection), domain)?;
     deduplicate_generic_warnings(&mut warnings);
     for warning in warnings {
         eprintln!("{warning}");
@@ -751,7 +739,7 @@ pub(crate) fn validate_direct_const_arguments(
     syntax: &SyntaxTrees,
     base_name: &Identifier,
     arguments: HandleSpan<TypeReferenceHandle>,
-    selection: Option<&declaration_selection::ConstantSelection>,
+    selection: Option<&ConstantSelection>,
 ) -> Result<(), Diagnostic> {
     let arguments = syntax.type_references.type_reference_handles(arguments);
     let has_direct = arguments.iter().any(|argument| {
@@ -816,19 +804,16 @@ fn normalize_generic_data_with_warnings(
     domain: GenericDataWorkDomain<'_>,
 ) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
     domain_heads::normalize(&mut syntax, None)?;
-    let selection = declaration_selection::ConstantSelection::new(&syntax, None, Vec::new())?;
+    let selection = ConstantSelection::new(&syntax, None, Vec::new())?;
     validate_with_const_resolution_mode(&syntax, &selection, mode)?;
     let mut warnings = Vec::new();
     match domain {
         GenericDataWorkDomain::All { .. } => {
             desugar_generic_data_instances(&mut syntax, &mut warnings)?
         }
-        GenericDataWorkDomain::Selected { .. } => synthesis::desugar_generic_data_instances_in(
-            &mut syntax,
-            &mut warnings,
-            Some(&selection),
-            domain,
-        )?,
+        GenericDataWorkDomain::Selected { .. } => {
+            desugar_generic_data_instances_in(&mut syntax, &mut warnings, Some(&selection), domain)?
+        }
     }
     deduplicate_generic_warnings(&mut warnings);
     Ok((syntax, warnings))

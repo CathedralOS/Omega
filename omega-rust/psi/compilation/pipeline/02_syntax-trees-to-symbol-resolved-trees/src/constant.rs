@@ -93,6 +93,7 @@ use crate::resolution::lowerer::Lowerer;
 use crate::symbols::assign_constant_expression_symbols;
 use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
+use initializer_dependencies::bind_named_implementation_const_calls;
 use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
@@ -197,11 +198,8 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     // in a constant initializer has no machine-body route yet, so bind the
     // owned realization entry before that recording. Later requirement
     // routing still publishes the public requirement on machine-body calls.
-    initializer_dependencies::bind_named_implementation_const_calls(
-        program,
-        &const_expression_roots,
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])?;
+    bind_named_implementation_const_calls(program, &const_expression_roots)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     if lowerer.const_resolution_mode == crate::resolution::lowerer::ConstResolutionMode::Complete {
         declaration_values::validate_nominal_destinations(program)
             .map_err(|diagnostic| vec![diagnostic])?;

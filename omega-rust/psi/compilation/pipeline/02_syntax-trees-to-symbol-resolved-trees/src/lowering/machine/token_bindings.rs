@@ -49,6 +49,7 @@ use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::ReferenceAccess;
 use source::SourceSpan;
+use source::Span;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::TypeParameter;
 use symbol_resolved_trees::machine::Machine;
@@ -389,10 +390,7 @@ fn operator_token_binding<'program>(
     let name_span = members.first().map_or_else(SourceSpan::default, |first| {
         let first = first.source_span();
         let last = leaf.expect("nonempty members").source_span();
-        SourceSpan::new(
-            first.source_id,
-            source::Span::new(first.span.start, last.span.end),
-        )
+        SourceSpan::new(first.source_id, Span::new(first.span.start, last.span.end))
     });
     let (owner_spelling, owner) = match domain {
         Some(domain) => (

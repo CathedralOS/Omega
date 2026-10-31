@@ -14,6 +14,7 @@ use crate::symbols::type_references::{
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals_and_constraints,
 };
+use language_semantics::MachineSupplyMode;
 use symbol_resolved_trees::data::TypeParameterKind;
 
 pub(super) fn assign_machine_symbols(
@@ -28,11 +29,8 @@ pub(super) fn assign_machine_symbols(
         .machines
         .iter()
         .filter_map(|machine| {
-            matches!(
-                machine.supply_mode,
-                language_semantics::MachineSupplyMode::TopLevelRequirement
-            )
-            .then_some(machine.symbol)
+            matches!(machine.supply_mode, MachineSupplyMode::TopLevelRequirement)
+                .then_some(machine.symbol)
         })
         .collect::<Vec<_>>();
     let token_requirement_symbols = program
