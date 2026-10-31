@@ -116,6 +116,33 @@ fail/facts/induction_call_guarantee_through_parameter_rejected rejected 634ms ex
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
 fail/facts/induction_call_guarantee_through_target_body_rejected rejected 633ms expected @961147032a93+wt
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_rejected rejected 1152ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_rejected rejected 1264ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_field_rejected rejected 1129ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_local_rejected rejected 1142ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_match_join_rejected rejected 1147ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_other_machine_rejected rejected 1148ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_other_state_rejected rejected 1165ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_parameter_rejected rejected 1167ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_computed_target_body_rejected rejected 1141ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_hidden_intermediate_overflow rejected 1138ms expected @3e07df27288a
+	cannot prove the `terminates by` ranking for machine count
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_missing_selector_bound rejected 456ms expected @3e07df27288a
+	cannot form specification index in machine `count` requires contract: independent collection bounds are not established by preceding formed facts
+fail/facts/nested_machine_joint_rank_authored_indexed_reset_before_decrease rejected 1187ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_authored_indexed_wrong_field_write rejected 1451ms expected @3e07df27288a
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_computed_measure_call_result_rejected rejected 846ms expected @4518281b90b2+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_computed_measure_const_name_rejected rejected 796ms expected @4518281b90b2+wt
@@ -6452,6 +6479,16 @@ pass/facts/nested_machine_invocation/terminal_reference_snapshot/parameter check
 pass/facts/nested_machine_invocation/terminal_reference_snapshot/target_body checked 4001ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/unit_completion checked 3910ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_arrival_decrease_exit checked 3555ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_exit checked 1650ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_exit checked 1650ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_field_exit checked 1627ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_local_exit checked 1627ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_match_join_exit checked 1524ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_other_machine_exit checked 1822ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_other_state_exit checked 1456ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_parameter_exit checked 1530ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_computed_target_body_exit checked 1482ms check-target:macos_arm64 @3e07df27288a
+pass/facts/nested_machine_joint_rank_authored_indexed_natural_local_exit checked 1461ms check-target:macos_arm64 @3e07df27288a
 pass/facts/nested_machine_joint_rank_borrowed_alias_move_exit checked 3183ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_borrowed_descriptor_field_exit checked 3028ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_borrowed_disjoint_write_exit checked 3937ms check-target:macos_arm64 @ccdb99ca2214

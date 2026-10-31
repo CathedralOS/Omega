@@ -127,6 +127,25 @@ impl EntryInputs<'_> {
                         expression,
                     )
                     .unwrap_or(expression);
+                    // A fixed array's length is declared geometry, not an
+                    // executable descriptor read. Authenticate its exact typed
+                    // extent before exempting it from the runtime coordinate
+                    // roster; an arbitrary captured integer grants nothing.
+                    if place_expression != expression
+                        && let Some(extent) = validation::declared_collection_extent(
+                            program,
+                            self.values.machine(),
+                            Some(self.values.state()),
+                            place_expression,
+                        )
+                        && let Ok(extent) = u64::try_from(extent)
+                        && binding.value
+                            == ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_u64(
+                                extent,
+                            ))
+                    {
+                        continue;
+                    }
                     if let Some(place) = validation::canonical_place_from_expression_in_state(
                         program,
                         self.values.state().symbol,
