@@ -349,15 +349,6 @@ body and evaluates the policy. Publishing these applications and their closed
 storage/contract inputs in Terminal, rather than retaining source coordinates,
 remains the next connected migration.
 
-The Terminal interpreter exposes read-only leaves of completed structural
-results through the same typed storage reader as borrowed-entry observation.
-Nested case/array contents and bytes are observations of the actual retained
-owner, not reconstructed guest values or new custody. Borrowed and reloaded
-artifacts use the same interface; inactive paths, incomplete execution and
-closed instances refuse. This supplies result readback for future calling-policy
-execution. Payload-bearing policy inputs and canonical calling/opaque/callback
-publication remain open.
-
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
 implementation already has these boundaries. Build suspension and helper
