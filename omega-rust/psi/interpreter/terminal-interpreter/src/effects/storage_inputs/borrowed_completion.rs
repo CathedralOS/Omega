@@ -4,11 +4,13 @@
 
 use super::{StructuralLoanBinding, TerminalBoundaryStructuralBuffer};
 use crate::byte_sequences::storage::ByteSequenceStorage;
+use crate::effects::scalar_loans::satisfies_source_restriction;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::ConstructorStorage;
 use crate::structural_storage::contents::{self, StorageLeafKind, TerminalStorageContents};
 use crate::values::StructuralRuntimePlace;
+use semantic_vocabulary::CanonicalStructuralPathSegment;
 use std::sync::Arc;
 use terminal_psi::StructuralAccess;
 
@@ -139,11 +141,7 @@ pub(super) fn stage(
                     .map(|position| &binding.scalars[position]);
                 if let Some(original) = original
                     && original.restriction.as_ref().is_some_and(|field| {
-                        !crate::effects::scalar_loans::satisfies_source_restriction(
-                            value,
-                            field,
-                            original.storage.encoding,
-                        )
+                        !satisfies_source_restriction(value, field, original.storage.encoding)
                     })
                 {
                     return Err(malformed());
@@ -208,7 +206,7 @@ pub(super) fn stage(
                     if !binding.leaves.iter().any(|old| old.path == leaf.path && matches!(&old.kind, StorageLeafKind::ByteField { declaration: original, .. } if original == declaration)) { return Err(TerminalInterpretError::UnsupportedSemanticVariant("case replacement lacks a semantic codec for new byte fields")); }
                     let namespace = if matches!(
                         leaf.path.iter().rev().nth(1),
-                        Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
+                        Some(CanonicalStructuralPathSegment::Case(_))
                     ) {
                         crate::values::StructuralFieldNamespace::CasePayload
                     } else {
@@ -232,11 +230,7 @@ pub(super) fn stage(
                 } => {
                     let values = (0..*length).map(|element_index| {
                         let mut path = leaf.path.clone();
-                        path.push(
-                            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(
-                                element_index,
-                            ),
-                        );
+                        path.push(CanonicalStructuralPathSegment::FixedIndex(element_index));
                         let position = buffer
                             .values
                             .binary_search_by(|value| value.path.cmp(&path))

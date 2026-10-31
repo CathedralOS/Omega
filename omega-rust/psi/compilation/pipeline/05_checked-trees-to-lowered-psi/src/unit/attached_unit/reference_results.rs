@@ -10,6 +10,9 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::retention::access_lifecycles::storage_fields;
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// The checked expression the reference operation actually evaluates.
@@ -159,26 +162,13 @@ pub(crate) fn emit_carrier(
         .ok_or(LoweringError::Unsupported(
             "resident reference lost its supplying owner",
         ))?;
-        let (base, length) = crate::retention::access_lifecycles::storage_fields(
-            identities,
-            formation.checked,
-            extent,
-            carrier,
-        )?;
+        let (base, length) = storage_fields(identities, formation.checked, extent, carrier)?;
         let carrier = carrier.id;
         Some(terminal_psi::ResidentReferenceSource {
             base,
             length,
-            granted: crate::terminal_identities::lookup_domain_id_for_carrier(
-                formation.domain_ids,
-                granted,
-                carrier,
-            )?,
-            resident: crate::terminal_identities::lookup_domain_id_for_carrier(
-                formation.domain_ids,
-                resident,
-                carrier,
-            )?,
+            granted: lookup_domain_id_for_carrier(formation.domain_ids, granted, carrier)?,
+            resident: lookup_domain_id_for_carrier(formation.domain_ids, resident, carrier)?,
         })
     } else {
         None
@@ -221,9 +211,7 @@ pub(crate) fn emit_carrier(
             let element = match declaration.shape {
                 terminal_psi::StructuralTypeShape::ElementView { element, .. } => element,
                 _ => {
-                    let scalar = crate::emission::scalar_types::terminal_scalar_type(
-                        checked_trees::types::PrimitiveType::U8,
-                    )?;
+                    let scalar = terminal_scalar_type(checked_trees::types::PrimitiveType::U8)?;
                     declarations
                         .iter()
                         .find(|declaration| {
@@ -387,7 +375,7 @@ pub(crate) fn emit_carrier(
                     result.projected_qualifications.push(
                         terminal_psi::StructuralPathQualification {
                             path: vec![terminal_psi::StructuralPathSegment::Referent],
-                            domain: crate::terminal_identities::lookup_domain_id_for_carrier(
+                            domain: lookup_domain_id_for_carrier(
                                 formation.domain_ids,
                                 domain,
                                 referent,

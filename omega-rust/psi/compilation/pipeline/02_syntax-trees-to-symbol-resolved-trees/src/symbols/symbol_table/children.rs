@@ -40,6 +40,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolTableAppender, SymbolTableBuilder};
 
 use super::names::{parameter_seeds, type_parameter_seeds};
+use symbol_resolved_trees::data::TypeParameterKind;
 
 pub(super) fn insert_measure_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -68,10 +69,8 @@ fn insert_machine_type_parameter_children(
 ) {
     for parameter in parameters {
         let parameter_symbol = children.next();
-        if let (
-            Some(parameter_symbol),
-            symbol_resolved_trees::data::TypeParameterKind::Machine { contract },
-        ) = (parameter_symbol, &parameter.kind)
+        if let (Some(parameter_symbol), TypeParameterKind::Machine { contract }) =
+            (parameter_symbol, &parameter.kind)
             && let Some(contract) = contract.structural()
         {
             insert_machine_parameter_signature_children(
@@ -137,7 +136,7 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
             break;
         };
         match &parameter.kind {
-            symbol_resolved_trees::data::TypeParameterKind::Machine { contract } => {
+            TypeParameterKind::Machine { contract } => {
                 if let Some(contract) = contract.structural() {
                     insert_machine_parameter_signature_children(
                         builder,
@@ -148,7 +147,7 @@ pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
                     );
                 }
             }
-            symbol_resolved_trees::data::TypeParameterKind::Proposition { contract } => {
+            TypeParameterKind::Proposition { contract } => {
                 builder.insert_children(
                     parameter_symbol,
                     parameter_seeds(program.state_parameters(contract.parameters), has_sources),

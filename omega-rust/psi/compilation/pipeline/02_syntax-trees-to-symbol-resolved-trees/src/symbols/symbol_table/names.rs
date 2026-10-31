@@ -1,4 +1,5 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::data::TypeParameterKind;
 use symbols::{JoinedPath, SymbolKind, SymbolNameRef};
 
 pub(super) type SymbolSeed<'name> = (SymbolKind, SymbolNameRef<'name>);
@@ -55,15 +56,9 @@ pub(in crate::symbols::symbol_table) fn type_parameter_seed<'name>(
     has_sources: bool,
 ) -> SymbolSeed<'name> {
     let kind = match parameter.kind {
-        symbol_resolved_trees::data::TypeParameterKind::Implementation => {
-            SymbolKind::ConformanceParameter
-        }
-        symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-            SymbolKind::MachineParameter
-        }
-        symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
-            if proposition_parameters =>
-        {
+        TypeParameterKind::Implementation => SymbolKind::ConformanceParameter,
+        TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
+        TypeParameterKind::Proposition { .. } if proposition_parameters => {
             SymbolKind::PropositionParameter
         }
         _ => SymbolKind::TypeParameter,

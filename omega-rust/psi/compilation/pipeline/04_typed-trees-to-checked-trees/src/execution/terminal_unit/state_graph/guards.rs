@@ -8,6 +8,8 @@
 use super::super::{
     CheckFacts, CheckedComposedUnitControlStatePlan, CheckedScalarExpressionRole, PrimitiveType,
 };
+use checked_trees::CheckedCallScalarArgument;
+use symbols::SymbolHandle;
 
 /// Every live edge into a qualified state must have a completed call check.
 /// Invocation-only entry is handled by its caller; a reentered entry still
@@ -52,10 +54,10 @@ pub(in crate::execution::terminal_unit) fn checked_qualified_arrivals(
 /// expression exists, so the coordinate names at most one of the two forms.
 pub(in crate::execution::terminal_unit) fn retained_guard(
     facts: &CheckFacts,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
+    machine: SymbolHandle,
+    state: SymbolHandle,
     statement_ordinal: u32,
-) -> Option<checked_trees::CheckedCallScalarArgument> {
+) -> Option<CheckedCallScalarArgument> {
     let role = CheckedScalarExpressionRole::Guard;
     if let Some(expression) =
         facts
@@ -63,26 +65,23 @@ pub(in crate::execution::terminal_unit) fn retained_guard(
             .scalar_expressions
             .expression_at(state, statement_ordinal, role)
     {
-        return Some(checked_trees::CheckedCallScalarArgument::Pure(
-            expression.clone(),
-        ));
+        return Some(CheckedCallScalarArgument::Pure(expression.clone()));
     }
     let computations = &facts.values.scalar_computations;
     let root = computations.root_at(state, statement_ordinal, role)?;
-    (root.machine == machine && computations.nodes.is_valid(root.root)).then_some(
-        checked_trees::CheckedCallScalarArgument::Computation(root.root),
-    )
+    (root.machine == machine && computations.nodes.is_valid(root.root))
+        .then_some(CheckedCallScalarArgument::Computation(root.root))
 }
 
 pub(in crate::execution::terminal_unit) fn guard_is_boolean(
     facts: &CheckFacts,
-    guard: &checked_trees::CheckedCallScalarArgument,
+    guard: &CheckedCallScalarArgument,
 ) -> bool {
     match guard {
-        checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+        CheckedCallScalarArgument::Pure(expression) => {
             expression.primitive_type() == Some(PrimitiveType::Bool)
         }
-        checked_trees::CheckedCallScalarArgument::Computation(root) => {
+        CheckedCallScalarArgument::Computation(root) => {
             facts
                 .values
                 .scalar_computations

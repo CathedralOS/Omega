@@ -10,6 +10,8 @@ use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, 
 
 use crate::fixture_package_inputs;
 
+#[path = "behavior_admission_controls.rs"]
+mod behavior_admission_controls;
 #[path = "boundary_provider_controls.rs"]
 mod boundary_provider_controls;
 #[path = "closed_reach_controls.rs"]
@@ -44,6 +46,7 @@ enum InspectionControls {
     SynchronousProviders,
     ProviderChoices,
     BoundaryProviders,
+    BehaviorAdmission,
 }
 
 #[derive(Clone, Copy)]
@@ -131,6 +134,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "boundary-provider-controls"] => {
                 (*machine, false, Some(InspectionControls::BoundaryProviders))
             }
+            [machine, "behavior-admission-controls"] => {
+                (*machine, false, Some(InspectionControls::BehaviorAdmission))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
@@ -155,6 +161,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 InspectionControls::SynchronousProviders
                     | InspectionControls::ProviderChoices
                     | InspectionControls::BoundaryProviders
+                    | InspectionControls::BehaviorAdmission
             )
         );
         let product = if provider_controls {
@@ -227,6 +234,12 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             ) {
                 boundary_provider_controls::inspect(&retained)?;
                 observations.push("boundary-provider-controls:match".into());
+            } else if matches!(
+                conformance_controls,
+                Some(InspectionControls::BehaviorAdmission)
+            ) {
+                behavior_admission_controls::inspect(&retained)?;
+                observations.push("behavior-admission-controls:match".into());
             } else {
                 synchronous_provider_controls::inspect(&retained, profile.target_name())?;
                 observations.push("synchronous-provider-controls:match".into());
@@ -320,6 +333,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 | InspectionControls::SynchronousProviders
                 | InspectionControls::ProviderChoices
                 | InspectionControls::BoundaryProviders
+                | InspectionControls::BehaviorAdmission
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")

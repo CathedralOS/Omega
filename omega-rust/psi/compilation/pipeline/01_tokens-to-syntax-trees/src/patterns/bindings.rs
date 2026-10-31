@@ -6,17 +6,14 @@ use crate::tables::{exprs, exprs_of, stmts_of};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableAtomicExpression, TableBinaryExpression,
-    TableCallExpression, TableCastExpression, TableIndexedExpression, TableMemberExpression,
-    TableMembershipExpression, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
-    TableUnaryExpression,
+    ExpressionHandle, ExpressionNode, MatchSubjectCapture, TableAtomicExpression,
+    TableBinaryExpression, TableBorrowExpression, TableCallExpression, TableCastExpression,
+    TableIndexedExpression, TableMemberExpression, TableMembershipExpression, TableRangeExpression,
+    TableSavedSubject, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
 };
 use syntax_trees::identifier::Identifier;
 
-type SubjectCopies = Vec<(
-    Handle<syntax_trees::expression::MatchSubjectCapture>,
-    Handle<syntax_trees::expression::MatchSubjectCapture>,
-)>;
+type SubjectCopies = Vec<(Handle<MatchSubjectCapture>, Handle<MatchSubjectCapture>)>;
 
 #[derive(Clone)]
 pub(crate) struct DestructureBinding {
@@ -108,16 +105,14 @@ fn rewrite_expression(
                 capture,
             })
         }
-        ExpressionNode::SavedSubject(saved) => {
-            ExpressionNode::SavedSubject(syntax_trees::expression::TableSavedSubject {
-                capture: captures
-                    .iter()
-                    .rev()
-                    .find_map(|(source, copied)| (*source == saved.capture).then_some(*copied))
-                    .unwrap_or(saved.capture),
-                pattern_head: saved.pattern_head,
-            })
-        }
+        ExpressionNode::SavedSubject(saved) => ExpressionNode::SavedSubject(TableSavedSubject {
+            capture: captures
+                .iter()
+                .rev()
+                .find_map(|(source, copied)| (*source == saved.capture).then_some(*copied))
+                .unwrap_or(saved.capture),
+            pattern_head: saved.pattern_head,
+        }),
         ExpressionNode::Atomic(atomic) => ExpressionNode::Atomic(TableAtomicExpression {
             value: rewrite_expression(syntax_trees, atomic.value, subject, fields, captures),
             result: if atomic.result.is_valid() {
@@ -197,12 +192,10 @@ fn rewrite_expression(
             member: member.member,
             case_variant: member.case_variant,
         }),
-        ExpressionNode::Borrow(inner) => {
-            ExpressionNode::Borrow(syntax_trees::expression::TableBorrowExpression {
-                target: rewrite_expression(syntax_trees, inner.target, subject, fields, captures),
-                access: inner.access,
-            })
-        }
+        ExpressionNode::Borrow(inner) => ExpressionNode::Borrow(TableBorrowExpression {
+            target: rewrite_expression(syntax_trees, inner.target, subject, fields, captures),
+            access: inner.access,
+        }),
         ExpressionNode::Name(path) => {
             if let Some((field, case_variant)) =
                 single_destructured_field_name(syntax_trees, path, fields)

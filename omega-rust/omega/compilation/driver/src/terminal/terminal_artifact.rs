@@ -162,7 +162,7 @@ impl ProducedTerminalProduct {
 /// Admission retains the request's entry and composition policy together.
 /// The position is only for restoring caller order after source-cohort work;
 /// it never indexes another table to recover semantic identity.
-struct AdmittedTerminalProduct<'a> {
+struct PreparedTerminalProduct<'a> {
     position: usize,
     request: TerminalProductRequest<'a>,
     selected_machine: symbols::SymbolHandle,
@@ -172,8 +172,8 @@ struct AdmittedTerminalProduct<'a> {
     provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
 
-impl<'a> AdmittedTerminalProduct<'a> {
-    fn admit(
+impl<'a> PreparedTerminalProduct<'a> {
+    fn prepare(
         position: usize,
         request: TerminalProductRequest<'a>,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -223,37 +223,38 @@ impl<'a> AdmittedTerminalProduct<'a> {
 
     fn custody(&self) -> TerminalApplicationCustody<'_> {
         TerminalApplicationCustody {
-            callback_roots: Some(self.request.view.callbacks),
-            physical_adapter: self.physical_adapter,
+            composition: self
+                .policy
+                .as_ref()
+                .map(|_| psi_compiler::TerminalCompositionRoots {
+                    callbacks: Some(self.request.view.callbacks),
+                    physical_adapter: self.physical_adapter,
+                }),
             entry_identity: self.signature_identity,
             entry_machine: self.selected_machine.is_valid().then_some(
                 psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
             ),
-            admission: self
-                .policy
-                .as_ref()
-                .map(|policy| policy as &dyn psi_compiler::TerminalCompositionAdmission),
         }
     }
 }
 
 /// Invocation-local sharing, not a cache: source custody and checked arenas
-/// must identify the same checked owner and exact consumed source. Admission
+/// must identify the same checked owner and exact consumed source. Preparation
 /// keeps each request with its policy; cohorts own applications, not indices.
 pub(crate) fn produce_retained_terminal_artifacts(
     requests: Vec<TerminalProductRequest<'_>>,
 ) -> Vec<Result<ProducedTerminalProduct, Vec<Diagnostic>>> {
     let mut outcomes = Vec::with_capacity(requests.len());
-    let mut cohorts: Vec<Vec<AdmittedTerminalProduct<'_>>> = Vec::new();
+    let mut cohorts: Vec<Vec<PreparedTerminalProduct<'_>>> = Vec::new();
     for (position, request) in requests.into_iter().enumerate() {
-        let application = match AdmittedTerminalProduct::admit(position, request) {
+        let application = match PreparedTerminalProduct::prepare(position, request) {
             Ok(application) => application,
             Err(diagnostics) => {
                 outcomes.push((position, Err(diagnostics)));
                 continue;
             }
         };
-        // Every cohort starts with its first admitted application. A direct scan
+        // Every cohort starts with its first prepared application. A direct scan
         // is sufficient for the small target roster; no source hashing or copying.
         match cohorts
             .iter_mut()
@@ -326,8 +327,11 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 let mut applications = applications.into_iter();
                 for application in cohort {
                     let outcome = match applications.next() {
-                        Some(receipt) => receipt.and_then(|receipt| {
-                            let receipt = receipt.ok_or_else(|| {
+                        Some(produced) => produced.and_then(|produced| {
+                            if let Some(policy) = &application.policy {
+                                policy.admit(artifact.semantic_module(), &mut produced.roots.into_iter())?;
+                            }
+                            let receipt = produced.receipt?.ok_or_else(|| {
                                 vec![Diagnostic::error(
                                     "terminal-artifact production retained no checked ProgramEntry receipt",
                                 )]
@@ -362,10 +366,10 @@ pub(crate) fn produce_retained_terminal_artifacts(
     outcomes.into_iter().map(|(_, outcome)| outcome).collect()
 }
 
-/// Produce one nonempty source cohort. Application-specific admission borrows
-/// each member's retained policy; portable roots and optimization are shared.
+/// Produce one nonempty source cohort. Source-root projection and optimization
+/// are shared; each product checks its retained policy after publication.
 fn produce_shared_terminal(
-    cohort: &[AdmittedTerminalProduct<'_>],
+    cohort: &[PreparedTerminalProduct<'_>],
     timings: &mut CompileTimings,
 ) -> Result<psi_compiler::ProducedTerminalProgram, Vec<Diagnostic>> {
     let first = &cohort[0];
@@ -423,7 +427,7 @@ fn produce_shared_terminal(
         .map_or(default, |family| family.canonical);
     let applications = cohort
         .iter()
-        .map(AdmittedTerminalProduct::custody)
+        .map(PreparedTerminalProduct::custody)
         .collect::<Vec<_>>();
     produce_terminal(
         view,

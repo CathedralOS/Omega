@@ -5,8 +5,18 @@
 //! to the receiving state. Field/index paths survive that join; spelling alone cannot keep a
 //! stale predecessor parameter current or authorize an unrelated binding.
 
+use super::super::types::expression_type_reference;
+use super::invalidation::write_covers_place;
+use crate::flow;
 use crate::places::place_at;
-use validation::CanonicalPlace;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use typed_trees::types::TypeReferenceNode;
+use validation::expression_traversal::single_segment_name_symbol;
+use validation::{
+    CanonicalPlace, collection_length_receiver, has_builtin_bound_expression_meaning,
+    length_member, unwrapped_type_reference,
+};
 
 mod captures;
 mod place_aliases;
@@ -19,7 +29,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::RangeFacts;
 
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::{machine::Machine, state::State};
 
@@ -99,7 +109,7 @@ struct LabelCollisions<'table> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::checks::ranges) struct ReceiverLength {
+pub(in super::super) struct ReceiverLength {
     expression: ExpressionHandle,
     label: String,
     place: CanonicalPlace,
@@ -109,7 +119,7 @@ pub(in crate::checks::ranges) struct ReceiverLength {
 impl ReceiverLength {
     /// One exact-length row re-keyed onto a surviving destination place, as
     /// `storage_sub_places` renders argument storage.
-    pub(in crate::checks::ranges) fn at_place(
+    pub(in super::super) fn at_place(
         expression: ExpressionHandle,
         place: CanonicalPlace,
         label: String,
@@ -123,14 +133,14 @@ impl ReceiverLength {
         }
     }
 
-    pub(in crate::checks::ranges) fn same_extent(&self, other: &Self) -> bool {
+    pub(in super::super) fn same_extent(&self, other: &Self) -> bool {
         self.place == other.place && self.length == other.length
     }
 
     /// Both rows seed the same destination facts: the same extent under the
     /// same label. Only the observing expression differs, and the seeded
     /// dependency row reads the place, not that expression.
-    pub(in crate::checks::ranges) fn same_seed(&self, other: &Self) -> bool {
+    pub(in super::super) fn same_seed(&self, other: &Self) -> bool {
         self.same_extent(other) && self.label == other.label
     }
 }
@@ -172,7 +182,7 @@ impl<'field> RangeFacts<'field> {
         .collect_reads(expression, 0)
     }
 
-    pub(in crate::checks::ranges) fn forget_collection_expression(&mut self, label: &str) {
+    pub(in super::super) fn forget_collection_expression(&mut self, label: &str) {
         self.forget_collection_facts(label);
         // A later state or binding can reuse the display label for different
         // storage. New extent evidence must not attach to its old typed reads.
@@ -185,7 +195,7 @@ impl<'field> RangeFacts<'field> {
             .collect();
     }
 
-    pub(in crate::checks::ranges) fn expression_exact_length(
+    pub(in super::super) fn expression_exact_length(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -207,7 +217,7 @@ impl<'field> RangeFacts<'field> {
         if !complete || reads.len() != 1 {
             return None;
         }
-        reads[0] = crate::flow::rebase_exact_local_place(
+        reads[0] = flow::rebase_exact_local_place(
             program,
             state.symbol,
             self.statement_index,
@@ -226,7 +236,7 @@ impl<'field> RangeFacts<'field> {
                 let [place] = row_reads.as_slice() else {
                     return None;
                 };
-                crate::flow::rebase_exact_local_place(
+                flow::rebase_exact_local_place(
                     program,
                     state.symbol,
                     self.statement_index,
@@ -248,7 +258,7 @@ impl<'field> RangeFacts<'field> {
         length
     }
 
-    pub(in crate::checks::ranges) fn receiver_lengths(
+    pub(in super::super) fn receiver_lengths(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -267,24 +277,24 @@ impl<'field> RangeFacts<'field> {
                     return None;
                 };
                 let length = self.exact_length(&row.label)?;
-                let place = crate::flow::rebase_exact_local_place(
+                let place = flow::rebase_exact_local_place(
                     program,
                     state.symbol,
                     self.statement_index,
                     place.clone(),
                     self.checked_calls.and_then(|context| context.call_frames()),
                 )?;
-                ((place.root) == facts::PlaceRoot::Symbol(machine.symbol)
+                ((place.root) == PlaceRoot::Symbol(machine.symbol)
                     && !place.segments.is_empty()
                     && place
                         .segments
                         .iter()
-                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. })))
+                        .all(|segment| matches!(segment, PlaceSegment::Field { .. })))
                 .then(|| ReceiverLength {
                     expression: row.expression,
                     label: row.label.clone(),
                     place: CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(machine.symbol),
+                        root: PlaceRoot::Symbol(machine.symbol),
                         segments: place.segments,
                     },
                     length,
@@ -303,7 +313,7 @@ impl<'field> RangeFacts<'field> {
     /// transition argument (`buf.line` arrives as `param.line`). Each
     /// element is `(source_label, source_expression, destination_place)`;
     /// the caller re-spells the destination label from the place.
-    pub(in crate::checks::ranges) fn storage_sub_places(
+    pub(in super::super) fn storage_sub_places(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -342,7 +352,7 @@ impl<'field> RangeFacts<'field> {
                 let [place] = row.reads.as_deref()? else {
                     return None;
                 };
-                let place = crate::flow::rebase_exact_local_place(
+                let place = flow::rebase_exact_local_place(
                     program,
                     state.symbol,
                     self.statement_index,
@@ -358,7 +368,7 @@ impl<'field> RangeFacts<'field> {
                     let suffix = &place.segments[storage.segments.len()..];
                     if !suffix
                         .iter()
-                        .all(|segment| crate::flow::fixed_selection_segment(segment))
+                        .all(|segment| flow::fixed_selection_segment(segment))
                     {
                         return None;
                     }
@@ -366,7 +376,7 @@ impl<'field> RangeFacts<'field> {
                         row.label.clone(),
                         row.expression,
                         CanonicalPlace {
-                            root: facts::PlaceRoot::Symbol(*destination),
+                            root: PlaceRoot::Symbol(*destination),
                             segments: suffix.to_vec(),
                         },
                     ))
@@ -375,7 +385,7 @@ impl<'field> RangeFacts<'field> {
             .collect()
     }
 
-    pub(in crate::checks::ranges) fn seed_receiver_lengths(
+    pub(in super::super) fn seed_receiver_lengths(
         &mut self,
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -396,7 +406,7 @@ impl<'field> RangeFacts<'field> {
     /// Rebind a transported fact's read dependency to destination storage.
     /// The original expression identifies the observation, not a source-state
     /// expression to reevaluate. Mutation and later edges use the exact place.
-    pub(in crate::checks::ranges) fn seed_storage_dependency(
+    pub(in super::super) fn seed_storage_dependency(
         &mut self,
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -416,7 +426,7 @@ impl<'field> RangeFacts<'field> {
         });
     }
 
-    pub(in crate::checks::ranges) fn record_scalar_binding_dependency(
+    pub(in super::super) fn record_scalar_binding_dependency(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -439,22 +449,14 @@ impl<'field> RangeFacts<'field> {
             }
             Some(StatementNode::Assignment(assignment))
                 if assignment.value == source
-                    && validation::expression_traversal::single_segment_name_symbol(
-                        program,
-                        assignment.target,
-                    ) == Some(symbol) =>
+                    && single_segment_name_symbol(program, assignment.target) == Some(symbol) =>
             {
-                super::super::types::expression_type_reference(
-                    program,
-                    machine,
-                    state,
-                    assignment.target,
-                )
+                expression_type_reference(program, machine, state, assignment.target)
             }
             _ => None,
         };
         if !symbol.is_valid()
-            || program.symbols.get(symbol).kind != symbols::SymbolKind::Local
+            || program.symbols.get(symbol).kind != SymbolKind::Local
             || program.symbols.get(symbol).parent != state.symbol
             || !reference
                 .and_then(|reference| program.primitive_type_reference(reference))
@@ -462,7 +464,7 @@ impl<'field> RangeFacts<'field> {
         {
             return;
         }
-        let Some(place) = crate::flow::canonical_place_from_symbol(symbol) else {
+        let Some(place) = flow::canonical_place_from_symbol(symbol) else {
             return;
         };
         let length = self.capture_length(program, machine, state, source);
@@ -507,12 +509,12 @@ impl<'field> RangeFacts<'field> {
     /// All length comparisons consume the same live measurement, whether
     /// authored directly or retained by a scalar binding/copy. Symbols select
     /// snapshots; expression labels only address the existing fact tables.
-    pub(in crate::checks::ranges) fn length_collection(
+    pub(in super::super) fn length_collection(
         &self,
         program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
-        if let Some(member) = validation::length_member(program, expression) {
+        if let Some(member) = length_member(program, expression) {
             return Some(member.receiver);
         }
         if let Some((_, length)) = self
@@ -528,15 +530,14 @@ impl<'field> RangeFacts<'field> {
     /// A retained measurement names its descriptor only while the scalar,
     /// descriptor and captured selectors have not been replaced. This is the
     /// same snapshot edge consumed by guards, not a replay of an initializer.
-    pub(in crate::checks::ranges) fn captured_length_collection(
+    pub(in super::super) fn captured_length_collection(
         &self,
         program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
-        let symbol =
-            validation::expression_traversal::single_segment_name_symbol(program, expression)?;
+        let symbol = single_segment_name_symbol(program, expression)?;
         self.scalar_binding_dependencies.iter().find_map(|row| {
-            (row.place.root == facts::PlaceRoot::Symbol(symbol))
+            (row.place.root == PlaceRoot::Symbol(symbol))
                 .then(|| row.length.as_ref().map(|length| length.collection))
                 .flatten()
         })
@@ -549,13 +550,11 @@ impl<'field> RangeFacts<'field> {
         state: &State,
         source: ExpressionHandle,
     ) -> Option<CapturedLength> {
-        if let Some(symbol) =
-            validation::expression_traversal::single_segment_name_symbol(program, source)
-        {
+        if let Some(symbol) = single_segment_name_symbol(program, source) {
             return self.scalar_binding_dependencies.iter().find_map(|row| {
                 (row.machine == machine.symbol
                     && row.state == state.symbol
-                    && row.place.root == facts::PlaceRoot::Symbol(symbol))
+                    && row.place.root == PlaceRoot::Symbol(symbol))
                 .then(|| row.length.clone())
                 .flatten()
             });
@@ -567,7 +566,7 @@ impl<'field> RangeFacts<'field> {
         {
             return Some(length.clone());
         }
-        let collection = validation::length_member(program, source)?.receiver;
+        let collection = length_member(program, source)?.receiver;
         self.capture_collection_length(program, machine, state, collection)
     }
 
@@ -578,15 +577,13 @@ impl<'field> RangeFacts<'field> {
         state: &State,
         collection: ExpressionHandle,
     ) -> Option<CapturedLength> {
-        let reference =
-            super::super::types::expression_type_reference(program, machine, state, collection)?;
-        let reference = validation::unwrapped_type_reference(program, reference)?;
+        let reference = expression_type_reference(program, machine, state, collection)?;
+        let reference = unwrapped_type_reference(program, reference)?;
         // A record field merely named `len` is an ordinary scalar. Only the
         // compiler-owned array/slice metadata operation establishes this edge.
         if !matches!(
             program.type_reference_table.type_reference(reference),
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
-                | typed_trees::types::TypeReferenceNode::Slice { .. }
+            TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. }
         ) {
             return None;
         }
@@ -603,11 +600,11 @@ impl<'field> RangeFacts<'field> {
         if !complete
             || !reads
                 .iter()
-                .any(|read| crate::flow::canonical_places_agree(program, read, &descriptor))
+                .any(|read| flow::canonical_places_agree(program, read, &descriptor))
         {
             return None;
         }
-        reads.retain(|read| !crate::flow::canonical_places_agree(program, read, &descriptor));
+        reads.retain(|read| !flow::canonical_places_agree(program, read, &descriptor));
         Some(CapturedLength {
             collection,
             descriptor,
@@ -626,7 +623,7 @@ impl<'field> RangeFacts<'field> {
         self.measured_results.retain(|(_, length)| {
             !writes.is_none_or(|writes| {
                 writes.iter().any(|write| {
-                    super::invalidation::write_covers_place(program, write, &length.descriptor)
+                    write_covers_place(program, write, &length.descriptor)
                         || length
                             .selectors
                             .iter()
@@ -654,11 +651,7 @@ impl<'field> RangeFacts<'field> {
             if writes.is_none_or(|writes| {
                 writes.iter().any(|write| {
                     places_overlap(program, &row.place, write)
-                        || super::invalidation::write_covers_place(
-                            program,
-                            write,
-                            &length.descriptor,
-                        )
+                        || write_covers_place(program, write, &length.descriptor)
                         || length
                             .selectors
                             .iter()
@@ -670,15 +663,12 @@ impl<'field> RangeFacts<'field> {
         }
     }
 
-    pub(in crate::checks::ranges) fn begin_result_measurement(
-        &mut self,
-        expression: ExpressionHandle,
-    ) {
+    pub(in super::super) fn begin_result_measurement(&mut self, expression: ExpressionHandle) {
         self.measured_results
             .retain(|(result, _)| *result != expression);
     }
 
-    pub(in crate::checks::ranges) fn capture_result_measurement_for_collection(
+    pub(in super::super) fn capture_result_measurement_for_collection(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -699,7 +689,7 @@ impl<'field> RangeFacts<'field> {
         }
     }
 
-    pub(in crate::checks::ranges) fn record_expression_dependencies(
+    pub(in super::super) fn record_expression_dependencies(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -722,7 +712,7 @@ impl<'field> RangeFacts<'field> {
     /// The caller supplies only parameter bindings already proved label-stable
     /// by the incoming-edge analysis. Incomplete or unmapped reads remain
     /// incomplete; they never become storage-free premises.
-    pub(in crate::checks::ranges) fn record_incoming_guard_dependencies(
+    pub(in super::super) fn record_incoming_guard_dependencies(
         &mut self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -771,7 +761,7 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut reads = Vec::new();
-        let mut complete = validation::has_builtin_bound_expression_meaning(
+        let mut complete = has_builtin_bound_expression_meaning(
             program,
             machine,
             Some(scope.evaluation),
@@ -784,25 +774,21 @@ impl<'field> RangeFacts<'field> {
             expression,
             &mut reads,
         );
-        let descriptor_read = validation::collection_length_receiver(
-            program,
-            machine,
-            Some(scope.evaluation),
-            expression,
-        )
-        .and_then(|receiver| {
-            place_at(
-                program,
-                scope.evaluation.symbol,
-                self.statement_index,
-                receiver,
-            )
-        })
-        .and_then(|descriptor| {
-            reads
-                .iter()
-                .position(|read| crate::flow::canonical_places_agree(program, read, &descriptor))
-        });
+        let descriptor_read =
+            collection_length_receiver(program, machine, Some(scope.evaluation), expression)
+                .and_then(|receiver| {
+                    place_at(
+                        program,
+                        scope.evaluation.symbol,
+                        self.statement_index,
+                        receiver,
+                    )
+                })
+                .and_then(|descriptor| {
+                    reads
+                        .iter()
+                        .position(|read| flow::canonical_places_agree(program, read, &descriptor))
+                });
         if complete && scope.evaluation.symbol != state.symbol {
             complete = state_transport::transport_reads(
                 program,
@@ -896,7 +882,7 @@ impl<'field> RangeFacts<'field> {
                     && match (left.3, right.3) {
                         (None, None) => true,
                         (Some(left), Some(right)) => {
-                            crate::flow::canonical_places_agree(program, left, right)
+                            flow::canonical_places_agree(program, left, right)
                         }
                         _ => false,
                     }
@@ -941,7 +927,7 @@ impl<'field> RangeFacts<'field> {
             return Vec::new();
         }
         for write in writes {
-            if !matches!(write.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() && program.symbols.get(symbol).kind != symbols::SymbolKind::Field)
+            if !matches!(write.root, PlaceRoot::Symbol(symbol) if symbol.is_valid() && program.symbols.get(symbol).kind != SymbolKind::Field)
             {
                 return Vec::new();
             }
@@ -956,9 +942,9 @@ impl<'field> RangeFacts<'field> {
                     && reads.iter().all(|read| {
                         writes.iter().all(|write| {
                             if row.descriptor.as_ref().is_some_and(|descriptor| {
-                                crate::flow::canonical_places_agree(program, descriptor, read)
+                                flow::canonical_places_agree(program, descriptor, read)
                             }) {
-                                !super::invalidation::write_covers_place(program, write, read)
+                                !write_covers_place(program, write, read)
                             } else {
                                 !places_overlap(program, read, write)
                             }
@@ -1049,7 +1035,7 @@ impl<'field> RangeFacts<'field> {
             .collect()
     }
 
-    pub(in crate::checks::ranges) fn expression_is_disjoint_from_writes(
+    pub(in super::super) fn expression_is_disjoint_from_writes(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -1068,11 +1054,7 @@ fn places_overlap(
     right: &CanonicalPlace,
 ) -> bool {
     (left.root) == (right.root)
-        && crate::flow::canonical_place_segments_may_overlap(
-            program,
-            &left.segments,
-            &right.segments,
-        )
+        && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
 }
 
 fn same_reads(
@@ -1086,7 +1068,7 @@ fn same_reads(
     // Separate guard occurrences may copy the same typed selector tree into
     // different arena slots. Compare their meaning, not those allocation slots.
     let equal = |left: &CanonicalPlace, right: &CanonicalPlace| {
-        crate::flow::canonical_places_agree(program, left, right)
+        flow::canonical_places_agree(program, left, right)
     };
     if std::ptr::eq(left, right) {
         return left.iter().all(|read| equal(read, read));

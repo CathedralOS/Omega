@@ -1,6 +1,6 @@
 //! Structured caller-visible mutation summaries.
 //!
-//! `validation::CallFrameResolver` remains the single owner of the
+//! `CallFrameResolver` remains the single owner of the
 //! complete-or-opaque call and cycle law. This module retains symbol-based
 //! field/range places for flow invalidation and propagates those places across
 //! the calls which the shared resolver admitted as complete.
@@ -13,10 +13,22 @@
 //! across calls instead of turning every caller-visible write into a mutable
 //! loan requirement. Ordinary replacement of an atomic cell remains exclusive.
 
-use validation::CanonicalPlace;
+use super::local_origins;
+use super::operand_coordinates::call_operands_have_builtin_coordinates;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use typed_trees::state::State;
+use typed_trees::types::TypeReferenceHandle;
 use validation::call_site_argument_expressions;
 use validation::canonical_place_from_expression;
 use validation::find_call_site;
+use validation::{
+    CallFrameResolver, CallSite, CanonicalPlace, ContentsRequirement, LocalWriteOrigin,
+    assignment_stored_value_type, atomic_assignment_carrier, atomic_once_carrier,
+    canonical_place_type_reference, checking_thread_pool, find_state, has_contents,
+    place_is_atomic_storage, project_type_reference_from_segments, reference_shell,
+    storage_origin_types_match, transition_call_target,
+};
 
 use crate::flow::indexed_statements;
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
@@ -25,7 +37,7 @@ use crate::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKeyMap};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StateMutationSummaryCache {
@@ -39,7 +51,7 @@ impl StateMutationSummaryCache {
         &self,
         program: &dyn ::validation::CheckingInput,
         borrow: &BorrowFacts,
-        call_frames: Option<&validation::CallFrameResolver<'_>>,
+        call_frames: Option<&CallFrameResolver<'_>>,
     ) {
         let _ = self.states.get_or_init(|| {
             phase_profile::scope("05.d.3.b.flow.build_state_mutation_summaries", || {
@@ -52,7 +64,7 @@ impl StateMutationSummaryCache {
 #[derive(Debug, Clone)]
 struct BuiltStateMutationSummaries {
     summaries: Vec<StateMutationSummary>,
-    index_by_state: symbols::SymbolKeyMap<SymbolHandle, usize>,
+    index_by_state: SymbolKeyMap<SymbolHandle, usize>,
 }
 
 /// Complete transitive writes in a state's own incoming storage namespace.
@@ -62,8 +74,8 @@ pub(crate) fn state_storage_writes(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     cache: &StateMutationSummaryCache,
-    state: &typed_trees::state::State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    state: &State,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     StorageRegion::declared_places(
         state_mutation_summary(program, borrow, cache, state, call_frames)?
@@ -106,7 +118,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     borrow_call: &BorrowCallFact,
     cache: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
     loan: Option<&CanonicalPlace>,
 ) -> Option<Vec<CallMutationWrite>> {
     let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
@@ -207,8 +219,8 @@ fn state_mutation_summary<'cache>(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     cache: &'cache StateMutationSummaryCache,
-    state: &typed_trees::state::State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    state: &State,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<&'cache StateMutationSummary> {
     let built = cache.states.get_or_init(|| {
         phase_profile::scope("05.d.3.b.flow.build_state_mutation_summaries", || {
@@ -222,9 +234,9 @@ fn state_mutation_summary<'cache>(
 fn build_state_mutation_summaries(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> BuiltStateMutationSummaries {
-    validation::checking_thread_pool().install(|| {
+    checking_thread_pool().install(|| {
         use rayon::prelude::*;
         let mut owned_frames = None;
         let call_frames =
@@ -245,13 +257,11 @@ fn build_state_mutation_summaries(
                         let complete = direct_complete
                             && state_has_concrete_body_signature(program, state)
                             && call_frames.is_some_and(|resolver| {
-                                validation::find_state(program, state.symbol).is_some_and(
-                                    |(machine, _)| {
-                                        resolver
-                                            .inferred_state_write_frame(machine, state)
-                                            .is_complete()
-                                    },
-                                )
+                                find_state(program, state.symbol).is_some_and(|(machine, _)| {
+                                    resolver
+                                        .inferred_state_write_frame(machine, state)
+                                        .is_complete()
+                                })
                             });
                         Some((
                             StateMutationSummary {
@@ -268,8 +278,7 @@ fn build_state_mutation_summaries(
 
         // The first summary for a symbol answers lookups, as the former linear
         // search did.
-        let mut index_by_state: symbols::SymbolKeyMap<SymbolHandle, usize> =
-            symbols::SymbolKeyMap::default();
+        let mut index_by_state: SymbolKeyMap<SymbolHandle, usize> = SymbolKeyMap::default();
         for (index, summary) in states.iter().enumerate() {
             index_by_state.entry(summary.state_symbol).or_insert(index);
         }
@@ -295,9 +304,9 @@ fn propagate_state_mutation_summaries(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     borrow_states: &[&StateBorrowFact],
-    index_by_state: &symbols::SymbolKeyMap<SymbolHandle, usize>,
+    index_by_state: &SymbolKeyMap<SymbolHandle, usize>,
     states: &mut [StateMutationSummary],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) {
     use rayon::prelude::*;
     let owners: Vec<_> = states
@@ -353,7 +362,7 @@ fn propagate_state_mutation_summaries(
                         // A declaration can own a state identity without owning a body.
                         // Its admitted frame belongs to the shared resolver, not
                         // the (necessarily incomplete) structured body summary.
-                        let body_summary = validation::find_state(program, call.target_symbol)
+                        let body_summary = find_state(program, call.target_symbol)
                             .filter(|(machine, _)| machine.body_is_present)
                             .and_then(|_| index_by_state.get(&call.target_symbol).copied());
                         let call_site = owner.and_then(|(_, machine_symbol)| {
@@ -367,7 +376,7 @@ fn propagate_state_mutation_summaries(
                         });
                         let has_builtin_coordinates = match (*owner, call_site.as_ref()) {
                             (Some((_, machine_symbol)), Some(site)) => {
-                                super::operand_coordinates::call_operands_have_builtin_coordinates(
+                                call_operands_have_builtin_coordinates(
                                     program,
                                     machine_symbol,
                                     state.state_symbol,
@@ -648,7 +657,7 @@ fn propagate_state_mutation_summaries(
                             .iter()
                             .map(|incoming| {
                                 let loan = CanonicalPlace {
-                                    root: facts::PlaceRoot::Symbol(incoming.parameter),
+                                    root: PlaceRoot::Symbol(incoming.parameter),
                                     segments: Vec::new(),
                                 };
                                 let selected: Vec<_> = run
@@ -718,18 +727,18 @@ fn propagate_state_mutation_summaries(
 
 fn machine_symbol_for_state(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
 ) -> SymbolHandle {
-    validation::find_state(program, state.symbol)
+    find_state(program, state.symbol)
         .map(|(machine, _)| machine.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn state_has_concrete_body_signature(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
 ) -> bool {
-    validation::find_state(program, state.symbol).is_some_and(|(machine, _)| {
+    find_state(program, state.symbol).is_some_and(|(machine, _)| {
         machine.body_is_present
             && program
                 .state_parameters(state)
@@ -743,9 +752,9 @@ fn state_has_concrete_body_signature(
 // so callers retain the signature ceiling rather than an empty effect.
 fn state_summary_exposes_place(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     region: &StorageRegion,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<bool> {
     let declared = matches!(region, StorageRegion::Declared(_));
     let Some(root) = region.anchor().root.as_symbol() else {
@@ -777,8 +786,8 @@ fn state_summary_exposes_place(
 
 fn collect_state_mutation_summary_places(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    state: &State,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<MutationWrite>> {
     let machine_symbol = machine_symbol_for_state(program, state);
     let machine = program.machine_by_symbol(machine_symbol)?;
@@ -786,7 +795,7 @@ fn collect_state_mutation_summary_places(
 
     for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         if let Some(local) = statement.as_local_data()
-            && validation::atomic_once_carrier(program, local.initial_value).is_some()
+            && atomic_once_carrier(program, local.initial_value).is_some()
         {
             for place in super::atomic_once_storage_writes(
                 program,
@@ -812,15 +821,9 @@ fn collect_state_mutation_summary_places(
         let Some(assignment) = statement.as_assignment() else {
             continue;
         };
-        let requires_exclusive_access =
-            !(validation::atomic_assignment_carrier(program, assignment).is_some()
-                && validation::place_is_atomic_storage(
-                    program,
-                    machine,
-                    Some(state),
-                    assignment.target,
-                ));
-        let regions = super::local_origins::assignment_storage_regions(
+        let requires_exclusive_access = !(atomic_assignment_carrier(program, assignment).is_some()
+            && place_is_atomic_storage(program, machine, Some(state), assignment.target));
+        let regions = local_origins::assignment_storage_regions(
             program,
             machine_symbol,
             state.symbol,
@@ -829,16 +832,14 @@ fn collect_state_mutation_summary_places(
             call_frames,
         )?;
         for region in regions {
-            let destination = validation::assignment_stored_value_type(
-                program, machine, state, assignment,
-            )
-            .map(|reference| {
-                if validation::reference_shell(program, reference).is_some() {
-                    WriteDestination::DescriptorSlot
-                } else {
-                    WriteDestination::Referent
-                }
-            })?;
+            let destination = assignment_stored_value_type(program, machine, state, assignment)
+                .map(|reference| {
+                    if reference_shell(program, reference).is_some() {
+                        WriteDestination::DescriptorSlot
+                    } else {
+                        WriteDestination::Referent
+                    }
+                })?;
             let write = MutationWrite {
                 region,
                 requires_exclusive_access,
@@ -862,7 +863,7 @@ pub(in crate::flow) fn instantiate_call_relative_places(
     borrow_call: &BorrowCallFact,
     relative_place: &CanonicalPlace,
     namespace: WritePlaceNamespace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     instantiate_call_relative_writes(
         program,
@@ -885,7 +886,7 @@ fn instantiate_call_relative_writes(
     relative_region: &StorageRegion,
     destination: WriteDestination,
     namespace: WritePlaceNamespace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CallMutationWrite>> {
     let inputs = prepare_call_relative_inputs(
         program,
@@ -911,9 +912,9 @@ fn instantiate_call_relative_writes(
 
 /// Immutable coordinates shared by every relative path of one invocation.
 struct CallRelativeInputs<'program> {
-    site: validation::CallSite<'program>,
+    site: CallSite<'program>,
     has_builtin_coordinates: bool,
-    target: &'program typed_trees::state::State,
+    target: &'program State,
 }
 
 fn prepare_call_relative_inputs<'program>(
@@ -931,7 +932,7 @@ fn prepare_call_relative_inputs<'program>(
         borrow_call.call_ordinal,
     )?;
     let has_builtin_coordinates = !matches!(namespace, WritePlaceNamespace::Storage)
-        || super::operand_coordinates::call_operands_have_builtin_coordinates(
+        || call_operands_have_builtin_coordinates(
             program,
             caller_machine_symbol,
             caller_state_symbol,
@@ -1011,13 +1012,13 @@ fn instantiate_call_relative_writes_pre_resolved(
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
-    call_site: &validation::CallSite<'_>,
+    call_site: &CallSite<'_>,
     has_builtin_coordinates: bool,
-    target_state: &typed_trees::state::State,
+    target_state: &State,
     relative_region: &StorageRegion,
     destination: WriteDestination,
     namespace: WritePlaceNamespace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CallMutationWrite>> {
     let relative_place = relative_region.anchor();
     let attributed = |regions: Vec<StorageRegion>| {
@@ -1157,34 +1158,30 @@ pub(super) fn captured_argument_write_regions(
     state_symbol: SymbolHandle,
     statement_index: usize,
     call_ordinal: usize,
-    site: &validation::CallSite<'_>,
+    site: &CallSite<'_>,
     position: usize,
-    parameter_type: typed_trees::types::TypeReferenceHandle,
-    relative: &[facts::PlaceSegment],
+    parameter_type: TypeReferenceHandle,
+    relative: &[PlaceSegment],
     destination: WriteDestination,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
     let resolver = call_frames?;
     let captured = match site {
-        validation::CallSite::Statement(call) => resolver.call_write_origins(machine, call),
-        validation::CallSite::Expression { expression, .. } => {
+        CallSite::Statement(call) => resolver.call_write_origins(machine, call),
+        CallSite::Expression { expression, .. } => {
             resolver.expression_call_write_origins(machine, *expression)
         }
-        validation::CallSite::TransitionNamed { .. } => validation::transition_call_target(
-            program,
-            machine,
-            state,
-            statement_index,
-            call_ordinal,
-        )
-        .and_then(|target| resolver.transition_write_origins(machine, target)),
+        CallSite::TransitionNamed { .. } => {
+            transition_call_target(program, machine, state, statement_index, call_ordinal)
+                .and_then(|target| resolver.transition_write_origins(machine, target))
+        }
     };
     let references = captured
         .as_ref()
         .and_then(|origins| origins.references.as_deref());
-    if validation::reference_shell(program, parameter_type).is_none() {
+    if reference_shell(program, parameter_type).is_none() {
         let actual = *call_site_argument_expressions(program, site).get(position)?;
         let mut regions = Vec::new();
         for projection in crate::flow::literal_expression_projections(
@@ -1194,40 +1191,39 @@ pub(super) fn captured_argument_write_regions(
             relative,
             false,
         )? {
-            let projected_type = validation::project_type_reference_from_segments(
+            let projected_type = project_type_reference_from_segments(
                 program,
                 parameter_type,
                 &projection.destination,
             )?;
-            let projected_regions =
-                if validation::reference_shell(program, projected_type).is_some() {
-                    resolver
-                        .reference_operand_write_sources(
-                            machine,
-                            projection.expression,
-                            projected_type,
-                        )?
-                        .iter()
-                        .map(|source| {
-                            super::local_origins::write_source_region(
-                                program,
-                                state,
-                                statement_index,
-                                source,
-                                &projection.remaining,
-                            )
-                        })
-                        .collect::<Option<Vec<_>>>()?
-                } else {
-                    let mut place = place_at(
-                        program,
-                        state_symbol,
-                        statement_index,
+            let projected_regions = if reference_shell(program, projected_type).is_some() {
+                resolver
+                    .reference_operand_write_sources(
+                        machine,
                         projection.expression,
-                    )?;
-                    place.segments.extend_from_slice(&projection.remaining);
-                    vec![StorageRegion::Declared(place)]
-                };
+                        projected_type,
+                    )?
+                    .iter()
+                    .map(|source| {
+                        local_origins::write_source_region(
+                            program,
+                            state,
+                            statement_index,
+                            source,
+                            &projection.remaining,
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>()?
+            } else {
+                let mut place = place_at(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    projection.expression,
+                )?;
+                place.segments.extend_from_slice(&projection.remaining);
+                vec![StorageRegion::Declared(place)]
+            };
             for region in projected_regions {
                 for region in rebase_projected_call_region(
                     program,
@@ -1249,13 +1245,8 @@ pub(super) fn captured_argument_write_regions(
     let origins = captured.as_ref()?;
     let mut places = Vec::new();
     for source in origins.arguments.get(position)?.as_ref()? {
-        let projected = super::local_origins::write_source_region(
-            program,
-            state,
-            statement_index,
-            source,
-            relative,
-        )?;
+        let projected =
+            local_origins::write_source_region(program, state, statement_index, source, relative)?;
         if matches!(projected, StorageRegion::Declared(_))
             && !storage_place_has_declared_identity(projected.anchor())
         {
@@ -1286,14 +1277,14 @@ fn rebase_projected_call_region(
     state: SymbolHandle,
     statement: usize,
     region: StorageRegion,
-    parameter: typed_trees::types::TypeReferenceHandle,
-    path: &[facts::PlaceSegment],
+    parameter: TypeReferenceHandle,
+    path: &[PlaceSegment],
     destination: WriteDestination,
-    references: Option<&[validation::LocalWriteOrigin]>,
-    frames: Option<&validation::CallFrameResolver<'_>>,
+    references: Option<&[LocalWriteOrigin]>,
+    frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     if destination == WriteDestination::Referent {
-        return super::local_origins::rebase_captured_storage_region(
+        return local_origins::rebase_captured_storage_region(
             program,
             state,
             statement,
@@ -1306,16 +1297,15 @@ fn rebase_projected_call_region(
     let StorageRegion::Declared(place) = region else {
         return None;
     };
-    let root_type =
-        validation::reference_shell(program, parameter).map_or(parameter, |shell| shell.referee);
-    let expected = validation::project_type_reference_from_segments(program, root_type, path)?;
-    let actual = validation::canonical_place_type_reference(program, state, statement, &place)?;
-    validation::reference_shell(program, expected)?;
-    validation::reference_shell(program, actual)?;
-    if !validation::storage_origin_types_match(program, expected, actual) {
+    let root_type = reference_shell(program, parameter).map_or(parameter, |shell| shell.referee);
+    let expected = project_type_reference_from_segments(program, root_type, path)?;
+    let actual = canonical_place_type_reference(program, state, statement, &place)?;
+    reference_shell(program, expected)?;
+    reference_shell(program, actual)?;
+    if !storage_origin_types_match(program, expected, actual) {
         return None;
     }
-    super::local_origins::rebase_captured_storage_region(
+    local_origins::rebase_captured_storage_region(
         program,
         state,
         statement,
@@ -1328,25 +1318,19 @@ fn rebase_projected_call_region(
 
 fn write_reaches_caller(
     program: &dyn validation::CheckingInput,
-    parameter: typed_trees::types::TypeReferenceHandle,
-    path: &[facts::PlaceSegment],
+    parameter: TypeReferenceHandle,
+    path: &[PlaceSegment],
     destination: WriteDestination,
 ) -> Option<bool> {
     if crate::flow::operand_contexts::operand_binds_live_view(program, parameter) {
         return Some(true);
     }
-    if !validation::has_contents(
-        program,
-        parameter,
-        &[],
-        validation::ContentsRequirement::StoredValue,
-    ) {
+    if !has_contents(program, parameter, &[], ContentsRequirement::StoredValue) {
         return None;
     }
     for length in 1..=path.len() {
-        let reference =
-            validation::project_type_reference_from_segments(program, parameter, &path[..length])?;
-        if validation::reference_shell(program, reference).is_some()
+        let reference = project_type_reference_from_segments(program, parameter, &path[..length])?;
+        if reference_shell(program, reference).is_some()
             && (length < path.len() || destination == WriteDestination::Referent)
         {
             return Some(true);
@@ -1356,10 +1340,10 @@ fn write_reaches_caller(
 }
 
 fn storage_place_has_declared_identity(place: &CanonicalPlace) -> bool {
-    matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
+    matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
         && place.segments.iter().all(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-            facts::PlaceSegment::Case { variant } => variant.is_valid(),
+            PlaceSegment::Field { symbol } => symbol.is_valid(),
+            PlaceSegment::Case { variant } => variant.is_valid(),
             _ => true,
         })
 }

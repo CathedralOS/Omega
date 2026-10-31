@@ -1,4 +1,7 @@
 //! Establish and access the original primitive referent in the activation frame.
+use super::runtime_address::{
+    cross_references, footprint, projection_origin, scalar_reference, scale,
+};
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedMemoryAccessRole, VirtualRegisterId,
@@ -8,6 +11,9 @@ use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
+use crate::selection::primitive_local_input::{
+    read_geometry, read_storage_codec, read_storage_fragments,
+};
 use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::LocalStorageSlotId;
 
@@ -90,8 +96,7 @@ pub(in crate::selection) fn read(
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let (place, byte_offset, pointer_slots) =
-        crate::selection::primitive_local_input::read_geometry(source, row)
-            .ok_or_else(|| invalid())?;
+        read_geometry(source, row).ok_or_else(|| invalid())?;
     let definition = row.result.ok_or_else(|| invalid())?;
     let observes_descriptor_home = matches!(&row.kind,
         LegalizedScalarInstructionKind::ElementViewLength { source, .. }
@@ -104,14 +109,7 @@ pub(in crate::selection) fn read(
             pointer_slots.as_slice(),
         )
     } else {
-        super::runtime_address::projection_origin(
-            source,
-            builder,
-            row,
-            place,
-            byte_offset,
-            &pointer_slots,
-        )?
+        projection_origin(source, builder, row, place, byte_offset, &pointer_slots)?
     };
     let pointer = pointer.ok_or_else(invalid)?;
     let pointer = if matches!(&row.kind,
@@ -131,34 +129,19 @@ pub(in crate::selection) fn read(
         | LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. } => indices,
         _ => &[],
     };
-    if let Some((address, codec)) = super::runtime_address::scalar_reference(
-        source,
-        builder,
-        row,
-        place,
-        pointer,
-        indices,
-        pointer_slots,
-    )? {
+    if let Some((address, codec)) =
+        scalar_reference(source, builder, row, place, pointer, indices, pointer_slots)?
+    {
         if byte_offset != 0 {
             return Err(invalid());
         }
         return super::encoded_scalar::read(builder, row, place, address, codec);
     }
-    let (pointer, leaf_index) = super::runtime_address::cross_references(
-        builder,
-        row,
-        place,
-        pointer,
-        indices,
-        pointer_slots,
-    )?;
+    let (pointer, leaf_index) =
+        cross_references(builder, row, place, pointer, indices, pointer_slots)?;
     let indices = &indices[leaf_index..];
-    let pointer =
-        super::runtime_address::scale(builder, row, place, byte_offset, pointer, indices)?;
-    if let Some(fragments) =
-        crate::selection::primitive_local_input::read_storage_fragments(source, row)
-    {
+    let pointer = scale(builder, row, place, byte_offset, pointer, indices)?;
+    if let Some(fragments) = read_storage_fragments(source, row) {
         return super::fragmented_scalar::read(
             builder,
             row,
@@ -169,8 +152,7 @@ pub(in crate::selection) fn read(
             indices,
         );
     }
-    let codec = crate::selection::primitive_local_input::read_storage_codec(source, row)
-        .ok_or_else(|| invalid())?;
+    let codec = read_storage_codec(source, row).ok_or_else(|| invalid())?;
     let canonical = runtime_abi::ScalarStorageCodec::from_scalar(definition.scalar_type)
         .ok_or_else(|| invalid())?;
     if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {
@@ -191,7 +173,7 @@ pub(in crate::selection) fn read(
     let (instruction, constraint) =
         load_transfer(&builder.constraints.keys, shape.byte_size, displacement)
             .ok_or_else(invalid)?;
-    super::runtime_address::footprint(
+    footprint(
         builder,
         row,
         place,
@@ -251,47 +233,31 @@ pub(super) fn address(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let (place, byte_offset, slots) =
-        crate::selection::primitive_local_input::read_geometry(source, row).ok_or_else(|| {
-            SelectedInstructionError::custody_because(
-                "storage address lost its checked referent geometry",
-            )
-        })?;
+    let (place, byte_offset, slots) = read_geometry(source, row).ok_or_else(|| {
+        SelectedInstructionError::custody_because(
+            "storage address lost its checked referent geometry",
+        )
+    })?;
     let LegalizedScalarInstructionKind::StorageAddress { indices, .. } = &row.kind else {
         return Err(invalid());
     };
-    let (pointer, slots) = super::runtime_address::projection_origin(
-        source,
-        builder,
-        row,
-        place,
-        byte_offset,
-        &slots,
-    )?;
+    let (pointer, slots) = projection_origin(source, builder, row, place, byte_offset, &slots)?;
     let pointer = match pointer {
         Some(pointer) => pointer,
         // The common resolver authenticates a completed local home. It cannot
         // create storage for missing ABI fragments or an unavailable loan.
         None => super::place_pointer(builder, row, place, 0)?,
     };
-    let address = if let Some((address, _)) = super::runtime_address::scalar_reference(
-        source, builder, row, place, pointer, indices, slots,
-    )? {
+    let address = if let Some((address, _)) =
+        scalar_reference(source, builder, row, place, pointer, indices, slots)?
+    {
         if byte_offset != 0 {
             return Err(invalid());
         }
         address
     } else {
-        let (pointer, leaf) =
-            super::runtime_address::cross_references(builder, row, place, pointer, indices, slots)?;
-        let pointer = super::runtime_address::scale(
-            builder,
-            row,
-            place,
-            byte_offset,
-            pointer,
-            &indices[leaf..],
-        )?;
+        let (pointer, leaf) = cross_references(builder, row, place, pointer, indices, slots)?;
+        let pointer = scale(builder, row, place, byte_offset, pointer, &indices[leaf..])?;
         super::encoded_scalar::backing_address(builder, row, place, pointer, byte_offset)?
     };
     let result = row.result.ok_or_else(|| {

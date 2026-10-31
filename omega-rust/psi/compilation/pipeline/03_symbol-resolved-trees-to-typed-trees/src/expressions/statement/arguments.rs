@@ -1,7 +1,6 @@
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
-use crate::tables::resolved_statements;
-use crate::tables::statement_table_mut;
+use crate::tables::{resolved_statements, statement_table_mut};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;

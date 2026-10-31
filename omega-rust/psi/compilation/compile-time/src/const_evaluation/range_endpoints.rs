@@ -88,10 +88,12 @@
 //! and their deferral marks publish transactionally; the working tree supplies
 //! previously folded signature bounds between rounds.
 
-use crate::SelectedBuildTimeOperators;
-use crate::build_time_evaluation::EvaluationDomain;
-use crate::build_time_evaluation::type_reference_table;
+use crate::build_time_evaluation::{EvaluationDomain, type_reference_table};
+use crate::const_evaluation::const_generic_expressions::exact_probe_destination;
+use crate::const_evaluation::const_generic_expressions::value::evaluate_integer_endpoint;
+use crate::machine_execution::admission::{expression_children, require_closed_expression_custody};
 use crate::unique::extend_unique;
+use crate::{BuildTimeAdmissionPlan, SelectedBuildTimeOperators};
 use diagnostics::Diagnostic;
 use numerics::{
     arithmetic::ArithmeticDomain,
@@ -99,11 +101,10 @@ use numerics::{
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::state::state_by_symbol;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-
-use crate::BuildTimeAdmissionPlan;
 
 pub(super) mod arguments;
 mod integer_type;
@@ -145,10 +146,7 @@ pub(crate) fn deferred_endpoint_stand_ins(
         else {
             continue;
         };
-        let carrier = crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-            program,
-            constrained_type,
-        );
+        let carrier = exact_probe_destination(program, constrained_type);
         for constraint in program.type_reference_table.constraints(*constraints) {
             let TypeConstraintNode::Range {
                 minimum, maximum, ..
@@ -371,11 +369,7 @@ pub(super) fn resolve_endpoint_callee(
         .machines()
         .iter()
         .find(|machine| {
-            typed_trees::state::state_by_symbol(
-                execution.machine_states(machine),
-                call.target_symbol,
-            )
-            .is_some()
+            state_by_symbol(execution.machine_states(machine), call.target_symbol).is_some()
         })
         .filter(|machine| machine.type_parameters.is_empty())
         .ok_or_else(|| {
@@ -608,11 +602,7 @@ fn evaluate_root(
     selection_authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<ExpressionNode, String> {
-    crate::machine_execution::admission::require_closed_expression_custody(
-        execution,
-        endpoint.expression,
-        selection_authority,
-    )?;
+    require_closed_expression_custody(execution, endpoint.expression, selection_authority)?;
     let invocation = arguments::Invocation {
         working: typed,
         execution,
@@ -620,11 +610,7 @@ fn evaluate_root(
         authority: selection_authority,
     };
     let (literal, additions) =
-        crate::const_evaluation::const_generic_expressions::value::evaluate_integer_endpoint(
-            execution,
-            endpoint.expression,
-            &invocation,
-        )?;
+        evaluate_integer_endpoint(execution, endpoint.expression, &invocation)?;
     extend_unique(warnings, additions);
     Ok(ExpressionNode::Integer(literal))
 }
@@ -671,8 +657,7 @@ pub(crate) fn integer_root_plan(
                     }
                     active.push(expression);
                     work.push((expression, true, root));
-                    let children =
-                        crate::machine_execution::admission::expression_children(typed, expression);
+                    let children = expression_children(typed, expression);
                     work.extend(children.into_iter().rev().map(|child| (child, false, root)));
                     if let Some((machine, _)) = selected_endpoint_machine(typed, expression) {
                         append_signature_bounds(typed, machine, &mut work)?;

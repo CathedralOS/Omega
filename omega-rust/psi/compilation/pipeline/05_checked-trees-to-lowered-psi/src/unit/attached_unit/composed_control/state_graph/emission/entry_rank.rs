@@ -17,9 +17,9 @@ impl StateGraphEmission<'_, '_> {
     pub(super) fn initialize_invocation_rank(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        root: &checked_trees::CheckedScalarComputationRoot,
+        roots: &[&checked_trees::CheckedScalarComputationRoot],
         template: &Evaluation,
-        receiving: ValueDeclaration,
+        receiving: &[ValueDeclaration],
         body_operations: &mut OperationBuffer,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -35,6 +35,7 @@ impl StateGraphEmission<'_, '_> {
         evaluation.entry = entry;
         evaluation.parameter_storage.clear();
         evaluation.previous_parameter_homes.clear();
+        evaluation.enclosing_structural_arrivals.clear();
         evaluation.erased_scalar_formals = self.invocation_erased.clone();
         let parameters = state
             .structural_parameters
@@ -132,23 +133,32 @@ impl StateGraphEmission<'_, '_> {
             },
             |frame| {
                 let (mut environment, emission) = frame.split();
-                emission.evaluation.retained_observation(
-                    identities,
-                    checked,
-                    root,
-                    &bindings,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
+                roots
+                    .iter()
+                    .map(|root| {
+                        emission.evaluation.retained_observation(
+                            identities,
+                            checked,
+                            root,
+                            &bindings,
+                            emission.values,
+                            emission.next_value,
+                            emission.next_block,
+                            emission.next_edge,
+                            emission.operations,
+                            emission.calls,
+                            &mut environment,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()
             },
         )?;
         sequence.require_closed()?;
-        if observed.value_type() != receiving.value_type()
+        if observed.len() != receiving.len()
+            || !observed
+                .iter()
+                .zip(receiving)
+                .all(|(observed, receiving)| observed.value_type() == receiving.value_type())
             || operations.invocation_completion.is_some()
         {
             return unsupported("invocation rank lost its complete normal value");
@@ -164,7 +174,7 @@ impl StateGraphEmission<'_, '_> {
         let Terminator::Jump { arguments, .. } = &mut bridge.terminator else {
             return unsupported("invocation observation bridge is not a completed arrival");
         };
-        arguments.push(observed.id);
+        arguments.extend(observed.iter().map(|value| value.id));
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: std::mem::take(&mut evaluation.parameters),

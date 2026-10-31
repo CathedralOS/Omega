@@ -5,7 +5,11 @@
 //! entry, including demands from target-family members without public rows.
 //! No selecting caller's values or guards participate in this comparison.
 
+use super::boolean_predicates::bind_parameters;
+use super::boolean_predicates::proves;
 use super::crash_calls::CompletedBodyCrashSummaries;
+use super::crash_plan_facts::derive_authored_machine_crash_buckets;
+use super::crash_plan_facts::derive_authored_signature_crash_buckets;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedOperatorFacts, CrashInterface, CrashRouteGuard,
     MachineContractPlans,
@@ -46,12 +50,10 @@ fn validate_one(
     let requirement = obligation
         .required_signature(program)
         .map_err(str::to_owned)?;
-    let required = super::crash_plan_facts::derive_authored_signature_crash_buckets(
-        program,
-        requirement,
-        Some(operators),
-    )
-    .map_err(|error| format!("the exact required crash ceiling cannot be normalized: {error:?}"))?;
+    let required = derive_authored_signature_crash_buckets(program, requirement, Some(operators))
+        .map_err(|error| {
+        format!("the exact required crash ceiling cannot be normalized: {error:?}")
+    })?;
     let selected = program
         .machine_by_own_or_state_symbol(obligation.selected_entry())
         .ok_or_else(|| "the selected entry has no concrete callable owner".to_owned())?;
@@ -60,14 +62,9 @@ fn validate_one(
         .ok_or_else(|| "the selected callable has no completed checked contract plan".to_owned())?;
     let actual = match plan.crash.interface() {
         CrashInterface::PublishedCeiling => {
-            super::crash_plan_facts::derive_authored_machine_crash_buckets(
-                program,
-                selected,
-                Some(operators),
-            )
-            .map_err(|error| {
-                format!("the selected published ceiling cannot be normalized: {error:?}")
-            })?
+            derive_authored_machine_crash_buckets(program, selected, Some(operators)).map_err(
+                |error| format!("the selected published ceiling cannot be normalized: {error:?}"),
+            )?
         }
         CrashInterface::InternalInferred => {
             completed.checked_buckets(selected.symbol).ok_or_else(|| {
@@ -97,7 +94,7 @@ fn validate_one(
                 requirement,
                 *expression,
             )?;
-            super::boolean_predicates::bind_parameters(
+            bind_parameters(
                 program,
                 selected.symbol,
                 entry.symbol,
@@ -121,7 +118,7 @@ fn validate_one(
         for route in bucket.alternative_guards() {
             let under_required_inputs = checked_guard(route)
                 .and_then(|actual| {
-                    super::boolean_predicates::bind_parameters(
+                    bind_parameters(
                         program,
                         selected.symbol,
                         entry.symbol,
@@ -133,7 +130,7 @@ fn validate_one(
                         },
                     )
                 })
-                .is_some_and(|goal| super::boolean_predicates::proves(&premises, &goal, |_| None));
+                .is_some_and(|goal| proves(&premises, &goal, |_| None));
             if !under_required_inputs
                 && !required
                     .iter()

@@ -25,6 +25,11 @@
 
 mod row_descriptions;
 pub use row_descriptions::{describe_dynamic_conformances, normalized_dynamic_row_identities};
+use symbols::SymbolHandle;
+use typed_trees::finite_family::FamilyProbe;
+use typed_trees::references::DeclarationSelection;
+use typed_trees::trait_definition::AppliedTraitScope;
+use typed_trees::type_identity::TypeIdentityId;
 
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
@@ -45,13 +50,13 @@ pub struct DynamicImplementationSelection {
     pub occurrence: ExpressionHandle,
     /// Detached constant declarations have no executable machine/state owner.
     /// Their resolved selection is still checked, but never a runtime occurrence.
-    pub machine: symbols::SymbolHandle,
-    pub state: symbols::SymbolHandle,
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
     /// The selected named implementation (a `Conformance` symbol).
-    pub implementation: symbols::SymbolHandle,
+    pub implementation: SymbolHandle,
     /// The `dyn Trait<Args>` type the conversion produces.
     pub selector_type: TypeReferenceHandle,
-    pub target_trait: symbols::SymbolHandle,
+    pub target_trait: SymbolHandle,
 }
 
 /// Fix the implementation every `Impl as dyn Trait<Args>` conversion selects.
@@ -88,8 +93,8 @@ pub fn collect_dynamic_implementation_selections(
         let root = declaration.materialized_initializer;
         collect_selections_in(
             program,
-            symbols::SymbolHandle::invalid(),
-            symbols::SymbolHandle::invalid(),
+            SymbolHandle::invalid(),
+            SymbolHandle::invalid(),
             root,
             &mut Vec::new(),
             &mut selections,
@@ -119,8 +124,8 @@ pub fn collect_dynamic_implementation_selections(
 
 fn collect_selections_in(
     program: &dyn crate::CheckingInput,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
+    machine: SymbolHandle,
+    state: SymbolHandle,
     expression: ExpressionHandle,
     visited: &mut Vec<ExpressionHandle>,
     selections: &mut Vec<DynamicImplementationSelection>,
@@ -230,17 +235,17 @@ fn collect_selections_in(
 pub struct DynamicSlotDemand {
     /// The `dyn Trait<Args>` selector type.
     pub selector_type: TypeReferenceHandle,
-    pub declaring_trait: symbols::SymbolHandle,
-    pub requirement: symbols::SymbolHandle,
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
     /// Exact executable requirement application for this call; a static local
     /// tuple can close its representation independently of the public roster.
-    pub call_requirement: symbols::SymbolHandle,
+    pub call_requirement: SymbolHandle,
     /// Complete authored family under this exact outer application. These
     /// existing public instances, never provider shapes, own each row ABI.
-    pub family_call_requirements: Vec<symbols::SymbolHandle>,
+    pub family_call_requirements: Vec<SymbolHandle>,
     /// Complete outer-to-inner applied telescopes. A declaring trait's
     /// composite argument can still name an outer trait's parameter.
-    pub type_substitutions: Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
+    pub type_substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     pub substitution_scope_starts: Vec<usize>,
 }
 
@@ -255,10 +260,7 @@ pub struct DynamicSlotDemand {
 pub fn collect_dynamic_slot_demands(
     program: &dyn crate::CheckingInput,
 ) -> Result<Vec<DynamicSlotDemand>, Vec<Diagnostic>> {
-    let mut demands: Vec<(
-        typed_trees::type_identity::TypeIdentityId,
-        DynamicSlotDemand,
-    )> = Vec::new();
+    let mut demands: Vec<(TypeIdentityId, DynamicSlotDemand)> = Vec::new();
     let mut push = |demand: DynamicSlotDemand| {
         let identity = program.normalized_type_identity(demand.selector_type);
         let mut variants = vec![demand.clone()];
@@ -288,7 +290,7 @@ pub fn collect_dynamic_slot_demands(
             continue;
         };
         for row in &implementation.rows {
-            let Some(application) = typed_trees::trait_definition::AppliedTraitScope::new(
+            let Some(application) = AppliedTraitScope::new(
                 program,
                 selector_definition,
                 typed_trees::trait_definition::TraitApplicationArguments {
@@ -390,8 +392,8 @@ pub fn dynamic_call_demand(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    receiver: symbols::SymbolHandle,
-    target: symbols::SymbolHandle,
+    receiver: SymbolHandle,
+    target: SymbolHandle,
     arguments: &[ExpressionHandle],
 ) -> Option<DynamicSlotDemand> {
     let call = crate::machine_calls::calls::dynamic_requirement::dynamic_selector_call(
@@ -458,7 +460,7 @@ pub(crate) fn dynamic_requirement_ineligibility(
 pub(crate) fn dynamic_selector_application(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Option<(symbols::SymbolHandle, &[TypeReferenceHandle])> {
+) -> Option<(SymbolHandle, &[TypeReferenceHandle])> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
             dynamic_selector_application(program, *base_type)
@@ -514,43 +516,34 @@ pub(crate) fn dynamic_receiver_call_error(
 /// selected providers nor a same-spelled data carrier can supply one.
 pub fn qualified_trait_scope<'program>(
     program: &'program dyn crate::CheckingInput,
-    lexical_owner: symbols::SymbolHandle,
-    namespace: symbols::SymbolHandle,
+    lexical_owner: SymbolHandle,
+    namespace: SymbolHandle,
     value_type: Option<TypeReferenceHandle>,
-) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
+) -> Option<AppliedTraitScope<'program>> {
     program
         .trait_definition_by_symbol(namespace)
         .map(|declaration| {
             program
                 .lexical_conformance_scope(lexical_owner)
                 .and_then(|(_, scope)| scope.declaring_scope(program, namespace))
-                .unwrap_or_else(|| {
-                    typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaration)
-                })
+                .unwrap_or_else(|| AppliedTraitScope::abstract_scope(declaration))
         })
         .or_else(|| {
             value_type.and_then(|reference| {
-                typed_trees::trait_definition::AppliedTraitScope::from_type_reference(
-                    program,
-                    reference,
-                    lexical_owner,
-                )
+                AppliedTraitScope::from_type_reference(program, reference, lexical_owner)
             })
         })
 }
 
 pub fn resolve_dynamic_call_targets(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    resolve_selected_dynamic_call_targets(
-        program,
-        &typed_trees::references::DeclarationSelection::all(),
-    )
+    resolve_selected_dynamic_call_targets(program, &DeclarationSelection::all())
 }
 
 /// Bind only calls owned by the selected declarations, publishing their exact
 /// targets into the same canonical expression and statement arenas.
 pub fn resolve_selected_dynamic_call_targets(
     program: &mut TypedTrees,
-    domain: &typed_trees::references::DeclarationSelection,
+    domain: &DeclarationSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut expression_updates = Vec::new();
     let mut statement_updates = Vec::new();
@@ -610,9 +603,7 @@ pub fn resolve_selected_dynamic_call_targets(
                         let endpoint = receiver
                             .as_ref()
                             .filter(|_| dynamic_target.is_some())
-                            .map_or_else(symbols::SymbolHandle::invalid, |receiver| {
-                                receiver.symbol
-                            });
+                            .map_or_else(SymbolHandle::invalid, |receiver| receiver.symbol);
                         if endpoint.is_valid()
                             && call.receiver_symbol.is_valid()
                             && call.receiver_symbol != endpoint
@@ -679,7 +670,7 @@ fn collect_dynamic_expression_call_updates(
     state: &State,
     before: usize,
     expression: ExpressionHandle,
-    updates: &mut Vec<(ExpressionHandle, symbols::SymbolHandle)>,
+    updates: &mut Vec<(ExpressionHandle, SymbolHandle)>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -744,7 +735,7 @@ fn collect_dynamic_expression_call_updates(
             };
             let namespace = expression_table(program)
                 .name_path_node(receiver_expression)
-                .map_or_else(symbols::SymbolHandle::invalid, |path| path.symbol);
+                .map_or_else(SymbolHandle::invalid, |path| path.symbol);
             // Preparation can already have closed this target. Its authored
             // qualifier supplies the exact trait application; the abstract
             // namespace cannot stand in for its phantom or inherited arguments.
@@ -799,14 +790,14 @@ fn collect_dynamic_expression_call_updates(
 
 fn resolved_dynamic_requirement_symbol(
     program: &dyn crate::CheckingInput,
-    lexical_owner: symbols::SymbolHandle,
-    receiver_scope: typed_trees::trait_definition::AppliedTraitScope<'_>,
+    lexical_owner: SymbolHandle,
+    receiver_scope: AppliedTraitScope<'_>,
     static_namespace: bool,
     target: &str,
-    retained_target: symbols::SymbolHandle,
+    retained_target: SymbolHandle,
     span: source::SourceSpan,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<symbols::SymbolHandle> {
+) -> Option<SymbolHandle> {
     let trait_definition = receiver_scope.declaration;
     let mut matches = Vec::new();
     collect_dynamic_requirements_named(program, &receiver_scope, target, &mut matches);
@@ -936,12 +927,9 @@ fn resolved_dynamic_requirement_symbol(
 
 fn collect_dynamic_requirements_named<'program>(
     program: &'program dyn crate::CheckingInput,
-    receiver_scope: &typed_trees::trait_definition::AppliedTraitScope<'program>,
+    receiver_scope: &AppliedTraitScope<'program>,
     target: &str,
-    matches: &mut Vec<(
-        typed_trees::trait_definition::AppliedTraitScope<'program>,
-        &'program StateSignature,
-    )>,
+    matches: &mut Vec<(AppliedTraitScope<'program>, &'program StateSignature)>,
 ) {
     // Application paths, not declaring symbols, determine ambiguity. A diamond
     // may reach one declaration with different phantom arguments.
@@ -964,9 +952,9 @@ fn collect_dynamic_requirements_named<'program>(
 /// A caller's observed tuple set and selected implementation cannot narrow it.
 fn closed_family_requirements(
     program: &dyn crate::CheckingInput,
-    requirement: symbols::SymbolHandle,
-    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
-) -> Vec<symbols::SymbolHandle> {
+    requirement: SymbolHandle,
+    application: &AppliedTraitScope<'_>,
+) -> Vec<SymbolHandle> {
     let Some(signature) = program
         .applied_callable_signature(application, requirement)
         .or_else(|| {
@@ -977,9 +965,7 @@ fn closed_family_requirements(
     else {
         return Vec::new();
     };
-    let typed_trees::finite_family::FamilyProbe::Finite { arity, tuples } =
-        program.finite_signature_family(signature)
-    else {
+    let FamilyProbe::Finite { arity, tuples } = program.finite_signature_family(signature) else {
         return Vec::new();
     };
     tuples

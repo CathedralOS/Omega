@@ -2,6 +2,7 @@
 use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
+use crate::lowering::structural_layout::primitive_read_projection;
 use crate::lowering::unit::known_integers::insert_scalar_home;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -13,6 +14,8 @@ use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
+use terminal_semantics::observed_field_declaration;
+use terminal_semantics::projected_field_declaration;
 
 pub(super) fn is_primitive_reference(
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -68,13 +71,9 @@ pub(super) fn byte_field_observation(
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     // The checked observation selects storage through ordered pointer crossings.
     let (structural_type, access) = field_root(function, types, prepared, live, source)?;
-    let selected = terminal_semantics::projected_field_declaration(
-        types.values().copied(),
-        structural_type,
-        path,
-        field,
-    )
-    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let selected =
+        projected_field_declaration(types.values().copied(), structural_type, path, field)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if !terminal_semantics::sequence_field_allows_observation(
         types.values().copied(),
         &selected.field_type,
@@ -392,13 +391,9 @@ pub(super) fn lower(
                 access,
             )
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let declaration = terminal_semantics::observed_field_declaration(
-                types.values().copied(),
-                structural_type,
-                path,
-                field,
-            )
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let declaration =
+                observed_field_declaration(types.values().copied(), structural_type, path, field)
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if matches!(
                 declaration.field_type,
                 StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
@@ -589,10 +584,8 @@ pub(super) fn lower(
             // Each runtime element scales its selector's exact dominating
             // source by the array stride; its bound is the path segment's
             // verified obligation.
-            let projection = crate::lowering::structural_layout::primitive_read_projection(
-                identity, path, types,
-            )
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let projection = primitive_read_projection(identity, path, types)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if projection.scalar != result.scalar_type {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }

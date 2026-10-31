@@ -25,7 +25,12 @@ pub(crate) mod domain_constraints;
 
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
 use symbol_resolved_trees as resolved;
+use symbols::SymbolHandle;
+use symbols::SymbolKind;
 use typed_trees as typed;
 
 mod alias_uses;
@@ -44,7 +49,7 @@ pub(super) fn retain_supplied_operand_owner(
     typed_trees: &mut typed::TypedTrees,
     reference: typed::types::TypeReferenceHandle,
     owner: resolved::types::OperandLifetimeOwnerHandle,
-    lexical_owner: symbols::SymbolHandle,
+    lexical_owner: SymbolHandle,
 ) -> Result<(), Diagnostic> {
     if lexical_owner.is_valid() {
         typed_trees
@@ -108,9 +113,7 @@ pub(super) fn lower_type_reference_into_trees_with_exposure(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     type_reference: &resolved::types::TypeReference,
-    exposure: impl Into<
-        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
-    >,
+    exposure: impl Into<Option<AuthoredDeclarationSelectionExposure>>,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     lower_type_reference_handle_with_context(
         source_trees,
@@ -128,7 +131,7 @@ pub(crate) fn lower_type_reference_handle_from_table(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         type_reference,
-        Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
+        Some(AuthoredDeclarationSelectionExposure::PrivateImplementation),
     )
 }
 
@@ -140,15 +143,10 @@ pub(crate) fn retain_type_reference_recipe_selection(
     source: &resolved::SymbolResolvedTrees,
     typed: &mut typed::TypedTrees,
     name: &resolved::name::DiagnosticName,
-    symbol: symbols::SymbolHandle,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
-    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
-) -> Result<
-    Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
-    Diagnostic,
-> {
+    symbol: SymbolHandle,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
+    kind: AuthoredDeclarationSelectionKind,
+) -> Result<Option<AuthoredDeclarationSelectionOccurrenceId>, Diagnostic> {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionCoordinateError as CoordinateError,
         AuthoredDeclarationSelectionLateBinding as Binding,
@@ -163,13 +161,13 @@ pub(crate) fn retain_type_reference_recipe_selection(
         && (source.symbols.builtin_type_atom(symbol).is_some()
             || matches!(
                 source.symbols.get(symbol).kind,
-                symbols::SymbolKind::Parameter
-                    | symbols::SymbolKind::TypeParameter
-                    | symbols::SymbolKind::MachineParameter
-                    | symbols::SymbolKind::ConformanceParameter
-                    | symbols::SymbolKind::PropositionParameter
-                    | symbols::SymbolKind::PropositionMachineParameter
-                    | symbols::SymbolKind::Local
+                SymbolKind::Parameter
+                    | SymbolKind::TypeParameter
+                    | SymbolKind::MachineParameter
+                    | SymbolKind::ConformanceParameter
+                    | SymbolKind::PropositionParameter
+                    | SymbolKind::PropositionMachineParameter
+                    | SymbolKind::Local
             ))
     {
         return Ok(None);
@@ -207,11 +205,9 @@ pub(super) fn retain_type_reference_selection(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     name: &resolved::name::DiagnosticName,
-    symbol: symbols::SymbolHandle,
-    exposure: impl Into<
-        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
-    >,
-    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+    symbol: SymbolHandle,
+    exposure: impl Into<Option<AuthoredDeclarationSelectionExposure>>,
+    kind: AuthoredDeclarationSelectionKind,
 ) -> Result<(), Diagnostic> {
     let Some(exposure) = exposure.into() else {
         return Ok(());
@@ -233,13 +229,13 @@ pub(super) fn retain_type_reference_selection(
     }
     if matches!(
         source_trees.symbols.get(symbol).kind,
-        symbols::SymbolKind::Parameter
-            | symbols::SymbolKind::TypeParameter
-            | symbols::SymbolKind::MachineParameter
-            | symbols::SymbolKind::ConformanceParameter
-            | symbols::SymbolKind::PropositionParameter
-            | symbols::SymbolKind::PropositionMachineParameter
-            | symbols::SymbolKind::Local
+        SymbolKind::Parameter
+            | SymbolKind::TypeParameter
+            | SymbolKind::MachineParameter
+            | SymbolKind::ConformanceParameter
+            | SymbolKind::PropositionParameter
+            | SymbolKind::PropositionMachineParameter
+            | SymbolKind::Local
     ) {
         return Ok(());
     }
@@ -264,12 +260,10 @@ pub(super) fn retain_type_reference_selection(
 pub(super) fn lower_dynamic_trait_type_reference(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
-    symbol: symbols::SymbolHandle,
+    symbol: SymbolHandle,
     name: &resolved::name::DiagnosticName,
     arguments: arena::HandleSpan<typed::types::TypeReferenceHandle>,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     retain_type_reference_selection(
         source_trees,
@@ -277,7 +271,7 @@ pub(super) fn lower_dynamic_trait_type_reference(
         name,
         symbol,
         exposure,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+        AuthoredDeclarationSelectionKind::TypeReference,
     )?;
     Ok(typed_trees
         .type_reference_table
@@ -293,11 +287,9 @@ pub(super) fn lower_dynamic_trait_type_reference(
 pub(super) fn lower_named_type_reference(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
-    symbol: symbols::SymbolHandle,
+    symbol: SymbolHandle,
     name: &resolved::name::DiagnosticName,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     retain_type_reference_selection(
         source_trees,
@@ -305,7 +297,7 @@ pub(super) fn lower_named_type_reference(
         name,
         symbol,
         exposure,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+        AuthoredDeclarationSelectionKind::TypeReference,
     )?;
     let reference =
         typed_trees
@@ -332,10 +324,8 @@ pub(super) fn lower_named_type_reference(
 pub(crate) fn retain_static_path_selection(
     typed_trees: &mut typed::TypedTrees,
     path: &[resolved::name::DiagnosticName],
-    symbol: symbols::SymbolHandle,
-    exposure: impl Into<
-        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
-    >,
+    symbol: SymbolHandle,
+    exposure: impl Into<Option<AuthoredDeclarationSelectionExposure>>,
     context: &str,
 ) -> Result<(), Diagnostic> {
     retain_path_selection(
@@ -343,7 +333,7 @@ pub(crate) fn retain_static_path_selection(
         path,
         symbol,
         exposure,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
+        AuthoredDeclarationSelectionKind::StaticPathSegment,
         context,
     )
 }
@@ -351,11 +341,9 @@ pub(crate) fn retain_static_path_selection(
 pub(crate) fn retain_path_selection(
     typed_trees: &mut typed::TypedTrees,
     path: &[resolved::name::DiagnosticName],
-    symbol: symbols::SymbolHandle,
-    exposure: impl Into<
-        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
-    >,
-    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+    symbol: SymbolHandle,
+    exposure: impl Into<Option<AuthoredDeclarationSelectionExposure>>,
+    kind: AuthoredDeclarationSelectionKind,
     context: &str,
 ) -> Result<(), Diagnostic> {
     retain_path_selection_occurrence(typed_trees, path, symbol, exposure, kind, context).map(|_| ())
@@ -364,16 +352,11 @@ pub(crate) fn retain_path_selection(
 pub(crate) fn retain_path_selection_occurrence(
     typed_trees: &mut typed::TypedTrees,
     path: &[resolved::name::DiagnosticName],
-    symbol: symbols::SymbolHandle,
-    exposure: impl Into<
-        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
-    >,
-    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+    symbol: SymbolHandle,
+    exposure: impl Into<Option<AuthoredDeclarationSelectionExposure>>,
+    kind: AuthoredDeclarationSelectionKind,
     context: &str,
-) -> Result<
-    Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
-    Diagnostic,
-> {
+) -> Result<Option<AuthoredDeclarationSelectionOccurrenceId>, Diagnostic> {
     let Some(exposure) = exposure.into() else {
         return Ok(None);
     };

@@ -11,6 +11,7 @@ use super::{
     ContentConservationDependencies, ContentConservationImplication, ContentValues,
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
+use language_semantics::MachineSupplyMode;
 use language_semantics::SemanticDomainId;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentConservationPlan, ContentConservationTerm, ContentPlaceSegment,
@@ -111,9 +112,7 @@ pub(in crate::proof_contracts::contract_entailment) fn call_content_guarantees(
                 == language_semantics::content::ContentConservationOwnerKind::Machine
                 && !program
                     .machine_by_symbol(source.plan.owner)
-                    .is_some_and(|machine| {
-                        machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
-                    })
+                    .is_some_and(|machine| machine.supply_mode == MachineSupplyMode::AdmissionClaim)
             {
                 equation.requirements.push(source.plan.clone());
             }

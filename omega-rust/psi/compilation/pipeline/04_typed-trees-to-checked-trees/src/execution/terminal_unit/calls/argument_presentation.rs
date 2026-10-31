@@ -2,6 +2,7 @@
 //!
 //! This owner decides representation compatibility only. Call admission keeps
 //! source access, multiplicity, predicate obligations and live-loan custody.
+use super::boundary_admission::fixed_array_slice_view_is_admitted;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::types::{
     base_type_identity, byte_sequence_carrier, lent_storage_identity, substituted_formal_type,
@@ -59,12 +60,9 @@ pub(crate) fn classify(
     {
         return Some(ArgumentPresentation::SharedScalarObservation);
     }
-    if super::boundary_admission::fixed_array_slice_view_is_admitted(
-        program,
-        projected_type,
-        formal,
-    ) && base_type_identity(program, formal, &[], substitutions)
-        .is_some_and(|identity| identity == target_identity)
+    if fixed_array_slice_view_is_admitted(program, projected_type, formal)
+        && base_type_identity(program, formal, &[], substitutions)
+            .is_some_and(|identity| identity == target_identity)
     {
         return Some(ArgumentPresentation::FixedArraySlice);
     }

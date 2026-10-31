@@ -23,6 +23,7 @@ use semantic_vocabulary::{
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use super::{FixedViewCopyPlan, copy::decode_copy, primitives::Cursor};
+use selected_instructions::SelectedBlockOrigin;
 
 mod golden;
 mod rejection;
@@ -135,9 +136,7 @@ fn shared_function() -> SelectedFunction {
         blocks: (vec![
             SelectedBlock {
                 id: SelectedBlockId(0),
-                origin: selected_instructions::SelectedBlockOrigin::Source(
-                    BlockId::new(1).unwrap(),
-                ),
+                origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
                 instructions: vec![instruction(
                     0,
                     SelectedInstructionKind::CompareI64Zero,
@@ -155,9 +154,7 @@ fn shared_function() -> SelectedFunction {
             },
             SelectedBlock {
                 id: SelectedBlockId(1),
-                origin: selected_instructions::SelectedBlockOrigin::Source(
-                    BlockId::new(2).unwrap(),
-                ),
+                origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
                 instructions: Vec::new(),
                 terminator: SelectedTerminator::Return {
                     instruction: instruction(
@@ -170,9 +167,7 @@ fn shared_function() -> SelectedFunction {
             },
             SelectedBlock {
                 id: SelectedBlockId(2),
-                origin: selected_instructions::SelectedBlockOrigin::Source(
-                    BlockId::new(3).unwrap(),
-                ),
+                origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
                 instructions: Vec::new(),
                 terminator: SelectedTerminator::Return {
                     instruction: instruction(
@@ -336,7 +331,7 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
         virtual_registers: Vec::new(),
         blocks: (vec![SelectedBlock {
             id: SelectedBlockId(0),
-            origin: selected_instructions::SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+            origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
             instructions: vec![instruction],
             terminator: SelectedTerminator::Return {
                 instruction: SelectedInstruction {

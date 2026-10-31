@@ -6,11 +6,13 @@
 //! exact destination row, spelled path and field of its abstract row, the
 //! consumed value's semantic place (local home or incoming parameter), and the independently resolved field
 //! offset. See `scalar_graph_input::borrowed_windows`.
+use super::aggregate_results::owned_projected_field_source;
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, TargetUnitOperation, ValueId,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use scalar_graph_input::borrowed_windows::moved;
 use target_operations::TargetUnitScalarArgumentSource as Source;
 use terminal_psi::StructuralAccess;
 
@@ -40,9 +42,7 @@ pub(super) fn validate(
                 field,
             },
         ) => {
-            let extent = scalar_graph_input::borrowed_windows::moved(
-                optimized, root, spelled, *field, result, plan, custody,
-            )?;
+            let extent = moved(optimized, root, spelled, *field, result, plan, custody)?;
             if psi_operation != expected_operation
                 || *source != root.place()
                 || *path != abstract_operations::StructuralCopyPath::Ordinary(extent.path)
@@ -102,11 +102,8 @@ pub(super) fn validate(
             // Construction and replacement receive the same value contract.
             // A view arrival contributes descriptor storage, not ownership of
             // its backing. The exact type fixes the stored field's layout.
-            if super::aggregate_results::owned_projected_field_source(
-                optimized,
-                value,
-                &plan.structural_types,
-            )? != extent.field_type
+            if owned_projected_field_source(optimized, value, &plan.structural_types)?
+                != extent.field_type
             {
                 return Err(LegalizationError::custody());
             }

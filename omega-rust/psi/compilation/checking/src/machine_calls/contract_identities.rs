@@ -8,11 +8,16 @@
 //! body's row would silently narrow the universal contract.
 
 use crate::contract_structure;
+use crate::digest_encoder::DomainDigestEncoder;
 use crate::frozen_program::expression_table;
+use checked_trees::CheckedSpecializationIdentities;
 use diagnostics::Diagnostic;
+use language_semantics::TerminationInterface;
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::typed_trees::MachineSpecializationCommitment;
+use typed_trees::typed_trees::MachineTemplateCommitment;
 
 /// The universal template contract shared by every concrete application.
 /// Capture it from the retained authored declaration, not a selected clone.
@@ -225,11 +230,10 @@ fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
 /// Hash canonical template bytes under the published template domain separator.
 pub fn machine_template_commitment(
     canonical_template_contract_bytes: &[u8],
-) -> typed_trees::typed_trees::MachineTemplateCommitment {
-    let mut strong =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-template.v2\0");
+) -> MachineTemplateCommitment {
+    let mut strong = DomainDigestEncoder::new(b"omega.machine-template.v2\0");
     strong.raw(canonical_template_contract_bytes);
-    typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finish())
+    MachineTemplateCommitment::from_digest(strong.finish())
 }
 
 /// Deterministic identity of an authored generic machine declaration before
@@ -275,7 +279,7 @@ fn generic_machine_index(
 pub fn generic_machine_template_commitment(
     program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
-) -> Option<typed_trees::typed_trees::MachineTemplateCommitment> {
+) -> Option<MachineTemplateCommitment> {
     let bytes = canonical_template_bytes_for_symbol(program, machine_symbol)?;
     Some(machine_template_commitment(&bytes))
 }
@@ -299,12 +303,8 @@ pub fn prepare_specialization_contract_identities(
     program: &dyn crate::CheckingInput,
     contracts: &checked_trees::MachineContractPlans,
     effects: &crate::PreparedEffectPlans,
-) -> Result<checked_trees::CheckedSpecializationIdentities, Vec<Diagnostic>> {
-    let mut templates: Vec<(
-        SymbolHandle,
-        Vec<u8>,
-        typed_trees::typed_trees::MachineTemplateCommitment,
-    )> = Vec::new();
+) -> Result<CheckedSpecializationIdentities, Vec<Diagnostic>> {
+    let mut templates: Vec<(SymbolHandle, Vec<u8>, MachineTemplateCommitment)> = Vec::new();
     let mut identities = Vec::with_capacity(
         program.machine_specializations.len() + program.captured_machine_applications.len(),
     );
@@ -406,9 +406,7 @@ pub fn prepare_specialization_contract_identities(
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let template_commitment = machine_template_commitment(&template_bytes);
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.machine-capture-application.v1\0",
-        );
+        let mut digest = DomainDigestEncoder::new(b"omega.machine-capture-application.v1\0");
         digest.raw(&template_commitment.as_bytes());
         let bytes = canonical_capture_application_bytes(program, contracts, capture)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -421,9 +419,7 @@ pub fn prepare_specialization_contract_identities(
             )
             .map_err(|diagnostic| vec![diagnostic])?
             .into_boxed_slice(),
-            commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
-                digest.finish(),
-            ),
+            commitment: MachineSpecializationCommitment::from_digest(digest.finish()),
         });
     }
     for specialization in &program.machine_specializations {
@@ -474,9 +470,7 @@ pub fn prepare_specialization_contract_identities(
             .map_err(|diagnostic| vec![diagnostic])?,
         );
     }
-    Ok(checked_trees::CheckedSpecializationIdentities::with_rows(
-        identities,
-    ))
+    Ok(CheckedSpecializationIdentities::with_rows(identities))
 }
 
 fn captured_machine_contracts(
@@ -617,7 +611,7 @@ fn machine_specialization_identity(
     specialization: &typed_trees::typed_trees::MachineSpecialization,
     operational: &flow_effects::OperationalPlan,
     template_contract_bytes: &[u8],
-    template_contract_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
+    template_contract_commitment: MachineTemplateCommitment,
 ) -> Result<checked_trees::CheckedMachineSpecializationIdentity, Diagnostic> {
     let instance = program
         .machine_by_symbol(specialization.instance)
@@ -694,16 +688,13 @@ fn machine_specialization_identity(
         }
         None => bytes.push(0),
     }
-    let mut strong =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-specialization.v2\0");
+    let mut strong = DomainDigestEncoder::new(b"omega.machine-specialization.v2\0");
     strong.raw(&bytes);
     Ok(checked_trees::CheckedMachineSpecializationIdentity {
         instance: specialization.instance,
         template_contract_commitment,
         machine_argument_contract_commitments: machine_contract_commitments.into_boxed_slice(),
-        commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
-            strong.finish(),
-        ),
+        commitment: MachineSpecializationCommitment::from_digest(strong.finish()),
     })
 }
 
@@ -934,9 +925,7 @@ fn encode_state_signature(
     );
     let termination = contract_structure::declared_termination(
         program,
-        &language_semantics::TerminationInterface::Published(
-            signature.termination_guarantee.clone(),
-        ),
+        &TerminationInterface::Published(signature.termination_guarantee.clone()),
         &contract_binders,
     );
     output.extend(checked_trees::declared_termination_commitment(&termination).as_bytes());

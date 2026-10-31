@@ -10,16 +10,17 @@ use super::super::super::super::{Block, Terminator, unsupported};
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::structural_byte_sequence_store::retain_literal_declarations;
 use semantic_vocabulary::EdgeId;
 
 impl StateGraphEmission<'_, '_> {
     /// Record every edge in `edges` as rank-preserving at `rank`.
-    pub(super) fn preserve_edges(&mut self, edges: impl Iterator<Item = EdgeId>, rank: ValueId) {
+    pub(super) fn preserve_edges(&mut self, edges: impl Iterator<Item = EdgeId>, rank: &[ValueId]) {
         self.rank_edges.extend(edges.map(|edge| {
             (
                 edge,
                 (
-                    rank,
+                    rank.to_vec(),
                     terminal_psi::TerminalNaturalRankComparison::Preserving,
                 ),
             )
@@ -165,7 +166,7 @@ impl StateGraphEmission<'_, '_> {
                 // Ordered guard/return blocks stay inside this authored state;
                 // none of their edges asserts an authored decrease.
                 self.block_ranks
-                    .extend(edge_blocks.iter().map(|block| (block.id, rank)));
+                    .extend(edge_blocks.iter().map(|block| (block.id, rank.to_vec())));
                 self.preserve_edges(
                     edge_blocks
                         .iter()
@@ -250,13 +251,14 @@ impl StateGraphEmission<'_, '_> {
                 );
         }
         if let Some(rank) = current_rank {
-            self.block_ranks
-                .extend(evaluation.blocks.iter().map(|block| (block.id, rank)));
+            self.block_ranks.extend(
+                evaluation
+                    .blocks
+                    .iter()
+                    .map(|block| (block.id, rank.to_vec())),
+            );
         }
-        crate::emission::structural_byte_sequence_store::retain_literal_declarations(
-            &operations,
-            &mut self.catalogs.temporary_places,
-        )?;
+        retain_literal_declarations(&operations, &mut self.catalogs.temporary_places)?;
         evaluation.blocks.extend(edge_blocks);
         let reference_retirements =
             super::super::cleanup::observed_reference_retirements(state, &operations, |place| {
@@ -300,7 +302,7 @@ impl StateGraphEmission<'_, '_> {
 /// follows its body and where that body ends, and the counters to hand back.
 pub(super) struct SealFrame<'s> {
     pub(super) state_parameters: &'s [StructuralParameterDeclaration],
-    pub(super) current_rank: Option<ValueId>,
+    pub(super) current_rank: Option<&'s [ValueId]>,
     pub(super) is_guarded_return: bool,
     pub(super) dispatches: bool,
     pub(super) body_end: usize,

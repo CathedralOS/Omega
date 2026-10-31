@@ -52,18 +52,34 @@
 //! `exact_top_level_data_symbol` and `exact_field_symbol` are small helpers
 //! that declaration, expression and seeded-continuation code also read.
 
+use crate::contracts::proof_facts::normalize_membership_selections;
 use crate::declarations::data::lower_data_definition;
 use crate::declarations::domain::lower_domain_definition;
-use crate::declarations::machine::{lower_machine, lower_token_binding_view};
+use crate::declarations::machine::{
+    lower_machine, lower_token_binding_view, settle_satisfied_declarations_from,
+};
+use crate::declarations::mathematical::lower_mathematical_definition;
 use crate::declarations::operator::lower_operator_definition;
+use crate::declarations::proposition::lower_proposition_definition;
+use crate::declarations::provider_defaults::finalize_provider_default_calls;
 use crate::declarations::trait_definition::lower_trait_definition;
 use crate::declarations::type_aliases::lower_type_alias_definition;
+use crate::expressions::equatable::validate_equatable_conformances_in;
+use crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in;
+use crate::expressions::expression::lower_expression_handle;
+use crate::lowerer::progress::normalize_machine_progress_premises;
+use crate::signatures::lexical_context::captured_arguments;
 use crate::tables::resolved_expressions;
 use crate::type_reference::domain_constraints::normalize_domain_constraints;
+use crate::type_reference::{
+    lower_type_reference_into_table, normalize_const_argument_carriers, validate_range_arguments,
+};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::machine::Machine;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::signature::AuthoredServiceReachTarget as ReachTarget;
 
 pub(crate) mod name;
 pub(crate) mod progress;
@@ -91,19 +107,13 @@ pub(crate) fn validate_resolved_semantics_in(
 
     // Synthesized Equatable rows check their structural prerequisites at
     // the implementation, before any `==` site tries to expand them.
-    crate::expressions::equatable::validate_equatable_conformances_in(
-        symbol_resolved_trees,
-        cohort,
-    )?;
+    validate_equatable_conformances_in(symbol_resolved_trees, cohort)?;
 
     // Exhaustiveness counting over case domains also needs the resolved
     // trees: membership is still a distinct node here, so case arms and
     // domain arms are recognizable before lowering erases them into tag
     // compares and classifier expansions.
-    crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in(
-        symbol_resolved_trees,
-        cohort,
-    )
+    validate_case_dispatch_exhaustiveness_in(symbol_resolved_trees, cohort)
 }
 
 pub fn lower_symbol_resolved_trees(
@@ -257,9 +267,7 @@ pub(crate) fn type_resolved_cohort(
     for proposition in source.propositions.iter().skip(cohort.propositions) {
         let proposition = lowerer.with_type_reference_exposure(
             declaration_exposure(proposition.is_public),
-            |lowerer| {
-                crate::declarations::proposition::lower_proposition_definition(lowerer, proposition)
-            },
+            |lowerer| lower_proposition_definition(lowerer, proposition),
         )?;
         lowerer.typed_trees.push_proposition(proposition);
     }
@@ -270,11 +278,7 @@ pub(crate) fn type_resolved_cohort(
     {
         let definition = lowerer.with_type_reference_exposure(
             declaration_exposure(definition.is_public),
-            |lowerer| {
-                crate::declarations::mathematical::lower_mathematical_definition(
-                    lowerer, definition,
-                )
-            },
+            |lowerer| lower_mathematical_definition(lowerer, definition),
         )?;
         lowerer.typed_trees.push_mathematical_definition(definition);
     }
@@ -355,32 +359,20 @@ pub(crate) fn close_typed_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
-    crate::declarations::machine::settle_satisfied_declarations_from(
-        &mut lowerer.typed_trees,
-        cohort.typed_machines,
-    )?;
-    crate::lowerer::progress::normalize_machine_progress_premises(
-        &mut lowerer.typed_trees,
-        cohort.typed_machines,
-    )?;
+    settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
+    normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
     lowerer
         .typed_trees
         .instantiate_nominal_machine_parameter_contracts()
         .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
-    crate::type_reference::normalize_const_argument_carriers(
-        &mut lowerer.typed_trees,
-        cohort.typed_type_references,
-    )?;
+    normalize_const_argument_carriers(&mut lowerer.typed_trees, cohort.typed_type_references)?;
     normalize_domain_constraints(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
-    crate::contracts::proof_facts::normalize_membership_selections(
-        lowerer.source_trees,
-        &mut lowerer.typed_trees,
-    )?;
+    normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
     // Idempotent over retained facts: an already-interned instance re-derives
     // the same name, so only facts appended past the checkpoint change.
     crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
@@ -406,14 +398,9 @@ pub(crate) fn close_typed_cohort(
         && cohort.operators == lowerer.source_trees.operators.len()
         && cohort.data_definitions == lowerer.source_trees.data_definitions.len())
     {
-        crate::type_reference::validate_range_arguments(
-            lowerer.source_trees,
-            &lowerer.typed_trees,
-        )?;
+        validate_range_arguments(lowerer.source_trees, &lowerer.typed_trees)?;
     }
-    crate::declarations::provider_defaults::finalize_provider_default_calls(
-        &mut lowerer.typed_trees,
-    )?;
+    finalize_provider_default_calls(&mut lowerer.typed_trees)?;
     target_machine_families::append(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
@@ -423,12 +410,7 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_machines,
         cohort.completed_machines,
-        |callee| {
-            crate::signatures::lexical_context::captured_arguments(
-                Some(lowerer.source_trees),
-                callee,
-            )
-        },
+        |callee| captured_arguments(Some(lowerer.source_trees), callee),
     );
     bind_dynamic_call_targets(&mut lowerer.typed_trees)
 }
@@ -442,12 +424,10 @@ fn lower_authored_service_reach_row(
         targets: row
             .targets
             .iter()
-            .map(
-                |target| typed_trees::signature::AuthoredServiceReachTarget {
-                    service: target.service,
-                    source_span: target.source_span,
-                },
-            )
+            .map(|target| ReachTarget {
+                service: target.service,
+                source_span: target.source_span,
+            })
             .collect(),
         installation_bound: row.installation_bound,
     }
@@ -549,12 +529,7 @@ impl Lowerer<'_> {
     ) -> Result<(), Diagnostic> {
         let declared_type = self.with_type_reference_exposure(
             declaration_exposure(declaration.is_public),
-            |lowerer| {
-                crate::type_reference::lower_type_reference_into_table(
-                    lowerer,
-                    &declaration.declared_type,
-                )
-            },
+            |lowerer| lower_type_reference_into_table(lowerer, &declaration.declared_type),
         )?;
         self.typed_trees
             .push_const_declaration(typed_trees::constant::ConstDeclaration {
@@ -645,8 +620,7 @@ impl Lowerer<'_> {
                     "constant lost its materialized initializer",
                 ));
             }
-            let materialized_initializer =
-                crate::expressions::expression::lower_expression_handle(self, materialized)?;
+            let materialized_initializer = lower_expression_handle(self, materialized)?;
             self.typed_trees
                 .tables
                 .const_declarations
@@ -655,8 +629,7 @@ impl Lowerer<'_> {
             if !original.is_valid() {
                 continue;
             }
-            let authored_initializer =
-                crate::expressions::expression::lower_expression_handle(self, original)?;
+            let authored_initializer = lower_expression_handle(self, original)?;
             let declaration = self.typed_trees.tables.const_declarations.get_mut(handle);
             declaration.authored_initializer = authored_initializer;
         }

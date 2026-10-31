@@ -18,15 +18,15 @@
 //! differentially), so the result carries TARGET integer semantics, never
 //! host widths.
 
-use crate::build_time_evaluation::EvaluationDomain;
-use crate::build_time_evaluation::type_reference_table;
+use crate::BuildTimeAdmissionPlan;
+use crate::build_time_evaluation::{EvaluationDomain, type_reference_table};
+use crate::machine_execution::selected_operators::prepare_selected_execution;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
+use typed_trees::state::State;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
-
-use crate::BuildTimeAdmissionPlan;
 
 /// Detached type-arena nodes retain their identity but do not own evaluation
 /// work. Snapshot only lengths reached from the current declaration roster.
@@ -107,12 +107,7 @@ pub(crate) fn evaluate_selected_array_lengths(
     // occurrence to the exact provider entry state on one private copy: the
     // provider joins the ordinary call closure and runs its real body, while
     // the caller's tree and its source-owned handles stay untouched.
-    let selected_program =
-        crate::machine_execution::selected_operators::prepare_selected_execution(
-            typed,
-            provider_bodies,
-            operators,
-        )
+    let selected_program = prepare_selected_execution(typed, provider_bodies, operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut execution = selected_program.unwrap_or_else(|| typed.clone());
     LengthJobs::new(
@@ -340,12 +335,8 @@ impl<'selection> LengthJobs<'selection> {
         // program retains its public requirement calls. Terminal installs only
         // those independently admitted numeric supplies; it does not rewrite
         // the source or borrow another occurrence's selected implementation.
-        let admitted = crate::machine_execution::selected_operators::prepare_selected_execution(
-            &checked.typed,
-            &[],
-            &operators,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let admitted = prepare_selected_execution(&checked.typed, &[], &operators)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let execution = admitted.as_ref().unwrap_or(&checked.typed);
         let root = execution.machine_by_symbol(machine).ok_or_else(|| {
             vec![Diagnostic::error(
@@ -515,10 +506,7 @@ fn entry_state_parameter_count(typed: &TypedTrees, machine: &Machine) -> usize {
         .unwrap_or(0)
 }
 
-fn entry_state<'a>(
-    typed: &'a TypedTrees,
-    machine: &Machine,
-) -> Option<&'a typed_trees::state::State> {
+fn entry_state<'a>(typed: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
     let leaf = machine
         .name
         .as_str()

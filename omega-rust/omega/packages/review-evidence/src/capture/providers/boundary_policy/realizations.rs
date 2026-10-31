@@ -1,3 +1,4 @@
+use super::super::application_realizations::project_boundary_application_realizations;
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
@@ -10,6 +11,8 @@ use crate::record::{
     PackageReviewBoundaryApplicationRealization, PackageReviewOperatorCoordinate,
 };
 use diagnostics::Diagnostic;
+use provider_planning::IntrinsicRequirement;
+use provider_planning::IntrinsicRequirementKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
@@ -17,11 +20,7 @@ pub(super) fn project(
     package: PackageKeyIdentity,
     original_indices: &[usize],
 ) -> Result<Vec<PackagePolicyBoundaryApplicationRealization>, Vec<Diagnostic>> {
-    let checked =
-        super::super::application_realizations::project_boundary_application_realizations(
-            compilation,
-            package,
-        )?;
+    let checked = project_boundary_application_realizations(compilation, package)?;
     let mut rows = Vec::new();
     for checked in checked {
         let matches = compilation
@@ -57,17 +56,14 @@ pub(super) fn project(
             .iter()
             .enumerate()
             .filter_map(|(index, symbol)| {
-                provider_planning::IntrinsicRequirement::by_symbol(
-                    compilation.checking_input,
-                    *symbol,
-                )
-                .filter(|requirement| {
-                    requirement.requirement_identity == checked.requirement_identity
-                        && requirement
-                            .as_operator()
-                            .is_none_or(|operator| operator.is_boundary)
-                })
-                .map(|requirement| (index, requirement))
+                IntrinsicRequirement::by_symbol(compilation.checking_input, *symbol)
+                    .filter(|requirement| {
+                        requirement.requirement_identity == checked.requirement_identity
+                            && requirement
+                                .as_operator()
+                                .is_none_or(|operator| operator.is_boundary)
+                    })
+                    .map(|requirement| (index, requirement))
             })
             .collect::<Vec<_>>();
         let [(row_index, requirement)] = requirements.as_slice() else {
@@ -79,9 +75,7 @@ pub(super) fn project(
         // provider slot is the machine: the coordinate uses the machine's
         // named-callable overload identity, not the operator signature.
         let operator_coordinate = match requirement.as_operator() {
-            Some(operator)
-                if requirement.kind == provider_planning::IntrinsicRequirementKind::Operator =>
-            {
+            Some(operator) if requirement.kind == IntrinsicRequirementKind::Operator => {
                 project_operator_coordinate(compilation, operator)?
             }
             _ => project_requirement_coordinate(compilation, requirement.symbol)?,

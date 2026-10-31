@@ -8,12 +8,14 @@ pub(crate) mod facts;
 pub(crate) mod parse_contract_clauses;
 pub(crate) mod signature;
 
+use crate::diagnostics::parse_error::ParseError;
+
 /// The `crashes Trap|Abort` spelling check the signature and operator
 /// contract clauses share.
 pub(crate) fn parse_crash_cause<'tokens, 'source>(
     cause: &syntax_trees::identifier::Identifier,
     after_cause: crate::input::token_cursor::Input<'tokens, 'source>,
-) -> Result<syntax_trees::item::CrashCause, crate::diagnostics::parse_error::ParseError> {
+) -> Result<syntax_trees::item::CrashCause, ParseError> {
     use syntax_trees::item::CrashCause;
     match cause.as_str(&after_cause) {
         "Trap" => Ok(CrashCause::Trap),
@@ -28,7 +30,7 @@ pub(crate) fn parse_crash_cause<'tokens, 'source>(
 pub(crate) fn reject_retired_operational_reach(
     service: &syntax_trees::identifier::Identifier,
     input: crate::input::token_cursor::Input<'_, '_>,
-) -> Result<(), crate::diagnostics::parse_error::ParseError> {
+) -> Result<(), ParseError> {
     let replacement = match service.as_str(&input) {
         "Suspend" => "suspends",
         "Block" | "thread_block" => "blocks",
@@ -46,10 +48,7 @@ pub(crate) fn reject_retired_operational_reach(
 pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
     input: crate::input::token_cursor::Input<'tokens, 'source>,
     service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
-) -> Result<
-    crate::input::token_cursor::Input<'tokens, 'source>,
-    crate::diagnostics::parse_error::ParseError,
-> {
+) -> Result<crate::input::token_cursor::Input<'tokens, 'source>, ParseError> {
     use tokens::PunctuationKind;
     let (service, rest) = input.take_identifier()?;
     reject_retired_operational_reach(&service, rest)?;
@@ -72,10 +71,7 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
     service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
     service_reach_is_installation_bound: &mut bool,
     at_clause_boundary: impl Fn(crate::input::token_cursor::Input<'_, '_>) -> bool,
-) -> Result<
-    crate::input::token_cursor::Input<'tokens, 'source>,
-    crate::diagnostics::parse_error::ParseError,
-> {
+) -> Result<crate::input::token_cursor::Input<'tokens, 'source>, ParseError> {
     use tokens::PunctuationKind;
     service_reach_keyword_source_spans.push(input.current_source_span());
     let mut input = input.take_contextual("reaches")?;

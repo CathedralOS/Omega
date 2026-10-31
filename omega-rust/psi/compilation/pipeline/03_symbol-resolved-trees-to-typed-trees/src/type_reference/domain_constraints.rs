@@ -1,8 +1,9 @@
+use crate::type_reference::domain_aliases::expand_domain_reference;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::JoinedPath;
 use typed_trees::TypedTrees;
-use typed_trees::domain::DomainDefinition;
+use typed_trees::domain::{DomainDefinition, domain_by_symbol};
 use typed_trees::name::Identifier;
 use typed_trees::types::{DomainConstraint, DomainConstraintSubject, TypeConstraintNode};
 
@@ -163,11 +164,9 @@ fn normalize_constraint_span(
         let source_domain = source
             .domain_definition_by_symbol(domain.symbol)
             .expect("typed alias declaration must have a resolved source");
-        for atom in crate::type_reference::domain_aliases::expand_domain_reference(
-            source,
-            domain.symbol,
-            vec![source_domain.name.clone()],
-        )? {
+        for atom in
+            expand_domain_reference(source, domain.symbol, vec![source_domain.name.clone()])?
+        {
             let name = if atom.symbol.is_valid() {
                 atom.path
                     .last()
@@ -176,7 +175,7 @@ fn normalize_constraint_span(
             } else {
                 Identifier::generated(atom.path.joined_path())
             };
-            let declaration = typed_trees::domain::domain_by_symbol(program, atom.symbol);
+            let declaration = domain_by_symbol(program, atom.symbol);
             let subject = if atom.symbol.is_valid() {
                 DomainConstraintSubject::Declared
             } else {
@@ -305,7 +304,7 @@ pub(crate) fn select_domain_candidates(
             .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
     };
     let matches = if let Some(symbol) = selected {
-        typed_trees::domain::domain_by_symbol(program, symbol)
+        domain_by_symbol(program, symbol)
             .filter(|domain| visible(domain) && domain_accepts_carrier(program, domain, carrier))
             .cloned()
             .into_iter()

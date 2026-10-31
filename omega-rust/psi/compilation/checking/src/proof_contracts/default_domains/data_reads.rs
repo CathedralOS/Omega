@@ -9,6 +9,7 @@
 //! incoming value as vacant storage. Subsequent invariant windows still police
 //! every affected read, independently of entry validity.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, declared_root_established, expression_root_symbol,
@@ -24,11 +25,12 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceNode;
 
 /// Scan value-position reads against construction establishment and open
 /// invariant windows, including facts transported from predecessor states.
 pub(crate) fn scan_statement_reads(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
@@ -127,7 +129,7 @@ pub(crate) fn scan_statement_reads(
 }
 
 fn scan_expression_reads(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -155,7 +157,7 @@ fn scan_expression_reads(
 /// Its final value does: taking `sample.child` observes that whole child,
 /// whereas reading `sample.child.value` may use the raw scalar during repair.
 fn scan_expression_use(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -464,7 +466,7 @@ fn scan_expression_use(
 /// Structural field composition cannot manufacture predicate or routed-domain
 /// membership after that qualification was peeled for field lookup.
 fn validate_qualified_place_read(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -501,7 +503,7 @@ fn validate_qualified_place_read(
     if !consumes_value
         && !matches!(
             program.type_reference_table.type_reference(reference),
-            typed_trees::types::TypeReferenceNode::Constrained { .. }
+            TypeReferenceNode::Constrained { .. }
         )
     {
         return;
@@ -512,8 +514,7 @@ fn validate_qualified_place_read(
     // refinement: zero does not construct a loan or a dynamic selector.
     if matches!(
         program.type_reference_table.type_reference(reference),
-        typed_trees::types::TypeReferenceNode::Named { .. }
-            | typed_trees::types::TypeReferenceNode::Generic { .. }
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
     ) && super::place_queries::data_definition_for_type(program, reference).is_some()
     {
         return;
@@ -585,7 +586,7 @@ fn validate_qualified_place_read(
 /// ordinary content/ownership checks still independently police the read.
 /// Initial unestablished storage and an unknown active payload stay fenced.
 fn independently_present_scalar_field(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     definition: &DataDefinition,
     member: &typed_trees::expression::TableMemberExpression,
     receiver_spelling: &str,
@@ -609,7 +610,7 @@ fn independently_present_scalar_field(
         program
             .type_reference_table
             .type_reference(field.type_reference),
-        typed_trees::types::TypeReferenceNode::Named { .. }
+        TypeReferenceNode::Named { .. }
     ) || program
         .primitive_type_reference(field.type_reference)
         .is_none()
@@ -628,7 +629,7 @@ fn independently_present_scalar_field(
 }
 
 fn validate_data_read(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     definition: &DataDefinition,
     receiver_spelling: &str,
@@ -709,7 +710,7 @@ fn validate_data_read(
 /// the parent carries no independent ceremony when its own authored default
 /// domain accepts zero.
 pub(crate) fn attached_value_established(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     tracked: &[TrackedPlace<'_>],
@@ -748,7 +749,7 @@ pub(crate) fn attached_value_established(
 /// and the parent's separately proved predicates. Neither a valid child nor
 /// an address-spine traversal establishes an unrelated sibling or coupling.
 fn composed_value_established(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     definition: &DataDefinition,
     spelling: &str,
     tracked: &[TrackedPlace<'_>],
@@ -830,7 +831,7 @@ fn composed_value_established(
                 program
                     .type_reference_table
                     .type_reference(field.type_reference),
-                typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                TypeReferenceNode::FixedArray { .. }
             ) {
                 return composed_carrier_established(
                     program,
@@ -851,7 +852,7 @@ fn composed_value_established(
                     program
                         .type_reference_table
                         .type_reference(field.type_reference),
-                    typed_trees::types::TypeReferenceNode::Constrained { .. }
+                    TypeReferenceNode::Constrained { .. }
                 ) {
                     return false;
                 }
@@ -892,7 +893,7 @@ fn composed_value_established(
 /// complete a record. Unknown-index stores never supply an element identity;
 /// an authored constrained shell still needs its separate whole-value proof.
 fn composed_carrier_established(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
     spelling: &str,
     tracked: &[TrackedPlace<'_>],
@@ -906,7 +907,7 @@ fn composed_carrier_established(
         return true;
     }
     match program.type_reference_table.type_reference(reference) {
-        typed_trees::types::TypeReferenceNode::FixedArray {
+        TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(extent),
         } => (0..*extent).all(|index| {
@@ -920,8 +921,7 @@ fn composed_carrier_established(
                 active,
             )
         }),
-        typed_trees::types::TypeReferenceNode::Named { .. }
-        | typed_trees::types::TypeReferenceNode::Generic { .. } => {
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
             super::place_queries::data_definition_for_type(program, reference).is_some_and(
                 |definition| {
                     composed_value_established(
@@ -958,10 +958,7 @@ fn direct_place_established(
 /// by the ordinary literal valuation. Nested data and arrays are established
 /// by whole-value construction for now; a scalar field write cannot fabricate
 /// evidence for them.
-pub(crate) fn range_gates_hold(
-    program: &dyn crate::CheckingInput,
-    place: &TrackedPlace<'_>,
-) -> bool {
+pub(crate) fn range_gates_hold(program: &dyn CheckingInput, place: &TrackedPlace<'_>) -> bool {
     for member in program.data_members(place.definition) {
         let Some(field) = member.as_field() else {
             continue;

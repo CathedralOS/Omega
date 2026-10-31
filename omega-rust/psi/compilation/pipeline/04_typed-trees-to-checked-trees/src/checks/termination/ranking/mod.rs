@@ -7,7 +7,6 @@
 
 mod current_values;
 mod entry_requirements;
-mod lexicographic;
 mod nat;
 mod observations;
 mod patterns;
@@ -34,6 +33,9 @@ pub(super) enum DecreaseOutcome {
     Proven(Option<ranges::RankArrivalAdmission>),
     /// The order resolved, but the decrease could not be proven.
     Unproven,
+    /// No local proof is granted: only complete invocation-component admission
+    /// can judge this relation. Ordinary body queries must remain unproven.
+    RequiresComponent,
     /// A plain `terminates by value` clause whose decreasing value has no single
     /// builtin well-founded order; the explicit `-> View` form is required.
     /// Carries the details the diagnostic renders.
@@ -184,13 +186,16 @@ pub(super) fn machine_decrease_outcome_with(
         }
     }
 
-    // Erased structural recursion and lexicographic orders have their genuine
-    // source proof vocabulary. Executable natural views instead need the one
-    // complete coordinate witness above; the former spelling/shape probes
-    // cannot supply a second scalar arrival route.
-    let structural_order = matches!(order, RankingOrder::Lexicographic(_))
-        || (!matches!(order, RankingOrder::CustomScalarView { .. })
-            && validation::proof_only_classification(program).is_proof_machine(program, machine));
+    // Logical recursive calls belong to the complete invocation component.
+    // Lexical state containment supplies no tuple proof: that owner captures
+    // and compares every actual edge, including self-calls and local aliases.
+    if matches!(order, RankingOrder::Lexicographic) {
+        return DecreaseOutcome::RequiresComponent;
+    }
+    // Erased structural recursion retains its separate source proof theory.
+    // Executable integer views need the complete coordinate witness above.
+    let structural_order = !matches!(order, RankingOrder::CustomScalarView { .. })
+        && validation::proof_only_classification(program).is_proof_machine(program, machine);
     if structural_order {
         let adjacency = graph::machine_adjacency(program, machine);
         let components = graph::strongly_connected_components(&adjacency);
@@ -299,7 +304,7 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
         RankingOrder::CustomNatDescending { .. }
         | RankingOrder::CustomScalarView { .. }
         | RankingOrder::CustomStructView { .. }
-        | RankingOrder::Lexicographic(_) => None,
+        | RankingOrder::Lexicographic => None,
     }
 }
 
@@ -451,9 +456,7 @@ fn state_has_provable_self_loop<'p>(
             *owner,
             call_frames,
         ),
-        (RankingOrder::Lexicographic(fields), DecreaseMeasure::Single(decreases)) => {
-            lexicographic::state_has_proven_self_loop(program, state, decreases, fields)
-        }
+        (RankingOrder::Lexicographic, _) => false,
         (_, DecreaseMeasure::Distance { .. }) => false,
     }
 }

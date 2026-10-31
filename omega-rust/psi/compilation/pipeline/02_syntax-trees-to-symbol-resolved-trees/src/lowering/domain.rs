@@ -1,9 +1,12 @@
 //! Domain definitions: index arguments, aliases, member operators, and the
 //! proof facts a domain body declares.
 
+use crate::lowering::data::lower_type_parameters;
 use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::expression::lower_static_machine_argument;
 use crate::lowering::name::lower_name;
 use crate::lowering::operator::lower_operator_definition;
+use crate::lowering::type_reference::lower_child_type_references;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
 use crate::tables::syntax_items;
@@ -20,16 +23,9 @@ pub(crate) fn lower_domain_definition(
     syntax_trees: &SyntaxTrees,
     domain: &syntax::item::DomainDefinition,
 ) -> Result<DomainDefinition, Diagnostic> {
-    let type_parameters = crate::lowering::data::lower_type_parameters(
-        lowerer,
-        syntax_trees,
-        domain.type_parameters,
-    )?;
-    let index_arguments = crate::lowering::type_reference::lower_child_type_references(
-        lowerer,
-        syntax_trees,
-        domain.index_arguments,
-    )?;
+    let type_parameters = lower_type_parameters(lowerer, syntax_trees, domain.type_parameters)?;
+    let index_arguments =
+        lower_child_type_references(lowerer, syntax_trees, domain.index_arguments)?;
     let alias = domain
         .alias
         .as_ref()
@@ -132,13 +128,7 @@ pub(crate) fn lower_domain_definition(
         cleanup_selection: domain
             .cleanup_selection
             .as_ref()
-            .map(|selection| {
-                crate::lowering::expression::lower_static_machine_argument(
-                    lowerer,
-                    syntax_trees,
-                    selection,
-                )
-            })
+            .map(|selection| lower_static_machine_argument(lowerer, syntax_trees, selection))
             .transpose()?,
         authored_routes,
         classification: domain.classification,

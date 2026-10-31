@@ -13,6 +13,7 @@ use terminal_psi::{BoundaryMachineDeclaration, StructuralArgument};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
+use terminal_semantics::substitution::substitute_proposition_values;
 
 pub(super) fn scalar_literals(arguments: &[crate::values::TerminalScalarValue]) -> Vec<ScalarTerm> {
     arguments.iter().copied().map(scalar_literal).collect()
@@ -90,10 +91,7 @@ pub(crate) fn validate_input_requirements(
         if requirement.validate().is_err() || context.validate(requirement).is_err() {
             return Err(malformed());
         }
-        let requirement = terminal_semantics::substitution::substitute_proposition_values(
-            requirement,
-            &substitutions,
-        );
+        let requirement = substitute_proposition_values(requirement, &substitutions);
         match observations.evaluate(&requirement, &mut integers)? {
             Some(true) => {}
             Some(false) => {

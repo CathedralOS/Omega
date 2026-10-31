@@ -9,6 +9,7 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_accepted_fact,
     decode_constraint_key, decode_ids, decode_obligation, decode_units,
 };
+use crate::FrameStorageSlotId::Outgoing;
 use crate::{
     SaturatingCarrier, SaturatingOperation, TrappingForm, saturating_family_tag,
     trapping_family_tag,
@@ -238,21 +239,19 @@ fn decode_kind(
                     parameter_index: cursor.u32()?,
                     abi_stack_byte_offset: cursor.u32()?,
                 },
-                slot_tag @ (0 | 3) => {
-                    crate::FrameStorageSlotId::Outgoing(crate::OutgoingArgumentSlotId {
-                        role: if slot_tag == 0 {
-                            crate::OutgoingArgumentSlotRole::Argument
-                        } else {
-                            crate::OutgoingArgumentSlotRole::ValueCopy
-                        },
-                        invocation_site: semantic_vocabulary::InvocationSite::from_tagged_identity(
-                            cursor.byte()?,
-                            cursor.u64()?,
-                        )
-                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-                        argument_index: cursor.u32()?,
-                    })
-                }
+                slot_tag @ (0 | 3) => Outgoing(crate::OutgoingArgumentSlotId {
+                    role: if slot_tag == 0 {
+                        crate::OutgoingArgumentSlotRole::Argument
+                    } else {
+                        crate::OutgoingArgumentSlotRole::ValueCopy
+                    },
+                    invocation_site: semantic_vocabulary::InvocationSite::from_tagged_identity(
+                        cursor.byte()?,
+                        cursor.u64()?,
+                    )
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                    argument_index: cursor.u32()?,
+                }),
                 1 => crate::FrameStorageSlotId::Local(decode_local_storage_slot(cursor)?),
                 _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
             };

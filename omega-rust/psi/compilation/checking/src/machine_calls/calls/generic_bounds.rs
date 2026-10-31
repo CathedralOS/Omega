@@ -7,6 +7,7 @@ use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::typed_trees::AccessExecutionDeclaration;
 
 /// FROZEN DECISION 13 residue -- machine-call monomorphization arguments.
 /// A bracket bound on a callee type parameter (`machine copy_it<T [copy]>`)
@@ -96,10 +97,7 @@ fn report_bodyless_boundary_symbol_call(
         .access_borrow_factory(callee_machine.symbol)
         .is_some();
     let compiler_access_execution =
-        match typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(
-            program,
-            callee_machine.symbol,
-        ) {
+        match AccessExecutionDeclaration::authenticate(program, callee_machine.symbol) {
             Ok(contract) => contract.is_some(),
             Err(diagnostic) => {
                 diagnostics.push(diagnostic);

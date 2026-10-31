@@ -8,7 +8,8 @@
 use checked_trees::ContractProofFact;
 use facts::{BoundaryQualificationIssuerRecord, FactPayload, FactPlan, QualificationEvidence};
 use language_semantics::{
-    DomainEstablishmentRoute, MachineSupplyMode, QualificationEvidenceOrigin,
+    DomainEstablishmentRoute as EstablishmentRoute, MachineSupplyMode,
+    QualificationEvidenceOrigin as EvidenceOrigin,
 };
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
@@ -24,13 +25,13 @@ pub(crate) fn domain_definition(
 /// Evidence for a row the state's own declaration already establishes: the
 /// caller inherited the claim, it did not validate it here.
 pub(crate) fn propagated_evidence(state_symbol: SymbolHandle) -> QualificationEvidence {
-    QualificationEvidence::from_origin(QualificationEvidenceOrigin::Propagated, state_symbol)
+    QualificationEvidence::from_origin(EvidenceOrigin::Propagated, state_symbol)
 }
 
 /// Evidence for a row checked validation itself established at this point, not
 /// one the caller inherited.
 pub(crate) fn checked_validation_evidence(state_symbol: SymbolHandle) -> QualificationEvidence {
-    QualificationEvidence::from_origin(QualificationEvidenceOrigin::CheckedValidation, state_symbol)
+    QualificationEvidence::from_origin(EvidenceOrigin::CheckedValidation, state_symbol)
 }
 
 /// Project authorized contract issuers once, before flow forks the fact plan.
@@ -153,11 +154,11 @@ pub(crate) fn call_contract_evidence(
         ::validation::CallQualificationSource::CheckedBody(machine) => {
             let origin =
                 if machine_domain_establishment_route(program, machine, domain_symbol).is_some() {
-                    QualificationEvidenceOrigin::AuthorizedRouteEstablishment
+                    EvidenceOrigin::AuthorizedRouteEstablishment
                 } else if domain.predicate_presence.is_present() {
-                    QualificationEvidenceOrigin::Prover
+                    EvidenceOrigin::Prover
                 } else {
-                    QualificationEvidenceOrigin::CheckedTransformation
+                    EvidenceOrigin::CheckedTransformation
                 };
             Some(QualificationEvidence::from_origin(origin, target_symbol))
         }
@@ -182,7 +183,7 @@ pub(crate) fn machine_domain_establishment_route(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     domain_symbol: SymbolHandle,
-) -> Option<DomainEstablishmentRoute> {
+) -> Option<EstablishmentRoute> {
     if !matches!(
         machine.supply_mode,
         MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
@@ -194,7 +195,7 @@ pub(crate) fn machine_domain_establishment_route(
         .establishment_routes
         .iter()
         .find_map(|route| match route {
-            DomainEstablishmentRoute::CheckedRequirement {
+            EstablishmentRoute::CheckedRequirement {
                 trait_definition,
                 requirement,
             } => {
@@ -226,13 +227,13 @@ pub(crate) fn machine_domain_establishment_route(
                 });
                 (attached || named).then_some(*route)
             }
-            DomainEstablishmentRoute::ExactMachine {
+            EstablishmentRoute::ExactMachine {
                 machine: authorized,
             } => program
                 .machine_invokes_declaration(machine.symbol, *authorized)
                 .unwrap_or(false)
                 .then_some(route.clone()),
-            DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
+            EstablishmentRoute::BoundaryRequirement { .. } => None,
         })
 }
 
@@ -250,7 +251,7 @@ fn call_carry_permission_evidence(
     )? {
         ::validation::CallQualificationSource::CheckedBody(_) => {
             Some(QualificationEvidence::from_origin(
-                QualificationEvidenceOrigin::CheckedTransformation,
+                EvidenceOrigin::CheckedTransformation,
                 target_symbol,
             ))
         }
@@ -275,16 +276,10 @@ pub(crate) fn operator_contract_evidence(
         return QualificationEvidence::default();
     };
     if domain.predicate_presence.is_present() {
-        return QualificationEvidence::from_origin(
-            QualificationEvidenceOrigin::Prover,
-            operator_symbol,
-        );
+        return QualificationEvidence::from_origin(EvidenceOrigin::Prover, operator_symbol);
     }
 
-    QualificationEvidence::from_origin(
-        QualificationEvidenceOrigin::CheckedTransformation,
-        operator_symbol,
-    )
+    QualificationEvidence::from_origin(EvidenceOrigin::CheckedTransformation, operator_symbol)
 }
 pub(crate) fn unwrapped_type_references_match(
     program: &dyn ::validation::CheckingInput,

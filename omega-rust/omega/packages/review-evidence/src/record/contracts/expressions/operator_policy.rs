@@ -1,5 +1,6 @@
 use super::super::PackageReviewNominalIdentity;
 use super::PackageReviewOperatorCoordinate;
+use std::fmt::Write;
 
 impl PackageReviewOperatorCoordinate {
     pub(crate) fn policy_requirement_identity(&self) -> PackageReviewNominalIdentity {
@@ -36,10 +37,7 @@ impl PackageReviewOperatorCoordinate {
     /// result-dispatch(..))` with `\`, `(`, `)` and `,` escaped inside each atom.
     /// A review row is compared against a persisted expectation, so this side
     /// of the join writes the framing rather than taking a handle.
-    fn write_named_callable_requirement(
-        &self,
-        writer: &mut impl std::fmt::Write,
-    ) -> std::fmt::Result {
+    fn write_named_callable_requirement(&self, writer: &mut impl Write) -> std::fmt::Result {
         writer.write_str("named-callable(")?;
         for (index, (tag, value)) in [
             ("path", self.identity.path.as_str()),
@@ -65,7 +63,7 @@ impl PackageReviewOperatorCoordinate {
         writer.write_char(')')
     }
 
-    fn write_policy_requirement(&self, writer: &mut impl std::fmt::Write) -> std::fmt::Result {
+    fn write_policy_requirement(&self, writer: &mut impl Write) -> std::fmt::Result {
         crate::record::write_framed_identity(
             writer,
             "boundary-operator-policy",
@@ -82,7 +80,7 @@ struct MatchingWriter<'text> {
     remaining: &'text str,
 }
 
-impl std::fmt::Write for MatchingWriter<'_> {
+impl Write for MatchingWriter<'_> {
     fn write_str(&mut self, value: &str) -> std::fmt::Result {
         self.remaining = self.remaining.strip_prefix(value).ok_or(std::fmt::Error)?;
         Ok(())

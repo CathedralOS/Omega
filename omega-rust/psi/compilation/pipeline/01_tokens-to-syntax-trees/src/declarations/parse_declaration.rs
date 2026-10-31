@@ -11,6 +11,7 @@ use super::trait_definition::parse_trait_definition;
 use super::use_item::parse_use_item;
 use crate::declarations::data::{parse_boundary_data_definition, parse_data_definition};
 use crate::declarations::machines::parse_machine;
+use crate::expressions::parse_expression::parse_proof_fact_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -68,11 +69,7 @@ pub(crate) fn starts_following_item(syntax_trees: &mut SyntaxTrees, input: Input
         // rewind drops their payloads while keeping capacity for the real parse.
         // Input already carries this forest's source owner; retain no new page.
         let checkpoint = syntax_trees.append_checkpoint();
-        let complete_fact =
-            crate::expressions::parse_expression::parse_proof_fact_expression_handle(
-                syntax_trees,
-                input,
-            )
+        let complete_fact = parse_proof_fact_expression_handle(syntax_trees, input)
             .is_ok_and(|(_, rest)| rest.at_punctuation(PunctuationKind::Semicolon));
         let following_item = !complete_fact && parse_declared_item(syntax_trees, input).is_ok();
         syntax_trees.rewind_appended(checkpoint);

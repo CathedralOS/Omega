@@ -3,6 +3,7 @@
 //! The resulting predicate contains landed bits, not a source expression that
 //! could read another value after a mutation or a state-parameter transfer.
 
+use crate::flow::place_segment_has_static_identity;
 use crate::places::place_at;
 use facts::FloatPredicate;
 use numerics::bignum::{BigRational, ExactFloat, IeeeRounding};
@@ -12,10 +13,16 @@ use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
 use typed_trees::machine::Machine;
+use typed_trees::operator::primitive_float_binary_semantics;
 use typed_trees::state::State;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use validation::closed_float_range_endpoint;
+use validation::expression_type_reference_in_state;
+use validation::find_machine_by_entry_state;
+use validation::has_builtin_decomposed_guard_meaning;
+use validation::has_builtin_or_sealed_float_comparison_meaning;
 
 /// Enforced result ranges describe the completed value, including a computed
 /// result with no storage identity. Publish them after evaluation; callers can
@@ -44,16 +51,15 @@ pub(crate) fn declared_type_predicates(
             } else {
                 FloatFormat::F64
             };
-            let endpoint = |expression| match validation::closed_float_range_endpoint(
-                program, expression, primitive,
-            )? {
-                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
-                    Some(ExactFloat::from_f32(f32::from_bits(bits)))
-                }
-                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
-                    Some(ExactFloat::from_f64(f64::from_bits(bits)))
-                }
-            };
+            let endpoint =
+                |expression| match closed_float_range_endpoint(program, expression, primitive)? {
+                    semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                        Some(ExactFloat::from_f32(f32::from_bits(bits)))
+                    }
+                    semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                        Some(ExactFloat::from_f64(f64::from_bits(bits)))
+                    }
+                };
             for constraint in program.type_reference_table.constraints(*constraints) {
                 let TypeConstraintNode::Range {
                     minimum,
@@ -108,12 +114,7 @@ pub(crate) fn collect_true(
         return;
     };
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Equal)
-        && validation::has_builtin_decomposed_guard_meaning(
-            program,
-            machine,
-            Some(state),
-            expression,
-        )
+        && has_builtin_decomposed_guard_meaning(program, machine, Some(state), expression)
     {
         if binary.operator == BinaryOperator::And {
             keep!(program => machine => state => statement_index => binary.left => observations);
@@ -134,12 +135,9 @@ pub(crate) fn collect_true(
         (binary.left, binary.right, binary.operator),
         (binary.right, binary.left, reverse(binary.operator)),
     ] {
-        let Some(reference) = validation::expression_type_reference_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            subject,
-        ) else {
+        let Some(reference) =
+            expression_type_reference_in_state(program, state.symbol, statement_index, subject)
+        else {
             continue;
         };
         let format = match program.type_reference_table.primitive_type(reference) {
@@ -163,11 +161,7 @@ pub(crate) fn collect_true(
         // identity is represented, a source-free predicate cannot follow a
         // later spelling of that selector after it changes. Keep fields and
         // fixed selections under the same static-identity policy as transport.
-        if !place
-            .segments
-            .iter()
-            .all(crate::flow::place_segment_has_static_identity)
-        {
+        if !place.segments.iter().all(place_segment_has_static_identity) {
             continue;
         }
         let predicate = if operator == BinaryOperator::Equal
@@ -220,7 +214,7 @@ pub(crate) fn has_ieee_meaning(
     reference: TypeReferenceHandle,
 ) -> bool {
     owner.is_valid()
-        && validation::has_builtin_or_sealed_float_comparison_meaning(
+        && has_builtin_or_sealed_float_comparison_meaning(
             program,
             owner,
             expression,
@@ -244,11 +238,9 @@ pub(crate) fn comparison(
                 && call.machine_arguments.is_empty()
                 && call.evidence_arguments.is_empty() =>
         {
-            let (machine, _) =
-                validation::find_machine_by_entry_state(program, call.target_symbol)?;
+            let (machine, _) = find_machine_by_entry_state(program, call.target_symbol)?;
             let binding = program.machine_token_binding_by_symbol(machine.symbol)?;
-            let (operator, _) =
-                typed_trees::operator::primitive_float_binary_semantics(program, binding)?;
+            let (operator, _) = primitive_float_binary_semantics(program, binding)?;
             let [left, right] = program.expression_table.expression_handles(call.arguments) else {
                 return None;
             };

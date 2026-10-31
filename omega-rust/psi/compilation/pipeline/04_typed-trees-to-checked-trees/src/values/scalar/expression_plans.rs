@@ -16,7 +16,7 @@ use crate::values::scalar::call_lowering::{
 use crate::values::scalar::expression_facts::operator_is_builtin;
 use crate::values::scalar::scalar_lowering::{lower_index_expression, lower_return_expression};
 use crate::values::scalar::selected_operator_operands::lower_selected_operator_operands;
-use crate::values::scalar::semantic_casts;
+use crate::values::scalar::{scalar_parameter_roster, semantic_casts};
 use checked_trees::{
     CheckedBooleanExpression, CheckedLocatedScalarExpression, CheckedOperatorFacts,
     CheckedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionPlans,
@@ -195,9 +195,8 @@ pub(crate) fn build_checked_scalar_expression_plans(
         for state in states {
             let mut locals = Vec::new();
             let parameters = program.state_parameters(state);
-            let (scalar_parameters, parameter_types) =
-                crate::values::scalar::scalar_parameter_roster(program, parameters)
-                    .expect("filtered scalar parameters retain primitive carriers");
+            let (scalar_parameters, parameter_types) = scalar_parameter_roster(program, parameters)
+                .expect("filtered scalar parameters retain primitive carriers");
             let result_type = program.primitive_type_reference(state.return_type);
             for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {

@@ -1,14 +1,15 @@
 use crate::parser::parse_syntax_trees;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::statement::StatementHandle;
 use syntax_trees::statement::StatementNode;
 
 // Inspect the instruction payload while retaining the new lexical graph
 // boundary. These legacy catalog cases each have one unlabelled block.
 pub(super) fn instruction_statements(
     parsed: &syntax_trees::SyntaxTrees,
-    statements: &[syntax_trees::statement::StatementHandle],
-) -> Vec<syntax_trees::statement::StatementHandle> {
+    statements: &[StatementHandle],
+) -> Vec<StatementHandle> {
     let mut instructions = Vec::new();
     for handle in statements {
         match parsed.statements.statement(*handle) {
@@ -32,9 +33,7 @@ pub(super) fn instruction_statements(
 
 /// The statements a single-state `Main::main` assembly body desugars into —
 /// the parse every `asm` catalog case below starts from.
-fn main_statements(
-    parsed: &syntax_trees::SyntaxTrees,
-) -> Vec<syntax_trees::statement::StatementHandle> {
+fn main_statements(parsed: &syntax_trees::SyntaxTrees) -> Vec<StatementHandle> {
     let machine = super::root_machine(parsed, "machine root item");
     let entry = super::entry_state_handle(parsed, machine);
     let statements = parsed

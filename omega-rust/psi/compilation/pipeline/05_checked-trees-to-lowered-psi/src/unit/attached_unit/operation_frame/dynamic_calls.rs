@@ -10,6 +10,7 @@
 use super::calls::CallInputs;
 use super::{OperationFrame, StructuralResults};
 use crate::checked_facts::flow_facts;
+use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::unit::{
     LoweringError, OperationResult, ValueDeclaration, allocate_dense, terminal_scalar_type,
     unsupported, value_id,
@@ -125,12 +126,7 @@ impl OperationFrame<'_, '_> {
                 expression,
             )?;
             family_actuals.push(ValueDeclaration {
-                id: crate::emission::operation_emission::expressions::emit_direct_expression(
-                    &lowered,
-                    self.values,
-                    self.next_value,
-                    self.operations,
-                ),
+                id: emit_direct_expression(&lowered, self.values, self.next_value, self.operations),
                 scalar_type: lowered.scalar_type(),
                 qualifications: Default::default(),
             });

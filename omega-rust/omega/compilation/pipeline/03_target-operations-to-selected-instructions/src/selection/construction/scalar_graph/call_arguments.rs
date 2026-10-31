@@ -13,6 +13,9 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
 use crate::selection::construction::scalar_graph::structural;
+use crate::structural_inputs::structural_reference_input::{
+    projected_scalar_codec, scalar_storage_type, stack_pointer_offset,
+};
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstruction,
 };
@@ -433,10 +436,7 @@ fn referent_pointer(
                 .as_ref()
                 .ok_or_else(|| SelectedInstructionError::custody())?
                 .structural_types;
-            crate::structural_inputs::structural_reference_input::scalar_storage_type(
-                target.structural_type,
-                declarations,
-            )
+            scalar_storage_type(target.structural_type, declarations)
         } else if !referent && semantic.path.is_empty() {
             crate::selection::reference_input::borrowed_scalar_source(source, semantic.place)
         } else {
@@ -536,13 +536,9 @@ fn referent_pointer(
                 .ok_or_else(|| SelectedInstructionError::custody())?
                 .structural_types;
             let codec =
-                crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-                    target.root_structural_type,
-                    &semantic.path,
-                    declarations,
-                )
-                .and_then(runtime_abi::ScalarStorageCodec::encode)
-                .ok_or_else(|| SelectedInstructionError::custody())?;
+                projected_scalar_codec(target.root_structural_type, &semantic.path, declarations)
+                    .and_then(runtime_abi::ScalarStorageCodec::encode)
+                    .ok_or_else(|| SelectedInstructionError::custody())?;
             let codec_register = structural::transport_register(builder, semantic.place, 8)?;
             builder.emit_materialize_i64(
                 semantic_vocabulary::IntegerValue::Unsigned(u128::from(codec)),
@@ -617,11 +613,7 @@ fn place_pointer_argument(
     target: &target_operations::TargetStructuralArgument,
     pointer: VirtualRegisterId,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-    let Some(stack_byte_offset) =
-        crate::structural_inputs::structural_reference_input::stack_pointer_offset(
-            &target.destination,
-        )
-    else {
+    let Some(stack_byte_offset) = stack_pointer_offset(&target.destination) else {
         return Ok(Some(pointer));
     };
     let slot = selected_instructions::OutgoingArgumentSlotId {

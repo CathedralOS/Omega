@@ -21,6 +21,7 @@ use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State, ValueEnvironment, meaning,
     ordered_values,
 };
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 
@@ -29,7 +30,7 @@ use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 /// facts are not the receiving application's facts. Reuse the same authenticated
 /// membership correspondence as tag/payload checking before projecting them.
 pub(super) fn contribute_case_where_facts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,
@@ -74,7 +75,7 @@ pub(super) fn contribute_case_where_facts(
 /// arm); every other shape is a single comparison leaf or contributes
 /// nothing through these carriers.
 fn contribute_fact_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner: &DataDefinition,
     variant: &DataVariant,
     subject: &ordered_values::Operand,
@@ -125,7 +126,7 @@ fn contribute_fact_expression(
 /// chains, arithmetic inside the fact -- has no operand projection here and
 /// skips the whole comparison.
 fn fact_side(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner: &DataDefinition,
     variant: &DataVariant,
     subject: &ordered_values::Operand,
@@ -184,7 +185,7 @@ fn fact_side(
 }
 
 fn payload_field<'a, 'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     variant: &'a DataVariant,
 ) -> impl Iterator<Item = &'program typed_trees::data::DataField> + 'a
 where
@@ -194,7 +195,7 @@ where
 }
 
 fn common_fields<'a, 'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     owner: &'a DataDefinition,
 ) -> impl Iterator<Item = &'program typed_trees::data::DataField> + 'a
 where
@@ -209,11 +210,7 @@ where
 /// `subject.<name>` is an unambiguous environment key only when exactly one field of
 /// the whole data carries that name; a payload field sharing a common field's
 /// spelling would otherwise let the case fact tighten the wrong reads.
-fn field_name_unique(
-    program: &dyn crate::CheckingInput,
-    owner: &DataDefinition,
-    name: &str,
-) -> bool {
+fn field_name_unique(program: &dyn CheckingInput, owner: &DataDefinition, name: &str) -> bool {
     let mut count = 0usize;
     for member in program.data_members(owner) {
         match member {

@@ -13,6 +13,7 @@ use crate::record::{
     PackageReviewDataShape, PackageReviewNominalIdentity,
 };
 use diagnostics::Diagnostic;
+use facts::DataDefinitionFactRecord;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 use typed_trees::data::DataDefinition;
@@ -74,9 +75,7 @@ pub(crate) fn require_exact_checked_data_fact(
             .data_definition_facts
             .iter()
             .map(|(_, record)| record),
-        |record: &facts::DataDefinitionFactRecord| {
-            (record.data_symbol, record.fact, record.semantic_fact)
-        },
+        |record: &DataDefinitionFactRecord| (record.data_symbol, record.fact, record.semantic_fact),
     )
 }
 

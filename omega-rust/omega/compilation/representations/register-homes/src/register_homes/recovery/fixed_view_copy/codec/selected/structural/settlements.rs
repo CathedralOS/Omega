@@ -27,13 +27,14 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_ids, decode_list, length},
     selected::provenance::{decode_fuel, encode_fuel},
 };
+use selected_instructions::SelectedBoundarySettlementPayload;
 
 pub(super) fn encode_boundary_settlement(
     bytes: &mut Vec<u8>,
-    payload: &selected_instructions::SelectedBoundarySettlementPayload,
+    payload: &SelectedBoundarySettlementPayload,
 ) -> Result<(), terminal_codec::CodecError> {
     let settlement = match payload {
-        selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte {
+        SelectedBoundarySettlementPayload::HostedReadByte {
             operation,
             boundary,
             result,
@@ -45,7 +46,7 @@ pub(super) fn encode_boundary_settlement(
             super::read_result::encode(bytes, result, layout);
             return Ok(());
         }
-        selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
+        SelectedBoundarySettlementPayload::HostedExitProcessI32 {
             edge,
             execution,
             boundary,
@@ -71,11 +72,11 @@ pub(super) fn encode_boundary_settlement(
             crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
             return Ok(());
         }
-        selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(settlement) => {
+        SelectedBoundarySettlementPayload::ClaimCompletion(settlement) => {
             bytes.push(0);
             settlement
         }
-        selected_instructions::SelectedBoundarySettlementPayload::HostedWriteByteI32 {
+        SelectedBoundarySettlementPayload::HostedWriteByteI32 {
             operation,
             boundary,
             source,
@@ -112,50 +113,44 @@ pub(super) fn encode_boundary_settlement(
 
 pub(super) fn decode_boundary_settlement(
     cursor: &mut Cursor<'_>,
-) -> Result<selected_instructions::SelectedBoundarySettlementPayload, FixedViewCopyDecodeError> {
+) -> Result<SelectedBoundarySettlementPayload, FixedViewCopyDecodeError> {
     match cursor.byte()? {
         3 => {
             let operation = decode_id(cursor, semantic_vocabulary::OperationId::new)?;
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
             let (result, layout) = super::read_result::decode(cursor)?;
-            return Ok(
-                selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte {
-                    operation,
-                    boundary,
-                    result,
-                    layout,
-                },
-            );
+            return Ok(SelectedBoundarySettlementPayload::HostedReadByte {
+                operation,
+                boundary,
+                result,
+                layout,
+            });
         }
         2 => {
-            return Ok(
-                selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
-                    edge: decode_id(cursor, semantic_vocabulary::EdgeId::new)?,
-                    execution: match cursor.byte()? {
-                        0 => target_operations::BoundaryExecutionBinding::AdmittedProvider(
-                            decode_provider_execution(cursor)?,
-                        ),
-                        1 => target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                            target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
-                        ),
-                        tag => {
-                            return Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag));
-                        }
-                    },
-                    boundary: decode_id(cursor, BoundaryMachineId::new)?,
-                    source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+            return Ok(SelectedBoundarySettlementPayload::HostedExitProcessI32 {
+                edge: decode_id(cursor, semantic_vocabulary::EdgeId::new)?,
+                execution: match cursor.byte()? {
+                    0 => target_operations::BoundaryExecutionBinding::AdmittedProvider(
+                        decode_provider_execution(cursor)?,
+                    ),
+                    1 => target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                    ),
+                    tag => {
+                        return Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag));
+                    }
                 },
-            );
+                boundary: decode_id(cursor, BoundaryMachineId::new)?,
+                source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+            });
         }
         0 => {}
         1 => {
-            return Ok(
-                selected_instructions::SelectedBoundarySettlementPayload::HostedWriteByteI32 {
-                    operation: decode_id(cursor, semantic_vocabulary::OperationId::new)?,
-                    boundary: decode_id(cursor, BoundaryMachineId::new)?,
-                    source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
-                },
-            );
+            return Ok(SelectedBoundarySettlementPayload::HostedWriteByteI32 {
+                operation: decode_id(cursor, semantic_vocabulary::OperationId::new)?,
+                boundary: decode_id(cursor, BoundaryMachineId::new)?,
+                source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+            });
         }
         tag => return Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag)),
     }
@@ -169,22 +164,20 @@ pub(super) fn decode_boundary_settlement(
     let arguments = decode_list(cursor, decode_semantic_argument)?;
     let completion_claim_sources = decode_list(cursor, decode_completion_claim_source)?;
     let completion_receipts = decode_list(cursor, decode_completion_receipt)?;
-    Ok(
-        selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
-            LegalizedBoundarySettlement {
-                operation,
-                boundary,
-                provider_execution,
-                realization: ClaimCompletionOnlyRealization,
-                arguments,
-                completion_claim_sources,
-                completion_receipts,
-                fuel: decode_fuel(cursor)?,
-                effect: decode_effect(cursor)?,
-                ownership: decode_ownership(cursor)?,
-            },
-        ),
-    )
+    Ok(SelectedBoundarySettlementPayload::ClaimCompletion(
+        LegalizedBoundarySettlement {
+            operation,
+            boundary,
+            provider_execution,
+            realization: ClaimCompletionOnlyRealization,
+            arguments,
+            completion_claim_sources,
+            completion_receipts,
+            fuel: decode_fuel(cursor)?,
+            effect: decode_effect(cursor)?,
+            ownership: decode_ownership(cursor)?,
+        },
+    ))
 }
 
 pub(super) fn encode_call_source(

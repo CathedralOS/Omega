@@ -7,6 +7,7 @@ use crate::lowering::lower_decoded_module;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
 use abstract_operations::AbstractOperationPlan;
 use terminal_installation::TerminalAccessViewEstablishment;
+use terminal_installation::{AdmittedScalarApplications, AdmittedTargetMachineSelections};
 
 #[cfg(test)]
 #[path = "native_scope_tests.rs"]
@@ -39,7 +40,7 @@ pub struct NativeExecutionSelection<'request> {
 pub(crate) struct NativeScopePreparation {
     profile: target::TargetProfile,
     entry: semantic_vocabulary::MachineId,
-    pub(crate) targets: terminal_installation::AdmittedTargetMachineSelections,
+    pub(crate) targets: AdmittedTargetMachineSelections,
     pub(crate) layouts: terminal_installation::AdmittedTargetLayouts,
     pub(crate) scope: crate::native_execution_scope::NativeExecutionScope,
     pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
@@ -166,18 +167,14 @@ impl NativeScopePreparation {
 }
 
 impl VerifiedNativeArtifactInput {
-    pub fn target_machine_selections(
-        &self,
-    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
+    pub fn target_machine_selections(&self) -> Option<&AdmittedTargetMachineSelections> {
         self.optimization_input.target_machine_selections.as_ref()
     }
 
     /// The exact scalar judgment bound before this input's executable values
     /// and storage geometry were lowered. Runtime capture borrows this result,
     /// never a separately supplied replacement judgment.
-    pub fn scalar_applications(
-        &self,
-    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+    pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
         self.optimization_input.scalar_applications.as_ref()
     }
 
@@ -424,7 +421,7 @@ impl AdmittedNativeArtifact {
 pub(super) fn lower_decoded_native_module(
     module: &terminal_psi::TerminalModule,
     entry: semantic_vocabulary::MachineId,
-    selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
+    selections: Option<AdmittedTargetMachineSelections>,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
     let plan = lower_decoded_module(module, entry).map_err(ArtifactLoweringError::Lowering)?;
     Ok(retain_native_plan(module, plan, selections))
@@ -433,7 +430,7 @@ pub(super) fn lower_decoded_native_module(
 fn retain_native_plan(
     module: &terminal_psi::TerminalModule,
     plan: AbstractOperationPlan,
-    selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
+    selections: Option<AdmittedTargetMachineSelections>,
 ) -> AdmittedNativeArtifact {
     let context = retain_optimization_context(module);
     AdmittedNativeArtifact {

@@ -4,23 +4,28 @@
 //! nor an equal-looking source path can replace that observation.
 
 use super::super::FlowBuildContext;
+use super::super::operand_contexts::observation_prefixes_agree;
+use super::super::reference_spans::appended_span_since;
+use super::super::stable_case_subject;
 use arena::HandleSpan;
-use checked_trees::{CheckedScalarExpression, FlowOperandReferent};
+use checked_trees::{CheckedScalarExpression, FlowOperandReferent, FlowValueObservationFact};
+use facts::BooleanPredicateOperand;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
-use validation::CanonicalPlace;
+use validation::field_domains::readable_type_reference;
+use validation::{CanonicalPlace, CheckingInput, expression_type_reference_in_state};
 
 pub(in crate::flow) struct ScalarObservation<'flow> {
     pub place: CanonicalPlace,
     pub reference: TypeReferenceHandle,
-    pub read: Option<&'flow checked_trees::FlowValueObservationFact>,
+    pub read: Option<&'flow FlowValueObservationFact>,
 }
 
 /// Resolve the producer's actual selected geometry once. A zero observation
 /// belongs to declared/formal algebra and never enters a saved-copy namespace.
 /// A nonzero but unavailable occurrence is unknown, not a declaration fallback.
 pub(in crate::flow) fn scalar_observation_at<'flow>(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     build: &'flow FlowBuildContext<'_>,
     state: SymbolHandle,
     statement_index: usize,
@@ -34,10 +39,8 @@ pub(in crate::flow) fn scalar_observation_at<'flow>(
             if !program.expression_table.expression_is_valid(*observation) {
                 return None;
             }
-            let statements = super::super::reference_spans::appended_span_since(
-                &build.control.statements,
-                build.state_statements_start,
-            );
+            let statements =
+                appended_span_since(&build.control.statements, build.state_statements_start);
             let mut matching = build
                 .control
                 .statements
@@ -71,13 +74,9 @@ pub(in crate::flow) fn scalar_observation_at<'flow>(
                     .span(subject.segments)?
                     .to_vec(),
             };
-            let reference = validation::expression_type_reference_in_state(
-                program,
-                state,
-                statement_index,
-                *observation,
-            )?;
-            let reference = validation::field_domains::readable_type_reference(program, reference)?;
+            let reference =
+                expression_type_reference_in_state(program, state, statement_index, *observation)?;
+            let reference = readable_type_reference(program, reference)?;
             (source, reference, Some(read))
         }
         _ => {
@@ -85,7 +84,7 @@ pub(in crate::flow) fn scalar_observation_at<'flow>(
                 program,
                 state,
                 statement_index,
-                &facts::BooleanPredicateOperand::Scalar(operand.clone()),
+                &BooleanPredicateOperand::Scalar(operand.clone()),
             )?;
             (place, reference, None)
         }
@@ -99,7 +98,7 @@ pub(in crate::flow) fn scalar_observation_at<'flow>(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::flow) fn current_scalar_observation(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     build: &FlowBuildContext<'_>,
     state: SymbolHandle,
     statement_index: usize,
@@ -118,21 +117,17 @@ pub(in crate::flow) fn current_scalar_observation(
         // Captured fixed coordinates and immutable selector identities denote
         // exact storage. An unresolved mutable coordinate cannot establish a
         // current value by being rendered the same way at two evaluations.
-        if !super::super::stable_case_subject(
-            program,
-            machine,
-            state_definition,
-            statement_index,
-            &place,
-        ) || !super::super::operand_contexts::observation_prefixes_agree(
-            program,
-            &build.control,
-            read.origin_writes,
-            read.origin_unknown_write,
-            writes,
-            unknown_write,
-            &place,
-        ) {
+        if !stable_case_subject(program, machine, state_definition, statement_index, &place)
+            || !observation_prefixes_agree(
+                program,
+                &build.control,
+                read.origin_writes,
+                read.origin_unknown_write,
+                writes,
+                unknown_write,
+                &place,
+            )
+        {
             return None;
         }
     }

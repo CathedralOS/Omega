@@ -1,5 +1,6 @@
 //! Statement copying and inspection own all referenced proof, value and type tables.
 use crate::domain::ProofFact;
+use crate::expression::ExpressionHandle;
 use crate::statement::*;
 use crate::typed_trees::{TypedTreeTables, remapped};
 use arena::{Handle, HandleSpan};
@@ -158,8 +159,7 @@ impl TypedTreeTables {
                         name: local.name.clone(),
                         type_reference: type_reference
                             .unwrap_or_else(crate::types::TypeReferenceHandle::invalid),
-                        initial_value: initial_value
-                            .unwrap_or_else(crate::expression::ExpressionHandle::invalid),
+                        initial_value: initial_value.unwrap_or_else(ExpressionHandle::invalid),
                         is_mutable: local.is_mutable,
                         type_is_inferred: local.type_is_inferred,
                         is_operand_capture: local.is_operand_capture,
@@ -333,7 +333,7 @@ impl TypedTreeTables {
     pub fn expression_roots(
         &self,
         statement: &StatementNode,
-    ) -> Vec<(StatementRootRole, crate::expression::ExpressionHandle)> {
+    ) -> Vec<(StatementRootRole, ExpressionHandle)> {
         use StatementRootRole as Role;
         let mut roots = Vec::new();
         match statement {
@@ -385,10 +385,7 @@ impl TypedTreeTables {
         roots
     }
     /// Value roots carried by a proof fact; proposition identity is never a runtime call.
-    pub fn proof_fact_expression_roots(
-        &self,
-        handle: Handle<ProofFact>,
-    ) -> Vec<crate::expression::ExpressionHandle> {
+    pub fn proof_fact_expression_roots(&self, handle: Handle<ProofFact>) -> Vec<ExpressionHandle> {
         match self.proof_facts.get(handle) {
             ProofFact::Expression(expression) => vec![*expression],
             ProofFact::Membership(membership) => vec![membership.value],

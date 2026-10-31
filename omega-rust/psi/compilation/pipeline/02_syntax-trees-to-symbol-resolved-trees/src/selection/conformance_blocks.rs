@@ -8,6 +8,7 @@
 //! dispatches its authoring trait's requirements through its own
 //! implementation's rows.
 
+use crate::selection::body_calls::retarget_machine_calls;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;
@@ -347,43 +348,38 @@ pub(crate) fn route_conformance_requirement_calls(
         .into_iter()
         .filter(|plan| work.contains(&plan.machine))
     {
-        crate::selection::body_calls::retarget_machine_calls(
-            program,
-            plan.machine,
-            inputs,
-            &mut |site| {
-                // A qualified application names its complete public slot, not
-                // whichever application this lexical map supplies. Preserve
-                // that requirement for typed application formation; equality
-                // of declaration symbols alone cannot authorize rerouting.
-                if site.requirement_application.is_valid() {
-                    return None;
-                }
-                let routed = routed_target(
-                    site.target_symbol,
-                    site.member,
-                    site.argument_count,
-                    plan.routes_by_name && site.local_receiver,
-                    &plan.routes,
-                );
-                if routed.is_none()
-                    && !site.target_symbol.is_valid()
-                    && site.local_receiver
-                    && let Some(scope) = &plan.default_body
-                    && scope
-                        .hidden_names
-                        .iter()
-                        .any(|hidden| hidden.as_str() == site.member.as_str())
-                {
-                    hidden_calls.push((
-                        scope.declaring_trait,
-                        scope.implementation.clone(),
-                        site.member.clone(),
-                    ));
-                }
-                routed
-            },
-        );
+        retarget_machine_calls(program, plan.machine, inputs, &mut |site| {
+            // A qualified application names its complete public slot, not
+            // whichever application this lexical map supplies. Preserve
+            // that requirement for typed application formation; equality
+            // of declaration symbols alone cannot authorize rerouting.
+            if site.requirement_application.is_valid() {
+                return None;
+            }
+            let routed = routed_target(
+                site.target_symbol,
+                site.member,
+                site.argument_count,
+                plan.routes_by_name && site.local_receiver,
+                &plan.routes,
+            );
+            if routed.is_none()
+                && !site.target_symbol.is_valid()
+                && site.local_receiver
+                && let Some(scope) = &plan.default_body
+                && scope
+                    .hidden_names
+                    .iter()
+                    .any(|hidden| hidden.as_str() == site.member.as_str())
+            {
+                hidden_calls.push((
+                    scope.declaring_trait,
+                    scope.implementation.clone(),
+                    site.member.clone(),
+                ));
+            }
+            routed
+        });
     }
     let diagnostics = hidden_calls
         .into_iter()

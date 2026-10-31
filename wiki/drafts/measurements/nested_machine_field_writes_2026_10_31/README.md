@@ -181,6 +181,130 @@ batch. `'static` verdict caching in `CheckingMemos` (which stores no
 site, request-context) and yields only the ~2× runtime/private split;
 the composite walk is the structural fix.
 
+## Driver attribution + trial cap (2026-11-04)
+
+Backtrace attribution on `[walk]` resolves the demand owners at N=26
+(1,899 walks): `operand_fits` 1,510 (79%), `default_domains::
+assignment_windows` 260 (constant library obligations), `numeric_
+observations` 38, `validate_machine_contract_entailment` 37,
+`call_requirements` 31, `completed_observations` 10,
+`default_domains::walk_state` 9, `proof_edges` 3.
+
+Inside `observe_private_arrivals` the dominant multiplier was the
+`caller_frontiers` trial loop: each obligation ran O(depth) single-root
+trial walks nearest→farthest, and on this shape **all 1,300 trials
+failed** (`outcome=true positive=false`). Trials are pure
+positive-proof shortcuts — a failed trial discards its cloned
+requirement, so skipping trials never changes the verdict; the main
+frontier is authoritative. Capping trials to the most-expanded cut
+(`caller_frontiers.iter().rev().take(1)`, deepest caller context first)
+measured 1,899 → **699 walks** (−63%) and trials 1,300 → 100 at N=26.
+
+## Memory attribution — why m32 still dies (2026-11-04)
+
+`take(1)` fixed walk count, not bytes. m32 (N=32) reaches ~11.5 GB RSS
+and is OOM-killed; the 11.5 GB plateau is the host commit ceiling, not
+the demand curve (the same plateau appeared at N=40 earlier). Field
+sizes of `StructuralJudge` sampled mid-run are tiny (`stored=2`,
+`bodies=depth`, every other fact vector 0) — the memory is **copy
+churn, not retention**: every path event clones/normalizes a judge
+whose `Arc<Vec<StructuralTerm>>` fields are `Arc::make_mut`-copied on
+write, so per-event bytes ≈ Θ(d) entries × Θ(d) term size = Θ(d²) with
+Θ(N³) events ⇒ Θ(N⁵) allocation churn and Θ(N²–N³) live leaves
+(`leaves.extend(completed)` unions each callee's outcomes upward).
+Leaf `StructuralCaseArm`s each retain a full judge plus owned
+environments/citations.
+
+Also corrected: the earlier "m26 in 0.15 s" was a
+`compiled-review-cache` hit, not a real check — the doc's cold-cache
+warning applied; cold N=26 remains ~seconds. N=26 peak RSS ≈ 235 MB.
+
+Consequence for the fix: batching walks removes the Θ(N²) walk
+multiplier, but each surviving walk still pays Θ(d²) copy per event.
+The composite repair therefore also wants leaf/streaming delivery
+(consuming verdicts without retaining every sibling arm) and/or
+persistent-structure judge fields — otherwise the walk-count win is
+eaten by the per-event byte multiplier at larger N.
+
+## Composite-batch implementation notes (2026-11-04)
+
+Precise semantics worked out against the code; preserved for the
+implementing session.
+
+**Where the depth lives.** `observe_runtime_state_prefix` roots at the
+site's own `(machine, state)` — shallow. The deep walks are
+`observe_frontier`'s `recognize_structural_case_arms` per frontier
+root: `ArrivalRequirement::stops_at_machine` halts descent at machines
+`∈ boundaries ∧ ≠ current_root` *and* at machines outside the
+obligation's `closed.bodies` cone, but a root's walk still traverses
+everything up to the first boundary — under `mk`'s frontier the
+`m0`-leg reaches `m_{k-1}` (O(k) deep). Stopping at a boundary still
+walks that machine's own statements (that is where
+`entered_body(caller→entry)` observes the expected arrival).
+
+**What is shared per root walk.** The judge is
+`from_runtime_state_requires(root)` — obligation-independent, so one
+traversal can serve every obligation whose frontier lists that root.
+Per-obligation state is confined to: the wrapped site-requirement
+(`Request`), `entry` (the obligation machine's entry), `boundaries`
+(its frontier's root set), `closed` (its arrivals closure), and the
+`observed` arrival set. A `BatchedArrivalObserver` wraps N members;
+`stops_at_machine` = all members stop (walk goes to the deepest needed
+depth), `is_complete` = all complete, and every event is delivered to
+each member **masked by whether that member's own walk would have
+reached the event's machine** (see below). `site()` is only consumed
+per member — `prefix_site_is_reachable` must run per member before
+registration.
+
+**The masking subtlety.** `stops_at_machine` controls *descent*, not
+event delivery: an event in `m2` is in member `r`'s stream iff `r`
+would not have stopped at `m2` AND at every ancestor machine on the
+descent path `root→…→m2`. Filtering events by `r.stops_at_machine
+(event.machine)` alone is wrong — it leaks observations below a
+stopped boundary. Track per-member reachability instead: members
+start with `reached = {root}`; on `entered_body(caller, _, _, entry)`
+deliver to `r` iff `caller ∈ r.reached` and `!r.stops_at_machine
+(entry_machine)`, then insert `entry_machine` into `r.reached`; on
+`visit`/`observe` for machine `m` deliver iff `m ∈ r.reached`. The
+judge's `body_invocations` chain is an alternative mask source but
+`entered_body` carries no judge — the reached-set is the robust form.
+
+**Same-machine shortcut.** Every obligation on `mk` shares `entry`,
+`boundaries`, `closed`, `roots`, `expected` — members differ *only* in
+the wrapped `Request`. So a same-machine batch needs no masking at
+all (identical visibility): one broadcast observer + one shared
+`observed` set. That is a ~sites-per-machine constant cut only; the
+asymptotic win is the cross-machine root pool above (`m0` is a root
+in *every* nested machine's frontier, so pooling it serves N
+obligations in one O(N) walk).
+
+**Driver plumbing.** Demand laziness is the real blocker —
+`observe_operand_fit_at_occurrence` builds one `OperandFit` visitor,
+waits for the verdict, returns. Two workable shapes:
+
+- *Upfront enumeration*: `exact_binary_formation_at_occurrence` is a
+  pure function of `(machine, state, expression)`; the exact-domain
+  gate inside it is itself the occurrence predicate, so a syntactic
+  pre-pass over `state.statement_nodes` expressions reproduces the
+  demand set. Collect requests per machine (or globally), group
+  private-arrivals requirements by frontier root, run one composite
+  walk per root, then answer per-occurrence queries from the verdict
+  map. Runtime-prefix legs batch per `(machine, state)` through the
+  existing plural `observe_runtime_state_prefixes`.
+- *First-occurrence machine batch*: when `mk`'s first operand-fit
+  query arrives, enumerate `mk`'s remaining occurrences eagerly and
+  run one same-machine batch; later queries read the stored verdicts.
+  Same constant cut as the shortcut above, contained to
+  `operand_fits.rs` + a slice-based `observe_private_arrivals_batch`.
+
+**Soundness edge to keep.** `case_facts_only` and proof-machine
+classification alter the judge (`restrict_to_case_facts`,
+`from_requires` vs `from_runtime_state_requires`) — batch members must
+group by `(root_symbol, case_facts_only)`, never mix. Truncated runs
+(a member's `is_complete` early-out does not truncate the shared
+walk — only `all complete` does) are handled by the completion
+semantics above.
+
 ## Blocks
 
 `samples/gui/windowed_calculator` checking on every host — the GUI

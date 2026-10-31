@@ -1,0 +1,11 @@
+// Expected exit: 0
+// An exact selected no-op body satisfies the ban despite the shared Trap ceiling.
+public boundary trait Assertion {
+    machine check(value: bool) reaches crashes Trap;
+}
+Noop satisfies Assertion { machine check(value: bool) {} }
+Trapping satisfies Assertion { machine check(value: bool) crashes Trap { crash Trap; } }
+
+machine main() reaches Assertion crashes Trap {
+    Assertion::check(false);
+}

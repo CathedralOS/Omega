@@ -8,6 +8,8 @@
 
 mod predicate_subjects;
 
+use crate::facts::boolean_predicates;
+use crate::facts::entry_parameter_place_before_statement;
 use crate::places::place_at;
 use validation::CanonicalPlace;
 
@@ -58,7 +60,7 @@ fn body_observation_actual<'program>(
     state: &FlowStateFact,
     call: &FlowCallFact,
     body: SymbolHandle,
-    observation: &crate::facts::boolean_predicates::BoundObservation,
+    observation: &boolean_predicates::BoundObservation,
 ) -> Option<Actual<'program>> {
     let parameters = invocation_body_parameters(program, call, body)?;
     let position = parameters.iter().position(|parameter| {
@@ -119,7 +121,7 @@ pub(crate) fn observation_actual<'program>(
     program: &'program dyn ::validation::CheckingInput,
     state: &FlowStateFact,
     call: &FlowCallFact,
-    observation: &crate::facts::boolean_predicates::BoundObservation,
+    observation: &boolean_predicates::BoundObservation,
 ) -> Option<Actual<'program>> {
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let position = parameters.iter().position(|parameter| {
@@ -588,7 +590,7 @@ fn current_actual(
     primitive: typed_trees::types::PrimitiveType,
     contexts: &[FactContextHandle],
     fold_observed_values: bool,
-    bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
+    bindings: &mut Vec<boolean_predicates::BoundObservation>,
 ) -> Option<CheckedScalarExpression> {
     let (machine, body) =
         validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)?;
@@ -695,7 +697,7 @@ fn bind_current(
     primitive: typed_trees::types::PrimitiveType,
     contexts: &[FactContextHandle],
     fold_observed_values: bool,
-    bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
+    bindings: &mut Vec<boolean_predicates::BoundObservation>,
 ) -> Option<CheckedScalarExpression> {
     let type_reference = validation::canonical_place_type_reference(
         program,
@@ -728,7 +730,7 @@ fn bind_observation(
     primitive: typed_trees::types::PrimitiveType,
     contexts: &[FactContextHandle],
     fold_observed_values: bool,
-    bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
+    bindings: &mut Vec<boolean_predicates::BoundObservation>,
 ) -> Option<CheckedScalarExpression> {
     if program.primitive_type_reference(type_reference) != Some(primitive) {
         return None;
@@ -753,7 +755,7 @@ fn bind_observation(
         position: bindings.len(),
         primitive_type: primitive,
     };
-    bindings.push(crate::facts::boolean_predicates::BoundObservation {
+    bindings.push(boolean_predicates::BoundObservation {
         operand: operand.clone().into(),
         place,
         type_reference,
@@ -830,8 +832,7 @@ pub(crate) fn proves_entry_predicate(
     expression: CheckedBooleanExpression,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(predicate) = crate::facts::boolean_predicates::bind_entry(program, target, expression)
-    else {
+    let Some(predicate) = boolean_predicates::bind_entry(program, target, expression) else {
         return false;
     };
     if invocation_body_parameters(program, call, target).is_none() {
@@ -858,9 +859,9 @@ pub(crate) fn proves_bound_predicate<'program>(
     state: &FlowStateFact,
     call: &FlowCallFact,
     contexts: &[FactContextHandle],
-    predicate: &crate::facts::boolean_predicates::BoundPredicate,
+    predicate: &boolean_predicates::BoundPredicate,
     frames: Option<&validation::CallFrameResolver<'_>>,
-    actual: &impl Fn(&crate::facts::boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
+    actual: &impl Fn(&boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
 ) -> bool {
     proves_bound_predicate_mode(
         program, facts, state, call, contexts, predicate, frames, actual, true,
@@ -873,9 +874,9 @@ fn proves_bound_predicate_mode<'program>(
     state: &FlowStateFact,
     call: &FlowCallFact,
     contexts: &[FactContextHandle],
-    predicate: &crate::facts::boolean_predicates::BoundPredicate,
+    predicate: &boolean_predicates::BoundPredicate,
     frames: Option<&validation::CallFrameResolver<'_>>,
-    actual: &impl Fn(&crate::facts::boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
+    actual: &impl Fn(&boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
     fold_observed_values: bool,
 ) -> bool {
     // Judge one formula in the observed-value namespace. Producer evidence
@@ -930,7 +931,7 @@ fn proves_bound_predicate_mode<'program>(
     let mut observed_operands = Vec::new();
     let mut current = predicate.clone();
     current.bindings.clear();
-    if crate::facts::boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
+    if boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
         let observation = predicate.binding(&operand)?;
         let actual = actual(observation)?;
         // Scalar observation is a universal judgment over the completed value
@@ -1092,7 +1093,7 @@ fn proves_bound_predicate_mode<'program>(
         }
     }
     let selected_contexts = selected_contexts.unwrap_or_else(|| contexts.to_vec());
-    let mut retained = crate::facts::boolean_predicates::retained(
+    let mut retained = boolean_predicates::retained(
         program,
         &facts.operators,
         &facts.semantic,
@@ -1139,14 +1140,10 @@ fn proves_bound_predicate_mode<'program>(
         // from an entry invariant without mixing a selected branch's premise
         // with a closed predecessor value. No scalar premise is added here.
         return super::calls::selected_guard_predicate(program, facts, state, call, frames)
-            .and_then(|guard| {
-                crate::facts::boolean_predicates::guarded_requirement(&guard, &current)
-            })
-            .is_some_and(|required| {
-                crate::facts::boolean_predicates::proves(&retained, &required, |_| None)
-            });
+            .and_then(|guard| boolean_predicates::guarded_requirement(&guard, &current))
+            .is_some_and(|required| boolean_predicates::proves(&retained, &required, |_| None));
     }
-    let proves = |required: &crate::facts::boolean_predicates::BoundPredicate| {
+    let proves = |required: &boolean_predicates::BoundPredicate| {
         super::prover::call_guarantees::proves_captured_predicates(
             program,
             &facts.semantic,
@@ -1179,7 +1176,7 @@ fn proves_bound_predicate_mode<'program>(
     else {
         return false;
     };
-    crate::facts::boolean_predicates::guarded_requirement(&guard, &current)
+    boolean_predicates::guarded_requirement(&guard, &current)
         .is_some_and(|required| proves(&required))
         || proves_bound_predicate_mode(
             program, facts, state, call, contexts, predicate, frames, actual, false,
@@ -1197,9 +1194,9 @@ pub(crate) fn entry_predicate(
     predicate: CheckedBooleanExpression,
 ) -> Option<CheckedBooleanExpression> {
     invocation_body_parameters(program, call, target)?;
-    let predicate = crate::facts::boolean_predicates::bind_entry(program, target, predicate)?;
+    let predicate = boolean_predicates::bind_entry(program, target, predicate)?;
     let mut expression = predicate.expression.clone();
-    crate::facts::boolean_predicates::map_observations(&mut expression, &mut |operand| {
+    boolean_predicates::map_observations(&mut expression, &mut |operand| {
         let observation = predicate.binding(&operand)?;
         let actual = body_observation_actual(program, state, call, target, observation)?;
         let primitive = operand.primitive_type()?;
@@ -1227,7 +1224,7 @@ pub(crate) fn entry_predicate(
                         place,
                     )
                     .then_some(())?;
-                    crate::facts::entry_parameter_place_before_statement(
+                    entry_parameter_place_before_statement(
                         program,
                         state.machine_symbol,
                         state.state_symbol,
@@ -1249,14 +1246,14 @@ pub(crate) fn entry_predicate(
         place.extend_segments(&captured.projection.remaining);
         crate::flow::operand_entry_origin_is_stable(program, &facts.flow, capture, &place)
             .then_some(())?;
-        let (position, path) = crate::facts::entry_parameter_place_before_statement(
+        let (position, path) = entry_parameter_place_before_statement(
             program,
             state.machine_symbol,
             state.state_symbol,
             capture.statement_index,
             &place,
         )?;
-        *operand = crate::facts::boolean_predicates::entry_scalar(
+        *operand = boolean_predicates::entry_scalar(
             program,
             state.machine_symbol,
             position,

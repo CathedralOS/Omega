@@ -7,6 +7,8 @@
 
 use crate::frozen_program::expression_table;
 use std::borrow::Cow;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::ExpressionNode;
 
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -217,7 +219,7 @@ pub fn selected_call_arguments<'program>(
                 .iter()
                 .find(|binder| binder.symbol == logical_parameter)
                 .ok_or("selected Value argument has no applied public carrier")?;
-            let typed_trees::data::TypeParameterKind::Value {
+            let TypeParameterKind::Value {
                 type_reference: public_type,
             } = public_binder.kind
             else {
@@ -267,12 +269,7 @@ fn authored_value_binder(
             || program.symbols.get(original).parent != frames[1].0
             || !program
                 .data_type_parameter_by_symbol(original)
-                .is_some_and(|parameter| {
-                    matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Value { .. }
-                    )
-                })
+                .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
         {
             return Err("selected Value binder lost its original captured declaration");
         }
@@ -319,10 +316,7 @@ fn formal_origin(
                     .iter()
                     .any(|binder| {
                         binder.symbol == original
-                            && matches!(
-                                binder.kind,
-                                typed_trees::data::TypeParameterKind::Value { .. }
-                            )
+                            && matches!(binder.kind, TypeParameterKind::Value { .. })
                     })
         });
         if realized {
@@ -536,10 +530,7 @@ pub(crate) fn call_binding_correspondence(
             } = binding.value
             {
                 if logical.is_valid() {
-                    if !matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Value { .. }
-                    ) {
+                    if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                         return Err("the open runtime operand does not belong to a Value binder");
                     }
                     // retain_call prepared this exact occurrence before an
@@ -561,10 +552,7 @@ pub(crate) fn call_binding_correspondence(
                     != Some(parameter.symbol)
                     || formal.is_const
                     || formal.is_mutable
-                    || !matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Value { .. }
-                    )
+                    || !matches!(parameter.kind, TypeParameterKind::Value { .. })
                     || !crate::declared_carriers_match(
                         program,
                         type_reference,
@@ -710,10 +698,7 @@ fn requirement_binding_correspondence(
             binding.value,
             StaticMachineBindingValue::RuntimeValue { .. }
         ) {
-            if !matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Value { .. }
-            ) {
+            if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                 return Err("the open runtime operand does not belong to a Value binder");
             }
             immutable_runtime_parameter(program, caller, &binding.value)?;
@@ -759,7 +744,7 @@ pub(crate) fn immutable_runtime_parameter(
     let (Some(parameter), None) = (parameters.next(), parameters.next()) else {
         return Err("the runtime header actual has no unique lexical Value binder");
     };
-    let typed_trees::data::TypeParameterKind::Value {
+    let TypeParameterKind::Value {
         type_reference: declared,
     } = parameter.kind
     else {
@@ -860,17 +845,13 @@ fn open_runtime_source(
         return Err("the open runtime header actual has no retained source");
     }
     let mut root = *expression;
-    while let typed_trees::expression::ExpressionNode::Member(member) =
-        expression_table(program).expression(root)
-    {
+    while let ExpressionNode::Member(member) = expression_table(program).expression(root) {
         if !member.member_symbol.is_valid() || member.case_variant.is_some() {
             return Err("the open runtime header projection has no exact field");
         }
         root = member.receiver;
     }
-    let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
-        expression_table(program).expression(root)
-    else {
+    let ExpressionNode::SavedSubject(saved) = expression_table(program).expression(root) else {
         return Err("the open runtime header actual needs a completed argument");
     };
     captured_argument_position(program, saved, *site)

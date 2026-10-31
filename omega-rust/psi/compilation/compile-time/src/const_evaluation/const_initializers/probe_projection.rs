@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::references::{DeclarationSelection, collect_declaration_symbol_dependencies};
+use typed_trees::typed_trees::{EvidenceForwarding, MachineSpecialization, ProofOutputCall};
 
 pub(super) struct ProbeProjection<'program> {
     original: &'program TypedTrees,
@@ -150,22 +151,16 @@ impl<'program> ProbeProjection<'program> {
                 }
             };
         }
-        restore_vector!(
-            machine_specializations,
-            |row: &typed_trees::typed_trees::MachineSpecialization| row.instance
-        );
+        restore_vector!(machine_specializations, |row: &MachineSpecialization| row
+            .instance);
         restore_vector!(
             authored_service_reach_rows,
             |row: &typed_trees::signature::AuthoredServiceReachRow| row.owner
         );
-        restore_vector!(
-            evidence_forwardings,
-            |row: &typed_trees::typed_trees::EvidenceForwarding| row.machine_symbol
-        );
-        restore_vector!(
-            proof_output_calls,
-            |row: &typed_trees::typed_trees::ProofOutputCall| row.machine_symbol
-        );
+        restore_vector!(evidence_forwardings, |row: &EvidenceForwarding| row
+            .machine_symbol);
+        restore_vector!(proof_output_calls, |row: &ProofOutputCall| row
+            .machine_symbol);
         restore_vector!(
             ranking_expression_custody,
             |row: &typed_trees::ranking::RankingExpressionCustody| row.machine

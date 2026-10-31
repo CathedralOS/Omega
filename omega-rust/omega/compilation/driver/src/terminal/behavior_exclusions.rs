@@ -1,23 +1,18 @@
-//! The product's behavior-exclusion policy for Psi-owned Terminal production.
+//! Product admission over canonical Terminal and retained semantic operations.
 //!
 //! Behavior exclusions are Omega product policy: authored exclusions, the
 //! selected provider plan facts and the target profile. Psi's production
-//! sequence borrows this policy as an ordinary composition admission and never
-//! retains a product type.
+//! sequence never executes this policy. The product consumer checks the produced
+//! artifact and source-issued root roster, without reading source or re-running Psi.
 
 use diagnostics::Diagnostic;
 use effects::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
 use effects::{BehaviorExclusionReport, BehaviorExclusionVerdict, establish_behavior_exclusions};
 use terminal_psi::TerminalMachineProvenance;
 
-/// Product admission reads the actual unoptimized composition, then releases
-/// the borrow before optimization. No checked-source or LoweredPsi sidecar is
-/// retained in the result.
-///
-/// A product caller lends this policy as the `admission` of the
-/// [`psi_compiler::TerminalApplicationCustody`] row it submits to
-/// [`psi_compiler::TerminalProductionRequest::produce`]; the caller owns the policy value for
-/// as long as production borrows it.
+/// The artifact retains the unoptimized semantic operations; these are not a
+/// successful-policy flag. Each target still checks its exact selected scope,
+/// provider facts and restrictions after code publication.
 pub(super) struct TerminalBehaviorExclusions<'a> {
     authored: &'a [effects::AuthoredBehaviorExclusion],
     providers: &'a effects::SelectedProviderPlanFacts,
@@ -45,8 +40,8 @@ impl<'a> TerminalBehaviorExclusions<'a> {
     }
 }
 
-impl psi_compiler::TerminalCompositionAdmission for TerminalBehaviorExclusions<'_> {
-    fn admit(
+impl TerminalBehaviorExclusions<'_> {
+    pub(super) fn admit(
         &self,
         module: &terminal_psi::TerminalModule,
         roots: &mut dyn Iterator<

@@ -7,12 +7,15 @@
 //! their place and byte offset rather than acquiring a scalar source identity.
 //! An external invocation has no return transport. Its last body instruction
 //! must instead be followed by the exact edge's uncharged containment trap.
+use crate::FrameStorageSlotId::Local;
 use crate::{
     LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedInstruction,
     SelectedInstructionKind, SelectedNormalizedForeignCall, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
+use calling_conventions::ValueLocation::Indirect;
 use register_model::RegisterOperandAccess;
+use target_operations::TargetBoundaryResult::Unit;
 
 /// Positions borrow the already validated selected block; no new custody is minted.
 pub struct ReturnTransport {
@@ -40,10 +43,8 @@ pub fn resolve(
         return None;
     }
     if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) = record.invocation_site {
-        if !matches!(
-            record.call.result,
-            target_operations::TargetBoundaryResult::Unit
-        ) || record.result_placement().is_some()
+        if !matches!(record.call.result, Unit)
+            || record.result_placement().is_some()
             || !record.call.callbacks.is_empty()
             || !matches!(&block.terminator,
                 crate::SelectedTerminator::HostedExitProcess { instruction, completion_edge }
@@ -68,12 +69,9 @@ pub fn resolve(
     }
     let operation = record.invocation_site.operation()?;
     let indirect_scalar = record.call.result.scalar_home().is_some()
-        && record.result_placement().is_some_and(|placement| {
-            matches!(
-                placement.locations.as_slice(),
-                [calling_conventions::ValueLocation::Indirect { .. }]
-            )
-        });
+        && record
+            .result_placement()
+            .is_some_and(|placement| matches!(placement.locations.as_slice(), [Indirect { .. }]));
     let mut result_registers = if indirect_scalar {
         validate_indirect_destination(function, block, record, call_position)?;
         Vec::new()
@@ -288,9 +286,7 @@ fn result_buffer_address(
     };
     if instruction.kind
         != (SelectedInstructionKind::FrameAddress {
-            slot: crate::FrameStorageSlotId::Local(LocalStorageSlotId::BoundaryResult {
-                operation,
-            }),
+            slot: Local(LocalStorageSlotId::BoundaryResult { operation }),
             byte_offset: 0,
         })
         || output.access != RegisterOperandAccess::Def
@@ -482,7 +478,7 @@ fn private_transport(
         }
         SelectedInstructionKind::FrameAddress {
             slot:
-                crate::FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                Local(LocalStorageSlotId::Spill {
                     register: slot_register,
                 }),
             byte_offset: 0,

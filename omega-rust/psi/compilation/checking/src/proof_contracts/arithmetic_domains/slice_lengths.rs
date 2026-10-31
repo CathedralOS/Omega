@@ -11,6 +11,7 @@ use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, State, ValueEnvironment,
 };
+use crate::CheckingInput;
 use crate::value_custody::places::{
     declared_collection_extent, has_builtin_subslice_meaning, subslice_expression,
 };
@@ -21,7 +22,7 @@ use numerics::literals::IntegerLiteral;
 /// snapshot the copy owner already translated; this function does not replay
 /// that initializer.
 pub(crate) fn publish_slice_length(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &mut ValueEnvironment,
@@ -57,7 +58,7 @@ pub(crate) fn publish_slice_length(
 /// `ensures` equates the result with an argument's length and a match whose
 /// every arm denotes that same length.
 pub(super) fn denoted_collection_length(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     environment: &ValueEnvironment,
@@ -88,7 +89,7 @@ pub(super) fn denoted_collection_length(
 /// The length interval carried by this collection expression: a stored
 /// `place.len` snapshot, or the length of a subslice expression itself.
 pub(crate) fn carried_slice_length(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -104,7 +105,7 @@ pub(crate) fn carried_slice_length(
 }
 
 fn slice_length_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -135,7 +136,7 @@ fn slice_length_interval(
 }
 
 fn collection_extent_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -150,7 +151,7 @@ fn collection_extent_interval(
 }
 
 fn observed_integer_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
 ) -> Interval {
@@ -185,10 +186,7 @@ fn nonnegative_difference(end: Interval, start: Interval) -> Option<Interval> {
     })
 }
 
-fn strip_borrow(
-    program: &dyn crate::CheckingInput,
-    mut expression: ExpressionHandle,
-) -> ExpressionHandle {
+fn strip_borrow(program: &dyn CheckingInput, mut expression: ExpressionHandle) -> ExpressionHandle {
     for _ in 0..8 {
         let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
             break;
@@ -224,7 +222,7 @@ fn collection_length_of(environment: &ValueEnvironment, observed: Operand) -> Op
 }
 
 fn measured_call_length(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::expression::TableCallExpression,
@@ -238,7 +236,7 @@ fn measured_call_length(
 /// `end - start` as an ordered operand. A literal zero start is the end
 /// itself: `items[0..count]` has the same length as `count`.
 fn length_measure(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

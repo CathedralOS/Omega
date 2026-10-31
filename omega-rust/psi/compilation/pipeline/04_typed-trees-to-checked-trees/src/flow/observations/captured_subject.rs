@@ -4,6 +4,14 @@
 //! capture supplies the address's real evaluated graph; this query supplies
 //! source correspondence, not referent contents or loan authority.
 
+use super::super::canonical_places_agree;
+use super::super::captured_operand_handle_at_path;
+use super::super::narrow_pinned_index_segments;
+use super::super::operand_contexts::operand_bindings_agree_in_state;
+use super::super::operand_values::captured_reference_places_with_formation;
+use super::super::stored_values::StoredObservation;
+use super::super::stored_values::StoredOperand;
+use super::super::stored_values::at_snapshot;
 use crate::flow::expressions;
 use crate::places::place_at;
 use arena::Handle;
@@ -246,30 +254,25 @@ fn completed_case_subject(
         .ok_or("receiver_referent_not_unique")?;
     let descriptor = place_at(program, state.symbol, statement_index, receiver.expression)
         .ok_or("receiver_descriptor_has_no_coordinate")?;
-    let super::super::stored_values::StoredOperand::Value {
+    let StoredOperand::Value {
         capture,
         reference,
         projection,
         ..
-    } = super::super::stored_values::at_snapshot(
+    } = at_snapshot(
         program,
         control,
         receiver.storage_snapshot,
         &descriptor,
-        super::super::stored_values::StoredObservation::Binding,
+        StoredObservation::Binding,
     )
     .ok_or("no_reaching_descriptor_store")?
     else {
         return Err("reaching_descriptor_store_unavailable");
     };
-    let capture = super::super::captured_operand_handle_at_path(
-        program,
-        control,
-        capture,
-        reference,
-        &projection,
-    )
-    .ok_or("stored_projection_has_no_unique_completed_operand")?;
+    let capture =
+        captured_operand_handle_at_path(program, control, capture, reference, &projection)
+            .ok_or("stored_projection_has_no_unique_completed_operand")?;
     let formed = control.operands.get(capture);
     let order = program
         .statement_table
@@ -315,7 +318,7 @@ fn completed_case_subject(
         if !shell.access.is_readable() {
             return Err("forwarded_descriptor_is_not_readable");
         }
-        let places = super::super::operand_values::captured_reference_places_with_formation(
+        let places = captured_reference_places_with_formation(
             program,
             control,
             capture,
@@ -374,7 +377,7 @@ fn completed_case_subject(
     }
     let source_place = referent_place(program, semantic, control, contexts, source)
         .ok_or("completed_backing_referent_not_unique")?;
-    if !super::super::canonical_places_agree(program, &observed, &source_place) {
+    if !canonical_places_agree(program, &observed, &source_place) {
         return Err("observed_and_completed_backing_addresses_disagree");
     }
     let observed_type =
@@ -411,21 +414,15 @@ fn completed_case_subject(
     // A stored pointer can keep its old address after an intermediate slot or
     // selector changes. Source spelling is reusable only when those binding
     // coordinates still denote the captured address at this actual read.
-    if !super::super::operand_contexts::operand_bindings_agree_in_state(
-        program,
-        control,
-        statements,
-        source,
-        receiver,
-        &coordinate,
-    ) {
+    if !operand_bindings_agree_in_state(program, control, statements, source, receiver, &coordinate)
+    {
         return Err("completed_backing_source_binding_changed");
     }
     for segment in &coordinate.segments {
         if let facts::PlaceSegment::Index { expression } = segment {
             let selector = place_at(program, state.symbol, source.statement_index, *expression)
                 .ok_or("source_selector_has_no_coordinate")?;
-            if !super::super::operand_contexts::operand_bindings_agree_in_state(
+            if !operand_bindings_agree_in_state(
                 program, control, statements, source, receiver, &selector,
             ) {
                 return Err("completed_backing_selector_binding_changed");
@@ -527,23 +524,23 @@ fn trace_captured_subject_refusal(
             if let Some(descriptor) =
                 place_at(program, state.symbol, statement_index, receiver.expression)
             {
-                if let Some(super::super::stored_values::StoredOperand::Value {
+                if let Some(StoredOperand::Value {
                     capture,
                     reference,
                     projection,
                     ..
-                }) = super::super::stored_values::at_snapshot(
+                }) = at_snapshot(
                     program,
                     control,
                     receiver.storage_snapshot,
                     &descriptor,
-                    super::super::stored_values::StoredObservation::Binding,
+                    StoredObservation::Binding,
                 ) {
                     eprintln!(
                         "CHECKSITE captured-case-stored capture={:?} type={:?} projection={:?}",
                         capture, reference, projection
                     );
-                    if let Some(formed) = super::super::captured_operand_handle_at_path(
+                    if let Some(formed) = captured_operand_handle_at_path(
                         program,
                         control,
                         capture,
@@ -597,7 +594,7 @@ fn referent_place(
             _ => None,
         })
         .collect::<Vec<_>>();
-    super::super::narrow_pinned_index_segments(
+    narrow_pinned_index_segments(
         program,
         semantic,
         operand.state_symbol,

@@ -1,7 +1,9 @@
 //! Complete the selected machine application without changing static binder kinds.
 
+use super::super::generic_data::closed_argument_identity;
 use super::*;
 use crate::tables::syntax_items;
+use type_equations::type_reference_parameter_mentions;
 
 pub(super) fn complete_arguments(
     syntax: &mut SyntaxTrees,
@@ -77,9 +79,7 @@ pub(super) fn complete_arguments(
                 .chain(std::iter::once(entry.return_type))
         })
         .chain(result_type)
-        .flat_map(|reference| {
-            type_equations::type_reference_parameter_mentions(syntax, reference, &all_names)
-        })
+        .flat_map(|reference| type_reference_parameter_mentions(syntax, reference, &all_names))
         .collect::<Vec<_>>();
     // Removed telescope slots remain lexical binders, never same-named globals.
     for (index, name) in all_names.iter().enumerate() {
@@ -184,13 +184,7 @@ pub(super) fn complete_arguments(
             _ => return Err(Diagnostic::error("machine equation argument mixes type and value kinds or retains an open static argument").with_source_span(target.source_span())),
         };
         if matches!(parameter.kind, TypeParameterKind::Type)
-            && super::super::generic_data::closed_argument_identity(
-                syntax,
-                Some(selection),
-                reference,
-                false,
-            )
-            .is_none()
+            && closed_argument_identity(syntax, Some(selection), reference, false).is_none()
         {
             return Err(Diagnostic::error(
                 "machine equation requires a closed explicit type argument",

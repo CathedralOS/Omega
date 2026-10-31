@@ -1,10 +1,11 @@
 use crate::expressions::statement::lower_statement;
 use crate::lowerer::Lowerer;
-use crate::tables::expression_table;
-use crate::tables::resolved_statements;
-use crate::tables::statement_table_mut;
+use crate::tables::{expression_table, resolved_statements, statement_table_mut};
 use diagnostics::Diagnostic;
+use language_semantics::CallOperationalAcknowledgementOrigin;
 use symbol_resolved_trees as resolved;
+use symbols::SymbolHandle;
+use typed::expression::ExpressionHandle;
 use typed_trees as typed;
 
 /// Lower the declaration once; deferred implementation completion reuses these
@@ -134,10 +135,7 @@ pub(crate) fn complete_state_body(
     Ok(())
 }
 
-fn proof_output_call_requires_execution(
-    lowerer: &Lowerer,
-    call: typed::expression::ExpressionHandle,
-) -> bool {
+fn proof_output_call_requires_execution(lowerer: &Lowerer, call: ExpressionHandle) -> bool {
     let typed::expression::ExpressionNode::Call(call) =
         lowerer.typed_trees.expression_table.expression(call)
     else {
@@ -167,7 +165,7 @@ fn proof_output_call_requires_execution(
 
 fn proof_output_runtime_call(
     lowerer: &mut Lowerer,
-    call_handle: typed::expression::ExpressionHandle,
+    call_handle: ExpressionHandle,
 ) -> Result<typed::statement::TableCall, Diagnostic> {
     let source_span = expression_table(&lowerer.typed_trees).source_span(call_handle);
     let typed::expression::ExpressionNode::Call(call) = expression_table(&lowerer.typed_trees)
@@ -199,7 +197,7 @@ fn proof_output_runtime_call(
         }
     }
     let authored_call_selection = match call.operational_acknowledgement.origin {
-        language_semantics::CallOperationalAcknowledgementOrigin::Source => {
+        CallOperationalAcknowledgementOrigin::Source => {
             let [occurrence] = call_occurrences.as_slice() else {
                 return Err(Diagnostic::error(format!(
                     "proof-output call retains {} authored call selections; expected one",
@@ -208,7 +206,7 @@ fn proof_output_runtime_call(
             };
             Some(*occurrence)
         }
-        language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
+        CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
     };
     let (receiver_root_symbol, receiver_symbol, receiver_members) =
         proof_output_receiver_parts(&lowerer.typed_trees, call.receiver)
@@ -253,18 +251,10 @@ fn proof_output_runtime_call(
 
 fn proof_output_receiver_parts(
     program: &typed::TypedTrees,
-    expression: typed::expression::ExpressionHandle,
-) -> Option<(
-    symbols::SymbolHandle,
-    symbols::SymbolHandle,
-    Vec<typed::name::Identifier>,
-)> {
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, SymbolHandle, Vec<typed::name::Identifier>)> {
     if !expression.is_valid() {
-        return Some((
-            symbols::SymbolHandle::invalid(),
-            symbols::SymbolHandle::invalid(),
-            Vec::new(),
-        ));
+        return Some((SymbolHandle::invalid(), SymbolHandle::invalid(), Vec::new()));
     }
     match program.expression_table.expression(expression) {
         typed::expression::ExpressionNode::Borrow(inner) => {

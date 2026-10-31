@@ -15,6 +15,7 @@ use tokens::PunctuationKind;
 use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;
 use crate::contracts::parse_contract_clauses::parse_machine_clauses;
 use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::parameters::contracts::validate_machine_parameter_contracts;
 
 pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -68,11 +69,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         ));
     }
     let (clauses, next) = parse_machine_clauses(syntax_trees, next, type_parameters)?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        next,
-    )?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
     let conformance_bounds = generic_parameters.conformance_bounds;
     input = next;
     // `-> T` is written either before the clauses or after them

@@ -2,7 +2,18 @@
 mod constant_roots;
 
 use crate::tables::{expressions_of, expressions_of_mut};
+use language_semantics::TerminationInterface;
 use symbols::JoinedPath;
+use typed_trees::data::DataMember;
+use typed_trees::domain::ProofFact;
+use typed_trees::name::Identifier;
+use typed_trees::proposition::PropositionBinderArgument;
+use typed_trees::ranking::resolve_machine_witness_subjects;
+use typed_trees::ranking::resolve_machine_witness_view_arguments;
+use typed_trees::references::StaticArgumentCall;
+use typed_trees::signature::AuthoredInvocationTarget;
+use typed_trees::signature::AuthoredServiceReachTarget;
+use typed_trees::typed_trees::MachineSpecialization;
 use validation::collect_statement_expression_trees;
 
 use super::{
@@ -164,7 +175,7 @@ pub(super) fn clone_single_specialized_machine(
                 continue;
             }
             for fact in input.proof_facts.span_or_empty(contract.facts) {
-                let typed_trees::domain::ProofFact::Expression(predicate) = fact else {
+                let ProofFact::Expression(predicate) = fact else {
                     continue;
                 };
                 if input.applied_static_type_predicate_value(*predicate, &substitutions)
@@ -338,23 +349,15 @@ pub(super) fn clone_single_specialized_machine(
     // to that parameter, and each rewritten call site appends the subject as
     // an ordinary argument. Static `const` and closed `Value` arguments keep
     // the literal substitution path and add no parameter.
-    let realized_parameters: Vec<(
-        SymbolHandle,
-        typed_trees::name::Identifier,
-        TypeReferenceHandle,
-    )> = candidate
+    let realized_parameters: Vec<(SymbolHandle, Identifier, TypeReferenceHandle)> = candidate
         .template
         .const_parameters
         .iter()
         .zip(&candidate.runtime_value_bindings)
         .filter_map(|((symbol, name, declared_type), runtime)| {
-            runtime.as_ref().map(|_| {
-                (
-                    *symbol,
-                    typed_trees::name::Identifier::generated(name.clone()),
-                    *declared_type,
-                )
-            })
+            runtime
+                .as_ref()
+                .map(|_| (*symbol, Identifier::generated(name.clone()), *declared_type))
         })
         .collect();
     let mut state_realized_parameters: Vec<Vec<(SymbolHandle, SymbolHandle)>> = Vec::new();
@@ -446,15 +449,13 @@ pub(super) fn clone_single_specialized_machine(
             }
         }
     };
-    if let language_semantics::TerminationInterface::Published(guarantee) =
-        &mut cloned.termination_plan.interface
-    {
+    if let TerminationInterface::Published(guarantee) = &mut cloned.termination_plan.interface {
         remap_progress(guarantee);
     }
     remap_progress(&mut cloned.termination_plan.checked_summary);
     cloned.is_public = false;
     cloned.symbol = machine_symbol;
-    cloned.name = typed_trees::name::Identifier::generated(generated_name);
+    cloned.name = Identifier::generated(generated_name);
     if let Some((attached_data, attached_data_symbol)) = specialized_attached_data {
         cloned.attached_data = Some(attached_data);
         cloned.attached_data_symbol = attached_data_symbol;
@@ -544,20 +545,15 @@ pub(super) fn clone_single_specialized_machine(
         .to_vec()
     {
         invocation.target = match invocation.target {
-            typed_trees::signature::AuthoredInvocationTarget::Unresolved => {
-                typed_trees::signature::AuthoredInvocationTarget::Unresolved
-            }
-            typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
-                typed_trees::signature::AuthoredInvocationTarget::Parameter {
+            AuthoredInvocationTarget::Unresolved => AuthoredInvocationTarget::Unresolved,
+            AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                AuthoredInvocationTarget::Parameter {
                     ordinal,
                     symbol: remapped_symbol(symbol, &symbol_map),
                 }
             }
-            typed_trees::signature::AuthoredInvocationTarget::Service(symbol) => {
-                typed_trees::signature::AuthoredInvocationTarget::Service(remapped_symbol(
-                    symbol,
-                    &symbol_map,
-                ))
+            AuthoredInvocationTarget::Service(symbol) => {
+                AuthoredInvocationTarget::Service(remapped_symbol(symbol, &symbol_map))
             }
         };
         program.push_machine_invoke(&mut cloned, invocation);
@@ -565,34 +561,30 @@ pub(super) fn clone_single_specialized_machine(
     // Ranking operands are entry-scope value expressions, just like contract
     // operands. Their private copies must name the exact realized parameters
     // rather than the template's no-longer-live runtime Value binders.
-    let ranking_subjects = typed_trees::ranking::resolve_machine_witness_subjects(
-        source.unwrap_or(program),
-        &source_machine,
-    )
-    .unwrap_or_default()
-    .into_iter()
-    .map(|expression| {
-        let copied = copy_expression(source, program, expression, rebinding);
-        if let Some(realized) = state_realized_parameters.first() {
-            expressions_of_mut(program).remap_symbols_in(copied, realized);
-        }
-        copied
-    })
-    .collect::<Vec<_>>();
-    let ranking_view_arguments = typed_trees::ranking::resolve_machine_witness_view_arguments(
-        source.unwrap_or(program),
-        &source_machine,
-    )
-    .unwrap_or_default()
-    .into_iter()
-    .map(|expression| {
-        let copied = copy_expression(source, program, expression, rebinding);
-        if let Some(realized) = state_realized_parameters.first() {
-            expressions_of_mut(program).remap_symbols_in(copied, realized);
-        }
-        copied
-    })
-    .collect::<Vec<_>>();
+    let ranking_subjects =
+        resolve_machine_witness_subjects(source.unwrap_or(program), &source_machine)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|expression| {
+                let copied = copy_expression(source, program, expression, rebinding);
+                if let Some(realized) = state_realized_parameters.first() {
+                    expressions_of_mut(program).remap_symbols_in(copied, realized);
+                }
+                copied
+            })
+            .collect::<Vec<_>>();
+    let ranking_view_arguments =
+        resolve_machine_witness_view_arguments(source.unwrap_or(program), &source_machine)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|expression| {
+                let copied = copy_expression(source, program, expression, rebinding);
+                if let Some(realized) = state_realized_parameters.first() {
+                    expressions_of_mut(program).remap_symbols_in(copied, realized);
+                }
+                copied
+            })
+            .collect::<Vec<_>>();
     let ranking_range = source
         .unwrap_or(program)
         .ranking_expression_custody_for(source_machine.symbol)
@@ -678,8 +670,7 @@ pub(super) fn clone_single_specialized_machine(
                 else {
                     continue;
                 };
-                let applications =
-                    typed_trees::references::StaticArgumentCall::Statement(call).applications();
+                let applications = StaticArgumentCall::Statement(call).applications();
                 let mut arguments = std::mem::take(&mut call.machine_arguments);
                 for argument in &mut arguments {
                     expressions_of_mut(program).remap_static_argument_symbols(argument, realized);
@@ -799,8 +790,7 @@ pub(super) fn clone_single_specialized_machine(
                 continue;
             };
             let mut arguments = call.machine_arguments.clone();
-            let applications =
-                typed_trees::references::StaticArgumentCall::Statement(call).applications();
+            let applications = StaticArgumentCall::Statement(call).applications();
             for application in applications {
                 let mut authored_arguments = expressions_of(program)
                     .static_machine_application_arguments(application)
@@ -882,7 +872,7 @@ pub(super) fn clone_single_specialized_machine(
         let lifetimes = application
             .lifetime_arguments
             .iter()
-            .map(typed_trees::name::Identifier::generated)
+            .map(Identifier::generated)
             .collect::<Vec<_>>();
         let selecting = program
             .conformance_by_symbol(application.declaration)
@@ -953,17 +943,16 @@ pub(super) fn clone_single_specialized_machine(
     // A transition between cloned states forwards the containing state's
     // realized `Value` subjects, in telescope order, as trailing ordinary
     // arguments — the same subjects a rewritten call site appends.
-    let state_transition_subjects: Vec<Vec<(typed_trees::name::Identifier, SymbolHandle)>> =
-        state_realized_parameters
-            .iter()
-            .map(|realized| {
-                realized
-                    .iter()
-                    .zip(realized_parameters.iter())
-                    .map(|((_, symbol), (_, name, _))| (name.clone(), *symbol))
-                    .collect()
-            })
-            .collect();
+    let state_transition_subjects: Vec<Vec<(Identifier, SymbolHandle)>> = state_realized_parameters
+        .iter()
+        .map(|realized| {
+            realized
+                .iter()
+                .zip(realized_parameters.iter())
+                .map(|((_, symbol), (_, name, _))| (name.clone(), *symbol))
+                .collect()
+        })
+        .collect();
     rewrite_cloned_calls(
         source,
         program,
@@ -983,12 +972,10 @@ pub(super) fn clone_single_specialized_machine(
             targets: row
                 .targets
                 .iter()
-                .map(
-                    |target| typed_trees::signature::AuthoredServiceReachTarget {
-                        service: remapped_symbol(target.service, &symbol_map),
-                        source_span: target.source_span,
-                    },
-                )
+                .map(|target| AuthoredServiceReachTarget {
+                    service: remapped_symbol(target.service, &symbol_map),
+                    source_span: target.source_span,
+                })
                 .collect(),
             installation_bound: row.installation_bound,
         })
@@ -1028,32 +1015,30 @@ pub(super) fn clone_single_specialized_machine(
         super::applications::retain_instance(source, program, candidate, instance_symbol)?
     };
     if capture.is_none() {
-        program
-            .machine_specializations
-            .push(typed_trees::typed_trees::MachineSpecialization {
-                template: candidate.template.template_symbol,
-                instance: instance_symbol,
-                template_parameters: source_machine.type_parameters,
-                binding_application,
-                type_arguments,
-                const_arguments,
-                type_argument_identities: type_identities,
-                const_argument_identities: const_identities,
-                machine_arguments: candidate
-                    .machine_bindings
-                    .iter()
-                    .map(|binding| binding.as_ref().expect("complete specialization").symbol)
-                    .collect(),
-                conformance_arguments: candidate
-                    .evidence_bindings
-                    .iter()
-                    .map(|binding| binding.as_ref().expect("complete specialization").symbol)
-                    .collect(),
-                conformance_applications,
-                operator_realizations,
-                normalized_template_identity,
-                accepted_template_commitment,
-            });
+        program.machine_specializations.push(MachineSpecialization {
+            template: candidate.template.template_symbol,
+            instance: instance_symbol,
+            template_parameters: source_machine.type_parameters,
+            binding_application,
+            type_arguments,
+            const_arguments,
+            type_argument_identities: type_identities,
+            const_argument_identities: const_identities,
+            machine_arguments: candidate
+                .machine_bindings
+                .iter()
+                .map(|binding| binding.as_ref().expect("complete specialization").symbol)
+                .collect(),
+            conformance_arguments: candidate
+                .evidence_bindings
+                .iter()
+                .map(|binding| binding.as_ref().expect("complete specialization").symbol)
+                .collect(),
+            conformance_applications,
+            operator_realizations,
+            normalized_template_identity,
+            accepted_template_commitment,
+        });
     }
 
     // Binding a copied requirement needs the complete source-to-instance
@@ -1189,8 +1174,7 @@ pub(super) fn copy_cloned_expression_type_payloads<'scope>(
                 handle,
                 call.machine_arguments.clone(),
                 call.native_code_layout.clone(),
-                typed_trees::references::StaticArgumentCall::Expression(handle, call)
-                    .applications(),
+                StaticArgumentCall::Expression(handle, call).applications(),
                 call.requirement_application,
                 call.exact_coercion_target,
             )),
@@ -1461,15 +1445,10 @@ pub(super) fn copy_signature_contract<'scope>(
             .unwrap_or(program)
             .proof_fact_source_span(source_fact);
         let fact = match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                typed_trees::domain::ProofFact::Expression(constant_roots::copy_expression(
-                    source,
-                    program,
-                    *expression,
-                    symbols,
-                )?)
-            }
-            typed_trees::domain::ProofFact::Membership(membership) => {
+            ProofFact::Expression(expression) => ProofFact::Expression(
+                constant_roots::copy_expression(source, program, *expression, symbols)?,
+            ),
+            ProofFact::Membership(membership) => {
                 let source_arguments = source
                     .unwrap_or(program)
                     .type_reference_table
@@ -1493,29 +1472,27 @@ pub(super) fn copy_signature_contract<'scope>(
                         .type_reference_table
                         .insert_type_reference_handles(arguments)
                 };
-                typed_trees::domain::ProofFact::Membership(
-                    typed_trees::domain::ProofMembershipFact {
-                        value: constant_roots::copy_expression(
-                            source,
-                            program,
-                            membership.value,
-                            symbols,
-                        )?,
-                        domain: {
-                            let members = source
-                                .unwrap_or(program)
-                                .domain_path_members(membership.domain)
-                                .to_vec();
-                            program.domain_path_members.insert_many(members)
-                        },
-                        domain_symbol: remapped_symbol(membership.domain_symbol, &symbols),
-                        domain_arguments,
-                        semantic_domain: membership.semantic_domain,
-                        authored_domain_selection: membership.authored_domain_selection,
+                ProofFact::Membership(typed_trees::domain::ProofMembershipFact {
+                    value: constant_roots::copy_expression(
+                        source,
+                        program,
+                        membership.value,
+                        symbols,
+                    )?,
+                    domain: {
+                        let members = source
+                            .unwrap_or(program)
+                            .domain_path_members(membership.domain)
+                            .to_vec();
+                        program.domain_path_members.insert_many(members)
                     },
-                )
+                    domain_symbol: remapped_symbol(membership.domain_symbol, &symbols),
+                    domain_arguments,
+                    semantic_domain: membership.semantic_domain,
+                    authored_domain_selection: membership.authored_domain_selection,
+                })
             }
-            typed_trees::domain::ProofFact::Proposition(application) => {
+            ProofFact::Proposition(application) => {
                 let arguments = expressions_of(source.unwrap_or(program))
                     .expression_handles(application.arguments)
                     .to_vec()
@@ -1525,27 +1502,23 @@ pub(super) fn copy_signature_contract<'scope>(
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let arguments = expressions_of_mut(program).insert_expression_handles(arguments);
-                typed_trees::domain::ProofFact::Proposition(
-                    typed_trees::proposition::PropositionApplication {
-                        proposition: remapped_symbol(application.proposition, &symbols),
-                        name: application.name.clone(),
-                        binder_arguments: application
-                            .binder_arguments
-                            .iter()
-                            .map(
-                                |argument| typed_trees::proposition::PropositionBinderArgument {
-                                    kind: argument.kind,
-                                    path: argument.path.clone(),
-                                    const_literal: argument.const_literal.clone(),
-                                    evidence_projection: argument.evidence_projection.clone(),
-                                    symbol: remapped_symbol(argument.symbol, symbols.authored()),
-                                },
-                            )
-                            .collect::<Vec<_>>()
-                            .into_boxed_slice(),
-                        arguments,
-                    },
-                )
+                ProofFact::Proposition(typed_trees::proposition::PropositionApplication {
+                    proposition: remapped_symbol(application.proposition, &symbols),
+                    name: application.name.clone(),
+                    binder_arguments: application
+                        .binder_arguments
+                        .iter()
+                        .map(|argument| PropositionBinderArgument {
+                            kind: argument.kind,
+                            path: argument.path.clone(),
+                            const_literal: argument.const_literal.clone(),
+                            evidence_projection: argument.evidence_projection.clone(),
+                            symbol: remapped_symbol(argument.symbol, symbols.authored()),
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                    arguments,
+                })
             }
         };
         let copied_fact = program.proof_facts.append_to_span(&mut copied.facts, fact);
@@ -1707,9 +1680,7 @@ fn carrier_field(
                 .data_members(definition)
                 .iter()
                 .filter_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
-                        Some(field)
-                    }
+                    DataMember::Field(field) if field.name.as_str() == name => Some(field),
                     _ => None,
                 });
             let field = fields.next()?;

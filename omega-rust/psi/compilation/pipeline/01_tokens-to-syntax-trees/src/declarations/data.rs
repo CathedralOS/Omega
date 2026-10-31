@@ -1,5 +1,10 @@
+use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
+use crate::contracts::facts::parse_logical_proof_facts_until;
+use crate::contracts::facts::parse_required_logical_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::binding_properties::parse_binding_relevance_brackets;
+use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::parameters::contracts::validate_machine_parameter_contracts;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::tables::{items, items_of};
@@ -8,9 +13,13 @@ use crate::type_syntax::parse_type::{
 };
 use crate::type_syntax::properties::parse_property_brackets;
 use arena::HandleSpan;
+use language_core::Multiplicity;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use syntax_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBorrowExpression,
+    TableIndexedExpression, TableMemberExpression, TableUnaryExpression,
+};
 use syntax_trees::item::{
     DataDefinition, DataField, DataMember, DataVariant, Item, ProofFact, QuotientDefinition,
     QuotientEquivalenceSelection, TypeAliasDefinition,
@@ -40,16 +49,8 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, next) = parse_property_brackets(input)?;
     input = next;
-    let ((), next) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        next,
-    )?;
+    let ((), next) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
     input = next;
     let (cleanup_selection, next) = super::domain::parse_cleanup_selection(syntax_trees, input)?;
     input = next;
@@ -101,10 +102,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             })?;
             input = next.take_contextual("satisfies")?;
             let ((trait_name, trait_lifetime_arguments, trait_arguments), next) =
-                crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
-                    syntax_trees,
-                    input,
-                )?;
+                parse_conformance_trait_application(syntax_trees, input)?;
             if !trait_lifetime_arguments.is_empty() {
                 return Err(next.error_here(
                     "quotient equivalence selection does not yet retain lifetime arguments; the application must remain lifetime-free",
@@ -152,26 +150,20 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
         let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty(),
-            )?;
+            parse_logical_proof_facts_until(syntax_trees, input, |input| {
+                input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty()
+            })?;
         default_domain_facts.push_span(facts);
         input = rest;
     }
     while input.at_contextual("requires") {
         input = input.take_contextual("requires")?;
         let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_required_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| {
-                    input.at_contextual("requires")
-                        || input.at_punctuation(PunctuationKind::LeftBrace)
-                        || input.tokens.is_empty()
-                },
-            )?;
+            parse_required_logical_proof_facts_until(syntax_trees, input, |input| {
+                input.at_contextual("requires")
+                    || input.at_punctuation(PunctuationKind::LeftBrace)
+                    || input.tokens.is_empty()
+            })?;
         default_domain_facts.push_span(facts);
         input = rest;
     }
@@ -226,16 +218,8 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
     let type_parameters = generic_parameters.type_parameters;
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, input) = parse_property_brackets(input)?;
-    let ((), input) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
+    let ((), input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     if input.at_contextual("where") {
         return Err(input.error_here(
             "opaque `boundary data` has no visible fields for a default-domain `where` clause",
@@ -741,10 +725,7 @@ fn rewrite_self_member_accesses(
             if receiver == member.receiver {
                 return handle;
             }
-            ExpressionNode::Member(syntax_trees::expression::TableMemberExpression {
-                receiver,
-                ..member
-            })
+            ExpressionNode::Member(TableMemberExpression { receiver, ..member })
         }
         ExpressionNode::Binary(binary) => {
             let left = rewrite_self_member_accesses(syntax, binary.left);
@@ -763,10 +744,7 @@ fn rewrite_self_member_accesses(
             if operand == unary.operand {
                 return handle;
             }
-            ExpressionNode::Unary(syntax_trees::expression::TableUnaryExpression {
-                operand,
-                ..unary
-            })
+            ExpressionNode::Unary(TableUnaryExpression { operand, ..unary })
         }
         ExpressionNode::Cast(cast) => {
             let value = rewrite_self_member_accesses(syntax, cast.value);
@@ -781,10 +759,7 @@ fn rewrite_self_member_accesses(
             if collection == indexed.collection && index == indexed.index {
                 return handle;
             }
-            ExpressionNode::Indexed(syntax_trees::expression::TableIndexedExpression {
-                collection,
-                index,
-            })
+            ExpressionNode::Indexed(TableIndexedExpression { collection, index })
         }
         ExpressionNode::Membership(membership) => {
             let value = rewrite_self_member_accesses(syntax, membership.value);
@@ -801,10 +776,7 @@ fn rewrite_self_member_accesses(
             if target == borrow.target {
                 return handle;
             }
-            ExpressionNode::Borrow(syntax_trees::expression::TableBorrowExpression {
-                target,
-                ..borrow
-            })
+            ExpressionNode::Borrow(TableBorrowExpression { target, ..borrow })
         }
         ExpressionNode::Range(range) => {
             let start = rewrite_self_member_accesses(syntax, range.start);

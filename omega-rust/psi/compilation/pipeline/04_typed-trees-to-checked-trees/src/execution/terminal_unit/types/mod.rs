@@ -18,9 +18,7 @@ use typed_trees::type_identity::TypeIdentityRequest;
 mod call_qualifications;
 pub(super) use call_qualifications::retain_call_qualification_domains;
 mod declared_result;
-pub(in crate::execution::terminal_unit) use declared_result::{
-    declared_result_plan, declared_result_type,
-};
+pub(super) use declared_result::{declared_result_plan, declared_result_type};
 mod domain_predicates;
 pub(super) use domain_predicates::retain_domain_predicates;
 mod scalar_fields;
@@ -35,14 +33,14 @@ pub(super) use layout_observations::retain_layout_observation_types;
 mod parameters;
 mod shape_collector;
 mod signature_contracts;
-pub(in crate::execution::terminal_unit) use boundary_domains::boundary_domain_requirements;
+pub(super) use boundary_domains::boundary_domain_requirements;
 mod views;
 
-pub(in crate::execution::terminal_unit) use affine_discards::*;
+pub(super) use affine_discards::*;
 pub(crate) use identities::*;
 pub(crate) use parameters::*;
 pub(crate) use shape_collector::*;
-pub(in crate::execution::terminal_unit) use signature_contracts::*;
+pub(super) use signature_contracts::*;
 pub(crate) use views::*;
 
 /// The boundary-trait symbol a field spells as `&'a mut <boundary trait>`:

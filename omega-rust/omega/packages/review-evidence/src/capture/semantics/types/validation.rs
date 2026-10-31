@@ -1,8 +1,10 @@
 use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
+use language_semantics::const_value::CanonicalConstValue;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
+use typed_trees::wire::is_layout_domain_name;
 
 pub(crate) fn validate_package_type_identity_input(
     compilation: &PackageReviewInput<'_>,
@@ -87,9 +89,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                         match domain.subject {
                             DomainConstraintSubject::Declared => {
                                 if domain.name.as_str() == "OmegaLayout"
-                                    || typed_trees::wire::is_layout_domain_name(
-                                        domain.name.as_str(),
-                                    )
+                                    || is_layout_domain_name(domain.name.as_str())
                                 {
                                     return Err(vec![Diagnostic::error(
                                         "package review rejects an unclassified or legacy flattened OmegaLayout constraint",
@@ -219,8 +219,7 @@ fn validate_package_named_type_leaf(
         return Ok(());
     }
     if allow_const_value
-        && (language_semantics::const_value::CanonicalConstValue::from_atom(spelling).is_some()
-            || spelling.parse::<i128>().is_ok())
+        && (CanonicalConstValue::from_atom(spelling).is_some() || spelling.parse::<i128>().is_ok())
     {
         return Ok(());
     }
@@ -294,8 +293,7 @@ fn validate_package_index_expression(
             let members = program.expression_table.name_path_members(path.members);
             let spelling = members.joined_path();
             if !path.symbol.is_valid()
-                && (language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
-                    .is_some()
+                && (CanonicalConstValue::from_atom(&spelling).is_some()
                     || spelling.parse::<i128>().is_ok())
             {
                 return Ok(());

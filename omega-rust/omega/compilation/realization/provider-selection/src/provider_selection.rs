@@ -18,12 +18,8 @@ pub fn choose<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
     defaults: &[ProviderDeclaration<Declaration, Origin>],
     overrides: &[ProviderDeclaration<Declaration, Origin>],
 ) -> Result<Vec<SelectedProvider<Declaration, Owner, Origin>>, Vec<Diagnostic>> {
-    let plans = candidates
-        .iter()
-        .map(|candidate| &candidate.plan)
-        .collect::<Vec<_>>();
     let selected =
-        crate::selection::select_provider_plan_indices(&plans, target, defaults, overrides)?;
+        crate::selection::select_provider_plan_indices(&candidates, target, defaults, overrides)?;
     let mut candidates = candidates.into_iter().map(Some).collect::<Vec<_>>();
     let mut chosen = Vec::with_capacity(selected.len());
     for selected in selected {

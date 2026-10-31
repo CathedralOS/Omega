@@ -11,6 +11,9 @@
 //! identity comes from its callee-relative formal, never selector spelling:
 //! a guarantee about one captured index cannot excuse another argument's write.
 
+use super::super::calls::memoized_call_target_parameters;
+use super::super::calls::memoized_find_call_site;
+use super::invalidation::ObservedCallMutation;
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::indexed_statements;
@@ -36,7 +39,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     exit: &mut CallFlowContexts,
     argument_sources: Option<&super::ArgumentSources<'_, '_>>,
     domains: &DomainFacts,
-    writes: Option<&[super::invalidation::ObservedCallMutation]>,
+    writes: Option<&[ObservedCallMutation]>,
 ) {
     let key = (
         machine.symbol,
@@ -45,22 +48,17 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         borrow_call.call_ordinal,
     );
     let selected =
-        super::super::calls::memoized_find_call_site(program, build, key.0, key.1, key.2, key.3)
-            .and_then(|site| match site {
+        memoized_find_call_site(program, build, key.0, key.1, key.2, key.3).and_then(|site| {
+            match site {
                 validation::CallSite::Expression { call, .. } => {
                     program.requirement_call_signature(machine.symbol, call)
                 }
                 _ => None,
-            });
+            }
+        });
     let Some(parameters) = selected
         .map(|signature| program.state_signature_parameters(signature))
-        .or_else(|| {
-            super::super::calls::memoized_call_target_parameters(
-                program,
-                build,
-                borrow_call.target_symbol,
-            )
-        })
+        .or_else(|| memoized_call_target_parameters(program, build, borrow_call.target_symbol))
     else {
         return;
     };

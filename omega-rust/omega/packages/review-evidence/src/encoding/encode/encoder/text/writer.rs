@@ -1,6 +1,7 @@
 use super::{HEADER, MAXIMUM_MARKUP_DEPTH, label};
 use crate::encoding::PackageReviewEncodingError as Error;
 use std::fmt::{self, Write};
+use std::str::from_utf8;
 
 #[derive(Clone, Copy, Default)]
 struct Scope {
@@ -230,9 +231,7 @@ impl<'text> Writer<'text> {
                 b'"' => self.append("\\\""),
                 b'\\' => self.append("\\\\"),
                 0x20..=0x7e => {
-                    self.append(
-                        std::str::from_utf8(std::slice::from_ref(byte)).expect("ASCII byte"),
-                    );
+                    self.append(from_utf8(std::slice::from_ref(byte)).expect("ASCII byte"));
                 }
                 _ => {
                     let _ = write!(self, "\\x{byte:02x}");

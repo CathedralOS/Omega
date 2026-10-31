@@ -10,7 +10,9 @@ use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
     CheckedScalarExpression as Scalar,
 };
+use numerics::literals::FloatFormat;
 use proof_admission::{Term, TermHandle};
+use semantic_vocabulary::IeeeFloatValue;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 
@@ -108,8 +110,8 @@ fn predicate(
                     [left, right],
                 ) => {
                     let primitive = match format {
-                        numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
-                        numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+                        FloatFormat::F32 => PrimitiveType::F32,
+                        FloatFormat::F64 => PrimitiveType::F64,
                     };
                     let left = scalar(view, *left, captures, Some(primitive))?;
                     let right = scalar(view, *right, captures, Some(primitive))?;
@@ -163,14 +165,8 @@ fn scalar(
     }
     if let PreparedConstantMeaning::FloatLiteral { format, bits } = view.constant(declaration)? {
         let (primitive, value) = match format {
-            numerics::literals::FloatFormat::F32 => (
-                PrimitiveType::F32,
-                semantic_vocabulary::IeeeFloatValue::Binary32(*bits as u32),
-            ),
-            numerics::literals::FloatFormat::F64 => (
-                PrimitiveType::F64,
-                semantic_vocabulary::IeeeFloatValue::Binary64(*bits),
-            ),
+            FloatFormat::F32 => (PrimitiveType::F32, IeeeFloatValue::Binary32(*bits as u32)),
+            FloatFormat::F64 => (PrimitiveType::F64, IeeeFloatValue::Binary64(*bits)),
         };
         if expected.is_some_and(|expected| expected != primitive) {
             return None;

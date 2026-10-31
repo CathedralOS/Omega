@@ -3,6 +3,8 @@
 use super::integer_type::ScalarPosition;
 use crate::build_time_evaluation::expression_table;
 use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
+use crate::const_evaluation::const_lengths::decode_integer_result;
+use crate::machine_execution::admission::{SnapshotArgument, require_call_expression_selection};
 use crate::unique::extend_unique;
 use crate::{BuildTimeAdmissionPlan, BuildTimeSelectionAuthority, BuildTimeValue};
 use diagnostics::Diagnostic;
@@ -174,13 +176,11 @@ impl Invocation<'_> {
         let snapshots = argument_handles
             .iter()
             .zip(literals)
-            .map(
-                |(argument, literal)| crate::machine_execution::admission::SnapshotArgument {
-                    receiver: false,
-                    original: *argument,
-                    literal: Some(literal.clone()),
-                },
-            )
+            .map(|(argument, literal)| SnapshotArgument {
+                receiver: false,
+                original: *argument,
+                literal: Some(literal.clone()),
+            })
             .collect();
         // The probe keeps the whole program: library satisfaction
         // references and declaration reach read machines far outside the
@@ -224,11 +224,7 @@ impl ConstantCalls for Invocation<'_> {
         &self,
         expression: ExpressionHandle,
     ) -> Result<(PrimitiveType, Vec<Diagnostic>), String> {
-        crate::machine_execution::admission::require_call_expression_selection(
-            self.execution,
-            expression,
-            self.authority,
-        )?;
+        require_call_expression_selection(self.execution, expression, self.authority)?;
         let callee = self.callee(expression)?;
         let machine = self.machine(callee)?;
         let entry = self.entry(machine)?;
@@ -336,11 +332,7 @@ impl ConstantCalls for Invocation<'_> {
                 CanonicalConstValue::boolean(value)
             }
             (ScalarPosition::Integer(position), result) => {
-                let result = crate::const_evaluation::const_lengths::decode_integer_result(
-                    self.execution,
-                    machine,
-                    result,
-                )?;
+                let result = decode_integer_result(self.execution, machine, result)?;
                 position.require_value(self.execution, self.admission, &result)?;
                 let value = if position.primitive.is_signed_integer() {
                     i128::from(

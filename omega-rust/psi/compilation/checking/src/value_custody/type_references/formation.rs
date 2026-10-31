@@ -4,26 +4,23 @@
 //! justify a dependent type; a partial condition cannot establish itself.
 
 use super::TypeReferenceOwner;
+use crate::proof_contracts::arithmetic_domains::LocalValueFormation;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContractKind;
 
 impl<'program> TypeReferenceOwner<'program> {
-    pub(super) fn local_value_formation(
-        self,
-    ) -> Option<crate::proof_contracts::arithmetic_domains::LocalValueFormation<'program>> {
+    pub(super) fn local_value_formation(self) -> Option<LocalValueFormation<'program>> {
         match self {
             Self::StateLocalData {
                 machine,
                 current_state,
                 value_environment,
                 ..
-            } => Some(
-                crate::proof_contracts::arithmetic_domains::LocalValueFormation {
-                    machine,
-                    state: current_state,
-                    environment: value_environment,
-                },
-            ),
+            } => Some(LocalValueFormation {
+                machine,
+                state: current_state,
+                environment: value_environment,
+            }),
             _ => None,
         }
     }

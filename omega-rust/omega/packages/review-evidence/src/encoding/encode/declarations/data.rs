@@ -4,6 +4,7 @@ use crate::record::{
     PackageReviewDataField, PackageReviewDataMember, PackageReviewDataProperties,
     PackageReviewTypeIdentity,
 };
+use language_semantics::CarrySuspension;
 
 pub(crate) fn encode_data_properties(
     encoder: &mut Encoder,
@@ -24,10 +25,8 @@ pub(crate) fn encode_data_properties(
                 encoder.tag("some", 1);
                 let _ = encoder.field("suspension", |encoder| {
                     match carry.suspension {
-                        language_semantics::CarrySuspension::Forbidden => {
-                            encoder.tag("forbidden", 0)
-                        }
-                        language_semantics::CarrySuspension::Allowed => encoder.tag("allowed", 1),
+                        CarrySuspension::Forbidden => encoder.tag("forbidden", 0),
+                        CarrySuspension::Allowed => encoder.tag("allowed", 1),
                     };
                     Ok(())
                 });

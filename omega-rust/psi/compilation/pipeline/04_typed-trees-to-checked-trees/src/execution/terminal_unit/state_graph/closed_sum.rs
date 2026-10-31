@@ -15,21 +15,24 @@
 //! all observe that storage. Call scheduling still requires its unique prior
 //! producer; independently authored calls keep their own occurrence and run.
 use super::super::{
-    CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
-    DataMember,
+    CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan as CasePlan,
+    CheckedClosedSumPayloadTransferPlan, DataMember,
 };
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, ScalarCalleeClosure, ShapeCollector,
-    Signature, TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode,
-    returns, terminal_calls,
+    CheckedStructuralAccess as StructuralAccess, CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitStructuralArgumentPlan as ArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan, Multiplicity, ScalarCalleeClosure,
+    ShapeCollector, Signature, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    TypeReferenceNode, returns, terminal_calls,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{
     EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
 };
+use crate::execution::terminal_unit::types::base_type_identity;
 use crate::places::place_at;
+use crate::proof::exact_outcome_case_test;
 use crate::semantic::calls::dispatch_subjects;
 
 #[allow(clippy::too_many_arguments)]
@@ -45,7 +48,7 @@ pub(super) fn build(
     edge_calls: EdgeCalls<'_>,
     result: &checked_trees::CheckedControlResultPlan,
     next_scalar_binding: usize,
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    operations: &mut Vec<OperationPlan>,
     transition_start: usize,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
@@ -61,7 +64,7 @@ pub(super) fn build(
     let TransitionGuardNode::When(guard) = first.guard else {
         return None;
     };
-    let (expression, _) = crate::proof::exact_outcome_case_test(program, guard)?;
+    let (expression, _) = exact_outcome_case_test(program, guard)?;
     trace.phase("state graph: case subject storage");
     let subject_place = validation::contextual_canonical_place_from_expression(
         program,
@@ -97,154 +100,146 @@ pub(super) fn build(
             transition_start,
         )?),
     };
-    let (mut subject, mut type_reference) = if let DispatchSubject::Computed(subject_expression) =
-        dispatch
-    {
-        trace.phase("state graph: terminator: case subject call");
-        trace.statement(u32::try_from(transition_start).ok());
-        let (result, type_reference) = subject_call(
-            program,
-            facts,
-            scalar_callees,
-            shapes,
-            machine,
-            state,
-            structural,
-            entry_claims,
-            operations,
-            transition_start,
-            subject_expression,
-            trace,
-        )?;
-        (
-            CheckedUnitStructuralArgumentPlan::structural_result(
-                result.binding_ordinal,
-                result.type_identity,
-                CheckedStructuralAccess::Owned,
-            ),
-            type_reference,
-        )
-    } else if let Some((index, parameter)) = program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
-    {
-        let (position, retained) = structural
+    let (mut subject, mut type_reference) =
+        if let DispatchSubject::Computed(subject_expression) = dispatch {
+            trace.phase("state graph: terminator: case subject call");
+            trace.statement(u32::try_from(transition_start).ok());
+            let (result, type_reference) = subject_call(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural,
+                entry_claims,
+                operations,
+                transition_start,
+                subject_expression,
+                trace,
+            )?;
+            (
+                ArgumentPlan::structural_result(
+                    result.binding_ordinal,
+                    result.type_identity,
+                    StructuralAccess::Owned,
+                ),
+                type_reference,
+            )
+        } else if let Some((index, parameter)) = program
+            .state_parameters(state)
             .iter()
             .enumerate()
-            .find(|(_, retained)| retained.position as usize == index)?;
-        // Selection observes the same stored subject on every arm. Owned
-        // payload transfers and residual cleanup belong to the selected
-        // edge; a shared or mutable loan stays the caller's.
-        let inspected = match retained.access {
-            CheckedStructuralAccess::Owned => parameter.type_reference,
-            checked_trees::checked_borrowed_access_pair_pattern!() => {
-                let TypeReferenceNode::Reference { referee, .. } = program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference)
-                else {
-                    return None;
-                };
-                *referee
-            }
-            CheckedStructuralAccess::WriteOnlyBorrow => return None,
-        };
-        if !matches!(
-            retained.multiplicity,
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
-            || !retained.qualifications.is_empty()
-            || retained.primitive_referent.is_some()
+            .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
         {
-            return None;
-        }
-        (
-            CheckedUnitStructuralArgumentPlan {
-                projection_evaluations: Default::default(),
-                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(position).ok()?,
-                },
-                path: Vec::new(),
-                type_identity: retained.type_identity,
-                access: retained.access,
-            },
-            inspected,
-        )
-    } else {
-        let mut matching = operations
-            .iter()
-            .filter_map(super::retained_structural_result)
-            .filter_map(|result| {
-                let local = statements
-                    .get(result.statement_index as usize)?
-                    .as_local_data()?;
-                (dispatch.is_symbol(local.symbol)
-                    && !local.is_mutable
-                    && result.statement_index < transition_start as u32)
-                    .then_some((result, local))
-            });
-        let (result, local) = matching.next()?;
-        if matching.next().is_some()
-            || !matches!(
-                result.multiplicity,
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            )
-        {
-            return None;
-        }
-        let (subject, inspected) =
-            if let Some(shell) = validation::reference_shell(program, local.type_reference) {
-                // The descriptor's affine custody belongs to its producer,
-                // not to the unrestricted shared-reference source type. The
-                // producer is whichever operation bound the result: a place
-                // capture (`EstablishReference`) or a descriptor value
-                // retained through a selector computation (`EstablishLocal`).
-                if result.multiplicity != Multiplicity::Affine
-                    || shell.access == language_semantics::ReferenceAccess::WriteOnly
-                {
-                    return None;
+            let (position, retained) = structural
+                .iter()
+                .enumerate()
+                .find(|(_, retained)| retained.position as usize == index)?;
+            // Selection observes the same stored subject on every arm. Owned
+            // payload transfers and residual cleanup belong to the selected
+            // edge; a shared or mutable loan stays the caller's.
+            let inspected = match retained.access {
+                StructuralAccess::Owned => parameter.type_reference,
+                checked_trees::checked_borrowed_access_pair_pattern!() => {
+                    let TypeReferenceNode::Reference { referee, .. } = program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    else {
+                        return None;
+                    };
+                    *referee
                 }
-                shapes.add_type(shell.referee, &[], &[])?;
-                (
-                    CheckedUnitStructuralArgumentPlan {
-                        projection_evaluations: Default::default(),
-                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal: result.binding_ordinal,
-                        },
-                        path: vec![checked_trees::CheckedUnitStructuralPathSegment::Referent],
-                        type_identity: crate::execution::terminal_unit::types::base_type_identity(
-                            program,
-                            shell.referee,
-                            &[],
-                            &[],
-                        )?,
-                        access: CheckedStructuralAccess::SharedBorrow,
-                    },
-                    shell.referee,
-                )
-            } else {
-                if result.multiplicity != program.type_multiplicity(local.type_reference) {
-                    return None;
-                }
-                (
-                    CheckedUnitStructuralArgumentPlan::structural_result(
-                        result.binding_ordinal,
-                        result.type_identity,
-                        CheckedStructuralAccess::Owned,
-                    ),
-                    local.type_reference,
-                )
+                StructuralAccess::WriteOnlyBorrow => return None,
             };
-        (subject, inspected)
-    };
+            if !matches!(
+                retained.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
+                || !retained.qualifications.is_empty()
+                || retained.primitive_referent.is_some()
+            {
+                return None;
+            }
+            (
+                ArgumentPlan {
+                    projection_evaluations: Default::default(),
+                    source: SourcePlan::Parameter {
+                        parameter_index: u32::try_from(position).ok()?,
+                    },
+                    path: Vec::new(),
+                    type_identity: retained.type_identity,
+                    access: retained.access,
+                },
+                inspected,
+            )
+        } else {
+            let mut matching = operations
+                .iter()
+                .filter_map(super::retained_structural_result)
+                .filter_map(|result| {
+                    let local = statements
+                        .get(result.statement_index as usize)?
+                        .as_local_data()?;
+                    (dispatch.is_symbol(local.symbol)
+                        && !local.is_mutable
+                        && result.statement_index < transition_start as u32)
+                        .then_some((result, local))
+                });
+            let (result, local) = matching.next()?;
+            if matching.next().is_some()
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                )
+            {
+                return None;
+            }
+            let (subject, inspected) =
+                if let Some(shell) = validation::reference_shell(program, local.type_reference) {
+                    // The descriptor's affine custody belongs to its producer,
+                    // not to the unrestricted shared-reference source type. The
+                    // producer is whichever operation bound the result: a place
+                    // capture (`EstablishReference`) or a descriptor value
+                    // retained through a selector computation (`EstablishLocal`).
+                    if result.multiplicity != Multiplicity::Affine
+                        || shell.access == language_semantics::ReferenceAccess::WriteOnly
+                    {
+                        return None;
+                    }
+                    shapes.add_type(shell.referee, &[], &[])?;
+                    (
+                        ArgumentPlan {
+                            projection_evaluations: Default::default(),
+                            source: SourcePlan::StructuralResult {
+                                binding_ordinal: result.binding_ordinal,
+                            },
+                            path: vec![checked_trees::CheckedUnitStructuralPathSegment::Referent],
+                            type_identity: base_type_identity(program, shell.referee, &[], &[])?,
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                        shell.referee,
+                    )
+                } else {
+                    if result.multiplicity != program.type_multiplicity(local.type_reference) {
+                        return None;
+                    }
+                    (
+                        ArgumentPlan::structural_result(
+                            result.binding_ordinal,
+                            result.type_identity,
+                            StructuralAccess::Owned,
+                        ),
+                        local.type_reference,
+                    )
+                };
+            (subject, inspected)
+        };
     // Give successor planning the exact saved root, named or anonymous.
     // Canonical places rejoin parser copies to this one expression identity.
     let mut established_results = local_results.to_vec();
     if let DispatchSubject::Computed(expression) = dispatch {
-        let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
-            subject.source
-        else {
+        let SourcePlan::StructuralResult { binding_ordinal } = subject.source else {
             return None;
         };
         let result = operations
@@ -270,15 +265,10 @@ pub(super) fn build(
             None,
         )?;
         subject.path.extend(path);
-        subject.type_identity = crate::execution::terminal_unit::types::base_type_identity(
-            program,
-            projected,
-            &[],
-            &[],
-        )?;
+        subject.type_identity = base_type_identity(program, projected, &[], &[])?;
         // Dispatch observes a subtree, not an owned move of its enclosing
         // record. Ordinary selected-edge cleanup still owns that root.
-        subject.access = CheckedStructuralAccess::SharedBorrow;
+        subject.access = StructuralAccess::SharedBorrow;
         type_reference = projected;
         shapes.add_type(projected, &[], &[])?;
     }
@@ -332,8 +322,7 @@ pub(super) fn build(
         let ordinal = u32::try_from(transition_start + index).ok()?;
         let selected_variants = match transition.guard {
             TransitionGuardNode::When(guard) => {
-                let (expression, case_symbol) =
-                    crate::proof::exact_outcome_case_test(program, guard)?;
+                let (expression, case_symbol) = exact_outcome_case_test(program, guard)?;
                 let case_symbol = program
                     .closed_data_constructor_case(type_reference, case_symbol)?
                     .symbol;
@@ -358,7 +347,7 @@ pub(super) fn build(
                         );
                         !cases
                             .iter()
-                            .any(|case: &CheckedClosedSumCasePlan| case.case_identity == identity)
+                            .any(|case: &CasePlan| case.case_identity == identity)
                     })
                     .collect()
             }
@@ -477,7 +466,7 @@ pub(super) fn build(
             );
             if cases
                 .iter()
-                .any(|case: &CheckedClosedSumCasePlan| case.case_identity == identity)
+                .any(|case: &CasePlan| case.case_identity == identity)
             {
                 return None;
             }
@@ -549,7 +538,7 @@ pub(super) fn build(
                     payloads,
                 )
             };
-            cases.push(CheckedClosedSumCasePlan {
+            cases.push(CasePlan {
                 case_identity: identity,
                 outcome,
                 payloads,
@@ -748,7 +737,7 @@ fn subject_call(
     state: &typed_trees::state::State,
     structural: &[checked_trees::CheckedUnitStructuralParameterPlan],
     entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    operations: &mut Vec<OperationPlan>,
     transition_start: usize,
     subject: typed_trees::expression::ExpressionHandle,
     trace: &LocalConstructionTrace,
@@ -846,7 +835,7 @@ fn subject_call(
     // The dispatch, not the state's return, consumes the subject.
     let (_, discard_result_on_return) = operation.discardable_structural_result_mut()?;
     *discard_result_on_return = false;
-    let CheckedUnitEffectOperationPlan::Call(planned) = &operation else {
+    let OperationPlan::Call(planned) = &operation else {
         return None;
     };
     // A boundary result is the same once-evaluated owned subject as a named

@@ -14,6 +14,7 @@ use super::{ExpressionHandle, ExpressionNode, Machine, State, saved_arguments};
 use crate::frozen_program::expression_table;
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
 use typed_trees::types::TypeReferenceHandle;
 
 /// Check the chosen receiving role against this edge's completed operands.
@@ -873,10 +874,8 @@ fn receiving_projection_paths(
             .data_members(data)
             .iter()
             .flat_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-                typed_trees::data::DataMember::Variant(variant) => {
-                    program.data_payload_fields(variant)
-                }
+                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Variant(variant) => program.data_payload_fields(variant),
             })
         {
             let previous = prefix.len();

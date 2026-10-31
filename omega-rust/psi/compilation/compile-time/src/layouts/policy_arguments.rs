@@ -15,8 +15,10 @@
 //! before both checking and execution; unclaimed metadata is not a field.
 
 use crate::build_time_evaluation::type_reference_table;
+use crate::machine_execution::admission::require_established_arguments;
 use build_time_values::BuildTimeValue;
 use checked_interpreter::BuildMachineEvaluationRequest;
+use checked_interpreter::materialize_zero_initialized_build_time_value;
 use typed_trees::{TypedTrees, machine::Machine, types::TypeReferenceNode};
 
 pub(super) fn policy_request<'a>(
@@ -70,17 +72,10 @@ pub(super) fn policy_request<'a>(
                 parameter.name.as_str()
             ));
         }
-        let context = checked_interpreter::materialize_zero_initialized_build_time_value(
-            typed,
-            context_type,
-        )?;
+        let context = materialize_zero_initialized_build_time_value(typed, context_type)?;
         arguments.insert(position, context);
     }
-    crate::machine_execution::admission::require_established_arguments(
-        typed,
-        machine,
-        &mut arguments,
-    )?;
+    require_established_arguments(typed, machine, &mut arguments)?;
     Ok(BuildMachineEvaluationRequest::symbol(
         machine.symbol,
         arguments,

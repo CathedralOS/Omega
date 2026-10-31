@@ -4,6 +4,7 @@ use super::super::lookup::{
     child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds,
 };
 use super::super::scoped_paths::{invalid_symbol_pair, resolve_state_scoped_table_path};
+use symbol_resolved_trees::expression::ExpressionNode;
 
 /// The member kinds a receiver path may resolve through — fields, states,
 /// parameters and variants.
@@ -55,9 +56,7 @@ pub(in crate::symbols) fn resolve_expression_table_member_symbol(
     receiver: symbol_resolved_trees::expression::ExpressionHandle,
     member: &symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
-    if let symbol_resolved_trees::expression::ExpressionNode::SavedSubject(saved) =
-        expression_table.expression(receiver)
-    {
+    if let ExpressionNode::SavedSubject(saved) = expression_table.expression(receiver) {
         let head = expression_table
             .name_path_node(saved.pattern_head)
             .map(|path| path.symbol)

@@ -3,6 +3,7 @@
 //! connective leaves. Route-bucket normalization separately turns an authored
 //! false ceiling into no allowed route; a false predicate never grants a crash.
 
+use crate::proofs::contract_predicates::equality_from_polarities;
 use crate::proofs::crash_routes::scalar_terms::{checked_boolean_scalar_term, checked_scalar_term};
 use crate::proofs::{
     CheckedBooleanExpression, CheckedScalarExpression, LoweringError, Proposition, ScalarTerm,
@@ -201,24 +202,22 @@ fn checked_boolean_connective_polarity(
                     depth + 1,
                 )
             }
-            _ if contains_boolean_connective(expression) => {
-                crate::proofs::contract_predicates::equality_from_polarities(
-                    left,
-                    right,
-                    positive,
-                    remaining,
-                    |operand, polarity, budget| {
-                        checked_boolean_connective_polarity(
-                            identities,
-                            operand,
-                            values,
-                            polarity,
-                            budget,
-                            depth + 1,
-                        )
-                    },
-                )
-            }
+            _ if contains_boolean_connective(expression) => equality_from_polarities(
+                left,
+                right,
+                positive,
+                remaining,
+                |operand, polarity, budget| {
+                    checked_boolean_connective_polarity(
+                        identities,
+                        operand,
+                        values,
+                        polarity,
+                        budget,
+                        depth + 1,
+                    )
+                },
+            ),
             _ => checked_boolean_atom_polarity(
                 identities,
                 expression,

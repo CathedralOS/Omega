@@ -9,7 +9,7 @@ use super::RangeFacts;
 use typed_trees::{machine::Machine, state::State};
 
 /// Immutable owner-local call identity, borrowed across incoming passes and branches.
-pub(in crate::checks::ranges) struct RangeCallContext<'program> {
+pub(in super::super) struct RangeCallContext<'program> {
     machine: &'program Machine,
     state: &'program State,
     borrows: &'program checked_trees::BorrowFacts,
@@ -22,7 +22,7 @@ pub(in crate::checks::ranges) struct RangeCallContext<'program> {
 }
 
 impl<'program> RangeCallContext<'program> {
-    pub(in crate::checks::ranges) fn new(
+    pub(in super::super) fn new(
         machine: &'program Machine,
         state: &'program State,
         borrows: &'program checked_trees::BorrowFacts,
@@ -57,7 +57,7 @@ impl<'program> RangeCallContext<'program> {
     /// Completed immutable values do not depend on a source initializer's
     /// spelling. Their shared observation survives calls, copies and joins;
     /// mutable contents and reference paths keep the ordinary live range rules.
-    pub(in crate::checks::ranges) fn immutable_integer_value(
+    pub(in super::super) fn immutable_integer_value(
         &self,
         program: &dyn validation::CheckingInput,
         statement_index: usize,
@@ -93,13 +93,11 @@ impl<'program> RangeCallContext<'program> {
 
     /// The pass-shared resolver this context already borrows; `None` leaves a
     /// caller to construct its own exactly as it did before the pass shared one.
-    pub(in crate::checks::ranges) fn call_frames(
-        &self,
-    ) -> Option<&validation::CallFrameResolver<'_>> {
+    pub(in super::super) fn call_frames(&self) -> Option<&validation::CallFrameResolver<'_>> {
         self.call_frames
     }
 
-    pub(in crate::checks::ranges) fn collection_extent(
+    pub(in super::super) fn collection_extent(
         &self,
         program: &dyn ::validation::CheckingInput,
         statement_index: usize,
@@ -127,7 +125,7 @@ impl<'program> RangeCallContext<'program> {
     /// Rejoin the exact checked call occurrence for one authored site in the
     /// owning state. Flow and borrow rows agree on statement and ordinal only
     /// for the same occurrence; anything else reports no evidence.
-    pub(in crate::checks::ranges) fn find_call(
+    pub(in super::super) fn find_call(
         &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
@@ -188,7 +186,7 @@ impl<'program> RangeCallContext<'program> {
     /// through its operands; the access kind does not narrow the footprint
     /// because mutable and write-only borrows carry the callee into the same
     /// caller place as a read.
-    pub(in crate::checks::ranges) fn operand_access_places(
+    pub(in super::super) fn operand_access_places(
         &self,
         call: &checked_trees::BorrowCallFact,
     ) -> Vec<CanonicalPlace> {

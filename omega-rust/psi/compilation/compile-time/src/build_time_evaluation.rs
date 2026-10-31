@@ -4,22 +4,28 @@
 //! under the same selection authority. Target filtering and provider selection
 //! remain with the Omega coordinator between these two stages.
 
+use crate::const_evaluation::constant_recipes::retain_deferred_constant_recipes;
+use crate::evaluation_accounting::EvaluationAccounting;
+use crate::syntax_probes::PreparedEvaluationInputs;
+use checked_trees::CheckedValueOrigin;
+use compiler_storage::{RecordError, RecordReader};
+use layout_plans::LayoutTargetFacts;
 use std::sync::Arc;
-use typed_trees::references::DeclarationSelection;
+use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::references::{DeclarationSelection, ProgramReferences};
 
 /// The expression table of `program`. A reader that would otherwise name the
 /// table in the middle of a long receiver chain names it here once, and the
 /// chain keeps its receiver on one line.
-pub(crate) fn expression_table(
-    program: &typed_trees::TypedTrees,
-) -> &typed_trees::expression::ExpressionTable {
+pub(crate) fn expression_table(program: &TypedTrees) -> &typed_trees::expression::ExpressionTable {
     &program.expression_table
 }
 
 /// The type-reference table of `program`, named once for a reader whose
 /// receiver chain would otherwise carry it in the middle.
 pub(crate) fn type_reference_table(
-    program: &typed_trees::TypedTrees,
+    program: &TypedTrees,
 ) -> &typed_trees::types::TypeReferenceTable {
     &program.type_reference_table
 }
@@ -39,12 +45,12 @@ pub(crate) fn type_references(
 /// operand must never promote a Product implementation into callable context.
 #[derive(Clone, compiler_storage::Record)]
 pub(crate) struct EvaluationDomain {
-    pub(crate) layout_targets: Vec<layout_plans::LayoutTargetFacts>,
+    pub(crate) layout_targets: Vec<LayoutTargetFacts>,
     pub(crate) layout_applications: Option<Vec<crate::LayoutApplicationTargetInput>>,
     work: DeclarationSelection,
     execution: DeclarationSelection,
-    product_frontier: Option<Arc<typed_trees::TypedTrees>>,
-    pub(crate) accounting: crate::evaluation_accounting::EvaluationAccounting,
+    product_frontier: Option<Arc<TypedTrees>>,
+    pub(crate) accounting: EvaluationAccounting,
 }
 
 // Accounting is per-attempt scratch, never semantic input. Projection and
@@ -62,17 +68,14 @@ impl PartialEq for EvaluationDomain {
 impl Eq for EvaluationDomain {}
 
 impl EvaluationDomain {
-    pub(crate) fn with_accounting(
-        mut self,
-        accounting: crate::evaluation_accounting::EvaluationAccounting,
-    ) -> Self {
+    pub(crate) fn with_accounting(mut self, accounting: EvaluationAccounting) -> Self {
         self.accounting = accounting;
         self
     }
 
     pub(crate) fn admission(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &TypedTrees,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> crate::BuildTimeAdmissionPlan {
         crate::BuildTimeAdmissionPlan::infer(program, authority)
@@ -100,7 +103,7 @@ impl EvaluationDomain {
         }
     }
 
-    pub(crate) fn contains(&self, symbol: symbols::SymbolHandle) -> bool {
+    pub(crate) fn contains(&self, symbol: SymbolHandle) -> bool {
         self.work.contains(symbol)
     }
 
@@ -109,7 +112,7 @@ impl EvaluationDomain {
     /// alone is not permission to execute another policy.
     pub(crate) fn contains_data(
         &self,
-        program: &typed_trees::TypedTrees,
+        program: &TypedTrees,
         name: &str,
     ) -> Result<bool, Vec<diagnostics::Diagnostic>> {
         let mut declarations = program
@@ -131,17 +134,9 @@ impl EvaluationDomain {
     /// One early job demands its complete checking and executable closure,
     /// rather than unrelated pending application inputs. Product descriptions
     /// remain available with the original custody and grant no body demand.
-    pub(crate) fn demanded_roots(
-        &self,
-        program: &typed_trees::TypedTrees,
-        roots: &[symbols::SymbolHandle],
-    ) -> Self {
+    pub(crate) fn demanded_roots(&self, program: &TypedTrees, roots: &[SymbolHandle]) -> Self {
         let execution = self.execution_program(program);
-        let mut domain = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
-            &execution,
-            roots,
-            &[],
-        );
+        let mut domain = PreparedEvaluationInputs::domain_for_program(&execution, roots, &[]);
         domain.execution = domain.execution.intersect(&self.execution);
         domain.layout_targets = self.layout_targets.clone();
         domain.layout_applications = self.layout_applications.clone();
@@ -150,10 +145,7 @@ impl EvaluationDomain {
         domain
     }
 
-    pub(crate) fn execution_program(
-        &self,
-        original: &typed_trees::TypedTrees,
-    ) -> typed_trees::TypedTrees {
+    pub(crate) fn execution_program(&self, original: &TypedTrees) -> TypedTrees {
         let mut program =
             validation::execution_projection::project_selected_program(original, &self.execution);
         if let Some(frontier) = &self.product_frontier {
@@ -162,14 +154,11 @@ impl EvaluationDomain {
         program
     }
 
-    pub(crate) fn references(
-        &self,
-        program: &typed_trees::TypedTrees,
-    ) -> typed_trees::references::ProgramReferences {
+    pub(crate) fn references(&self, program: &TypedTrees) -> ProgramReferences {
         typed_trees::references::collect_selected_program_references(program, &self.work)
     }
 
-    pub(crate) fn include(&mut self, symbol: symbols::SymbolHandle) {
+    pub(crate) fn include(&mut self, symbol: SymbolHandle) {
         self.work.include(symbol);
         self.execution.include(symbol);
     }
@@ -404,10 +393,7 @@ pub struct EvaluatedPreCheck {
 }
 
 impl EvaluatedPreCheck {
-    pub fn finish(
-        self,
-        typed: &mut typed_trees::TypedTrees,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    pub fn finish(self, typed: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.finish");
         let selected = SelectedBuildTimeOperators {
             operators: &self.selected_operators,
@@ -437,7 +423,7 @@ impl PreCheckEvaluation {
     /// scope and the matching typed source owner permit rebinding it.
     pub fn rejoin_source_authority(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &TypedTrees,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(), String> {
         if let Some(recorded) = &self.recorded_authority {
@@ -503,9 +489,7 @@ impl PreCheckEvaluation {
                             }
                         }
                         let parent = match origin {
-                            checked_trees::CheckedValueOrigin::NestedExpression { parent } => {
-                                Some(parent)
-                            }
+                            CheckedValueOrigin::NestedExpression { parent } => Some(parent),
                             _ => None,
                         };
                         for occurrence in std::iter::once(expression)
@@ -583,8 +567,8 @@ impl PreCheckEvaluation {
     /// The original continuation remains available for the completed Product.
     pub fn project(
         &self,
-        original: &typed_trees::TypedTrees,
-        projection: &typed_trees::TypedTrees,
+        original: &TypedTrees,
+        projection: &TypedTrees,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         let selected = DeclarationSelection::from_program(projection);
         self.select(
@@ -605,8 +589,8 @@ impl PreCheckEvaluation {
     /// the selected prefix while retaining exact work and execution owners.
     pub fn activate_sources(
         &self,
-        original: &typed_trees::TypedTrees,
-        activation: &typed_trees::TypedTrees,
+        original: &TypedTrees,
+        activation: &TypedTrees,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         let mut pending = self.project(original, activation)?;
         let selected = DeclarationSelection::from_program(activation);
@@ -623,8 +607,8 @@ impl PreCheckEvaluation {
     /// its work; synthesized declarations belong to that completed roster too.
     pub fn exclude_completed_work(
         &self,
-        original: &typed_trees::TypedTrees,
-        completed_projection: &typed_trees::TypedTrees,
+        original: &TypedTrees,
+        completed_projection: &TypedTrees,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         self.select(
             original,
@@ -644,7 +628,7 @@ impl PreCheckEvaluation {
 
     fn select(
         &self,
-        original: &typed_trees::TypedTrees,
+        original: &TypedTrees,
         domain: EvaluationDomain,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         let mut access_view_records = Vec::new();
@@ -679,9 +663,9 @@ impl PreCheckEvaluation {
     /// selected-provider work belongs to its own completion/admission.
     pub fn evaluate_or_defer_recorded(
         mut self,
-        typed: &mut typed_trees::TypedTrees,
+        typed: &mut TypedTrees,
     ) -> Result<crate::RecordedPreCheck, Vec<diagnostics::Diagnostic>> {
-        let accounting = crate::evaluation_accounting::EvaluationAccounting::recording();
+        let accounting = EvaluationAccounting::recording();
         self.domain.accounting = accounting.clone();
         let mut pending = self.evaluate_or_defer(typed)?;
         if let Some(pending) = &mut pending {
@@ -699,7 +683,7 @@ impl PreCheckEvaluation {
     /// selected. Independent ordinary build inputs retain their early route.
     pub fn evaluate_or_defer(
         mut self,
-        typed: &mut typed_trees::TypedTrees,
+        typed: &mut TypedTrees,
     ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
         if self.recorded_authority.is_some() {
             return Err(vec![diagnostics::Diagnostic::error(
@@ -746,10 +730,7 @@ impl PreCheckEvaluation {
             const_applications::realize_symbolic_applications(typed, &mut self.domain)?;
             // The shared check admits exactly these positions as recipes and
             // the target closure reads their values back by the same roster.
-            crate::const_evaluation::constant_recipes::retain_deferred_constant_recipes(
-                typed,
-                &self.domain,
-            )?;
+            retain_deferred_constant_recipes(typed, &self.domain)?;
             validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;
             return Ok(Some(self));
         }
@@ -763,7 +744,7 @@ impl PreCheckEvaluation {
     pub fn evaluate_extension_or_defer(
         pre_checks: Vec<Self>,
         mut wire_schema_frontier: usize,
-        typed: &mut typed_trees::TypedTrees,
+        typed: &mut TypedTrees,
     ) -> Result<Vec<Self>, Vec<diagnostics::Diagnostic>> {
         let mut pending = Vec::new();
         for mut pre_check in pre_checks {
@@ -786,10 +767,7 @@ impl PreCheckEvaluation {
     /// const positions (range endpoints, concrete domain-fact memberships, and
     /// retained const-generic applications) observe the same rows when the
     /// continuation resumes.
-    pub(crate) fn with_layout_targets(
-        mut self,
-        targets: &[layout_plans::LayoutTargetFacts],
-    ) -> Self {
+    pub(crate) fn with_layout_targets(mut self, targets: &[LayoutTargetFacts]) -> Self {
         self.domain.layout_targets = targets.to_vec();
         self
     }
@@ -804,7 +782,7 @@ impl PreCheckEvaluation {
 
     pub fn evaluate_selected_operators(
         mut self,
-        typed: &mut typed_trees::TypedTrees,
+        typed: &mut TypedTrees,
         selected: SelectedBuildTimeOperators<'_>,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         if self.recorded_authority.is_some() {
@@ -828,10 +806,7 @@ impl PreCheckEvaluation {
     /// Omega may target-filter and type the returned syntax before this call,
     /// but the language-level evaluation order and selection authority remain
     /// owned by this continuation.
-    pub fn evaluate(
-        self,
-        typed: &mut typed_trees::TypedTrees,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    pub fn evaluate(self, typed: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
         if self.recorded_authority.is_some() {
             return Err(vec![diagnostics::Diagnostic::error(
                 "restored pre-check has not rejoined current declaration authority",
@@ -842,7 +817,7 @@ impl PreCheckEvaluation {
 
     fn evaluate_work(
         mut self,
-        typed: &mut typed_trees::TypedTrees,
+        typed: &mut TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
         const_initializers::retain_deferred_entries(typed, &self.domain);
@@ -931,10 +906,7 @@ impl PreCheckEvaluation {
 }
 
 impl compiler_storage::Record for PreCheckEvaluation {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
+    fn write(&self, output: &mut compiler_storage::RecordWriter) -> Result<(), RecordError> {
         output.record(|output| {
             self.domain.write(output)?;
             self.wire_schema_frontier.write(output)?;
@@ -955,9 +927,7 @@ impl compiler_storage::Record for PreCheckEvaluation {
             self.provider_bodies.write(output)
         })
     }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
+    fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
         input.record(|input| {
             Ok(Self {
                 domain: compiler_storage::Record::read(input)?,

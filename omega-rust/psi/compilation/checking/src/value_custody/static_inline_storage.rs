@@ -7,6 +7,7 @@
 
 use crate::frozen_program::expression_table;
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
@@ -123,11 +124,7 @@ impl Search<'_> {
             .any(|view| view.data_symbol == data)
     }
 
-    fn fields(
-        &mut self,
-        data: &typed_trees::data::DataDefinition,
-        bindings: &[Binding],
-    ) -> Option<SymbolHandle> {
+    fn fields(&mut self, data: &DataDefinition, bindings: &[Binding]) -> Option<SymbolHandle> {
         let fields = self
             .program
             .data_member_fields(self.program.data_members(data))

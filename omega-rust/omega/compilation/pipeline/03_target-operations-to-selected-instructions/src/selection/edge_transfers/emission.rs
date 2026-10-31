@@ -9,6 +9,7 @@
 //! register while the other two took the class the emitted row declares, which
 //! is the rule the register-home assignment checks. One context and one emitter
 //! hold the shared policy; a transport supplies only the instruction it needs.
+use super::super::constraints::store_registers;
 use super::VirtualRegisterId;
 use crate::SelectedInstructionError;
 use crate::selection::edge_transfers::invalid;
@@ -129,12 +130,7 @@ impl Emission<'_> {
             .store64
             .ok_or_else(|| invalid(function))?;
         let row = super::super::constraints::row(self.catalog, key)?;
-        let operands = super::super::constraints::store_registers(
-            instruction_id,
-            &[value],
-            row,
-            &mut *self.registers,
-        )?;
+        let operands = store_registers(instruction_id, &[value], row, &mut *self.registers)?;
         self.instructions
             .push(super::super::constraints::instruction(
                 instruction_id,

@@ -3,6 +3,8 @@
 //! spelling or an equal carrier on another machine cannot authorize a result.
 
 use crate::frozen_program::expression_table;
+use symbols::SymbolKind;
+use typed_trees::data::TypeParameter;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
@@ -143,9 +145,7 @@ pub fn reserved_result_place(
         // a generic base. The type owner retains concrete specializations and
         // lifetime-only applications without manufacturing a field telescope.
         let data = program.closed_data_definition(receiver)?;
-        if !data.symbol.is_valid()
-            || program.symbols.get(data.symbol).kind != symbols::SymbolKind::Data
-        {
+        if !data.symbol.is_valid() || program.symbols.get(data.symbol).kind != SymbolKind::Data {
             return None;
         }
         // Reuse the applied member join: prepared fields may translate the
@@ -155,7 +155,7 @@ pub fn reserved_result_place(
         let field =
             crate::value_custody::places::applied_data_member_field(program, receiver, member)?;
         let declaration = program.symbols.get(field.symbol);
-        if declaration.kind != symbols::SymbolKind::Field
+        if declaration.kind != SymbolKind::Field
             || program.symbols.name(field.symbol) != field.name.as_str()
             || !program
                 .type_reference_table
@@ -172,7 +172,7 @@ pub fn reserved_result_place(
             });
             let case = cases.next()?;
             if cases.next().is_some()
-                || program.symbols.get(case.symbol).kind != symbols::SymbolKind::Variant
+                || program.symbols.get(case.symbol).kind != SymbolKind::Variant
                 || program.symbols.get(case.symbol).parent != data.symbol
                 || !program
                     .data_payload_fields(case)
@@ -489,10 +489,7 @@ pub fn callable_contract_scopes(
 /// arenas also retain private applications, so arena membership is not a scope.
 pub(crate) fn machine_parameter_contract_signatures(
     program: &dyn crate::CheckingInput,
-) -> Vec<(
-    &typed_trees::data::TypeParameter,
-    &typed_trees::signature::StateSignature,
-)> {
+) -> Vec<(&TypeParameter, &typed_trees::signature::StateSignature)> {
     let mut parameters = program
         .machines()
         .iter()
@@ -535,10 +532,7 @@ pub(crate) fn machine_parameter_contract_signatures(
     {
         parameters.extend(program.state_signature_type_parameters(signature));
     }
-    let mut signatures = Vec::<(
-        &typed_trees::data::TypeParameter,
-        &typed_trees::signature::StateSignature,
-    )>::new();
+    let mut signatures = Vec::<(&TypeParameter, &typed_trees::signature::StateSignature)>::new();
     while let Some(parameter) = parameters.pop() {
         let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
             continue;

@@ -1,5 +1,6 @@
 use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
+use facts::FactPlace;
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -211,11 +212,11 @@ pub(crate) fn fact_plan_arena_links_are_well_formed(facts: &facts::FactPlan) -> 
         .iter()
         .all(|(_, place)| facts.place_segments.span(place.segments).is_some())
         && facts.facts.iter().all(|(_, fact)| match fact.place {
-            facts::FactPlace::Place(place) => facts.places.is_valid(place),
-            facts::FactPlace::Unknown
-            | facts::FactPlace::Symbol(_)
-            | facts::FactPlace::Expression(_)
-            | facts::FactPlace::TypeReference(_) => true,
+            FactPlace::Place(place) => facts.places.is_valid(place),
+            FactPlace::Unknown
+            | FactPlace::Symbol(_)
+            | FactPlace::Expression(_)
+            | FactPlace::TypeReference(_) => true,
         })
         && facts
             .refs
@@ -257,18 +258,16 @@ pub(crate) fn rechecked_semantic_fact_value(
 
 pub(crate) fn rechecked_semantic_fact_place(
     facts: &facts::FactPlan,
-    place: facts::FactPlace,
+    place: FactPlace,
 ) -> Option<RecheckedSemanticFactPlace> {
     Some(match place {
-        facts::FactPlace::Unknown => RecheckedSemanticFactPlace::Unknown,
-        facts::FactPlace::Place(place) => {
+        FactPlace::Unknown => RecheckedSemanticFactPlace::Unknown,
+        FactPlace::Place(place) => {
             RecheckedSemanticFactPlace::Place(rechecked_fact_place(facts, place)?)
         }
-        facts::FactPlace::Symbol(symbol) => RecheckedSemanticFactPlace::Symbol(symbol),
-        facts::FactPlace::Expression(expression) => {
-            RecheckedSemanticFactPlace::Expression(expression)
-        }
-        facts::FactPlace::TypeReference(type_reference) => {
+        FactPlace::Symbol(symbol) => RecheckedSemanticFactPlace::Symbol(symbol),
+        FactPlace::Expression(expression) => RecheckedSemanticFactPlace::Expression(expression),
+        FactPlace::TypeReference(type_reference) => {
             RecheckedSemanticFactPlace::TypeReference(type_reference)
         }
     })

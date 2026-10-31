@@ -1,5 +1,7 @@
 //! reference bounds slice of origins.
-use validation::CanonicalPlace;
+use language_semantics::ReferenceAccess;
+use symbols::SymbolHandle;
+use validation::{CallFrameResolver, CanonicalPlace, project_type_reference_from_segments};
 
 use super::{callee_values::*, leaf_arrivals::*};
 
@@ -37,9 +39,7 @@ pub(super) fn frozen_input_reference(
         .type_reference_table
         .unconstrained_type_reference(reference);
     match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Reference { access, .. } => {
-            *access == language_semantics::ReferenceAccess::Shared
-        }
+        TypeReferenceNode::Reference { access, .. } => *access == ReferenceAccess::Shared,
         _ => true,
     }
 }
@@ -63,7 +63,7 @@ pub(super) const REFERENCE_BOUNDARY_HOPS: usize = 16;
 /// the next frontier's rebase — or the leaf scan's own relocation — resolves.
 pub(super) fn reference_boundary_before_statement<Resolve>(
     program: &dyn ::validation::CheckingInput,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     bound: usize,
@@ -116,11 +116,11 @@ where
 #[allow(clippy::too_many_arguments)]
 pub(super) fn statement_writes_miss_slot(
     program: &dyn ::validation::CheckingInput,
-    machine_symbol: symbols::SymbolHandle,
-    state_symbol: symbols::SymbolHandle,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
     index: usize,
     statement: &StatementNode,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     slot: &CanonicalPlace,
 ) -> Option<bool> {
     let writes = flow::statement_storage_writes(
@@ -140,7 +140,7 @@ pub(super) fn statement_writes_miss_slot(
 
 pub(super) fn exclusive_reference_root_place<Resolve>(
     program: &dyn ::validation::CheckingInput,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     bound: usize,
@@ -168,7 +168,7 @@ where
         };
         let shared = match reference_type(program, local.type_reference) {
             None => return Some(demanded),
-            Some(language_semantics::ReferenceAccess::Shared) => {
+            Some(ReferenceAccess::Shared) => {
                 // A shared binding is the ordinary reference query's subject:
                 // ride it while it names the referent. When it declines — a
                 // leaf operand read through an indexed carrier is a selector
@@ -294,7 +294,7 @@ where
 /// operands.
 pub(super) fn reference_bound_operand_place<Resolve>(
     program: &dyn ::validation::CheckingInput,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,
@@ -325,7 +325,7 @@ where
 /// the projection instead of a suffix appended afterward.
 pub(super) fn reference_bound_operand_place_segments<Resolve>(
     program: &dyn ::validation::CheckingInput,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,
@@ -371,13 +371,10 @@ where
                             .map(|parameter| parameter.type_reference)
                     })
             })?;
-            let reached = validation::project_type_reference_from_segments(
-                program,
-                root_type,
-                &candidate.segments,
-            )?;
+            let reached =
+                project_type_reference_from_segments(program, root_type, &candidate.segments)?;
             match reference_type(program, reached) {
-                Some(language_semantics::ReferenceAccess::Shared) => shared_reference_leaf_origin(
+                Some(ReferenceAccess::Shared) => shared_reference_leaf_origin(
                     program, frames, machine, state, index, &candidate, resolve,
                 ),
                 Some(_) => flow::rebase_exact_local_place(

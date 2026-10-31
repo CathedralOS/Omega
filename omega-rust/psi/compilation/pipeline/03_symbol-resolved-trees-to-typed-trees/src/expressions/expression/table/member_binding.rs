@@ -6,8 +6,8 @@
 //! Substituted constant values are ordinary constructors and use that identity
 //! before checked scalar replay.
 
-use super::lowerer::ExpressionTableLowerer;
-use crate::expressions::call_results::peel;
+use super::lowerer::{ExpressionTableLowerer, resolved_data_definition_for_type};
+use crate::expressions::call_results::{declared_call_return, declared_type_method_target, peel};
 use crate::lowerer::{exact_field_symbol, exact_top_level_data_symbol};
 use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
@@ -25,11 +25,7 @@ pub(crate) fn declared_receiver_method_target(
     target: &resolved::name::DiagnosticName,
 ) -> SymbolHandle {
     declared_type(program, expressions, receiver, 0)
-        .map(|reference| {
-            crate::expressions::call_results::declared_type_method_target(
-                program, reference, target,
-            )
-        })
+        .map(|reference| declared_type_method_target(program, reference, target))
         .unwrap_or_default()
 }
 
@@ -96,9 +92,7 @@ fn declared_type<'program>(
         ExpressionNode::Name(path) => {
             inferred_capture_type(program, expressions, path.symbol, depth)
         }
-        ExpressionNode::Call(call) => {
-            crate::expressions::call_results::declared_call_return(program, call.target_symbol)
-        }
+        ExpressionNode::Call(call) => declared_call_return(program, call.target_symbol),
         ExpressionNode::ArrayLiteral(_) => {
             // Substitution copied the initializer, not its declaration's name.
             // The retained selection still supplies the complete element type,
@@ -161,8 +155,7 @@ fn declared_field<'program>(
     receiver: &TypeReference,
     member: &TableMemberExpression,
 ) -> Option<&'program DataField> {
-    let definition =
-        super::lowerer::resolved_data_definition_for_type(program, peel(program, receiver))?;
+    let definition = resolved_data_definition_for_type(program, peel(program, receiver))?;
     declared_data_field(program, definition.symbol, member)
 }
 

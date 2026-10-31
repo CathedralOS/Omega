@@ -1,3 +1,4 @@
+use crate::flow::operand_contexts::case_overwrite;
 use validation::CanonicalPlace;
 
 use crate::flow::canonical_place_joined_segments_may_overlap;
@@ -61,11 +62,7 @@ pub(in crate::flow) fn matching_mutation_for_fact_place<'a, 'b>(
                 root: fact_root,
                 segments: fact_segments.to_vec(),
             });
-            if !crate::flow::operand_contexts::case_overwrite(
-                program,
-                fact_canonical_place,
-                &mutation.segments,
-            ) {
+            if !case_overwrite(program, fact_canonical_place, &mutation.segments) {
                 continue;
             }
         }

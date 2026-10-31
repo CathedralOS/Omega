@@ -1,5 +1,6 @@
 use crate::contracts::facts::parse_proof_facts_until;
 use crate::input::token_cursor::Input;
+use crate::parameters::contracts::parse_machine_parameter_contracts;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind};
@@ -73,11 +74,8 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 .take_contextual("requires")?
                 .at_keyword(KeywordKind::Machine)
         {
-            let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
-                syntax_trees,
-                type_parameters,
-                input,
-            )?;
+            let ((), rest) =
+                parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
             input = rest;
             continue;
         }

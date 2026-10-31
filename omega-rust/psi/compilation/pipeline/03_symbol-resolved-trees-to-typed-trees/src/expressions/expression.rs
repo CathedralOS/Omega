@@ -28,6 +28,7 @@
 use crate::lowerer::Lowerer;
 use crate::tables::resolved_expressions;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
@@ -99,9 +100,7 @@ pub(crate) fn lower_expression_handle_from_table_in_fact_position(
 pub(crate) fn lower_static_machine_argument(
     program: Option<&resolved::SymbolResolvedTrees>,
     target: &mut typed::TypedTrees,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<SelectionExposure>,
     argument: &resolved::expression::StaticMachineArgument,
 ) -> Result<typed::expression::StaticMachineArgument, Diagnostic> {
     let type_reference = if argument.type_reference.is_valid() {

@@ -5,6 +5,7 @@
 //! sealed operators owe their admitted catalog contract, and routed rows still
 //! require the independent invocation/custody admission in content checking.
 
+use crate::semantic::places::append_place;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use facts::{
@@ -51,11 +52,7 @@ pub(super) fn append_memberships<'rows>(
 ) {
     let mut refs = HandleSpan::empty();
     for (path, domain_symbol, semantic_domain) in rows {
-        let place = crate::semantic::places::append_place(
-            semantic,
-            facts::PlaceRoot::Expression(expression),
-            path,
-        );
+        let place = append_place(semantic, facts::PlaceRoot::Expression(expression), path);
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(place),
             point,

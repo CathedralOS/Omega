@@ -13,6 +13,8 @@ use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::discovery::ClosedApplication;
 
+use super::anonymous::evaluate_anonymous_integer_argument;
+use super::module_constant_selection_gate;
 use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
@@ -22,6 +24,7 @@ use crate::preparation::generic_data::monomorphizable_argument_slugs;
 use crate::preparation::generic_data::selected_generic_data;
 use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_syntax_integer_range;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::LandedIntegerType;
 
 /// If `type_reference` is a `Base<Args..>` spelling of a fully-monomorphizable
@@ -148,12 +151,9 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                             )).with_source_span(name.source_span())
                         })?;
                     let replacement = match value.decode_encoding() {
-                        Some(
-                            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                                value,
-                                ..
-                            },
-                        ) => value.to_string(),
+                        Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                            value.to_string()
+                        }
                         _ => value.atom(),
                     };
                     syntax
@@ -177,12 +177,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     );
                     continue;
                 }
-                super::module_constant_selection_gate(
-                    syntax,
-                    &name,
-                    const_values,
-                    const_definitions,
-                )?;
+                module_constant_selection_gate(syntax, &name, const_values, const_definitions)?;
                 if let Some(value) = const_values.get(name.as_str(syntax)) {
                     syntax.tables.type_references.replace_type_reference(
                         *argument,
@@ -411,9 +406,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
     integer_type: Option<LandedIntegerType>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<EvaluatedConst, String> {
-    if let Some(value) =
-        super::anonymous::evaluate_anonymous_integer_argument(syntax, expression, warnings)?
-    {
+    if let Some(value) = evaluate_anonymous_integer_argument(syntax, expression, warnings)? {
         return Ok(EvaluatedConst::Concrete(value));
     }
     match syntax.expressions.expression(expression) {

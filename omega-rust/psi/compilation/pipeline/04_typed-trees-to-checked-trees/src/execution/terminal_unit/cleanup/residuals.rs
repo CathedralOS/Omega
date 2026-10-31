@@ -13,15 +13,13 @@ use super::{
     BTreeMap, CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
 };
+use typed_trees::type_identity::TypeIdentityId;
 
 pub(super) fn reconstruct(
-    types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    types: &BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
-    root_type: typed_trees::type_identity::TypeIdentityId,
-    moved_paths: &[(
-        &[CheckedUnitStructuralPathSegment],
-        typed_trees::type_identity::TypeIdentityId,
-    )],
+    root_type: TypeIdentityId,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
     max_residuals: usize,
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
     let borrowed = types

@@ -4,7 +4,8 @@
 use crate::flow::expressions;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use checked_trees::{
-    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpression,
+    CheckedOperatorFacts, CheckedOperatorResolutionStatus,
+    CheckedScalarExpression as ScalarExpression,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::ExpressionHandle;
@@ -12,7 +13,7 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
 
 /// Whether an authored parameter occupies a position in the dense scalar
-/// namespace that `CheckedScalarExpression::Parameter` indexes: a primitive
+/// namespace that `ScalarExpression::Parameter` indexes: a primitive
 /// carrier that is not an `[erased]` binding occurrence. An erased primitive
 /// parameter owns no position (contracts.md#explicit-erased-bindings), so the
 /// retained parameters after it shift down, matching the stripped signature
@@ -114,9 +115,7 @@ pub(crate) fn local_position(
         .flatten()
 }
 
-pub(crate) fn scalar_expression_type(
-    expression: &CheckedScalarExpression,
-) -> Option<PrimitiveType> {
+pub(crate) fn scalar_expression_type(expression: &ScalarExpression) -> Option<PrimitiveType> {
     expression.primitive_type()
 }
 
@@ -127,7 +126,7 @@ pub(crate) fn scalar_expression_type(
 pub(crate) fn zeroed_scalar_local_initializer(
     program: &dyn ::validation::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
-) -> Option<CheckedScalarExpression> {
+) -> Option<ScalarExpression> {
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
     if local.initial_value.is_valid()
         || !validation::is_plain_scalar_storage(program, local.type_reference)
@@ -137,24 +136,24 @@ pub(crate) fn zeroed_scalar_local_initializer(
     let primitive = program.primitive_type_reference(local.type_reference)?;
     let landed_type = match primitive {
         PrimitiveType::Bool => {
-            return Some(CheckedScalarExpression::Boolean(Box::new(
+            return Some(ScalarExpression::Boolean(Box::new(
                 checked_trees::CheckedBooleanExpression::Constant(false),
             )));
         }
         PrimitiveType::F32 => {
-            return Some(CheckedScalarExpression::IeeeFloatLiteral {
+            return Some(ScalarExpression::IeeeFloatLiteral {
                 value: semantic_vocabulary::IeeeFloatValue::Binary32(0),
             });
         }
         PrimitiveType::F64 => {
-            return Some(CheckedScalarExpression::IeeeFloatLiteral {
+            return Some(ScalarExpression::IeeeFloatLiteral {
                 value: semantic_vocabulary::IeeeFloatValue::Binary64(0),
             });
         }
         // A selector has no zero value: only a named implementation makes one.
         primitive => primitive.landed_landing()?,
     };
-    Some(CheckedScalarExpression::IntegerLiteral {
+    Some(ScalarExpression::IntegerLiteral {
         literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
             .ok()?
             .with_landing(IntegerLanding {

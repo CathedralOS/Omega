@@ -6,6 +6,7 @@
 //! descriptor inventory, constraints and write prefix of its actual route.
 
 use super::{EvaluatedOperand, EvaluatedWritePrefix, Execution};
+use crate::flow::GuardObservation;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowConstraintRef, FlowOperandReferent, FlowSemanticContextRef};
 use typed_trees::expression::{BinaryOperator, TableBinaryExpression};
@@ -209,11 +210,7 @@ impl Execution<'_, '_, '_> {
             self.context,
             self.state.symbol,
             self.statement_index,
-            crate::flow::GuardObservation::evaluated(
-                binary.left,
-                evaluate_when,
-                self.statement_index,
-            ),
+            GuardObservation::evaluated(binary.left, evaluate_when, self.statement_index),
             facts::ProgramPoint::Statement {
                 machine_symbol: self.machine.symbol,
                 state_symbol: self.state.symbol,

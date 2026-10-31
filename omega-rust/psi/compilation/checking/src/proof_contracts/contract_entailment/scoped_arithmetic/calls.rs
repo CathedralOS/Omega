@@ -21,6 +21,7 @@ use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::references::StaticArgumentCall;
 use typed_trees::signature::SignatureContractKind;
 
 mod collections;
@@ -217,7 +218,7 @@ impl<'program> ScopedCalls<'program> {
                     self.program,
                     self.context,
                     owner_symbol(&owner),
-                    typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                    StaticArgumentCall::Expression(expression, call),
                 );
             let interval = if independent {
                 crate::proof_contracts::arithmetic_domains::call_result_interval(
@@ -318,11 +319,9 @@ impl<'program> ScopedCalls<'program> {
             crate::CallSite::TransitionNamed { .. } => return None,
         };
         let selected_call = match site {
-            crate::CallSite::Statement(call) => {
-                typed_trees::references::StaticArgumentCall::Statement(call)
-            }
+            crate::CallSite::Statement(call) => StaticArgumentCall::Statement(call),
             crate::CallSite::Expression { expression, call } => {
-                typed_trees::references::StaticArgumentCall::Expression(expression, call)
+                StaticArgumentCall::Expression(expression, call)
             }
             crate::CallSite::TransitionNamed { .. } => return None,
         };
@@ -404,7 +403,7 @@ impl<'program> ScopedCalls<'program> {
                 self.program,
                 self.context,
                 owner_symbol(&owner),
-                typed_trees::references::StaticArgumentCall::Expression(expression, call),
+                StaticArgumentCall::Expression(expression, call),
             )
         {
             return None;

@@ -3,6 +3,7 @@
 
 use crate::errors::TerminalInterpretError;
 use crate::structural_inputs::TerminalStructuralInputs;
+use terminal_semantics::structural_paths_may_overlap;
 
 pub(crate) fn validate(inputs: TerminalStructuralInputs<'_>) -> Result<(), TerminalInterpretError> {
     for field in inputs.established_erased_fields {
@@ -55,7 +56,7 @@ pub(crate) fn validate(inputs: TerminalStructuralInputs<'_>) -> Result<(), Termi
                     }
                     let mut other_path = other.path.clone();
                     other_path.extend_from_slice(path);
-                    terminal_semantics::structural_paths_may_overlap(&root.path, &other_path)
+                    structural_paths_may_overlap(&root.path, &other_path)
                 })
         };
         if initializers()
@@ -82,10 +83,7 @@ pub(crate) fn validate(inputs: TerminalStructuralInputs<'_>) -> Result<(), Termi
                 .iter()
                 .any(|establishment| {
                     root.opaque_identity == establishment.referent.opaque_identity
-                        && terminal_semantics::structural_paths_may_overlap(
-                            &root.path,
-                            &establishment.referent.path,
-                        )
+                        && structural_paths_may_overlap(&root.path, &establishment.referent.path)
                 })
         {
             return Err(invalid());

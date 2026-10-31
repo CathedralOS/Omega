@@ -1,7 +1,10 @@
 //! One-to-one lowering of statement nodes, transition guards and targets.
 
+use super::assembly::lower;
 use crate::lowering::expression::expression_table;
 use crate::lowering::expression::lower_private_expression_into_table;
+use crate::lowering::expression::lower_static_machine_argument;
+use crate::lowering::name::lower_name;
 use crate::lowering::name::lower_names;
 use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
@@ -23,85 +26,86 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::signature::CrashCause;
 use symbol_resolved_trees::statement::{
-    AssemblyFact, AssemblyFactKind, Assignment, Call, CallStorage, LocalData, LocalDataStorage,
-    NamedTransitionTarget, NamedTransitionTargetStorage, Statement, Transition, TransitionExit,
-    TransitionGuard, TransitionTarget,
+    AssemblyFact, AssemblyFactKind, Assignment, Call, CallStorage, EvidenceForwarding, LocalData,
+    LocalDataStorage, NamedTransitionTarget, NamedTransitionTargetStorage, OutcomeProofSelector,
+    ProofOutputBindingStatement, ProofOutputSelector, RootBinding, Statement, Transition,
+    TransitionExit, TransitionGuard, TransitionTarget,
 };
 use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
+use syntax::identifier::Identifier;
+use syntax::statement::StatementNode;
+use syntax::statement::TransitionGuardNode;
+use syntax::statement::TransitionTargetHandle;
+use syntax::statement::TransitionTargetNode;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_statement_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    statement: &syntax::statement::StatementNode,
+    statement: &StatementNode,
     statement_index: usize,
     has_preceding_transition: bool,
 ) -> Result<Vec<Statement>, Diagnostic> {
     match statement {
-        syntax::statement::StatementNode::Assembly(handle) => {
-            super::assembly::lower(lowerer, syntax_trees, *handle, statement_index)
-                .map(|handle| vec![Statement::Assembly(handle)])
-        }
-        syntax::statement::StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(
-            symbol_resolved_trees::statement::RootBinding {
-                receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
-                slot: lower_names(syntax_trees, &binding.slot).into_boxed_slice(),
-                implementation: lower_names(syntax_trees, &binding.implementation)
-                    .into_boxed_slice(),
-                // An ambiguous bare name is lowered outside the authored-
-                // selection exposure so a name that resolves to a
-                // declaration cannot mint a cross-package selection record.
-                // Routing clears the operand in that case and the lexical
-                // `implementation` path remains the only declaration channel.
-                // Computed descriptions instead retain ordinary authored call
-                // selections; their bodies execute in the build context.
-                implementation_operand: if binding.implementation_operand.is_valid() {
-                    if !matches!(
-                        syntax_expressions(&syntax_trees)
-                            .expression(binding.implementation_operand),
-                        syntax::expression::ExpressionNode::Name(_)
-                    ) {
-                        lower_statement_expression(
-                            lowerer,
-                            syntax_trees,
-                            binding.implementation_operand,
-                        )?
-                    } else {
-                        let exposure = lowerer.current_authored_expression_exposure.take();
-                        let lowered = crate::lowering::expression::lower_expression_into_table(
-                            lowerer,
-                            syntax_trees,
-                            binding.implementation_operand,
-                        );
-                        lowerer.current_authored_expression_exposure = exposure;
-                        lowered?
-                    }
+        StatementNode::Assembly(handle) => lower(lowerer, syntax_trees, *handle, statement_index)
+            .map(|handle| vec![Statement::Assembly(handle)]),
+        StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(RootBinding {
+            receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
+            slot: lower_names(syntax_trees, &binding.slot).into_boxed_slice(),
+            implementation: lower_names(syntax_trees, &binding.implementation).into_boxed_slice(),
+            // An ambiguous bare name is lowered outside the authored-
+            // selection exposure so a name that resolves to a
+            // declaration cannot mint a cross-package selection record.
+            // Routing clears the operand in that case and the lexical
+            // `implementation` path remains the only declaration channel.
+            // Computed descriptions instead retain ordinary authored call
+            // selections; their bodies execute in the build context.
+            implementation_operand: if binding.implementation_operand.is_valid() {
+                if !matches!(
+                    syntax_expressions(&syntax_trees).expression(binding.implementation_operand),
+                    syntax::expression::ExpressionNode::Name(_)
+                ) {
+                    lower_statement_expression(
+                        lowerer,
+                        syntax_trees,
+                        binding.implementation_operand,
+                    )?
                 } else {
-                    symbol_resolved_trees::expression::ExpressionHandle::invalid()
-                },
-                source_span: binding.source_span,
+                    let exposure = lowerer.current_authored_expression_exposure.take();
+                    let lowered = crate::lowering::expression::lower_expression_into_table(
+                        lowerer,
+                        syntax_trees,
+                        binding.implementation_operand,
+                    );
+                    lowerer.current_authored_expression_exposure = exposure;
+                    lowered?
+                }
+            } else {
+                symbol_resolved_trees::expression::ExpressionHandle::invalid()
             },
-        )]),
-        syntax::statement::StatementNode::AssemblyFact(fact) => {
-            Ok(vec![Statement::AssemblyFact(AssemblyFact {
-                kind: match fact.kind {
-                    syntax::statement::AssemblyFactKind::Requires => AssemblyFactKind::Requires,
-                    syntax::statement::AssemblyFactKind::Ensures => AssemblyFactKind::Ensures,
-                },
-                expression: lower_statement_expression(lowerer, syntax_trees, fact.expression)?,
-            })])
-        }
-        syntax::statement::StatementNode::Assignment(assignment) => {
+            source_span: binding.source_span,
+        })]),
+        StatementNode::AssemblyFact(fact) => Ok(vec![Statement::AssemblyFact(AssemblyFact {
+            kind: match fact.kind {
+                syntax::statement::AssemblyFactKind::Requires => AssemblyFactKind::Requires,
+                syntax::statement::AssemblyFactKind::Ensures => AssemblyFactKind::Ensures,
+            },
+            expression: lower_statement_expression(lowerer, syntax_trees, fact.expression)?,
+        })]),
+        StatementNode::Assignment(assignment) => {
             if let Some((target, source)) = evidence_forwarding_names(
                 lowerer,
                 syntax_trees,
                 assignment.target,
                 assignment.value,
             ) {
-                lowerer.symbol_resolved_trees.evidence_forwardings.push(
-                    symbol_resolved_trees::statement::EvidenceForwarding {
+                lowerer
+                    .symbol_resolved_trees
+                    .evidence_forwardings
+                    .push(EvidenceForwarding {
                         machine_root_index: lowerer
                             .current_machine_root_index
                             .unwrap_or(usize::MAX),
@@ -114,11 +118,10 @@ pub(crate) fn lower_statement_node(
                         machine_symbol: SymbolHandle::invalid(),
                         state_symbol: SymbolHandle::invalid(),
                         statement_index,
-                        target: crate::lowering::name::lower_name(syntax_trees, target),
-                        source: crate::lowering::name::lower_name(syntax_trees, source),
+                        target: lower_name(syntax_trees, target),
+                        source: lower_name(syntax_trees, source),
                         source_conformance: None,
-                    },
-                );
+                    });
                 return Ok(Vec::new());
             }
             let target = lower_statement_expression(lowerer, syntax_trees, assignment.target)?;
@@ -145,7 +148,7 @@ pub(crate) fn lower_statement_node(
             hoisted.push(Statement::Assignment(Assignment { target, value }));
             Ok(hoisted)
         }
-        syntax::statement::StatementNode::Call(call) => {
+        StatementNode::Call(call) => {
             let receiver = lower_statement_path_members(lowerer, syntax_trees, call.receiver);
             if call.target_is_static && !receiver.is_empty() {
                 let mut path = lowerer
@@ -155,10 +158,7 @@ pub(crate) fn lower_statement_node(
                     .statement_path_members
                     .span_or_empty(receiver)
                     .to_vec();
-                path.push(crate::lowering::name::lower_name(
-                    syntax_trees,
-                    &call.target,
-                ));
+                path.push(lower_name(syntax_trees, &call.target));
                 lowerer
                     .pending_static_module_statement_calls
                     .push((call.target.source_span(), path));
@@ -183,7 +183,7 @@ pub(crate) fn lower_statement_node(
             let lowered_call = Call {
                 receiver_symbol: SymbolHandle::invalid(),
                 target_symbol: SymbolHandle::invalid(),
-                target: crate::lowering::name::lower_name(syntax_trees, &call.target),
+                target: lower_name(syntax_trees, &call.target),
                 storage: CallStorage {
                     receiver_root_symbol: SymbolHandle::invalid(),
                     receiver,
@@ -191,11 +191,7 @@ pub(crate) fn lower_statement_node(
                         .machine_arguments
                         .iter()
                         .map(|argument| {
-                            crate::lowering::expression::lower_static_machine_argument(
-                                lowerer,
-                                syntax_trees,
-                                argument,
-                            )
+                            lower_static_machine_argument(lowerer, syntax_trees, argument)
                         })
                         .collect::<Result<Vec<_>, _>>()?
                         .into_boxed_slice(),
@@ -235,7 +231,7 @@ pub(crate) fn lower_statement_node(
             }
             Ok(hoisted)
         }
-        syntax::statement::StatementNode::ProofOutputBindingStatement(binding) => {
+        StatementNode::ProofOutputBindingStatement(binding) => {
             let call = lower_statement_expression(lowerer, syntax_trees, binding.call)?;
             let runtime_value = binding.bindings.iter().find(|binding| {
                 binding.output_field.as_str(syntax_trees) == "value"
@@ -252,12 +248,9 @@ pub(crate) fn lower_statement_node(
                             .current_evidence_term_names
                             .push(binding.binding.as_str(syntax_trees).to_owned());
                     }
-                    symbol_resolved_trees::statement::ProofOutputSelector {
-                        output_field: crate::lowering::name::lower_name(
-                            syntax_trees,
-                            &binding.output_field,
-                        ),
-                        binding: crate::lowering::name::lower_name(syntax_trees, &binding.binding),
+                    ProofOutputSelector {
+                        output_field: lower_name(syntax_trees, &binding.output_field),
+                        binding: lower_name(syntax_trees, &binding.binding),
                     }
                 })
                 .collect::<Vec<_>>()
@@ -270,7 +263,7 @@ pub(crate) fn lower_statement_node(
                 // local enters the typed runtime statement stream.
                 lowered.push(Statement::LocalData(LocalData {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::lowering::name::lower_name(syntax_trees, &runtime_value.binding),
+                    name: lower_name(syntax_trees, &runtime_value.binding),
                     storage: LocalDataStorage {
                         role: language_core::LocalBindingRole::Value,
                         type_reference: TypeReference::Unit,
@@ -283,7 +276,7 @@ pub(crate) fn lower_statement_node(
                 }));
             }
             lowered.push(Statement::ProofOutputBindingStatement(
-                symbol_resolved_trees::statement::ProofOutputBindingStatement {
+                ProofOutputBindingStatement {
                     machine_symbol: SymbolHandle::invalid(),
                     state_symbol: SymbolHandle::invalid(),
                     statement_index,
@@ -293,7 +286,7 @@ pub(crate) fn lower_statement_node(
             ));
             Ok(lowered)
         }
-        syntax::statement::StatementNode::Expression(expression) => {
+        StatementNode::Expression(expression) => {
             // A bare trailing expression is a VALUE machine's implicit return
             // (`state go(..) -> i64 { ..; self.buf[j] as i64 }`). Its
             // operand-position runtime-indexed reads need the SAME hoist the
@@ -314,7 +307,7 @@ pub(crate) fn lower_statement_node(
             hoisted.push(Statement::Expression(expression));
             Ok(hoisted)
         }
-        syntax::statement::StatementNode::LocalData(local_data) => {
+        StatementNode::LocalData(local_data) => {
             let mut declaration =
                 crate::lowering::state::lower_local_declaration(lowerer, syntax_trees, local_data)?;
             let initial_value = if local_data.initial_value.is_valid() {
@@ -353,7 +346,7 @@ pub(crate) fn lower_statement_node(
             hoisted.push(Statement::LocalData(declaration));
             Ok(hoisted)
         }
-        syntax::statement::StatementNode::Transition(transition) => {
+        StatementNode::Transition(transition) => {
             let mut hoisted = Vec::new();
             // Establish a match's shared subject before lowering its payload
             // receivers. Target expressions remain guarded; only the subject
@@ -371,10 +364,7 @@ pub(crate) fn lower_statement_node(
             // An Always fallback is selected only after earlier arms fail.
             // Its target work cannot join the pre-dispatch hoist prefix.
             let unconditional = !has_preceding_transition
-                && matches!(
-                    transition.guard,
-                    syntax::statement::TransitionGuardNode::Always
-                );
+                && matches!(transition.guard, TransitionGuardNode::Always);
             let target = lower_transition_target_node(
                 lowerer,
                 syntax_trees,
@@ -468,30 +458,18 @@ pub(crate) fn lower_statement_node(
                     .statements
                     .outcome_proof_selectors(transition.proof_selectors)
                     .iter()
-                    .map(
-                        |selector| symbol_resolved_trees::statement::OutcomeProofSelector {
-                            output_field: crate::lowering::name::lower_name(
-                                syntax_trees,
-                                &selector.output_field,
-                            ),
-                            binding: crate::lowering::name::lower_name(
-                                syntax_trees,
-                                &selector.binding,
-                            ),
-                        },
-                    )
+                    .map(|selector| OutcomeProofSelector {
+                        output_field: lower_name(syntax_trees, &selector.output_field),
+                        binding: lower_name(syntax_trees, &selector.binding),
+                    })
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
                 exit: match transition.exit {
                     syntax::statement::TransitionExit::Ordinary => TransitionExit::Ordinary,
                     syntax::statement::TransitionExit::Crash(cause) => {
                         TransitionExit::Crash(match cause {
-                            syntax::item::CrashCause::Trap => {
-                                symbol_resolved_trees::signature::CrashCause::Trap
-                            }
-                            syntax::item::CrashCause::Abort => {
-                                symbol_resolved_trees::signature::CrashCause::Abort
-                            }
+                            syntax::item::CrashCause::Trap => CrashCause::Trap,
+                            syntax::item::CrashCause::Abort => CrashCause::Abort,
                         })
                     }
                 },
@@ -567,10 +545,7 @@ fn evidence_forwarding_names<'syntax>(
     syntax_trees: &'syntax SyntaxTrees,
     target: syntax::expression::ExpressionHandle,
     source: syntax::expression::ExpressionHandle,
-) -> Option<(
-    &'syntax syntax::identifier::Identifier,
-    &'syntax syntax::identifier::Identifier,
-)> {
+) -> Option<(&'syntax Identifier, &'syntax Identifier)> {
     let target = bare_syntax_name(syntax_trees, target)?;
     let source = bare_syntax_name(syntax_trees, source)?;
     (lowerer
@@ -583,7 +558,7 @@ fn evidence_forwarding_names<'syntax>(
 fn bare_syntax_name(
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,
-) -> Option<&syntax::identifier::Identifier> {
+) -> Option<&Identifier> {
     let syntax::expression::ExpressionNode::Name(path) =
         syntax_trees.expressions.expression(expression)
     else {
@@ -640,11 +615,11 @@ fn lower_statement_expressions(
 fn lower_transition_guard_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    guard: syntax::statement::TransitionGuardNode,
+    guard: TransitionGuardNode,
 ) -> Result<TransitionGuard, Diagnostic> {
     match guard {
-        syntax::statement::TransitionGuardNode::Always => Ok(TransitionGuard::Always),
-        syntax::statement::TransitionGuardNode::When(expression) => Ok(TransitionGuard::When(
+        TransitionGuardNode::Always => Ok(TransitionGuard::Always),
+        TransitionGuardNode::When(expression) => Ok(TransitionGuard::When(
             lower_statement_expression(lowerer, syntax_trees, expression)?,
         )),
     }
@@ -653,12 +628,12 @@ fn lower_transition_guard_node(
 fn lower_transition_target_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    target: syntax::statement::TransitionTargetHandle,
+    target: TransitionTargetHandle,
     hoisted: &mut Vec<Statement>,
     unconditional: bool,
 ) -> Result<TransitionTarget, Diagnostic> {
     match syntax_trees.statements.transition_target(target) {
-        syntax::statement::TransitionTargetNode::Named {
+        TransitionTargetNode::Named {
             path,
             arguments,
             evidence_arguments,
@@ -703,7 +678,7 @@ fn lower_transition_target_node(
                 },
             }))
         }
-        syntax::statement::TransitionTargetNode::Value(expression) => {
+        TransitionTargetNode::Value(expression) => {
             let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
             // Same hoist for an unconditional VALUE result (`-> (arr[i] + 5)`).
             let expression = if unconditional {
@@ -718,14 +693,14 @@ fn lower_transition_target_node(
             };
             Ok(TransitionTarget::Value(expression))
         }
-        syntax::statement::TransitionTargetNode::Terminal => Ok(TransitionTarget::Terminal),
+        TransitionTargetNode::Terminal => Ok(TransitionTarget::Terminal),
     }
 }
 
 fn lower_statement_path_members(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    members: HandleSpan<syntax::identifier::Identifier>,
+    members: HandleSpan<Identifier>,
 ) -> HandleSpan<DiagnosticName> {
     let mut span = HandleSpan::empty();
 
@@ -735,10 +710,7 @@ fn lower_statement_path_members(
             .tables
             .declarations
             .statement_path_members
-            .append_to_span(
-                &mut span,
-                crate::lowering::name::lower_name(syntax_trees, member),
-            );
+            .append_to_span(&mut span, lower_name(syntax_trees, member));
     }
 
     span

@@ -7,13 +7,19 @@
 //! drives it; nothing here decides phase order. Seeding fills the same
 //! sidecars from a retained base so an extension resolves against it.
 
+use crate::preparation::declaration_selection::ConstantSelection;
+use crate::selection::service_reaches::PendingAuthoredServiceReach;
 use crate::tables::resolved_declarations;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use source::{SourceMap, SourceSpan};
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::types::OperandLifetimeOwnerHandle;
+use symbol_resolved_trees::types::TypeReference;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PendingAuthoredProofMembership {
@@ -73,7 +79,7 @@ pub(crate) struct PendingConstArgumentSelection {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PendingConstArgumentSlot {
     pub(crate) selection: usize,
-    pub(crate) arguments: arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    pub(crate) arguments: arena::HandleSpan<TypeReference>,
     pub(crate) ordinal: usize,
 }
 
@@ -95,10 +101,8 @@ pub(crate) struct Lowerer {
     pub(crate) defer_machine_bodies: bool,
     pub(crate) pending_machine_bodies: Vec<crate::lowering::machine::PendingMachineBody>,
     pub(crate) pending_type_inputs: Vec<super::type_inputs::LoweredTypeInputs>,
-    pub(crate) supplied_operand_owners: Vec<(
-        syntax_trees::item::ItemHandle,
-        symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
-    )>,
+    pub(crate) supplied_operand_owners:
+        Vec<(syntax_trees::item::ItemHandle, OperandLifetimeOwnerHandle)>,
     pub(crate) conformance_inputs: Vec<(syntax_trees::item::ItemHandle, usize)>,
     pub(crate) encountered_pending_type_arguments: Vec<syntax_trees::types::TypeReferenceHandle>,
     pub(crate) equation_sources: Option<crate::preparation::machine_equations::SourceLinks>,
@@ -106,25 +110,18 @@ pub(crate) struct Lowerer {
     /// Constant values may be normalized before structural equations have
     /// their canonical range inputs. Only the complete route clears this.
     pub(crate) structural_type_equations_pending: bool,
-    pub(crate) constant_selection:
-        Option<crate::preparation::declaration_selection::ConstantSelection<'static>>,
+    pub(crate) constant_selection: Option<ConstantSelection<'static>>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
-    pub(crate) pending_static_module_calls: Vec<(
-        symbol_resolved_trees::expression::ExpressionHandle,
-        Vec<symbol_resolved_trees::name::DiagnosticName>,
-    )>,
-    pub(crate) pending_static_module_statement_calls: Vec<(
-        source::SourceSpan,
-        Vec<symbol_resolved_trees::name::DiagnosticName>,
-    )>,
+    pub(crate) pending_static_module_calls: Vec<(ExpressionHandle, Vec<DiagnosticName>)>,
+    pub(crate) pending_static_module_statement_calls:
+        Vec<(source::SourceSpan, Vec<DiagnosticName>)>,
     pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
     /// Origin rows before this frontier already own exact declaration symbols.
     /// Body completion must bind its suffix without reinterpreting that prefix.
     pub(crate) bound_generic_application_origins: usize,
     /// Authored machine `reaches` clauses retained until symbol assignment
     /// binds every member occurrence to its exact boundary-trait identity.
-    pub(crate) pending_machine_service_reaches:
-        Vec<crate::selection::service_reaches::PendingAuthoredServiceReach>,
+    pub(crate) pending_machine_service_reaches: Vec<PendingAuthoredServiceReach>,
     pub(crate) pending_signature_service_reaches: Vec<PendingSignatureServiceReach>,
     /// Authored expressions whose exact declaration selections are collected
     /// after symbol assignment. Expressions absent from this list are either
@@ -208,10 +205,9 @@ pub(crate) struct Lowerer {
     /// The CURRENT state's parameters (name, resolved type,
     /// mutability). The scalar-computation classification of transition
     /// values reads them. Overwritten at each state.
-    pub(crate) current_state_parameters:
-        Vec<(String, symbol_resolved_trees::types::TypeReference, bool)>,
+    pub(crate) current_state_parameters: Vec<(String, TypeReference, bool)>,
     /// The CURRENT state's declared return type. Overwritten at each state.
-    pub(crate) current_state_return_type: Option<symbol_resolved_trees::types::TypeReference>,
+    pub(crate) current_state_return_type: Option<TypeReference>,
     /// Present when this lowerer extends a retained base.
     pub(crate) seed: Option<BaseSeed>,
 }
@@ -354,7 +350,7 @@ impl Lowerer {
         }
         let retained_reach =
             |owner: symbols::SymbolHandle, row: language_semantics::ServiceReachRowId| {
-                crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
+                PendingAuthoredServiceReach::Resolved {
                     row,
                     authored: authored_by_owner.get(&owner).copied().cloned(),
                 }
@@ -380,9 +376,7 @@ impl Lowerer {
             }
         }
         for (handle, parameter) in base.tables.declarations.data_type_parameters.iter() {
-            let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
-                &parameter.kind
-            else {
+            let TypeParameterKind::Machine { contract } = &parameter.kind else {
                 continue;
             };
             let Some(signature) = contract.structural() else {
@@ -461,10 +455,7 @@ impl Lowerer {
     /// The constant selector lowering ran under, handed back before finishing.
     pub(crate) fn take_constant_selection(
         &mut self,
-    ) -> Result<
-        crate::preparation::declaration_selection::ConstantSelection<'static>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<ConstantSelection<'static>, Vec<Diagnostic>> {
         self.constant_selection.take().ok_or_else(|| {
             vec![Diagnostic::error(
                 "constant preparation lost its source-aware selector",
@@ -474,9 +465,7 @@ impl Lowerer {
 
     /// The declaration arena owning every lowered child type reference. Callers
     /// reach it by name instead of respelling the four-hop field path.
-    pub(crate) fn declaration_child_type_references(
-        &mut self,
-    ) -> &mut arena::Arena<symbol_resolved_trees::types::TypeReference> {
+    pub(crate) fn declaration_child_type_references(&mut self) -> &mut arena::Arena<TypeReference> {
         &mut self
             .symbol_resolved_trees
             .tables
@@ -517,10 +506,7 @@ impl Lowerer {
         &self,
     ) -> Result<
         (
-            Vec<(
-                symbols::SymbolHandle,
-                crate::selection::service_reaches::PendingAuthoredServiceReach,
-            )>,
+            Vec<(symbols::SymbolHandle, PendingAuthoredServiceReach)>,
             Vec<crate::selection::service_reaches::PendingSignatureServiceReach>,
         ),
         Vec<Diagnostic>,
@@ -550,7 +536,7 @@ impl Lowerer {
                     PendingSignatureLocation::MachineParameter(handle) => {
                         let parameter = resolved_declarations(&self.symbol_resolved_trees).data_type_parameters
                             .get(handle);
-                        let symbol_resolved_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+                        let TypeParameterKind::Machine { contract } = &parameter.kind else {
                             return Err(vec![Diagnostic::error("pending service reach no longer names a machine parameter")]);
                         };
                         contract.structural().ok_or_else(|| vec![Diagnostic::error("pending service reach lost its structural machine-parameter signature")])?.symbol
@@ -588,13 +574,13 @@ pub(crate) enum PendingSignatureLocation {
 
 #[derive(Debug, Clone)]
 pub(crate) enum PendingSignatureOwner {
-    Trait(symbol_resolved_trees::name::DiagnosticName),
-    Requirement(symbol_resolved_trees::name::DiagnosticName),
+    Trait(DiagnosticName),
+    Requirement(DiagnosticName),
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct PendingSignatureServiceReach {
     pub(crate) location: PendingSignatureLocation,
     pub(crate) owner: PendingSignatureOwner,
-    pub(crate) reaches: crate::selection::service_reaches::PendingAuthoredServiceReach,
+    pub(crate) reaches: PendingAuthoredServiceReach,
 }

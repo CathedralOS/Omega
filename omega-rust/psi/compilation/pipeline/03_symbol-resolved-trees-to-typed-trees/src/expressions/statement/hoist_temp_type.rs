@@ -27,11 +27,12 @@
 //! selected operand origins survive. This determines a temporary's type only:
 //! ordinary call admission still checks the full signature, bounds and custody.
 
+use crate::expressions::call_results::declared_call_return;
 use crate::lowerer::Lowerer;
-use crate::tables::resolved_expressions;
-use crate::tables::type_constraints;
+use crate::tables::{resolved_expressions, type_constraints};
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
+use resolved::types::ConstrainedTypeReference;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 use typed_trees as typed;
@@ -113,10 +114,7 @@ pub(super) fn infer_hoist_temp_type(
                 )
             };
             let mut machine_substitutions = Vec::new();
-            let declared_return = crate::expressions::call_results::declared_call_return(
-                lowerer.source_trees,
-                target_symbol,
-            );
+            let declared_return = declared_call_return(lowerer.source_trees, target_symbol);
             let declared_return = declared_return
                     .cloned()
                     .or_else(|| {
@@ -922,10 +920,7 @@ fn operand_declared_interval(
 fn exact_domain_constraints<'t>(
     source_trees: &'t resolved::SymbolResolvedTrees,
     type_reference: &'t TypeReference,
-) -> Option<(
-    &'t resolved::types::ConstrainedTypeReference,
-    &'t [TypeConstraint],
-)> {
+) -> Option<(&'t ConstrainedTypeReference, &'t [TypeConstraint])> {
     let TypeReference::Constrained(constrained) = type_reference else {
         return None;
     };

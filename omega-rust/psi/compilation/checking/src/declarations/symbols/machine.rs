@@ -1,5 +1,6 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -40,12 +41,9 @@ impl<'program> MachineSymbols<'program> {
         // Duplicate verdicts read whether a same-named earlier member carries
         // a valid symbol, so the seen maps store name -> symbol.is_valid()
         // rather than the names alone.
-        let mut member_verdicts: symbols::SymbolKeyMap<&str, bool> =
-            symbols::SymbolKeyMap::default();
-        let mut owned_data_verdicts: symbols::SymbolKeyMap<&str, bool> =
-            symbols::SymbolKeyMap::default();
-        let mut state_verdicts: symbols::SymbolKeyMap<&str, bool> =
-            symbols::SymbolKeyMap::default();
+        let mut member_verdicts: SymbolKeyMap<&str, bool> = SymbolKeyMap::default();
+        let mut owned_data_verdicts: SymbolKeyMap<&str, bool> = SymbolKeyMap::default();
+        let mut state_verdicts: SymbolKeyMap<&str, bool> = SymbolKeyMap::default();
         let mut symbols = Self {
             callable_fields: Vec::new(),
             member_symbols: Vec::with_capacity(program.machine_owned_data(machine).len()),

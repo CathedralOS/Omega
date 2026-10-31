@@ -1,0 +1,30 @@
+// A statement-position call of the generic boundary requirement `Mark::record<T>` from a generic
+// caller applies the caller's open `T` to the requirement's formals, so the provider's write of
+// `label` into `hits` is observed after the call.
+// Place: field.
+// Expected exit: 0
+boundary trait Mark {
+    machine record<T>(value: &T, label: u64, hits: &mut u64) reaches;
+}
+
+Counting satisfies Mark {
+    machine record<T>(value: &T, label: u64, hits: &mut u64) { hits = label; }
+}
+
+data Holder<T> { item: T; }
+
+machine notify<T>(holder: &Holder<T>, label: u64, hits: &mut u64) {
+    Mark::record<T>(&label, label, hits);
+}
+
+machine main() crashes Trap {
+    let subject: Holder<i32> = Holder { item: 7 };
+    let other: Holder<u8> = Holder { item: 3 };
+    let mut first: u64 = 0;
+    let mut second: u64 = 0;
+    notify<i32>(&subject, 9, &mut first);
+    notify<u8>(&other, 5, &mut second);
+    transition first == 9 && second == 5 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

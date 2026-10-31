@@ -1,5 +1,6 @@
 //! Establish an element-view descriptor over resolved fixed-array storage.
 use super::local_storage::{address, store};
+use super::runtime_address::{cross_references, footprint, projection_origin, scale};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     SelectedInstructionKind, VirtualRegisterId,
@@ -9,6 +10,8 @@ use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::obligation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::primitive_local_input::read_parameter;
+use crate::structural_inputs::structural_reference_input::collection_view_region_geometry;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, StructuralTypeShape};
@@ -115,11 +118,7 @@ pub(super) fn establish(
     // Borrowed descriptor arrivals share one role judgment for bytes and
     // elements. Reuse the exact declared non-entry block lookup rather than
     // recognizing only a byte descriptor or inventing an operation-result home.
-    let descriptor_root = crate::selection::primitive_local_input::read_parameter(
-        function,
-        source.place,
-    )
-    .filter(|parameter| {
+    let descriptor_root = read_parameter(function, source.place).filter(|parameter| {
         terminal_semantics::view_descriptor_parameter(parameter, signature.structural_types.iter())
     });
     let Some(root) = parameter
@@ -129,15 +128,13 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
-    let Some(geometry) =
-        crate::structural_inputs::structural_reference_input::collection_view_region_geometry(
-            root,
-            source,
-            result.structural_type,
-            &signature.structural_types,
-            *region,
-        )
-    else {
+    let Some(geometry) = collection_view_region_geometry(
+        root,
+        source,
+        result.structural_type,
+        &signature.structural_types,
+        *region,
+    ) else {
         return Err(invalid());
     };
     if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
@@ -186,7 +183,7 @@ pub(super) fn establish(
         {
             constant(builder, row, 0, 0)?
         } else if !geometry.pointer_slots.is_empty() {
-            let (base, slots) = super::runtime_address::projection_origin(
+            let (base, slots) = projection_origin(
                 function,
                 builder,
                 row,
@@ -246,15 +243,9 @@ pub(super) fn establish(
         {
             base
         } else {
-            let (base, leaf_index) = super::runtime_address::cross_references(
-                builder,
-                row,
-                source.place,
-                base,
-                indices,
-                pointer_slots,
-            )?;
-            super::runtime_address::scale(
+            let (base, leaf_index) =
+                cross_references(builder, row, source.place, base, indices, pointer_slots)?;
+            scale(
                 builder,
                 row,
                 source.place,
@@ -287,7 +278,7 @@ pub(super) fn establish(
             base
         } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
             let pointer = transport_register(builder, *destination, 0)?;
-            super::runtime_address::footprint(
+            footprint(
                 builder,
                 row,
                 source.place,
@@ -323,7 +314,7 @@ pub(super) fn establish(
                     let base = base.ok_or_else(invalid)?;
                     let header = field_offset.checked_sub(8).ok_or(invalid())?;
                     let pointer = transport_register(builder, *destination, 0)?;
-                    super::runtime_address::footprint(
+                    footprint(
                         builder,
                         row,
                         source.place,
@@ -342,7 +333,7 @@ pub(super) fn establish(
                         let base = base.ok_or_else(invalid)?;
                         let count_offset = field_offset.checked_add(8).ok_or(invalid())?;
                         let count = transport_register(builder, *destination, 8)?;
-                        super::runtime_address::footprint(
+                        footprint(
                             builder,
                             row,
                             source.place,

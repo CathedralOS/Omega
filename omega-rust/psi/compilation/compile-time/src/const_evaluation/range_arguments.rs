@@ -7,13 +7,20 @@
 //! proof-integer predecessor. Only structured values return to syntax; original
 //! bounds remain available to declaration checking and application custody.
 
-use crate::build_time_evaluation::type_references;
-use crate::build_time_evaluation::{expression_table, type_reference_table};
+use crate::build_time_evaluation::{expression_table, type_reference_table, type_references};
+use crate::const_evaluation::const_generic_expressions::exact_probe_destination;
+use crate::const_evaluation::const_generic_expressions::lexical_selection::retain;
+use crate::const_evaluation::const_generic_expressions::{append_probe, expression_custody};
+use crate::machine_execution::admission::expression_children;
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::statement::StatementNode;
 use syntax_trees::types::{IntegerRangeNormalization, TypeConstraintNode, TypeReferenceNode};
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    resolve_const_argument_selection, resolve_deferred_numeric_probe,
+};
 
 pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
@@ -34,9 +41,7 @@ pub(crate) fn evaluate(
                     .items
                     .statements(syntax.items.state(*state).statements)
                 {
-                    if let syntax_trees::statement::StatementNode::Call(call) =
-                        syntax.statements.statement(*statement)
-                    {
+                    if let StatementNode::Call(call) = syntax.statements.statement(*statement) {
                         collect_static_argument_types(&call.machine_arguments, &mut pending);
                     }
                 }
@@ -75,10 +80,7 @@ pub(crate) fn evaluate(
 
     // Original owners must resolve first. A moved annotation cannot turn a
     // runtime parameter into a same-spelled constant visible at the probe root.
-    let original =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            context.resolution_request(syntax.clone()),
-        )?;
+    let original = resolve_const_argument_selection(context.resolution_request(syntax.clone()))?;
     let mut probe = syntax.clone();
     let mut probes = Vec::new();
     for reference in ranges {
@@ -161,12 +163,8 @@ pub(crate) fn evaluate(
                 continue;
             };
             let (Ok(minimum_origins), Ok(maximum_origins)) = (
-                crate::const_evaluation::const_generic_expressions::lexical_selection::retain(
-                    &syntax, &original, minimum,
-                ),
-                crate::const_evaluation::const_generic_expressions::lexical_selection::retain(
-                    &syntax, &original, maximum,
-                ),
+                retain(&syntax, &original, minimum),
+                retain(&syntax, &original, maximum),
             ) else {
                 eligible = false;
                 break;
@@ -184,12 +182,7 @@ pub(crate) fn evaluate(
             continue;
         }
         let ordinal = probes.len();
-        crate::const_evaluation::const_generic_expressions::append_probe(
-            &mut probe,
-            ordinal,
-            bounds[0].1,
-            reference,
-        );
+        append_probe(&mut probe, ordinal, bounds[0].1, reference);
         probes.push((reference, carrier, bounds));
     }
     if probes.is_empty() {
@@ -202,10 +195,7 @@ pub(crate) fn evaluate(
         .iter()
         .map(|(_, _, bounds)| syntax.expressions.source_span(bounds[0].1))
         .collect::<Vec<_>>();
-    let frontier =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_numeric_probe(
-            context.resolution_request(probe),
-        )?;
+    let frontier = resolve_deferred_numeric_probe(context.resolution_request(probe))?;
     let (typed, evaluation_domain) = crate::syntax_probes::prepare_evaluation(
         frontier,
         &probe_sources,
@@ -257,9 +247,7 @@ pub(crate) fn evaluate(
             ) {
                 admitted_calls.insert(expression);
             }
-            pending.extend(crate::machine_execution::admission::expression_children(
-                &typed, expression,
-            ));
+            pending.extend(expression_children(&typed, expression));
         }
     }
     let mut folded_calls = Vec::new();
@@ -283,10 +271,8 @@ pub(crate) fn evaluate(
             shells.push(base);
             base = base_type;
         }
-        if !crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-            &typed, base,
-        )
-        .is_some_and(|primitive| primitive.accepts_integer_literal())
+        if !exact_probe_destination(&typed, base)
+            .is_some_and(|primitive| primitive.accepts_integer_literal())
         {
             continue;
         }
@@ -335,17 +321,15 @@ pub(crate) fn evaluate(
                     eligible = false;
                     break;
                 }
-                let Ok((origins, _)) =
-                    crate::const_evaluation::const_generic_expressions::expression_custody(
-                        &typed,
-                        machine,
-                        state,
-                        expression,
-                        false,
-                        &syntax,
-                        &admitted_calls,
-                    )
-                else {
+                let Ok((origins, _)) = expression_custody(
+                    &typed,
+                    machine,
+                    state,
+                    expression,
+                    false,
+                    &syntax,
+                    &admitted_calls,
+                ) else {
                     eligible = false;
                     break;
                 };

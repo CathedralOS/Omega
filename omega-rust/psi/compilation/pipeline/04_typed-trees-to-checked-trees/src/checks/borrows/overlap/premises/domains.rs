@@ -4,13 +4,16 @@
 //! This consumes membership, including routed membership, without minting it.
 
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
-use typed_trees::domain::ProofMembershipFact;
+use typed_trees::domain::{ProofMembershipFact, has_symbol_only_proof};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use validation::ImmutableBoundLookup;
+use validation::has_builtin_bound_expression_meaning;
+use validation::has_exact_integer_domain_subject;
 
 pub(super) fn append_membership_premises(
     program: &dyn ::validation::CheckingInput,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    lookup: &ImmutableBoundLookup<'_>,
     machine: &Machine,
     state: &State,
     membership: &ProofMembershipFact,
@@ -32,17 +35,12 @@ pub(super) fn append_membership_premises(
         || domain.alias.is_some()
         || !domain.semantic_id.is_valid()
         || domain.semantic_id != membership.semantic_domain
-        || !typed_trees::domain::has_symbol_only_proof(program, domain.symbol)
+        || !has_symbol_only_proof(program, domain.symbol)
     {
         return;
     }
-    if !validation::has_exact_integer_domain_subject(program, domain, lookup, membership.value)
-        || !validation::has_builtin_bound_expression_meaning(
-            program,
-            machine,
-            Some(state),
-            membership.value,
-        )
+    if !has_exact_integer_domain_subject(program, domain, lookup, membership.value)
+        || !has_builtin_bound_expression_meaning(program, machine, Some(state), membership.value)
     {
         return;
     }

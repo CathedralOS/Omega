@@ -2071,18 +2071,7 @@ impl<'program> StructuralJudge<'program> {
         }
         // Only an opaque completed leaf receives intrinsic carrier bounds;
         // an unadmitted recipe has neither a carrier assumption nor an interval.
-        let atom = observations.observed_atom(canonical_atom(value), primitive)?;
-        // A capture read through a wider carrier is still its call's result:
-        // a u8 call widened into an i32 payload keeps 0..=255. The opaque
-        // completed-call leaf no longer unfolds the body that implied it.
-        if let StructuralTerm::CapturedValue { result_type, .. } = value
-            && let Some(own) = self.program.primitive_type_reference(*result_type)
-            && own != primitive
-            && own.accepts_integer_literal()
-        {
-            observations.install_observed_carrier_bounds(own, &atom)?;
-        }
-        Some(atom)
+        observations.observed_atom(canonical_atom(value), primitive)
     }
 
     fn mathematical_value(

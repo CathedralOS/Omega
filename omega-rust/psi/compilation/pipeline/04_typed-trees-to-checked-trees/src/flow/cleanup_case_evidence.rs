@@ -10,16 +10,23 @@
 //! owned, typed prefix; this consumer checks occurrence/root correspondence.
 //! Independently supplied or persisted rows need that same authentication.
 
-use checked_trees::{CheckFacts, ContextualCleanupDisposition};
+use crate::facts::contextual_cleanup::occurrence_contexts;
+use checked_trees::{CheckFacts, ContextualCleanupDisposition, ContextualCleanupExclusionCause};
 use facts::{FactContextHandle, PlaceSegment};
+use language_semantics::PermissionEventSource;
 use std::cell::OnceCell;
-use validation::{CanonicalPlace, CleanupCaseReachability};
+use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
+use validation::{
+    CanonicalPlace, CheckingInput, CleanupCaseReachability, canonical_place_type_reference,
+    unwrapped_type_reference,
+};
 
 type OccurrenceContexts = Vec<(usize, Vec<FactContextHandle>)>;
 
 /// Invocation-local query state; it neither publishes nor strengthens facts.
 pub(crate) struct CleanupCaseEvidence<'a> {
-    program: &'a dyn validation::CheckingInput,
+    program: &'a dyn CheckingInput,
     facts: &'a CheckFacts,
     disposition: &'a ContextualCleanupDisposition,
     inactive: Vec<&'a [PlaceSegment]>,
@@ -29,7 +36,7 @@ pub(crate) struct CleanupCaseEvidence<'a> {
 
 impl<'a> CleanupCaseEvidence<'a> {
     pub(crate) fn new(
-        program: &'a dyn validation::CheckingInput,
+        program: &'a dyn CheckingInput,
         facts: &'a CheckFacts,
         disposition: &'a ContextualCleanupDisposition,
     ) -> Option<Self> {
@@ -42,7 +49,7 @@ impl<'a> CleanupCaseEvidence<'a> {
             .iter()
             .any(|place| {
                 place.root != disposition.root
-                    || place.cause == checked_trees::ContextualCleanupExclusionCause::InactiveCase
+                    || place.cause == ContextualCleanupExclusionCause::InactiveCase
             })
         {
             return None;
@@ -54,7 +61,7 @@ impl<'a> CleanupCaseEvidence<'a> {
             .map(|place| {
                 let path = cleanup.segments.span(place.segments)?;
                 (place.root == disposition.root
-                    && place.cause == checked_trees::ContextualCleanupExclusionCause::InactiveCase
+                    && place.cause == ContextualCleanupExclusionCause::InactiveCase
                     && matches!(path.last(), Some(PlaceSegment::Case { .. })))
                 .then_some(path)
             })
@@ -97,12 +104,7 @@ impl<'a> CleanupCaseEvidence<'a> {
                 .control
                 .state(self.disposition.machine, self.disposition.state)
                 .and_then(|state| {
-                    crate::facts::contextual_cleanup::occurrence_contexts(
-                        self.program,
-                        self.facts,
-                        state,
-                        self.disposition,
-                    )
+                    occurrence_contexts(self.program, self.facts, state, self.disposition)
                 })
         })
     }
@@ -113,12 +115,7 @@ impl<'a> CleanupCaseEvidence<'a> {
             .any(|inactive| path.starts_with(inactive))
     }
 
-    fn proves_case(
-        &self,
-        subject: &CanonicalPlace,
-        variant: symbols::SymbolHandle,
-        required: bool,
-    ) -> bool {
+    fn proves_case(&self, subject: &CanonicalPlace, variant: SymbolHandle, required: bool) -> bool {
         self.contexts()
             .as_ref()
             .filter(|points| !points.is_empty())
@@ -174,12 +171,10 @@ impl<'a> CleanupCaseEvidence<'a> {
             return Some(CleanupCaseReachability::Inactive);
         }
         let statement = match self.disposition.source {
-            language_semantics::PermissionEventSource::Call {
+            PermissionEventSource::Call {
                 statement_index, ..
             }
-            | language_semantics::PermissionEventSource::Statement { statement_index } => {
-                statement_index
-            }
+            | PermissionEventSource::Statement { statement_index } => statement_index,
             _ => self.disposition.exit.statement_index,
         };
         for (position, segment) in path.iter().enumerate() {
@@ -193,18 +188,15 @@ impl<'a> CleanupCaseEvidence<'a> {
             if self.proves_case(&subject, *variant, true) {
                 continue;
             }
-            let reference = validation::canonical_place_type_reference(
+            let reference = canonical_place_type_reference(
                 self.program,
                 self.disposition.state,
                 statement,
                 &subject,
             )?;
-            let owner =
-                self.program
-                    .closed_data_definition(validation::unwrapped_type_reference(
-                        self.program,
-                        reference,
-                    )?)?;
+            let owner = self
+                .program
+                .closed_data_definition(unwrapped_type_reference(self.program, reference)?)?;
             let mut declared = false;
             let mut has_alternative = false;
             // An established finite sum selects this case only if every other
@@ -212,7 +204,7 @@ impl<'a> CleanupCaseEvidence<'a> {
             // A missing context, moved claim or equal-looking sibling is never
             // negative membership evidence.
             for member in self.program.data_members(owner) {
-                let typed_trees::data::DataMember::Variant(alternative) = member else {
+                let DataMember::Variant(alternative) = member else {
                     continue;
                 };
                 if alternative.symbol == *variant {

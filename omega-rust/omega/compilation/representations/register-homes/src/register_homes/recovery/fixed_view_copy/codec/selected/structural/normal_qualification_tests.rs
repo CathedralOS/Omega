@@ -6,6 +6,7 @@ use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::Cursor;
 use selected_instructions::effects::program::identity::encode_path;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId, StructuralTypeId};
+use terminal_psi::ReferenceOriginProjection;
 use terminal_psi::{
     NominalDeclarationIdentity, ProviderCandidateConformance, ProviderParameterRefinement,
     ProviderRefinement, ProviderSignature, ProviderSignatureParameter, StructuralAccess,
@@ -106,9 +107,7 @@ fn qualification_wildcard_cannot_decode_as_address_or_reference_origin() {
     assert_eq!(decode_path(&mut Cursor::new(&bytes)).unwrap(), path);
     assert_eq!(
         decode_reference_origin_path(&mut Cursor::new(&bytes)).unwrap(),
-        vec![terminal_psi::ReferenceOriginProjection::Exact(
-            path[0].clone()
-        )],
+        vec![ReferenceOriginProjection::Exact(path[0].clone())],
     );
 }
 

@@ -28,7 +28,10 @@ pub(super) fn propagate(
     // over the covered cyclic components: member parameter tables feed
     // substitution positions, and covered values keep their identities.
     // Blocks and parameters outside the covered components still collapse.
-    let coverage = crate::retained_identities::ranked_coverage::ranked_coverage(machine);
+    let Some(coverage) = crate::retained_identities::ranked_coverage::ranked_coverage(machine)
+    else {
+        return;
+    };
     retained_values.extend(coverage.values.iter().copied());
     // Propositions carried by contracts, crash sites, and call continuations
     // keep the exact identities they mention: they are proof terms, not uses.

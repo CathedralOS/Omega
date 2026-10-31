@@ -4,6 +4,7 @@
 //! Only the retained operator from the sealed toolchain file can produce the
 //! fence event. The selected ordering still needs a live case proof at its call.
 
+use crate::CheckingInput;
 use language_core::atomic::{ATOMIC_CORE_SOURCE, FenceOrdering};
 use symbols::SymbolHandle;
 use typed_trees::operator::OperatorDefinition;
@@ -14,11 +15,7 @@ pub struct AtomicFenceContract {
     pub cases: [(SymbolHandle, FenceOrdering); 3],
 }
 
-fn sealed_identity(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-    identity: &str,
-) -> bool {
+fn sealed_identity(program: &dyn CheckingInput, symbol: SymbolHandle, identity: &str) -> bool {
     program
         .normalized_hermetic_symbol_identity(symbol)
         .ok()
@@ -33,7 +30,7 @@ fn sealed_identity(
 /// The returned case handles, rather than their source spellings, select the
 /// ordering at each use.
 pub fn exact_toolchain_atomic_fence_contract(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     operator: &OperatorDefinition,
 ) -> Option<AtomicFenceContract> {
     if !sealed_identity(program, operator.symbol, "toolchain::Atomic::fence")
@@ -93,7 +90,7 @@ pub fn exact_toolchain_atomic_fence_contract(
 }
 
 pub(crate) fn validate_atomic_fence_declarations(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
     for operator in program.operators() {

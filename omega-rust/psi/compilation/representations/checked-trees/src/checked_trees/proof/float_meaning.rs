@@ -6,6 +6,7 @@
 //! or authorizes float evaluation or native lowering.
 
 use numerics::float_projection::FloatProjectionOperation;
+use numerics::float_semantics_catalog::FloatSemanticOperation;
 use typed_trees::types::PrimitiveType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
@@ -219,10 +220,8 @@ impl CheckedFloatSemanticApplication {
     /// earlier proof row so the application remains well-founded.
     pub fn validate(&self) -> Result<(), CheckedFloatSemanticApplicationError> {
         use numerics::float_semantics_catalog::FloatSemanticValueKind;
-        let row = numerics::float_semantics_catalog::FloatSemanticOperation::for_contract_identity(
-            &self.contract,
-        )
-        .ok_or(CheckedFloatSemanticApplicationError::ContractIdentityMismatch)?;
+        let row = FloatSemanticOperation::for_contract_identity(&self.contract)
+            .ok_or(CheckedFloatSemanticApplicationError::ContractIdentityMismatch)?;
         if row.result != FloatSemanticValueKind::Meaning {
             return Err(CheckedFloatSemanticApplicationError::ResultKindMismatch);
         }

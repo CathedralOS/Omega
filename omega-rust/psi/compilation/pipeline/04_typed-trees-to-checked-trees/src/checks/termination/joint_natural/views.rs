@@ -10,10 +10,10 @@ pub(super) enum Order {
 impl Order {
     pub(super) fn function(self) -> checked_trees::CheckedNaturalRankFunction {
         match self {
-            Self::Descending => checked_trees::CheckedNaturalRankFunction::Identity,
-            Self::BoundedDistance | Self::IncreasingTo => {
-                checked_trees::CheckedNaturalRankFunction::Complement
+            Self::Descending | Self::BoundedDistance => {
+                checked_trees::CheckedNaturalRankFunction::Identity
             }
+            Self::IncreasingTo => checked_trees::CheckedNaturalRankFunction::Complement,
         }
     }
 }

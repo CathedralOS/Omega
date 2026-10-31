@@ -1,6 +1,8 @@
 use crate::expressions::context::ExpressionContext;
 use crate::expressions::match_dispatch::parse_match_expression_handle;
 use crate::expressions::parse_expression::{parse_expression_handle, parse_expression_handle_in};
+use crate::expressions::parse_postfix::parse_argument_list_after_open_paren_handle;
+use crate::expressions::parse_postfix::try_parse_static_machine_arguments;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::tables::{exprs, exprs_of};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
@@ -8,9 +10,11 @@ use numerics::literals::IntegerLiteral;
 use source::{SourceSpan, Span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableStructLiteral, TableStructLiteralField,
+    ExpressionHandle, ExpressionNode, TableCallExpression, TableStructLiteral,
+    TableStructLiteralField,
 };
 use syntax_trees::identifier::Identifier;
+use syntax_trees::types::TypeReferenceHandle;
 use tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 
 /// Insert `node` and give it `source_span`: every literal primary owns one.
@@ -282,10 +286,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 fn try_applied_requirement_head<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(
-    syntax_trees::types::TypeReferenceHandle,
-    Input<'tokens, 'source>,
-)> {
+) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
     let (_, after_name) = input.expect_token().ok()?;
     if !after_name.at_punctuation(PunctuationKind::Less)
         && !after_name.at_punctuation(PunctuationKind::ColonColon)
@@ -300,10 +301,7 @@ fn try_applied_requirement_head<'tokens, 'source>(
 fn probe_applied_requirement_head<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(
-    syntax_trees::types::TypeReferenceHandle,
-    Input<'tokens, 'source>,
-)> {
+) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
     let checkpoint = syntax.append_checkpoint();
     let accepted = (|| {
         let (reference, rest) = parse_type_reference_handle(syntax, input).ok()?;
@@ -332,7 +330,7 @@ fn probe_applied_requirement_head<'tokens, 'source>(
 fn parse_applied_requirement_call<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    application: syntax_trees::types::TypeReferenceHandle,
+    application: TypeReferenceHandle,
     rest: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     let start = input;
@@ -342,32 +340,23 @@ fn parse_applied_requirement_call<'tokens, 'source>(
     exprs(syntax_trees).set_source_span(receiver, start.source_span_until(rest));
     let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (target, rest) = rest.take_identifier()?;
-    let (machine_arguments, rest) =
-        match crate::expressions::parse_postfix::try_parse_static_machine_arguments(
-            syntax_trees,
-            rest,
-        )? {
-            Some((machine_arguments, rest)) => (machine_arguments, rest),
-            None => (Box::default(), rest),
-        };
+    let (machine_arguments, rest) = match try_parse_static_machine_arguments(syntax_trees, rest)? {
+        Some((machine_arguments, rest)) => (machine_arguments, rest),
+        None => (Box::default(), rest),
+    };
     let rest = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
     let ((arguments, evidence_arguments), rest) =
-        crate::expressions::parse_postfix::parse_argument_list_after_open_paren_handle(
-            syntax_trees,
-            rest,
-        )?;
+        parse_argument_list_after_open_paren_handle(syntax_trees, rest)?;
     let source = target.source_span();
-    let call = exprs(syntax_trees).insert(ExpressionNode::Call(
-        syntax_trees::expression::TableCallExpression {
-            receiver,
-            target,
-            target_is_static: true,
-            machine_arguments,
-            arguments,
-            evidence_arguments,
-            operational_acknowledgement: Default::default(),
-        },
-    ));
+    let call = exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
+        receiver,
+        target,
+        target_is_static: true,
+        machine_arguments,
+        arguments,
+        evidence_arguments,
+        operational_acknowledgement: Default::default(),
+    }));
     exprs(syntax_trees).set_source_span(call, source);
     Ok((call, rest))
 }
@@ -379,10 +368,7 @@ fn parse_applied_requirement_call<'tokens, 'source>(
 fn try_generic_type_operand<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Option<(
-    syntax_trees::types::TypeReferenceHandle,
-    Input<'tokens, 'source>,
-)> {
+) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
     let checkpoint = syntax.append_checkpoint();
     let accepted = (|| {
         let (reference, rest) = parse_type_reference_handle(syntax, input).ok()?;

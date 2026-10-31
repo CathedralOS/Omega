@@ -17,7 +17,9 @@ use crate::record::{
     PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
 };
+use checked_trees::CheckedBoundaryOperatorApplicationUseSite;
 use diagnostics::Diagnostic;
+use selected_dispatch::CheckedOperatorAuthoredUseKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) struct StagedRealization {
@@ -44,9 +46,8 @@ pub(crate) fn project_boundary_application_realizations(
     let mut staged: Vec<StagedRealization> = Vec::new();
 
     for realization in derived {
-        let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
-            expression, ..
-        } = realization.application_site
+        let CheckedBoundaryOperatorApplicationUseSite::Expression { expression, .. } =
+            realization.application_site
         else {
             return Err(vec![Diagnostic::error(
                 "attached-Unit boundary application realization has no expression use site",
@@ -135,9 +136,8 @@ fn project_specialized_checked_body_applications(
         applications.iter().copied(),
     )?;
     for realization in derived {
-        let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
-            expression, ..
-        } = realization.application_site
+        let CheckedBoundaryOperatorApplicationUseSite::Expression { expression, .. } =
+            realization.application_site
         else {
             return Err(vec![Diagnostic::error(
                 "specialized boundary application realization has no expression use site",
@@ -231,16 +231,14 @@ fn project_specialized_checked_body_applications(
 /// disclosure; they must neither demand nor borrow this activation's plan.
 fn application_is_selected(
     compilation: &PackageReviewInput<'_>,
-    site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
+    site: CheckedBoundaryOperatorApplicationUseSite,
 ) -> Result<bool, Vec<Diagnostic>> {
     let origin = match site {
-        checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { origin, .. }
-        | checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
-            origin, ..
-        } => origin,
+        CheckedBoundaryOperatorApplicationUseSite::Expression { origin, .. }
+        | CheckedBoundaryOperatorApplicationUseSite::MatchEquality { origin, .. } => origin,
         // No known machine origin means no proof of inactive scope: keep the
         // ordinary exact application/plan checks, rather than omit the use.
-        checked_trees::CheckedBoundaryOperatorApplicationUseSite::Statement(_) => return Ok(true),
+        CheckedBoundaryOperatorApplicationUseSite::Statement(_) => return Ok(true),
     };
     let Some(machine) = origin.machine_symbol() else {
         return Ok(true);
@@ -346,7 +344,7 @@ fn project_exact_application(
 fn expression_is_owned_by_package(
     compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
-    use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
+    use_kind: CheckedOperatorAuthoredUseKind,
     requirement_operator: symbols::SymbolHandle,
     alternate_requirement: symbols::SymbolHandle,
     package: PackageKeyIdentity,
@@ -423,7 +421,7 @@ pub(super) fn stage_realization(
 pub(super) fn authored_application_source_span(
     compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
-    use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
+    use_kind: CheckedOperatorAuthoredUseKind,
     requirement_operator: symbols::SymbolHandle,
     alternate_requirement: symbols::SymbolHandle,
 ) -> Result<source::SourceSpan, Vec<Diagnostic>> {
@@ -474,17 +472,13 @@ pub(super) fn authored_application_source_span(
 }
 
 fn authored_application_selection_kind(
-    use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
+    use_kind: CheckedOperatorAuthoredUseKind,
 ) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionKind {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 
     match use_kind {
-        selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
-            AuthoredDeclarationSelectionKind::Call
-        }
-        selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
-            AuthoredDeclarationSelectionKind::Operator
-        }
+        CheckedOperatorAuthoredUseKind::Named => AuthoredDeclarationSelectionKind::Call,
+        CheckedOperatorAuthoredUseKind::FixedToken(_) => AuthoredDeclarationSelectionKind::Operator,
     }
 }
 
@@ -504,7 +498,7 @@ pub(super) fn token_authored_use_kind(
     expression: typed_trees::expression::ExpressionHandle,
     selection_symbol: symbols::SymbolHandle,
     spelling_symbol: symbols::SymbolHandle,
-) -> Option<selected_dispatch::CheckedOperatorAuthoredUseKind> {
+) -> Option<CheckedOperatorAuthoredUseKind> {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
@@ -537,7 +531,7 @@ pub(super) fn token_authored_use_kind(
                 .find(|operator| spelling_symbol.is_valid() && operator.symbol == spelling_symbol)
         })
         .and_then(|operator| operator.spelling)
-        .map(selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken)
+        .map(CheckedOperatorAuthoredUseKind::FixedToken)
 }
 
 fn application_key(

@@ -29,6 +29,7 @@ pass/build/package_owned_callable_identity built 1676ms exit:0 interpreter-exit:
 pass/build/provider_applied_const29_exit built 2469ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @bad69cc2a485
 pass/build/provider_nested_type_application_exit built 2392ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @bad69cc2a485
 pass/build/provider_structural_type_application_exit built 2830ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @b86bab8d85ef
+pass/build/retained_behavior_admission built 2928ms exit:0 interpreter-exit:0 interpreter:agrees behavior-admission-controls:match terminal-inspections:match @a0939f4833eb
 pass/build/runtime_calling_register_copy_exit built 9360ms exit:0 interpreter-exit:0 interpreter:agrees @d2937c3afdf3
 pass/build/terminal_calling_policy_execution built 16043ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.retained_plan:match terminal-inspections:match @d2937c3afdf3
 pass/calls/completed_narrowing_result_case_bounds built 1715ms exit:0 interpreter-exit:0 interpreter:agrees @09c8250ac20f+wt
@@ -782,6 +783,18 @@ pass/facts/nested_machine_joint_rank_indexed_value_other_machine_exit built 1547
 pass/facts/nested_machine_joint_rank_indexed_value_other_state_exit built 1452ms exit:0 interpreter-exit:0 interpreter:agrees @ed258e523481
 pass/facts/nested_machine_joint_rank_indexed_value_parameter_exit built 1323ms exit:0 interpreter-exit:0 interpreter:agrees @ed258e523481
 pass/facts/nested_machine_joint_rank_indexed_value_target_body_exit built 1266ms exit:0 interpreter-exit:0 interpreter:agrees @ed258e523481
+pass/facts/nested_machine_joint_rank_moving_upper_call_result_exit built 5188ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_const_name_exit built 5108ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_exact_requirement_exit built 4193ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_field_exit built 5029ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_local_exit built 5274ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_match_join_exit built 3981ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_narrow_endpoints_exit built 3260ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_original_probe_exit built 4099ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_other_machine_exit built 5357ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_other_state_exit built 4864ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_parameter_exit built 2368ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_target_body_exit built 2147ms exit:0 interpreter-exit:0 interpreter:agrees @4c8e800a453c
 pass/facts/nested_machine_joint_rank_operand_effects_call_result built 1135ms exit:0 interpreter-exit:0 interpreter:agrees @de40d87b442a75fd95a0befaa657e50f07399ae7
 pass/facts/nested_machine_joint_rank_operand_effects_const_name built 1143ms exit:0 interpreter-exit:0 interpreter:agrees @de40d87b442a75fd95a0befaa657e50f07399ae7
 pass/facts/nested_machine_joint_rank_operand_effects_field built 1122ms exit:0 interpreter-exit:0 interpreter:agrees @de40d87b442a75fd95a0befaa657e50f07399ae7
@@ -862,6 +875,19 @@ pass/facts/nested_machine_joint_rank_structured_owned_ingress_exit built 5221ms 
 pass/facts/nested_machine_joint_rank_structured_parameter_exit built 2552ms exit:0 interpreter-exit:0 interpreter:agrees @d4217dd821a4+wt
 pass/facts/nested_machine_joint_rank_structured_probe_exit built 2764ms exit:0 interpreter-exit:0 interpreter:agrees @d4217dd821a4+wt
 pass/facts/nested_machine_joint_rank_structured_target_body_exit built 2896ms exit:0 interpreter-exit:0 interpreter:agrees @d4217dd821a4+wt
+pass/facts/nested_machine_lexicographic_rank_call_result_exit built 3412ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_const_name_exit built 5671ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_field_exit built 4861ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_local_exit built 6097ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_match_join_exit built 4633ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_negative_prefix_exit built 4726ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_other_machine_exit built 3874ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_other_state_exit built 5576ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_parameter_exit built 5746ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_probe_exit built 2879ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_scalar_return_exit built 3316ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_self_alias_exit built 3311ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_target_body_exit built 2402ms exit:0 interpreter-exit:0 interpreter:agrees @780e75fae678+wt
 pass/facts/nested_machine_signed_rank_call_result_exit built 3301ms exit:0 interpreter-exit:0 interpreter:agrees @db757705d687
 pass/facts/nested_machine_signed_rank_const_name_exit built 5653ms exit:0 interpreter-exit:0 interpreter:agrees @db757705d687
 pass/facts/nested_machine_signed_rank_field_exit built 6696ms exit:0 interpreter-exit:0 interpreter:agrees @db757705d687

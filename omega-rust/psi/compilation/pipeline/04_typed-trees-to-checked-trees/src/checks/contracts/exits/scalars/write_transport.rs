@@ -12,9 +12,12 @@
 //! expression statements, and root bindings — stop the transport entirely
 //! rather than guess at what they may have written.
 
+use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
 use validation::CanonicalPlace;
+use validation::expression_traversal::collect_expression_tree;
 
-use facts::{FactPayload, PlaceRoot};
+use facts::{ContractFactKind, FactOrigin, FactPayload, PlaceRoot};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use crate::flow::state_statements;
@@ -83,7 +86,7 @@ impl ExitScalars<'_, '_> {
         for index in (0..self.exit.statement_index.min(statements.len())).rev() {
             let statement = &statements[index];
             match statement {
-                typed_trees::statement::StatementNode::Assignment(assignment) => {
+                StatementNode::Assignment(assignment) => {
                     let Some(written) = statement_mutated_place(
                         self.program,
                         self.machine.symbol,
@@ -101,7 +104,7 @@ impl ExitScalars<'_, '_> {
                     }
                     later_writes.push(written);
                 }
-                typed_trees::statement::StatementNode::LocalData(local) => {
+                StatementNode::LocalData(local) => {
                     // A declaration writes only its own fresh root; it is the
                     // last write exactly when the goal place is that local.
                     if matches!(place.root, PlaceRoot::Symbol(root) if root == local.symbol)
@@ -114,8 +117,7 @@ impl ExitScalars<'_, '_> {
                         break;
                     }
                 }
-                typed_trees::statement::StatementNode::AssemblyFact(_)
-                | typed_trees::statement::StatementNode::Transition(_) => {}
+                StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
                 // Calls, expression statements, and root bindings write through
                 // frames this scan does not own; stop rather than undercount.
                 _ => return false,
@@ -143,7 +145,7 @@ impl ExitScalars<'_, '_> {
     /// the writes between it and the exit.
     fn write_substitutions(
         &self,
-        state: &typed_trees::state::State,
+        state: &State,
         write_index: usize,
         writes: &[CanonicalPlace],
     ) -> Vec<WriteSubstitution> {
@@ -183,13 +185,13 @@ impl ExitScalars<'_, '_> {
             {
                 if matches!(
                     fact.origin,
-                    facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
+                    FactOrigin::CallRequires | FactOrigin::CallEnsures
                 ) {
                     continue;
                 }
                 let expressions = match fact.payload {
                     FactPayload::ContractBooleanExpression {
-                        kind: facts::ContractFactKind::Requires,
+                        kind: ContractFactKind::Requires,
                         expression,
                         instantiated,
                         ..
@@ -263,15 +265,11 @@ impl ExitScalars<'_, '_> {
         _place: &CanonicalPlace,
         substitution: ExpressionHandle,
         writes: &[CanonicalPlace],
-        state: &typed_trees::state::State,
+        state: &State,
         write_index: usize,
     ) -> bool {
         let mut nodes = Vec::new();
-        validation::expression_traversal::collect_expression_tree(
-            self.program,
-            substitution,
-            &mut nodes,
-        );
+        collect_expression_tree(self.program, substitution, &mut nodes);
         nodes.iter().all(|node| {
             let Some(leaf) = place_at(self.program, state.symbol, write_index, *node) else {
                 return true;
@@ -294,7 +292,7 @@ impl ExitScalars<'_, '_> {
         goal: ExpressionHandle,
         substitutions: &[WriteSubstitution],
         writes: &[CanonicalPlace],
-        state: &typed_trees::state::State,
+        state: &State,
         write_index: usize,
     ) -> bool {
         if let Some(leaf) = place_at(self.program, state.symbol, write_index, expression) {
@@ -385,7 +383,7 @@ fn transport_expression_is_pure(
     expression: ExpressionHandle,
 ) -> bool {
     let mut nodes = Vec::new();
-    validation::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
+    collect_expression_tree(program, expression, &mut nodes);
     program.expression_table.expression_is_valid(expression)
         && nodes.iter().all(|node| {
             !matches!(

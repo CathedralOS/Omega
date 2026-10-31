@@ -1,12 +1,11 @@
-use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
+use symbol_resolved_trees::name::DiagnosticName;
+use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
 /// The closed builtin type atom installed under `symbol_name`, or `None` for
 /// a name outside the roster. Every name-based builtin-type lookup reads the
 /// roster here instead of re-scanning `BuiltinTypeAtom::ALL`.
-pub(crate) fn builtin_type_atom_by_symbol_name(
-    symbol_name: &str,
-) -> Option<symbols::BuiltinTypeAtom> {
-    symbols::BuiltinTypeAtom::ALL
+pub(crate) fn builtin_type_atom_by_symbol_name(symbol_name: &str) -> Option<BuiltinTypeAtom> {
+    BuiltinTypeAtom::ALL
         .into_iter()
         .find(|atom| atom.symbol_name() == symbol_name)
 }
@@ -39,9 +38,7 @@ pub(super) fn lexical_declaration_lookup(
     SymbolLookup::NotFound
 }
 
-pub(super) fn diagnostic_path_source_span(
-    members: &[symbol_resolved_trees::name::DiagnosticName],
-) -> source::SourceSpan {
+pub(super) fn diagnostic_path_source_span(members: &[DiagnosticName]) -> source::SourceSpan {
     let Some(first) = members.first() else {
         return source::SourceSpan::default();
     };
@@ -97,7 +94,7 @@ pub(crate) fn prefer_module_local_domain(
 
 pub(super) fn top_level_type_symbol_for_source(
     symbols: &SymbolTable,
-    name: &symbol_resolved_trees::name::DiagnosticName,
+    name: &DiagnosticName,
 ) -> SymbolHandle {
     // The fixed `core::*` mathematical declarations are compiler-known
     // vocabulary that owns its canonical spellings: an exact `core::*` name
@@ -140,7 +137,7 @@ pub(super) fn top_level_type_symbol_for_source(
 pub(super) fn top_level_symbol_for_source(
     symbols: &SymbolTable,
     kind: SymbolKind,
-    name: &symbol_resolved_trees::name::DiagnosticName,
+    name: &DiagnosticName,
 ) -> SymbolHandle {
     symbols
         .find_top_level_by_name_and_kinds_from_source(name.as_str(), &[kind], name.source_span())

@@ -8,7 +8,9 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::block::de
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::block::decode_successor;
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::block::encode_block;
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::block::encode_successor;
-use semantic_vocabulary::ScalarType;
+use crate::register_homes::recovery::fixed_view_copy::codec::tests::function_with_operand;
+use optimization_core::AcceptedObligationFactIdentity;
+use semantic_vocabulary::{IntegerType, ScalarType};
 fn successor() -> SelectedSuccessor {
     SelectedSuccessor {
         role: SelectedSuccessorRole::Semantic,
@@ -51,19 +53,13 @@ fn successor_scalar_reference_preserves_both_storage_interpretations() {
                 operand: abstract_operations::AbstractResult {
                     value: ValueId::new(14).unwrap(),
                     scalar_type: ScalarType::Integer(
-                        semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            64,
-                        )
-                        .unwrap(),
+                        IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).unwrap(),
                     ),
                 },
                 stride: 16,
                 extent: None,
                 obligation: semantic_vocabulary::ObligationId::new(15).unwrap(),
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    [16; 32],
-                ),
+                accepted_fact: AcceptedObligationFactIdentity::from_bytes([16; 32]),
             }],
             semantic: abstract_operations::AbstractStructuralBinding {
                 parameter: PlaceId::new(31).unwrap(),
@@ -423,11 +419,7 @@ fn operation_successor_codec_keeps_absent_edges_and_rejects_forged_lineage() {
 #[test]
 fn implementation_block_origin_round_trips_without_a_fabricated_source_block() {
     let mut block =
-        crate::register_homes::recovery::fixed_view_copy::codec::tests::function_with_operand(
-            register_model::RegisterOperandAccess::Use,
-        )
-        .blocks[0]
-            .clone();
+        function_with_operand(register_model::RegisterOperandAccess::Use).blocks[0].clone();
     block.origin = SelectedBlockOrigin::EdgeTransfer {
         edge: EdgeId::new(71).unwrap(),
         target: BlockId::new(91).unwrap(),

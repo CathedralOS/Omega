@@ -1,4 +1,6 @@
 //! call places slice of origins.
+use crate::checks::termination::progress::fact_subjects::subject_from_place;
+use crate::collections::push_unique;
 use validation::CanonicalPlace;
 
 use super::{callee_values::*, reference_bounds::*};
@@ -54,11 +56,8 @@ pub(super) fn disagreeing_call_result_subjects(
     }
     let mut subjects = Vec::with_capacity(places.len());
     for place in places {
-        let subject = crate::checks::termination::progress::fact_subjects::subject_from_place(
-            place.root,
-            &place.segments,
-        )?;
-        crate::collections::push_unique(&mut subjects, subject);
+        let subject = subject_from_place(place.root, &place.segments)?;
+        push_unique(&mut subjects, subject);
     }
     Some(subjects)
 }
@@ -275,7 +274,7 @@ pub(super) fn call_result_place(
             result_relative,
             depth,
         )?;
-        crate::collections::push_unique(&mut places, place);
+        push_unique(&mut places, place);
     }
     Some(places)
 }

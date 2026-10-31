@@ -5,10 +5,13 @@
 //! the original declaration selection for package authority and const replay.
 use crate::SelectedBuildTimeBinaryOperator;
 use crate::build_time_evaluation::expression_table;
+use checked_trees::CheckedOperatorOccurrence;
+use typed_trees::machine::{SatisfiedDeclaration, resolve_satisfied_declaration};
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
 };
+use validation::expression_traversal::collect_expression_tree;
 
 macro_rules! miss {
     ($message:literal) => {
@@ -304,7 +307,7 @@ pub fn validate_selected_provider_bodies(
             .iter()
             .filter(|(_, fact)| {
                 fact.expression == row.expression
-                    && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
+                    && fact.occurrence == CheckedOperatorOccurrence::Expression
                     && fact.origin.machine_symbol() == row.origin.machine_symbol()
             })
             .count();
@@ -331,7 +334,7 @@ pub fn validate_selected_provider_bodies(
             .filter(|fact| {
                 fact.expression == row.expression
                     && fact.origin == row.origin
-                    && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
+                    && fact.occurrence == CheckedOperatorOccurrence::Expression
             })
             .collect();
         let resolved_named: Vec<_> = facts
@@ -509,8 +512,8 @@ pub fn validate_selected_provider_bodies(
                     .map_err(|diagnostics| format!("selected build-time provider does not satisfy its contracts: {diagnostics:?}"))?;
                 program.machine_trait_conformances(provider).iter().filter(|conformance| {
                     conformance.external_binding.is_none()
-                        && matches!(typed_trees::machine::resolve_satisfied_declaration(program, provider, conformance),
-                            Some(typed_trees::machine::SatisfiedDeclaration::Trait { definition, requirement })
+                        && matches!(resolve_satisfied_declaration(program, provider, conformance),
+                            Some(SatisfiedDeclaration::Trait { definition, requirement })
                                 if definition.symbol == owner.symbol && requirement.symbol == row.requirement)
                 }).count()
             };
@@ -567,13 +570,8 @@ pub fn validate_selected_provider_bodies(
                     if conformance.external_binding.is_some() {
                         return false;
                     }
-                    let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                        required,
-                    )) = typed_trees::machine::resolve_satisfied_declaration(
-                        program,
-                        provider,
-                        conformance,
-                    )
+                    let Some(SatisfiedDeclaration::TopLevelRequirement(required)) =
+                        resolve_satisfied_declaration(program, provider, conformance)
                     else {
                         return false;
                     };
@@ -721,9 +719,7 @@ pub fn validate_selected_operators(
         let occurrences = facts
             .uses
             .iter()
-            .filter(|(_, fact)| {
-                fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-            })
+            .filter(|(_, fact)| fact.occurrence == CheckedOperatorOccurrence::Expression)
             .map(|(_, fact)| (fact.expression, fact.origin))
             .chain(
                 facts
@@ -911,11 +907,7 @@ fn direct_operator_occurrence(
         AuthoredDeclarationSelectionTarget as Target,
     };
     let mut descendants = Vec::new();
-    validation::expression_traversal::collect_expression_tree(
-        program,
-        expression,
-        &mut descendants,
-    );
+    collect_expression_tree(program, expression, &mut descendants);
     let authored_call = match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => call.authored_call_selection,
         _ => None,

@@ -1,3 +1,4 @@
+use crate::digest_encoder::DomainDigestEncoder;
 use crate::{
     ArchitecturalUnitActionKind, LiveRangeIdentity, LiveRangePlan, VirtualFixedConstraintSite,
 };
@@ -28,7 +29,7 @@ pub fn live_range_identity_from_digests(
 
 /// One function's share of `live_range_identity`.
 pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    let mut digest = DomainDigestEncoder::new(b"");
     digest.raw(b"omega.terminal-live-range-function.v1\0");
     digest.raw(&function.machine.get().to_le_bytes());
     digest.len(function.block_domains.len());
@@ -146,10 +147,7 @@ pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 
     digest.finish()
 }
 
-fn encode_fragments(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
-    fragments: &[crate::LiveRangeFragment],
-) {
+fn encode_fragments(digest: &mut DomainDigestEncoder, fragments: &[crate::LiveRangeFragment]) {
     digest.len(fragments.len());
     for fragment in fragments {
         digest.raw(&fragment.block.0.to_le_bytes());
@@ -159,7 +157,7 @@ fn encode_fragments(
 }
 
 fn encode_connectors(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut DomainDigestEncoder,
     connectors: &[crate::LiveRangeEdgeConnector],
 ) {
     digest.len(connectors.len());

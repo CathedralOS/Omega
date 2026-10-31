@@ -649,11 +649,13 @@ fn validate<'program>(
             &mut formation_obligations,
         );
         validate_machine_contracts(program, machine, &mut diagnostics);
-        arithmetic_domains::validate_machine_total_specification_arithmetic(
-            program,
-            machine,
-            &mut diagnostics,
-            &mut formation_obligations,
+        arithmetic_decisions.extend(
+            arithmetic_domains::validate_machine_total_specification_arithmetic(
+                program,
+                machine,
+                &mut diagnostics,
+                &mut formation_obligations,
+            ),
         );
         // Pristine templates remain in the frozen roster. Judge their declared
         // abstract envelope here, alongside concrete bodies; preparation cannot

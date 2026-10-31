@@ -2,6 +2,8 @@
 
 use ::symbols::SymbolHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::data::DataMember;
+use typed_trees::statement::StatementNode;
 
 pub fn machine_symbol_from_type_reference_handle(
     program: &dyn crate::CheckingInput,
@@ -93,7 +95,7 @@ pub fn runtime_field_subject(
     let carrier = scoped_binding_type(program, state, receiver)?;
     let data = declared_data_type(program, carrier)?;
     let field = program.data_members(data).iter().find_map(|row| {
-        let typed_trees::data::DataMember::Field(field) = row else {
+        let DataMember::Field(field) = row else {
             return None;
         };
         (field.name.as_str() == member.as_str()).then_some(field.symbol)
@@ -189,15 +191,13 @@ pub fn data_member_symbol_by_name(
 ) -> Option<SymbolHandle> {
     for member in program.data_members(data) {
         match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == member_name => {
+            DataMember::Field(field) if field.name.as_str() == member_name => {
                 return Some(field.symbol);
             }
-            typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == member_name =>
-            {
+            DataMember::Variant(variant) if variant.name.as_str() == member_name => {
                 return Some(variant.symbol);
             }
-            typed_trees::data::DataMember::Variant(variant) => {
+            DataMember::Variant(variant) => {
                 if let Some(field) = program
                     .data_payload_fields(variant)
                     .iter()
@@ -206,7 +206,7 @@ pub fn data_member_symbol_by_name(
                     return Some(field.symbol);
                 }
             }
-            typed_trees::data::DataMember::Field(_) => {}
+            DataMember::Field(_) => {}
         }
     }
     None
@@ -261,9 +261,7 @@ pub fn state_scoped_name_symbol(
         .iter()
         .take(statement_index)
         .find_map(|statement| match statement {
-            typed_trees::statement::StatementNode::LocalData(local_data)
-                if local_data.name.as_str() == name =>
-            {
+            StatementNode::LocalData(local_data) if local_data.name.as_str() == name => {
                 Some(local_data.symbol)
             }
             _ => None,

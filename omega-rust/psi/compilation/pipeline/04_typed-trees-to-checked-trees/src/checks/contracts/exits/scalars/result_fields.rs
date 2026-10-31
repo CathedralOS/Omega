@@ -16,7 +16,24 @@
 //! The shared occurrence query admits the equality only before such effects;
 //! later writes cannot invalidate a window already captured.
 
-use validation::CanonicalPlace;
+use super::super::super::prover::captured_scalar_at_path;
+use super::super::super::return_values::completed_return_operand;
+use super::super::super::return_values::exit_return_call;
+use numerics::bignum::BigInt;
+use symbols::SymbolHandle;
+use typed_trees::data::DataField;
+use typed_trees::operator::has_builtin_spelled_expression_meaning;
+use typed_trees::statement::StatementNode;
+use typed_trees::statement::TransitionTargetNode;
+use validation::expression_traversal::collect_statement_expression_trees;
+use validation::expression_traversal::expression_has_inert_prefix;
+use validation::field_domains::readable_type_reference;
+use validation::{
+    CanonicalPlace, closed_collection_length, closed_collection_length_under_matches,
+    collection_length_receiver, expression_result_type_reference, find_state_on_machine,
+    has_builtin_bound_expression_meaning, project_type_reference_from_segments,
+    reserved_result_owner, reserved_result_place,
+};
 
 mod descriptor_lengths;
 
@@ -28,16 +45,18 @@ use crate::flow::expressions;
 use crate::flow::state_statements;
 use crate::flow::{self};
 use crate::places::place_at;
-use checked_trees::CheckedScalarExpression;
-use facts::PlaceRoot;
-use typed_trees::expression::{BinaryOperator, ExpressionNode};
+use checked_trees::{CheckedOperatorResolutionStatus, CheckedScalarExpression};
+use facts::{PlaceRoot, PlaceSegment};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionNode, MatchPattern, TableBinaryExpression, TableMemberExpression,
+};
 use typed_trees::state::State;
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone)]
 struct MatchedReturnInteger {
     subject: ExpressionHandle,
-    value: numerics::bignum::BigInt,
+    value: BigInt,
     patterns: Vec<ExpressionHandle>,
     arm: ExpressionHandle,
 }
@@ -54,8 +73,7 @@ impl ExitScalars<'_, '_> {
     fn return_arithmetic(&self, expression: ExpressionHandle) -> Option<bool> {
         use super::super::super::prover::call_guarantees::{self, arithmetic, callable::Callable};
         let entry = self.program.machine_states(self.machine).first()?;
-        let state =
-            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
+        let state = find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         let caller = self
             .facts
             .flow
@@ -94,13 +112,9 @@ impl ExitScalars<'_, '_> {
                 ) {
                     return Some(length);
                 }
-                if let Some(result) = validation::reserved_result_place(self.program, occurrence)
+                if let Some(result) = reserved_result_place(self.program, occurrence)
                     && result.machine_symbol == self.machine.symbol
-                    && let Some(call) = super::super::super::return_values::exit_return_call(
-                        self.program,
-                        self.facts,
-                        self.exit,
-                    )
+                    && let Some(call) = exit_return_call(self.program, self.facts, self.exit)
                 {
                     return arithmetic::call_result_atom(
                         self.program,
@@ -119,13 +133,9 @@ impl ExitScalars<'_, '_> {
                         self.program.expression_table.expression(selected),
                         ExpressionNode::Call(_)
                     ) && let Some(capture) =
-                        super::super::super::return_values::completed_return_operand(
-                            self.program,
-                            self.facts,
-                            self.exit,
-                        )
+                        completed_return_operand(self.program, self.facts, self.exit)
                         && capture.expression == selected
-                        && validation::project_type_reference_from_segments(
+                        && project_type_reference_from_segments(
                             self.program,
                             capture.type_reference,
                             &remaining,
@@ -230,8 +240,8 @@ impl ExitScalars<'_, '_> {
     pub(super) fn result_projection(
         &self,
         expression: ExpressionHandle,
-    ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
-        let place = validation::reserved_result_place(self.program, expression)?;
+    ) -> Option<(ExpressionHandle, Vec<PlaceSegment>)> {
+        let place = reserved_result_place(self.program, expression)?;
         if place.machine_symbol != self.machine.symbol || !stable_segments(&place.segments) {
             return None;
         }
@@ -241,10 +251,7 @@ impl ExitScalars<'_, '_> {
         }
         let entry = self.program.machine_states(self.machine).first()?;
         if place.segments.is_empty() {
-            let reference = validation::field_domains::readable_type_reference(
-                self.program,
-                entry.return_type,
-            )?;
+            let reference = readable_type_reference(self.program, entry.return_type)?;
             return self
                 .program
                 .primitive_type_reference(reference)
@@ -265,57 +272,40 @@ impl ExitScalars<'_, '_> {
     }
 
     pub(super) fn result_field_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
-        let state =
-            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
+        let state = find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         // Descriptor metadata is a value projection too. Rebase the exact
         // reserved result onto the returned view; the shared geometry query
         // retains captured closed values and excludes later live hypotheses.
-        if let Some(receiver) = validation::collection_length_receiver(
-            self.program,
-            self.machine,
-            Some(state),
-            expression,
-        ) {
+        if let Some(receiver) =
+            collection_length_receiver(self.program, self.machine, Some(state), expression)
+        {
             if let Some(length) = self.agreed_result_collection_length(state, receiver) {
-                return Some(ScalarValue::Integer(numerics::bignum::BigInt::from_u64(
-                    length,
-                )));
+                return Some(ScalarValue::Integer(BigInt::from_u64(length)));
             }
             // The whole returned descriptor keeps its previous route when the
             // field projection does not apply. A record field is not that route.
-            if validation::reserved_result_owner(self.program, receiver)
+            if reserved_result_owner(self.program, receiver)
                 .is_some_and(|(owner, _)| owner == self.machine.symbol)
             {
                 let returned = exit_return_expression(self.program, self.exit);
                 if !self.return_expression_is_stable(returned) {
                     return None;
                 }
-                return validation::closed_collection_length(
-                    self.program,
-                    self.machine,
-                    state,
-                    returned,
-                )
-                .map(numerics::bignum::BigInt::from_u64)
-                .map(ScalarValue::Integer);
+                return closed_collection_length(self.program, self.machine, state, returned)
+                    .map(BigInt::from_u64)
+                    .map(ScalarValue::Integer);
             }
         }
         let (value, remaining) = self.result_projection(expression)?;
         if remaining.is_empty() {
-            let reference =
-                validation::reserved_result_place(self.program, expression)?.type_reference;
+            let reference = reserved_result_place(self.program, expression)?.type_reference;
             // The selected constructor child may be a readable reference.
             // Observe its referent, not the descriptor's pointer bits; the
             // capture lookup below retains its actual source.
-            let reference =
-                validation::field_domains::readable_type_reference(self.program, reference)?;
+            let reference = readable_type_reference(self.program, reference)?;
             let primitive = self.program.primitive_type_reference(reference)?;
-            if !validation::has_builtin_bound_expression_meaning(
-                self.program,
-                self.machine,
-                Some(state),
-                value,
-            ) {
+            if !has_builtin_bound_expression_meaning(self.program, self.machine, Some(state), value)
+            {
                 return None;
             }
             if let Some(selected) = crate::values::lower_unit_scalar_argument(
@@ -369,8 +359,8 @@ impl ExitScalars<'_, '_> {
             .flow
             .control
             .state(self.machine.symbol, self.exit.state_symbol)?;
-        let place = validation::reserved_result_place(self.program, expression)?;
-        super::super::super::prover::captured_scalar_at_path(
+        let place = reserved_result_place(self.program, expression)?;
+        captured_scalar_at_path(
             self.program,
             self.facts,
             state,
@@ -394,15 +384,14 @@ impl ExitScalars<'_, '_> {
 
     fn result_collection_length_relation(&self, expression: ExpressionHandle) -> Option<bool> {
         let comparison = self.program.expression_table.binary_node(expression)?;
-        let state =
-            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
+        let state = find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         let (receiver, expected, operator) = self.length_comparison(state, comparison)?;
         let lengths = self.result_collection_lengths(state, receiver)?;
         if lengths.is_empty() {
             return None;
         }
         Some(lengths.iter().all(|length| {
-            let length = numerics::bignum::BigInt::from_u64(*length);
+            let length = BigInt::from_u64(*length);
             Self::length_relation(&length, operator, &expected)
         }))
     }
@@ -410,20 +399,12 @@ impl ExitScalars<'_, '_> {
     fn length_comparison(
         &self,
         state: &State,
-        comparison: &typed_trees::expression::TableBinaryExpression,
-    ) -> Option<(ExpressionHandle, numerics::bignum::BigInt, BinaryOperator)> {
-        let left_length = validation::collection_length_receiver(
-            self.program,
-            self.machine,
-            Some(state),
-            comparison.left,
-        );
-        let right_length = validation::collection_length_receiver(
-            self.program,
-            self.machine,
-            Some(state),
-            comparison.right,
-        );
+        comparison: &TableBinaryExpression,
+    ) -> Option<(ExpressionHandle, BigInt, BinaryOperator)> {
+        let left_length =
+            collection_length_receiver(self.program, self.machine, Some(state), comparison.left);
+        let right_length =
+            collection_length_receiver(self.program, self.machine, Some(state), comparison.right);
         let (receiver, expected, operator) = if left_length.is_some() {
             (
                 left_length?,
@@ -451,7 +432,7 @@ impl ExitScalars<'_, '_> {
         .then_some((receiver, expected, operator))
     }
 
-    fn integer_literal(&self, expression: ExpressionHandle) -> Option<numerics::bignum::BigInt> {
+    fn integer_literal(&self, expression: ExpressionHandle) -> Option<BigInt> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Integer(value) => value.value_bignum(),
             _ => None,
@@ -470,11 +451,7 @@ impl ExitScalars<'_, '_> {
         })
     }
 
-    fn length_relation(
-        length: &numerics::bignum::BigInt,
-        operator: BinaryOperator,
-        expected: &numerics::bignum::BigInt,
-    ) -> bool {
+    fn length_relation(length: &BigInt, operator: BinaryOperator, expected: &BigInt) -> bool {
         match operator {
             BinaryOperator::Equal => length == expected,
             BinaryOperator::NotEqual => length != expected,
@@ -520,10 +497,7 @@ impl ExitScalars<'_, '_> {
     /// Field path from this machine's reserved result to the length receiver.
     /// An intermediate `result.field` node is not its own contract root, so the
     /// result name owns the path and each field is resolved on the result type.
-    fn result_receiver_segments(
-        &self,
-        receiver: ExpressionHandle,
-    ) -> Option<Vec<facts::PlaceSegment>> {
+    fn result_receiver_segments(&self, receiver: ExpressionHandle) -> Option<Vec<PlaceSegment>> {
         let mut members = Vec::new();
         let mut cursor = receiver;
         loop {
@@ -539,14 +513,14 @@ impl ExitScalars<'_, '_> {
                 _ => return None,
             }
         }
-        let (owner, mut type_reference) = validation::reserved_result_owner(self.program, cursor)?;
+        let (owner, mut type_reference) = reserved_result_owner(self.program, cursor)?;
         if owner != self.machine.symbol {
             return None;
         }
         let mut segments = Vec::with_capacity(members.len());
         for member in members.into_iter().rev() {
             let field = self.field_of_type(type_reference, member)?;
-            segments.push(facts::PlaceSegment::Field {
+            segments.push(PlaceSegment::Field {
                 symbol: field.symbol,
             });
             type_reference = field.type_reference;
@@ -556,20 +530,20 @@ impl ExitScalars<'_, '_> {
 
     fn field_of_type(
         &self,
-        type_reference: typed_trees::types::TypeReferenceHandle,
-        member: &typed_trees::expression::TableMemberExpression,
-    ) -> Option<&typed_trees::data::DataField> {
+        type_reference: TypeReferenceHandle,
+        member: &TableMemberExpression,
+    ) -> Option<&DataField> {
         let mut reference = type_reference;
         loop {
             match self.program.type_reference_table.type_reference(reference) {
-                typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-                | typed_trees::types::TypeReferenceNode::Constrained {
+                TypeReferenceNode::Reference { referee, .. }
+                | TypeReferenceNode::Constrained {
                     base_type: referee, ..
                 } => reference = *referee,
-                typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
+                TypeReferenceNode::Generic { base_symbol, .. } => {
                     return self.field_of_data(*base_symbol, member);
                 }
-                typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                TypeReferenceNode::Named { symbol, .. } => {
                     return self.field_of_data(*symbol, member);
                 }
                 _ => return None,
@@ -579,9 +553,9 @@ impl ExitScalars<'_, '_> {
 
     fn field_of_data(
         &self,
-        symbol: symbols::SymbolHandle,
-        member: &typed_trees::expression::TableMemberExpression,
-    ) -> Option<&typed_trees::data::DataField> {
+        symbol: SymbolHandle,
+        member: &TableMemberExpression,
+    ) -> Option<&DataField> {
         let mut definitions = self
             .program
             .data_definitions()
@@ -609,8 +583,8 @@ impl ExitScalars<'_, '_> {
         &self,
         state: &State,
         expression: ExpressionHandle,
-        reference: typed_trees::types::TypeReferenceHandle,
-        segments: &[facts::PlaceSegment],
+        reference: TypeReferenceHandle,
+        segments: &[PlaceSegment],
         matched: &[MatchedReturnInteger],
     ) -> Option<Vec<u64>> {
         if let ExpressionNode::Match(dispatch) =
@@ -655,7 +629,7 @@ impl ExitScalars<'_, '_> {
             let current_matches: Vec<_> = matched
                 .iter()
                 .filter(|binding| {
-                    validation::expression_traversal::expression_has_inert_prefix(
+                    expression_has_inert_prefix(
                         self.program,
                         &binding.patterns,
                         binding.arm,
@@ -664,7 +638,7 @@ impl ExitScalars<'_, '_> {
                 })
                 .map(|binding| (binding.subject, binding.value.clone()))
                 .collect();
-            return validation::closed_collection_length_under_matches(
+            return closed_collection_length_under_matches(
                 self.program,
                 self.machine,
                 state,
@@ -705,9 +679,9 @@ impl ExitScalars<'_, '_> {
     fn matched_arm_integer(
         &self,
         subject: ExpressionHandle,
-        pattern: typed_trees::expression::MatchPattern,
-    ) -> Option<(ExpressionHandle, numerics::bignum::BigInt)> {
-        let typed_trees::expression::MatchPattern::Value(pattern) = pattern else {
+        pattern: MatchPattern,
+    ) -> Option<(ExpressionHandle, BigInt)> {
+        let MatchPattern::Value(pattern) = pattern else {
             return None;
         };
         let value = self.integer_literal(pattern)?;
@@ -732,18 +706,12 @@ impl ExitScalars<'_, '_> {
                 )
             };
         let entry = self.program.machine_states(self.machine).first()?;
-        let state =
-            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
-        let reference = validation::reserved_result_place(self.program, projected)?.type_reference;
-        let observed_reference =
-            validation::field_domains::readable_type_reference(self.program, reference)?;
+        let state = find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
+        let reference = reserved_result_place(self.program, projected)?.type_reference;
+        let observed_reference = readable_type_reference(self.program, reference)?;
         let primitive = self.program.primitive_type_reference(observed_reference)?;
-        let expected_reference = validation::expression_result_type_reference(
-            self.program,
-            self.machine,
-            entry,
-            expected,
-        );
+        let expected_reference =
+            expression_result_type_reference(self.program, self.machine, entry, expected);
         let operand_types = if projected == comparison.left {
             [Some(reference), expected_reference]
         } else {
@@ -752,20 +720,20 @@ impl ExitScalars<'_, '_> {
         // IEEE equality is not reflexive. Boolean compound denotation has a
         // separate owner; this path proves integer computation congruence.
         if !primitive.accepts_integer_literal()
-            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            || !has_builtin_spelled_expression_meaning(
                 self.program,
                 self.machine.symbol,
                 expression,
                 language_core::OperatorSpelling::Equal,
                 &operand_types,
             )
-            || !validation::has_builtin_bound_expression_meaning(
+            || !has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(entry),
                 expected,
             )
-            || !validation::has_builtin_bound_expression_meaning(
+            || !has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(state),
@@ -908,7 +876,7 @@ impl ExitScalars<'_, '_> {
                 }
                 place.root = PlaceRoot::Symbol(origin.state_parameter);
                 let mut reference = parameter.type_reference;
-                while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+                while let TypeReferenceNode::Constrained { base_type, .. } =
                     self.program.type_reference_table.type_reference(reference)
                 {
                     reference = *base_type;
@@ -920,7 +888,7 @@ impl ExitScalars<'_, '_> {
                 // comparing them with caller-substituted invocation inputs.
                 if !matches!(
                     self.program.type_reference_table.type_reference(reference),
-                    typed_trees::types::TypeReferenceNode::Reference { .. }
+                    TypeReferenceNode::Reference { .. }
                 ) {
                     // Mutable owned scalar inputs have no tracked arrival
                     // origin across entry backedges. Storage identity cannot
@@ -942,18 +910,41 @@ impl ExitScalars<'_, '_> {
         // Owned-record origins are not tracked across arrival edges yet. The
         // entry exit's identity row alone cannot identify an invocation's
         // original record after a loop re-enters with different arguments.
-        if !subject.segments.is_empty() && self.program.machine_states(self.machine).iter().any(|state| {
-            self.program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-                let Some(transition) = statement.as_transition() else { return false; };
-                [transition.target, transition.continuation].iter().any(|target| {
-                    target.is_valid() && match self.program.statement_table.transition_target(*target) {
-                        typed_trees::statement::TransitionTargetNode::Named { path, .. } =>
-                            path.symbol == entry.symbol || path.symbol == self.machine.symbol,
-                        _ => false,
-                    }
+        if !subject.segments.is_empty()
+            && self
+                .program
+                .machine_states(self.machine)
+                .iter()
+                .any(|state| {
+                    self.program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .iter()
+                        .any(|statement| {
+                            let Some(transition) = statement.as_transition() else {
+                                return false;
+                            };
+                            [transition.target, transition.continuation]
+                                .iter()
+                                .any(|target| {
+                                    target.is_valid()
+                                        && match self
+                                            .program
+                                            .statement_table
+                                            .transition_target(*target)
+                                        {
+                                            TransitionTargetNode::Named { path, .. } => {
+                                                path.symbol == entry.symbol
+                                                    || path.symbol == self.machine.symbol
+                                            }
+                                            _ => false,
+                                        }
+                                })
+                        })
                 })
-            })
-        }) { return None; }
+        {
+            return None;
+        }
         // Cross-state scalar origins preserve identity, but do not yet retain
         // a field-specific write history. Require parameter preservation in
         // every state in that case, never replay a same-spelled entry binding.
@@ -971,24 +962,19 @@ impl ExitScalars<'_, '_> {
                 // selected operator implementations. Unknown writes cannot
                 // preserve an invocation input merely by lacking a frame row.
                 let mut nodes = Vec::new();
-                validation::expression_traversal::collect_statement_expression_trees(
-                    self.program,
-                    statement,
-                    &mut nodes,
-                );
-                if matches!(
-                    statement,
-                    typed_trees::statement::StatementNode::AssemblyFact(_)
-                ) || nodes.iter().any(|node| {
-                    matches!(
-                        self.program.expression_table.expression(*node),
-                        ExpressionNode::Atomic(_)
-                    )
-                }) || self.facts.operators.uses.iter().any(|(_, selected)| {
-                    nodes.contains(&selected.expression)
-                        && selected.status
-                            != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                }) {
+                collect_statement_expression_trees(self.program, statement, &mut nodes);
+                if matches!(statement, StatementNode::AssemblyFact(_))
+                    || nodes.iter().any(|node| {
+                        matches!(
+                            self.program.expression_table.expression(*node),
+                            ExpressionNode::Atomic(_)
+                        )
+                    })
+                    || self.facts.operators.uses.iter().any(|(_, selected)| {
+                        nodes.contains(&selected.expression)
+                            && selected.status != CheckedOperatorResolutionStatus::BuiltinFallback
+                    })
+                {
                     return None;
                 }
                 let mut writes = flow::statement_storage_writes(

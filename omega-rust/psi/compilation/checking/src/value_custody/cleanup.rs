@@ -13,7 +13,10 @@ use language_semantics::{
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap;
+use symbols::SymbolKind;
 use typed_trees::data::DataMember;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::statement::TransitionTargetNode;
@@ -367,9 +370,7 @@ fn internal_cleanup_transitions(
                         continue;
                     }
                     let selected = program.symbols.get(path.symbol);
-                    if selected.kind == symbols::SymbolKind::State
-                        && selected.parent == machine.symbol
-                    {
+                    if selected.kind == SymbolKind::State && selected.parent == machine.symbol {
                         transitions.insert(*occurrence);
                     }
                 }
@@ -499,15 +500,13 @@ pub fn nominal_cleanup_machine_for_type<'program>(
 /// when that owner's origin specializes the generic `owner` base.
 fn nominal_cleanup_candidates(
     program: &dyn crate::CheckingInput,
-) -> std::sync::Arc<symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>> {
+) -> std::sync::Arc<SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>> {
     crate::frozen_program::frozen_memo(
         program,
         |memos| &memos.nominal_cleanup_machine_index,
         || {
-            let mut index: symbols::SymbolKeyMap<
-                symbols::SymbolHandle,
-                Vec<symbols::SymbolHandle>,
-            > = Default::default();
+            let mut index: SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>> =
+                Default::default();
             for machine in program.machines() {
                 // Independent hooks are authorized by an exact owned
                 // qualification. They are never ambient candidates for every
@@ -550,8 +549,8 @@ fn reserved_cleanup_selected_by<'program>(
     // single candidate. Handles without a symbol-table row (test fixtures
     // forge them) keep the machine/state handle scan.
     let machine_symbol = match program.symbols.get(selected_symbol).kind {
-        symbols::SymbolKind::Machine => Some(selected_symbol),
-        symbols::SymbolKind::State => Some(program.symbols.get(selected_symbol).parent),
+        SymbolKind::Machine => Some(selected_symbol),
+        SymbolKind::State => Some(program.symbols.get(selected_symbol).parent),
         _ => None,
     };
     cleanups.iter().copied().find(|machine| {
@@ -735,9 +734,7 @@ pub(crate) fn validate_cleanup_delivery(
 ) {
     // Casts do not execute cleanup. Follow their exact operand rather than
     // using the erased result as evidence that no obligation existed.
-    while let typed_trees::expression::ExpressionNode::Cast(cast) =
-        expression_table(program).expression(value)
-    {
+    while let ExpressionNode::Cast(cast) = expression_table(program).expression(value) {
         value = cast.value;
     }
     let Some(source) =

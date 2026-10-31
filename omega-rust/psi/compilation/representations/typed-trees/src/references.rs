@@ -5,6 +5,10 @@
 //! The same traversal drives executable expression membership and machine
 //! dependencies; it neither admits declarations nor supplies checking evidence.
 
+use crate::expression::BuildSelectionRequest;
+use crate::machine::Machine;
+use crate::mathematical::MathematicalTypeHandle;
+use crate::static_applications::StaticMachineApplicationHandle;
 use crate::{
     TypedTrees,
     domain::ProofFact,
@@ -19,6 +23,11 @@ use crate::{
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
 use symbols::SymbolHandle;
+
+mod source_occurrences;
+pub use source_occurrences::{
+    authored_type_occurrences, collect_authored_program_type_occurrences,
+};
 
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
@@ -41,10 +50,7 @@ pub enum StaticArgumentCall<'call> {
 impl<'call> StaticArgumentCall<'call> {
     /// Both source telescopes belong to the occurrence. Operand-form selection
     /// shares the invocation ledger; qualifier-form selection owns another one.
-    pub fn applications(
-        &self,
-    ) -> impl Iterator<Item = crate::static_applications::StaticMachineApplicationHandle> + use<>
-    {
+    pub fn applications(&self) -> impl Iterator<Item = StaticMachineApplicationHandle> + use<> {
         let invocation = self.application();
         let selection = self.selection_application();
         [invocation, selection]
@@ -59,9 +65,7 @@ impl<'call> StaticArgumentCall<'call> {
     /// The exact static map selection is independent of a method invocation's
     /// own type/const/machine operands. A qualifier can supply the former even
     /// when the latter is empty, and specialization must preserve both.
-    pub fn selection_application(
-        &self,
-    ) -> crate::static_applications::StaticMachineApplicationHandle {
+    pub fn selection_application(&self) -> StaticMachineApplicationHandle {
         match self {
             Self::Expression(_, call) => call.static_requirement_dispatch.as_ref(),
             Self::Statement(call) => call.static_requirement_dispatch.as_ref(),
@@ -71,7 +75,7 @@ impl<'call> StaticArgumentCall<'call> {
     }
 
     /// Retained source operands, or zero while no application has been recorded.
-    pub fn application(&self) -> crate::static_applications::StaticMachineApplicationHandle {
+    pub fn application(&self) -> StaticMachineApplicationHandle {
         match self {
             Self::Expression(_, call) => call.authored_machine_application,
             Self::Statement(call) => call.authored_machine_application,
@@ -135,17 +139,19 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn leave_lexical_scope(&mut self) {}
     fn authored_selection(&mut self, _: crate::AuthoredDeclarationSelectionOccurrenceId) {}
     /// An application reached from a real call or retained source owner.
-    fn static_application(
-        &mut self,
-        _: crate::static_applications::StaticMachineApplicationHandle,
-    ) {
-    }
+    fn static_application(&mut self, _: StaticMachineApplicationHandle) {}
     /// Source scope is declaration custody, not permission to execute its body.
     fn declaration_description_dependency(&mut self, _: SymbolHandle) {}
     /// Exact member body retained for a materialized target layout, distinct
     /// from an authored use of that member in portable source.
     fn layout_realization_dependency(&mut self, symbol: SymbolHandle) {
         self.extend([symbol]);
+    }
+    /// Derived application and realization sidecars describe prepared work,
+    /// not independent authored occurrences. Source-custody queries exclude
+    /// them while ordinary dependency traversals retain the complete graph.
+    fn derived_declaration_references(&self) -> bool {
+        true
     }
     fn declaration(&mut self, _: SymbolHandle) -> bool {
         true
@@ -179,7 +185,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn proof_fact(&mut self, _: arena::Handle<ProofFact>) -> bool {
         true
     }
-    fn mathematical_type(&mut self, _: crate::mathematical::MathematicalTypeHandle) -> bool {
+    fn mathematical_type(&mut self, _: MathematicalTypeHandle) -> bool {
         true
     }
 }
@@ -217,7 +223,7 @@ struct ReferenceCollector {
     alias_argument_types: HashSet<TypeReferenceHandle>,
     alias_argument_expressions: HashSet<ExpressionHandle>,
     facts: HashSet<arena::Handle<ProofFact>>,
-    mathematical_types: HashSet<crate::mathematical::MathematicalTypeHandle>,
+    mathematical_types: HashSet<MathematicalTypeHandle>,
     authored_selection_occurrences: HashSet<crate::AuthoredDeclarationSelectionOccurrenceId>,
 }
 impl Extend<SymbolHandle> for ReferenceCollector {
@@ -306,7 +312,7 @@ impl TypedReferences for ReferenceCollector {
     fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
         self.facts.insert(handle)
     }
-    fn mathematical_type(&mut self, handle: crate::mathematical::MathematicalTypeHandle) -> bool {
+    fn mathematical_type(&mut self, handle: MathematicalTypeHandle) -> bool {
         self.mathematical_types.insert(handle)
     }
 }
@@ -416,7 +422,7 @@ pub fn collect_program_operand_owners(program: &TypedTrees) -> ProgramOperandOwn
 /// roots. This inventory creates neither execution reach nor admission.
 pub fn collect_program_conformance_occurrences(
     program: &TypedTrees,
-) -> Vec<crate::static_applications::StaticMachineApplicationHandle> {
+) -> Vec<StaticMachineApplicationHandle> {
     let mut occurrences = TypeOccurrences::default();
     visit_program(program, &mut occurrences);
     occurrences.conformance_applications(program)
@@ -430,7 +436,7 @@ pub(crate) struct ProgramApplicationOccurrences {
     pub types: Vec<TypeOccurrence>,
     /// Exact trait qualifiers written before `::` at each supplying owner.
     pub requirement_applications: Vec<TypeOccurrence>,
-    pub conformance_applications: Vec<crate::static_applications::StaticMachineApplicationHandle>,
+    pub conformance_applications: Vec<StaticMachineApplicationHandle>,
 }
 
 pub(crate) fn collect_program_application_occurrences(
@@ -453,10 +459,10 @@ struct TypeOccurrences {
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
     requirement_applications: Vec<TypeOccurrence>,
-    applications: HashSet<crate::static_applications::StaticMachineApplicationHandle>,
+    applications: HashSet<StaticMachineApplicationHandle>,
     seen_types: Vec<Vec<(SymbolHandle, TypeReferenceHandle)>>,
     seen_expressions: Vec<Vec<(SymbolHandle, ExpressionHandle)>>,
-    seen_mathematical_types: Vec<Vec<(SymbolHandle, crate::mathematical::MathematicalTypeHandle)>>,
+    seen_mathematical_types: Vec<Vec<(SymbolHandle, MathematicalTypeHandle)>>,
 }
 
 /// Index shared nodes by arena slot, retaining generation and supplying scope.
@@ -483,7 +489,7 @@ impl TypeOccurrences {
     fn conformance_applications(
         &self,
         program: &TypedTrees,
-    ) -> Vec<crate::static_applications::StaticMachineApplicationHandle> {
+    ) -> Vec<StaticMachineApplicationHandle> {
         program
             .expression_table
             .static_machine_applications()
@@ -503,9 +509,7 @@ impl TypedReferences for TypeOccurrences {
                 .expression_table
                 .build_selection_request(call.build_selection)
             {
-                Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) => {
-                    request.requirement
-                }
+                Some(BuildSelectionRequest::ProviderReadiness(request)) => request.requirement,
                 _ => Default::default(),
             };
             for reference in [call.requirement_application, readiness] {
@@ -569,10 +573,7 @@ impl TypedReferences for TypeOccurrences {
         retain_scoped_occurrence(&mut self.seen_expressions, self.owner, expression)
     }
 
-    fn mathematical_type(
-        &mut self,
-        reference: crate::mathematical::MathematicalTypeHandle,
-    ) -> bool {
+    fn mathematical_type(&mut self, reference: MathematicalTypeHandle) -> bool {
         retain_scoped_occurrence(&mut self.seen_mathematical_types, self.owner, reference)
     }
 }
@@ -769,7 +770,7 @@ pub fn collect_declaration_symbol_dependencies(
             self.current.proof_fact(fact)
         }
 
-        fn mathematical_type(&mut self, ty: crate::mathematical::MathematicalTypeHandle) -> bool {
+        fn mathematical_type(&mut self, ty: MathematicalTypeHandle) -> bool {
             self.current.mathematical_type(ty)
         }
     }
@@ -883,7 +884,7 @@ impl MachineSidecarIndex {
 
 pub fn collect_machine_references(
     program: &TypedTrees,
-    machine: &crate::machine::Machine,
+    machine: &Machine,
     sidecars: &MachineSidecarIndex,
 ) -> ProgramReferences {
     let mut roots = ReferenceCollector::default();
@@ -965,7 +966,7 @@ pub fn collect_expression_source_owners(
         expressions: HashSet<ExpressionHandle>,
         types: HashSet<TypeReferenceHandle>,
         facts: HashSet<arena::Handle<ProofFact>>,
-        mathematical_types: HashSet<crate::mathematical::MathematicalTypeHandle>,
+        mathematical_types: HashSet<MathematicalTypeHandle>,
     }
     impl Extend<SymbolHandle> for OwnerVisitor<'_> {
         fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
@@ -1006,10 +1007,7 @@ pub fn collect_expression_source_owners(
         fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
             !self.matched && self.facts.insert(handle)
         }
-        fn mathematical_type(
-            &mut self,
-            handle: crate::mathematical::MathematicalTypeHandle,
-        ) -> bool {
+        fn mathematical_type(&mut self, handle: MathematicalTypeHandle) -> bool {
             !self.matched && self.mathematical_types.insert(handle)
         }
     }
@@ -1152,7 +1150,7 @@ impl TypedReferences for ProofFactCollector {
     fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
         false
     }
-    fn mathematical_type(&mut self, _: crate::mathematical::MathematicalTypeHandle) -> bool {
+    fn mathematical_type(&mut self, _: MathematicalTypeHandle) -> bool {
         false
     }
     fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
@@ -1193,6 +1191,9 @@ fn visit_callable_symbol(
 ) {
     retained.callable_use(symbol);
     visit_symbol(retained, symbol);
+    if !retained.derived_declaration_references() {
+        return;
+    }
     for (_, plan) in program.access_lifecycle_plans.iter() {
         if let crate::typed_trees::AccessLifecyclePlan::Evaluated {
             callable,
@@ -1272,7 +1273,7 @@ pub fn visit_static_argument(
 pub fn visit_static_machine_bindings(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
-    application: crate::static_applications::StaticMachineApplicationHandle,
+    application: StaticMachineApplicationHandle,
 ) {
     visit_static_machine_bindings_inner(program, retained, application, &mut HashSet::default());
 }
@@ -1280,10 +1281,13 @@ pub fn visit_static_machine_bindings(
 fn visit_static_machine_bindings_inner(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
-    application: crate::static_applications::StaticMachineApplicationHandle,
-    visited: &mut HashSet<crate::static_applications::StaticMachineApplicationHandle>,
+    application: StaticMachineApplicationHandle,
+    visited: &mut HashSet<StaticMachineApplicationHandle>,
 ) {
-    if !application.is_valid() || !visited.insert(application) {
+    if !retained.derived_declaration_references()
+        || !application.is_valid()
+        || !visited.insert(application)
+    {
         return;
     }
     retained.static_application(application);
@@ -1360,8 +1364,11 @@ fn visit_closed_conformance_inner(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     application: &crate::typed_trees::ClosedConformanceApplication,
-    visited: &mut HashSet<crate::static_applications::StaticMachineApplicationHandle>,
+    visited: &mut HashSet<StaticMachineApplicationHandle>,
 ) {
+    if !retained.derived_declaration_references() {
+        return;
+    }
     application.trait_scope.visit_references(program, retained);
     visit_static_machine_bindings_inner(
         program,
@@ -1414,6 +1421,9 @@ fn visit_declaration_dependencies(
     retained: &mut impl TypedReferences,
     owner: SymbolHandle,
 ) {
+    if !retained.derived_declaration_references() {
+        return;
+    }
     visit_constant_evaluation_entries(program, retained, owner);
     visit_product_operand_inputs(program, retained, owner);
     for (_, selected) in program
@@ -1497,7 +1507,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         visit_declaration_dependencies(program, retained, data.symbol);
         visit_symbol(retained, data.symbol);
-        if !program.plan_laid_layouts.is_empty() {
+        if retained.derived_declaration_references() && !program.plan_laid_layouts.is_empty() {
             for plan in program
                 .plan_laid_layouts
                 .iter()
@@ -1516,7 +1526,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
                 }
             }
         }
-        if !program.access_view_plans.is_empty() {
+        if retained.derived_declaration_references() && !program.access_view_plans.is_empty() {
             for plan in program
                 .access_view_plans
                 .iter()
@@ -1600,11 +1610,12 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         // Application copies own distinct proof/type payloads. Omitting them
         // leaves their indexed identities frozen at the declaration's tuple
         // even after the copied operands have been substituted.
-        for signature in program
-            .trait_machine_signatures(definition)
-            .iter()
-            .chain(program.applied_trait_signatures(definition.symbol))
-        {
+        let include_derived = retained.derived_declaration_references();
+        for signature in program.trait_machine_signatures(definition).iter().chain(
+            program
+                .applied_trait_signatures(definition.symbol)
+                .filter(|_| include_derived),
+        ) {
             visit_signature(program, retained, signature);
         }
     }
@@ -1693,11 +1704,14 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         visit_symbol(retained, declaration.symbol);
         visit_type_reference(program, retained, declaration.declared_type);
         visit_expression(program, retained, declaration.authored_initializer);
-        visit_expression(program, retained, declaration.materialized_initializer);
+        if retained.derived_declaration_references() {
+            visit_expression(program, retained, declaration.materialized_initializer);
+        }
         // The pending declaration owns its complete checked computation, not
         // merely whichever helper appears first in the initializer. This edge
         // preserves that body's plans through post-check product pruning.
-        if declaration.evaluated_value.is_none()
+        if retained.derived_declaration_references()
+            && declaration.evaluated_value.is_none()
             && program
                 .tables
                 .machines
@@ -1770,7 +1784,9 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
     }
 
     for application in &program.applied_domain_applications {
-        if !retained.declaration(application.declaration) {
+        if !retained.derived_declaration_references()
+            || !retained.declaration(application.declaration)
+        {
             continue;
         }
         for argument in &application.arguments {
@@ -1802,6 +1818,9 @@ fn visit_cleanup_selection(
     retained: &mut impl TypedReferences,
     selection: &crate::domain::CleanupSelection,
 ) {
+    if !retained.derived_declaration_references() {
+        return;
+    }
     let application = program.static_machine_application(selection.application);
     if let Some(occurrence) = selection.authorization {
         retained.authored_selection(occurrence);
@@ -2048,7 +2067,9 @@ pub fn visit_expression(
     if !expression.is_valid() || !retained.expression(expression) {
         return;
     }
-    if let Some(operation) = program.expression_table.open_index_operation(expression) {
+    if retained.derived_declaration_references()
+        && let Some(operation) = program.expression_table.open_index_operation(expression)
+    {
         visit_symbol(retained, operation.provider);
         visit_symbol(retained, operation.operator);
         visit_symbol(retained, operation.algebra_trait);
@@ -2102,7 +2123,9 @@ pub fn visit_expression(
         ExpressionNode::Cast(cast) => {
             visit_expression(program, retained, cast.value);
             visit_type_reference(program, retained, cast.target_type);
-            visit_type_reference(program, retained, cast.result_type);
+            if retained.derived_declaration_references() {
+                visit_type_reference(program, retained, cast.result_type);
+            }
             visit_symbol(retained, cast.semantic_domain_symbol);
             for argument in program.type_reference_handles(cast.semantic_domain_arguments) {
                 visit_type_reference(program, retained, *argument);
@@ -2189,7 +2212,7 @@ fn visit_static_requirement_dispatch(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     dispatch: &crate::typed_trees::StaticRequirementDispatch,
-    invocation: crate::static_applications::StaticMachineApplicationHandle,
+    invocation: StaticMachineApplicationHandle,
 ) {
     visit_symbol(retained, dispatch.realization_machine);
     visit_symbol(retained, dispatch.realization_state);
@@ -2238,7 +2261,7 @@ fn visit_call_expression(
     if call.requirement_application.is_valid() {
         visit_type_reference(program, retained, call.requirement_application);
     }
-    if let Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) = program
+    if let Some(BuildSelectionRequest::ProviderReadiness(request)) = program
         .expression_table
         .build_selection_request(call.build_selection)
     {
@@ -2345,7 +2368,9 @@ fn visit_statement(
             visit_type_reference(program, retained, local.type_reference);
         }
         StatementNode::Assignment(assignment) => {
-            visit_type_reference(program, retained, assignment.receiving_type);
+            if retained.derived_declaration_references() {
+                visit_type_reference(program, retained, assignment.receiving_type);
+            }
         }
         StatementNode::Transition(transition) => {
             for target in transition.targets() {
@@ -2412,124 +2437,141 @@ fn visit_type_parameters(
     }
 }
 
-pub fn visit_machine(
-    program: &TypedTrees,
-    retained: &mut impl TypedReferences,
-    machine: &crate::machine::Machine,
-) {
+pub fn visit_machine(program: &TypedTrees, retained: &mut impl TypedReferences, machine: &Machine) {
     visit_machine_with_sidecars(program, retained, machine, None);
 }
 
 fn visit_machine_with_sidecars(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
-    machine: &crate::machine::Machine,
+    machine: &Machine,
     sidecars: Option<&MachineSidecarIndex>,
 ) {
     retained.enter_lexical_scope(machine.symbol);
-    if let Some(declaration) = program.const_declaration_for_evaluation_entry(machine.symbol) {
-        // Entry eligibility belongs to its source declaration. A demanded
-        // projection must preserve that association, not infer it from a
-        // generated name or from stale backing arena rows.
-        visit_symbol(retained, declaration.symbol);
-    }
-    if let Some(entry) = program.constant_evaluation_entry(machine.symbol) {
-        retained.declaration_description_dependency(entry.owner);
-    }
-    visit_declaration_dependencies(program, retained, machine.symbol);
-    for signature in program.requirement_invocation_signatures(machine.symbol) {
-        visit_signature(program, retained, signature);
-    }
-    if let Some(origin) = machine.lexical_region_origin {
-        retained.declaration_description_dependency(origin.machine);
-        retained.declaration_description_dependency(origin.state);
-        // The argument span identifies the parent's exact capture call. Its
-        // expressions remain owned and traversed by that statement, not by
-        // the extracted helper's executable body.
-    }
-    // Capture admission replays the authored map and the exact supplying
-    // invocation. Selecting a captured executable therefore retains those
-    // declarations; an unrelated checking projection retains none of them.
-    if !program.captured_machine_applications.is_empty() {
-        for (_, capture) in program
-            .captured_machine_applications
-            .iter()
-            .filter(|(_, capture)| capture.instance == machine.symbol)
-        {
-            visit_symbol(retained, capture.template);
-            let source = program.static_machine_application(capture.supplying_application);
-            // This declaration owns the independently replayed evidence occurrence.
-            // It is a checking prerequisite, not a call edge or permission to
-            // execute the supplying owner's body.
-            visit_symbol(retained, source.lexical_owner);
-            visit_symbol(retained, capture.conformance_application.declaration);
-            visit_static_machine_bindings(program, retained, capture.binding_application);
-            visit_static_machine_bindings(program, retained, capture.supplying_application);
-            visit_closed_conformance(program, retained, &capture.conformance_application);
+    if retained.derived_declaration_references() {
+        if let Some(declaration) = program.const_declaration_for_evaluation_entry(machine.symbol) {
+            // Entry eligibility belongs to its source declaration. A demanded
+            // projection must preserve that association, not infer it from a
+            // generated name or from stale backing arena rows.
+            visit_symbol(retained, declaration.symbol);
         }
-    }
-    let mut visit_specialization = |specialization: &crate::typed_trees::MachineSpecialization| {
-        visit_symbol(retained, specialization.template);
-        visit_type_parameters(program, retained, specialization.template_parameters);
-        visit_static_machine_bindings(program, retained, specialization.binding_application);
-        for realization in &specialization.operator_realizations {
-            for argument in &realization.arguments {
-                use crate::operator::ClosedOperatorApplicationArgument;
-                let reference = match argument {
-                    ClosedOperatorApplicationArgument::Type { type_reference, .. } => {
-                        *type_reference
+        if let Some(entry) = program.constant_evaluation_entry(machine.symbol) {
+            retained.declaration_description_dependency(entry.owner);
+        }
+        visit_declaration_dependencies(program, retained, machine.symbol);
+        for signature in program.requirement_invocation_signatures(machine.symbol) {
+            visit_signature(program, retained, signature);
+        }
+        if let Some(origin) = machine.lexical_region_origin {
+            retained.declaration_description_dependency(origin.machine);
+            retained.declaration_description_dependency(origin.state);
+            // The argument span identifies the parent's exact capture call. Its
+            // expressions remain owned and traversed by that statement, not by
+            // the extracted helper's executable body.
+        }
+        // Capture admission replays the authored map and the exact supplying
+        // invocation. Selecting a captured executable therefore retains those
+        // declarations; an unrelated checking projection retains none of them.
+        if !program.captured_machine_applications.is_empty() {
+            for (_, capture) in program
+                .captured_machine_applications
+                .iter()
+                .filter(|(_, capture)| capture.instance == machine.symbol)
+            {
+                visit_symbol(retained, capture.template);
+                let source = program.static_machine_application(capture.supplying_application);
+                // This declaration owns the independently replayed evidence occurrence.
+                // It is a checking prerequisite, not a call edge or permission to
+                // execute the supplying owner's body.
+                retained.declaration_description_dependency(source.lexical_owner);
+                // The omitted supplier still owes the constructor graph of its
+                // exact source type. Retaining the receipt alone loses that
+                // graph; traversing its owner's body would demand runtime work.
+                for (_, selected) in
+                    program
+                        .data_implementation_applications
+                        .iter()
+                        .filter(|(_, selected)| {
+                            selected.supplying_application == capture.supplying_application
+                                && selected.application == capture.conformance_application
+                        })
+                {
+                    visit_type_reference(program, retained, selected.source_application);
+                }
+                visit_symbol(retained, capture.conformance_application.declaration);
+                visit_static_machine_bindings(program, retained, capture.binding_application);
+                visit_static_machine_bindings(program, retained, capture.supplying_application);
+                visit_closed_conformance(program, retained, &capture.conformance_application);
+            }
+        }
+        let mut visit_specialization =
+            |specialization: &crate::typed_trees::MachineSpecialization| {
+                visit_symbol(retained, specialization.template);
+                visit_type_parameters(program, retained, specialization.template_parameters);
+                visit_static_machine_bindings(
+                    program,
+                    retained,
+                    specialization.binding_application,
+                );
+                for realization in &specialization.operator_realizations {
+                    for argument in &realization.arguments {
+                        use crate::operator::ClosedOperatorApplicationArgument;
+                        let reference = match argument {
+                            ClosedOperatorApplicationArgument::Type { type_reference, .. } => {
+                                *type_reference
+                            }
+                            ClosedOperatorApplicationArgument::Const {
+                                declared_carrier, ..
+                            } => *declared_carrier,
+                        };
+                        visit_type_reference(program, retained, reference);
                     }
-                    ClosedOperatorApplicationArgument::Const {
-                        declared_carrier, ..
-                    } => *declared_carrier,
-                };
-                visit_type_reference(program, retained, reference);
+                }
+                for application in &specialization.conformance_applications {
+                    visit_closed_conformance(program, retained, application);
+                }
+            };
+        if let Some(sidecars) = sidecars {
+            for &(_, index) in sidecar_symbol_rows(&sidecars.specializations, machine.symbol) {
+                visit_specialization(&program.machine_specializations[index as usize]);
+            }
+        } else if !program.machine_specializations.is_empty() {
+            for specialization in program
+                .machine_specializations
+                .iter()
+                .filter(|row| row.instance == machine.symbol)
+            {
+                visit_specialization(specialization);
             }
         }
-        for application in &specialization.conformance_applications {
-            visit_closed_conformance(program, retained, application);
-        }
-    };
-    if let Some(sidecars) = sidecars {
-        for &(_, index) in sidecar_symbol_rows(&sidecars.specializations, machine.symbol) {
-            visit_specialization(&program.machine_specializations[index as usize]);
-        }
-    } else if !program.machine_specializations.is_empty() {
-        for specialization in program
-            .machine_specializations
-            .iter()
-            .filter(|row| row.instance == machine.symbol)
-        {
-            visit_specialization(specialization);
-        }
-    }
-    // Exact typed ranking-witness expressions are compiler custody for
-    // termination evidence; they are machine-keyed rows so retention here is
-    // conservative (reachable machines also produce their own edges).
-    if !program.ranking_expression_custody.is_empty() {
-        for custody in program
-            .ranking_expression_custody
-            .iter()
-            .filter(|row| row.machine == machine.symbol)
-        {
-            for subject in &custody.subjects {
-                visit_expression(program, retained, *subject);
-            }
-            for argument in &custody.view_arguments {
-                visit_expression(program, retained, *argument);
-            }
-            if let Some(rank_range) = custody.rank_range {
-                visit_expression(program, retained, rank_range);
+        // Exact typed ranking-witness expressions are compiler custody for
+        // termination evidence; they are machine-keyed rows so retention here is
+        // conservative (reachable machines also produce their own edges).
+        if !program.ranking_expression_custody.is_empty() {
+            for custody in program
+                .ranking_expression_custody
+                .iter()
+                .filter(|row| row.machine == machine.symbol)
+            {
+                for subject in &custody.subjects {
+                    visit_expression(program, retained, *subject);
+                }
+                for argument in &custody.view_arguments {
+                    visit_expression(program, retained, *argument);
+                }
+                if let Some(rank_range) = custody.rank_range {
+                    visit_expression(program, retained, rank_range);
+                }
             }
         }
-    }
-    if !program.proof_output_calls.is_empty() {
-        for output in program
-            .proof_output_calls
-            .iter()
-            .filter(|row| row.machine_symbol == machine.symbol)
-        {
-            visit_expression(program, retained, output.call);
+        if !program.proof_output_calls.is_empty() {
+            for output in program
+                .proof_output_calls
+                .iter()
+                .filter(|row| row.machine_symbol == machine.symbol)
+            {
+                visit_expression(program, retained, output.call);
+            }
         }
     }
     let from = machine.symbol;
@@ -2562,20 +2604,21 @@ fn visit_machine_with_sidecars(
         }
     }
 
-    if let Some(sidecars) = sidecars {
-        for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
-            for target in &program.authored_service_reach_rows[index as usize].targets {
-                visit_symbol(retained, target.service);
+    if retained.derived_declaration_references() {
+        if let Some(sidecars) = sidecars {
+            for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
+                for target in &program.authored_service_reach_rows[index as usize].targets {
+                    visit_symbol(retained, target.service);
+                }
             }
-        }
-    } else if !program.authored_service_reach_rows.is_empty() {
-        for row in program.authored_service_reach_rows_for(from) {
-            for target in &row.targets {
-                visit_symbol(retained, target.service);
+        } else if !program.authored_service_reach_rows.is_empty() {
+            for row in program.authored_service_reach_rows_for(from) {
+                for target in &row.targets {
+                    visit_symbol(retained, target.service);
+                }
             }
         }
     }
-
     for conformance in program.machine_trait_conformances(machine) {
         visit_conformance(program, retained, conformance);
     }
@@ -2633,7 +2676,7 @@ fn visit_constant_evaluation_entries(
 fn visit_mathematical_type(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
-    handle: crate::mathematical::MathematicalTypeHandle,
+    handle: MathematicalTypeHandle,
 ) {
     use crate::mathematical::MathematicalType;
     if !handle.is_valid() || !retained.mathematical_type(handle) {
@@ -2671,13 +2714,10 @@ mod conformance_occurrence_tests {
     }
     impl TypedReferences for Sink {}
 
-    fn occurrence_call(
+    pub(super) fn occurrence_call(
         program: &mut TypedTrees,
         owner: SymbolHandle,
-    ) -> (
-        ExpressionHandle,
-        crate::static_applications::StaticMachineApplicationHandle,
-    ) {
+    ) -> (ExpressionHandle, StaticMachineApplicationHandle) {
         let application = program.expression_table.retain_static_machine_application(
             Default::default(),
             Default::default(),
@@ -2722,7 +2762,7 @@ mod conformance_occurrence_tests {
         let (removed, application) = occurrence_call(&mut program, owner);
         // The owner still exists, and the expression/application arena rows
         // survive removal of the actual body edge.
-        let mut machine = crate::machine::Machine {
+        let mut machine = Machine {
             symbol: owner,
             ..Default::default()
         };
@@ -2753,7 +2793,7 @@ mod conformance_occurrence_tests {
         let mut program = TypedTrees::default();
         let owner = SymbolHandle::from_parts(1, 1);
         let (expression, application) = occurrence_call(&mut program, owner);
-        let mut machine = crate::machine::Machine {
+        let mut machine = Machine {
             symbol: owner,
             ..Default::default()
         };

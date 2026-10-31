@@ -1,5 +1,6 @@
 use super::{
-    EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, SymbolHandle,
+    EXPRESSION_WALK_DEPTH_BOUND as ND, ExpressionHandle, ExpressionNode, Machine, State,
+    SymbolHandle,
 };
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
@@ -7,6 +8,17 @@ use crate::checks::ranges::facts::dependencies::reads;
 use crate::checks::ranges::facts::dependencies::same_reads;
 use crate::flow::expressions;
 use crate::places::place_at;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use validation::ImmutableBoundLookup;
+use validation::collection_length_receiver;
+use validation::expression_result_type_reference;
+use validation::first_valid_name_path_symbol;
+use validation::has_builtin_binary_expression_meaning;
+use validation::immutable_integer_bound_value_symbol;
+use validation::normalize_immutable_integer_bound_expression;
+use validation::place_has_builtin_coordinates;
+use validation::place_root_may_be_symbol;
 
 impl<'field> RangeFacts<'field> {
     pub(in crate::checks::ranges) fn alias_integer_value(
@@ -76,18 +88,14 @@ impl<'field> RangeFacts<'field> {
             // A length premise records the metadata observation's reads, but
             // its extent facts belong to the receiver. Retain that premise's
             // preservation judgment while matching the receiver's typed path.
-            let source = validation::collection_length_receiver(
-                program,
-                machine,
-                Some(state),
-                original.expression,
-            )
-            .unwrap_or(original.expression);
+            let source =
+                collection_length_receiver(program, machine, Some(state), original.expression)
+                    .unwrap_or(original.expression);
             if matched_sources.contains(&source) {
                 continue;
             }
             matched_sources.push(source);
-            if !validation::place_has_builtin_coordinates(program, machine, Some(state), source) {
+            if !place_has_builtin_coordinates(program, machine, Some(state), source) {
                 continue;
             }
             let Some(source_place) = place_at(program, state.symbol, self.statement_index, source)
@@ -95,15 +103,15 @@ impl<'field> RangeFacts<'field> {
                 continue;
             };
             if !source_place.segments.iter().any(|segment| {
-                matches!(segment, facts::PlaceSegment::Index { expression }
+                matches!(segment, PlaceSegment::Index { expression }
                     if program.expression_table.expressions_structurally_equal(*expression, captured))
             }) {
                 continue;
             }
             let source_label = program.expression_table.display_name(source);
             for (expression, _) in program.expression_table.iter_expressions() {
-                if let facts::PlaceRoot::Symbol(root) = source_place.root
-                    && !validation::place_root_may_be_symbol(program, expression, root)
+                if let PlaceRoot::Symbol(root) = source_place.root
+                    && !place_root_may_be_symbol(program, expression, root)
                 {
                     continue;
                 }
@@ -126,10 +134,10 @@ impl<'field> RangeFacts<'field> {
                     source_place.segments.iter().zip(&mut candidate.segments)
                 {
                     let (
-                        facts::PlaceSegment::Index {
+                        PlaceSegment::Index {
                             expression: source_index,
                         },
-                        facts::PlaceSegment::Index {
+                        PlaceSegment::Index {
                             expression: candidate_index,
                         },
                     ) = (source_segment, &*candidate_segment)
@@ -144,10 +152,8 @@ impl<'field> RangeFacts<'field> {
                     else {
                         continue;
                     };
-                    let selector_symbol = validation::first_valid_name_path_symbol(
-                        selector,
-                        &program.expression_table,
-                    );
+                    let selector_symbol =
+                        first_valid_name_path_symbol(selector, &program.expression_table);
                     let shared_snapshot = selector.symbol.is_valid()
                         && selector.head_symbol == selector.symbol
                         && selector_symbol == Some(selector.symbol)
@@ -192,12 +198,7 @@ impl<'field> RangeFacts<'field> {
                 // must still agree; a sibling descriptor never inherits bounds.
                 if !rebound
                     || !crate::flow::canonical_places_agree(program, &source_place, &candidate)
-                    || !validation::place_has_builtin_coordinates(
-                        program,
-                        machine,
-                        Some(state),
-                        expression,
-                    )
+                    || !place_has_builtin_coordinates(program, machine, Some(state), expression)
                 {
                     continue;
                 }
@@ -258,21 +259,18 @@ impl<'field> RangeFacts<'field> {
 /// typed identities for a dependency-preservation grant.
 pub(super) fn integer_value_identity(
     program: &dyn ::validation::CheckingInput,
-    bound_lookup: &validation::ImmutableBoundLookup<'_>,
+    bound_lookup: &ImmutableBoundLookup<'_>,
     state: &State,
     mut expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let value = validation::immutable_integer_bound_value_symbol(program, bound_lookup, expression)
-        .or_else(|| {
-            let normalized = validation::normalize_immutable_integer_bound_expression(
-                program,
-                bound_lookup,
-                expression,
-            )?;
+    let value =
+        immutable_integer_bound_value_symbol(program, bound_lookup, expression).or_else(|| {
+            let normalized =
+                normalize_immutable_integer_bound_expression(program, bound_lookup, expression)?;
             let path = program.expression_table.name_path_node(normalized)?;
             Some(path.symbol)
         })?;
-    for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
+    for _ in 0..ND {
         let Some(symbol) = ::validation::single_segment_name_symbol(program, expression) else {
             return None;
         };
@@ -310,9 +308,7 @@ pub(super) fn has_scalar_snapshot_meaning(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= EXPRESSION_WALK_DEPTH_BOUND
-        || !program.expression_table.expression_is_valid(expression)
-    {
+    if depth >= ND || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
     let child =
@@ -321,17 +317,13 @@ pub(super) fn has_scalar_snapshot_meaning(
         ExpressionNode::Name(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
         ExpressionNode::Member(member) => child(member.receiver),
         ExpressionNode::Indexed(indexed) => {
-            validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
+            place_has_builtin_coordinates(program, machine, Some(state), expression)
                 && child(indexed.collection)
                 && child(indexed.index)
         }
         ExpressionNode::Binary(binary) => {
-            validation::has_builtin_binary_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ) && child(binary.left)
+            has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
+                && child(binary.left)
                 && child(binary.right)
         }
         ExpressionNode::Unary(unary) => child(unary.operand),
@@ -347,12 +339,11 @@ pub(super) fn is_integer_value(
     expression: ExpressionHandle,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;
-    let Some(mut reference) =
-        validation::expression_result_type_reference(program, machine, state, expression)
+    let Some(mut reference) = expression_result_type_reference(program, machine, state, expression)
     else {
         return false;
     };
-    for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
+    for _ in 0..ND {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {

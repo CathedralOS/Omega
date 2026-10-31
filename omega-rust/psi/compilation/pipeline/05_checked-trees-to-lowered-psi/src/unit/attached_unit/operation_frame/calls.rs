@@ -23,6 +23,10 @@ use super::super::{ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
 use crate::direct_calls::{DirectCallResult, ModuleInvocationArguments};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
+use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
+use crate::expression_preparation::bindings::view_locals::ViewCarrier;
+use crate::expression_preparation::bindings::view_locals::ViewLocalBinding;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
@@ -283,17 +287,15 @@ impl OperationFrame<'_, '_> {
         if let Some(checked_trees::NominalMachineUseSite::Expression(expression)) = source {
             crate::expression_preparation::bindings::retain_completed_structural_homes(
                 &mut self.evaluation.structural_locals,
-                &[
-                    crate::expression_preparation::bindings::StructuralLocalBinding {
-                        result_binding_ordinal: None,
-                        root: facts::PlaceRoot::Expression(expression),
-                        structural_type: produced.structural_type,
-                        argument: terminal_psi::StructuralArgument::whole(
-                            produced.place,
-                            terminal_psi::StructuralAccess::Owned,
-                        ),
-                    },
-                ],
+                &[StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root: facts::PlaceRoot::Expression(expression),
+                    structural_type: produced.structural_type,
+                    argument: terminal_psi::StructuralArgument::whole(
+                        produced.place,
+                        terminal_psi::StructuralAccess::Owned,
+                    ),
+                }],
             )?;
         }
         if matches!(self.results, StructuralResults::Dense(_)) {
@@ -308,12 +310,10 @@ impl OperationFrame<'_, '_> {
             // A view local this call bound joins the view roster: its lengths
             // and element reads resolve through the place the locals join
             // named, and the produced type names which view family it is.
-            if let Some(carrier) =
-                crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
-                    produced.structural_type,
-                    self.structural_types.declarations(),
-                )
-            {
+            if let Some(carrier) = ViewCarrier::of(
+                produced.structural_type,
+                self.structural_types.declarations(),
+            ) {
                 let local = result.local;
                 if local.is_named()
                     && self
@@ -327,17 +327,13 @@ impl OperationFrame<'_, '_> {
                         .iter()
                         .any(|binding| binding.symbol == local.symbol)
                 {
-                    self.evaluation.view_locals.push(
-                        crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
-                            symbol: local.symbol,
-                            place: declaration.id,
-                            structural_type: produced.structural_type,
-                            carrier,
-                            access: crate::expression_preparation::bindings::structural_paths::terminal_access(
-                                local.access,
-                            ),
-                        },
-                    );
+                    self.evaluation.view_locals.push(ViewLocalBinding {
+                        symbol: local.symbol,
+                        place: declaration.id,
+                        structural_type: produced.structural_type,
+                        carrier,
+                        access: terminal_access(local.access),
+                    });
                 }
             }
             return Ok(());

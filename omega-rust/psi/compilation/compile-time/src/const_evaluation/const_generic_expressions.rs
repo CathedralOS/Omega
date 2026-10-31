@@ -12,6 +12,13 @@
 //! cannot bypass that obligation and let later canonicalization erase a runtime
 //! operand. Nonscalar values retain their existing materialization path.
 
+use crate::machine_execution::admission::require_const_expression_selection;
+use crate::syntax_probes::prepare_call_free_probe_typing;
+use numerics::arithmetic::ArithmeticDomain;
+use symbols::SymbolHandle;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe;
+use validation::has_builtin_binary_expression_meaning;
+
 mod call_custody;
 pub(crate) use call_custody::{DependencyValue, retain_current_initializer_calls};
 pub(super) mod lexical_selection;
@@ -243,19 +250,13 @@ pub(crate) fn evaluate(
         ],
         &declarations,
     )?;
-    let frontier =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            context.resolution_request(probe),
-        )?;
+    let frontier = resolve_deferred_initializer_probe(context.resolution_request(probe))?;
     let owner_symbols = owners
         .iter()
         .map(|owner| owner.resolve(frontier.trees()))
         .collect::<Result<Vec<_>, _>>()?;
-    let typed = crate::syntax_probes::prepare_call_free_probe_typing(
-        frontier,
-        &owner_symbols,
-        context.predecessor.clone(),
-    )?;
+    let typed =
+        prepare_call_free_probe_typing(frontier, &owner_symbols, context.predecessor.clone())?;
 
     for ((argument, original, _, public), owner) in pending.into_iter().zip(owner_symbols) {
         let reference = syntax.expressions.source_span(original);
@@ -355,10 +356,7 @@ pub(super) fn exact_probe_destination(
 pub(super) fn extent_integer_destination(
     program: &typed_trees::TypedTrees,
     result: typed_trees::types::TypeReferenceHandle,
-) -> Option<(
-    typed_trees::types::PrimitiveType,
-    numerics::arithmetic::ArithmeticDomain,
-)> {
+) -> Option<(typed_trees::types::PrimitiveType, ArithmeticDomain)> {
     let result = validation::arithmetic_result_type_reference(program, result)?;
     let primitive = program.type_reference_table.primitive_type(result)?;
     if !matches!(
@@ -520,7 +518,7 @@ impl ProbeOwner {
     pub(super) fn resolve(
         &self,
         resolved: &symbol_resolved_trees::SymbolResolvedTrees,
-    ) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
+    ) -> Result<SymbolHandle, Vec<Diagnostic>> {
         let mut owners = resolved.machines.iter().filter(|machine| {
             resolved.symbols.name(machine.symbol) == self.spelling
                 && resolved.symbols.symbol_source_span(machine.symbol) == Some(self.source_span)
@@ -558,12 +556,9 @@ fn has_builtin_operator_selection(
             ExpressionNode::Unary(_) => {
                 matches!(target, Target::LateBound(Binding::CheckedOperator))
             }
-            ExpressionNode::Binary(_) => validation::has_builtin_binary_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ),
+            ExpressionNode::Binary(_) => {
+                has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
+            }
             _ => false,
         }
 }
@@ -799,15 +794,11 @@ pub(super) fn leaf_call_custody(
 /// this token; a realized evaluator must rejoin its exact probe owner.
 pub(super) struct AuthoredProbeCustody {
     reference: SourceSpan,
-    owner: symbols::SymbolHandle,
+    owner: SymbolHandle,
 }
 
 impl AuthoredProbeCustody {
-    pub(super) fn rejoin(
-        &self,
-        reference: SourceSpan,
-        owner: symbols::SymbolHandle,
-    ) -> Result<(), String> {
+    pub(super) fn rejoin(&self, reference: SourceSpan, owner: SymbolHandle) -> Result<(), String> {
         if self.reference != reference || self.owner != owner {
             return Err(
                 "realized initializer differs from its checked authored probe owner".into(),
@@ -821,7 +812,7 @@ impl AuthoredProbeCustody {
 /// This is not invocation permission or validated source custody.
 pub(super) struct AuthoredProbeObservation {
     reference: SourceSpan,
-    owner: symbols::SymbolHandle,
+    owner: SymbolHandle,
     custody: call_custody::Custody,
 }
 
@@ -996,7 +987,7 @@ fn evaluate_probe_internal(
     expected_origins: Option<&[ConstArgumentOrigin]>,
     syntax: &SyntaxTrees,
     calls: Option<&dyn value::ConstantCalls>,
-    owner: Option<symbols::SymbolHandle>,
+    owner: Option<SymbolHandle>,
     extent: bool,
 ) -> Result<ScalarProbeResult, String> {
     let mut machines = typed.machines().iter().filter(|machine| {
@@ -1036,19 +1027,17 @@ fn evaluate_probe_internal(
             (
                 exact_probe_destination(typed, state.return_type)
                     .ok_or("array extent has no integer landing carrier")?,
-                numerics::arithmetic::ArithmeticDomain::Exact,
+                ArithmeticDomain::Exact,
             )
         }
     } else {
         (
             scalar_probe_destination(typed, state.return_type)
                 .ok_or("constant destination requires an unconstrained builtin scalar carrier")?,
-            numerics::arithmetic::ArithmeticDomain::Exact,
+            ArithmeticDomain::Exact,
         )
     };
-    crate::machine_execution::admission::require_const_expression_selection(
-        typed, machine, reference, authority,
-    )?;
+    require_const_expression_selection(typed, machine, reference, authority)?;
     let (origins, operators, call_selections) = if calls.is_some() {
         let custody = call_custody::collect(typed, machine, state, *expression, public, syntax)?;
         (custody.origins, custody.operators, custody.calls)

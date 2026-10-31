@@ -20,6 +20,8 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::emit_prepared_path;
+use crate::expression_preparation::qualifications::SourceScalarReturn;
 use crate::proofs::crash_routes::lowered_erased_scalar_terms;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
@@ -321,12 +323,10 @@ pub(super) fn emit_state(
     let terminator = match &state.terminator {
         LoweredScalarBranchTerminator::CompleteReturn { target, exit } => {
             let edge = edge_id(allocate_dense(next_edge)?);
-            operations.source_returns.push(
-                crate::expression_preparation::qualifications::SourceScalarReturn {
-                    edge,
-                    exits: vec![*exit],
-                },
-            );
+            operations.source_returns.push(SourceScalarReturn {
+                edge,
+                exits: vec![*exit],
+            });
             Terminator::Jump {
                 edge,
                 target: *targets.get(*target).ok_or(LoweringError::Unsupported(
@@ -396,9 +396,7 @@ pub(super) fn emit_state(
             access,
         } => {
             let arguments = arguments(outgoing)?;
-            let path = crate::emission::operation_emission::expressions::emit_prepared_path(
-                path, 0, &values, next_value, operations,
-            );
+            let path = emit_prepared_path(path, 0, &values, next_value, operations);
             Terminator::Jump {
                 edge: edge_id(allocate_dense(next_edge)?),
                 target: *targets.get(*target).ok_or(LoweringError::Unsupported(

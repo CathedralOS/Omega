@@ -8,6 +8,7 @@ use abstract_operations::AbstractOperation;
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind,
 };
+use scalar_graph_input::normalized_foreign::native_callbacks_at;
 use semantic_vocabulary::OperationId;
 
 /// Preserve the producer's placement and reference projection for every call
@@ -176,14 +177,10 @@ pub(super) fn project_normalized_foreign_call(
     // The retained callback roster rows are the sole carrier of binder/demand
     // custody for private callback materializations; the exact join fails
     // closed when a materialized call consumed no retained row.
-    let callbacks = scalar_graph_input::normalized_foreign::native_callbacks_at(
-        native,
-        operation,
-        &binding.boundary_entry_plan,
-    )?
-    .into_iter()
-    .cloned()
-    .collect();
+    let callbacks = native_callbacks_at(native, operation, &binding.boundary_entry_plan)?
+        .into_iter()
+        .cloned()
+        .collect();
     Ok(LegalizedScalarInstructionKind::NormalizedForeignCall(
         legalized_operations::LegalizedNormalizedForeignCall {
             boundary: *boundary,

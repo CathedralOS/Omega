@@ -22,6 +22,7 @@
 
 use super::expression_types::declared_reference_access;
 use crate::frozen_program::expression_table;
+use facts::PlaceRoot;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -32,7 +33,7 @@ pub(crate) enum ReferenceAccessRefusal {
     WriteOnlyMayNotRead,
     MutableSourceRequired,
     ExclusiveBorrowSourceRequired {
-        root: facts::PlaceRoot,
+        root: PlaceRoot,
         access: language_semantics::ReferenceAccess,
     },
     /// An exclusive borrow of a value that names no place: a temporary has
@@ -391,7 +392,7 @@ fn source_place_root(
     current_state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
-) -> Option<(facts::PlaceRoot, TypeReferenceHandle, bool)> {
+) -> Option<(PlaceRoot, TypeReferenceHandle, bool)> {
     if !crate::value_custody::places::place_has_builtin_coordinates(
         program,
         current_machine,
@@ -432,7 +433,7 @@ fn source_place_root(
                 // The match owns completed subject storage. Its declared
                 // reference shells still attenuate every projected borrow;
                 // exact supplying loans are checked independently in flow.
-                return Some((facts::PlaceRoot::Expression(anchor), reference, true));
+                return Some((PlaceRoot::Expression(anchor), reference, true));
             }
             _ => return None,
         };
@@ -466,18 +467,12 @@ fn source_place_root(
             _ => false,
         };
         return Some((
-            facts::PlaceRoot::Symbol(path.symbol),
+            PlaceRoot::Symbol(path.symbol),
             binding_type,
             owned_root_is_writable,
         ));
     }
     program
         .machine_owned_data_by_symbol(current_machine, path.symbol)
-        .map(|owned| {
-            (
-                facts::PlaceRoot::Symbol(path.symbol),
-                owned.type_reference,
-                true,
-            )
-        })
+        .map(|owned| (PlaceRoot::Symbol(path.symbol), owned.type_reference, true))
 }
