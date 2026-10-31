@@ -1100,7 +1100,9 @@ fn push_comparison_consequences(
         ));
         output.push(crate::facts::canonical_crash_binary_path_predicate(
             program,
-            reversed_comparison(operator),
+            operator
+                .mirrored_comparison()
+                .expect("only normalized comparisons reach operand reversal"),
             right,
             left,
             parameter_names,
@@ -1263,12 +1265,4 @@ impl IntegerTypeClassification {
                 |&(generation, is_integer)| generation == symbol.generation() && is_integer,
             )
     }
-}
-
-fn reversed_comparison(
-    operator: typed_trees::expression::BinaryOperator,
-) -> typed_trees::expression::BinaryOperator {
-    operator
-        .mirrored_comparison()
-        .expect("only normalized comparisons reach operand reversal")
 }
