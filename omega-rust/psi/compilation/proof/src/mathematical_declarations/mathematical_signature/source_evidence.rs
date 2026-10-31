@@ -15,7 +15,7 @@ use proof_admission::{
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::static_applications::StaticMachineBindingValue;
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
 use validation::mathematical_applications::{PreparedIndexedTheorem, operand_type_reference};
 use validation::mathematical_applications::{PreparedSourceCarrier, PreparedSourceEvidence};
@@ -154,8 +154,7 @@ impl Elaborator<'_> {
                         .program
                         .primitive_type_reference(parameter.type_reference)
                         .is_some_and(|primitive| {
-                            primitive == typed_trees::types::PrimitiveType::Bool
-                                || primitive.integer_bounds().is_some()
+                            primitive == PrimitiveType::Bool || primitive.integer_bounds().is_some()
                         })
                     {
                         let domain =
@@ -403,7 +402,7 @@ impl Elaborator<'_> {
                         })
                         || !self.program.primitive_type_reference(parameter.type_reference)
                             .is_some_and(|primitive| {
-                                primitive == typed_trees::types::PrimitiveType::Bool
+                                primitive == PrimitiveType::Bool
                                     || primitive.integer_bounds().is_some()
                             })
                     {
