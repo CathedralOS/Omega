@@ -1,11 +1,5 @@
 # boundary_scalar_requirement
 
-`boundary requirement TimedWait::poll(descriptors,
-count, timeout) -> i32 reaches Clock` — a bodyless
-consuming contract publishing a scalar result; a later
-state forwards `TimedWait::poll(0, 0, 20)` as the
-machine's `-> i32` result. The caller declares
-`reaches Clock` for the service it invokes.
+`TimedWait::poll` is a one-member boundary trait requirement that reaches `Clock`. The selected checked provider returns 0 for a 20ms wait with no descriptors and 1 otherwise. The entry calls that wait through a later state and the other timeout directly.
 
-Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+Expected exit: 0.
