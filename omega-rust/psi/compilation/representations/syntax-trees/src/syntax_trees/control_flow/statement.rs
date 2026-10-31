@@ -1,5 +1,6 @@
 use super::assembly::AssemblyTable;
 pub use super::assembly::{AssemblyBlock, AssemblyControlFlow, AssemblyExit};
+use crate::expression::ExpressionHandle;
 use crate::identifier::Identifier;
 use crate::syntax_trees::paged_roster::paged_roster;
 use arena::{Handle, HandleSpan};
@@ -10,14 +11,14 @@ pub type StatementHandle = Handle<StatementNode>;
 /// A Build declaration with product-context operands, never a runtime call.
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct RootBinding {
-    pub receiver: crate::expression::ExpressionHandle,
+    pub receiver: ExpressionHandle,
     pub slot: Box<[Identifier]>,
     pub implementation: Box<[Identifier]>,
     /// Present only when the implementation operand is one bare name: a
     /// delegated product-description place candidate. Product declaration
     /// paths (every multi-member spelling) keep this invalid and stay purely
     /// lexical; name resolution decides which form the operand is.
-    pub implementation_operand: crate::expression::ExpressionHandle,
+    pub implementation_operand: ExpressionHandle,
     pub source_span: SourceSpan,
 }
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
@@ -25,7 +26,7 @@ pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 paged_roster! {
     pub struct StatementTable => pub(crate) StatementTableAppendCheckpoint {
         arena statements: StatementNode,
-        arena expression_handles: crate::expression::ExpressionHandle,
+        arena expression_handles: ExpressionHandle,
         arena identifier_path_members: Identifier,
         arena transition_targets: TransitionTargetNode,
         arena outcome_proof_selectors: TableOutcomeProofSelector,
@@ -74,29 +75,26 @@ impl StatementTable {
 
     pub fn insert_assembly_expressions(
         &mut self,
-        expressions: impl IntoIterator<Item = crate::expression::ExpressionHandle>,
-    ) -> HandleSpan<crate::expression::ExpressionHandle> {
+        expressions: impl IntoIterator<Item = ExpressionHandle>,
+    ) -> HandleSpan<ExpressionHandle> {
         self.assembly.insert_expressions(expressions)
     }
 
-    pub fn assembly_expressions(
-        &self,
-        span: HandleSpan<crate::expression::ExpressionHandle>,
-    ) -> &[crate::expression::ExpressionHandle] {
+    pub fn assembly_expressions(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.assembly.expressions(span)
     }
 
     pub fn append_expression_handle(
         &mut self,
-        expression: crate::expression::ExpressionHandle,
-    ) -> Handle<crate::expression::ExpressionHandle> {
+        expression: ExpressionHandle,
+    ) -> Handle<ExpressionHandle> {
         self.expression_handles.append(expression)
     }
 
     pub fn insert_expression_handles(
         &mut self,
-        expressions: impl IntoIterator<Item = crate::expression::ExpressionHandle>,
-    ) -> HandleSpan<crate::expression::ExpressionHandle> {
+        expressions: impl IntoIterator<Item = ExpressionHandle>,
+    ) -> HandleSpan<ExpressionHandle> {
         self.expression_handles.insert_many(expressions)
     }
 
@@ -136,10 +134,7 @@ impl StatementTable {
         self.statements.get(handle)
     }
 
-    pub fn expression_handles(
-        &self,
-        span: HandleSpan<crate::expression::ExpressionHandle>,
-    ) -> &[crate::expression::ExpressionHandle] {
+    pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.expression_handles.span_or_empty(span)
     }
 
@@ -174,7 +169,7 @@ pub enum StatementNode {
     Assignment(TableAssignment),
     Call(TableCall),
     ProofOutputBindingStatement(TableProofOutputBindingStatement),
-    Expression(crate::expression::ExpressionHandle),
+    Expression(ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
 }
@@ -185,7 +180,7 @@ pub enum StatementNode {
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableProofOutputBindingStatement {
     pub bindings: Box<[TableProofOutputSelector]>,
-    pub call: crate::expression::ExpressionHandle,
+    pub call: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
@@ -216,7 +211,7 @@ pub struct TableOutcomeProofSelector {
 )]
 pub struct TableAssemblyFact {
     pub kind: AssemblyFactKind,
-    pub expression: crate::expression::ExpressionHandle,
+    pub expression: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
@@ -227,7 +222,7 @@ pub enum AssemblyFactKind {
 
 impl Default for StatementNode {
     fn default() -> Self {
-        Self::Expression(crate::expression::ExpressionHandle::invalid())
+        Self::Expression(ExpressionHandle::invalid())
     }
 }
 
@@ -241,8 +236,8 @@ impl Default for StatementNode {
     compiler_storage::Record,
 )]
 pub struct TableAssignment {
-    pub target: crate::expression::ExpressionHandle,
-    pub value: crate::expression::ExpressionHandle,
+    pub target: ExpressionHandle,
+    pub value: ExpressionHandle,
 }
 
 #[derive(
@@ -254,7 +249,7 @@ pub struct TableCall {
     /// Preserves static `::` selection through expression-to-statement conversion.
     pub target_is_static: bool,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
-    pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    pub arguments: HandleSpan<ExpressionHandle>,
     /// Explicit erased evidence-term arguments after the `;` call lane.
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
@@ -269,7 +264,7 @@ pub struct TableLocalData {
     pub role: language_core::LocalBindingRole,
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
-    pub initial_value: crate::expression::ExpressionHandle,
+    pub initial_value: ExpressionHandle,
     /// `let mut` -- the local admits reassignment (ch3/ch14 spelling); a
     /// plain `let` is immutable and reassignment refuses.
     pub is_mutable: bool,
@@ -333,7 +328,7 @@ pub enum TransitionExit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum TransitionGuardNode {
     Always,
-    When(crate::expression::ExpressionHandle),
+    When(ExpressionHandle),
 }
 
 #[derive(
@@ -342,13 +337,13 @@ pub enum TransitionGuardNode {
 pub enum TransitionTargetNode {
     Named {
         path: HandleSpan<Identifier>,
-        arguments: HandleSpan<crate::expression::ExpressionHandle>,
+        arguments: HandleSpan<ExpressionHandle>,
         evidence_arguments: Box<[Identifier]>,
         /// Exact authored target-name span retained even when the parser
         /// rewrites a terminal tail call into a named transition.
         source_span: SourceSpan,
     },
-    Value(crate::expression::ExpressionHandle),
+    Value(ExpressionHandle),
     #[default]
     Terminal,
 }
