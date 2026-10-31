@@ -29,6 +29,7 @@
 
 use crate::lowerer::Lowerer;
 use crate::tables::resolved_expressions;
+use crate::tables::type_constraints;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -805,10 +806,7 @@ fn arithmetic_domain(
     let TypeReference::Constrained(constrained) = type_reference else {
         return None;
     };
-    source_trees
-        .tables
-        .types
-        .constraints
+    type_constraints(source_trees)
         .span_or_empty(constrained.constraints)
         .iter()
         .find_map(|constraint| match constraint {
@@ -924,11 +922,7 @@ fn exact_domain_constraints<'t>(
     let TypeReference::Constrained(constrained) = type_reference else {
         return None;
     };
-    let constraints = source_trees
-        .tables
-        .types
-        .constraints
-        .span_or_empty(constrained.constraints);
+    let constraints = type_constraints(source_trees).span_or_empty(constrained.constraints);
     if constraints.iter().any(|constraint| {
         matches!(
             constraint,
@@ -1250,12 +1244,7 @@ fn strict_dependent_param_field(
     let TypeReference::Constrained(constrained) = parameter else {
         return None;
     };
-    let constraints = lowerer
-        .source_trees
-        .tables
-        .types
-        .constraints
-        .span_or_empty(constrained.constraints);
+    let constraints = type_constraints(lowerer.source_trees).span_or_empty(constrained.constraints);
     constraints.iter().find_map(|constraint| {
         let TypeConstraint::Range {
             maximum,

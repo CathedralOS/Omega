@@ -1,5 +1,6 @@
 //! Capture only the selected static operand's reachable source graph.
 use crate::tables::resolved_expressions;
+use crate::tables::type_constraints;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::product_operands::*;
@@ -347,14 +348,7 @@ impl Capture<'_> {
             },
             Source::Constrained(value) => {
                 let base = self.ty_handle(value.base_type)?;
-                let constraints = source
-                    .tables
-                    .types
-                    .constraints
-                    .span_or_empty(value.constraints)
-                    .iter()
-                    .map(|constraint| self.constraint(constraint))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let constraints = type_constraints(source).span_or_empty(value.constraints).iter().map(|constraint| self.constraint(constraint)).collect::<Result<Vec<_>, _>>()?;
                 ProductOperandType::Constrained {
                     base,
                     constraints: self.graph.constraints.insert_many(constraints),

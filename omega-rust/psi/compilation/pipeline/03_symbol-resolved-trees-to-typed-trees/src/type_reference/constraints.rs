@@ -1,4 +1,6 @@
 use crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution;
+use crate::tables::type_constraints;
+use crate::tables::type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -18,21 +20,13 @@ pub(super) fn lower_type_constraint_node_span_from_table(
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
-    for constraint in source_trees
-        .tables
-        .types
-        .references
-        .constraints(constraints)
-    {
+    for constraint in type_references(source_trees).constraints(constraints) {
         let constraint = match constraint {
             resolved::types::TypeConstraintNode::Named(name) => {
                 typed::types::TypeConstraintNode::Named(crate::lowerer::name::lower_name(name))
             }
             resolved::types::TypeConstraintNode::Domain(domain) => {
-                let arguments = source_trees
-                    .tables
-                    .types
-                    .references
+                let arguments = type_references(source_trees)
                     .type_reference_handles(domain.arguments)
                     .iter()
                     .map(|argument| {
@@ -76,12 +70,7 @@ pub(crate) fn lower_type_constraint_node_span_with_context(
     let exposure = exposure.into();
     let mut span = HandleSpan::empty();
 
-    for constraint in source_trees
-        .tables
-        .types
-        .constraints
-        .span_or_empty(constraints)
-    {
+    for constraint in type_constraints(source_trees).span_or_empty(constraints) {
         let constraint = lower_type_constraint_node_with_context(
             source_trees,
             typed_trees,

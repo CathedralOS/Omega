@@ -1,3 +1,4 @@
+use crate::tables::type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -18,12 +19,7 @@ fn lower_type_argument_handles(
     >,
 ) -> Result<HandleSpan<typed::types::TypeReferenceHandle>, Diagnostic> {
     let mut lowered_arguments = HandleSpan::empty();
-    for argument in source_trees
-        .tables
-        .types
-        .references
-        .type_reference_handles(arguments)
-    {
+    for argument in type_references(source_trees).type_reference_handles(arguments) {
         let argument = lower_type_reference_handle_from_table_with_context(
             source_trees,
             typed_trees,
@@ -45,10 +41,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     >,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    let result: Result<_, Diagnostic> = match source_trees
-        .tables
-        .types
-        .references
+    let result: Result<_, Diagnostic> = match type_references(source_trees)
         .type_reference(type_reference)
     {
         resolved::types::TypeReferenceNode::Reference {
@@ -182,16 +175,8 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
         source_trees,
         typed_trees,
         reference,
-        source_trees
-            .tables
-            .types
-            .references
-            .supplied_operand_owner(type_reference),
-        source_trees
-            .tables
-            .types
-            .references
-            .operand_lexical_owner(type_reference),
+        type_references(source_trees).supplied_operand_owner(type_reference),
+        type_references(source_trees).operand_lexical_owner(type_reference),
     )?;
     super::retain_computed_result_types(&source_trees.symbols, typed_trees, reference, None);
     Ok(reference)
