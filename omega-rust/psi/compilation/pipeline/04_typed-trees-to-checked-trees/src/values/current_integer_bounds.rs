@@ -179,7 +179,19 @@ impl<'a> CurrentIntegerBounds<'a> {
     ) -> Option<IntegerRange> {
         // A proof search limit declines the whole projection, never a suffix
         // of the candidates. This bounds work without asserting partial coverage.
-        self.projected(place, primitive, &mut 4096)
+        // A live observation of this exact dynamic selection is independent
+        // of the per-slot coverage. Preserve it even when the collection's
+        // full extent is unavailable or another slot has only carrier bounds.
+        let exact = self.exact(place, primitive);
+        let projected = self.projected(place, primitive, &mut 4096);
+        match (exact, projected) {
+            (Some(exact), Some(projected)) => {
+                let minimum = exact.minimum.max(projected.minimum);
+                let maximum = exact.maximum.min(projected.maximum);
+                (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
+            }
+            (exact, projected) => exact.or(projected),
+        }
     }
 
     fn projected(
@@ -222,6 +234,18 @@ impl<'a> CurrentIntegerBounds<'a> {
     }
 
     fn exact(&self, place: &CanonicalPlace, primitive: PrimitiveType) -> Option<IntegerRange> {
+        let trace = std::env::var("OMEGA_TRACE_READ_BOUNDS")
+            .ok()
+            .is_some_and(|name| {
+                validation::find_state(self.program, self.state)
+                    .is_some_and(|(machine, _)| machine.name.as_str() == name)
+            });
+        if trace {
+            eprintln!(
+                "READ-BOUNDS exact {:?} {:?} predicates {:?}",
+                place, primitive, self.predicates
+            );
+        }
         let contexts = || {
             self.contexts
                 .iter()
@@ -240,6 +264,9 @@ impl<'a> CurrentIntegerBounds<'a> {
                     super::scalar_value_at_place(self.program, self.semantic, contexts(), place)
                 })
             {
+                if trace {
+                    eprintln!("READ-BOUNDS consequence {:?}", consequence);
+                }
                 bounds.minimum = bounds.minimum.max(consequence.minimum);
                 bounds.maximum = bounds.maximum.min(consequence.maximum);
             }
