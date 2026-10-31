@@ -44,7 +44,8 @@ result arms, a helper's own Requires and a narrowing operation's own safety.
   and instruction selection own the physical details. This bounded repair does
   not establish independent proof-kernel or cross-host qualification.
 
-The parent remains open for signed cross-carrier ranks, other declared bodies,
-nonscalar and dependent orders, the other invocation-contract obligations and
-product-source migration. Raw source hashes, baseline failures, actual producer
+The [signed finite-order row](../../../../../nested_machine_signed_rank/README.md)
+extends declaration-owned bounds across zero. The parent remains open for other
+declared bodies, nonscalar and dependent orders, the other invocation-contract
+obligations and product-source migration. Raw source hashes, baseline failures, actual producer
 identities and outcomes are retained in `build/cross-carrier-rank/`.

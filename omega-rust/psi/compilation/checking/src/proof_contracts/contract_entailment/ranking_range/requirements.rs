@@ -558,7 +558,7 @@ fn prove(
                 &floor,
                 &ceiling,
                 range.end_inclusive,
-            ));
+            )?);
         }
     }
     if !source_engine.install_hypotheses(comparisons) {
