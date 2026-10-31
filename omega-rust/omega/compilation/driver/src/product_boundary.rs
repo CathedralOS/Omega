@@ -969,6 +969,38 @@ fn calling_materialization_consumes_prepared_psi_telescopes() {
 }
 
 #[test]
+fn calling_policy_selection_consumes_prepared_psi_applications() {
+    let computation = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"
+    );
+    assert_absent(
+        &[computation],
+        "target calling policy selection reopens source relationships",
+        &[
+            "standard_calling_vocabularies",
+            "trait_requirements",
+            "boundary_policy_instances",
+            "collect_boundary_signatures",
+            "AppliedTraitScope",
+            "trait_implementation_applications",
+            "captured_machine_applications",
+        ],
+    );
+    assert!(computation.contains("calling.requests()"));
+    assert!(computation.contains("signatures.applied_declaration(application)"));
+    assert!(computation.contains("calling.bindings(application)"));
+    let preparation = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/signatures/calling_applications.rs"
+    );
+    assert!(preparation.contains("standard_calling_vocabularies"));
+    assert!(preparation.contains("trait_implementation_applications"));
+    assert!(preparation.contains("captured_machine_applications"));
+    assert!(preparation.contains("HandleSpan<PreparedCallingInstance>"));
+    assert!(!preparation.contains("TargetProfile"));
+    assert!(!preparation.contains("machine_for_target"));
+}
+
+#[test]
 fn provider_derivation_consumes_the_prepared_service_census() {
     let inventory = include_str!(
         "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"

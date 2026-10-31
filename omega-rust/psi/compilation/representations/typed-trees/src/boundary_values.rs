@@ -12,7 +12,7 @@ use language_semantics::boundary_values::{
     BoundaryValueRecipes,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BoundaryTypeBinding {
     pub parameter_symbol: symbols::SymbolHandle,
     pub parameter_name: String,
