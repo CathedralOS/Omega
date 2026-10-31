@@ -5,6 +5,11 @@
 
 pub mod projection;
 pub use projection::ProjectedServiceSurface;
+mod catalog;
+pub use catalog::{
+    PreparedServiceCatalog, PreparedServiceDeclaration, PreparedServiceRequirement,
+    PreparedServiceSurface, ServiceCatalog,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderSchemaDeclaration {

@@ -44,6 +44,14 @@ fn parse_source_unwrap(source: &str) -> syntax_trees::SyntaxTrees {
     crate::parser::parse_syntax_trees(&tokens).unwrap()
 }
 
+/// One call argument's spelled path, member by member.
+fn argument_path<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    path: &'p [syntax_trees::identifier::Identifier],
+) -> Vec<&'p str> {
+    path.iter().map(|member| member.as_str(parsed)).collect()
+}
+
 macro_rules! root_item {
     ($name:ident -> $variant:ident ($binding:ident): $ty:ident ;) => {
         fn $name<'p>(
@@ -70,6 +78,18 @@ macro_rules! root_item {
                 .unwrap()
         }
     };
+    ($name:ident all -> $variant:ident ($binding:ident): $ty:ident ;) => {
+        /// Every root item of this kind, in source order.
+        fn $name(parsed: &syntax_trees::SyntaxTrees) -> Vec<&syntax_trees::item::$ty> {
+            parsed
+                .root_items()
+                .filter_map(|item| match item {
+                    syntax_trees::item::Item::$variant($binding) => Some($binding),
+                    _ => None,
+                })
+                .collect()
+        }
+    };
 }
 
 root_item!(root_machine -> Machine(machine): Machine;);
@@ -80,6 +100,12 @@ root_item!(root_domain -> Domain(definition): DomainDefinition;);
 root_item!(root_conformance -> Conformance(item): ConformanceItem;);
 root_item!(root_const -> Const(definition): ConstDefinition;);
 root_item!(root_operator -> Operator(definition): OperatorDefinition;);
+root_item!(root_machines all -> Machine(machine): Machine;);
+root_item!(root_domains all -> Domain(domain): DomainDefinition;);
+root_item!(root_propositions all -> Proposition(proposition): PropositionDefinition;);
+root_item!(root_traits all -> Trait(definition): TraitDefinition;);
+root_item!(root_data_items all -> Data(definition): DataDefinition;);
+root_item!(root_operators all -> Operator(operator): OperatorDefinition;);
 
 /// The handle of `machine`'s first state — the entry state of the
 /// single-state machines these tests parse.

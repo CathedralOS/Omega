@@ -58,6 +58,7 @@ pub use placed_view_plans::{
 };
 pub mod content_transformations;
 mod domain_preservation;
+mod exactly_one;
 pub use domain_preservation::{
     domain_predicate_is_closed, domain_predicate_observes_no_storage, domain_write_is_disjoint,
     reference_preserves_ancestor_qualifications, scalar_field_store_preserves_content,

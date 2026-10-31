@@ -150,17 +150,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
                     right,
                 })),
         };
-        combined = if combined.is_valid() {
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: combined,
-                    operator: BinaryOperator::And,
-                    right: equality,
-                }))
-        } else {
-            equality
-        };
+        combined = join_guard_conjunction(syntax_trees, combined, equality);
     }
 
     Ok((
@@ -651,17 +641,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                     operator: BinaryOperator::Equal,
                     right: expected,
                 }));
-        combined = if combined.is_valid() {
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: combined,
-                    operator: BinaryOperator::And,
-                    right: equality,
-                }))
-        } else {
-            equality
-        };
+        combined = join_guard_conjunction(syntax_trees, combined, equality);
     }
 
     if let Some(guard_input) = guard_input {
@@ -671,17 +651,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             return Err(rest.error_here("expected transition pattern guard"));
         }
         let guard = rewrite_destructure_guard_expression(syntax_trees, guard, subject, &fields);
-        combined = if combined.is_valid() {
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: combined,
-                    operator: BinaryOperator::And,
-                    right: guard,
-                }))
-        } else {
-            guard
-        };
+        combined = join_guard_conjunction(syntax_trees, combined, guard);
     }
 
     let guard = if combined.is_valid() {

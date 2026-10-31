@@ -52,7 +52,7 @@ remain separate implementation work.
 - Composition: use the same write and observed result through all nine places;
   preserve exact reference access rather than collapsing it to exclusivity.
 - Soundness: refuse read/escalation, invalid source restoration, overlapping
-  loans and escaping returned views; retain atomic/Placed restrictions.
+  loans and escaping returned views; retain atomic/Access restrictions.
 - Psi lowering: preserve `WriteOnlyBorrow` through canonical Terminal Psi and
   execute its actual store without loading old content.
 - Layout/provider/ABI: ordinary one-field record geometry and pointer calls;

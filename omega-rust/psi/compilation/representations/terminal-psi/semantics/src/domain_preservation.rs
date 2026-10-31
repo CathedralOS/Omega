@@ -4,6 +4,7 @@
 //! a conserved projection. Borrowed ancestor contracts retain their own checks.
 //! Unknown observations stay opaque; different descriptor fields do not prove
 //! disjointness of the indirect backing they observe.
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Segment, ContentProjectionExpression,
     ContentProjectionScalar, PlaceId, Proposition, ScalarReadProjection, ScalarTerm, ScalarType,
@@ -268,21 +269,12 @@ fn content_paths<'a>(
             let mut current = carrier;
             let mut canonical = Vec::new();
             for (index, identity) in path.iter().enumerate() {
-                let mut declarations = types
-                    .clone()
-                    .filter(|declaration| declaration.id == current);
-                let declaration = declarations.next()?;
-                if declarations.next().is_some() {
-                    return None;
-                }
-                let mut matching = declaration.shape.direct_fields()?.iter().filter(|field| {
+                let declaration =
+                    exactly_one(types.clone(), |declaration| declaration.id == current)?;
+                let field = exactly_one(declaration.shape.direct_fields()?.iter(), |field| {
                     identities.text(field.identity) == Some(identity.as_str())
                         && !field.relevance.is_erased()
-                });
-                let field = matching.next()?;
-                if matching.next().is_some() {
-                    return None;
-                }
+                })?;
                 canonical.push(Segment::Field(field.id));
                 if index + 1 < path.len() {
                     current = match field.field_type {

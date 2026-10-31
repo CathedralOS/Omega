@@ -25,18 +25,16 @@ pub struct ProjectedServiceSurface<'program> {
     pub requirements: Vec<ServiceRequirementSource>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ServiceRequirementSource {
     pub declaring_trait: symbols::SymbolHandle,
     pub symbol: symbols::SymbolHandle,
 }
 
 impl ProjectedServiceSurface<'_> {
-    /// Guard exact catalog correspondence at its original consumption point.
-    /// Projection itself does not reject dormant unsupported declarations.
-    pub fn exact_requirements(
-        &self,
-    ) -> Result<Vec<symbols::SymbolHandle>, diagnostics::Diagnostic> {
+    /// Record a deferred catalog obligation during source formation. Ordinary
+    /// surface projection does not reject a dormant unsupported declaration.
+    pub(super) fn validate_correspondence(&self) -> Result<(), diagnostics::Diagnostic> {
         correspondence::validate(self.program, self)
     }
 }

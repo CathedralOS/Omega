@@ -8,12 +8,11 @@
 use super::{ProjectedServiceSurface, ProviderSchemaDeclaration};
 use crate::TypedTrees;
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 
 pub(super) fn validate(
     program: &TypedTrees,
     projection: &ProjectedServiceSurface,
-) -> Result<Vec<SymbolHandle>, Diagnostic> {
+) -> Result<(), Diagnostic> {
     if projection.declaration.methods.len() != projection.requirements.len() {
         return Err(Diagnostic::error(
             "service row lost its ordered source correspondence",
@@ -23,11 +22,7 @@ pub(super) fn validate(
         projection.schema,
         ProviderSchemaDeclaration::BoundaryTrait(_)
     ) {
-        return Ok(projection
-            .requirements
-            .iter()
-            .map(|source| source.symbol)
-            .collect());
+        return Ok(());
     }
     let mut pending = vec![projection.schema.symbol()];
     let mut visited = Vec::new();
@@ -59,7 +54,6 @@ pub(super) fn validate(
                 .map(|parent| parent.symbol),
         );
     }
-    let mut requirements = Vec::with_capacity(projection.requirements.len());
     for (method, source) in projection
         .declaration
         .methods
@@ -92,7 +86,6 @@ pub(super) fn validate(
                 "service row has no unique exact inherited requirement",
             ));
         }
-        requirements.push(source.symbol);
     }
-    Ok(requirements)
+    Ok(())
 }

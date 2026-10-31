@@ -5,7 +5,7 @@
 //! targets. It does not infer control flow, choose ABI placements, or emit
 //! instructions.
 
-use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+use crate::object_artifact::replay::{x86_region_decoder, x86_register_info_writes_stack_pointer};
 use crate::order::strictly_increasing;
 
 use machine_code::{
@@ -232,12 +232,7 @@ pub(crate) fn replay_scalar_conditional_region(
     let mut saw_return = false;
     match architecture {
         Architecture::X86_64 => {
-            let mut decoder = iced_x86::Decoder::with_ip(
-                64,
-                &bytes[start..end],
-                start as u64,
-                iced_x86::DecoderOptions::NONE,
-            );
+            let mut decoder = x86_region_decoder(bytes, start, end);
             let mut info_factory = iced_x86::InstructionInfoFactory::new();
             while decoder.can_decode() {
                 let instruction = decoder.decode();

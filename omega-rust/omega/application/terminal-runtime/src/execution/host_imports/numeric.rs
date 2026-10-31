@@ -99,25 +99,19 @@ impl NumericImport {
 import_signature_via_clone!(NumericImport);
 
 impl TerminalEffectHandler for NumericImport {
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(rejected("numeric import requires result-aware dispatch"))
-    }
+    handle_effect_requires_dispatch!(rejected("numeric import requires result-aware dispatch"));
 
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            ..
-        } = effect
-        else {
-            return Err(rejected("numeric import received a non-boundary effect"));
-        };
-        if !structural_arguments.is_empty()
-            || arguments.len() != self.signature.scalar_parameters.len()
-            || !arguments
+        let call = super::call_operands(effect, || {
+            rejected("numeric import received a non-boundary effect")
+        })?;
+        if !call.structural_arguments.is_empty()
+            || call.arguments.len() != self.signature.scalar_parameters.len()
+            || !call
+                .arguments
                 .iter()
                 .zip(&self.signature.scalar_parameters)
                 .all(|(value, expected)| {
@@ -133,7 +127,7 @@ impl TerminalEffectHandler for NumericImport {
             return Err(rejected("numeric operands differ from the bound contract"));
         }
         if let Some(classification) = &self.classification {
-            let [TerminalScalarValue::IeeeFloat(value)] = arguments.as_slice() else {
+            let [TerminalScalarValue::IeeeFloat(value)] = call.arguments else {
                 return Err(rejected("classification requires one IEEE payload"));
             };
             let format = match self.realization.format {
@@ -169,7 +163,7 @@ impl TerminalEffectHandler for NumericImport {
                 },
             ));
         }
-        let result = evaluate(self.realization, arguments)?;
+        let result = evaluate(self.realization, call.arguments)?;
         if let TerminalEffectResult::Scalar(value) = result
             && Some(value.scalar_type()) != self.signature.result.scalar()
         {

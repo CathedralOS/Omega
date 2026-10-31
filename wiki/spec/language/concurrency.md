@@ -16,7 +16,7 @@ ownership remain independently accountable.
 
 Atomics are dedicated core types, not implicitly atomic ordinary integers.
 Generic code uses one sealed core requirement per primitive operation, shared
-by ordinary atomics and admitted placed accessors:
+by ordinary atomics and admitted accessors:
 
 | Requirement | Result |
 | --- | --- |
@@ -27,7 +27,7 @@ by ordinary atomics and admitted placed accessors:
 | `AtomicTryExchange<T, Key>` / `AtomicTryExchangeOnce<T, Key>` | Non-observing decisive / single-attempt outcome. |
 | `AtomicFetchAdd<T>` and individual fetch requirements | Instruction-observed prior value. |
 
-[Placed access](../resources/placed_access.md#atomic-compare-exchange-outcomes)
+[Access policies](../resources/access.md#atomic-compare-exchange-outcomes)
 owns the exact outcome types, canonical cases, resident-custody rules, and
 operation-specific conformance. The explicit parameter providing access to the
 atomic storage is shared. Fixed representation,

@@ -142,11 +142,7 @@ impl TerminalEffectHandler for AllocationImport {
         }
     }
 
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "allocation operation requires exact typed dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("allocation operation requires exact typed dispatch");
 
     fn handle_effect_with_buffers(
         &mut self,
@@ -154,19 +150,9 @@ impl TerminalEffectHandler for AllocationImport {
         byte_buffers: &mut [TerminalBoundaryByteBuffer],
         storage: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let invalid = || {
-            TerminalEffectRejection::new("allocation operands differ from the admitted signature")
-        };
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            result,
-            ..
-        } = effect
-        else {
-            return Err(invalid());
-        };
-        if *result != self.signature.result || !byte_buffers.is_empty() {
+        let invalid = super::refusal("allocation operands differ from the admitted signature");
+        let call = super::call_operands(effect, &invalid)?;
+        if *call.result != self.signature.result || !byte_buffers.is_empty() {
             return Err(invalid());
         }
         let mut values = self
@@ -187,13 +173,13 @@ impl TerminalEffectHandler for AllocationImport {
                         scalar_type: second,
                         value: IntegerValue::Unsigned(width),
                     },
-                ] = arguments.as_slice()
+                ] = call.arguments
                 else {
                     return Err(invalid());
                 };
                 if *first != unsigned
                     || *second != unsigned
-                    || !structural_arguments.is_empty()
+                    || !call.structural_arguments.is_empty()
                     || !storage.is_empty()
                 {
                     return Err(invalid());
@@ -210,13 +196,13 @@ impl TerminalEffectHandler for AllocationImport {
                     let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
                         return Err(invalid());
                     };
-                    let [argument] = structural_arguments.as_slice() else {
+                    let [argument] = call.structural_arguments else {
                         return Err(invalid());
                     };
                     let [cell] = buffer.values() else {
                         return Err(invalid());
                     };
-                    if !arguments.is_empty()
+                    if !call.arguments.is_empty()
                         || buffer.argument_index() != 0
                         || buffer.access() != terminal_psi::StructuralAccess::Owned
                         || buffer.structural_type() != argument.structural_type
@@ -236,10 +222,10 @@ impl TerminalEffectHandler for AllocationImport {
                     }
                     value
                 } else {
-                    let [pointer] = arguments.as_slice() else {
+                    let [pointer] = call.arguments else {
                         return Err(invalid());
                     };
-                    if !structural_arguments.is_empty() || !storage.is_empty() {
+                    if !call.structural_arguments.is_empty() || !storage.is_empty() {
                         return Err(invalid());
                     }
                     *pointer

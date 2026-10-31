@@ -2018,13 +2018,20 @@ pub(super) fn collect_guard(
     }
     match engine.program.expression_table.expression(expression) {
         ExpressionNode::Name(name) if name.symbol == name.head_symbol => {
-            let Some(observation) = engine.saved_conditions.iter().find(|observation| {
-                observation.symbol == name.symbol && observation.holds == holds
-            }) else {
-                return Some(false);
-            };
-            comparisons.extend(observation.comparisons.iter().cloned());
-            Some(observation.fully_visible)
+            if let Some(observation) = engine
+                .saved_conditions
+                .iter()
+                .find(|observation| observation.symbol == name.symbol && observation.holds == holds)
+            {
+                comparisons.extend(observation.comparisons.iter().cloned());
+                return Some(observation.fully_visible);
+            }
+            // A dispatch subject is an immutable local. Its initializer is the
+            // comparison the arm assumes; the generated name is not a fact.
+            if let Some(initializer) = engine.immutable_local_initializer(name.symbol) {
+                return collect_guard(engine, initializer, holds, comparisons, depth + 1);
+            }
+            Some(false)
         }
         ExpressionNode::Unary(unary)
             if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>

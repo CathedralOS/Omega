@@ -11,7 +11,9 @@ use omega::language::core::external_binding;
 // materialization copies declared coordinates; it invents no slot or address.
 data User32Policy { }
 User32PolicyCalling satisfies CallingPolicy {
- CallingPolicy::plan = User32Policy::plan;
+ machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+     User32Policy::plan(signature)
+ }
 }
 machine User32Policy::plan(signature: BoundarySignature) -> BoundaryPlanResult
 satisfies CallingPolicy::plan {

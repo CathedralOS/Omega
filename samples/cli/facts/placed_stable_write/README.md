@@ -1,4 +1,4 @@
-# Placed Stable write
+# Access Stable write
 
 Fact: an exact permitted Stable field operation writes its original storage.
 
@@ -23,9 +23,9 @@ are bound; actual execution evidence currently covers macOS ARM64 only.
 
 | Place | Transport exercised |
 | --- | --- |
-| local | Local exclusive placed loan |
+| local | Local exclusive access loan |
 | field | Loan retained in and moved from a record field |
-| parameter | Placed loan passed to an ordinary helper |
+| parameter | Access loan passed to an ordinary helper |
 | call_result | Loan returned through an explicit lifetime |
 | match_join | Borrowed source interpreted in either branch, then joined |
 | const_name | Named static permission consumed by the policy |
@@ -35,7 +35,7 @@ are bound; actual execution evidence currently covers macOS ARM64 only.
 
 ## Requirements and evidence
 
-- Establishment: `Placed::view_mut` borrows already initialized storage. This
+- Establishment: `Access::view_mut` borrows already initialized storage. This
   does not establish Vacant or Resident extent claims.
 - Identity and lifetime: the selected field target retains its plan, exact
   accessor/value tuple, exclusive source loan and original backing.
@@ -99,7 +99,7 @@ The simultaneous-view repair retains a conservative pre-interpretation enclosure
 separately from scalar referents and lifetime dependencies. Inline returned
 views count as one completed argument while their producing input holds remain
 live against later arguments. The controls under `controls/` reject aliasing
-placed views and later writes to either the selected or unselected input of a
+access views and later writes to either the selected or unselected input of a
 reference-returning call. An unrelated later write executes with both engines.
 These controls pin the distinction between pointer geometry and declared lifetime
 debt; an enclosure cannot supply value equality or access authority.

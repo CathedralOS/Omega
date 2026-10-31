@@ -15,6 +15,7 @@ use super::{
     baseline_target_register_environment, encoded_mut, named_view, produced_effects,
     scalar_abi_cases, stack_pointer_view, validate_effects, validated_effects,
 };
+use register_model::RegisterViewId;
 use selected_instructions::{
     MachineCleanupEffect, MachineEffectCatalogValidationError, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
@@ -52,6 +53,44 @@ fn lifecycle_owner(
         | MachineSemanticKind::ReturnUnit
         | MachineSemanticKind::ReturnAggregate => Some(LifecycleOwner::Return),
         _ => None,
+    }
+}
+
+/// The memory footprint a lifecycle owner performs over `byte_count` bytes at
+/// `view`: a call writes the return address below the stack pointer, a return
+/// reads it back off the activation stack.
+fn lifecycle_memory(
+    owner: LifecycleOwner,
+    view: RegisterViewId,
+    byte_count: u16,
+) -> MachineEncodedMemoryEffect {
+    match owner {
+        LifecycleOwner::Call => MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+            stack_pointer: view,
+            byte_count,
+        },
+        LifecycleOwner::Return => MachineEncodedMemoryEffect::ReadActivationStackV1 {
+            stack_pointer: view,
+            byte_count,
+        },
+    }
+}
+
+/// The stack lifecycle the same owner performs over the same extent.
+fn lifecycle_stack(
+    owner: LifecycleOwner,
+    view: RegisterViewId,
+    byte_count: u16,
+) -> MachineEncodedStackEffect {
+    match owner {
+        LifecycleOwner::Call => MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+            stack_pointer: view,
+            return_address_byte_count: byte_count,
+        },
+        LifecycleOwner::Return => MachineEncodedStackEffect::PopBytesV1 {
+            stack_pointer: view,
+            byte_count,
+        },
     }
 }
 
@@ -261,18 +300,7 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
                         ),
                     ],
                     Some(owner) => {
-                        let owned = |view, count| match owner {
-                            LifecycleOwner::Call => {
-                                MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-                                    stack_pointer: view,
-                                    return_address_byte_count: count,
-                                }
-                            }
-                            LifecycleOwner::Return => MachineEncodedStackEffect::PopBytesV1 {
-                                stack_pointer: view,
-                                byte_count: count,
-                            },
-                        };
+                        let owned = |view, count| lifecycle_stack(owner, view, count);
                         vec![
                             ("dropped lifecycle", MachineEncodedStackEffect::UnchangedV1),
                             // The sibling class's lifecycle does not fit this
@@ -370,28 +398,8 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
             // so canonical replay must reject it.
             let mut corrupted = catalog.clone();
             let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
-            encoded.memory = match owner {
-                LifecycleOwner::Call => {
-                    MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-                        stack_pointer: foreign_pointer.id,
-                        byte_count: 8,
-                    }
-                }
-                LifecycleOwner::Return => MachineEncodedMemoryEffect::ReadActivationStackV1 {
-                    stack_pointer: foreign_pointer.id,
-                    byte_count: 8,
-                },
-            };
-            encoded.stack = match owner {
-                LifecycleOwner::Call => MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-                    stack_pointer: foreign_pointer.id,
-                    return_address_byte_count: 8,
-                },
-                LifecycleOwner::Return => MachineEncodedStackEffect::PopBytesV1 {
-                    stack_pointer: foreign_pointer.id,
-                    byte_count: 8,
-                },
-            };
+            encoded.memory = lifecycle_memory(owner, foreign_pointer.id, 8);
+            encoded.stack = lifecycle_stack(owner, foreign_pointer.id, 8);
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
                 Err(EffectRejection::SemanticMismatch),
@@ -403,28 +411,8 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
             // reject the half-width return address.
             let mut corrupted = catalog.clone();
             let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
-            encoded.memory = match owner {
-                LifecycleOwner::Call => {
-                    MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-                        stack_pointer: stack_pointer.id,
-                        byte_count: 4,
-                    }
-                }
-                LifecycleOwner::Return => MachineEncodedMemoryEffect::ReadActivationStackV1 {
-                    stack_pointer: stack_pointer.id,
-                    byte_count: 4,
-                },
-            };
-            encoded.stack = match owner {
-                LifecycleOwner::Call => MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-                    stack_pointer: stack_pointer.id,
-                    return_address_byte_count: 4,
-                },
-                LifecycleOwner::Return => MachineEncodedStackEffect::PopBytesV1 {
-                    stack_pointer: stack_pointer.id,
-                    byte_count: 4,
-                },
-            };
+            encoded.memory = lifecycle_memory(owner, stack_pointer.id, 4);
+            encoded.stack = lifecycle_stack(owner, stack_pointer.id, 4);
             assert_eq!(
                 validate_effects(case, environment.constraints(), corrupted),
                 Err(EffectRejection::SemanticMismatch),

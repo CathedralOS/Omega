@@ -9,11 +9,21 @@
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    ByteSequenceCarrier, ByteSequencePredicateSet, StructuralPathSegment, StructuralTypeDeclaration,
+    ByteSequenceCarrier, ByteSequencePredicateSet, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 #[cfg(test)]
 mod tests;
+
+/// Whether `declaration` names a shared view: an element view or a borrowed
+/// byte sequence. A value of such a type presents a loan of caller storage
+/// rather than owned bytes, so every consumer that asks whether a place may be
+/// copied, retired, or claimed as a mutable name counts both shapes alike.
+pub(crate) fn shared_view_declaration(declaration: &StructuralTypeDeclaration) -> bool {
+    declaration.shape.is_borrowed_byte_view()
+        || matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructuralStorageProjection {

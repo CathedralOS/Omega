@@ -204,10 +204,34 @@ original simultaneous type/region scopes and retains exact ordered requirement
 correspondence and supplying ownership. Omega's
 `ServiceSchema` shares that declaration and attaches paired calling-report and
 commitment evidence by requirement coordinate; inherited receiver comparison
-still includes the complete target calling contract. Catalog custody keeps its
-separate, lazy trait-requirement-closure checks in Psi. The service/application
-census is not yet frozen before target selection, and selected-calling replay,
-default ABI signature materialization and review still have source dependencies.
+still includes the complete target calling contract. The final immutable Product
+owner prepares the complete source census once, before target planning; early
+Build prepares a separate census for its unchanged provisional projection.
+Abstract generic declarations, live applied roots, retained named applications,
+operators, top-level requirements and sealed accessor declarations remain distinct
+origins. Unsupported surfaces and exact trait-requirement-closure refusals stay
+deferred data, not preparation failures. Target provider derivation and declaration
+custody query those records without projecting source schemas again. Candidate
+eligibility and capture coalescing remain separate operations; catalog presence
+grants neither selection nor execution. Independent package-review candidates
+prepare their own source census rather than borrowing custody coordinates.
+Selected physical calling consumes the exact provider schema and ordered row
+correspondence rather than searching source declarations by rendered names.
+Psi retains declaring-owner eligibility as deferred per-method data: an ordinary
+inherited trait does not become a boundary owner, and an unused such method does
+not make census preparation fail. Foreign extraction and component ABI preparation
+retain the complete provider/provenance relationship; toolchain settlement emits
+the same derived-plan carrier instead of a separate plan-plus-symbol record.
+Target calling-plan validation and commitment checks remain separate from this
+source correspondence. Native Build supply and canonical-host settlement attach
+calling evidence to the same prepared Product declarations instead of projecting
+neutral schemas per target. Canonical-host admission still requires the exact
+accepted package, path and complete target-augmented schema digest. Native
+supplies retain exact declared-signature checks and validate every authored
+target's locator before narrowing realization; neither catalog presence nor a
+Product row supplies Build-host authority. Other source-schema consumers, default ABI signature
+materialization and canonical Terminal publication of the full catalog remain
+unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;
@@ -245,11 +269,14 @@ Build admission are reacquired. Invalid, truncated or obsolete records are
 optional misses. Terminal values inside the graph use the canonical Terminal
 codec and rejoin companion receipts through their original producers.
 
-This implements cross-invocation exact-program reuse. It does not admit checked
-dependency judgments into a different consumer from body hashes: cross-consumer
-reuse still needs complete producer-dependency context admission. In-memory
-shared declaration pages, local flow facts and conservative unknown-input
-fallback retain their existing ownership.
+This implements cross-invocation exact-program reuse. A dependency judgment
+enters another consumer only when the producer dependency context matches:
+package identity, dependency scope, and callee body hashes. A body hash alone
+does not admit it. Persisted source/check graphs and native Terminal products
+still require fresh source, dependency, compiler, and invocation admission
+before a recorded judgment is used. In-memory shared declaration pages, local
+flow facts and conservative unknown-input fallback retain their existing
+ownership.
 
 | Input → output | Owner |
 | --- | --- |
@@ -413,7 +440,7 @@ not synthesized service fields on an application record. Provider roots come fro
 actual calls and callback demand. Selected entries, private native derivation
 records and runtime provisions carry no synthetic field-establishment roster;
 older private records reject at their schema boundary. Ordinary provider
-admission, placed-view inputs and physical entry adapters remain independent.
+admission, access-view inputs and physical entry adapters remain independent.
 
 Component publication prepares its exported calling applications before Terminal
 production. The retained product carries those complete applications to the

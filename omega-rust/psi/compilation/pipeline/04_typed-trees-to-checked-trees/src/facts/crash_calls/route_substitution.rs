@@ -1221,7 +1221,12 @@ pub(crate) fn refine_published_crash_routes(
         target_parameter_names,
         content_conservation,
     );
-    let arguments = validation::call_site_argument_expressions(program, call_site);
+    let arguments = crate::call_formals::arguments_aligned_to_formals(
+        program,
+        call_flow.target_symbol,
+        target_parameters.len(),
+        validation::call_site_argument_expressions(program, call_site),
+    );
     let substitution = call_argument_substitution(
         program,
         operators,

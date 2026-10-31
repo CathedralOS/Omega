@@ -17,7 +17,6 @@ use effects::provider_plan::ProviderIdentityTable;
 
 struct NamedApplication<'program> {
     declaration: &'program Conformance,
-    scope: AppliedTraitScope<'program>,
     capture: arena::Handle<CapturedMachineApplication>,
     identity: Option<String>,
 }
@@ -28,10 +27,9 @@ fn applications(context: ProviderPlanningContext<'_>) -> Vec<NamedApplication<'_
     for declaration in program.conformances().iter().filter(|declaration| {
         context.contains(declaration.symbol) && crate::provider_identity::eligible(declaration)
     }) {
-        if let Some(scope) = AppliedTraitScope::from_conformance(program, declaration) {
+        if AppliedTraitScope::from_conformance(program, declaration).is_some() {
             applications.push(NamedApplication {
                 declaration,
-                scope,
                 capture: arena::Handle::default(),
                 identity: None,
             });
@@ -61,12 +59,16 @@ fn applications(context: ProviderPlanningContext<'_>) -> Vec<NamedApplication<'_
         }) {
             continue;
         }
-        let Some(scope) = capture.conformance_application.trait_scope.scope(program) else {
+        if capture
+            .conformance_application
+            .trait_scope
+            .scope(program)
+            .is_none()
+        {
             continue;
-        };
+        }
         applications.push(NamedApplication {
             declaration,
-            scope,
             capture: capture_handle,
             identity: Some(identity),
         });
@@ -101,11 +103,12 @@ fn captured_row<'program>(
 }
 
 pub(super) fn derive(
-    context: ProviderPlanningContext<'_>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
     candidates: &[DerivedProviderPlan],
 ) -> Vec<DerivedProviderPlan> {
+    let context = services.context();
     let typed = context.typed;
     applications(context)
         .into_iter()
@@ -117,15 +120,12 @@ pub(super) fn derive(
                     && definition.is_boundary
                     && context.contains(definition.symbol)
             })?;
-            let arguments = typed
-                .type_reference_table
-                .type_reference_handles(implementation.arguments);
-            let schema = crate::service_schema::from_typed_application(
-                context,
-                calling_plans,
-                application.scope.clone(),
-                arguments,
+            let prepared = services.named_application(
+                implementation.symbol,
+                application.capture,
+                definition.symbol,
             )?;
+            let schema = crate::service_schema::attach_calling(&prepared, calling_plans);
             let provider_type = typed.symbols.display_path(implementation.symbol, "::");
             let package = typed.symbols.symbol_package_identity(implementation.symbol);
             let origin_package = typed

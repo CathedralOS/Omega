@@ -33,12 +33,59 @@ impl SealedPlacedAccessor {
         &self,
         context: ProviderPlanningContext<'_>,
     ) -> Result<String, Diagnostic> {
+        Ok(Self::format_binding_identity(
+            self.execution_contract(context)?,
+        ))
+    }
+
+    fn format_binding_identity(contract: [u8; 32]) -> String {
         use std::fmt::Write;
         let mut identity = String::from("compiler-catalog::placed-scalar.v1::");
-        for byte in self.execution_contract(context)? {
+        for byte in contract {
             write!(&mut identity, "{byte:02x}").expect("String formatting");
         }
-        Ok(identity)
+        identity
+    }
+
+    pub(crate) fn prepared_binding_identity(
+        &self,
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+    ) -> Result<String, Diagnostic> {
+        let schema = self.prepared_schema(services)?;
+        Ok(Self::format_binding_identity(self.schema_contract(&schema)))
+    }
+
+    pub(crate) fn prepared_schema(
+        &self,
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+    ) -> Result<effects::provider_plan::ServiceSchema, Diagnostic> {
+        if services.sealed_accessor(self.machine())? != Some(&self.declaration) {
+            return Err(Diagnostic::error(
+                "sealed placed accessor schema substituted its authenticated declaration",
+            ));
+        }
+        let prepared = services
+            .declaration(crate::ProviderSchemaDeclaration::SealedPlacedAccessor(
+                self.machine(),
+            ))
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "sealed placed accessor has no complete published callable schema",
+                )
+            })?;
+        Ok(effects::provider_plan::ServiceSchema::from_declaration(
+            prepared.declaration.clone(),
+        ))
+    }
+
+    pub(crate) fn prepared(
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+        symbol: SymbolHandle,
+    ) -> Result<Option<Self>, Diagnostic> {
+        Ok(services
+            .sealed_accessor(symbol)?
+            .cloned()
+            .map(|declaration| Self { declaration }))
     }
 
     /// Full nominal/signature/placement identity for receiving mechanism joins.
@@ -48,17 +95,21 @@ impl SealedPlacedAccessor {
         context: ProviderPlanningContext<'_>,
     ) -> Result<[u8; 32], Diagnostic> {
         let schema = crate::service_schema::from_sealed_placed_accessor(context, self)?;
+        Ok(self.schema_contract(&schema))
+    }
+
+    fn schema_contract(&self, schema: &effects::provider_plan::ServiceSchema) -> [u8; 32] {
         let operation = match self.operation() {
             SealedPlacedScalarOperation::Read => effects::CompilerPlacedScalarOperation::Read,
             SealedPlacedScalarOperation::Take => effects::CompilerPlacedScalarOperation::Take,
             SealedPlacedScalarOperation::Write => effects::CompilerPlacedScalarOperation::Write,
         };
-        Ok(effects::compiler_placed_scalar_contract_identity(
+        effects::compiler_placed_scalar_contract_identity(
             schema.identity_digest(),
             self.placement_commitment(),
             self.access_slot(),
             operation,
-        ))
+        )
     }
 
     /// Independently rejoin one retained plan at a receiving declaration gate.

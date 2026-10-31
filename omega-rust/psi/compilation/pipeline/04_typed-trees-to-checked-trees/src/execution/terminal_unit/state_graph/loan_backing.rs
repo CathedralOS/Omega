@@ -39,16 +39,36 @@ fn selected_call(
                         typed_trees::statement::StatementNode::Expression(expression) => *expression == call.authored_expression,
                         _ => false,
                     })))
-            && call.authored_target == target
-            && facts
-                .flow
-                .control
-                .call_arguments
-                .span(call.authored_arguments)
-                == Some(arguments)
+            && arguments_name_call(program, facts, call, target, arguments)
     });
     let call = calls.next()?;
     calls.next().is_none().then_some(call)
+}
+
+fn arguments_name_call(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    call: &checked_trees::FlowCallFact,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
+) -> bool {
+    let authored = facts
+        .flow
+        .control
+        .call_arguments
+        .span(call.authored_arguments);
+    if call.authored_target == target && authored == Some(arguments) {
+        return true;
+    }
+    // A one-implementation selector tail is a jump to that entry. The flow
+    // call still names the slot and leads with the selector.
+    let Some(slot) = program.dynamic_slot_by_symbol(call.authored_target) else {
+        return false;
+    };
+    let Some(entry) = validation::unique_dispatched_entry(program, slot) else {
+        return false;
+    };
+    entry.symbol == target && authored.is_some_and(|authored| authored.get(1..) == Some(arguments))
 }
 
 /// Rejoin captured permission to its state-local storage occurrence. The
@@ -78,14 +98,18 @@ pub(super) fn retained_storage(
 ) -> Result<RetainedStorage, &'static str> {
     let call_handle = selected_call(program, facts, machine, state, statement, target, arguments)
         .ok_or("state loan: exact captured call")?;
-    let operand = facts
-        .flow
-        .control
-        .calls
-        .get(call_handle)
+    let call_fact = facts.flow.control.calls.get(call_handle);
+    // Selector tails jump with the data operands. The flow call still records
+    // the selector as operand 0, so captured positions shift by that one.
+    let leading = usize::from(
+        program
+            .dynamic_slot_by_symbol(call_fact.authored_target)
+            .is_some(),
+    );
+    let operand = call_fact
         .argument_operands()
         .handles()
-        .nth(argument_position)
+        .nth(argument_position.saturating_add(leading))
         .ok_or("state loan: captured operand position")?;
     let (parents, mut operand_parents) = retained_parents(
         program,

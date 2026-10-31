@@ -5,6 +5,9 @@
 
 use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
+use checked_trees::typed_trees::service_declarations::{
+    PreparedServiceSurface, ProviderSchemaDeclaration,
+};
 use checked_trees::typed_trees::service_declarations::{ProjectedServiceSurface, projection};
 use checked_trees::typed_trees::trait_definition::AppliedTraitScope;
 use effects::provider_plan::{ServiceCallingApplication, ServiceCallingPlan, ServiceSchema};
@@ -13,27 +16,59 @@ pub use checked_trees::typed_trees::service_declarations::projection::is_product
 
 /// Add target evidence by exact source correspondence, not a readable method name.
 /// The neutral declaration is shared unchanged with its source projection.
-pub(crate) fn attach_calling(
+fn attach_projected_calling(
     projected: &ProjectedServiceSurface,
     calling_plans: &[BoundaryCallingPlanRealization],
     boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
 ) -> ServiceSchema {
-    let mut schema = ServiceSchema::from_declaration(projected.declaration.clone());
-    if matches!(
+    attach_requirement_calling(
+        projected.declaration.clone(),
         projected.schema,
-        crate::ProviderSchemaDeclaration::BoundaryTrait(_)
-    ) {
-        for (method, requirement) in projected
-            .declaration
-            .methods
+        projected.argument_owner,
+        projected
+            .requirements
             .iter()
-            .zip(&projected.requirements)
-        {
+            .map(|requirement| requirement.symbol),
+        boundary_arguments,
+        calling_plans,
+    )
+}
+
+/// Source formation already fixed both the neutral surface and attachment
+/// coordinates. Targets attach evidence without projecting that source again.
+pub(crate) fn attach_calling(
+    prepared: &PreparedServiceSurface<'_>,
+    calling_plans: &[BoundaryCallingPlanRealization],
+) -> ServiceSchema {
+    attach_requirement_calling(
+        prepared.declaration.clone(),
+        prepared.schema,
+        prepared.argument_owner,
+        prepared
+            .requirements
+            .iter()
+            .map(|requirement| requirement.source.symbol),
+        prepared.boundary_arguments,
+        calling_plans,
+    )
+}
+
+fn attach_requirement_calling(
+    declaration: std::sync::Arc<language_semantics::service_surface::ServiceSurface>,
+    source: ProviderSchemaDeclaration,
+    argument_owner: symbols::SymbolHandle,
+    requirements: impl IntoIterator<Item = symbols::SymbolHandle>,
+    boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
+    calling_plans: &[BoundaryCallingPlanRealization],
+) -> ServiceSchema {
+    let mut schema = ServiceSchema::from_declaration(declaration);
+    if matches!(source, crate::ProviderSchemaDeclaration::BoundaryTrait(_)) {
+        for (method, requirement) in schema.declaration.methods.iter().zip(requirements) {
             if let Some(application) = calling_plans.iter().find(|application| {
-                application.boundary_trait == projected.schema.symbol()
+                application.boundary_trait == source.symbol()
                     && application.boundary_arguments == boundary_arguments
-                    && application.argument_owner() == projected.argument_owner
-                    && application.requirement_machine == requirement.symbol
+                    && application.argument_owner() == argument_owner
+                    && application.requirement_machine == requirement
             }) {
                 schema.calling_applications.push(ServiceCallingApplication {
                     requirement: method.requirement_identity,
@@ -54,7 +89,7 @@ pub fn from_typed(
     definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
 ) -> Option<ServiceSchema> {
     let projected = projection::from_typed(context, definition)?;
-    Some(attach_calling(&projected, calling_plans, &[]))
+    Some(attach_projected_calling(&projected, calling_plans, &[]))
 }
 
 pub fn from_typed_application(
@@ -64,7 +99,7 @@ pub fn from_typed_application(
     boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
 ) -> Option<ServiceSchema> {
     let projected = projection::from_typed_application(context, root)?;
-    Some(attach_calling(
+    Some(attach_projected_calling(
         &projected,
         calling_plans,
         boundary_arguments,

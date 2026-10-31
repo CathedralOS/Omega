@@ -653,6 +653,19 @@ mod operator_candidates;
 use crate::monomorphization::selection::unique_complete_selections;
 pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
 
+/// One failure, as the errors these passes hand back carry it.
+pub(super) fn failed(message: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(message)]
+}
+
+/// The exact runtime subjects a retained binding roster supplies, in order; an
+/// open slot contributes nothing and the caller keeps the roster's positions.
+pub(super) fn runtime_value_subjects(
+    bindings: &[Option<RuntimeValueBinding>],
+) -> Vec<RuntimeValueBinding> {
+    bindings.iter().flatten().cloned().collect()
+}
+
 /// Keep the failed occurrence's source context; the callee alone cannot identify
 /// which of several forwarded applications failed to close.
 fn incomplete_selection_diagnostic(
@@ -775,12 +788,7 @@ fn apply_call_specializations(
             };
             // Each site keeps its own exact runtime subjects: the shared
             // carrier-keyed instance receives them as appended arguments.
-            let arguments = selection
-                .runtime_value_bindings
-                .iter()
-                .flatten()
-                .cloned()
-                .collect::<Vec<_>>();
+            let arguments = runtime_value_subjects(&selection.runtime_value_bindings);
             let subjects = crate::monomorphization::body_rewriting::runtime_value_operands(
                 program,
                 selection.lexical_state,

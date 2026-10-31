@@ -1,6 +1,7 @@
 //! Whole primitive replacements bind a domain-local subject to one scalar.
 //! Predicates become receiving goals; issuer identity remains a separate
 //! requirement on the actual completed SSA operand, never a numeric theorem.
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     IntegerMathTerm, Proposition, ScalarRefinement, ScalarTerm, ScalarType, StructuralTypeId,
 };
@@ -30,11 +31,7 @@ pub(super) fn primitive_carrier<'types>(
     mut types: impl Iterator<Item = &'types StructuralTypeDeclaration>,
     carrier: StructuralTypeId,
 ) -> Option<ScalarType> {
-    let mut matching = types.by_ref().filter(|row| row.id == carrier);
-    let declaration = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
+    let declaration = exactly_one(types.by_ref(), |row| row.id == carrier)?;
     match declaration.shape {
         StructuralTypeShape::PrimitiveScalar(carrier) => Some(carrier),
         _ => None,
@@ -177,13 +174,9 @@ pub(super) fn required_domains<'domain>(
         if visited.contains(&semantic_domain) {
             continue;
         }
-        let mut matching = domains.clone().filter(|domain| {
+        let domain = exactly_one(domains.clone(), |domain| {
             domain.carrier == root.carrier && domain.semantic_domain == semantic_domain
-        });
-        let domain = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
+        })?;
         let required = domain.required_memberships.as_ref()?;
         if !required.windows(2).all(|pair| pair[0] < pair[1]) {
             return None;

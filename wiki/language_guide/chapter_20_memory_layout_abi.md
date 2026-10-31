@@ -8,12 +8,12 @@ or that a device permits the access you want to perform.
 layout supplies their target representation. A description is not a byte offset
 or permission to access storage.
 
-This chapter introduces ordinary storage, boundary calls and placed memory.
+This chapter introduces ordinary storage, boundary calls and access views.
 The reference contracts are [layout plans](../spec/layouts/plans.md),
 [calling plans](../spec/build/calling_plans.md),
-[placed access](../spec/resources/placed_access.md), and
+[access policies](../spec/resources/access.md), and
 [recasts](../spec/layouts/recasts.md). Examples explain intended semantics,
-not a claim that every placement operation has native implementation.
+with layout, access policy, and backing authority kept distinct.
 
 ## Zeroed Storage And Establishment
 
@@ -343,12 +343,13 @@ those demands but cannot create or reorder them. See the worked
 and the [calling-plan](../spec/build/calling_plans.md) and
 [private-callback](../spec/build/private_callbacks.md) contracts.
 
-## Placed And Externally Mutable Memory
+## Access Policies And Externally Mutable Memory
 
 Ordinary values remain ordinary. A local `Point`, an owned array and `&mut T`
-use normal field access, not placement accessors. Placed storage is useful for
-MMIO, DMA-visible memory and concurrently shared pages whose authority and
-observation behavior must remain explicit.
+use normal field access, not policy-generated accessors. An `Access<P, T>` view
+adds field-specific operation and observation rules. MMIO, DMA-visible memory,
+and other access outside ordinary loan discipline need explicit backing contracts;
+another cooperating Omega thread alone does not require this mechanism.
 
 Starting with `&mut [u8]` already grants ordinary byte access. A later cast cannot
 retract that grant or turn it into device-safe access. Ordinary `&write T` lets a
@@ -360,39 +361,60 @@ not describe device access or uninitialized storage.
 Keep three questions separate:
 
 - `LayoutPlan`: where are the fields and bits?
-- `AccessPlan`: which primitive operations does this view request?
+- `AccessPlan`: which layout, field operations, and required reach does this view use?
 - `ResourceProfile`: what can the admitted backing actually support?
 
-A selected placement implementation combines layout, access and required reach.
-This schematic example assumes its ordinary package helpers are in scope:
+A selected `AccessPolicy` implementation returns the combined plan. `LayoutPlan`
+is reusable geometry without access rights. This schematic example assumes an
+ordinary package helper `uart_layout_plan(&Schema) -> LayoutPlan` and an ordinary
+`device_io_reach()` helper; neither helper grants backing authority:
 
 ```omega
-UartMmio satisfies Placement {
-    machine plan(schema: Schema) -> PlacementPlan {
-        let layout: Plan = uart_layout_plan(schema);
-        let access: AccessPlan = uart_access_plan(schema, layout);
-        PlacementPlan {
-            layout: layout,
-            access: access,
-            reach: device_io_reach()
-        }
+public UartMmio satisfies AccessPolicy {
+    machine plan(schema: Schema) -> AccessPlan
+    reaches
+    terminates
+    {
+        let layout: LayoutPlan = uart_layout_plan(&schema);
+        let denied: AccessPlan = AccessPlan::inaccessible(layout);
+        let readable: AccessPlan = AccessPlan::with(
+            denied, schema.fields[0].key,
+            FieldAccess::External {
+                read: ExternalRead::Read,
+                write: false,
+                exposure: Exposure::Exported,
+            }
+        );
+        let mut plan: AccessPlan = AccessPlan::with(
+            readable, schema.fields[1].key,
+            FieldAccess::External {
+                read: ExternalRead::None,
+                write: true,
+                exposure: Exposure::Exported,
+            }
+        );
+        plan.reach = device_io_reach();
+        plan
     }
 }
 
-data UartRegisters {
+public data UartRegisters {
     status: u32;
     transmit: u32;
 }
 ```
 
-`Placed<UartMmio, UartRegisters>` interprets qualified backing; it is not a newly
+`Access<UartMmio, UartRegisters>` interprets qualified backing; it is not a newly
 allocated record. Constructing the plan values above supplies no backing or
-access authority; placement still checks the exact policy and admitted supply.
-Projection is pure and returns an accessor:
+access authority; establishment still checks the exact policy and admitted supply.
+The whole view can be passed to an ordinary machine. Projection is pure and
+returns an `Accessor<T>` for the field:
 
 ```omega
-let status: u32 = uart.status.read();
-uart.transmit.write(byte);
+machine send(uart: &mut Access<UartMmio, UartRegisters>, byte: u32) -> u32 {
+    write(&mut uart.transmit, byte);
+    read(&uart.status)
+}
 ```
 
 Only the explicit operation performs the event. Its accessor stays tied to the
@@ -400,12 +422,37 @@ view's exact field, plan, range, lifetime and authorization. Nominal policies
 remain distinct even if their geometry matches: each owns its binding and
 private projection surface.
 
+The mutable view does not permit writing `status` or reading `transmit`:
+both operations are denied by this policy. There is no unwrap to an unrestricted
+`&mut UartRegisters`. `Accessor<T>` is a core type, not a keyword; its value type
+alone does not confer operations. Ordinary name-resolution rules apply to user
+declarations with the same name as any core declaration.
+
+### Where the view comes from
+
+For ordinary RAM, `Access::view<P, T>(&value)` or
+`Access::view_mut<P, T>(&mut value)` retains the caller's loan and narrows access
+under a compatible policy. When that loan ends, the owner can resume ordinary
+access to the original value. No provider is needed for this attenuation.
+
+For firmware, an OS, or device backing, an admitted boundary contract supplies
+the qualified backing or established view. `Access::view_resident_mut` borrows
+existing `Extent in Granted & Resident<P, T>` custody. Build owns acceptance and
+provider selection, not the access-policy author. Issuance supplies `Granted`,
+the provider supplies the exact `ResourceProfile`, and a device interpretation
+additionally requires schema correspondence to that device. Content validity,
+resident custody and lifetime obligations remain independently required.
+
 ### Access plans
 
 Access decisions use opaque schema-field keys, not integer positions. Starting
 from inaccessible defaults makes omission deny access; reordering a declaration
 cannot transfer permission to another field. Access policy selects operations,
-not a second copy of the geometry.
+not a second copy of the geometry. `AccessPlan::inaccessible(layout)` seeds one
+decision per distinct field key in the layout, not per fragment, and starts with
+empty required reach. The final validator independently checks the returned layout
+and decisions against the schema: omitting a field from both is not permission to
+forget it. An ordinary layout-policy call returns data, not validated evidence.
 
 | Observation | How to think about it |
 | --- | --- |
@@ -444,10 +491,10 @@ Atomics preserve ownership too. Load needs a copyable resident; store needs
 permission to discard displaced content; swap returns it. Observing compare-exchange
 failure exposes the resident and requires copyability. Non-observing variants
 return proposed custody on failure and displaced custody on success. `Once` means
-single-attempt, not non-observing. The [exact outcomes](../spec/resources/placed_access.md#atomic-compare-exchange-outcomes)
+single-attempt, not non-observing. The [exact outcomes](../spec/resources/access.md#atomic-compare-exchange-outcomes)
 explain these independent choices.
 
-### Admission and placement
+### Admission and establishment
 
 An extent's address and length describe geometry, not authority:
 
@@ -472,8 +519,9 @@ Adjacency alone does not establish backing or permission, and different issuance
 calls alone do not forbid combination. See
 [library resources and language mechanisms](../spec/resources/content_custody.md#library-resources-and-language-mechanisms).
 
-Placement needs the exact source qualified as `Extent in Granted`. Reconstructing
-numeric fields does not reconstruct the grant. A caller-authored profile is not
+Extent-backed establishment needs the exact source qualified as
+`Extent in Granted`. Reconstructing numeric fields does not reconstruct the grant.
+A caller-authored profile is not
 an admission receipt: the selected provider binds its normalized profile to that
 qualified range.
 
@@ -507,7 +555,7 @@ data PacketCustody {
     authority: DeviceAuthority;
 }
 
-public PacketNativeCustody satisfies PlacementCustody<PacketCustody, Native, Packet> {
+public PacketNativeCustody satisfies AccessCustody<PacketCustody, Native, Packet> {
     // Exact required custody rows.
 }
 ```
@@ -520,12 +568,12 @@ replace owned Type values.
 Dynamic rejection returns what the operation took:
 
 ```omega
-data PlacementOutcome<View, Returned, Reason> {
+data AccessOutcome<View, Returned, Reason> {
     case Ready(view: View);
     case Rejected(returned: Returned, reason: Reason);
 }
 
-data PlacementReturn<Source, Custody> {
+data AccessReturn<Source, Custody> {
     source: Source;
     custody: Custody;
 }
@@ -535,19 +583,19 @@ Owned rejection returns source and custody. Borrowed rejection ends the loan and
 returns moved custody. Every other input also needs an explicit disposition;
 missing output is not proof of consumption. The selected validator's full
 contract and declared error sum remain visible, as specified by
-[establishment and retirement](../spec/resources/placed_access.md#establishment-and-retirement).
+[establishment and retirement](../spec/resources/access.md#establishment-and-retirement).
 
 This schematic transition handles both outcomes; the caller supplies its policy,
 schema, exact custody conformance and validator:
 
 ```omega
-transition Placement::validate_owned<
+transition Access::validate_owned<
     Native, Packet, PacketCustody, PacketNativeCustody, Validator
 >(move source, move custody, move revision_ticket) {
-    PlacementOutcome::Ready { view } ->
+    AccessOutcome::Ready { view } ->
         use(view)
 
-    PlacementOutcome::Rejected {
+    AccessOutcome::Rejected {
         returned: { source, custody },
         reason
     } ->
@@ -622,20 +670,19 @@ stability evidence needed for their lifetime.
 
 ### Applicability
 
-Placed primitives need stable addressable lifetimes and finite, non-suspending
+Access primitives need stable addressable lifetimes and finite, non-suspending
 operations with no recoverable failure under the admitted contract. This bounds
 program work, not cache or fabric latency. MMIO and resident mapped storage can
 fit; disks, streams, RPC and device-only GPU storage need fallible services.
 Durability and device completion remain protocols.
 
-A live placed mapping retains a lease or claim preventing asynchronous revocation.
+A live access mapping retains a lease or claim preventing asynchronous revocation.
 Revocable mappings use a distinct fallible protocol, not surprise failure on every
 field access. Shared-memory layout agreement does not establish a lock protocol
 or make a hostile peer cooperative.
 
-A declared API or validated plan is not end-to-end execution support. The
-[placement contract](../spec/resources/placed_access.md) links remaining work;
-code-adjacent notes describe current lowering and custody limits.
+The [access contract](../spec/resources/access.md) defines the complete
+establishment, observation, and custody obligations for these views.
 
 ### Recast views
 
@@ -684,9 +731,9 @@ only the selected byte. A slice must exactly tile the source region: length is
 byte extent divided by element stride, with no ignored remainder. Bounds alone
 do not establish alignment or the congruence needed for multi-byte elements.
 
-Recasts exclude `Placed<P, T>` and its accessors: another shape could expose a
+Recasts exclude `Access<P, T>` and its accessors: another shape could expose a
 field denied by the access plan. Recast a detached ordinary snapshot, or request
-another placement through the underlying qualified extent. See the
+another access view through the underlying qualified extent. See the
 [recast judgment](../spec/layouts/recasts.md) and
 [implementation limits](../../omega-rust/psi/compilation/checking/recasts.md).
 
@@ -714,7 +761,7 @@ No unrestricted byte alias remains usable beside the pending typed view. Failed
 initial establishment creates no whole header and invokes no whole-header cleanup,
 but any initialized resource fields and original source obligations must be settled
 before returning the backing. Restricted domain minting and atomic/access policies
-still apply. Existing `Placed` view-to-view prohibitions are unchanged.
+still apply. Existing `Access` view-to-view prohibitions are unchanged.
 
 See [deferred establishment](../spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
 and [invariant windows](chapter_11_invariant_windows.md). This is accepted semantics,

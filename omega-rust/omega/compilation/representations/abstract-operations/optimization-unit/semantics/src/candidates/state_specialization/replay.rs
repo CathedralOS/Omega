@@ -648,9 +648,7 @@ pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let PsiRewritePatch::SpecializeStateArgument(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, SpecializeStateArgument, candidate);
     if candidate.node_decision_point()
         != Some(NodeLocation {
             machine: patch.machine,

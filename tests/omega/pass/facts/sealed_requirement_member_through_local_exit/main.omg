@@ -1,0 +1,59 @@
+// Selected satisfies Sum and its inline combine only calls add, which already satisfies Sum::combine, preserving 0 <= result && result <= 100.
+trait Sum {
+    machine combine(left: i32, right: i32) -> i32
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures 0 <= result && result <= 100
+    blocks;
+}
+
+machine add(left: i32, right: i32) -> i32
+satisfies Sum::combine
+requires 0 <= left && left <= 50
+requires 0 <= right && right <= 50
+ensures 0 <= result && result <= 100
+{
+    left + right
+}
+
+Selected satisfies Sum {
+    machine combine(left: i32, right: i32) -> i32
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures 0 <= result && result <= 100
+    blocks;
+    {
+        add(left, right)
+    }
+}
+
+machine apply<Operations satisfies Sum>(left: i32, right: i32) -> i32
+blocks;
+requires 0 <= left && left <= 50
+requires 0 <= right && right <= 50
+ensures 0 <= result && result <= 100
+{
+    block Operations::combine(left, right)
+}
+
+// Place: local. Both bounded parameters are copied into locals before combine calls add.
+// Expected exit: 0
+machine probe(a: i32, b: i32) -> i32
+blocks;
+requires 0 <= a && a <= 50
+requires 0 <= b && b <= 50
+ensures 0 <= result && result <= 100
+{
+    let left: i32 = a;
+    let right: i32 = b;
+    block apply<Selected>(left, right)
+}
+
+machine main() blocks; crashes Trap {
+    let wide: i32 = block probe(20, 22);
+    let narrow: i32 = block probe(10, 12);
+    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
+
+    machine done() {}
+    machine bad() { crash Trap; }
+}

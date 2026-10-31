@@ -215,27 +215,21 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 let (lifetime, rest) = input_after_tick.take_identifier()?;
                 lifetime_arguments.push(lifetime);
                 input = rest;
-
                 let Some(next) = input.take_comma()? else {
                     break;
                 };
-
                 input = next;
-
+                // The next argument may be another lifetime, not a type.
                 continue;
             }
 
             let (argument, rest) = parse_static_argument_reference(syntax_trees, input)?;
             arguments.push(argument);
             input = rest;
-
             let Some(next) = input.take_comma()? else {
                 break;
             };
-
             input = next;
-
-            continue;
         }
 
         input = input.take_punctuation(PunctuationKind::Greater, ">")?;

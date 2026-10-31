@@ -713,7 +713,8 @@ crashes Trap
         checker.payload_first = selected.first_payload_field;
         checker.payload_slot = item.field_count;
         checker.argument_count = total;
-        let own: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Where, true);
+        let required: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Requires, true);
+        let retired: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Where, true);
         let selected_facts: bool = Checker::decide_facts(checker, syntax, resolution, typing, selected.first_clause, selected.clause_count, ClauseKind::Where, true);
         checker.field_values = substituting;
         checker.field_first = field_first;
@@ -721,7 +722,7 @@ crashes Trap
         checker.payload_first = payload_first;
         checker.payload_slot = payload_slot;
         checker.argument_count = arguments;
-        own && selected_facts
+        required && retired && selected_facts
     }
 
     machine unproved() -> bool {

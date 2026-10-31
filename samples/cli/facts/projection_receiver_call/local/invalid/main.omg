@@ -1,0 +1,25 @@
+// A field of a namespace-qualified call inside a domain predicate is that
+// field of the declaration's body under the subject. The predicate records
+// that result, and the caller reads the record.
+// Place: local.
+// Expected exit: 0
+use marks;
+
+domain bool::Held
+requires marks::project(self).kept;
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    direct
+}
+
+machine main() crashes Trap {
+    let direct: bool in Held = true;
+    transition hold(direct) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

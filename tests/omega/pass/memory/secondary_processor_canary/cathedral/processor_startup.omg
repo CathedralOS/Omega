@@ -129,7 +129,9 @@ public data FirstSecondaryProcessorStackPolicy {
 }
 
 public FirstSecondaryProcessorStackCalling satisfies CallingPolicy {
-    CallingPolicy::plan = FirstSecondaryProcessorStackPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        FirstSecondaryProcessorStackPolicy::plan(signature)
+    }
 }
 
 machine FirstSecondaryProcessorStackPolicy::plan(
@@ -242,7 +244,9 @@ public data SecondSecondaryProcessorStackPolicy {
 }
 
 public SecondSecondaryProcessorStackCalling satisfies CallingPolicy {
-    CallingPolicy::plan = SecondSecondaryProcessorStackPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        SecondSecondaryProcessorStackPolicy::plan(signature)
+    }
 }
 
 machine SecondSecondaryProcessorStackPolicy::plan(

@@ -12,8 +12,8 @@ use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
 use super::{
-    admit_decoded_footprint, decoded_effects_footprint, operand_views, validate_machine_footprint,
-    validate_size,
+    admit_decoded_footprint, decoded_effects_footprint, encoded_row, operand_views,
+    validate_machine_footprint, validate_size,
 };
 use crate::OptimizedSelectedFormEncodingError;
 use machine_code::{
@@ -34,12 +34,7 @@ pub(super) fn validate(
         kind.call_target(),
         Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
     ) {
-        if row.state != SelectedFormEncodingState::Encoded {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-        }
-        let Some((bytes, footprint)) = encoded.encoded(row) else {
-            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-        };
+        let (bytes, footprint) = encoded_row(row, encoded)?;
         let views = operand_views(machine);
         let (expected_bytes, effects) = match target.architecture {
             Architecture::Aarch64 => isa_aarch64::encode_aarch64_selected_dynamic_call_template(

@@ -9,6 +9,7 @@ use typed_trees::{
     trait_definition::AppliedTraitScope, types::TypeReferenceHandle,
 };
 
+use super::super::failed;
 use super::selected_applications;
 
 mod invocation_binding_views;
@@ -90,11 +91,7 @@ fn source_scope<'p>(
             .trait_scope
             .scope(program)
             .map(|scope| Some((closed.template, scope)))
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "applied public call lost its retained source scope",
-                )]
-            });
+            .ok_or_else(|| failed("applied public call lost its retained source scope"));
     }
     // `Requirement<Arguments>::operation(...)` names its exact application;
     // an inherited operation resolves in that application's declaring scope.
@@ -464,11 +461,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     let invocation = invocation_map
                         .get(&(site, machine.symbol))
                         .copied()
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "requirement call lost its prepared invocation",
-                            )]
-                        })?;
+                        .ok_or_else(|| failed("requirement call lost its prepared invocation"))?;
                     if let Some(dispatch) = &call.static_requirement_dispatch {
                         let selected =
                             dispatch_instance(program, machine.symbol, dispatch, invocation);
@@ -514,11 +507,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     let invocation = invocation_map
                         .get(&(site, machine.symbol))
                         .copied()
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "requirement call lost its prepared invocation",
-                            )]
-                        })?;
+                        .ok_or_else(|| failed("requirement call lost its prepared invocation"))?;
                     if let Some(dispatch) = &call.static_requirement_dispatch {
                         let selected =
                             dispatch_instance(program, machine.symbol, dispatch, invocation);

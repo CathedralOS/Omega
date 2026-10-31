@@ -1,4 +1,5 @@
 use crate::lowerer::Lowerer;
+use crate::lowerer::name::lower_names;
 use crate::signatures::type_parameters::lower_type_parameters;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
@@ -36,11 +37,7 @@ fn lower_data_definition_contents(
             typed::types::TypeReferenceHandle::invalid()
         },
         supply_mode: data_definition.supply_mode,
-        lifetime_parameters: data_definition
-            .lifetime_parameters
-            .iter()
-            .map(crate::lowerer::name::lower_name)
-            .collect(),
+        lifetime_parameters: lower_names(&data_definition.lifetime_parameters),
         type_parameters: arena::HandleSpan::empty(),
         generic_instance: data_definition
             .generic_instance
@@ -82,11 +79,7 @@ fn lower_data_definition_contents(
                 }
                 Ok::<_, Diagnostic>(typed::data::QuotientDefinition {
                     carrier: lower_type_reference_into_table(lowerer, &quotient.carrier)?,
-                    relation: quotient
-                        .relation
-                        .iter()
-                        .map(crate::lowerer::name::lower_name)
-                        .collect(),
+                    relation: lower_names(&quotient.relation),
                     relation_symbol: quotient.relation_symbol,
                     equivalence: quotient
                         .equivalence
@@ -99,11 +92,7 @@ fn lower_data_definition_contents(
                                 .map(|argument| lower_type_reference_into_table(lowerer, argument))
                                 .collect::<Result<Vec<_>, _>>()?;
                             Ok::<_, Diagnostic>(typed::data::QuotientEquivalenceSelection {
-                                relation: selection
-                                    .relation
-                                    .iter()
-                                    .map(crate::lowerer::name::lower_name)
-                                    .collect(),
+                                relation: lower_names(&selection.relation),
                                 relation_symbol: selection.relation_symbol,
                                 trait_name: crate::lowerer::name::lower_name(&selection.trait_name),
                                 trait_symbol: selection.trait_symbol,

@@ -1771,6 +1771,32 @@ fn selected_machine_result_type(
         })
 }
 
+/// A type operand of a premise call. The reference is the exact actual;
+/// an application, evidence projection, or const literal is a different kind.
+pub(super) fn exact_type_selection(
+    program: &dyn crate::CheckingInput,
+    selection: &typed_trees::expression::StaticMachineArgument,
+) -> bool {
+    if selection.application.is_some()
+        || selection.evidence_projection.is_some()
+        || selection.const_literal.is_some()
+    {
+        return false;
+    }
+    if selection.type_reference.is_valid() {
+        return true;
+    }
+    // A closed type such as `bool` is retained as its type symbol. A machine
+    // or const operand is a different kind and stays out of this lane.
+    selection.symbol.is_valid()
+        && matches!(
+            program.symbols.get(selection.symbol).kind,
+            symbols::SymbolKind::BuiltinType
+                | symbols::SymbolKind::TypeParameter
+                | symbols::SymbolKind::Data
+        )
+}
+
 fn plain_machine_selection(
     program: &dyn crate::CheckingInput,
     selection: &typed_trees::expression::StaticMachineArgument,
@@ -1878,13 +1904,25 @@ fn term_has_complete_substitution(
                     signature.return_type,
                 )
             } else if let Some((machine, state)) = concrete {
-                let machine_parameters = program.machine_kind_type_parameters(machine).count();
+                let parameters = program.machine_type_parameters(machine);
+                // The whole declared telescope is the substitution, in source
+                // order. A type actual is exact when it is one type reference;
+                // a machine actual stays a plain callable. Const, value, and
+                // implementation operands are not this lane.
                 if machine.attached_data.is_some()
-                    || program.machine_type_parameters(machine).len() != machine_parameters
-                    || machine_parameters != selections.len()
-                    || !selections
+                    || parameters.len() != selections.len()
+                    || !parameters
                         .iter()
-                        .all(|selection| plain_machine_selection(program, selection))
+                        .zip(selections.iter())
+                        .all(|(parameter, selection)| match &parameter.kind {
+                            typed_trees::data::TypeParameterKind::Machine { .. } => {
+                                plain_machine_selection(program, selection)
+                            }
+                            typed_trees::data::TypeParameterKind::Type => {
+                                exact_type_selection(program, selection)
+                            }
+                            _ => false,
+                        })
                 {
                     return false;
                 }

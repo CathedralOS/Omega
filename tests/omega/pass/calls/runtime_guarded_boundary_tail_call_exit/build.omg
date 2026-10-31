@@ -3,15 +3,15 @@ machine build(builder: &mut Build) {
     Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
-    Build::select_provider<Value::read, ValueProvider>(builder, linux_arm64);
-    Build::select_provider<Value::read, ValueProvider>(builder, linux_x86_64);
-    Build::select_provider<Value::read, ValueProvider>(builder, macos_arm64);
-    Build::select_provider<Value::read, ValueProvider>(builder, macos_x86_64);
-    Build::select_provider<Value::read, ValueProvider>(builder, windows_x86_64);
-    Build::select_provider<Value::read, ValueProvider>(builder, uefi_x86_64);
-    Build::select_provider<Value::read, ValueProvider>(builder, cross_platform_cli);
-    Build::select_provider<Value::read, ValueProvider>(builder, local_unchecked);
-    Build::select_provider<Value::read, ValueProvider>(builder, alpha_bootstrap);
+    Build::select_provider<Value, ValueProvider>(builder, linux_arm64);
+    Build::select_provider<Value, ValueProvider>(builder, linux_x86_64);
+    Build::select_provider<Value, ValueProvider>(builder, macos_arm64);
+    Build::select_provider<Value, ValueProvider>(builder, macos_x86_64);
+    Build::select_provider<Value, ValueProvider>(builder, windows_x86_64);
+    Build::select_provider<Value, ValueProvider>(builder, uefi_x86_64);
+    Build::select_provider<Value, ValueProvider>(builder, cross_platform_cli);
+    Build::select_provider<Value, ValueProvider>(builder, local_unchecked);
+    Build::select_provider<Value, ValueProvider>(builder, alpha_bootstrap);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

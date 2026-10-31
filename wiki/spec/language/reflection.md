@@ -292,7 +292,7 @@ No hidden recursive stack is generated. Cyclic/shared object traversal separatel
 chooses whether to follow, identify, or omit references; a recursive schema alone
 does not establish that policy.
 
-## Runtime descriptions and Placed access
+## Runtime descriptions and access views
 
 An explicit `reflect::metadata<T>()` request materializes owned copy-eligible
 descriptive data under ordinary constant rules. It may be a library projection
@@ -315,7 +315,7 @@ without an addressable reference reject the borrowing route unless an explicitly
 selected copied-read operation supplies the required value and contract. Do not
 invent a temporary referent or change backing/lifetime identity.
 
-[Placed inspection](../resources/placed_access.md) uses the same semantic member
+[Access-view inspection](../resources/access.md) uses the same semantic member
 identities but invokes its exact authorized access operations. Schema enumeration
 does not read devices. A general inspector cannot silently issue Take, atomic
 loads, or MMIO transfers. Explicitly selected device operations retain ordering,

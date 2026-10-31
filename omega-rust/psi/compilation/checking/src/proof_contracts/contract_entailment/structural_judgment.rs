@@ -2193,6 +2193,11 @@ impl<'program> StructuralJudge<'program> {
                         selected.clone(),
                     ));
                 }
+                // The type actual is already the selected reference. It does
+                // not become a value binder; the body is read under that
+                // exact operand, and a missing or applied type stays closed.
+                typed_trees::data::TypeParameterKind::Type
+                    if super::specification_calls::exact_type_selection(program, selected) => {}
                 _ => return None,
             }
         }

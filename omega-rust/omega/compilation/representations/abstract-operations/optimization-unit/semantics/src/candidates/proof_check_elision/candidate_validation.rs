@@ -41,9 +41,7 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
         OptimizationSafetyClass::ProofCertified,
         Some(-1),
     )?;
-    let PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, EliminateProofCertifiedScalarIdentity, candidate);
     let validator = operand_substitution_row(candidate.rule(), patch.identity)
         .map(|row| row.validator_domain)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;

@@ -23,13 +23,7 @@ pub(in crate::monomorphization) fn materialize(
     for machine in program.machines() {
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
             let mut insertions = Vec::new();
-            for (offset, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(local) = statement.as_local_data() else {
-                    continue;
-                };
+            for (offset, local) in super::local_bindings(program, state.statement_nodes) {
                 if local.relevance.is_erased()
                     || local.role != language_core::LocalBindingRole::Value
                     || program

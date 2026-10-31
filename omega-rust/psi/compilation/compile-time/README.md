@@ -23,9 +23,9 @@ predecessor's templates or silently combine sibling generated units.
 
 The lifecycle calls responsibility owners directly: `const_evaluation` folds
 constant positions, `layouts` evaluates layout policies, plan-laid value types,
-placed views and wire plans, and `machine_execution` admits and runs machines
+access views and wire plans, and `machine_execution` admits and runs machines
 with supplied operator semantics. `syntax_probes.rs` owns temporary
-normalization and resolution shared by constants and placed views. `reflection`
+normalization and resolution shared by constants and access views. `reflection`
 separately owns semantic schema graphs, scoped selection snapshots, and checked
 runtime visitation plans; their
 independent replay remains beside their producers.

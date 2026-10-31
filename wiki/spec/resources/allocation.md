@@ -9,7 +9,7 @@ The caller supplies backing and its established properties. An allocator does
 not reclassify it as RAM, MMIO, GPU, persistent, or other storage. Splitting and
 accounting do not bypass the backing's establishment, access, transfer, or
 cleanup rules. A generic allocation does not promise an ordinary `&mut T`;
-non-RAM backing may require a [placed view](placed_access.md).
+non-RAM backing may require a [access view](access.md).
 
 Using already-held storage need not reach a provider. Acquiring fresh backing
 through a boundary contributes the requirement's explicit reach and its evidence.
