@@ -11,6 +11,58 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, find_structural_type,
 };
 
+/// First selected subject per hook within one immutable signature batch.
+/// Advance the original roster only on demand: an early successful lookup
+/// must not inspect a later action that the original search never reached.
+pub(crate) struct SelectedCleanupSubjects<'checked> {
+    checked: &'checked CheckedTrees,
+    remaining: Box<
+        dyn Iterator<Item = &'checked checked_trees::CheckedUnitNominalAffineCleanupPlan>
+            + 'checked,
+    >,
+    first: symbols::SymbolKeyMap<
+        SymbolHandle,
+        &'checked checked_trees::CheckedUnitNominalAffineCleanupPlan,
+    >,
+}
+
+impl<'checked> SelectedCleanupSubjects<'checked> {
+    pub(crate) fn new(checked: &'checked CheckedTrees) -> Self {
+        Self::from_rows(checked, super::selected_cleanups(checked))
+    }
+
+    fn from_rows(
+        checked: &'checked CheckedTrees,
+        rows: impl Iterator<Item = &'checked checked_trees::CheckedUnitNominalAffineCleanupPlan>
+        + 'checked,
+    ) -> Self {
+        Self {
+            checked,
+            remaining: Box::new(rows),
+            first: Default::default(),
+        }
+    }
+
+    fn first(
+        &mut self,
+        source: SymbolHandle,
+    ) -> Option<&'checked checked_trees::CheckedUnitNominalAffineCleanupPlan> {
+        if let Some(first) = self.first.get(&source) {
+            return Some(*first);
+        }
+        for cleanup in self.remaining.by_ref() {
+            self.first.entry(cleanup.cleanup_machine).or_insert(cleanup);
+            if cleanup.cleanup_machine == source {
+                return Some(cleanup);
+            }
+        }
+        None
+    }
+}
+
+#[cfg(test)]
+mod selected_subject_tests;
+
 pub(crate) struct SignatureContext {
     pub(crate) receiver: Option<PlaceId>,
     dispatcher_requires: Option<Vec<Proposition>>,
@@ -80,12 +132,13 @@ pub(crate) fn field_clause(
 
 pub(crate) fn prepare_signature(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
+    selected_subjects: &mut SelectedCleanupSubjects<'_>,
     source: SymbolHandle,
     predicate_parameters: &mut Vec<StructuralParameterDeclaration>,
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Option<SignatureContext>, LoweringError> {
+    let checked = selected_subjects.checked;
     let plans = &checked
         .facts
         .flow
@@ -115,9 +168,7 @@ pub(crate) fn prepare_signature(
             )?);
         }
     }
-    let mut hooks =
-        super::selected_cleanups(checked).filter(|cleanup| cleanup.cleanup_machine == source);
-    let hook = hooks.next();
+    let hook = selected_subjects.first(source);
     let mut receiver = None;
     if let Some(hook) = hook {
         if nominal.is_some() {
