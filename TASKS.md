@@ -393,7 +393,7 @@ retired-syntax deletions to completion.
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
   - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
-    plus 72 test files to boundary traits with explicit reach clauses, lift stage
+    plus 70 test files to boundary traits with explicit reach clauses, lift stage
     04's template-dependent result borrow-elision fence for `core/task.omg`'s
     generic `request_cancel` and `finish`, and preserve source-selected trait
     tokens (`samples/cli/probes/operator_requires_effects`).
