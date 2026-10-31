@@ -213,6 +213,7 @@ pub(crate) fn returned_body_source_mismatch(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     state: &typed_trees::state::State,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<usize> {
     let fields = match resolve_view_return_source(program, state) {
         ViewReturnSource::Fields { fields } => fields,
@@ -230,6 +231,17 @@ pub(crate) fn returned_body_source_mismatch(
         }],
         ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => return None,
     };
+    // Invocation loan capture cannot convert a known body contradiction into
+    // an empty successful return frontier. Judge the prepared complete relation
+    // before checking the surviving descriptor captures below. The same owner
+    // compares invocation-specific and declaration-wide sources.
+    if let Some(sources) =
+        call_frames.and_then(|frames| frames.reference_result_leaf_origins(state.symbol))
+        && let Some(Err(parameter)) =
+            judge_completed_field_sources(program, state, &fields, sources)
+    {
+        return Some(parameter);
+    }
     let borrowing =
         facts.borrow.states.iter().find_map(|(_, borrowing)| {
             (borrowing.state_symbol == state.symbol).then_some(borrowing)
@@ -381,6 +393,15 @@ fn completed_field_sources(
     };
     let sources =
         call_frames.reference_result_leaf_origins_for_arguments(state.symbol, arguments)?;
+    judge_completed_field_sources(program, state, fields, sources)
+}
+
+fn judge_completed_field_sources(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    fields: &[ViewReturnFieldSource],
+    sources: Vec<validation::ReferenceResultLeafOrigin>,
+) -> Option<Result<Vec<CompletedReturnSource>, usize>> {
     let parameters = program.state_parameters(state);
     let declared_paths = fields
         .iter()
@@ -453,7 +474,8 @@ fn completed_field_sources(
         // amplify the declaration's checked access relation.
         let mut matched = false;
         for (index, field) in fields.iter().enumerate().filter(|(index, field)| {
-            declared_paths[*index] == owner_path
+            !field.lifetime_only
+                && declared_paths[*index] == owner_path
                 && (field.source == ViewReturnInputSource::Referent
                     || stored_source_covers(
                         program,
