@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "private_generic_method");
+    Build::select_provider<LocalEcho, SelectedLocalEcho>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, program);
+    Build::select_provider<LocalEcho, SelectedLocalEcho>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, program);
+    Build::select_provider<LocalEcho, SelectedLocalEcho>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, program);
+    Build::select_provider<LocalEcho, SelectedLocalEcho>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, program);
+}

@@ -1,0 +1,22 @@
+public boundary trait Callback { machine call() -> u64 reaches; }
+machine wrong_callback() -> bool { true }
+machine only_callback() -> u64 satisfies Callback::call { 7 }
+public boundary trait NeedsMachine {
+    machine choose<machine Worker, T>(value: &T) -> u64
+    reaches
+    requires machine Worker satisfies Callback::call;
+    ;
+}
+public SelectedMachine satisfies NeedsMachine {
+    machine choose<machine Worker, T>(value: &T) -> u64
+    requires machine Worker satisfies Callback::call;
+    { Worker() }
+}
+// Expected exit: 0
+machine program() crashes Trap {
+    let value: u64 = 7;
+    let result: u64 = NeedsMachine::choose<wrong_callback>(&value);
+    transition result == 7u64 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,15 @@
+public boundary trait Echo {
+    machine mirror<const Prefix: u64, T>(value: T) -> T reaches;
+    machine touch<const Prefix: u64, T>(value: &T) reaches;
+    machine pair<T>(left: &T, right: &T) -> u64 reaches;
+}
+public SelectedEcho satisfies Echo {
+    machine mirror<const Prefix: u64, T>(value: T) -> T { value }
+    machine touch<const Prefix: u64, T>(value: &T) {}
+    machine pair<T>(left: &T, right: &T) -> u64 { 0 }
+}
+machine program() {
+    let left: u32 = 7u32;
+    let right: u64 = 8u64;
+    let ignored: u64 = Echo::pair(&left, &right);
+}

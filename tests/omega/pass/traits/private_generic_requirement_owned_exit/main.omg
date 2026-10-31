@@ -1,0 +1,15 @@
+// Expected exit: 0
+// A private generic requirement remains callable inside its owning package.
+boundary trait LocalEcho {
+    machine read<T>(value: &T) -> u64 reaches;
+}
+SelectedLocalEcho satisfies LocalEcho {
+    machine read<T>(value: &T) -> u64 { 7 }
+}
+machine program() crashes Trap {
+    let value: u32 = 9;
+    let result: u64 = LocalEcho::read<u32>(&value);
+    transition result == 7u64 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

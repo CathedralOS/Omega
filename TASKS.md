@@ -1148,6 +1148,12 @@ defines the complete product bar.
     calls and structured const value/equation combinations, and unblock the
     Std-backed customers
     `tests/omega/pass/generics/{omitted_data_binder_range_equation,runtime_generic_carrier_equation_exit}`.
+  - Infer later method type operands through const-dependent array carriers:
+    `first<const Count: u64, T>(bytes: &[T; Count])` must accept
+    `first<3u64>(&bytes)` for `bytes: [u8; 3]`. At `35f1a81701f`, that partial
+    tuple still refuses while `first<3u64, u8>(&bytes)` checks. Keep the
+    matching-count positive and wrong-count reject together; the hosted Clock
+    migration does not qualify this remaining matcher lane.
   Acceptance: `samples/cli/facts/inferred_array_equation_call` (all nine places)
   and `tests/omega/pass/generics/{omitted_data_binder_range_equation,runtime_generic_carrier_equation_exit}`
   pass `omega run --both`, while repeated/explicit conflicts, missing indices,

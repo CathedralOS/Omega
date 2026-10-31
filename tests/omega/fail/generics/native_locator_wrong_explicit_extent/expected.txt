@@ -1,0 +1,1 @@
+owned fixed byte array `[u8; 25]` requires exactly 25

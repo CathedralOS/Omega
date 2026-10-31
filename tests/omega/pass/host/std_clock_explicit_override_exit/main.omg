@@ -1,0 +1,7 @@
+// Expected exit: 0
+// An application-selected Clock implementation replaces the package default.
+use omega_language_std::clock;
+NoWaitClock satisfies Clock {
+    machine sleep(milliseconds: u32) reaches Clock {}
+}
+machine program() reaches Clock { Clock::sleep(500); }
