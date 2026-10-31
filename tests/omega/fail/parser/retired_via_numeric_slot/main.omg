@@ -1,0 +1,8 @@
+// Native supply belongs to Build; retired source clauses refuse before their payload.
+boundary trait Firmware {
+            machine invoke(this: addr) reaches;
+        }
+
+        machine legacy(this: addr)
+        satisfies Firmware::invoke
+        via ForeignBinding::VtableSlot(not_an_integer_payload);

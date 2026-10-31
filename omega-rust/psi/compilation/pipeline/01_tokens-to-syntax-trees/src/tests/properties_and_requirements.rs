@@ -821,10 +821,6 @@ fn rejects_malformed_operator_tokens_on_machine_declarations() {
             "machine + add(left: i32, right: i32) -> i32 satisfies Math::add { left }",
             "cannot declare an operator token",
         ),
-        (
-            "machine + add(left: i32, right: i32) -> i32 satisfies Math::add via ForeignBinding::CompilerIntrinsic;",
-            "`via` binding clauses are retired",
-        ),
         // `boundary requirement` is the tokenless requirement form; a
         // token-bearing requirement is spelled bodyless `boundary machine +`.
         (

@@ -1,0 +1,8 @@
+// Native supply belongs to Build; retired source clauses refuse before their payload.
+boundary trait Console {
+            machine write_byte(byte: i32) reaches;
+        }
+
+        machine console_write_byte(byte: i32)
+        satisfies Console::write_byte
+        via ForeignBinding::CompilerIntrinsic;

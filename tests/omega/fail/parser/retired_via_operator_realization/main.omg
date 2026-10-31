@@ -1,0 +1,2 @@
+// The retired clause also refuses on an operator realization.
+machine + add(left: i32, right: i32) -> i32 satisfies Math::add via ForeignBinding::CompilerIntrinsic;

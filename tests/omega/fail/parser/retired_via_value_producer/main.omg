@@ -1,0 +1,12 @@
+// Native supply belongs to Build; retired source clauses refuse before their payload.
+boundary trait Kernel32Requirements {
+            machine write_file() reaches;
+        }
+
+        machine write_file_binding() -> i32 {
+            0
+        }
+
+        machine kernel32_write_file()
+        satisfies Kernel32Requirements::write_file
+        via write_file_binding();
