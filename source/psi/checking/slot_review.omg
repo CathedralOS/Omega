@@ -1,0 +1,108 @@
+use psi::checks::checks;
+
+// Admission of the public slot records a trait requirement publishes.
+// An empty roster formed no selector slot. A qualification that shares the
+// compilation with a returned borrow must name one of those origins.
+// `source/omega/slots/review.omg` is the product consumer of this admission.
+
+public data SlotReview {}
+
+public machine SlotReview::prepare(review: &mut SlotReview) {}
+
+public machine SlotReview::admits(review: &SlotReview, checks: &Checks) -> bool
+crashes Trap
+{
+    transition { _ -> origins(review, checks, 0) }
+
+    machine origins(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+        transition index < checks.slot_origin_count && index < 64 {
+            true -> origin(review, checks, index)
+            _ -> qualifications(review, checks, 0)
+        }
+    }
+
+    machine origin(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+        let row: SlotReturnedBorrowOrigin = Checks::slot_origin(checks, index);
+        transition row.kind == SlotOriginKind::Parameter {
+            true -> origin_index(review, checks, index, row.parameter_index)
+            _ -> origins(review, checks, index + 1)
+        }
+    }
+
+    machine origin_index(
+        review: &SlotReview,
+        checks: &Checks,
+        index: u64 in Trapping,
+        parameter_index: u64 in Trapping
+    ) -> bool {
+        transition parameter_index < 1024 {
+            true -> origins(review, checks, index + 1)
+            _ -> refuse()
+        }
+    }
+
+    machine qualifications(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+        transition index < checks.slot_qualification_count && index < 64 {
+            true -> qualification(review, checks, index)
+            _ -> paired(review, checks)
+        }
+    }
+
+    machine qualification(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+        let row: SlotParameterQualification = Checks::slot_qualification(checks, index);
+        transition row.domain_item < 1024 && row.parameter_index < 1024 {
+            true -> qualifications(review, checks, index + 1)
+            _ -> refuse()
+        }
+    }
+
+    machine paired(review: &SlotReview, checks: &Checks) -> bool {
+        transition checks.slot_qualification_count > 0 && checks.slot_origin_count > 0 {
+            true -> seek(review, checks, 0)
+            _ -> admit()
+        }
+    }
+
+    machine seek(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+        transition index < checks.slot_qualification_count {
+            true -> find(review, checks, index, 0)
+            _ -> admit()
+        }
+    }
+
+    machine find(
+        review: &SlotReview,
+        checks: &Checks,
+        index: u64 in Trapping,
+        origin_index: u64 in Trapping
+    ) -> bool {
+        transition origin_index < checks.slot_origin_count {
+            true -> compare(review, checks, index, origin_index)
+            _ -> refuse()
+        }
+    }
+
+    machine compare(
+        review: &SlotReview,
+        checks: &Checks,
+        index: u64 in Trapping,
+        origin_index: u64 in Trapping
+    ) -> bool {
+        let qualification: SlotParameterQualification = Checks::slot_qualification(checks, index);
+        let origin: SlotReturnedBorrowOrigin = Checks::slot_origin(checks, origin_index);
+        let matched: bool = origin.kind == SlotOriginKind::Parameter
+            && origin.parameter_index == qualification.parameter_index;
+        transition matched {
+            true -> seek(review, checks, index + 1)
+            _ -> find(review, checks, index, origin_index + 1)
+        }
+    }
+
+    machine admit() -> bool {
+        true
+    }
+
+    machine refuse() -> bool {
+        false
+    }
+}

@@ -65,9 +65,46 @@ pub(in crate::encoding::encode) fn trait_shape(
                 &requirement.parameters,
                 requirement.return_type.as_ref()
             );
-            encode_callable_behavior_tail!(encoder, requirement)
+            encode_callable_behavior_tail!(encoder, requirement)?;
+            encoder.field("returned_borrow_origins", |encoder| {
+                encoder.sequence(
+                    &requirement.returned_borrow_origins,
+                    encode_returned_borrow_origin,
+                )
+            })?;
+            encoder.field("parameter_qualification_preconditions", |encoder| {
+                encoder.sequence(
+                    &requirement.parameter_qualification_preconditions,
+                    encode_parameter_qualification,
+                )
+            })
         })
     })
+}
+
+fn encode_returned_borrow_origin(
+    encoder: &mut Encoder,
+    origin: &crate::record::PackageReviewReturnedBorrowOrigin,
+) -> Result<(), PackageReviewEncodingError> {
+    use crate::record::PackageReviewBorrowOrigin;
+    match &origin.origin {
+        PackageReviewBorrowOrigin::Parameter { index } => {
+            encoder.tag_field("origin", "parameter", 1)?;
+            encoder.u32_field("parameter_index", *index)
+        }
+        PackageReviewBorrowOrigin::Invocation { carrier } => {
+            encoder.tag_field("origin", "invocation", 2)?;
+            encoder.field_by("carrier", carrier, encode_type_identity)
+        }
+    }
+}
+
+fn encode_parameter_qualification(
+    encoder: &mut Encoder,
+    qualification: &crate::record::PackageReviewParameterQualification,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.u32_field("structural_index", qualification.structural_index())?;
+    encoder.field_by("domain", qualification.domain(), encode_nominal)
 }
 
 pub(in crate::encoding) fn conformance_shape(

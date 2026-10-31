@@ -107,6 +107,31 @@ where
     // Whether the machine a pass is at has not rejected yet; its checking
     // stops at its first rejection.
     machine_accepted: bool;
+    // Public slot records for trait requirements: returned-borrow origins
+    // and parameter qualification preconditions. The parameter index is the
+    // requirement's dense reference-parameter lane.
+    slot_origins: [SlotReturnedBorrowOrigin; 64];
+    slot_origin_count: u64;
+    slot_qualifications: [SlotParameterQualification; 64];
+    slot_qualification_count: u64;
+}
+
+// A returned borrow's public input. `Parameter` names a reference parameter.
+// `Invocation` is a result the requirement does not borrow from an input.
+public data SlotOriginKind [copy] {
+    case Parameter;
+    case Invocation;
+}
+
+public data SlotReturnedBorrowOrigin [copy] {
+    kind: SlotOriginKind;
+    parameter_index: u64 in Trapping;
+}
+
+// One declared domain a reference parameter must already carry.
+public data SlotParameterQualification [copy] {
+    parameter_index: u64 in Trapping;
+    domain_item: u64 in Trapping;
 }
 
 // A pass moves on to another machine.
@@ -190,6 +215,109 @@ crashes Trap
     }
 
     machine invalid() {
+        crash Trap;
+    }
+}
+
+public machine Checks::clear_slot_records(checks: &mut Checks) {
+    checks.slot_origin_count = 0;
+    checks.slot_qualification_count = 0;
+}
+
+public machine Checks::push_slot_origin(
+    checks: &mut Checks,
+    kind: SlotOriginKind,
+    parameter_index: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    let index: u64 = checks.slot_origin_count;
+    transition index < 64 {
+        true -> write(checks, kind, parameter_index, index)
+        _ -> full()
+    }
+
+    machine write(checks: &mut Checks, kind: SlotOriginKind, parameter_index: u64 in Trapping, index: u64) -> bool
+    requires index < 64
+    {
+        checks.slot_origins[index] = SlotReturnedBorrowOrigin { kind: kind, parameter_index: parameter_index };
+        checks.slot_origin_count = index + 1;
+        true
+    }
+
+    machine full() -> bool {
+        false
+    }
+}
+
+public machine Checks::slot_origin(checks: &Checks, index: u64 in Trapping) -> SlotReturnedBorrowOrigin
+crashes Trap
+{
+    transition index < checks.slot_origin_count && index < 64 {
+        true -> read(checks, index)
+        _ -> invalid()
+    }
+
+    machine read(checks: &Checks, index: u64 in Trapping) -> SlotReturnedBorrowOrigin
+    requires index < 64
+    {
+        checks.slot_origins[index]
+    }
+
+    machine invalid() -> SlotReturnedBorrowOrigin {
+        crash Trap;
+    }
+}
+
+public machine Checks::push_slot_qualification(
+    checks: &mut Checks,
+    parameter_index: u64 in Trapping,
+    domain_item: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    let index: u64 = checks.slot_qualification_count;
+    transition index < 64 {
+        true -> write(checks, parameter_index, domain_item, index)
+        _ -> full()
+    }
+
+    machine write(
+        checks: &mut Checks,
+        parameter_index: u64 in Trapping,
+        domain_item: u64 in Trapping,
+        index: u64
+    ) -> bool
+    requires index < 64
+    {
+        checks.slot_qualifications[index] = SlotParameterQualification {
+            parameter_index: parameter_index,
+            domain_item: domain_item
+        };
+        checks.slot_qualification_count = index + 1;
+        true
+    }
+
+    machine full() -> bool {
+        false
+    }
+}
+
+public machine Checks::slot_qualification(checks: &Checks, index: u64 in Trapping) -> SlotParameterQualification
+crashes Trap
+{
+    transition index < checks.slot_qualification_count && index < 64 {
+        true -> read(checks, index)
+        _ -> invalid()
+    }
+
+    machine read(checks: &Checks, index: u64 in Trapping) -> SlotParameterQualification
+    requires index < 64
+    {
+        checks.slot_qualifications[index]
+    }
+
+    machine invalid() -> SlotParameterQualification {
         crash Trap;
     }
 }

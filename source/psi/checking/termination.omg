@@ -125,11 +125,11 @@ public machine Checker::reset_termination(checker: &mut Checker, machine: u64 in
         _ -> done()
     }
 
-    machine write(checker: &mut Checker, machine: u64 in Trapping)
-    requires machine < 10240
+    machine write(checker: &mut Checker, callee: u64 in Trapping)
+    requires callee < 10240
     {
-        checker.binder_calls[machine] = false;
-        checker.terminating[machine] = false;
+        checker.binder_calls[callee] = false;
+        checker.terminating[callee] = false;
     }
 
     machine done() {}
@@ -145,10 +145,10 @@ crashes Trap
         _ -> done()
     }
 
-    machine write(checker: &mut Checker, machine: u64 in Trapping)
-    requires machine < 10240
+    machine write(checker: &mut Checker, callee: u64 in Trapping)
+    requires callee < 10240
     {
-        checker.binder_calls[machine] = true;
+        checker.binder_calls[callee] = true;
     }
 
     machine done() {}
@@ -162,10 +162,10 @@ public machine Checker::settled_termination(checker: &Checker, machine: u64 in T
         _ -> no()
     }
 
-    machine read(checker: &Checker, machine: u64 in Trapping) -> bool
-    requires machine < 10240
+    machine read(checker: &Checker, callee: u64 in Trapping) -> bool
+    requires callee < 10240
     {
-        checker.terminating[machine]
+        checker.terminating[callee]
     }
 
     machine no() -> bool {

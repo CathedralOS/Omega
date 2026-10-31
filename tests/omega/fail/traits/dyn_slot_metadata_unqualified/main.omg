@@ -1,0 +1,25 @@
+// Fact: the public dynamic slot records the returned borrow of its Utf8
+// parameter and that parameter's qualification precondition.
+// The argument is not in Utf8, so the qualification precondition is absent.
+public domain [u8]::Utf8 requires valid_utf8(self);
+
+public trait Window {
+    machine view<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8;
+}
+
+Direct satisfies Window {
+    machine view<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8 { packet }
+}
+
+machine main() crashes Trap {
+    let storage: [u8; 1] = [0xFFu8];
+    let packet: &[u8] = &storage[..];
+    let selected: dyn Window = Direct as dyn Window;
+    let viewed: &[u8] in Utf8 = Window::view(selected, packet);
+    transition viewed == "é" {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

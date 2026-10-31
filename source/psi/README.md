@@ -754,7 +754,7 @@ owns bounded token selection and trivia traversal;
 | `typing/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
 | `integers/` | Owns exact integer values and arithmetic shared by literal folding and bounds reasoning. | Absorb only into a successor exact-arithmetic owner both consumers share. |
 | `checks/` | Owns checking's result: each rejected machine's first rejection and each machine's crash routes. | Absorb into a later Psi representation only with equivalent verdicts and routes. |
-| `checking/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine. | Absorb only into the canonical checker that proves the same obligations. |
+| `checking/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine, and publishes public slot returned-borrow origins and qualification preconditions (`slots.omg`). | Absorb only into the canonical checker that proves the same obligations. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be

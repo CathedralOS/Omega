@@ -46,6 +46,58 @@ pub(crate) struct PackageReviewTraitRequirement {
     pub(crate) suspends: bool,
     pub(crate) blocks: bool,
     pub(crate) termination: PackageReviewTermination,
+    /// Returned-borrow origins copied from the requirement's public dynamic
+    /// slots. Empty when this compilation forms no selector slot.
+    pub(crate) returned_borrow_origins: Vec<PackageReviewReturnedBorrowOrigin>,
+    /// Structural-parameter domain preconditions copied from those slots.
+    pub(crate) parameter_qualification_preconditions: Vec<PackageReviewParameterQualification>,
+}
+
+/// One returned reference's public input origin. The index is the slot's
+/// dense structural formal, not an authored scalar position.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewReturnedBorrowOrigin {
+    pub(crate) origin: PackageReviewBorrowOrigin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewBorrowOrigin {
+    Parameter { index: u32 },
+    Invocation { carrier: PackageReviewTypeIdentity },
+}
+
+/// One domain a structural formal must already carry. `structural_index` is
+/// the slot's dense structural lane.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewParameterQualification {
+    pub(crate) structural_index: u32,
+    pub(crate) domain: PackageReviewNominalIdentity,
+}
+
+impl PackageReviewReturnedBorrowOrigin {
+    pub fn parameter_index(&self) -> Option<u32> {
+        match self.origin {
+            PackageReviewBorrowOrigin::Parameter { index } => Some(index),
+            PackageReviewBorrowOrigin::Invocation { .. } => None,
+        }
+    }
+
+    pub fn invocation_carrier(&self) -> Option<&PackageReviewTypeIdentity> {
+        match &self.origin {
+            PackageReviewBorrowOrigin::Invocation { carrier } => Some(carrier),
+            PackageReviewBorrowOrigin::Parameter { .. } => None,
+        }
+    }
+}
+
+impl PackageReviewParameterQualification {
+    pub const fn structural_index(&self) -> u32 {
+        self.structural_index
+    }
+
+    pub const fn domain(&self) -> &PackageReviewNominalIdentity {
+        &self.domain
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -39,6 +39,9 @@ class Observation:
     # Every rejection in the order checking found it; `diagnostic` is the
     # first, or None.
     rejections: tuple[tuple[str, tuple[int, int, int]], ...] = ()
+    slot_origins: tuple[tuple[int, int], ...] = ()
+    slot_qualifications: tuple[tuple[int, int], ...] = ()
+    slot_review_admits: bool = True
 
 
 class Reader:
@@ -67,7 +70,7 @@ class Reader:
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
     assert reader.bytes(8) == b"OMGCHK1\0"
-    assert reader.u64() == 2
+    assert reader.u64() == 3
     accepted = reader.byte() == 1
     rejections = tuple((DIAGNOSTICS[reader.byte()], reader.span()) for _ in range(reader.u64()))
     diagnostic, diagnostic_span = rejections[0] if rejections else ("None", (0, 0, 0))
@@ -75,9 +78,14 @@ def decode(payload: bytes) -> Observation:
         Routes(*(reader.byte() == 1 for _ in range(5)))
         for _ in range(reader.u64())
     )
+    origins = tuple((reader.byte(), reader.u64()) for _ in range(reader.u64()))
+    qualifications = tuple((reader.u64(), reader.u64()) for _ in range(reader.u64()))
+    admits = reader.byte() == 1
     assert reader.cursor == len(payload), "trailing checking observation bytes"
     assert accepted == (not rejections), "acceptance disagrees with the rejections"
-    return Observation(accepted, diagnostic, diagnostic_span, routes, rejections)
+    return Observation(
+        accepted, diagnostic, diagnostic_span, routes, rejections, origins, qualifications, admits
+    )
 
 
 # Every distinct input the gate runs is one case; the determinism check runs
@@ -3548,6 +3556,19 @@ def main() -> None:
 
     nested_machine_cases(program)
     invocation_component_cases(program)
+
+    slot = accepted(
+        program,
+        "public-slot-records-qualified-return",
+        b"domain [u8]::Utf8(bytes);\n"
+        b"public trait Window {\n"
+        b"    machine view(packet: &[u8] in Utf8) -> &[u8] in Utf8;\n"
+        b"}\n",
+    )
+    assert slot.slot_review_admits, "package review rejected the public slot records"
+    assert slot.slot_origins == ((1, 0),), slot.slot_origins
+    assert len(slot.slot_qualifications) == 1, slot.slot_qualifications
+    assert slot.slot_qualifications[0][0] == 0, slot.slot_qualifications
 
     determinism = b"machine read(a: &[u8; 4], i: u64) -> u8 { a[i] }"
     first = run(program, determinism)
