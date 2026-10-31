@@ -4,7 +4,7 @@ Compile-scope probe. No standard-library dependency.
 
 - linear_defer_assign: `let mut receipt: Receipt;` deferred
   establishment — bare decl owns zeroed storage, assignment
-  creates the obligation; `boundary requirement T::ack` is the
+  creates the obligation; `ReceiptAck::ack` is the
   only authorized disposition.
 - move_keyword: explicit `main.f = move replacement;` store-move
   spelling.

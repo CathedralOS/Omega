@@ -9,16 +9,14 @@ mod custody;
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::StagedOptimizedAllocationLegality;
-use crate::WorkDefect;
 use crate::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
     FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
     FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
-    StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
-    ValidatedAllocatorAvailability, ValidatedFixedPrecoloredIntervals,
+    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedFixedPrecoloredIntervals,
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
-    ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedLiveRanges, ValidatedLiveness, WorkDefect,
 };
 use optimization_core::OptimizationSelections;
 use register_environment::ValidatedTargetRegisterEnvironment;

@@ -6,7 +6,9 @@
 //! image-wide referent while preserving each occurrence's relocation origin.
 //! Nothing here introduces memory access or source storage ownership.
 
+use super::image_addresses::rows_for_symbols;
 use super::{Error, refuse_symbol_collision};
+use crate::object_artifact::find_object_function;
 use machine_code::{ImageAddressFields, PlacedImageAddress};
 use object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationOrigin, RelocationPlan, RelocationRecord, SymbolKind,
@@ -75,10 +77,9 @@ pub(super) fn records(
         if !destination.is_valid() {
             return Err(Error::Mismatch("image residence has no object referent"));
         }
-        let owner = crate::object_artifact::find_object_function(functions, address.machine)
-            .ok_or(Error::Mismatch(
-                "image residence observation owner is absent",
-            ))?;
+        let owner = find_object_function(functions, address.machine).ok_or(Error::Mismatch(
+            "image residence observation owner is absent",
+        ))?;
         let ImageAddressFields::X86_64Relative32 { .. } = address.fields else {
             return Err(Error::Unsupported(
                 "image residence requires the UEFI x64 address form",
@@ -132,10 +133,7 @@ pub(super) fn validate(
         artifact.retained_entry_storage,
         &artifact.functions,
     )?;
-    let actual = super::image_addresses::rows_for_symbols(
-        &artifact.relocations,
-        [artifact.retained_entry_storage],
-    );
+    let actual = rows_for_symbols(&artifact.relocations, [artifact.retained_entry_storage]);
     if actual != expected {
         return Err(Error::Mismatch("image residence relocations changed"));
     }

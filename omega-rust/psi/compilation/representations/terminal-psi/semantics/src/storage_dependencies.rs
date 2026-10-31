@@ -1,5 +1,7 @@
 //! Storage operands retain carrier dependencies independently of byte layout.
 
+use crate::canonical_storage_dependencies;
+use crate::projection_storage_dependencies;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralStorageUse, StructuralTypeDeclaration, TerminalMachine};
@@ -71,7 +73,7 @@ pub fn storage_operand_dependencies(
             roots.insert(structural_type);
         }
         StructuralStorageUse::Projection(projection) => {
-            crate::projection_storage_dependencies(
+            projection_storage_dependencies(
                 declarations.values().copied(),
                 place_type(projection.root)?,
                 projection.path,
@@ -80,7 +82,7 @@ pub fn storage_operand_dependencies(
             .ok_or_else(|| format!("malformed storage projection {projection:?}"))?;
         }
         StructuralStorageUse::Canonical { root, path } => {
-            crate::canonical_storage_dependencies(
+            canonical_storage_dependencies(
                 declarations.values().copied(),
                 place_type(root)?,
                 path,
@@ -99,18 +101,13 @@ pub fn storage_operand_dependencies(
                 Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) => *referent,
                 _ => carrier,
             };
-            crate::canonical_storage_dependencies(
-                declarations.values().copied(),
-                observed,
-                path,
-                roots,
-            )
-            .ok_or_else(|| {
+            canonical_storage_dependencies(declarations.values().copied(), observed, path, roots)
+                .ok_or_else(|| {
                 format!("malformed scalar-field carrier projection at {root:?}: {path:?}")
             })?;
         }
         StructuralStorageUse::Element { descriptor, path } => {
-            let descriptor_type = crate::projection_storage_dependencies(
+            let descriptor_type = projection_storage_dependencies(
                 declarations.values().copied(),
                 place_type(descriptor.root)?,
                 descriptor.path,
@@ -125,15 +122,12 @@ pub fn storage_operand_dependencies(
                     "element access carrier {descriptor_type:?} is not a view"
                 ));
             };
-            crate::projection_storage_dependencies(
-                declarations.values().copied(),
-                *element,
-                path,
-                roots,
-            )
-            .ok_or_else(|| {
-                format!("malformed element storage projection below {descriptor_type:?}: {path:?}")
-            })?;
+            projection_storage_dependencies(declarations.values().copied(), *element, path, roots)
+                .ok_or_else(|| {
+                    format!(
+                        "malformed element storage projection below {descriptor_type:?}: {path:?}"
+                    )
+                })?;
         }
     }
     Ok(())

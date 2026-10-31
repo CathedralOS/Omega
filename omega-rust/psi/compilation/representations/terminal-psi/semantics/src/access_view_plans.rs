@@ -1,6 +1,9 @@
 //! Rejoin retained placement geometry to its exact logical and callable catalogs.
 //! Success describes a valid demand; it grants neither backing nor access.
+use semantic_vocabulary::AuthoredFieldStorage;
+use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
+use terminal_psi::StructuralFieldType;
 use terminal_psi::{
     BoundaryMachineResult, StructuralAccess, StructuralTypeShape, TerminalAccessorKind,
     TerminalModule,
@@ -42,15 +45,9 @@ pub enum AccessViewPlanError {
 /// particular index, establish a loan, or manufacture per-element access slots.
 pub(crate) fn access_field_leaf(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
-    value: &terminal_psi::StructuralFieldType,
-    mut accessor: semantic_vocabulary::StructuralTypeId,
-) -> Result<
-    (
-        terminal_psi::StructuralFieldType,
-        semantic_vocabulary::StructuralTypeId,
-    ),
-    AccessViewPlanError,
-> {
+    value: &StructuralFieldType,
+    mut accessor: StructuralTypeId,
+) -> Result<(StructuralFieldType, StructuralTypeId), AccessViewPlanError> {
     let mut value = value.clone();
     let mut visited = BTreeSet::new();
     loop {
@@ -85,9 +82,9 @@ pub(crate) fn access_field_leaf(
                     .ok_or(AccessViewPlanError::SchemaFieldMismatch)?;
                 value = match element.shape {
                     StructuralTypeShape::PrimitiveScalar(scalar) => {
-                        terminal_psi::StructuralFieldType::Scalar(scalar)
+                        StructuralFieldType::Scalar(scalar)
                     }
-                    _ => terminal_psi::StructuralFieldType::Structural(*source_element),
+                    _ => StructuralFieldType::Structural(*source_element),
                 };
                 accessor = *view_element;
             }
@@ -98,8 +95,8 @@ pub(crate) fn access_field_leaf(
 
 fn contains_accessor_leaf(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
-    mut root: semantic_vocabulary::StructuralTypeId,
-    leaf: semantic_vocabulary::StructuralTypeId,
+    mut root: StructuralTypeId,
+    leaf: StructuralTypeId,
 ) -> bool {
     let mut visited = BTreeSet::new();
     while visited.insert(root) {
@@ -123,7 +120,7 @@ fn contains_accessor_leaf(
 /// it cannot create a placement origin or lend ordinary backing bytes.
 pub(crate) fn is_access_projection_shape(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
-    mut root: semantic_vocabulary::StructuralTypeId,
+    mut root: StructuralTypeId,
 ) -> bool {
     let mut visited = BTreeSet::new();
     while visited.insert(root) {
@@ -316,13 +313,11 @@ pub fn validate_access_view_catalog(
                 return Err(AccessViewPlanError::SchemaFieldMismatch);
             }
             let expected_storage = descriptor
-                .map(
-                    |descriptor| semantic_vocabulary::AuthoredFieldStorage::Direct {
-                        byte_offset: descriptor.container_byte_offset(),
-                    },
-                )
+                .map(|descriptor| AuthoredFieldStorage::Direct {
+                    byte_offset: descriptor.container_byte_offset(),
+                })
                 .or_else(|| {
-                    region.map(|region| semantic_vocabulary::AuthoredFieldStorage::Direct {
+                    region.map(|region| AuthoredFieldStorage::Direct {
                         byte_offset: region.byte_offset(),
                     })
                 });
@@ -486,10 +481,7 @@ pub fn validate_access_view_plans(module: &TerminalModule) -> Result<(), AccessV
 
 /// Ordinary inline value transport cannot create or own a placement loan.
 /// References stop this walk: their referents require separate live custody.
-pub fn contains_access_carrier(
-    module: &TerminalModule,
-    root: semantic_vocabulary::StructuralTypeId,
-) -> bool {
+pub fn contains_access_carrier(module: &TerminalModule, root: StructuralTypeId) -> bool {
     contains_access_carrier_in_catalog(&module.structural_types, &module.access_view_plans, root)
 }
 
@@ -497,7 +489,7 @@ pub fn contains_access_carrier(
 pub fn contains_access_carrier_in_catalog(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     plans: &[terminal_psi::TerminalAccessViewPlan],
-    root: semantic_vocabulary::StructuralTypeId,
+    root: StructuralTypeId,
 ) -> bool {
     let mut pending = vec![root];
     let mut visited = BTreeSet::new();

@@ -176,6 +176,7 @@ mod tests {
         encode_x86_64_selected_hosted_exit_process_form,
         validate_x86_64_selected_hosted_exit_process_form,
     };
+    use register_model::RegisterViewId;
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
     };
@@ -190,78 +191,43 @@ mod tests {
             family: MachineAlternativeFamily::HostedExitProcessI32,
             variant: 0,
         };
+        let encode = |target, kind, operands: &[RegisterViewId]| {
+            encode_x86_64_selected_hosted_exit_process_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                operands,
+            )
+        };
+        let validate = |target, operands: &[RegisterViewId], bytes: &[u8]| {
+            validate_x86_64_selected_hosted_exit_process_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                operands,
+                bytes,
+            )
+        };
         for target in [NativeTarget::linux_x64(), NativeTarget::macos_x64()] {
             for name in ["rax", "rdi", "rcx", "r8", "r11", "r15"] {
                 let operands = [physical.model().view_named(name).unwrap().id];
-                let encoded = encode_x86_64_selected_hosted_exit_process_form(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                )
-                .unwrap();
+                let encoded = encode(target, kind, &operands).unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(target).unwrap());
                 crate::selected_form_encoding::assert_every_bit_flip_rejected(
                     encoded.bytes(),
-                    |corrupted| {
-                        validate_x86_64_selected_hosted_exit_process_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            corrupted,
-                        )
-                        .is_err()
-                    },
+                    |corrupted| validate(target, &operands, corrupted).is_err(),
                 );
                 let different = [physical
                     .model()
                     .view_named(if name == "rax" { "rdi" } else { "rax" })
                     .unwrap()
                     .id];
-                assert!(
-                    validate_x86_64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &different,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_x86_64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &[]
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_x86_64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &[operands[0], operands[0]]
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_x86_64_selected_hosted_exit_process_form(
-                        target,
-                        &physical,
-                        SelectedInstructionKind::ReturnUnit,
-                        alternative,
-                        &operands
-                    )
-                    .is_err()
-                );
+                assert!(validate(target, &different, encoded.bytes()).is_err());
+                assert!(encode(target, kind, &[]).is_err());
+                assert!(encode(target, kind, &[operands[0], operands[0]]).is_err());
+                assert!(encode(target, SelectedInstructionKind::ReturnUnit, &operands).is_err());
                 // The other hosted kernel's syscall number must not replay.
                 let other_kernel = if target == NativeTarget::linux_x64() {
                     NativeTarget::macos_x64()
@@ -277,17 +243,7 @@ mod tests {
                     NativeTarget::macos_arm64(),
                     other_kernel,
                 ] {
-                    assert!(
-                        validate_x86_64_selected_hosted_exit_process_form(
-                            wrong_target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
+                    assert!(validate(wrong_target, &operands, encoded.bytes()).is_err());
                 }
                 let mut extra = encoded.bytes().to_vec();
                 extra.push(0);

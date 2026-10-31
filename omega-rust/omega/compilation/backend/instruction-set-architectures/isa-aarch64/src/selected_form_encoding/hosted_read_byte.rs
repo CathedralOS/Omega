@@ -251,6 +251,7 @@ mod tests {
         validate_aarch64_selected_hosted_read_byte_form,
     };
     use crate::test_support::reject_every_bit_flip;
+    use register_model::RegisterViewId;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge,
@@ -275,6 +276,27 @@ mod tests {
             family: MachineAlternativeFamily::HostedReadByte,
             variant: 0,
         };
+        let encode = |target, kind, alternative, source: &[RegisterViewId], displacement: u32| {
+            encode_aarch64_selected_hosted_read_byte_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                source,
+                i64::from(displacement),
+            )
+        };
+        let validate = |target, displacement: u32, bytes: &[u8]| {
+            validate_aarch64_selected_hosted_read_byte_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                &[],
+                i64::from(displacement),
+                bytes,
+            )
+        };
         for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
             // Inside the first 4 KiB, at the shifted boundary, past it with and
             // without a remainder, past 16 MiB in further page steps, and at
@@ -292,15 +314,7 @@ mod tests {
                 33_554_428,
                 u32::MAX - 7,
             ] {
-                let encoded = encode_aarch64_selected_hosted_read_byte_form(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    &[],
-                    i64::from(displacement),
-                )
-                .unwrap();
+                let encoded = encode(target, kind, alternative, &[], displacement).unwrap();
                 assert_eq!(
                     decode_aarch64_selected_hosted_read_byte(target, encoded.bytes()),
                     Some(displacement)
@@ -318,95 +332,24 @@ mod tests {
                         Some(displacement),
                         "decoder bit"
                     );
-                    validate_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        i64::from(displacement),
-                        &changed,
-                    )
-                    .is_err()
+                    validate(target, displacement, &changed).is_err()
                 });
                 for invalid_offset in [1, 3, u32::MAX - 3, u32::MAX] {
-                    assert!(
-                        encode_aarch64_selected_hosted_read_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            i64::from(invalid_offset)
-                        )
-                        .is_err()
-                    );
+                    assert!(encode(target, kind, alternative, &[], invalid_offset).is_err());
                 }
-                assert!(
-                    validate_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        i64::from(displacement ^ 4),
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
+                assert!(validate(target, displacement ^ 4, encoded.bytes()).is_err());
                 let boundary = SelectedInstructionKind::HostedReadByte {
                     slot: LocalStorageSlotId::Boundary { operation },
                 };
-                assert!(
-                    encode_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        &physical,
-                        boundary,
-                        alternative,
-                        &[],
-                        i64::from(displacement)
-                    )
-                    .is_err()
-                );
+                assert!(encode(target, boundary, alternative, &[], displacement).is_err());
                 let source = [physical.model().view_named("x0").unwrap().id];
-                assert!(
-                    encode_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &source,
-                        i64::from(displacement)
-                    )
-                    .is_err()
-                );
+                assert!(encode(target, kind, alternative, &source, displacement).is_err());
                 let wrong = MachineAlternativeKey {
                     variant: 1,
                     ..alternative
                 };
-                assert!(
-                    encode_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        wrong,
-                        &[],
-                        i64::from(displacement)
-                    )
-                    .is_err()
-                );
-                assert!(
-                    validate_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        i64::from(displacement),
-                        &encoded.bytes()[1..]
-                    )
-                    .is_err()
-                );
+                assert!(encode(target, kind, wrong, &[], displacement).is_err());
+                assert!(validate(target, displacement, &encoded.bytes()[1..]).is_err());
                 let mut padded = encoded.bytes().to_vec();
                 padded.push(0);
                 assert_eq!(
@@ -418,18 +361,7 @@ mod tests {
                 } else {
                     NativeTarget::linux_arm64()
                 };
-                assert!(
-                    validate_aarch64_selected_hosted_read_byte_form(
-                        other_target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        i64::from(displacement),
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
+                assert!(validate(other_target, displacement, encoded.bytes()).is_err());
                 assert_eq!(
                     decode_aarch64_selected_hosted_read_byte(other_target, encoded.bytes()),
                     None

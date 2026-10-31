@@ -1,3 +1,4 @@
+use super::super::requires_graph_storage_replay;
 use super::{
     indexed_store_retained, replacement_footprints_retained, replacement_retained, retained,
 };
@@ -400,9 +401,7 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
                 indices: Vec::new(),
             };
         assert!(retained(&function, &function.operations[0], &target));
-        assert!(super::super::requires_graph_storage_replay(
-            &function.operations
-        ));
+        assert!(requires_graph_storage_replay(&function.operations));
         for mutation in 0..9 {
             let mut changed = target.clone();
             let operation = &mut changed.graph.blocks[0].operations[0];
@@ -808,9 +807,7 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
                 obligation,
             };
         assert!(retained_at(&function, 0, &target));
-        assert!(super::super::requires_graph_storage_replay(
-            &function.operations
-        ));
+        assert!(requires_graph_storage_replay(&function.operations));
         for mutation in 0..10 {
             let mut changed = target.clone();
             let operation = &mut changed.graph.blocks[0].operations[0];
@@ -1530,9 +1527,7 @@ fn indexed_byte_publication_retains_every_operand_and_writable_access() {
             &function.operations[0],
             &target
         ));
-        assert!(super::super::requires_graph_storage_replay(
-            &function.operations
-        ));
+        assert!(requires_graph_storage_replay(&function.operations));
         assert!(!super::indexed_store_footprint_retained(
             &function.operations[0],
             &[]
@@ -1797,9 +1792,7 @@ fn owned_parameter_field_membership_keeps_exact_value_access_and_graph_replay() 
         ] {
             let (function, target) = owned_field_fixture(scalar_type, multiplicity);
             assert!(retained(&function, &function.operations[0], &target));
-            assert!(super::super::requires_graph_storage_replay(
-                &function.operations
-            ));
+            assert!(requires_graph_storage_replay(&function.operations));
             let mut undeclared = target.clone();
             undeclared.graph.structural_types = Vec::new().into();
             assert!(
@@ -2032,16 +2025,16 @@ fn structural_field_reads_require_graph_storage_replay() {
         result: ValueId::new(2).unwrap(),
         value: true,
     };
-    assert!(!super::super::requires_graph_storage_replay(
-        std::slice::from_ref(&unrelated)
-    ));
+    assert!(!requires_graph_storage_replay(std::slice::from_ref(
+        &unrelated
+    )));
     for scalar_type in field_types() {
         let (function, _) = field_fixture(scalar_type);
         let operation = &function.operations[0];
-        assert!(super::super::requires_graph_storage_replay(
-            std::slice::from_ref(operation)
-        ));
-        assert!(super::super::requires_graph_storage_replay(&[
+        assert!(requires_graph_storage_replay(std::slice::from_ref(
+            operation
+        )));
+        assert!(requires_graph_storage_replay(&[
             unrelated.clone(),
             operation.clone()
         ]));

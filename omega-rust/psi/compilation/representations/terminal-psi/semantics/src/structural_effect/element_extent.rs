@@ -8,6 +8,7 @@ use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralT
 
 use super::StructuralEffectObservation;
 use crate::OperationSemanticError;
+use terminal_psi::StructuralFieldType;
 
 /// Returns the subslice's direct extent denotation at a matching length read:
 /// the measured element count is `end - start`. The caller must establish the
@@ -88,7 +89,7 @@ pub fn element_establishment_length_equation(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElementViewLeaf {
     pub scalar_type: ScalarType,
-    pub restriction: Option<terminal_psi::StructuralFieldType>,
+    pub restriction: Option<StructuralFieldType>,
 }
 pub fn element_view_leaf(
     types: &[StructuralTypeDeclaration],
@@ -116,15 +117,11 @@ pub fn element_view_leaf(
             .and_then(|row| match row.shape {
                 StructuralTypeShape::PrimitiveScalar(scalar) => match &row.scalar_restriction {
                     None => Some(plain(scalar)),
-                    Some(terminal_psi::StructuralFieldType::BoundedInteger(bounds)) => {
-                        Some(ElementViewLeaf {
-                            scalar_type: scalar,
-                            restriction: Some(terminal_psi::StructuralFieldType::BoundedInteger(
-                                *bounds,
-                            )),
-                        })
-                    }
-                    Some(restriction @ terminal_psi::StructuralFieldType::RefinedScalar(_))
+                    Some(StructuralFieldType::BoundedInteger(bounds)) => Some(ElementViewLeaf {
+                        scalar_type: scalar,
+                        restriction: Some(StructuralFieldType::BoundedInteger(*bounds)),
+                    }),
+                    Some(restriction @ StructuralFieldType::RefinedScalar(_))
                         if restriction.scalar_type() == Some(scalar) =>
                     {
                         Some(ElementViewLeaf {
@@ -145,25 +142,17 @@ pub fn element_view_leaf(
         (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields, .. }) => {
             let field = terminal_psi::live_field_by_identity(fields, *identity)?;
             match field.field_type {
-                terminal_psi::StructuralFieldType::Structural(child) => primitive(child),
-                terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
-                    Some(ElementViewLeaf {
-                        scalar_type: ScalarType::Integer(bounds.integer_type()),
-                        restriction: Some(terminal_psi::StructuralFieldType::BoundedInteger(
-                            bounds,
-                        )),
-                    })
-                }
-                terminal_psi::StructuralFieldType::RefinedScalar(ref restriction) => {
-                    Some(ElementViewLeaf {
-                        scalar_type: restriction.carrier(),
-                        restriction: Some(terminal_psi::StructuralFieldType::RefinedScalar(
-                            restriction.clone(),
-                        )),
-                    })
-                }
-                terminal_psi::StructuralFieldType::Scalar(scalar) => Some(plain(scalar)),
-                terminal_psi::StructuralFieldType::IeeeFloat(format) => {
+                StructuralFieldType::Structural(child) => primitive(child),
+                StructuralFieldType::BoundedInteger(bounds) => Some(ElementViewLeaf {
+                    scalar_type: ScalarType::Integer(bounds.integer_type()),
+                    restriction: Some(StructuralFieldType::BoundedInteger(bounds)),
+                }),
+                StructuralFieldType::RefinedScalar(ref restriction) => Some(ElementViewLeaf {
+                    scalar_type: restriction.carrier(),
+                    restriction: Some(StructuralFieldType::RefinedScalar(restriction.clone())),
+                }),
+                StructuralFieldType::Scalar(scalar) => Some(plain(scalar)),
+                StructuralFieldType::IeeeFloat(format) => {
                     Some(plain(ScalarType::IeeeFloat(format)))
                 }
                 _ => None,

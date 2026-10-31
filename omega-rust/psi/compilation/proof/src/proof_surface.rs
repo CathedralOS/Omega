@@ -3,7 +3,10 @@
 
 use arena::Arena;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
+use syntax_trees::item;
+use syntax_trees::item::PropositionBody;
 use syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, ProofFact,
 };
@@ -165,10 +168,8 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
             }
             Item::Proposition(proposition) => {
                 let body = match proposition.body {
-                    syntax_trees::item::PropositionBody::Primitive => {
-                        PropositionBodySurface::Primitive
-                    }
-                    syntax_trees::item::PropositionBody::Witness { evidence } => {
+                    PropositionBody::Primitive => PropositionBodySurface::Primitive,
+                    PropositionBody::Witness { evidence } => {
                         collect_bounded_type_site(
                             &mut report,
                             syntax_trees,
@@ -180,9 +181,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                         );
                         PropositionBodySurface::Witness
                     }
-                    syntax_trees::item::PropositionBody::Transparent { .. } => {
-                        PropositionBodySurface::Transparent
-                    }
+                    PropositionBody::Transparent { .. } => PropositionBodySurface::Transparent,
                 };
                 for parameter in syntax_trees.items.state_parameters(proposition.parameters) {
                     let parameter = syntax_trees.items.state_parameter(*parameter);
@@ -231,7 +230,7 @@ fn collect_machine(report: &mut ProofSurfaceReport, syntax_trees: &SyntaxTrees, 
 fn collect_operator(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
-    operator: &syntax_trees::item::OperatorDefinition,
+    operator: &item::OperatorDefinition,
     owner: &str,
 ) {
     collect_contracts(report, syntax_trees, operator.contracts, owner);
@@ -248,7 +247,7 @@ fn collect_state_node(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
     machine: &Machine,
-    state: &syntax_trees::item::State,
+    state: &item::State,
 ) {
     collect_contracts(
         report,
@@ -296,7 +295,7 @@ fn collect_state_node(
 fn collect_trait_definition(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
-    trait_definition: &syntax_trees::item::TraitDefinition,
+    trait_definition: &item::TraitDefinition,
 ) {
     for machine in syntax_trees
         .items
@@ -319,7 +318,7 @@ fn collect_trait_definition(
 fn collect_state_signature_node(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
-    state: &syntax_trees::item::StateSignature,
+    state: &item::StateSignature,
     owner: &str,
 ) {
     collect_contracts(report, syntax_trees, state.contracts, owner);
@@ -335,7 +334,7 @@ fn collect_state_signature_node(
 fn collect_signature_parts(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
-    parameters: arena::HandleSpan<syntax_trees::item::StateParameterHandle>,
+    parameters: arena::HandleSpan<item::StateParameterHandle>,
     return_type: TypeReferenceHandle,
     owner: &str,
 ) {
@@ -541,10 +540,7 @@ fn constraint_handle_name(
     output
 }
 
-fn operator_name(
-    syntax_trees: &SyntaxTrees,
-    name: arena::HandleSpan<syntax_trees::identifier::Identifier>,
-) -> String {
+fn operator_name(syntax_trees: &SyntaxTrees, name: arena::HandleSpan<Identifier>) -> String {
     syntax_trees
         .items
         .identifier_path_members(name)

@@ -219,6 +219,7 @@ mod tests {
         encode_x86_64_selected_hosted_write_byte_form,
         validate_x86_64_selected_hosted_write_byte_form,
     };
+    use register_model::RegisterViewId;
     use selected_instructions::{
         LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
         MachineEncodedStackEffect, SelectedInstructionKind,
@@ -240,6 +241,27 @@ mod tests {
             family: MachineAlternativeFamily::HostedWriteByteI32,
             variant: 0,
         };
+        let encode = |target, operands: &[RegisterViewId], displacement| {
+            encode_x86_64_selected_hosted_write_byte_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                operands,
+                displacement,
+            )
+        };
+        let validate = |target, kind, operands: &[RegisterViewId], displacement, bytes: &[u8]| {
+            validate_x86_64_selected_hosted_write_byte_form(
+                target,
+                &physical,
+                kind,
+                alternative,
+                operands,
+                displacement,
+                bytes,
+            )
+        };
         for (target, other_kernel, width) in [
             (NativeTarget::linux_x64(), NativeTarget::macos_x64(), 40),
             (NativeTarget::macos_x64(), NativeTarget::linux_x64(), 42),
@@ -247,15 +269,7 @@ mod tests {
             for name in ["rax", "rbp", "rsi", "rdx", "r11", "r15"] {
                 let operands = [physical.model().view_named(name).unwrap().id];
                 for displacement in [0, 31, 2147483647] {
-                    let encoded = encode_x86_64_selected_hosted_write_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                    )
-                    .unwrap();
+                    let encoded = encode(target, &operands, displacement).unwrap();
                     assert_eq!(encoded.footprint().encoded, effects());
                     assert_eq!(encoded.bytes().len(), width);
                     assert_eq!(
@@ -275,97 +289,25 @@ mod tests {
                     );
                     crate::selected_form_encoding::assert_every_bit_flip_rejected(
                         encoded.bytes(),
-                        |changed| {
-                            validate_x86_64_selected_hosted_write_byte_form(
-                                target,
-                                &physical,
-                                kind,
-                                alternative,
-                                &operands,
-                                displacement,
-                                changed,
-                            )
-                            .is_err()
-                        },
+                        |changed| validate(target, kind, &operands, displacement, changed).is_err(),
                     );
-                    assert!(
-                        validate_x86_64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement ^ 1,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        validate_x86_64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &encoded.bytes()[1..]
-                        )
-                        .is_err()
-                    );
+                    let rejects = |kind, displacement, bytes: &[u8]| {
+                        validate(target, kind, &operands, displacement, bytes).is_err()
+                    };
+                    assert!(rejects(kind, displacement ^ 1, encoded.bytes()));
+                    assert!(rejects(kind, displacement, &encoded.bytes()[1..]));
                     let mut trailing = encoded.bytes().to_vec();
                     trailing.push(0);
-                    assert!(
-                        validate_x86_64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &trailing
-                        )
-                        .is_err()
-                    );
+                    assert!(rejects(kind, displacement, &trailing));
                     let wrong_slot = SelectedInstructionKind::HostedWriteByteI32 {
                         slot: LocalStorageSlotId::Structural {
                             operation: OperationId::new(7).unwrap(),
                             place: PlaceId::new(1).unwrap(),
                         },
                     };
-                    assert!(
-                        validate_x86_64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            wrong_slot,
-                            alternative,
-                            &operands,
-                            displacement,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        encode_x86_64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            2147483648
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        encode_x86_64_selected_hosted_write_byte_form(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement
-                        )
-                        .is_err()
-                    );
+                    assert!(rejects(wrong_slot, displacement, encoded.bytes()));
+                    assert!(encode(target, &operands, 2147483648).is_err());
+                    assert!(encode(target, &[], displacement).is_err());
                 }
             }
         }

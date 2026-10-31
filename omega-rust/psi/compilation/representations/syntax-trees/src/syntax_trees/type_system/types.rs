@@ -1,4 +1,6 @@
+use crate::expression::ExpressionHandle;
 use crate::identifier::Identifier;
+use crate::item::ItemHandle;
 use crate::syntax_trees::paged_roster::paged_roster;
 use arena::{Handle, HandleSpan, PagedArenaFrontier};
 
@@ -54,7 +56,7 @@ pub struct TypeAliasApplicationOrigin {
 )]
 struct SuppliedOperandOwner {
     operand: TypeReferenceHandle,
-    declaration: crate::item::ItemHandle,
+    declaration: ItemHandle,
 }
 
 /// Private probe custody, never a canonical value or checking receipt. Copies
@@ -138,7 +140,7 @@ struct RetainedConstArgumentNormalization {
 pub struct ConstArgumentNormalization {
     /// Exact authored structural expression before it becomes an atom. This
     /// carries constructor selections, independently of named-constant origins.
-    pub authored_expression: crate::expression::ExpressionHandle,
+    pub authored_expression: ExpressionHandle,
     pub reference: source::SourceSpan,
     pub canonical_result_encoding: String,
     pub selections: HandleSpan<ConstArgumentOrigin>,
@@ -209,7 +211,7 @@ impl TypeReferenceTable {
     pub fn supplied_operand_owner(
         &self,
         operand: TypeReferenceHandle,
-    ) -> Result<crate::item::ItemHandle, &'static str> {
+    ) -> Result<ItemHandle, &'static str> {
         self.supplied_operand_owners
             .iter()
             .find_map(|(_, row)| {
@@ -221,7 +223,7 @@ impl TypeReferenceTable {
                     }
                 })
             })
-            .unwrap_or(Ok(crate::item::ItemHandle::invalid()))
+            .unwrap_or(Ok(ItemHandle::invalid()))
     }
 
     /// Attach custody only to a newly copied operand root. Its children retain
@@ -230,7 +232,7 @@ impl TypeReferenceTable {
     pub fn retain_supplied_operand_owner(
         &mut self,
         operand: TypeReferenceHandle,
-        declaration: crate::item::ItemHandle,
+        declaration: ItemHandle,
     ) {
         if operand.is_valid() && declaration.is_valid() {
             let existing = self
@@ -240,7 +242,7 @@ impl TypeReferenceTable {
             if let Some(handle) = existing {
                 let row = self.supplied_operand_owners.get_mut(handle);
                 if row.declaration != declaration {
-                    row.declaration = crate::item::ItemHandle::invalid();
+                    row.declaration = ItemHandle::invalid();
                 }
                 return;
             }
@@ -273,13 +275,12 @@ impl TypeReferenceTable {
             .iter()
             .find_map(|(handle, row)| (row.operand == operand).then_some(handle));
         if let Some(handle) = existing {
-            self.supplied_operand_owners.get_mut(handle).declaration =
-                crate::item::ItemHandle::invalid();
+            self.supplied_operand_owners.get_mut(handle).declaration = ItemHandle::invalid();
             return;
         }
         self.supplied_operand_owners.insert(SuppliedOperandOwner {
             operand,
-            declaration: crate::item::ItemHandle::invalid(),
+            declaration: ItemHandle::invalid(),
         });
     }
 
@@ -293,7 +294,7 @@ impl TypeReferenceTable {
     pub(crate) fn remap_supplied_operand_owners(
         &mut self,
         frontier: usize,
-        declarations: &[(crate::item::ItemHandle, crate::item::ItemHandle)],
+        declarations: &[(ItemHandle, ItemHandle)],
     ) {
         let rows = self
             .supplied_operand_owners
@@ -442,7 +443,7 @@ impl TypeReferenceTable {
             .insert(RetainedConstArgumentNormalization {
                 argument,
                 normalization: ConstArgumentNormalization {
-                    authored_expression: crate::expression::ExpressionHandle::invalid(),
+                    authored_expression: ExpressionHandle::invalid(),
                     reference,
                     canonical_result_encoding,
                     selections,
@@ -454,7 +455,7 @@ impl TypeReferenceTable {
     pub fn retain_const_argument_expression(
         &mut self,
         argument: TypeReferenceHandle,
-        expression: crate::expression::ExpressionHandle,
+        expression: ExpressionHandle,
     ) {
         let handle = self
             .const_argument_normalizations
@@ -546,9 +547,7 @@ impl TypeReferenceTable {
     }
 
     /// Const-generic expression nodes awaiting the orchestration prepass.
-    pub fn const_expression_nodes(
-        &self,
-    ) -> Vec<(TypeReferenceHandle, crate::expression::ExpressionHandle)> {
+    pub fn const_expression_nodes(&self) -> Vec<(TypeReferenceHandle, ExpressionHandle)> {
         self.type_references
             .iter()
             .filter(|(handle, _)| !self.is_alias_header_reference(*handle))
@@ -846,7 +845,7 @@ pub enum TypeReferenceNode {
     /// monomorphization evaluates this against scoped integer consts, then
     /// replaces it with the canonical decimal `Named` leaf used by literal
     /// const arguments. It must never survive into symbol-resolved trees.
-    ConstExpression(crate::expression::ExpressionHandle),
+    ConstExpression(ExpressionHandle),
     /// `dyn Trait<Args>`: a runtime selector of one named implementation of
     /// exactly this trait application. It packages no data instance; every
     /// data value is an ordinary argument of the calls it selects.
@@ -920,8 +919,8 @@ impl FixedArrayLength {
 pub enum TypeConstraintNode {
     Named(Identifier),
     Range {
-        minimum: crate::expression::ExpressionHandle,
-        maximum: crate::expression::ExpressionHandle,
+        minimum: ExpressionHandle,
+        maximum: ExpressionHandle,
         /// The authored upper endpoint is inclusive only for `..=`. Preserve
         /// its expression so semantic checking precedes any predecessor step.
         end_inclusive: bool,

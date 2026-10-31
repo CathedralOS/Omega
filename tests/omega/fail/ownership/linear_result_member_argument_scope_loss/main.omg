@@ -1,7 +1,9 @@
 // FAIL: projecting one member of a claim-bearing call result leaves its sibling claim live on the owner; it cannot reach scope exit unconsumed.
 data Receipt [linear] { code: i32; }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 data Pair { left: Receipt; right: Receipt; }
 
@@ -23,14 +25,14 @@ machine issue(first: i32, second: i32) -> Pair {
 machine settle(pair: Pair) {
     let left: Receipt = pair.left;
     let right: Receipt = pair.right;
-    Receipt::ack(left);
-    Receipt::ack(right);
+    ReceiptAck::ack(left);
+    ReceiptAck::ack(right);
 }
 
 machine main() {
     let first: Pair = issue(1, 2);
     let second: Pair = issue(3, 4);
-    Receipt::ack(first.left);
-    Receipt::ack(first.right);
-    Receipt::ack(second.left);
+    ReceiptAck::ack(first.left);
+    ReceiptAck::ack(first.right);
+    ReceiptAck::ack(second.left);
 }

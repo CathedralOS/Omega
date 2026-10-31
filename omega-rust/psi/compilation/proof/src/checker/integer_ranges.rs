@@ -16,6 +16,7 @@ use arena::HandleSpan;
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::statement::TransitionGuardNode;
+use validation::land_anonymous_integer_expression;
 
 /// The argument-integer-range spine both operand-arg obligations share:
 /// anonymous-argument literal first, then literal-or-constraints.
@@ -241,13 +242,10 @@ fn anonymous_integer_argument_range(
 ) -> Option<IntegerRange> {
     let program = proof_plan.program;
     let primitive = program.primitive_type_reference(destination)?;
-    let (literal, _) = validation::land_anonymous_integer_expression(
-        program,
-        argument,
-        primitive,
-        &[],
-        |expression| validation::has_anonymous_operator_meaning(program, expression),
-    )?;
+    let (literal, _) =
+        land_anonymous_integer_expression(program, argument, primitive, &[], |expression| {
+            validation::has_anonymous_operator_meaning(program, expression)
+        })?;
     integer_range_for_literal(&literal)
 }
 

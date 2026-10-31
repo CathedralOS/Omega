@@ -6,6 +6,7 @@
 //! from checked death selection, never from the runtime value's type.
 
 use crate::interpreter::evaluator::{Cell, EvalResult, Evaluator, Frame, Halt};
+use checked_trees::CheckedUnitStructuralPathSegment;
 use checked_trees::{
     CheckedNormalCleanupAction, CheckedUnitCleanupBoundary, CheckedUnitEffectOperationPlan,
     CheckedUnitNominalAffineCleanupPlan,
@@ -15,7 +16,7 @@ use symbols::SymbolHandle;
 pub(super) struct ReplacementCleanup<'program> {
     action: &'program CheckedUnitNominalAffineCleanupPlan,
     receiver: Cell,
-    path: &'program [checked_trees::CheckedUnitStructuralPathSegment],
+    path: &'program [CheckedUnitStructuralPathSegment],
 }
 
 /// Physical assignment storage, captured before evaluating the RHS. A window
@@ -122,9 +123,7 @@ impl<'program> Evaluator<'program> {
                                 })?;
                                 (first, &[][..], tail)
                             };
-                        let checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) =
-                            first
-                        else {
+                        let CheckedUnitStructuralPathSegment::FixedIndex(index) = first else {
                             return Err(Halt::Unsupported(
                                 "array window cleanup lost its relative element".into(),
                             ));

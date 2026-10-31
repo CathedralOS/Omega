@@ -4,10 +4,12 @@ use super::{
     produced_effects, row_and_declaration, scalar_abi_cases, stack_pointer_view, validated_effects,
 };
 use register_model::RegisterOperandAccess;
+use selected_instructions::MachineEffectCatalogValidationError::InvalidEncodedEffects;
+use selected_instructions::validate_machine_effect_catalog;
 use selected_instructions::{
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
-    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEncodedControlEffect,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineMemoryEffect,
+    MachineSemanticKind, MachineTrapBehavior,
 };
 
 /// Every selected register-call rule key with the semantic family the effect
@@ -258,13 +260,8 @@ fn every_selected_call_rule_rejects_encoded_clobber_loss_on_every_target() {
             );
             encoded.implicit_unit_clobbers.remove(0);
             assert_eq!(
-                selected_instructions::validate_machine_effect_catalog(
-                    environment.constraints(),
-                    corrupted,
-                ),
-                Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
-                    semantic
-                )),
+                validate_machine_effect_catalog(environment.constraints(), corrupted),
+                Err(InvalidEncodedEffects(semantic)),
                 "{key:?} lost encoded clobber must reject"
             );
         }

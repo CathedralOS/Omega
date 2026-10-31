@@ -4,7 +4,8 @@
 //! a provider name, a sum spelling, or signature resemblance.
 
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, StructuralCaseId, StructuralFieldId, StructuralTypeId,
+    CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, IntegerValue, ScalarType,
+    StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
 use std::io::Read;
 use std::sync::{Arc, Mutex};
@@ -54,9 +55,7 @@ impl<'input> ReadByteImport<'input> {
         let [field] = byte.fields.as_slice() else {
             return Err(invalid());
         };
-        let Some(semantic_vocabulary::ScalarType::Integer(carrier)) =
-            field.field_type.scalar_type()
-        else {
+        let Some(ScalarType::Integer(carrier)) = field.field_type.scalar_type() else {
             return Err(invalid());
         };
         if signature.completion != BoundaryCompletion::NormalReturn
@@ -141,14 +140,7 @@ impl TerminalEffectHandler for ReadByteImport<'_> {
                 result_case: Some(result_case),
                 fields: fields
                     .into_iter()
-                    .map(|(field, value)| {
-                        (
-                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                                field,
-                            )],
-                            value,
-                        )
-                    })
+                    .map(|(field, value)| (vec![Path::Field(field)], value))
                     .collect(),
             },
         ))

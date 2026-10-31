@@ -5,6 +5,8 @@
 //! Unknown observations stay opaque; different descriptor fields do not prove
 //! disjointness of the indirect backing they observe.
 use crate::exactly_one::exactly_one;
+use crate::projected_field_declaration;
+use crate::structural_paths_may_overlap;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Segment, ContentProjectionExpression,
     ContentProjectionScalar, PlaceId, Proposition, ScalarReadProjection, ScalarTerm, ScalarType,
@@ -320,7 +322,7 @@ pub fn domain_write_is_disjoint<'a>(
     content_dependencies(types.clone(), identities, domain, &mut paths).is_some()
         && paths.iter().all(|path| {
             storage_path(types.clone(), domain.carrier, path)
-                .is_some_and(|dependency| !crate::structural_paths_may_overlap(&dependency, write))
+                .is_some_and(|dependency| !structural_paths_may_overlap(&dependency, write))
         })
 }
 
@@ -372,7 +374,7 @@ fn domain_content_write_is_disjoint<'a>(
     content_dependencies(types.clone(), identities, domain, &mut dependencies).is_some()
         && dependencies.iter().all(|dependency| {
             storage_path(types.clone(), domain.carrier, dependency)
-                .is_some_and(|dependency| !crate::structural_paths_may_overlap(&dependency, write))
+                .is_some_and(|dependency| !structural_paths_may_overlap(&dependency, write))
         })
 }
 
@@ -401,7 +403,7 @@ pub fn store_preserves_qualifications<'a>(
     };
     whole.iter().all(|domain| preserved(*domain, write))
         && projected.iter().all(|row| {
-            if !crate::structural_paths_may_overlap(&row.path, write) {
+            if !structural_paths_may_overlap(&row.path, write) {
                 return true;
             }
             write
@@ -430,7 +432,7 @@ pub fn store_preserves_domain_content<'a>(
     };
     whole.iter().all(|domain| preserved(*domain, write))
         && projected.iter().all(|row| {
-            !crate::structural_paths_may_overlap(&row.path, write)
+            !structural_paths_may_overlap(&row.path, write)
                 || write
                     .strip_prefix(row.path.as_slice())
                     .is_some_and(|relative| preserved(row.domain, relative))
@@ -450,8 +452,7 @@ pub fn scalar_field_store_preserves_domain_content<'a>(
     path: &[StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> bool {
-    let Some(declaration) = crate::projected_field_declaration(types.clone(), root, path, field)
-    else {
+    let Some(declaration) = projected_field_declaration(types.clone(), root, path, field) else {
         return false;
     };
     let mut write = path.to_vec();
@@ -476,9 +477,7 @@ pub fn reference_preserves_ancestor_qualifications<'a>(
     }
     let ancestors = projected
         .iter()
-        .filter(|row| {
-            row.path.len() < path.len() && crate::structural_paths_may_overlap(&row.path, path)
-        })
+        .filter(|row| row.path.len() < path.len() && structural_paths_may_overlap(&row.path, path))
         .cloned()
         .collect::<Vec<_>>();
     store_preserves_qualifications(types, domains, identities, whole, &ancestors, path)
@@ -496,8 +495,7 @@ pub fn scalar_field_store_preserves_content<'a>(
     path: &[StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> bool {
-    let Some(declaration) = crate::projected_field_declaration(types.clone(), root, path, field)
-    else {
+    let Some(declaration) = projected_field_declaration(types.clone(), root, path, field) else {
         return false;
     };
     let mut write = path.to_vec();
@@ -538,7 +536,7 @@ pub fn store_preserves_content<'a>(
             ) else {
                 return false;
             };
-            if !crate::structural_paths_may_overlap(&input, &write) {
+            if !structural_paths_may_overlap(&input, &write) {
                 return true;
             }
             let Some(relative) = write.strip_prefix(input.as_slice()) else {

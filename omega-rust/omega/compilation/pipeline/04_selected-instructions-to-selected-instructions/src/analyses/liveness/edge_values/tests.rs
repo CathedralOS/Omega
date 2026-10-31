@@ -1,5 +1,6 @@
 //! Operation control has physical liveness, but no authored edge transport.
 use super::*;
+use optimization_unit::FuelSettlement;
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance,
@@ -115,13 +116,10 @@ fn operation_trap_has_no_successor_and_rejects_forged_lineage() {
             1 => instruction.provenance.edges.push(EdgeId::new(3).unwrap()),
             2 => instruction.provenance.operations.clear(),
             3 => instruction.kind = SelectedInstructionKind::ReturnUnit,
-            _ => instruction
-                .provenance
-                .fuel
-                .push(optimization_unit::FuelSettlement {
-                    site: optimization_unit::PsiProvenance::Operation(*operation),
-                    units: 1,
-                }),
+            _ => instruction.provenance.fuel.push(FuelSettlement {
+                site: optimization_unit::PsiProvenance::Operation(*operation),
+                units: 1,
+            }),
         }
         assert!(validate_transports(0, &changed).is_err());
     }
@@ -181,7 +179,7 @@ fn operation_control_rejects_semantic_authority_and_changed_owners() {
     changed(&|function| {
         selected_instructions::terminator_successors_mut(&mut function.blocks[0].terminator)[0]
             .fuel
-            .push(optimization_unit::FuelSettlement {
+            .push(FuelSettlement {
                 site: optimization_unit::PsiProvenance::Operation(OperationId::new(2).unwrap()),
                 units: 1,
             })

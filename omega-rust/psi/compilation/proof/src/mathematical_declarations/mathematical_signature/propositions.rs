@@ -8,6 +8,10 @@ use typed_trees::expression::{
 };
 
 use super::{Elaborator, ScalarCarrier};
+use numerics::literals::FloatFormat;
+use typed_trees::proposition::ProofSubstitutions;
+use typed_trees::types::PrimitiveType;
+use validation::mathematical_applications::operand_type_reference;
 
 impl<'a> Elaborator<'a> {
     /// is a proposition form at all — `None` names an ordinary term and
@@ -144,15 +148,12 @@ impl<'a> Elaborator<'a> {
             .ok_or_else(|| {
                 self.refuse(format!(
                     "cannot determine a shared scalar carrier for `{}`",
-                    self.program.render_proof_expression(
-                        handle,
-                        typed_trees::proposition::ProofSubstitutions::None
-                    )
+                    self.program
+                        .render_proof_expression(handle, ProofSubstitutions::None)
                 ))
             })?;
-        let references = [binary.left, binary.right].map(|operand| {
-            validation::mathematical_applications::operand_type_reference(self.program, operand)
-        });
+        let references = [binary.left, binary.right]
+            .map(|operand| operand_type_reference(self.program, operand));
         if let Some(term) = self.float_comparison(handle, binary, Some(carrier))? {
             return Ok(term);
         }
@@ -198,9 +199,8 @@ impl<'a> Elaborator<'a> {
         let carrier = self
             .operand_carrier(binary.left)
             .or_else(|| self.operand_carrier(binary.right));
-        let references = [binary.left, binary.right].map(|operand| {
-            validation::mathematical_applications::operand_type_reference(self.program, operand)
-        });
+        let references = [binary.left, binary.right]
+            .map(|operand| operand_type_reference(self.program, operand));
         if let Some(term) = self.float_comparison(handle, binary, carrier)? {
             return Ok(term);
         }
@@ -252,17 +252,12 @@ impl<'a> Elaborator<'a> {
         carrier: Option<ScalarCarrier>,
     ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
         let (carrier, format) = match carrier {
-            Some(ScalarCarrier::Float32) => {
-                (ScalarCarrier::Float32, numerics::literals::FloatFormat::F32)
-            }
-            Some(ScalarCarrier::Float64) => {
-                (ScalarCarrier::Float64, numerics::literals::FloatFormat::F64)
-            }
+            Some(ScalarCarrier::Float32) => (ScalarCarrier::Float32, FloatFormat::F32),
+            Some(ScalarCarrier::Float64) => (ScalarCarrier::Float64, FloatFormat::F64),
             _ => return Ok(None),
         };
-        let references = [binary.left, binary.right].map(|operand| {
-            validation::mathematical_applications::operand_type_reference(self.program, operand)
-        });
+        let references = [binary.left, binary.right]
+            .map(|operand| operand_type_reference(self.program, operand));
         if !validation::has_builtin_or_sealed_float_comparison_meaning(
             self.program,
             self.source_owner,
@@ -275,13 +270,8 @@ impl<'a> Elaborator<'a> {
         let Some(reference) = references.into_iter().flatten().find(|reference| {
             matches!(
                 (self.program.primitive_type_reference(*reference), format),
-                (
-                    Some(typed_trees::types::PrimitiveType::F32),
-                    numerics::literals::FloatFormat::F32
-                ) | (
-                    Some(typed_trees::types::PrimitiveType::F64),
-                    numerics::literals::FloatFormat::F64
-                )
+                (Some(PrimitiveType::F32), FloatFormat::F32)
+                    | (Some(PrimitiveType::F64), FloatFormat::F64)
             )
         }) else {
             return Ok(None);
@@ -348,10 +338,8 @@ impl<'a> Elaborator<'a> {
                 None => {
                     return Err(self.refuse(format!(
                         "operand `{}` of a proposition connective is not a proposition",
-                        self.program.render_proof_expression(
-                            operand,
-                            typed_trees::proposition::ProofSubstitutions::None
-                        )
+                        self.program
+                            .render_proof_expression(operand, ProofSubstitutions::None)
                     )));
                 }
             }

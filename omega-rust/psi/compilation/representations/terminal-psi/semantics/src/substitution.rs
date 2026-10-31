@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 
 use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
 
+use semantic_vocabulary::ScalarReadProjection;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentConservation, ContentStructuralPlace, ContentTerm,
     IntegerMathTerm, PlaceId, Proposition, ScalarTerm, ValueId,
@@ -318,13 +319,13 @@ fn substitute_scalar_term_places(
                     let mut rebased = prefix
                         .iter()
                         .copied()
-                        .map(semantic_vocabulary::ScalarReadProjection::from)
+                        .map(ScalarReadProjection::from)
                         .collect::<Vec<_>>();
                     rebased.append(path);
                     *path = rebased;
                 }
                 for projection in path {
-                    if let semantic_vocabulary::ScalarReadProjection::Index(index) = projection {
+                    if let ScalarReadProjection::Index(index) = projection {
                         substitute(index, substitutions);
                     }
                 }
@@ -768,17 +769,11 @@ pub(super) fn substitute_scalar_term_values(
             path: path
                 .iter()
                 .map(|projection| match projection {
-                    semantic_vocabulary::ScalarReadProjection::Referent => {
-                        semantic_vocabulary::ScalarReadProjection::Referent
-                    }
-                    semantic_vocabulary::ScalarReadProjection::Extent => {
-                        semantic_vocabulary::ScalarReadProjection::Extent
-                    }
-                    semantic_vocabulary::ScalarReadProjection::Static(segment) => {
-                        semantic_vocabulary::ScalarReadProjection::Static(*segment)
-                    }
-                    semantic_vocabulary::ScalarReadProjection::Index(index) => {
-                        semantic_vocabulary::ScalarReadProjection::Index(Box::new(recurse(index)))
+                    ScalarReadProjection::Referent => ScalarReadProjection::Referent,
+                    ScalarReadProjection::Extent => ScalarReadProjection::Extent,
+                    ScalarReadProjection::Static(segment) => ScalarReadProjection::Static(*segment),
+                    ScalarReadProjection::Index(index) => {
+                        ScalarReadProjection::Index(Box::new(recurse(index)))
                     }
                 })
                 .collect(),

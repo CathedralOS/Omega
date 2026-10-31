@@ -8,8 +8,7 @@
 mod compute;
 mod custody;
 
-use crate::StagedOptimizedLiveness;
-use crate::{LiveRangeError, ValidatedLiveRanges, ValidatedLiveness};
+use crate::{LiveRangeError, StagedOptimizedLiveness, ValidatedLiveRanges, ValidatedLiveness};
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,

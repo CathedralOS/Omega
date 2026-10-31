@@ -2,8 +2,7 @@
 //!
 //! Check that the liveness prerequisite belongs to the selected program
 //! before the producer inspects it. `validate` is the retained-plan verifier.
-use crate::ValidatedLiveness;
-use crate::ValidatedSelectedAnalysis;
+use crate::{ValidatedLiveness, ValidatedSelectedAnalysis};
 
 pub(crate) mod compute;
 pub(crate) mod validate;

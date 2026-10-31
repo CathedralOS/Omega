@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::error::{SourceResolveError, git_tree_invalid};
+use crate::error::{SourceResolveError, git_tree_invalid, too_many_bytes};
 use crate::limits::LocalSourceLimits;
 
 use super::super::tree::validate_git_symlink_target;
@@ -27,16 +27,11 @@ pub(crate) fn git_batch_output_limit(
     let mut payload_bytes = 0_u64;
     let mut output_bytes = 0_usize;
     for entry in entries.iter().filter(|entry| entry.kind.carries_blob()) {
-        payload_bytes =
-            payload_bytes
-                .checked_add(entry.size)
-                .ok_or(SourceResolveError::TooManyBytes {
-                    limit: limits.max_bytes,
-                })?;
+        payload_bytes = payload_bytes
+            .checked_add(entry.size)
+            .ok_or(too_many_bytes(limits.max_bytes))?;
         if payload_bytes > limits.max_bytes {
-            return Err(SourceResolveError::TooManyBytes {
-                limit: limits.max_bytes,
-            });
+            return Err(too_many_bytes(limits.max_bytes));
         }
         let size = usize::try_from(entry.size).map_err(|_| {
             git_tree_invalid(entry.oid.as_bytes(), "blob cannot fit in host memory")

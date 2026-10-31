@@ -1,5 +1,8 @@
+use crate::expression::ExpressionHandle;
 use crate::identifier::Identifier;
+use crate::statement::StatementHandle;
 use crate::syntax_trees::paged_roster::paged_roster;
+use crate::types::TypeReferenceHandle;
 use arena::{Handle, HandleSpan};
 use language_core::operator_spelling::OperatorSpelling;
 
@@ -94,8 +97,8 @@ pub struct ConstDefinition {
     pub scope: Identifier,
     pub name: Identifier,
     pub is_public: bool,
-    pub type_reference: crate::types::TypeReferenceHandle,
-    pub value: crate::expression::ExpressionHandle,
+    pub type_reference: TypeReferenceHandle,
+    pub value: ExpressionHandle,
     /// Declaration readiness found a target observation in this initializer
     /// closure. This delays evaluation; it grants no target or call authority.
     pub pending_target_observation: bool,
@@ -119,8 +122,8 @@ pub struct ConstDefinition {
     compiler_storage::Record,
 )]
 pub struct ConstQualification {
-    pub destination: crate::types::TypeReferenceHandle,
-    pub initializer: crate::expression::ExpressionHandle,
+    pub destination: TypeReferenceHandle,
+    pub initializer: ExpressionHandle,
 }
 
 /// A required checked destination judgment, never an accepted receipt.
@@ -134,8 +137,8 @@ pub struct ConstQualification {
 )]
 pub struct ConstDestinationObligation {
     pub declaration: source::SourceSpan,
-    pub destination: crate::types::TypeReferenceHandle,
-    pub initializer: crate::expression::ExpressionHandle,
+    pub destination: TypeReferenceHandle,
+    pub initializer: ExpressionHandle,
 }
 
 /// Custody at one preparation boundary. Exact rosters have one owner: source
@@ -164,7 +167,7 @@ pub struct ConstInitializerNormalization {
     pub authored_custody: ConstInitializerCustody,
     /// Complete selected declaration preparation, including uninvoked members.
     pub declaration_custody: ConstInitializerCustody,
-    pub authored_expression: crate::expression::ExpressionHandle,
+    pub authored_expression: ExpressionHandle,
     pub result_value: language_core::constant_value::EvaluatedConstant,
     /// Realized value custody, reconstructed again before receiving execution.
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
@@ -275,7 +278,7 @@ paged_roster! {
         arena parameter_handles: StateParameterHandle,
         arena state_handles: StateHandle,
         arena signature_handles: StateSignatureHandle,
-        arena statement_handles: crate::statement::StatementHandle,
+        arena statement_handles: StatementHandle,
         arena machines: MachineNode,
         arena traits: TraitNode,
     }
@@ -516,10 +519,7 @@ impl ItemTable {
         self.state_storage.state_handles.span_or_empty(span)
     }
 
-    pub fn statements(
-        &self,
-        span: HandleSpan<crate::statement::StatementHandle>,
-    ) -> &[crate::statement::StatementHandle] {
+    pub fn statements(&self, span: HandleSpan<StatementHandle>) -> &[StatementHandle] {
         self.state_storage.statement_handles.span_or_empty(span)
     }
 
@@ -548,10 +548,7 @@ impl ItemTable {
         self.state_storage.signature_handles.append(handle)
     }
 
-    pub fn append_statement_handle(
-        &mut self,
-        handle: crate::statement::StatementHandle,
-    ) -> Handle<crate::statement::StatementHandle> {
+    pub fn append_statement_handle(&mut self, handle: StatementHandle) -> Handle<StatementHandle> {
         self.state_storage.statement_handles.append(handle)
     }
 
@@ -696,7 +693,7 @@ fn proof_fact_source_span_handle(handle: Handle<ProofFact>) -> Handle<Option<sou
 )]
 pub struct StateParameterNode {
     pub name: Identifier,
-    pub type_reference: crate::types::TypeReferenceHandle,
+    pub type_reference: TypeReferenceHandle,
     pub is_const: bool,
     pub is_mutable: bool,
     pub relevance: language_core::BindingRelevance,
@@ -738,7 +735,7 @@ pub struct MachineNode {
 pub struct TraitNode {
     pub is_boundary: bool,
     pub name: Identifier,
-    pub parents: HandleSpan<crate::types::TypeReferenceHandle>,
+    pub parents: HandleSpan<TypeReferenceHandle>,
     pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
 }
