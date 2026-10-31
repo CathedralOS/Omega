@@ -1,5 +1,5 @@
-//! Ordered value-pattern compatibility and coverage. Destination checks still
-//! visit every result arm, including arms whose runtime execution is excluded.
+//! Ordered value-pattern compatibility and coverage. Every source pattern is
+//! formed; result joins consume the arms that have an admitted arriving value.
 //! Result loans and owned transfers are established by their mandatory borrow
 //! and multiplicity passes. A second type-only source-shape gate cannot decide
 //! that custody: it rejected ordinary selected constructors before those passes
@@ -170,7 +170,7 @@ pub fn validate_match_dispatch(
     if !wildcard
         && !(subject_boolean && boolean_values == [true, true])
         && !structural.is_some_and(|reference| {
-            structural_match_cases_are_covered(program, reference, &covered_cases)
+            structural_match_cases_are_covered(program, reference, expression, &covered_cases)
         })
     {
         diagnostics.push(Diagnostic::error(
@@ -180,17 +180,39 @@ pub fn validate_match_dispatch(
     if arms.is_empty() {
         return;
     }
+    let live_arms = arms
+        .iter()
+        .filter(|arm| !program.static_type_context_is_unreachable(arm.value))
+        .collect::<Vec<_>>();
+    let declared_arms = live_arms
+        .iter()
+        .map(|arm| {
+            declared_value_type(program, machine, state, arm.value)
+                .map(|reference| (arm.value, reference))
+        })
+        .collect::<Option<Vec<_>>>();
+    if declared_arms
+        .as_deref()
+        .and_then(|values| program.common_static_type_reference(values))
+        .is_some()
+    {
+        return;
+    }
     // A declared peer supplies a destination for anonymous arms. If every arm
     // remains anonymous, its enclosing storage/call/result supplies that
     // destination instead; selecting a fixed integer width here would move the
     // language's literal landing boundary.
-    let peer = arms
+    let Some(peer) = live_arms
         .iter()
         .find(|arm| declared_value_type(program, machine, state, arm.value).is_some())
-        .unwrap_or(&arms[0])
-        .value;
+        .copied()
+        .or_else(|| live_arms.first().copied())
+    else {
+        return;
+    };
+    let peer = peer.value;
     if let Some(destination) = declared_value_type(program, machine, state, peer) {
-        for arm in arms {
+        for arm in &live_arms {
             crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_range(
                 program,
                 destination,
@@ -200,7 +222,7 @@ pub fn validate_match_dispatch(
             );
         }
     }
-    for arm in arms {
+    for arm in &live_arms {
         check_compatible_values(
             program,
             machine,

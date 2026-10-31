@@ -754,12 +754,12 @@ fn synthesize_instance(
         };
         // A carried expression fact decides its nested `type`-binder
         // equalities against this instance's arguments, folding each decided
-        // node to the literal witness the case `where` copy already uses: a
-        // decided-true equation reads `1`, a decided-false one `0`, so a
+        // node to a literal witness: a decided-true equation reads `1`,
+        // a decided-false one `0`, so a
         // case-dependent disjunct collapses on the impossible branch and the
         // surviving branch keeps its membership and value couplings. Binder
-        // spellings outside a decided equality stay symbolic -- the lowering
-        // gate already refused binder mentions in other positions.
+        // spellings outside a decided equality retain their ordinary lexical
+        // binding and remain obligations of the complete predicate.
         if let Some(copied_root) = copied_root {
             super::substitution::decide_instance_type_equalities(
                 syntax,
@@ -833,12 +833,8 @@ fn synthesize_instance(
             snapshot,
             member,
             &substitution,
-            &type_identities,
             &impossible_variants,
-            selection,
-            &instance.synthetic_name,
             const_values,
-            &const_parameter_scalars,
             warnings,
         )
         .map_err(|diagnostic| vec![diagnostic])?;

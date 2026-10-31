@@ -1011,11 +1011,24 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         let child_frontier = self.expressions.len();
         self.expression_dependencies(expression)?;
         if initializer {
-            // Only expression children appended by this visit inherit this
-            // boundary. Deferred machine bodies and type geometry do not.
-            for index in child_frontier..self.expressions.len() {
-                let child = self.expressions[index];
-                if !self.initializer_expressions.contains(&child) {
+            // Constructor discovery can append declaration predicates as well
+            // as value operands. Only the actual expression edges inherit this
+            // initializer's operator custody. Using the worklist suffix alone
+            // makes the inventory depend on whether an unfurled template or a
+            // closed instance was discovered first; declaration work retains
+            // its own readiness owner in either order.
+            let children = expression_child_handles(
+                self.program,
+                self.program
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression(expression),
+            );
+            for child in children {
+                if self.expressions[child_frontier..].contains(&child)
+                    && !self.initializer_expressions.contains(&child)
+                {
                     self.initializer_expressions.push(child);
                 }
             }

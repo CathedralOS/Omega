@@ -114,6 +114,8 @@ impl TypedTrees {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticTypeContexts {
     boolean_equalities: Vec<ExpressionHandle>,
+    completed_case_values: Vec<(ExpressionHandle, bool)>,
+    admitted_match_cases: Vec<(ExpressionHandle, Vec<symbols::SymbolHandle>)>,
     rows: Vec<(ExpressionHandle, Vec<TypeWorld>)>,
     transition_rows: Vec<(crate::statement::TransitionTargetHandle, Vec<TypeWorld>)>,
 }
@@ -524,7 +526,13 @@ impl TypedTrees {
     /// establishes them. Rebuild after specialization; no caller chooses the
     /// assumptions of an unspecialized template.
     pub fn prepare_static_type_contexts(&mut self, boolean_equalities: &[ExpressionHandle]) {
-        self.static_type_contexts.boolean_equalities = boolean_equalities.to_vec();
+        // Rebuild from declaration premises only. Retaining the previous
+        // batch's pure tag decisions would skip their own observations and
+        // then overwrite them with absence during the next preparation pass.
+        self.static_type_contexts = StaticTypeContexts {
+            boolean_equalities: boolean_equalities.to_vec(),
+            ..Default::default()
+        };
         use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
         let mut contexts = StaticContextBuilder::default();
         for machine in self.machines() {
@@ -746,6 +754,16 @@ impl TypedTrees {
         if !self.expression_table.expression_is_valid(expression) || active.contains(&expression) {
             return None;
         }
+        if let Ok(position) = self
+            .static_type_contexts
+            .completed_case_values
+            .binary_search_by_key(
+                &(expression.arena_index(), expression.generation()),
+                |(expression, _)| (expression.arena_index(), expression.generation()),
+            )
+        {
+            return Some(self.static_type_contexts.completed_case_values[position].1);
+        }
         if let Some(value) = self.static_type_predicate_value(expression) {
             return Some(value);
         }
@@ -831,5 +849,173 @@ impl TypedTrees {
                 _ => return expression,
             };
         }
+    }
+}
+
+/// Equations admitted by the ordinary executed-prefix predicate judgment.
+/// Empty reachable paths denote contradiction, never a conversion.
+pub struct ProvenTypeContext {
+    pub expression: ExpressionHandle,
+    pub equations: Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
+    pub reachable: bool,
+    /// A pure tag observation of an already completed Match subject. Folding
+    /// this test cannot omit source evaluation or an effectful pattern guard.
+    pub case_value: Option<bool>,
+    pub admitted_cases: Option<Vec<symbols::SymbolHandle>>,
+}
+
+impl TypedTrees {
+    pub fn retain_proven_type_contexts(&mut self, mut contexts: Vec<ProvenTypeContext>) {
+        // A retained expression can occur in several substitutions or scopes.
+        // Union its reachable paths and intersect their equations before
+        // installing anything. Refused occurrences carry no equations.
+        contexts.sort_unstable_by_key(|context| {
+            (
+                context.expression.arena_index(),
+                context.expression.generation(),
+            )
+        });
+        let mut joined: Vec<ProvenTypeContext> = Vec::new();
+        for context in contexts {
+            if let Some(previous) = joined
+                .last_mut()
+                .filter(|previous| previous.expression == context.expression)
+            {
+                if context.reachable {
+                    if previous.reachable {
+                        match (&mut previous.admitted_cases, context.admitted_cases) {
+                            (Some(previous), Some(cases)) => {
+                                for case in cases {
+                                    if !previous.contains(&case) {
+                                        previous.push(case);
+                                    }
+                                }
+                            }
+                            _ => previous.admitted_cases = None,
+                        }
+                        if previous.case_value != context.case_value {
+                            previous.case_value = None;
+                        }
+                        previous
+                            .equations
+                            .retain(|equation| context.equations.contains(equation));
+                    } else {
+                        previous.equations = context.equations;
+                        previous.case_value = context.case_value;
+                        previous.admitted_cases = context.admitted_cases;
+                    }
+                    previous.reachable = true;
+                }
+            } else {
+                joined.push(context);
+            }
+        }
+        // A query cannot consume the equation it is currently trying to prove.
+        self.static_type_contexts.completed_case_values = joined
+            .iter()
+            .filter_map(|context| context.case_value.map(|value| (context.expression, value)))
+            .collect();
+        self.static_type_contexts.admitted_match_cases = joined
+            .iter()
+            .filter_map(|context| {
+                context
+                    .admitted_cases
+                    .as_ref()
+                    .map(|cases| (context.expression, cases.clone()))
+            })
+            .collect();
+        for context in joined {
+            let key = (
+                context.expression.arena_index(),
+                context.expression.generation(),
+            );
+            let position = match self
+                .static_type_contexts
+                .rows
+                .binary_search_by_key(&key, |(expression, _)| {
+                    (expression.arena_index(), expression.generation())
+                }) {
+                Ok(position) => position,
+                Err(position) => {
+                    self.static_type_contexts
+                        .rows
+                        .insert(position, (context.expression, vec![TypeWorld::default()]));
+                    position
+                }
+            };
+            let mut worlds = self.static_type_contexts.rows[position].1.clone();
+            if !context.reachable {
+                worlds.clear();
+            } else {
+                for (parameter, definition) in context.equations {
+                    worlds = worlds
+                        .into_iter()
+                        .filter_map(|world| world.constrain(self, parameter, definition, true))
+                        .collect();
+                }
+            }
+            self.static_type_contexts.rows[position].1 = worlds;
+        }
+    }
+
+    /// The union of cases possible on every observed subject-completion path.
+    /// Absence retains ordinary declaration coverage; this is never a promise
+    /// borrowed from a receiving type or a later case guard.
+    pub fn admitted_match_cases(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<&[symbols::SymbolHandle]> {
+        self.static_type_contexts
+            .admitted_match_cases
+            .binary_search_by_key(
+                &(expression.arena_index(), expression.generation()),
+                |(expression, _)| (expression.arena_index(), expression.generation()),
+            )
+            .ok()
+            .map(|position| {
+                self.static_type_contexts.admitted_match_cases[position]
+                    .1
+                    .as_slice()
+            })
+    }
+
+    /// A join exports a type only when it equals each delivered arm under that
+    /// arm's own premises. Distinct arm carriers cannot choose each other's
+    /// type; an independently proved common binder is required.
+    pub fn common_static_type_reference(
+        &self,
+        values: &[(ExpressionHandle, TypeReferenceHandle)],
+    ) -> Option<TypeReferenceHandle> {
+        let &(first_expression, _) = values.first()?;
+        let mut candidates = Vec::new();
+        if let Ok(position) = self.static_type_contexts.rows.binary_search_by_key(
+            &(
+                first_expression.arena_index(),
+                first_expression.generation(),
+            ),
+            |(expression, _)| (expression.arena_index(), expression.generation()),
+        ) {
+            for world in &self.static_type_contexts.rows[position].1 {
+                for &(symbol, _) in &world.bindings {
+                    for (reference, node) in self.type_reference_table.type_reference_rows() {
+                        if matches!(node, crate::types::TypeReferenceNode::Named { symbol: formal, .. } if *formal == symbol)
+                            && !candidates.contains(&reference)
+                        {
+                            candidates.push(reference);
+                        }
+                    }
+                }
+            }
+        }
+        candidates.into_iter().find(|&candidate| {
+            values.iter().all(|&(expression, reference)| {
+                self.static_type_context_is_unreachable(expression)
+                    || self.normalized_type_identity(
+                        self.statically_refined_type_reference(expression, candidate),
+                    ) == self.normalized_type_identity(
+                        self.statically_refined_type_reference(expression, reference),
+                    )
+            })
+        })
     }
 }

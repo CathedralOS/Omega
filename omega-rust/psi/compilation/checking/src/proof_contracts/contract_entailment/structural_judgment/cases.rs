@@ -70,18 +70,36 @@ impl StructuralJudge<'_> {
             typed_trees::expression::StaticMachineArgument,
         )],
     ) -> StructuralJudgment {
+        self.instantiated_case_guarantee(scope, parameters, fact, map, machine_map)
+            .map_or(StructuralJudgment::Unknown, |guarantee| {
+                self.judge_case(guarantee.subject, guarantee.data, guarantee.case)
+            })
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn instantiated_case_guarantee(
+        &self,
+        scope: SymbolHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        fact: ExpressionHandle,
+        map: &[(String, StructuralTerm)],
+        machine_map: &[(
+            SymbolHandle,
+            TypeReferenceHandle,
+            typed_trees::expression::StaticMachineArgument,
+        )],
+    ) -> Option<CaseGuarantee> {
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
-            return StructuralJudgment::Unknown;
+            return None;
         };
         if !crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
             self.program, scope, parameters, fact, binary,
         ) {
-            return StructuralJudgment::Unknown;
+            return None;
         }
         let Some((definition, variant)) =
             structural_terms::case_classifier(self.program, binary.right)
         else {
-            return StructuralJudgment::Unknown;
+            return None;
         };
         // A subject whose declared type is a closed generic application
         // observes its prepared carrier's tags. The authored case reference
@@ -104,10 +122,12 @@ impl StructuralJudge<'_> {
                 .program
                 .type_reference_table
                 .peeled_type_reference(reference);
-            if let Some(applied) = self.program.closed_data_definition(reference)
-                && let Some(applied_variant) = self
-                    .program
-                    .closed_data_constructor_case(reference, variant.symbol)
+            if let Some(applied) = self
+                .program
+                .data_constructor_definition(reference, definition.symbol)
+                && let Some(applied_variant) =
+                    self.program
+                        .data_constructor_case(reference, definition.symbol, variant.symbol)
             {
                 case_owner = applied.symbol;
                 case_symbol = applied_variant.symbol;
@@ -120,13 +140,13 @@ impl StructuralJudge<'_> {
             binary.left,
             None,
         ) else {
-            return StructuralJudgment::Unknown;
+            return None;
         };
-        self.judge_case(
-            Self::substitute_call_term(&subject, map, machine_map),
-            case_owner,
-            case_symbol,
-        )
+        Some(CaseGuarantee {
+            subject: Self::substitute_call_term(&subject, map, machine_map),
+            data: case_owner,
+            case: case_symbol,
+        })
     }
 
     /// The selected public telescope owns tag formation too. A retained

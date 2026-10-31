@@ -211,7 +211,12 @@ impl Builder<'_, '_> {
                         expression,
                     },
                 path: Vec::new(),
-                type_identity: self.program.normalized_type_identity(reference),
+                type_identity: validation::stored_structural_type_identity(
+                    self.program,
+                    reference,
+                    &[],
+                    &[],
+                ),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             },
         );
@@ -288,7 +293,7 @@ impl Builder<'_, '_> {
                 projection_evaluations: Default::default(),
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
                 path: Vec::new(),
-                type_identity: self.program.normalized_type_identity(reference),
+                type_identity: validation::stored_structural_type_identity(self.program, reference, &[], &[]),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             }
         ), receiver))

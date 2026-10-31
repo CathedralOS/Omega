@@ -638,6 +638,11 @@ impl TypedTrees {
         if !self.type_reference_table.contains_type_reference(reference) {
             return None;
         }
+        // A qualification contributes theory, not another nominal carrier.
+        // Constructor correspondence never establishes that theory itself.
+        let reference = self
+            .type_reference_table
+            .unconstrained_type_reference(reference);
         // A representation's field view keeps T's constructor authority and
         // complete generic application. Its physical application and policy
         // remain the value's type; they are not the origin of T's constructor.

@@ -291,6 +291,9 @@ impl ScanContext<'_> {
         executes: bool,
     ) {
         let program = self.program;
+        // Formation still visits every authored term; operational obligations
+        // belong only to prefixes that reach it.
+        let executes = executes && !program.static_type_context_is_unreachable(expression);
         let machine = self.machine;
         let state = self.state;
         let symbols = self.symbols;
@@ -663,12 +666,8 @@ impl ScanContext<'_> {
                     right_environment.as_ref().unwrap_or(value_environment),
                     executes
                         && !matches!(
-                            (
-                                binary.operator,
-                                expression_table(program).expression(binary.left)
-                            ),
-                            (BinaryOperator::And, ExpressionNode::Boolean(false))
-                                | (BinaryOperator::Or, ExpressionNode::Boolean(true))
+                            (binary.operator, program.static_boolean_value(binary.left)),
+                            (BinaryOperator::And, Some(false)) | (BinaryOperator::Or, Some(true))
                         ),
                 );
             }

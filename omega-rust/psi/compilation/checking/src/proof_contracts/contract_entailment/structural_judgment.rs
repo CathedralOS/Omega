@@ -816,6 +816,7 @@ impl<'program> StructuralJudge<'program> {
                     continue;
                 }
                 let mut matched_read = entry.completed_read;
+                let mut matched_case = entry.selected_case;
                 let mut matched_current = entry.current.clone();
                 let mut matched_entry = entry.entry.clone();
                 let mut matched_backing = entry.backing.clone();
@@ -831,6 +832,9 @@ impl<'program> StructuralJudge<'program> {
                     };
                     if matched_backing != other.backing {
                         matched_backing = None;
+                    }
+                    if matched_case != other.selected_case {
+                        matched_case = None;
                     }
                     if matched_read != other.completed_read {
                         matched_read = None;
@@ -866,7 +870,11 @@ impl<'program> StructuralJudge<'program> {
                         }
                     }
                 }
-                if all_have_coord && (matched_current.is_some() || matched_entry.is_some()) {
+                if all_have_coord
+                    && (matched_current.is_some()
+                        || matched_entry.is_some()
+                        || matched_case.is_some())
+                {
                     if matched_current.is_none() {
                         matched_read = None;
                     }
@@ -874,6 +882,7 @@ impl<'program> StructuralJudge<'program> {
                         coordinate: entry.coordinate.clone(),
                         entry: matched_entry,
                         current: matched_current,
+                        selected_case: matched_case,
                         completed_read: matched_read,
                         backing: matched_backing,
                     });

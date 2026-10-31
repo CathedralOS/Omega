@@ -104,6 +104,7 @@ impl Execution<'_, '_, '_> {
                 covered |= validation::structural_match_cases_are_covered(
                     self.program,
                     reference,
+                    expression,
                     &case_coverage,
                 );
             }

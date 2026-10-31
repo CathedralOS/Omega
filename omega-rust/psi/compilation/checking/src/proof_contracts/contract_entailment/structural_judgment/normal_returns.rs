@@ -104,6 +104,7 @@ pub(in crate::proof_contracts::contract_entailment) struct CompletedNormalObserv
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ObservationStop {
     None,
+    BeforeExpression(ExpressionHandle),
     BeforeOperation(ExpressionHandle),
     AfterValue(ExpressionHandle),
 }
@@ -478,6 +479,41 @@ impl<'program> StructuralJudge<'program> {
             None,
         )?;
         (!entries.is_empty()).then_some(entries)
+    }
+
+    /// Observe the path before a value expression or any of its operands.
+    /// Unlike an operation-entry query, this cut also covers literals, saved
+    /// subjects and dispatches. An empty result is a completely explored
+    /// unreachable occurrence; refusal remains None.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_expression_entries(
+        &self,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<NormalOperationEntry<'program>>> {
+        let requested = [expression];
+        let operands = self.statement_observation_operands(
+            statement_index,
+            expression,
+            scope,
+            NormalValueDemand::Observe(&requested),
+        )?;
+        let mut entries = Vec::new();
+        self.clone().evaluate_normal_operands(
+            &operands,
+            environment,
+            scope,
+            0,
+            OperationObservations {
+                stop: ObservationStop::BeforeExpression(expression),
+                expressions: &[],
+                operands: OperationOperandDemand::Selected(&[]),
+            },
+            &mut entries,
+            None,
+        )?;
+        Some(entries)
     }
 
     /// Capture one anonymous value as it completes, before any enclosing
@@ -888,6 +924,14 @@ impl<'program> StructuralJudge<'program> {
         entries: &mut Vec<NormalOperationEntry<'program>>,
         demand: NormalValueDemand<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
+        if requested_operations.stop == ObservationStop::BeforeExpression(expression) {
+            entries.push(NormalOperationEntry {
+                expression,
+                arguments: Vec::new(),
+                judge: self,
+            });
+            return Some(Vec::new());
+        }
         let paths = self.evaluate_normal_value_paths(
             expression,
             environment,
@@ -1055,7 +1099,8 @@ impl<'program> StructuralJudge<'program> {
                 .copied()
                 .any(contains_observation)
                 || match requested_operations.stop {
-                    ObservationStop::BeforeOperation(observed) => contains_observation(observed),
+                    ObservationStop::BeforeExpression(observed)
+                    | ObservationStop::BeforeOperation(observed) => contains_observation(observed),
                     ObservationStop::AfterValue(observed) => {
                         observed != expression && contains_observation(observed)
                     }

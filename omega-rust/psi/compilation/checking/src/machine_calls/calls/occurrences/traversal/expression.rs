@@ -8,6 +8,12 @@ pub(super) fn find_call_site_in_expression<'program>(
     traversal: &mut CallSiteTraversal<'program, '_>,
     expression: ExpressionHandle,
 ) -> Option<CallSite<'program>> {
+    if traversal
+        .program
+        .static_type_context_is_unreachable(expression)
+    {
+        return None;
+    }
     match expression_table(traversal.program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
             if let Some(site) = find_call_site_in_expression(traversal, dispatch.subject) {
@@ -53,6 +59,16 @@ pub(super) fn find_call_site_in_expression<'program>(
         }
         ExpressionNode::Binary(binary) => find_call_site_in_expression(traversal, binary.left)
             .or_else(|| {
+                if matches!(
+                    (
+                        binary.operator,
+                        traversal.program.static_boolean_value(binary.left)
+                    ),
+                    (typed_trees::expression::BinaryOperator::And, Some(false))
+                        | (typed_trees::expression::BinaryOperator::Or, Some(true))
+                ) {
+                    return None;
+                }
                 if matches!(
                     binary.operator,
                     typed_trees::expression::BinaryOperator::And

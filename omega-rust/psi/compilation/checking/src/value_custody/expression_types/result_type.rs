@@ -248,7 +248,11 @@ fn result_type(
             }
         }
         ExpressionNode::Match(dispatch) => {
-            let arms = expression_table(program).match_arms(dispatch.arms);
+            let arms = expression_table(program)
+                .match_arms(dispatch.arms)
+                .iter()
+                .filter(|arm| !program.static_type_context_is_unreachable(arm.value))
+                .collect::<Vec<_>>();
             let references = arms
                 .iter()
                 .map(|arm| result_type(program, owner, arm.value, active))
@@ -267,6 +271,14 @@ fn result_type(
                     })
                     .collect::<Vec<_>>(),
             )
+            .or_else(|| {
+                let values = arms
+                    .iter()
+                    .zip(&references)
+                    .map(|(arm, reference)| reference.map(|reference| (arm.value, reference)))
+                    .collect::<Option<Vec<_>>>()?;
+                program.common_static_type_reference(&values)
+            })
         }
         ExpressionNode::Call(call) => (|| {
             // Storage observation returns an address, not its operand's

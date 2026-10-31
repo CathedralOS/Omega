@@ -279,13 +279,14 @@ pub(super) fn value_proves_qualification_with_domain_stack(
     // Only a missing qualification needs predicate reconstruction. Consume
     // existing occurrence evidence first, without replaying the same prefix.
     // The provenance fence above still precedes this truth judgment.
-    super::member_domains::value_satisfies_domain_predicates_in_contexts(
+    super::member_domains::value_satisfies_domain_instance_predicates_in_contexts(
         program,
         facts,
         state,
         statement_index,
         value,
         domain,
+        identity,
         contexts,
         active,
         None,

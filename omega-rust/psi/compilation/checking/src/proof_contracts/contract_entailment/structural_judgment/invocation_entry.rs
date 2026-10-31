@@ -108,6 +108,10 @@ impl<'program> StructuralJudge<'program> {
         self.declaration_state = caller.declaration_state;
         self.body_type_parameters = caller.body_type_parameters;
         self.normal_results = std::sync::Arc::clone(&caller.normal_results);
+        // An owned Match snapshot belongs to the caller's activation. Callee
+        // captures are private; restoring only the value and losing its admission
+        // receipt discards payload/type facts across an otherwise disjoint call.
+        self.completed_nominal_captures = std::sync::Arc::clone(&caller.completed_nominal_captures);
         Some(self)
     }
 }

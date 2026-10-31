@@ -207,21 +207,6 @@ retired-syntax deletions to completion.
   diagnostics, and the migration recipe, turning
   `fail/proofs/mathematical_constrained_scalar_formal:2` into a parse-refusal pin.
 
-- **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
-  [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
-  and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
-  - Carry one general predicate representation through formation, construction,
-    calls, matching, coverage, writes, and erasure so case membership plus the
-    established domain recovers type equality and guarded payload bounds while
-    preserving recursive/indexed data encoding obligations, exact subject
-    identity, first-case zero gating, and mutation restoration.
-  Acceptance: execute a generic typed extractor over Integer/Boolean and a
-  guarded Range payload consumer through native and Terminal Psi (`omega run --both`),
-  exercising the same predicate as a default domain and a named generic domain
-  through all nine fact places. Reject mismatched case/type construction,
-  unguarded inactive payload access, reversed bounds, stale facts after writes,
-  invalid zero establishment and the retired syntax.
-
 - **STATIC-MACHINE-MIGRATION.** (also covers
   **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**,
   **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**, and **STATELESS-PROVIDERS**)

@@ -9,7 +9,7 @@ use typed_trees::expression::{
 };
 
 impl StructuralJudge<'_> {
-    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_match_subject(
+    pub(in crate::proof_contracts::contract_entailment) fn completed_match_subject(
         &self,
         saved: &TableSavedSubject,
     ) -> Option<StructuralTerm> {
@@ -91,8 +91,11 @@ impl StructuralJudge<'_> {
         }
         self.retire_match_subject(dispatch);
         let reference = self.normal_value_type_reference(dispatch.subject, scope)?;
-        let owned =
-            crate::field_domains::owned_nominal_data_definition(self.program, reference).is_some();
+        // A semantic nominal snapshot does not require closed physical storage.
+        // Prepared generic applications carry their exact substituted fields;
+        // references still retain their separate descriptor/loan semantics.
+        let owned = crate::reference_shell(self.program, reference).is_none()
+            && crate::field_domains::readable_nominal_definition(self.program, reference).is_some();
         let admitted =
             owned && self.has_admitted_nominal_subject(dispatch.subject, &value, reference);
         let completed = if owned {
@@ -120,7 +123,7 @@ impl StructuralJudge<'_> {
     /// A tag observation follows the exact owned value captured by this Match.
     /// This receipt is produced by subject evaluation, not by value-equation
     /// rewriting. Storage fences still govern obtaining the source observation.
-    pub(super) fn completed_match_case_observation(
+    pub(in crate::proof_contracts::contract_entailment) fn completed_match_case_observation(
         &self,
         value: &StructuralTerm,
     ) -> StructuralTerm {

@@ -871,7 +871,7 @@ fn membership_subject_matches_owner(
     // and rejects sibling applications, without changing the authored selection
     // ledger or inferring a subject type from the case being tested.
     if program
-        .closed_data_constructor_definition(subject_type, owner.symbol)
+        .data_constructor_definition(subject_type, owner.symbol)
         .is_some()
     {
         return true;

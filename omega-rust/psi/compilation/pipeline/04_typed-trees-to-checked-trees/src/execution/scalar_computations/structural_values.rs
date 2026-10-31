@@ -927,7 +927,12 @@ impl Builder<'_, '_> {
                 projection_evaluations: Default::default(),
                 source: self.structural_source(symbol),
                 path: Vec::new(),
-                type_identity: self.program.normalized_type_identity(expected),
+                type_identity: validation::stored_structural_type_identity(
+                    self.program,
+                    expected,
+                    &[],
+                    &[],
+                ),
                 access: checked_trees::CheckedStructuralAccess::Owned,
             })
         } else {
@@ -956,6 +961,11 @@ impl Builder<'_, '_> {
             let mut covered = false;
             let mut boolean_coverage = [false; 2];
             for (ordinal, arm) in authored.iter().enumerate() {
+                if subject_type.is_none()
+                    && self.structural_dispatch_arm_is_impossible(&dispatch, arm)
+                {
+                    continue;
+                }
                 let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
                 let mut equality_use = arena::Handle::invalid();
                 let pattern = if let Some(subject_type) = subject_type {

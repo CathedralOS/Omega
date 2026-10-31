@@ -757,13 +757,14 @@ impl ConstructionWalk<'_, '_> {
                 ) || (!validation::field_domains::domain_requires_provenance(
                     program,
                     obligation.symbol,
-                ) && value_satisfies_domain_predicates_in_contexts(
+                ) && member_domains::value_satisfies_domain_instance_predicates_in_contexts(
                     program,
                     facts,
                     state_flow,
                     statement_index,
                     cast.value,
                     obligation.symbol,
+                    obligation.semantic_id,
                     contexts,
                     &mut Vec::new(),
                     None,

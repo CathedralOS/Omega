@@ -474,6 +474,21 @@ pub(super) fn static_type_predicate_term(
             fields: Vec::new(),
         });
     }
+    static_type_equation_term(program, left, right, negate, substitutions)
+}
+
+/// Type equality has the same exact identity in a declaration and at an
+/// independently observed body occurrence. No synthetic source goal is needed.
+pub(super) fn static_type_equation_term(
+    program: &dyn crate::CheckingInput,
+    left: typed_trees::types::TypeReferenceHandle,
+    right: typed_trees::types::TypeReferenceHandle,
+    negate: bool,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+) -> Option<StructuralTerm> {
     let identity = |reference| {
         program.type_identity_text(program.type_identity_with_simultaneous_substitutions(
             typed_trees::type_identity::TypeIdentityRequest {

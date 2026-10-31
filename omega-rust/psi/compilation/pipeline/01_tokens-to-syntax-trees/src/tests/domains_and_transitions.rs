@@ -218,9 +218,8 @@ fn parses_data_default_domain_where_clause() {
 }
 
 #[test]
-fn projects_default_domain_case_predicate() {
-    // The data `requires` disjunction is the authored predicate. Projection
-    // copies the Range conjunct onto that case and leaves Empty empty.
+fn retains_complete_default_domain_predicate() {
+    // The complete predicate has one owner. Cases receive no copied clauses.
     let source = r#"
         data Interval
             requires (self in Interval::Empty)
@@ -250,7 +249,7 @@ fn projects_default_domain_case_predicate() {
         Some(0),
         "payload-less case without `where`"
     );
-    assert_eq!(fact_counts.next(), Some(1), "projected `lo <= hi`");
+    assert_eq!(fact_counts.next(), Some(0), "no case-local predicate copy");
     assert!(fact_counts.next().is_none());
 }
 

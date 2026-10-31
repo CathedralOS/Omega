@@ -249,7 +249,11 @@ impl Emission<'_, '_, '_> {
                 .checked
                 .domain_definitions()
                 .iter()
-                .filter(|definition| definition.semantic_id == binding.semantic_domain)
+                .filter(|definition| {
+                    self.checked
+                        .domain_definition_for_instance(definition.symbol, binding.semantic_domain)
+                        .is_some()
+                })
                 .map(|definition| definition.symbol)
                 .collect::<Vec<_>>();
             let mut target = subject.clone();
