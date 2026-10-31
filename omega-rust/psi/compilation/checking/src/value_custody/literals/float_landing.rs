@@ -39,15 +39,15 @@ pub(super) use numeric_operands::validate_numeric_tree_destination;
 pub fn land_float_literal_destinations(typed: &mut TypedTrees) {
     use numerics::literals::FloatFormat;
 
-    let mut pairs: Vec<FloatLandingPair> = Vec::new();
-    let mut direct_formats: Vec<(ExpressionHandle, FloatFormat)> = Vec::new();
-    let mut anonymous_comparisons: Vec<ExpressionHandle> = Vec::new();
-
     // Every destination query below observes this one immutable program.
     // Reuse its existing exact contract-occurrence and declaration indexes;
     // bare mutable trees intentionally carry no memo across transformations.
     let checking = crate::CheckingContext::new(&*typed);
     let program: &dyn crate::CheckingInput = &checking;
+
+    let mut pairs: Vec<FloatLandingPair> = Vec::new();
+    let mut direct_formats: Vec<(ExpressionHandle, FloatFormat)> = Vec::new();
+    let mut anonymous_comparisons: Vec<ExpressionHandle> = Vec::new();
 
     for (handle, node) in program.expression_table.expression_entries() {
         match node {
