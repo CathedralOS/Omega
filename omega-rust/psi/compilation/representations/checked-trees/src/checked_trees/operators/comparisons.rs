@@ -4,6 +4,7 @@ use super::{
     CheckedOperatorFacts, CheckedOperatorOccurrence, CheckedOperatorResolutionStatus,
     CheckedOperatorUseFact, Handle, OperatorSpelling,
 };
+use typed_trees::expression::BinaryOperator;
 impl CheckedOperatorFacts {
     /// Classify the exact selected source requirement, without granting any
     /// authority to execute its eventual provider realization.
@@ -46,7 +47,6 @@ impl CheckedOperatorFacts {
         typed_trees::types::PrimitiveType,
     )> {
         use semantic_vocabulary::IeeeFloatComparisonOperation as Comparison;
-        use typed_trees::expression::BinaryOperator;
         let (selected, operator) = self.resolved_boundary_binary_operator(program, handle)?;
         let (operation, format) =
             typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
@@ -80,11 +80,7 @@ impl CheckedOperatorFacts {
         &self,
         program: &typed_trees::TypedTrees,
         handle: Handle<CheckedOperatorUseFact>,
-    ) -> Option<(
-        typed_trees::expression::BinaryOperator,
-        typed_trees::types::PrimitiveType,
-    )> {
-        use typed_trees::expression::BinaryOperator;
+    ) -> Option<(BinaryOperator, typed_trees::types::PrimitiveType)> {
         use typed_trees::types::PrimitiveType;
         let (selected, operator) = self.resolved_boundary_binary_operator(program, handle)?;
         if operator.spelling != Some(selected.spelling) {
@@ -123,7 +119,7 @@ impl CheckedOperatorFacts {
 fn occurrence_carries_operation(
     program: &typed_trees::TypedTrees,
     selected: &CheckedOperatorUseFact,
-    operation: typed_trees::expression::BinaryOperator,
+    operation: BinaryOperator,
 ) -> Option<()> {
     match selected.occurrence {
         CheckedOperatorOccurrence::Expression => {
@@ -134,9 +130,7 @@ fn occurrence_carries_operation(
             };
             (binary.operator == operation).then_some(())
         }
-        CheckedOperatorOccurrence::MatchEquality { .. }
-            if operation == typed_trees::expression::BinaryOperator::Equal =>
-        {
+        CheckedOperatorOccurrence::MatchEquality { .. } if operation == BinaryOperator::Equal => {
             Some(())
         }
         _ => None,

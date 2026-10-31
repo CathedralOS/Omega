@@ -12,6 +12,7 @@ use source::DependencyScope::Product;
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 use symbols::SymbolHandle;
+use typed_trees::provider_declarations::ProviderPlanningContext;
 use typed_trees::provider_declarations::provider_target_declarations;
 use typed_trees::service_declarations::ServiceCatalog;
 
@@ -28,10 +29,7 @@ impl PreparedProviderInventory {
         // The Product projection has reached its final immutable Arc before
         // source-owned service formation. No target can extend this census.
         let services = typed_trees::service_declarations::PreparedServiceCatalog::prepare(
-            typed_trees::provider_declarations::ProviderPlanningContext::new(
-                &checked.typed,
-                Product,
-            ),
+            ProviderPlanningContext::new(&checked.typed, Product),
         );
         Self {
             checked,
@@ -48,12 +46,8 @@ impl PreparedProviderInventory {
 
     pub fn services_for(&self, checked: &CheckedTrees) -> Result<ServiceCatalog<'_>, Diagnostic> {
         self.require_owner(checked)?;
-        self.services.bind(
-            typed_trees::provider_declarations::ProviderPlanningContext::new(
-                &self.checked.typed,
-                Product,
-            ),
-        )
+        self.services
+            .bind(ProviderPlanningContext::new(&self.checked.typed, Product))
     }
 
     pub fn direct_calls_for(

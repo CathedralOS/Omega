@@ -390,7 +390,7 @@ impl Default for CheckedProjectionSelectorRoot {
             machine: SymbolHandle::invalid(),
             state: SymbolHandle::invalid(),
             statement_ordinal: 0,
-            expression: typed_trees::expression::ExpressionHandle::invalid(),
+            expression: ExpressionHandle::invalid(),
             evaluations: HandleSpan::default(),
         }
     }
@@ -499,9 +499,7 @@ impl CheckedScalarComputation {
             } => *completion_expression,
             CheckedScalarComputationKind::RetainedConstant { expression } => *expression,
             CheckedScalarComputationKind::Value(_) => self.value_source,
-            CheckedScalarComputationKind::SelectedComparison { .. } => {
-                typed_trees::expression::ExpressionHandle::invalid()
-            }
+            CheckedScalarComputationKind::SelectedComparison { .. } => ExpressionHandle::invalid(),
         }
     }
 }
