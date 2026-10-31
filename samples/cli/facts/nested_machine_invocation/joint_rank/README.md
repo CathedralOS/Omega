@@ -237,3 +237,8 @@ The parent `NESTED-MACHINE-UNIFICATION` outcome remains open.
 continue this fact through ordered conditional values. All nine places execute
 in both engines on macOS ARM64 and their no-progress twins reject. The linked
 page records the ingress compositions and the remaining parent acceptance.
+
+[Cross-carrier scalar measures](local/computed_measure/cross_carrier/README.md)
+carry the same fact through distinct input and result carriers, retaining each
+conversion's own formation and the actual source coordinate. Final acceptance
+is recorded on that production's page.

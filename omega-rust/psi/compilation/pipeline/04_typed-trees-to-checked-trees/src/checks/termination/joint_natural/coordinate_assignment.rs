@@ -113,7 +113,11 @@ fn search(
                 },
                 entry_indexes: coordinate.entry_indexes.clone(),
                 parameter_position: u32::try_from(coordinate.position).ok()?,
-                primitive_type: coordinate.primitive,
+                primitive_type: candidates[position][chosen[position]]
+                    .application
+                    .map_or(coordinate.primitive, |application| {
+                        application.result_primitive
+                    }),
                 observation: coordinate.observation,
                 function: order.function(),
                 application: candidates[position][chosen[position]].formation.clone(),

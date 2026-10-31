@@ -39,6 +39,7 @@ pub struct ValidatedRuntimeNaturalState {
     pub coordinate: crate::RankSubjectCoordinate,
     pub entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
     pub parameter_position: u32,
+    /// Carrier of the produced rank, independent of the captured input coordinate.
     pub primitive_type: typed_trees::types::PrimitiveType,
     pub observation: crate::RankPremiseObservation,
     pub function: checked_trees::CheckedNaturalRankFunction,

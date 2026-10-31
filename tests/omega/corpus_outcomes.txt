@@ -322,6 +322,35 @@ fail/calls/retired_where_machine_requirement rejected 5ms expected @45fb2a705c96
 	tests/omega/fail/calls/retired_where_machine_requirement/main.omg:3:1: `where machine` is retired; write `requires machine` with its complete contract and terminating semicolon
 fail/concurrency/suspend_live_value_rejected rejected 1715ms expected @a92f16431042
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/facts/nested_machine_joint_rank_cross_carrier_call_result_rejected rejected 3891ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_const_name_rejected rejected 3226ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_field_rejected rejected 5491ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_implicit_conversion_rejected rejected 4865ms expected @6ac592511e88+wt
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_local_rejected rejected 5171ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_match_join_rejected rejected 2828ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_other_machine_rejected rejected 4021ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_other_state_rejected rejected 2185ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_parameter_rejected rejected 3855ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_precondition_rejected rejected 2372ms expected @6ac592511e88+wt
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_target_body_rejected rejected 2753ms expected @6ac592511e88+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_typed_arm_rejected rejected 1925ms expected @6ac592511e88+wt
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_cross_carrier_unsafe_cast_rejected rejected 1027ms expected @6ac592511e88+wt
+	Exact integer cast in machine `rank` state `entry` from `u64` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/nested_machine_joint_rank_declared_call_call_result_rejected rejected 2046ms expected @f482ff56d451
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_declared_call_const_name_rejected rejected 2234ms expected @f482ff56d451
@@ -6827,6 +6856,20 @@ pass/facts/nested_machine_joint_rank_copied_payload_other_machine_exit checked 1
 pass/facts/nested_machine_joint_rank_copied_payload_other_state_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
 pass/facts/nested_machine_joint_rank_copied_payload_parameter_exit checked 1050ms check-target:macos_arm64 @e6f74b4c381f
 pass/facts/nested_machine_joint_rank_copied_payload_target_body_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_cross_carrier_all_anonymous_exit checked 4958ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_anonymous_arm_exit checked 3178ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_call_result_exit checked 3746ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_const_name_exit checked 4251ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_explicit_conversion_exit checked 3723ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_field_exit checked 5841ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_local_exit checked 3169ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_match_join_exit checked 3165ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_other_machine_exit checked 4331ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_other_state_exit checked 4982ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_parameter_exit checked 2665ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_probe_exit checked 2658ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_target_body_exit checked 5649ms check-target:macos_arm64 @6ac592511e88+wt
+pass/facts/nested_machine_joint_rank_cross_carrier_widened_helper_exit checked 2802ms check-target:macos_arm64 @6ac592511e88+wt
 pass/facts/nested_machine_joint_rank_declared_call_call_result_exit checked 4685ms check-target:macos_arm64 @f482ff56d451
 pass/facts/nested_machine_joint_rank_declared_call_composition_exit checked 3631ms check-target:macos_arm64 @f482ff56d451
 pass/facts/nested_machine_joint_rank_declared_call_const_name_exit checked 3148ms check-target:macos_arm64 @f482ff56d451

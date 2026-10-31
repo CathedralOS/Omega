@@ -1174,7 +1174,7 @@ fn scalar_entry<'program>(
                     subject: member.subject,
                     parameter: computation.parameter,
                     body: computation.body,
-                    carrier: view.carrier,
+                    carrier: view.result_carrier,
                 },
             };
             return Some((state, measure));

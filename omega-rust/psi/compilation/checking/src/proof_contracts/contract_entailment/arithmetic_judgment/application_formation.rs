@@ -118,6 +118,18 @@ impl Engine<'_> {
                 if !formed_type(engine, program, formal.type_reference, input) {
                     return None;
                 }
+                // A representable mathematical value does not change the
+                // executable carrier of an already-typed result. Anonymous
+                // integer expressions land in the declared carrier; every
+                // other result keeps its resolved type, including joins.
+                if !crate::value_custody::literals::has_anonymous_numeric_results(program, *body)
+                    && engine
+                        .source_result_type(*body)
+                        .and_then(|reference| program.primitive_type_reference(reference))
+                        != Some(primitive)
+                {
+                    return None;
+                }
                 let value = formed_value(engine, program, *body, 0, &mut decisions)?;
                 formed_type(engine, program, declaration.return_type, &value).then_some(value)
             },
