@@ -31,6 +31,8 @@
 //! referent, mirroring the call-`requires` rule that a reference formal used
 //! as a predicate value reads its referent.
 
+use super::super::contract_occurrences::append_expression_occurrences;
+use super::super::crash_entry_values::operand_entry_provenance;
 use checked_trees::FlowFacts;
 use facts::{FactContextHandle, FactPayload, FactPlan};
 use symbols::SymbolHandle;
@@ -291,17 +293,13 @@ fn leaf_reads_only_entry_operands(
     expression: ExpressionHandle,
 ) -> bool {
     let mut occurrences = Vec::new();
-    super::super::contract_occurrences::append_expression_occurrences(
-        program,
-        expression,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, expression, &mut occurrences);
     occurrences.iter().all(|occurrence| {
         let root = occurrence_root_symbol(program, *occurrence);
         parameters.iter().enumerate().any(|(index, parameter)| {
             parameter.symbol == root
                 && operands.get(index).is_some_and(|operand| {
-                    super::super::crash_entry_values::operand_entry_provenance(
+                    operand_entry_provenance(
                         program,
                         machine_symbol,
                         state_symbol,
