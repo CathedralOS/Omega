@@ -325,22 +325,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Ok((literal, rest))
     }
 
-    /// An integer literal at a STRUCTURAL position that needs a number at
-    /// parse time (array lengths, wire field numbers, range-form bounds).
-    /// These keep an explicit i64 ceiling with a loud
-    /// error -- they are not value-binding uses, so D14's fit-at-use does not
-    /// apply.
-    pub(crate) fn take_integer(self) -> Result<(i64, Self), ParseError> {
-        let (literal, rest) = self.take_parsed_integer("integer literal")?;
-        let value = literal.value_i64().ok_or_else(|| {
-            ParseError::at_source_span(
-                "integer literal exceeds i64; this position needs a parse-time number",
-                self.current_source_span(),
-            )
-        })?;
-        Ok((value, rest))
-    }
-
     /// A nonnegative structural identity carried through the complete `u64`
     /// range. Unlike signed structural integers, stable schema identities are
     /// opaque unsigned keys rather than arithmetic values.

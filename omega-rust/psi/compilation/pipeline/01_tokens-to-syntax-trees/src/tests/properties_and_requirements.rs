@@ -741,7 +741,7 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
             items
         }
         boundary machine == Vec2::equal(left: Vec2, right: Vec2) -> bool;
-        linux_x86_64 machine - subtract(left: u64, right: u64) -> u64 {
+        machine - subtract(left: u64, right: u64) -> u64 {
             left
         }
         machine ordinary(value: u64) -> u64 { value }
@@ -779,13 +779,6 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
     assert_eq!(
         machines[4].spelling,
         Some(language_core::OperatorSpelling::Subtract)
-    );
-    assert_eq!(
-        machines[4]
-            .target
-            .as_ref()
-            .map(|target| target.as_str(&parsed)),
-        Some("linux_x86_64")
     );
     assert_eq!(machines[5].spelling, None);
 }
