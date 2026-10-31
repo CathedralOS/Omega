@@ -4,11 +4,13 @@ use super::{
     TerminalAffineCleanupAction, UnitAffineCleanupRecord, UnitParameterHomeRecord,
     exact_owned_projection, exact_projected_affine_parameter,
 };
+use crate::object_artifact::replay::unit::call_custody::expected_projected_copy_bytes;
 use crate::object_artifact::test_support::structural_declaration;
 use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::{
     EdgeId, MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId,
 };
+use target::NativeTarget;
 use terminal_psi::{
     BindingRelevance, StructuralAffineDiscard, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPathSegment,
@@ -530,30 +532,15 @@ fn owned_subtree_stack_fragments_have_independent_exact_copy_bytes() {
         0x24, 0x10,
     ];
     assert_eq!(
-        crate::object_artifact::replay::unit::call_custody::expected_projected_copy_bytes(
-            target::NativeTarget::linux_x64(),
-            &copy,
-        ),
+        expected_projected_copy_bytes(NativeTarget::linux_x64(), &copy),
         Some(expected)
     );
     let mut gap = copy.clone();
     gap.destination.locations.remove(1);
-    assert!(
-        crate::object_artifact::replay::unit::call_custody::expected_projected_copy_bytes(
-            target::NativeTarget::linux_x64(),
-            &gap,
-        )
-        .is_none()
-    );
+    assert!(expected_projected_copy_bytes(NativeTarget::linux_x64(), &gap).is_none());
     let mut wrong_offset = copy;
     wrong_offset.source_byte_offset += 8;
-    assert!(
-        crate::object_artifact::replay::unit::call_custody::expected_projected_copy_bytes(
-            target::NativeTarget::linux_x64(),
-            &wrong_offset,
-        )
-        .is_none()
-    );
+    assert!(expected_projected_copy_bytes(NativeTarget::linux_x64(), &wrong_offset).is_none());
 }
 
 #[test]
@@ -574,10 +561,7 @@ fn owned_subtree_indirect_temporary_has_exact_x86_and_aarch64_bytes() {
         0x24, 0x30, 0x48, 0x8d, 0x8c, 0x24, 0x20, 0x00, 0x00, 0x00,
     ];
     assert_eq!(
-        crate::object_artifact::replay::unit::call_custody::expected_projected_copy_bytes(
-            target::NativeTarget::windows_x64(),
-            &windows,
-        ),
+        expected_projected_copy_bytes(NativeTarget::windows_x64(), &windows),
         Some(expected)
     );
     let mut aarch64 = projected_row_copy(
@@ -611,10 +595,7 @@ fn owned_subtree_indirect_temporary_has_exact_x86_and_aarch64_bytes() {
         0x9100_03e0,
     ];
     assert_eq!(
-        crate::object_artifact::replay::unit::call_custody::expected_projected_copy_bytes(
-            target::NativeTarget::linux_arm64(),
-            &aarch64,
-        ),
+        expected_projected_copy_bytes(NativeTarget::linux_arm64(), &aarch64),
         Some(
             instructions
                 .into_iter()
@@ -647,12 +628,6 @@ fn owned_subtree_indirect_temporary_has_exact_x86_and_aarch64_bytes() {
     ] {
         let mut forged = windows.clone();
         forged.destination.locations = vec![location];
-        assert!(
-            crate::object_artifact::replay::unit::call_custody::expected_projected_copy_bytes(
-                target::NativeTarget::windows_x64(),
-                &forged,
-            )
-            .is_none()
-        );
+        assert!(expected_projected_copy_bytes(NativeTarget::windows_x64(), &forged).is_none());
     }
 }
