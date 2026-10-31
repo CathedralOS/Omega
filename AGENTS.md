@@ -515,6 +515,14 @@ profiles bound to the actual binary digests. See
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- **Keep progress PRs bounded.** Name the changed behavior and its necessary
+  checks before building. Reuse unchanged results; finish and enqueue once
+  those checks and required review pass. Full Product builds, self-hosting,
+  release matrices and pinned qualification are separate assignments unless
+  explicitly required for the current acceptance. Do not accumulate every
+  earlier repair's tests or turn a discovered performance problem into another
+  prerequisite for an independently complete PR. Follow the
+  [merge validation budget](tools/testing.md#merge-validation-budget).
 
 ## The Psi/Omega firewall
 

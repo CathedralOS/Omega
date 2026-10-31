@@ -27,6 +27,12 @@ Record the actual revision, commands, results, known limitations and claim ticke
 ## Mark ready and enqueue when the change can merge
 
 Finish focused checks and any explicitly required review on the submitted source.
+Use the [merge validation budget](testing.md#merge-validation-budget): the
+submitter chooses checks for the changed behavior and reuses unchanged results.
+Ordinary progress PRs do not wait for full Product/self-host builds, release
+matrices, or a new pinned qualification packet. Run those only when the assigned
+acceptance explicitly requires them. Stop expanding validation once the scoped
+checks pass; keep any remaining extended validation accurately reported.
 When GitHub reports the pull request mergeable and the required `compiler-check`
 is green, mark it ready and enqueue it. Do not mark a conflicting or red pull
 request ready. Never chase main by rebasing, rebuilding, or re-running gates:
