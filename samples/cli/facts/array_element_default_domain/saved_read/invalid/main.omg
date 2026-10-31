@@ -27,4 +27,3 @@ machine main() crashes Trap {
     machine good() {}
     machine bad() crashes Trap { crash Trap; }
 }
-
