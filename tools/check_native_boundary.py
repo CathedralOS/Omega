@@ -99,6 +99,30 @@ def psi_omega_dependency_violations(metadata):
     return violations
 
 
+def realization_checker_entry_violations(metadata):
+    """Realization may consume facts, never enter the source checker API.
+
+    This direct-edge gate is separate from source-free native ownership: the
+    remaining source-to-declaration migration has its own tracked acceptance.
+    """
+    root = Path(metadata["workspace_root"]).resolve()
+    realization = root / "omega-rust/omega/compilation/realization"
+    checker = root / "omega-rust/psi/compilation/checking"
+    violations = []
+    for package in metadata["packages"]:
+        source = Path(package["manifest_path"]).resolve().parent
+        if not source.is_relative_to(realization):
+            continue
+        for dependency in package["dependencies"]:
+            if dependency.get("kind") == "dev" or not dependency.get("path"):
+                continue
+            if Path(dependency["path"]).resolve() == checker:
+                violations.append(
+                    f"{package['name']} -> {dependency['name']}: realization enters source checking"
+                )
+    return violations
+
+
 def representation_spelling_violations(root):
     """The retired text spelling must not decide a runtime representation."""
     patterns = (
@@ -126,6 +150,7 @@ def main():
         metadata = json.loads(result.stdout)
         violations = representation_spelling_violations(root)
         violations += psi_omega_dependency_violations(metadata)
+        violations += realization_checker_entry_violations(metadata)
         violations += dependency_violations(metadata)
         violations += dependency_violations(metadata, PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS)
         violations += dependency_violations(metadata, TRUST_ROOT, TRUST_OWNERS)

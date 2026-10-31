@@ -8,7 +8,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS, dependency_violations
 from check_native_boundary import PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS
-from check_native_boundary import TRUST_ROOT, TRUST_OWNERS, representation_spelling_violations, psi_omega_dependency_violations
+from check_native_boundary import TRUST_ROOT, TRUST_OWNERS, representation_spelling_violations, psi_omega_dependency_violations, realization_checker_entry_violations
 
 
 class NativeBoundaryTests(unittest.TestCase):
@@ -153,6 +153,22 @@ class NativeBoundaryTests(unittest.TestCase):
         self.assertIn("language-semantics -> native-production", failures[0])
         self.edge(psi, self.native, kind="dev")
         self.assertEqual(len(psi_omega_dependency_violations(self.metadata)), 2)
+
+    def test_realization_cannot_import_checker_under_an_inactive_alias(self):
+        dispatch = self.package("selected-dispatch", "omega-rust/omega/compilation/realization/selected-dispatch")
+        checker = self.package("validation", "omega-rust/psi/compilation/checking")
+        self.edge(dispatch, checker, kind="dev")
+        self.assertEqual(realization_checker_entry_violations(self.metadata), [])
+        self.edge(dispatch, checker, kind="build", rename="facts", optional=True, target='cfg(windows)')
+        failures = realization_checker_entry_violations(self.metadata)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("selected-dispatch -> validation", failures[0])
+
+    def test_source_coordinator_keeps_its_checker_dependency(self):
+        coordinator = self.package("psi-compiler", "omega-rust/psi/compilation/driver")
+        checker = self.package("validation", "omega-rust/psi/compilation/checking")
+        self.edge(coordinator, checker)
+        self.assertEqual(realization_checker_entry_violations(self.metadata), [])
 
 
 class RepresentationSpellingTests(unittest.TestCase):

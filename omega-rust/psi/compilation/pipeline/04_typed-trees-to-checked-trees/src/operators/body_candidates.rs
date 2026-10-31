@@ -142,7 +142,7 @@ fn candidates_for_application(
         let selection = if let Some(specialization) = specialization {
             if !specialization.operator_realizations.iter().any(|row| {
                 row.requirement_symbol == demand.requirement_symbol
-                    && validation::checked_operator_application_matches_realization(
+                    && checked_trees::operators::checked_operator_application_matches_realization(
                         typed, demand, row,
                     )
             }) {

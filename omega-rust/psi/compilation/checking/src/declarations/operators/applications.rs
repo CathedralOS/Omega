@@ -35,20 +35,6 @@ pub fn canonical_closed_operator_realization_bytes(
     )
 }
 
-/// Compare one checked D29 use demand with one independently retained closed
-/// realization by semantic identity rather than private type-table handles.
-/// The join lives beside its checked operand types in checked-trees.
-pub fn checked_operator_application_matches_realization(
-    program: &dyn crate::CheckingInput,
-    demand: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
-    realization: &typed_trees::operator::ClosedOperatorRealizationApplication,
-) -> bool {
-    checked_trees::operators::checked_operator_application_matches_realization(
-        program.typed_program(),
-        demand,
-        realization,
-    )
-}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidatedBoundaryOperatorApplicationArgument {
     Type {
