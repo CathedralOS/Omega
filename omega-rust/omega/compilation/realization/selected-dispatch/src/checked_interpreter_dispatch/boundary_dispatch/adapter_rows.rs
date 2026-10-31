@@ -5,6 +5,7 @@ use crate::checked_interpreter_dispatch::boundary_dispatch::signature_families::
     FamilyProbe, finite_signature_family,
 };
 use diagnostics::Diagnostic;
+use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use language_semantics::MachineSupplyMode;
 use provider_planning::service_schema::schema_binds_exact_boundary_operator;
 use provider_planning::service_schema::schema_binds_exact_boundary_requirement;
@@ -93,13 +94,10 @@ pub(crate) enum SelectedAdapterTarget<'a> {
 /// would look up, and a row that fails here fails identically in both paths.
 pub(crate) fn resolve_selected_adapter_target<'a>(
     typed: &'a TypedTrees,
-    plan: &'a effects::provider_plan::ProviderPlan,
+    plan: &'a ProviderPlan,
     row: &'a effects::provider_plan::ProviderPlanRow,
 ) -> Result<Option<SelectedAdapterTarget<'a>>, Diagnostic> {
-    if !matches!(
-        row.binding,
-        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-    ) {
+    if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
         return Ok(None);
     }
     let provider_context =
@@ -205,7 +203,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
 pub(crate) fn resolve_selected_adapter_row(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
     specialization_identities: &terminal_psi::TerminalIdentityTable,
@@ -232,7 +230,7 @@ pub(crate) fn resolve_selected_adapter_row(
 fn resolve_template_adapter_rows(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
     specialization_identities: &terminal_psi::TerminalIdentityTable,
@@ -326,14 +324,14 @@ fn resolve_template_adapter_rows(
 
 /// Exact selected Plan text for one service method's requirement identity.
 fn method_identity<'a>(
-    plan: &'a effects::provider_plan::ProviderPlan,
+    plan: &'a ProviderPlan,
     method: &'a effects::provider_plan::ServiceMethod,
 ) -> &'a str {
     plan.schema.identity_text(method.requirement_identity)
 }
 
 fn require_parameter_count(
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
     actual: usize,
 ) -> Result<(), Diagnostic> {
@@ -369,7 +367,7 @@ fn require_parameter_count(
 fn resolve_top_level_requirement_adapter_row(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     method: &effects::provider_plan::ServiceMethod,
     requirement: &Machine,
@@ -456,7 +454,7 @@ fn resolve_top_level_requirement_adapter_row(
 fn resolve_specialized_top_level_requirement_adapter_rows(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     method: &effects::provider_plan::ServiceMethod,
     requirement: &Machine,
@@ -609,7 +607,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
 #[allow(clippy::too_many_arguments)]
 fn resolve_family_adapter_row(
     typed: &TypedTrees,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     method: &effects::provider_plan::ServiceMethod,
     receiver_trait: &typed_trees::trait_definition::TraitDefinition,
@@ -764,7 +762,7 @@ fn resolve_family_adapter_row(
 /// body.
 fn planned_checked_adapter<'typed>(
     typed: &'typed TypedTrees,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     machine_identity: &str,
 ) -> Result<(&'typed Machine, &'typed typed_trees::state::State), Diagnostic> {
@@ -812,7 +810,7 @@ fn sole_boundary_conformance(
     adapter: &Machine,
     requirement: &Machine,
     machine_identity: &str,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
     spelled: &str,
 ) -> Result<(), Diagnostic> {
