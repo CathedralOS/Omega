@@ -38,6 +38,22 @@ pub(super) fn form(
             ))
         })
         .collect::<Option<Vec<_>>>()?;
+    // Numeric fit cannot silently change an already-typed argument's carrier
+    // or policy. Only an anonymous value lands at its receiving parameter;
+    // explicit conversions have already retained their own target type.
+    for (parameter, (argument, _)) in parameters.iter().zip(&actuals) {
+        if crate::has_anonymous_numeric_results(program, *argument) {
+            continue;
+        }
+        let actual_type = engine.source_result_type(*argument)?;
+        if program.primitive_type_reference(actual_type)
+            != program.primitive_type_reference(parameter.type_reference)
+            || program.arithmetic_domain_for_type_reference(actual_type)
+                != program.arithmetic_domain_for_type_reference(parameter.type_reference)
+        {
+            return None;
+        }
+    }
     let formals = parameters
         .iter()
         .zip(&actuals)

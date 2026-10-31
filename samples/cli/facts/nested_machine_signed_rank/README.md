@@ -146,3 +146,10 @@ nested/disjunctive requirements, short-circuit arithmetic, shifts, remainder,
 policy division, missing public premises, unsafe operands, excluded interior
 values and IEEE adjacency. These extend the same row rather than changing its
 rank, bounds, counter operation or standard transport places.
+
+Explicit numeric policy selection and erasure form their operand and target
+carrier independently, then preserve that payload. The application owner also
+checks an already-typed call argument and measure result's carrier and policy:
+a fitting number alone cannot authorize an implicit policy erasure or width
+change. The explicit argument/result erasure controls must run; their implicit
+twins must reject.
