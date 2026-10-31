@@ -5,6 +5,11 @@ use crate::descriptor_lifetimes::{
     descriptor_location_type,
 };
 use crate::exactly_one::exactly_one;
+use semantic_vocabulary::ScalarTerm;
+use terminal_psi::BoundaryMachineResult;
+use terminal_psi::RecordFieldValue;
+use terminal_psi::element_view_establish_pair_pattern;
+use terminal_psi::find_structural_type;
 
 /// Ordinary edges transport evaluated SSA operands. A case edge instead births
 /// scalar values by reading the selected payload before edge cleanup; those
@@ -30,7 +35,7 @@ pub(super) fn residence_rules(
         for (ordinal, operation) in block.operations.iter().enumerate() {
             let position = (block.id, u32::try_from(ordinal).ok()?);
             match &operation.kind {
-                terminal_psi::element_view_establish_pair_pattern!(source, ..)
+                element_view_establish_pair_pattern!(source, ..)
                 | OperationKind::EstablishAccessReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
                     let (source, _, capture) = captured_storage_source(
@@ -219,10 +224,7 @@ pub(super) fn adapt(
                         .scalar_payload_reads
                         .entry(position)
                         .or_default()
-                        .push((
-                            location,
-                            semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
-                        ));
+                        .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                 }
             }
             if let OperationKind::PrimitiveScalarRead { source, path } = &operation.kind
@@ -233,10 +235,7 @@ pub(super) fn adapt(
                     .scalar_payload_reads
                     .entry(position)
                     .or_default()
-                    .push((
-                        location,
-                        semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
-                    ));
+                    .push((location, ScalarTerm::value(result.id, result.scalar_type)));
             }
             let mut step = DescriptorFlowStep::default();
             operation.kind.clone().map_structural_uses(&mut |place| {
@@ -503,11 +502,8 @@ pub(super) fn adapt(
                     let result = result?;
                     let StructuralTypeShape::Reference {
                         referent: carrier, ..
-                    } = terminal_psi::find_structural_type(
-                        &module.structural_types,
-                        result.structural_type,
-                    )?
-                    .shape
+                    } = find_structural_type(&module.structural_types, result.structural_type)?
+                        .shape
                     else {
                         return None;
                     };
@@ -522,7 +518,7 @@ pub(super) fn adapt(
                         },
                     ));
                 }
-                terminal_psi::element_view_establish_pair_pattern!(source, ..)
+                element_view_establish_pair_pattern!(source, ..)
                 | OperationKind::EstablishAccessReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
@@ -550,24 +546,21 @@ pub(super) fn adapt(
                         ));
                     }
                     let preserves_coordinates = match &operation.kind {
-                        terminal_psi::element_view_establish_pair_pattern!(
-                            source,
-                            element,
-                            region,
-                            ..
-                        ) => crate::runtime_structural_path_tip(
-                            module.structural_types.iter(),
-                            *graph.place_types.get(&source.place)?,
-                            &source.path,
-                        )
-                        .is_some_and(|collection| {
-                            crate::collection_view_preserves_coordinates(
+                        element_view_establish_pair_pattern!(source, element, region, ..) => {
+                            crate::runtime_structural_path_tip(
                                 module.structural_types.iter(),
-                                collection.id,
-                                *element,
-                                *region,
+                                *graph.place_types.get(&source.place)?,
+                                &source.path,
                             )
-                        }),
+                            .is_some_and(|collection| {
+                                crate::collection_view_preserves_coordinates(
+                                    module.structural_types.iter(),
+                                    collection.id,
+                                    *element,
+                                    *region,
+                                )
+                            })
+                        }
                         _ => true,
                     };
                     if !preserves_coordinates {
@@ -895,7 +888,7 @@ pub(super) fn adapt(
                             }
                             _ => location(result?.place, &[], Some(field.field))?,
                         };
-                        if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
+                        if let RecordFieldValue::Scalar { value, .. } = &field.value
                             && let Some(value) = scalar_expressions.expression(*value)
                         {
                             graph
@@ -1390,7 +1383,7 @@ pub(super) fn adapt(
                     .into_iter()
                     .map(|polarity| {
                         Some(semantic_vocabulary::Proposition::Equal(
-                            semantic_vocabulary::ScalarTerm::Boolean(polarity),
+                            ScalarTerm::Boolean(polarity),
                             term.clone(),
                         ))
                     })
@@ -1457,7 +1450,7 @@ fn captured_storage_source(
     let capture = if plain_owned_shape(types.iter(), prefix_type) {
         CapturedBacking::StorageAddress
     } else if matches!(
-        terminal_psi::find_structural_type(types, prefix_type)?.shape,
+        find_structural_type(types, prefix_type)?.shape,
         StructuralTypeShape::ElementView { .. }
     ) {
         // A view index captures its current payload lineage, including any
@@ -1594,10 +1587,7 @@ fn selected_effects_machine(
                         OperationKind::EstablishRecord { fields } => {
                             if let Some(result) = operation.result.structural() {
                                 for field in fields {
-                                    if let terminal_psi::RecordFieldValue::Scalar {
-                                        value, ..
-                                    } = &field.value
-                                    {
+                                    if let RecordFieldValue::Scalar { value, .. } = &field.value {
                                         write(result.place, &[], Some(field.field), *value);
                                     }
                                 }
@@ -1645,11 +1635,8 @@ fn selected_effects_machine(
     let mut bodies = module.machines.iter().filter(|body| body.id == target);
     let body = bodies.next()?;
     if bodies.next().is_some()
-        || matches!(
-            signature.result,
-            terminal_psi::BoundaryMachineResult::Structural(_)
-        )
-        || matches!(&signature.result, terminal_psi::BoundaryMachineResult::Scalar(result)
+        || matches!(signature.result, BoundaryMachineResult::Structural(_))
+        || matches!(&signature.result, BoundaryMachineResult::Scalar(result)
             if result.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO)
         || !signature.result.matches_machine_result(&body.result)
         || body.parameters.len() != signature.scalar_parameters.len()
