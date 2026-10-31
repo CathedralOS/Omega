@@ -120,7 +120,6 @@ pub struct CheckedProductSource {
     pub admission: BuildAdmission,
     pub sources: Arc<package_compilation::CheckedSourceCustody>,
     pub timings: CompileTimings,
-    pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub retained_checks: crate::RetainedCompilationChecks,
     pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }

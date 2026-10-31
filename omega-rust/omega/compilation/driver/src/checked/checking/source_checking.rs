@@ -124,8 +124,6 @@ pub(crate) fn check_product_source(
         );
     }
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
-    let accepted_template_classifications =
-        trust_model::AcceptedTemplateClassifications::capture(&program);
     let provider_inventory = Arc::new(psi_compiler::PreparedProviderInventory::new(Arc::clone(
         &program,
     )));
@@ -139,7 +137,6 @@ pub(crate) fn check_product_source(
         admission,
         sources,
         timings,
-        accepted_template_classifications,
         retained_checks: compilation_products::RetainedCompilationChecks {
             build: retained_build_check,
             product: retained,

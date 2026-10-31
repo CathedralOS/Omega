@@ -14,6 +14,7 @@ import sys
 
 NATIVE_ROOT = "omega-rust/omega/compilation/native-production"
 PROVIDER_SELECTION_ROOT = "omega-rust/omega/compilation/realization/provider-selection"
+TRUST_ROOT = "omega-rust/omega/compilation/realization/trust-model"
 PERMITTED_OWNERS = (
     NATIVE_ROOT,
     PROVIDER_SELECTION_ROOT,
@@ -30,6 +31,7 @@ RUNTIME_ROOT = "omega-rust/omega/application/terminal-runtime"
 NATIVE_PROVIDER_RUNTIME_ROOT = "omega-rust/omega/application/native-provider-runtime"
 NATIVE_PROVIDER_RUNTIME_OWNERS = (NATIVE_PROVIDER_RUNTIME_ROOT, *PERMITTED_OWNERS[1:])
 PROVIDER_SELECTION_OWNERS = PERMITTED_OWNERS[1:]
+TRUST_OWNERS = (TRUST_ROOT, *PERMITTED_OWNERS[1:])
 RUNTIME_OWNERS = (
     RUNTIME_ROOT,
     NATIVE_PROVIDER_RUNTIME_ROOT,
@@ -84,6 +86,7 @@ def main():
         metadata = json.loads(result.stdout)
         violations = dependency_violations(metadata)
         violations += dependency_violations(metadata, PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS)
+        violations += dependency_violations(metadata, TRUST_ROOT, TRUST_OWNERS)
         violations += dependency_violations(metadata, RUNTIME_ROOT, RUNTIME_OWNERS)
         violations += dependency_violations(metadata, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:

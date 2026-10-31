@@ -1184,10 +1184,15 @@ backend entry plans and image emission consume the completed signature. The
 initial source-aware selection and planning remain migration work.
 
 [`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
-owns trust obligation reconstruction and admission, consuming source
-judgments and selected-provider evidence. The CLI supplies policy admissions;
-the compiler sequences admission. Its checked-tree input remains a transitional
-boundary. Host file writing and timing have no dependency on these semantics.
+owns trust obligation reconstruction and admission over source-free Psi
+declarations and selected-provider evidence. Psi's immutable provider inventory
+publishes every eligible accepted-machine declaration with exact template and
+contract commitments; absent or duplicate evidence remains deferred until the
+corresponding grant needs it. Package admission and final reconstruction borrow
+that same roster. The workspace dependency guard rejects typed/checked source
+reachability from this owner. The roster remains invocation-owned; complete
+canonical publication and source-discard replay are still required. Host file
+writing and timing have no dependency on these semantics.
 
 `omega/packages/package-manager/` owns package operations. Independent
 `source-acquisition`, `resolver-execution`, and `review-evidence` crates are

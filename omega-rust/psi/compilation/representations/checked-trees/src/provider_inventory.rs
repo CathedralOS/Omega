@@ -16,6 +16,7 @@ pub struct PreparedProviderInventory {
     uses: OnceLock<HashSet<SymbolHandle>>,
     origins: OnceLock<Vec<language_semantics::provider_declarations::SelectedTargetMachineOrigin>>,
     direct_calls: OnceLock<DirectCallDeclarations<SymbolHandle>>,
+    trust: OnceLock<language_semantics::trust_declarations::TrustDeclarations>,
     services: typed_trees::service_declarations::PreparedServiceCatalog,
 }
 
@@ -34,12 +35,21 @@ impl PreparedProviderInventory {
             uses: OnceLock::new(),
             origins: OnceLock::new(),
             direct_calls: OnceLock::new(),
+            trust: OnceLock::new(),
             services,
         }
     }
 
     pub fn program(&self) -> &Arc<CheckedTrees> {
         &self.checked
+    }
+
+    /// Complete immutable declaration facts shared by package admission and
+    /// final trust reconstruction. Preparation issues no grant and reports no
+    /// unused declaration's deferred evidence failure.
+    pub fn trust_declarations(&self) -> &language_semantics::trust_declarations::TrustDeclarations {
+        self.trust
+            .get_or_init(|| crate::trust_declarations::collect(&self.checked))
     }
 
     pub fn services_for(

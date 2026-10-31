@@ -34,7 +34,6 @@ pub struct SelectedExecution {
     /// Selected canonical declarations for behavior admission, including dormant uses.
     /// Executable callback placement is produced from Terminal, not stored here.
     pub callback_roots: psi_terminal_production::PreparedTerminalRoots,
-    pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,
 }

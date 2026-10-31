@@ -5,10 +5,13 @@
 //! grants that name nothing the program selects. It performs no policy-file
 //! I/O and compares against no second acceptance record.
 
-use crate::{AcceptedTemplateClassifications, NonProviderTrustGrant, TrustAdmission};
+use crate::{NonProviderTrustGrant, TrustAdmission};
 use diagnostics::Diagnostic;
+use language_semantics::trust_declarations::{
+    AcceptedContractDeclaration, AcceptedTemplateDeclaration, TrustDeclarationCardinality,
+    TrustDeclarations,
+};
 use std::collections::BTreeMap;
-use typed_trees::TypedTrees;
 
 enum PreparedTrustIdentity {
     ProviderPlan {
@@ -17,9 +20,9 @@ enum PreparedTrustIdentity {
     },
     MachineTemplate {
         report_identity: u64,
-        commitment: typed_trees::typed_trees::MachineTemplateCommitment,
+        declaration: AcceptedTemplateDeclaration,
     },
-    AcceptedMachine(symbols::SymbolHandle),
+    AcceptedMachine(Result<AcceptedContractDeclaration, TrustDeclarationCardinality>),
 }
 
 struct PreparedTrustObligation {
@@ -30,32 +33,10 @@ struct PreparedTrustObligation {
 /// Reconstruct every exact trust obligation from compiler-owned semantic
 /// facts. This operation performs no policy discovery and no filesystem I/O.
 pub fn reconstruct_trust_obligations(
-    typed: &TypedTrees,
-    checked: &checked_trees::CheckedTrees,
+    declarations: &TrustDeclarations,
     root_grants: &[String],
     provider_plans: &[&effects::provider_plan::ProviderPlan],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
-    accepted_template_classifications: &AcceptedTemplateClassifications,
-    package_aware: bool,
-) -> Result<Vec<TrustAdmission>, Vec<Diagnostic>> {
-    reconstruct_obligations(
-        typed,
-        checked,
-        root_grants,
-        provider_plans,
-        selected_provider_plans,
-        accepted_template_classifications,
-        package_aware,
-    )
-}
-
-fn reconstruct_obligations(
-    typed: &TypedTrees,
-    checked: &checked_trees::CheckedTrees,
-    root_grants: &[String],
-    provider_plans: &[&effects::provider_plan::ProviderPlan],
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-    accepted_template_classifications: &AcceptedTemplateClassifications,
     package_aware: bool,
 ) -> Result<Vec<TrustAdmission>, Vec<Diagnostic>> {
     let mut rows = Vec::<PreparedTrustObligation>::new();
@@ -67,7 +48,7 @@ fn reconstruct_obligations(
     .map_err(|diagnostic| vec![diagnostic])?;
     if package_aware {
         crate::root_grants::reject_package_grants_with_providers(
-            typed,
+            declarations,
             root_grants,
             &provider_grants,
         )?;
@@ -89,20 +70,34 @@ fn reconstruct_obligations(
             }
             continue;
         }
-        let subject = crate::resolve_non_provider_trust_grant(typed, grant)
+        let subject = crate::resolve_non_provider_trust_grant(declarations, grant)
             .map_err(|diagnostic| vec![diagnostic])?;
         let (commitment, identity) = match subject {
             NonProviderTrustGrant::AcceptedMachine(symbol) => {
-                let machine = crate::accepted_machine_grants::accepted_machine(typed, symbol)
-                    .map_err(|diagnostic| vec![diagnostic])?;
-                let identity = accepted_template_classifications
-                    .for_machine(machine.symbol, machine.name.as_str())
-                    .map_err(|diagnostic| vec![diagnostic])?
-                    .map(|identity| PreparedTrustIdentity::MachineTemplate {
-                        report_identity: identity.report_fingerprint(),
-                        commitment: identity.commitment(),
-                    })
-                    .unwrap_or(PreparedTrustIdentity::AcceptedMachine(machine.symbol));
+                let machine =
+                    crate::accepted_machine_grants::accepted_machine(declarations, symbol)
+                        .map_err(|diagnostic| vec![diagnostic])?;
+                let identity = match machine.template {
+                    Err(cardinality) => {
+                        let reason = match cardinality {
+                            TrustDeclarationCardinality::Missing => {
+                                "no pre-lowering template classification"
+                            }
+                            TrustDeclarationCardinality::Duplicate => {
+                                "duplicate pre-lowering template classifications"
+                            }
+                        };
+                        return Err(vec![Diagnostic::error(format!(
+                            "accepted machine `{}` has {reason}",
+                            machine.name
+                        ))]);
+                    }
+                    Ok(Some(declaration)) => PreparedTrustIdentity::MachineTemplate {
+                        report_identity: declaration.report_fingerprint,
+                        declaration,
+                    },
+                    Ok(None) => PreparedTrustIdentity::AcceptedMachine(machine.contract),
+                };
                 (
                     format!("accepted fact: {}", machine.name.as_str()),
                     identity,
@@ -126,35 +121,31 @@ fn reconstruct_obligations(
             } => TrustAdmission::for_provider_plan(row.commitment.clone(), report_identity, digest),
             PreparedTrustIdentity::MachineTemplate {
                 report_identity,
-                commitment,
+                declaration,
             } => TrustAdmission::for_machine_template(
                 row.commitment.clone(),
                 report_identity,
-                commitment,
+                declaration,
             ),
-            PreparedTrustIdentity::AcceptedMachine(machine) => {
-                let mut matches = checked
-                    .facts
-                    .contract_plans
-                    .machines
-                    .iter()
-                    .filter(|plan| plan.machine == machine);
-                let plan = matches.next().ok_or_else(|| {
+            PreparedTrustIdentity::AcceptedMachine(contract) => {
+                let contract = contract.map_err(|cardinality| {
+                    let reason = match cardinality {
+                        TrustDeclarationCardinality::Missing => {
+                            "no exact checked machine contract plan"
+                        }
+                        TrustDeclarationCardinality::Duplicate => {
+                            "duplicate exact checked machine contract plans"
+                        }
+                    };
                     vec![Diagnostic::error(format!(
-                        "accepted trust obligation `{}` has no exact checked machine contract plan",
+                        "accepted trust obligation `{}` has {reason}",
                         row.commitment
                     ))]
                 })?;
-                if matches.next().is_some() {
-                    return Err(vec![Diagnostic::error(format!(
-                        "accepted trust obligation `{}` has duplicate exact checked machine contract plans",
-                        row.commitment
-                    ))]);
-                }
                 TrustAdmission::for_machine_contract(
                     row.commitment.clone(),
-                    plan.report_fingerprint,
-                    plan.commitment,
+                    contract.report_fingerprint,
+                    contract,
                 )
             }
         }

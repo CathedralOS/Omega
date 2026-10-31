@@ -7,6 +7,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS, dependency_violations
 from check_native_boundary import PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS
+from check_native_boundary import TRUST_ROOT, TRUST_OWNERS
 
 
 class NativeBoundaryTests(unittest.TestCase):
@@ -118,6 +119,27 @@ class NativeBoundaryTests(unittest.TestCase):
         failures = dependency_violations(self.metadata, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS)
         self.assertEqual(len(failures), 1)
         self.assertIn("native-provider-runtime -> native-artifact -> native-production", failures[0])
+
+    def test_trust_admission_consumes_declarations_without_source_or_native_compilation(self):
+        trust = self.package("trust-model", TRUST_ROOT)
+        declarations = self.package("language-semantics", "omega-rust/psi/foundation/language-semantics")
+        self.edge(trust, declarations)
+        self.assertEqual(dependency_violations(self.metadata, TRUST_ROOT, TRUST_OWNERS), [])
+        typed = self.package("typed-trees", "omega-rust/psi/compilation/representations/typed-trees")
+        self.edge(declarations, typed, kind="build", optional=True, target='cfg(windows)')
+        failures = dependency_violations(self.metadata, TRUST_ROOT, TRUST_OWNERS)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("trust-model -> language-semantics -> typed-trees", failures[0])
+
+    def test_trust_admission_cannot_reopen_checked_source_or_call_native_compilation(self):
+        trust = self.package("trust-model", TRUST_ROOT)
+        checked = self.package("checked-trees", "omega-rust/psi/compilation/representations/checked-trees")
+        self.edge(trust, checked)
+        self.edge(trust, self.native)
+        failures = dependency_violations(self.metadata, TRUST_ROOT, TRUST_OWNERS)
+        self.assertEqual(len(failures), 2)
+        self.assertTrue(any("trust-model -> checked-trees" in failure for failure in failures))
+        self.assertTrue(any("trust-model -> native-production" in failure for failure in failures))
 
 
 if __name__ == "__main__":
