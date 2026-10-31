@@ -209,17 +209,14 @@ fn resolve_nested_member_path(
 }
 
 /// The data/sum definition behind a named or applied-generic type reference
-/// (through `&`/`in Domain` shells). Type arguments do not change the declared
-/// member names. `None` for primitives, arrays, and unknown names.
+/// (through `&`/`in Domain` shells). Prefer its exact prepared field telescope,
+/// then the declaration's names. `None` for primitives, arrays, and unknown names.
 pub(crate) fn data_definition_for_type(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
-    if let Some(instance) = program
-        .closed_data_definition(unwrapped)
-        .or_else(|| program.data_application_definition(unwrapped))
-    {
+    if let Some(instance) = program.data_field_definition(unwrapped) {
         return Some(instance);
     }
     let symbol = match program.type_reference_table.type_reference(unwrapped) {

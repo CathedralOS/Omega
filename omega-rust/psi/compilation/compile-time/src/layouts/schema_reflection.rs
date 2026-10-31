@@ -301,9 +301,9 @@ pub(super) fn reflected_field_layout(
     ))
 }
 
-/// Walk the exact closed field telescope. Lifetimes and qualifications remain
-/// semantic evidence; references contribute their descriptor geometry without
-/// recursively demanding storage of the referent.
+/// Walk the exact prepared field telescope and establish each by-value geometry.
+/// Lifetimes and qualifications remain semantic evidence; references contribute
+/// their descriptor geometry without demanding storage of the referent.
 fn reflected_member_layout(
     typed: &TypedTrees,
     reference: typed_trees::types::TypeReferenceHandle,
@@ -319,15 +319,7 @@ fn reflected_member_layout(
     match typed.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::Reference { referee, .. } => {
             let target = target?;
-            let referent = type_reference_table(typed).unconstrained_type_reference(*referee);
-            let words = if matches!(
-                typed.type_reference_table.type_reference(referent),
-                TypeReferenceNode::Slice { .. }
-            ) {
-                2
-            } else {
-                1
-            };
+            let words = typed.reference_descriptor_word_count(*referee)?;
             Some((
                 target.pointer_size.checked_mul(words)?,
                 target.pointer_alignment,
@@ -354,7 +346,7 @@ fn reflected_member_layout(
             if typed.layout_storage_arguments(carrier).is_some() {
                 return None;
             }
-            let data = typed.closed_data_definition(carrier)?;
+            let data = typed.data_field_definition(carrier)?;
             let identity = typed.normalized_type_identity(carrier);
             if data.quotient.is_some()
                 || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape

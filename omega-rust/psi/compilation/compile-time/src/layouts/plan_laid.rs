@@ -88,10 +88,7 @@ pub fn evaluate_fixed_layout_applications(
             let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
                 continue;
             };
-            if typed
-                .closed_data_field_definition(storage.semantic_type)
-                .is_none()
-            {
+            if typed.data_field_definition(storage.semantic_type).is_none() {
                 continue;
             }
             let facts = scope.facts.as_ref().ok_or_else(|| vec![Diagnostic::error(format!(
@@ -124,9 +121,7 @@ pub fn evaluate_fixed_layout_applications(
     )?;
     for occurrence in typed_trees::references::collect_program_type_occurrences(typed) {
         if let Some(storage) = typed.layout_storage_arguments(occurrence.reference)
-            && typed
-                .closed_data_field_definition(storage.semantic_type)
-                .is_some()
+            && typed.data_field_definition(storage.semantic_type).is_some()
             && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
             && typed
                 .plan_laid_layout_for_type(storage.application)
