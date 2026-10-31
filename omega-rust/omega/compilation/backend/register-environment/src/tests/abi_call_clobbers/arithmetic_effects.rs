@@ -228,6 +228,50 @@ struct AlternativeContract {
     writes: &'static [u16],
 }
 
+/// The four alias windows a two-input, one-result form can realize: both
+/// inputs share the result view, one input shares it while the other stays
+/// distinct, or neither does.
+const RESULT_ALIASES_BOTH: MachineAlternativeApplicability =
+    MachineAlternativeApplicability::ResultAliasesOperands {
+        result: 2,
+        left: 0,
+        right: 1,
+    };
+const RESULT_ALIASES_LEFT: MachineAlternativeApplicability =
+    MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+        result: 2,
+        aliased_operand: 0,
+        distinct_operand: 1,
+    };
+const RESULT_ALIASES_RIGHT: MachineAlternativeApplicability =
+    MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+        result: 2,
+        aliased_operand: 1,
+        distinct_operand: 0,
+    };
+const RESULT_ALIASES_NEITHER: MachineAlternativeApplicability =
+    MachineAlternativeApplicability::ResultDistinctFromOperands {
+        result: 2,
+        left: 0,
+        right: 1,
+    };
+
+/// One alias-dependent alternative in one of those windows: the encoded size it
+/// resolves to, and the operand positions it reads. Every member of the
+/// alias-safe realization family writes the result operand and nothing else.
+fn result_alternative(
+    applicability: MachineAlternativeApplicability,
+    size: u16,
+    reads: &'static [u16],
+) -> AlternativeContract {
+    AlternativeContract {
+        applicability,
+        size: MachineSizeKnowledge::ExactBytes(size),
+        reads,
+        writes: &[2],
+    }
+}
+
 /// The declared size knowledge for one selected arithmetic semantic on each
 /// ISA: the x86-64 encoder-resolved envelopes and multi-instruction forms,
 /// and the fixed-width AArch64 encodings.
@@ -402,49 +446,10 @@ fn arithmetic_contract(
                     // The alias-safe realization family: `xor` when both
                     // inputs share the result view, `sub` against the left or
                     // right input, and `mov; sub` when the result is distinct.
-                    AlternativeContract {
-                        applicability: MachineAlternativeApplicability::ResultAliasesOperands {
-                            result: 2,
-                            left: 0,
-                            right: 1,
-                        },
-                        size: MachineSizeKnowledge::ExactBytes(3),
-                        reads: &[],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                                result: 2,
-                                aliased_operand: 0,
-                                distinct_operand: 1,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(3),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                                result: 2,
-                                aliased_operand: 1,
-                                distinct_operand: 0,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(6),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultDistinctFromOperands {
-                                result: 2,
-                                left: 0,
-                                right: 1,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(6),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
+                    result_alternative(RESULT_ALIASES_BOTH, 3, &[]),
+                    result_alternative(RESULT_ALIASES_LEFT, 3, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_RIGHT, 6, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_NEITHER, 6, &[0, 1]),
                 ]
             } else {
                 one(&[0, 1], &[2])
@@ -458,49 +463,10 @@ fn arithmetic_contract(
             flags: flag_custody(x86, FlagsCustody::None),
             alternatives: if x86 {
                 vec![
-                    AlternativeContract {
-                        applicability: MachineAlternativeApplicability::ResultAliasesOperands {
-                            result: 2,
-                            left: 0,
-                            right: 1,
-                        },
-                        size: MachineSizeKnowledge::ExactBytes(4),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                                result: 2,
-                                aliased_operand: 0,
-                                distinct_operand: 1,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(4),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
-                                result: 2,
-                                aliased_operand: 1,
-                                distinct_operand: 0,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(4),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
-                    AlternativeContract {
-                        applicability:
-                            MachineAlternativeApplicability::ResultDistinctFromOperands {
-                                result: 2,
-                                left: 0,
-                                right: 1,
-                            },
-                        size: MachineSizeKnowledge::ExactBytes(7),
-                        reads: &[0, 1],
-                        writes: &[2],
-                    },
+                    result_alternative(RESULT_ALIASES_BOTH, 4, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_LEFT, 4, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_RIGHT, 4, &[0, 1]),
+                    result_alternative(RESULT_ALIASES_NEITHER, 7, &[0, 1]),
                 ]
             } else {
                 one(&[0, 1], &[2])
