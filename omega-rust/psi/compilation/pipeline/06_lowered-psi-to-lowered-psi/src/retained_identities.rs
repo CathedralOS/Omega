@@ -15,6 +15,7 @@ pub(crate) mod ranked_coverage;
 
 use semantic_vocabulary::{BlockId, OperationId, ValueId};
 use std::collections::BTreeSet;
+use terminal_psi::TerminalSuspensionLoanCapture;
 
 /// Rows a module's semantic record names by identity rather than through an
 /// executable use: the block, operation and value rows a rewrite may not drop
@@ -65,9 +66,7 @@ pub(crate) fn record_named_rows(module: &terminal_psi::TerminalModule) -> Record
             rows.values.insert(value);
         });
         for (_, loan) in plan.loans.occurrences.iter() {
-            if let terminal_psi::TerminalSuspensionLoanCapture::Reference { formation, .. } =
-                loan.capture
-            {
+            if let TerminalSuspensionLoanCapture::Reference { formation, .. } = loan.capture {
                 rows.operations.insert(formation);
             }
         }
