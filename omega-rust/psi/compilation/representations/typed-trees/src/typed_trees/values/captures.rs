@@ -3,6 +3,8 @@
 //! Typing can inspect the supplying carrier; execution must read an already
 //! established home and reject a missing dominating capture.
 
+use crate::expression::ExpressionHandle;
+
 impl crate::TypedTrees {
     /// Authenticate a non-executable alias against its real value producer.
     /// This names the source for typing and capture lookup, never for replay.
@@ -46,10 +48,7 @@ impl crate::TypedTrees {
 
     /// A call-owned alias may only observe its completed argument home. It
     /// never supplies another operation which could establish or transfer it.
-    pub fn saved_argument_source(
-        &self,
-        expression: crate::expression::ExpressionHandle,
-    ) -> Option<crate::expression::ExpressionHandle> {
+    pub fn saved_argument_source(&self, expression: ExpressionHandle) -> Option<ExpressionHandle> {
         let crate::expression::ExpressionNode::SavedSubject(saved) =
             self.expression_table.expression(expression)
         else {

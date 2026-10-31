@@ -11,6 +11,10 @@
 //! enumerate.
 
 use crate::TypedTrees;
+use crate::expression::BinaryOperator;
+use crate::expression::ExpressionNode::Binary;
+use crate::expression::ExpressionNode::Name;
+use crate::signature::StateSignature;
 use crate::typed_trees::escape;
 
 /// One canonical value in a finite-family tuple. `identity` is the string a
@@ -53,10 +57,7 @@ impl TypedTrees {
     /// must write each tuple's full correlation (`W == 16 && L == 4 || W ==
     /// 32 && L == 8`); the compiler never invents a Cartesian product from
     /// independently listed values.
-    pub fn finite_signature_family(
-        &self,
-        signature: &crate::signature::StateSignature,
-    ) -> FamilyProbe {
+    pub fn finite_signature_family(&self, signature: &StateSignature) -> FamilyProbe {
         if !signature.lifetime_parameters.is_empty() {
             return FamilyProbe::NotFinite(
                 "invocation lifetimes are arbitrary regions, not an enumerable value roster"
@@ -111,16 +112,14 @@ impl TypedTrees {
     /// they neither enumerate tuples nor erase a declared finite family.
     fn explicit_signature_family(
         &self,
-        signature: &crate::signature::StateSignature,
+        signature: &StateSignature,
         binders: &[&crate::data::TypeParameter],
         root: crate::expression::ExpressionHandle,
     ) -> FamilyProbe {
         let mut tuples = Vec::new();
-        for alternative in self.binary_chain_leaves(root, crate::expression::BinaryOperator::Or) {
+        for alternative in self.binary_chain_leaves(root, BinaryOperator::Or) {
             let mut assignments: Vec<Option<FamilyValue>> = vec![None; binders.len()];
-            for conjunct in
-                self.binary_chain_leaves(alternative, crate::expression::BinaryOperator::And)
-            {
+            for conjunct in self.binary_chain_leaves(alternative, BinaryOperator::And) {
                 let Some((binder_index, value)) =
                     self.equality_assignment(signature.symbol, binders, conjunct)
                 else {
@@ -165,15 +164,13 @@ impl TypedTrees {
     fn binary_chain_leaves(
         &self,
         expression: crate::expression::ExpressionHandle,
-        operator: crate::expression::BinaryOperator,
+        operator: BinaryOperator,
     ) -> Vec<crate::expression::ExpressionHandle> {
         let mut leaves = Vec::new();
         let mut stack = vec![expression];
         while let Some(current) = stack.pop() {
             match self.expression_table.expression(current) {
-                crate::expression::ExpressionNode::Binary(binary)
-                    if binary.operator == operator =>
-                {
+                Binary(binary) if binary.operator == operator => {
                     stack.push(binary.right);
                     stack.push(binary.left);
                 }
@@ -192,12 +189,10 @@ impl TypedTrees {
         binders: &[&crate::data::TypeParameter],
         expression: crate::expression::ExpressionHandle,
     ) -> Option<(usize, FamilyValue)> {
-        let crate::expression::ExpressionNode::Binary(binary) =
-            self.expression_table.expression(expression)
-        else {
+        let Binary(binary) = self.expression_table.expression(expression) else {
             return None;
         };
-        if binary.operator != crate::expression::BinaryOperator::Equal {
+        if binary.operator != BinaryOperator::Equal {
             return None;
         }
         let (binder, value) = match (
@@ -228,9 +223,7 @@ impl TypedTrees {
         binders: &[&crate::data::TypeParameter],
         expression: crate::expression::ExpressionHandle,
     ) -> Option<usize> {
-        let crate::expression::ExpressionNode::Name(path) =
-            self.expression_table.expression(expression)
-        else {
+        let Name(path) = self.expression_table.expression(expression) else {
             return None;
         };
         let members = self.expression_table.name_path_members(path.members);
@@ -269,7 +262,7 @@ impl TypedTrees {
                 ),
                 display: value.to_string(),
             }),
-            crate::expression::ExpressionNode::Name(path) => {
+            Name(path) => {
                 let members = self.expression_table.name_path_members(path.members);
                 let [member] = members else { return None };
                 // Where payloads may precede expression binding. Use their

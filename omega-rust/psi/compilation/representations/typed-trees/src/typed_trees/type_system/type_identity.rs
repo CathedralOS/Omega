@@ -49,6 +49,7 @@ pub use normalized_identities::{
 pub use static_operand_identity::StaticOperandIdentityRequest;
 
 use crate::TypedTrees;
+use crate::trait_definition::TraitDefinition;
 
 /// Mint or rejoin the canonical handle for one rendered structural key. All
 /// rendering happens outside the interner: producers compute their text,
@@ -1404,10 +1405,7 @@ impl TypedTrees {
     /// Module-free and source-free semantic trees carry their complete path
     /// directly in the declaration, as for named machine identities. Package
     /// identity and exact symbol custody remain separate from this projection.
-    pub fn trait_declaration_path(
-        &self,
-        trait_definition: &crate::trait_definition::TraitDefinition,
-    ) -> String {
+    pub fn trait_declaration_path(&self, trait_definition: &TraitDefinition) -> String {
         if self
             .symbols
             .symbol_module(trait_definition.symbol)
@@ -1422,7 +1420,7 @@ impl TypedTrees {
     /// The derived parts of one trait machine requirement overload identity.
     fn trait_requirement_callable_identity_parts(
         &self,
-        trait_definition: &crate::trait_definition::TraitDefinition,
+        trait_definition: &TraitDefinition,
         requirement: &crate::signature::StateSignature,
     ) -> callable_identity::CallableIdentityParts {
         let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();

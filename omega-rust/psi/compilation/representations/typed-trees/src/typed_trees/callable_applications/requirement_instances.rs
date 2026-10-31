@@ -10,6 +10,7 @@
 //! requirement or permission to capture a region in a specialization operand.
 
 use super::{AppliedCallableOwner, AppliedCallableSignature, CallableApplication};
+use crate::type_identity::applied_type_identity;
 use crate::{TypedTrees, data, signature, static_applications, types};
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -379,19 +380,14 @@ impl TypedTrees {
                                     let existing_owner = self
                                         .static_machine_application(existing.application)
                                         .lexical_owner;
-                                    crate::type_identity::applied_type_identity(
-                                        self,
-                                        *left,
-                                        existing_owner,
-                                        &[],
-                                    )
-                                    .zip(crate::type_identity::applied_type_identity(
-                                        self,
-                                        *right,
-                                        lexical_owner,
-                                        &[],
-                                    ))
-                                    .is_some_and(|(left, right)| left == right)
+                                    applied_type_identity(self, *left, existing_owner, &[])
+                                        .zip(applied_type_identity(
+                                            self,
+                                            *right,
+                                            lexical_owner,
+                                            &[],
+                                        ))
+                                        .is_some_and(|(left, right)| left == right)
                                 }
                                 (left, right) => left == right,
                             }

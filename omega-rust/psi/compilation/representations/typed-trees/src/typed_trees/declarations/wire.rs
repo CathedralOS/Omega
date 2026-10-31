@@ -1,3 +1,4 @@
+use crate::data::DataMember::Field;
 use crate::name::Identifier;
 use crate::types::{DomainConstraint, TypeReferenceHandle};
 use arena::HandleSpan;
@@ -209,9 +210,7 @@ pub fn data_field_type(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    crate::data::DataMember::Field(field) if field.name.as_str() == field_name => {
-                        Some(field.type_reference)
-                    }
+                    Field(field) if field.name.as_str() == field_name => Some(field.type_reference),
                     _ => None,
                 });
         }
@@ -265,9 +264,7 @@ pub fn repeated_element_type(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    crate::data::DataMember::Field(field) if field.name.as_str() == "items" => {
-                        Some(field.type_reference)
-                    }
+                    Field(field) if field.name.as_str() == "items" => Some(field.type_reference),
                     _ => None,
                 })?;
             fixed_array_element_type(program, items)

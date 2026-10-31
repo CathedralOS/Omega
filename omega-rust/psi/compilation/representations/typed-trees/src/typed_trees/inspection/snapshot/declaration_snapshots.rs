@@ -11,15 +11,14 @@ use crate::operator::OperatorDefinition;
 use crate::proposition::{
     PropositionBinderKind, PropositionBody, PropositionDefinition, PropositionFormula,
 };
-use crate::typed_trees::inspection::snapshot::machine_snapshots::state_parameter_snapshot;
-use crate::typed_trees::inspection::snapshot::statement_and_expression_snapshots::{
-    expression_snapshot, expression_span_snapshot,
-};
-use crate::typed_trees::inspection::snapshot::type_snapshots::type_reference_snapshot;
-use crate::typed_trees::inspection::snapshot::{
+use crate::typed_trees::inspection::snapshot;
+use serde::Serialize;
+use snapshot::machine_snapshots::state_parameter_snapshot;
+use snapshot::statement_and_expression_snapshots::{expression_snapshot, expression_span_snapshot};
+use snapshot::type_snapshots::type_reference_snapshot;
+use snapshot::{
     ExpressionSnapshot, SourceSpanSnapshot, StateParameterSnapshot, TypeReferenceSnapshot,
 };
-use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ConstDeclarationSnapshot {
