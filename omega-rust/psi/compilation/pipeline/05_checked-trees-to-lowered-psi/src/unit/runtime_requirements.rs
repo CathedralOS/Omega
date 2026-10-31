@@ -16,7 +16,7 @@ use super::{
 };
 use crate::proofs::contract_predicates::PredicateTerms;
 use crate::proofs::crash_routes::{
-    checked_boolean_scalar_term, checked_scalar_term, lower_sequence_extent_term,
+    checked_boolean_scalar_term, checked_scalar_term, lower_sequence_extent_projection_term,
     lower_structural_member_term,
 };
 
@@ -238,18 +238,16 @@ impl RuntimeRequirementTerms<'_> {
                 self.structural_types,
             ),
             CheckedScalarExpression::StructuralSequenceLength { root, path } => {
-                let path = checked_trees::CheckedScalarReadProjection::static_path(path).ok_or(
-                    LoweringError::Unsupported("runtime contract extent cannot discard selectors"),
-                )?;
                 let position = root.parameter().ok_or(LoweringError::Unsupported(
                     "runtime sequence extent requires a structural formal",
                 ))?;
-                lower_sequence_extent_term(
+                lower_sequence_extent_projection_term(
                     identities,
                     position,
-                    &path,
+                    path,
                     self.parameters,
                     self.structural_types,
+                    &mut |identities, selector| self.scalar(identities, selector),
                 )
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {

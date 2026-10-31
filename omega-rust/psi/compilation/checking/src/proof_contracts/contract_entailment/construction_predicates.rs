@@ -374,7 +374,7 @@ impl ConstructionPredicates<'_> {
         self.predicates
             .iter()
             .map(|&predicate| {
-                instantiated_selected_fact_judgment(
+                let judgment = instantiated_selected_fact_judgment(
                     program,
                     judge,
                     self.literal.type_symbol,
@@ -384,7 +384,14 @@ impl ConstructionPredicates<'_> {
                     &[],
                     &[],
                     Some((machine, state)),
-                )
+                );
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT construction-fact data={} machine={} predicate={predicate:?} bindings={bindings:?} judgment={judgment:?}",
+                        self.literal.type_name, machine.name,
+                    );
+                }
+                judgment
             })
             .collect()
     }
