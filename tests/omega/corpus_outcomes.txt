@@ -72,8 +72,6 @@ fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms 
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
-fail/recast/native_bounded_array_window_short rejected 969ms expected @bb8f3fedf0ae
-	cannot prove requires contract for call fill from main: bytes[8..151].len >= 144 (needs fact `output.len >= 144` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
@@ -37382,6 +37380,8 @@ fail/recast/interior_slice_runtime_offset_non_tiling rejected 639ms expected @cc
 	machine `Main::main` state `main`: cannot prove exact tiling for interior slice `[u16]`: the runtime byte offset may leave a remainder for 2-byte elements; use a statically exact offset or validate the dynamic region before establishing the typed slice
 fail/recast/local_stored_byte_region_escape rejected 2671ms expected @ccdb99ca2214
 	machine `escape` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/recast/native_bounded_array_window_short rejected 969ms expected @bb8f3fedf0ae
+	cannot prove requires contract for call fill from main: bytes[8..151].len >= 144 (needs fact `output.len >= 144` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/recast/non_owning_erasure_false_reestablishment rejected 2873ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from overwrite at statement 2: storage in Storage::Issued
 fail/recast/non_owning_erasure_joined_shared_store rejected 730ms expected @ccdb99ca2214
