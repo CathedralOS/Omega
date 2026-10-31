@@ -8,7 +8,7 @@ use crate::proof_contracts::contract_entailment::{
     citations::machine_requires_facts,
     structural_case_arms::recognize_structural_state_prefix,
     structural_judgment::normal_returns::OperationOperandDemand,
-    structural_judgment::{CapturedIntegerRank, StructuralJudge},
+    structural_judgment::{CapturedIntegerRank, FormedIntegerRank, StructuralJudge},
     structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor},
 };
 use symbols::SymbolHandle;
@@ -33,6 +33,15 @@ pub(crate) fn prove_captured_scalar_rank_call(
     target: typed_trees::statement::TransitionTargetHandle,
     arguments: &[ExpressionHandle],
 ) -> Result<RankingRangeCallProgress, &'static str> {
+    let transition = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+        .and_then(|statement| statement.as_transition())
+        .ok_or("the scalar rank call is not an exact transition occurrence")?;
+    if transition.target != target || transition.continuation.is_valid() {
+        return Err("the scalar rank call needs its own primary completion prefix");
+    }
     let root = program
         .machine_states(caller)
         .first()
@@ -58,56 +67,49 @@ pub(crate) fn prove_captured_scalar_rank_call(
             SignatureContractKind::Requires,
         ),
     );
-    let judge = StructuralJudge::from_runtime_state_requires(program, caller, state, &requires);
-    let captures = judge
-        .normal_return_paths(source.subject, &[], (caller, state, state.return_type))
+    let mut judge = StructuralJudge::from_runtime_state_requires(program, caller, state, &requires);
+    let input = judge
+        .admitted_entry_scalar_value(caller, state, source.subject)
         .ok_or("the source rank input has no authenticated entry read")?;
-    if captures.is_empty() {
-        return Err("the source rank input has no entry observation path");
+    let formed = judge.form_captured_integer_rank(&CapturedIntegerRank {
+        input,
+        primitive: source.primitive,
+        measure: source.measure,
+    })?;
+    let mut observation = CallProgress {
+        state: state.symbol,
+        statement_index,
+        target,
+        callee: callee.symbol,
+        source: formed,
+        destination,
+        leading_operands,
+        seen: false,
+        strict: true,
+        failure: None,
+    };
+    let mut diagnostics = Vec::new();
+    if recognize_structural_state_prefix(
+        program,
+        caller,
+        state,
+        &judge,
+        &crate::proof_only_classification(program),
+        &mut diagnostics,
+        &mut observation,
+    )
+    .is_none()
+        || !diagnostics.is_empty()
+    {
+        return Err("the scalar rank call has no complete executed-prefix observation");
     }
-    let classification = crate::proof_only_classification(program);
-    let mut strict = true;
-    for capture in captures {
-        let mut observation = CallProgress {
-            state: state.symbol,
-            statement_index,
-            target,
-            callee: callee.symbol,
-            source: CapturedIntegerRank {
-                input: capture.value,
-                primitive: source.primitive,
-                measure: source.measure,
-            },
-            destination,
-            leading_operands,
-            seen: false,
-            strict: true,
-            failure: None,
-        };
-        let mut diagnostics = Vec::new();
-        if recognize_structural_state_prefix(
-            program,
-            caller,
-            state,
-            &capture.judge,
-            &classification,
-            &mut diagnostics,
-            &mut observation,
-        )
-        .is_none()
-            || !diagnostics.is_empty()
-        {
-            return Err("the scalar rank call has no complete executed-prefix observation");
-        }
-        if let Some(reason) = observation.failure {
-            return Err(reason);
-        }
-        if !observation.seen {
-            return Err("the scalar rank call has no reached operand observation");
-        }
-        strict &= observation.strict;
+    if let Some(reason) = observation.failure {
+        return Err(reason);
     }
-    Ok(if strict {
+    if !observation.seen {
+        return Err("the scalar rank call has no reached operand observation");
+    }
+    Ok(if observation.strict {
         RankingRangeCallProgress::Strict
     } else {
         RankingRangeCallProgress::NonIncreasing
@@ -119,7 +121,7 @@ struct CallProgress {
     statement_index: usize,
     target: typed_trees::statement::TransitionTargetHandle,
     callee: SymbolHandle,
-    source: CapturedIntegerRank,
+    source: FormedIntegerRank,
     destination: CapturedScalarRank,
     leading_operands: usize,
     seen: bool,

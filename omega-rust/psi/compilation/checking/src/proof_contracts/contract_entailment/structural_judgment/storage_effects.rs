@@ -26,6 +26,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
+mod entry_reads;
 mod read_backing;
 
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
@@ -462,7 +463,11 @@ impl StructuralJudge<'_> {
             {
                 continue;
             }
-            let Some(place) = self.captured_storage_coordinate(Some((machine, state)), expression)
+            if !self.ordinary_storage_path(Some((machine, state)), expression) {
+                continue;
+            }
+            let Some(place) = crate::canonical_place_from_expression(self.program, expression)
+                .and_then(|place| self.capture_entry_storage_place(place))
             else {
                 continue;
             };
@@ -487,7 +492,7 @@ impl StructuralJudge<'_> {
             let Some(value) = self.declaration_term(expression) else {
                 continue;
             };
-            let backing = self.freeze_scalar_read_backing(state, backing);
+            let backing = self.freeze_entry_scalar_read_backing(state, backing);
             self.retain_storage_value(place.clone(), value, true);
             if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
                 .iter_mut()
@@ -764,6 +769,20 @@ impl StructuralJudge<'_> {
         &self,
         place: crate::CanonicalPlace,
     ) -> Option<CapturedStorageCoordinate> {
+        self.capture_storage_place_with_selectors(place, |expression| {
+            let (_, value) = self
+                .normal_results
+                .iter()
+                .find(|(source, _)| *source == expression)?;
+            Some(self.completed_value_identity(value.clone()))
+        })
+    }
+
+    fn capture_storage_place_with_selectors(
+        &self,
+        place: crate::CanonicalPlace,
+        mut selector: impl FnMut(ExpressionHandle) -> Option<super::StructuralTerm>,
+    ) -> Option<CapturedStorageCoordinate> {
         let segments = place
             .segments
             .into_iter()
@@ -774,12 +793,7 @@ impl StructuralJudge<'_> {
                     )),
                 )),
                 facts::PlaceSegment::Index { expression } => {
-                    let completed = self
-                        .normal_results
-                        .iter()
-                        .find(|(source, _)| *source == expression);
-                    let (_, value) = completed?;
-                    let value = self.completed_value_identity(value.clone());
+                    let value = selector(expression)?;
                     value.observation_identity_key()?;
                     Some(CapturedStorageSegment::Index(value))
                 }

@@ -19,7 +19,9 @@ use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
 mod rank_comparison;
-pub(in crate::proof_contracts::contract_entailment) use rank_comparison::CapturedIntegerRank;
+pub(in crate::proof_contracts::contract_entailment) use rank_comparison::{
+    CapturedIntegerRank, FormedIntegerRank,
+};
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
