@@ -65,6 +65,11 @@ pub struct BlockSlotSummary {
 }
 
 impl BlockSlotSummary {
+    /// Record that `slot` no longer holds what a reader last saw there.
+    fn invalidate(&mut self, slot: super::LocalStorageSlotId) {
+        self.events.push(BlockSlotEvent::Invalidate { slot });
+    }
+
     #[inline]
     pub fn has_non_load_register(&self, register: VirtualRegisterId) -> bool {
         let word = (register.0 as usize) >> 6;
@@ -501,9 +506,7 @@ impl BlockEntry {
                         byte_offset,
                     } => {
                         if byte_offset != 0 {
-                            slot_summary
-                                .events
-                                .push(BlockSlotEvent::Invalidate { slot: target });
+                            slot_summary.invalidate(target);
                         } else {
                             slot_summary
                                 .events
@@ -521,9 +524,7 @@ impl BlockEntry {
                         byte_offset,
                     } => {
                         if byte_offset != 0 {
-                            slot_summary
-                                .events
-                                .push(BlockSlotEvent::Invalidate { slot: target });
+                            slot_summary.invalidate(target);
                             for operand in &instruction.operands {
                                 set_register_bit(
                                     &mut slot_summary.non_load_register_bits,
@@ -548,9 +549,7 @@ impl BlockEntry {
                     }
                     super::SelectedInstructionKind::HostedReadByte { slot: target }
                     | super::SelectedInstructionKind::HostedWriteByteI32 { slot: target } => {
-                        slot_summary
-                            .events
-                            .push(BlockSlotEvent::Invalidate { slot: target });
+                        slot_summary.invalidate(target);
                         for operand in &instruction.operands {
                             set_register_bit(
                                 &mut slot_summary.non_load_register_bits,
@@ -596,9 +595,7 @@ impl BlockEntry {
                 }
                 | super::SelectedInstructionKind::HostedReadByte { slot: target }
                 | super::SelectedInstructionKind::HostedWriteByteI32 { slot: target } => {
-                    slot_summary
-                        .events
-                        .push(BlockSlotEvent::Invalidate { slot: target });
+                    slot_summary.invalidate(target);
                 }
                 _ => {}
             }
@@ -637,9 +634,7 @@ impl BlockEntry {
                             argument,
                             ..
                         } => {
-                            slot_summary
-                                .events
-                                .push(BlockSlotEvent::Invalidate { slot: destination });
+                            slot_summary.invalidate(destination);
                             set_register_bit(&mut slot_summary.non_load_register_bits, argument);
                         }
                         super::SelectedStructuralTransport::ScalarReference {
@@ -652,14 +647,10 @@ impl BlockEntry {
                             destination,
                             ..
                         } => {
-                            slot_summary
-                                .events
-                                .push(BlockSlotEvent::Invalidate { slot: destination });
+                            slot_summary.invalidate(destination);
                             match base {
                                 super::SelectedAddressBase::Local(base_slot) => {
-                                    slot_summary
-                                        .events
-                                        .push(BlockSlotEvent::Invalidate { slot: base_slot });
+                                    slot_summary.invalidate(base_slot);
                                 }
                                 super::SelectedAddressBase::Register(argument) => {
                                     set_register_bit(
@@ -674,9 +665,7 @@ impl BlockEntry {
                 }
                 if let Some(case) = &successor.structural_case {
                     if let Some(case_slot) = case.source.local_slot() {
-                        slot_summary
-                            .events
-                            .push(BlockSlotEvent::Invalidate { slot: case_slot });
+                        slot_summary.invalidate(case_slot);
                     }
                     for payload in &case.payloads {
                         if let super::SelectedCasePayloadTransport::Registers { argument, .. } =
