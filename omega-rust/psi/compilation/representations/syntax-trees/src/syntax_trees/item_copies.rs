@@ -7,14 +7,19 @@
 use crate::expression::{ExpressionHandle, MatchSubjectCapture, StaticMachineArgument};
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
-    CapabilityMember, CapabilityState, ConformanceMember, DataDefinition, DataField, DataMember,
-    DataVariant, DomainDefinition, GenericConformanceBound, Item, Machine,
-    MachineParameterContract, MathematicalDefinition, MathematicalDefinitionBody,
-    MathematicalParameterNode, MathematicalTypeHandle, MathematicalTypeNode, MeasureDefinition,
-    OperatorDefinition, ProofFact, ProofMembershipFact, PropositionBody, StateParameterHandle,
-    StateParameterNode, StateSignature, TraitDefinition, TypeParameter, TypeParameterKind, UseItem,
+    CapabilityMember, CapabilityState, ConformanceItem, ConformanceMember, ConstDefinition,
+    ConstDestinationObligation, ConstInitializerNormalization, ConstQualification, DataDefinition,
+    DataField, DataMember, DataVariant, DomainAliasDefinition, DomainDefinition,
+    GenericConformanceBound, Item, Machine, MachineParameterContract, MathematicalDefinition,
+    MathematicalDefinitionBody, MathematicalParameterNode, MathematicalTypeHandle,
+    MathematicalTypeNode, MeasureDefinition, ModuleDeclaration, OperatorDefinition,
+    PackageDeclaration, ProofFact, ProofMembershipFact, PropositionBody, PropositionDefinition,
+    PropositionParameterSignature, QuotientDefinition, QuotientEquivalenceSelection,
+    SatisfiesClause, StateParameterHandle, StateParameterNode, StateSignature, TraitDefinition,
+    TraitRefinementClause, TypeParameter, TypeParameterKind, UseItem,
 };
 use crate::syntax_trees::SyntaxTrees;
+use crate::types::TypeReferenceHandle;
 use arena::{Handle, HandleSpan};
 use std::ops::{Deref, DerefMut};
 
@@ -129,8 +134,8 @@ impl SyntaxTrees {
     pub fn copy_type_reference_handle(
         &mut self,
         other: &SyntaxTrees,
-        handle: crate::types::TypeReferenceHandle,
-    ) -> crate::types::TypeReferenceHandle {
+        handle: TypeReferenceHandle,
+    ) -> TypeReferenceHandle {
         SyntaxCopy::new(self, other).copy_type_reference_handle(other, handle)
     }
 }
@@ -282,7 +287,7 @@ impl SyntaxCopy<'_> {
                 } else {
                     arena::HandleSpan::from_parts(copied_start, copied_count)
                 };
-                Item::Conformance(crate::item::ConformanceItem {
+                Item::Conformance(ConformanceItem {
                     is_public: conformance.is_public,
                     lifetime_parameters: conformance.lifetime_parameters.clone(),
                     type_parameters: self
@@ -299,7 +304,7 @@ impl SyntaxCopy<'_> {
                 let type_reference =
                     self.copy_type_reference_handle(other, constant.type_reference);
                 let value = self.copy_expression_handle(other, constant.value);
-                Item::Const(crate::item::ConstDefinition {
+                Item::Const(ConstDefinition {
                     scope: constant.scope.clone(),
                     name: constant.name.clone(),
                     is_public: constant.is_public,
@@ -307,7 +312,7 @@ impl SyntaxCopy<'_> {
                     value,
                     pending_target_observation: constant.pending_target_observation,
                     normalization: constant.normalization.as_ref().map(|normalization| {
-                        crate::item::ConstInitializerNormalization {
+                        ConstInitializerNormalization {
                             authored_custody: normalization.authored_custody.clone(),
                             declaration_custody: normalization.declaration_custody.clone(),
                             authored_expression: self
@@ -324,7 +329,7 @@ impl SyntaxCopy<'_> {
                                 && obligation.destination == constant.type_reference
                                 && obligation.initializer == constant.value
                             {
-                                crate::item::ConstDestinationObligation {
+                                ConstDestinationObligation {
                                     declaration: constant.name.source_span(),
                                     destination: type_reference,
                                     initializer: value,
@@ -339,7 +344,7 @@ impl SyntaxCopy<'_> {
                     qualification: constant.qualification.as_ref().and_then(|qualification| {
                         (qualification.destination == constant.type_reference
                             && qualification.initializer == constant.value)
-                            .then_some(crate::item::ConstQualification {
+                            .then_some(ConstQualification {
                                 destination: type_reference,
                                 initializer: value,
                             })
@@ -354,16 +359,13 @@ impl SyntaxCopy<'_> {
                 index_arguments: self
                     .copy_type_reference_handle_span(other, domain.index_arguments),
                 is_public: domain.is_public,
-                alias: domain
-                    .alias
-                    .as_ref()
-                    .map(|alias| crate::item::DomainAliasDefinition {
-                        constituents: alias
-                            .constituents
-                            .iter()
-                            .map(|constituent| self.copy_item_identifier_span(other, *constituent))
-                            .collect(),
-                    }),
+                alias: domain.alias.as_ref().map(|alias| DomainAliasDefinition {
+                    constituents: alias
+                        .constituents
+                        .iter()
+                        .map(|constituent| self.copy_item_identifier_span(other, *constituent))
+                        .collect(),
+                }),
                 cleanup_selection: domain
                     .cleanup_selection
                     .as_ref()
@@ -376,37 +378,31 @@ impl SyntaxCopy<'_> {
                 semantic_clause_token_count: domain.semantic_clause_token_count,
             }),
             Item::Measure(measure) => Item::Measure(self.copy_measure_definition(other, measure)),
-            Item::Module(module) => Item::Module(crate::item::ModuleDeclaration {
+            Item::Module(module) => Item::Module(ModuleDeclaration {
                 path: self.copy_item_identifier_span(other, module.path),
             }),
             Item::Operator(operator) => {
                 Item::Operator(self.copy_operator_definition(other, operator))
             }
-            Item::Package(package) => Item::Package(crate::item::PackageDeclaration {
+            Item::Package(package) => Item::Package(PackageDeclaration {
                 path: self.copy_item_identifier_span(other, package.path),
             }),
-            Item::Proposition(proposition) => {
-                Item::Proposition(crate::item::PropositionDefinition {
-                    name: proposition.name.clone(),
-                    is_public: proposition.is_public,
-                    type_parameters: self
-                        .copy_type_parameter_span(other, proposition.type_parameters),
-                    parameters: self
-                        .copy_state_parameter_handle_span(other, proposition.parameters),
-                    transparent_formula_source_span: proposition.transparent_formula_source_span,
-                    body: match proposition.body {
-                        PropositionBody::Primitive => PropositionBody::Primitive,
-                        PropositionBody::Witness { evidence } => PropositionBody::Witness {
-                            evidence: self.copy_type_reference_handle(other, evidence),
-                        },
-                        PropositionBody::Transparent { proposition } => {
-                            PropositionBody::Transparent {
-                                proposition: self.copy_expression_handle(other, proposition),
-                            }
-                        }
+            Item::Proposition(proposition) => Item::Proposition(PropositionDefinition {
+                name: proposition.name.clone(),
+                is_public: proposition.is_public,
+                type_parameters: self.copy_type_parameter_span(other, proposition.type_parameters),
+                parameters: self.copy_state_parameter_handle_span(other, proposition.parameters),
+                transparent_formula_source_span: proposition.transparent_formula_source_span,
+                body: match proposition.body {
+                    PropositionBody::Primitive => PropositionBody::Primitive,
+                    PropositionBody::Witness { evidence } => PropositionBody::Witness {
+                        evidence: self.copy_type_reference_handle(other, evidence),
                     },
-                })
-            }
+                    PropositionBody::Transparent { proposition } => PropositionBody::Transparent {
+                        proposition: self.copy_expression_handle(other, proposition),
+                    },
+                },
+            }),
             Item::Use(use_item) => Item::Use(UseItem {
                 path: self.copy_item_identifier_span(other, use_item.path),
             }),
@@ -456,22 +452,19 @@ impl SyntaxCopy<'_> {
                 .generic_instance
                 .map(|origin| self.copy_type_reference_handle(other, origin)),
             properties: data.properties,
-            quotient: data
-                .quotient
-                .as_ref()
-                .map(|quotient| crate::item::QuotientDefinition {
-                    carrier: self.copy_type_reference_handle(other, quotient.carrier),
-                    relation: self.copy_item_identifier_span(other, quotient.relation),
-                    equivalence: quotient.equivalence.as_ref().map(|selection| {
-                        crate::item::QuotientEquivalenceSelection {
-                            relation: self.copy_item_identifier_span(other, selection.relation),
-                            trait_name: selection.trait_name.clone(),
-                            trait_arguments: self
-                                .copy_type_reference_handle_span(other, selection.trait_arguments),
-                            conformance_name: selection.conformance_name.clone(),
-                        }
-                    }),
+            quotient: data.quotient.as_ref().map(|quotient| QuotientDefinition {
+                carrier: self.copy_type_reference_handle(other, quotient.carrier),
+                relation: self.copy_item_identifier_span(other, quotient.relation),
+                equivalence: quotient.equivalence.as_ref().map(|selection| {
+                    QuotientEquivalenceSelection {
+                        relation: self.copy_item_identifier_span(other, selection.relation),
+                        trait_name: selection.trait_name.clone(),
+                        trait_arguments: self
+                            .copy_type_reference_handle_span(other, selection.trait_arguments),
+                        conformance_name: selection.conformance_name.clone(),
+                    }
                 }),
+            }),
             where_facts: self.copy_domain_fact_span(other, data.where_facts),
             members: self.copy_data_member_span(other, data.members),
         }
@@ -567,7 +560,7 @@ impl SyntaxCopy<'_> {
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),
             satisfies: self.copy_mapped_span(
                 other.items.satisfies_clauses(machine.satisfies).to_vec(),
-                |this, clause| crate::item::SatisfiesClause {
+                |this, clause| SatisfiesClause {
                     trait_name: clause.trait_name,
                     lifetime_arguments: clause.lifetime_arguments,
                     arguments: this.copy_type_reference_handle_span(other, clause.arguments),
@@ -646,7 +639,7 @@ impl SyntaxCopy<'_> {
             refinement_clauses: trait_definition
                 .refinement_clauses
                 .iter()
-                .map(|clause| crate::item::TraitRefinementClause {
+                .map(|clause| TraitRefinementClause {
                     requirement: clause.requirement.clone(),
                     signature: self.copy_state_signature(other, &clause.signature),
                 })
@@ -692,13 +685,13 @@ impl SyntaxCopy<'_> {
                         }),
                     },
                     TypeParameterKind::Proposition { contract } => TypeParameterKind::Proposition {
-                        contract: contract.as_ref().map(|contract| {
-                            crate::item::PropositionParameterSignature {
+                        contract: contract
+                            .as_ref()
+                            .map(|contract| PropositionParameterSignature {
                                 name: contract.name.clone(),
                                 parameters: this
                                     .copy_state_parameter_handle_span(other, contract.parameters),
-                            }
-                        }),
+                            }),
                     },
                 };
                 TypeParameter {
