@@ -3,6 +3,7 @@
 
 mod assumption_closure;
 mod identity_and_w_types;
+mod level_worklists;
 mod levels_and_declarations;
 mod normalization_worklists;
 mod schemes_and_quotients;

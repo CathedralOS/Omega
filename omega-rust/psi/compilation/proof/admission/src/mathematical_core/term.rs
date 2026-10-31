@@ -4,7 +4,7 @@
 //! two-element type, relevant identity type, and W-type of well-founded
 //! trees.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use arena::Arena;
 
@@ -22,7 +22,7 @@ use arena::Arena;
 /// `Level` is syntax, not a normal form: `Maximum(v, u)` and `Maximum(u, v)`
 /// are different levels that convert. Semantic equality is decided by
 /// `levels_equal` through the `max`-normal form, never by `==`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, compiler_storage::Record)]
+#[derive(compiler_storage::Record)]
 pub enum Level {
     /// A closed natural level `k`.
     Constant(u32),
@@ -34,134 +34,8 @@ pub enum Level {
     Maximum(Box<Level>, Box<Level>),
 }
 
-impl Level {
-    /// `u + 1`, or `None` when `u` is the largest representable constant —
-    /// typing maps `None` to `CoreError::LevelOverflow`. Constants fold at
-    /// construction so closed levels keep their collapsed syntax.
-    pub fn successor(self) -> Option<Level> {
-        match self {
-            Level::Constant(value) => value.checked_add(1).map(Level::Constant),
-            _ => Some(Level::Successor(Box::new(self))),
-        }
-    }
-
-    /// `max(u, v)`. Constants fold at construction so closed levels keep
-    /// their collapsed syntax; anything involving a parameter stays
-    /// `Maximum` syntax and is normalized only for comparison.
-    pub fn maximum(self, other: Level) -> Level {
-        match (self, other) {
-            (Level::Constant(left), Level::Constant(right)) => Level::Constant(left.max(right)),
-            (left, right) => Level::Maximum(Box::new(left), Box::new(right)),
-        }
-    }
-}
-
-/// The `max`-normal form of a level: `max(k, p₀+o₀, p₁+o₁, …)` kept as a
-/// constant floor plus the maximum successor offset per parameter. This is
-/// the free algebra of `max` (associative, commutative, idempotent) with
-/// `succ` distributing over `max`, plus the one absorption the semantics
-/// forces: a constant floor never exceeds some variable's offset is
-/// redundant, since `max(k, p+o) = p+o` for all `p` whenever `o >= k`.
-/// Equality of normal forms is then exactly equality of the induced
-/// functions over the naturals, so conversion is decidable and complete —
-/// no level solving: distinct parameters never convert.
-#[derive(Debug, PartialEq, Eq)]
-struct NormalLevel {
-    constant: u64,
-    offsets: BTreeMap<u32, u64>,
-}
-
-impl NormalLevel {
-    /// Absorb the constant floor when a variable offset already reaches it:
-    /// at the all-zero instantiation `max(k, pᵢ+oᵢ)` contributes `oᵢ >= k`
-    /// anyway, so `k` can never decide the value.
-    fn absorb_constant(&mut self) {
-        if self
-            .offsets
-            .values()
-            .max()
-            .is_some_and(|offset| *offset >= self.constant)
-        {
-            self.constant = 0;
-        }
-    }
-}
-
-fn normal_form(level: &Level) -> NormalLevel {
-    let mut form = raw_normal_form(level);
-    form.absorb_constant();
-    form
-}
-
-fn raw_normal_form(level: &Level) -> NormalLevel {
-    match level {
-        Level::Constant(value) => NormalLevel {
-            constant: u64::from(*value),
-            offsets: BTreeMap::new(),
-        },
-        Level::Parameter(index) => {
-            let mut offsets = BTreeMap::new();
-            offsets.insert(*index, 0);
-            NormalLevel {
-                constant: 0,
-                offsets,
-            }
-        }
-        Level::Successor(inner) => {
-            let mut form = raw_normal_form(inner);
-            form.constant += 1;
-            for offset in form.offsets.values_mut() {
-                *offset += 1;
-            }
-            form
-        }
-        Level::Maximum(left, right) => {
-            let mut form = raw_normal_form(left);
-            let other = raw_normal_form(right);
-            form.constant = form.constant.max(other.constant);
-            for (parameter, offset) in other.offsets {
-                form.offsets
-                    .entry(parameter)
-                    .and_modify(|existing| *existing = (*existing).max(offset))
-                    .or_insert(offset);
-            }
-            form
-        }
-    }
-}
-
-/// Semantic level equality: the `max`-normal forms agree. `==` on `Level`
-/// is syntactic and only answers whether the two expressions are the same
-/// syntax; conversion must use this instead so `max(u, v)` converts with
-/// `max(v, u)` and `succ` distributes over `max`.
-pub(crate) fn levels_equal(left: &Level, right: &Level) -> bool {
-    normal_form(left) == normal_form(right)
-}
-
-/// The instantiation rule for level parameters: replace every
-/// `Parameter(i)` in `level` by `arguments[i]`. Level parameters are
-/// judgment scope, not de Bruijn-bound, so substitution needs no binder
-/// arithmetic — it is the universe-polymorphic analog of instantiation in
-/// the declaration rule. An out-of-range parameter is a malformed
-/// declaration instantiation: typing scope-checks every level argument
-/// before this runs, so `Err(index)` reports the defecting parameter of
-/// an unchecked or malformed input rather than a judgment failure.
-pub(crate) fn instantiate_level(level: &Level, arguments: &[Level]) -> Result<Level, u32> {
-    match level {
-        Level::Constant(_) => Ok(level.clone()),
-        Level::Parameter(index) => arguments
-            .get(usize::try_from(*index).unwrap_or(usize::MAX))
-            .cloned()
-            .ok_or(*index),
-        Level::Successor(inner) => Ok(Level::Successor(Box::new(instantiate_level(
-            inner, arguments,
-        )?))),
-        Level::Maximum(left, right) => Ok(Level::Maximum(
-            Box::new(instantiate_level(left, arguments)?),
-            Box::new(instantiate_level(right, arguments)?),
-        )),
-    }
-}
+mod levels;
+pub(crate) use levels::{instantiate_level, levels_equal};
 
 /// Semantic sort equality: the layers agree (`Type` never converts to
 /// `Strict` — there is no cumulativity and no layer collapse) and the

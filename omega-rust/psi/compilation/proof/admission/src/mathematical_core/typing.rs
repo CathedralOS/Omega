@@ -737,22 +737,31 @@ pub fn infer_type(
 /// of their own, so the check is a structural walk; out-of-scope
 /// parameters are malformed universes, never valid judgments.
 fn check_level(arity: u32, level: &Level) -> Result<(), CoreError> {
-    match level {
-        Level::Constant(_) => Ok(()),
-        Level::Parameter(index) => {
-            if *index < arity {
-                Ok(())
-            } else {
-                Err(CoreError::UnboundLevelParameter {
+    let mut pending: Vec<&Level> = Vec::new();
+    let mut current = level;
+    loop {
+        match current {
+            Level::Constant(_) => {}
+            Level::Parameter(index) if *index < arity => {}
+            Level::Parameter(index) => {
+                return Err(CoreError::UnboundLevelParameter {
                     index: *index,
                     arity,
-                })
+                });
+            }
+            Level::Successor(inner) => {
+                current = inner;
+                continue;
+            }
+            Level::Maximum(left, right) => {
+                pending.push(right);
+                current = left;
+                continue;
             }
         }
-        Level::Successor(inner) => check_level(arity, inner),
-        Level::Maximum(left, right) => {
-            check_level(arity, left)?;
-            check_level(arity, right)
+        match pending.pop() {
+            Some(next) => current = next,
+            None => return Ok(()),
         }
     }
 }
