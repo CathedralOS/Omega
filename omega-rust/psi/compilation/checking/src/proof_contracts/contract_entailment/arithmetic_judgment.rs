@@ -872,13 +872,16 @@ impl<'program> Engine<'program> {
     /// installed without arithmetic overflow.
     pub(super) fn install_hypotheses(
         &mut self,
-        comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
+        mut comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
     ) -> bool {
         let mut fully_visible = true;
         for (operator, left, right) in &comparisons {
             if *operator == BinaryOperator::Equal {
                 self.harvest_substitution(left, right);
             }
+        }
+        if !self.refresh_call_congruences(&mut comparisons) {
+            return false;
         }
         // Premises arrive in formation order: intrinsic carrier bounds can
         // precede an equality fixing their symbolic ceiling. Re-normalize the
