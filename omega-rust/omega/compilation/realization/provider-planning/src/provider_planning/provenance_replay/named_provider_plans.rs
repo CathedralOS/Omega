@@ -182,12 +182,7 @@ pub(super) fn derive(
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
-                provenance.row_requirements.push(row.requirement);
-                provenance
-                    .row_realizations
-                    .push(ProviderRowRealization::Authored(machine.symbol));
-                provenance.row_target_machine_origins.push(origin);
-                provenance.row_accessors.push(None);
+                provenance.push_authored_row(row.requirement, machine.symbol, origin);
             }
             Some(DerivedProviderPlan { plan, provenance })
         })
