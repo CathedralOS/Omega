@@ -280,7 +280,9 @@ captured window. Its source and target elements have independently reconstructed
 total, padding-free representations; target elements must exactly tile each
 source element and require no stronger alignment. The shared result retains the
 original backing and has `source_length * source_stride / target_stride`
-elements. It never substitutes an allocation's capacity for a narrowed window.
+elements. The captured source-length scalar is authenticated against that exact
+descriptor. A separate obligation proves the converted count fits `u64`; even
+valid whole-address-space backing cannot replace this scalar fit judgment. It never substitutes an allocation's capacity for a narrowed window.
 This region supplies no mutable access, qualifications, or retained foreign
 custody. Native realization validates both physical layouts against the portable
 geometry before scaling the descriptor count.

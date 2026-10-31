@@ -167,7 +167,7 @@ pub(super) fn establish(
         && matches!(
             region,
             terminal_psi::ElementViewRegion::WholeCollection
-                | terminal_psi::ElementViewRegion::WholeRepresentation
+                | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
         ) {
         None
     } else {
@@ -188,7 +188,7 @@ pub(super) fn establish(
             && matches!(
                 region,
                 terminal_psi::ElementViewRegion::WholeCollection
-                    | terminal_psi::ElementViewRegion::WholeRepresentation
+                    | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
             ) {
             constant(builder, row, 0, 0)?
         } else if !geometry.pointer_slots.is_empty() {
@@ -251,7 +251,7 @@ pub(super) fn establish(
             && matches!(
                 region,
                 terminal_psi::ElementViewRegion::WholeCollection
-                    | terminal_psi::ElementViewRegion::WholeRepresentation
+                    | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
             ) {
             base
         } else {
@@ -294,7 +294,7 @@ pub(super) fn establish(
             && matches!(
                 region,
                 terminal_psi::ElementViewRegion::WholeCollection
-                    | terminal_psi::ElementViewRegion::WholeRepresentation
+                    | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
             )
         {
             base
@@ -321,8 +321,7 @@ pub(super) fn establish(
         }
     };
     let (backing, length) = match region {
-        terminal_psi::ElementViewRegion::WholeCollection
-        | terminal_psi::ElementViewRegion::WholeRepresentation => {
+        terminal_psi::ElementViewRegion::WholeCollection => {
             if accepted_fact.is_some() {
                 return Err(invalid());
             }
@@ -370,21 +369,37 @@ pub(super) fn establish(
                     }
                 }
             };
-            // A representation recast scales the captured source count, not
-            // its backing's original capacity. The same backing pointer already
-            // includes any narrowed window's offset. Valid backing storage fits
-            // count * source size in the address space; exact tiling into a
-            // nonzero target means count * (source size / target size) fits too.
+            (backing, length)
+        }
+        terminal_psi::ElementViewRegion::WholeRepresentation {
+            source_length,
+            obligation,
+        } => {
+            if accepted_fact.is_none() || geometry.length_scale == 0 {
+                return Err(invalid());
+            }
+            let (_, count, _, count_type) = builder.resolve(*source_length).ok_or_else(invalid)?;
+            if !matches!(count_type,
+                semantic_vocabulary::ScalarType::Integer(integer)
+                    if Ok(integer) == semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned, 64))
+            {
+                return Err(invalid());
+            }
+            // Admission authenticates this SSA read against the identical source
+            // descriptor and requires count <= U64::MAX / factor. Consequently
+            // the machine multiply is exact, including the 2^64 endpoint cut.
+            // Backing geometry or a foreign pointer supplies no count-fit proof.
             let length = if geometry.length_scale == 1 {
-                length
+                count
             } else {
                 let factor = constant(builder, row, 8, geometry.length_scale)?;
                 let scaled = transport_register(builder, *destination, 8)?;
                 builder.emit(
                     SelectedInstructionKind::WrappingMultiplyI64,
                     builder.constraints.keys.multiply_i64,
-                    &[length, factor, scaled],
-                    provenance(row),
+                    &[count, factor, scaled],
+                    obligation_provenance(row, &[*source_length], &[*obligation]),
                 )?;
                 scaled
             };

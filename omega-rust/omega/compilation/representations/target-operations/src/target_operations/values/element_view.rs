@@ -82,7 +82,10 @@ pub enum TargetViewExtent {
 pub enum TargetElementViewRegion {
     WholeCollection,
     /// Reinterpret the complete captured source window with checked layout tiling.
-    WholeRepresentation,
+    WholeRepresentation {
+        source_length: ValueId,
+        obligation: ObligationId,
+    },
     RepresentationBytes {
         start: Box<TargetIntegerExpression>,
         end: Box<TargetIntegerExpression>,

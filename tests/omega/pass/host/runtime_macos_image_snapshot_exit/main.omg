@@ -54,7 +54,7 @@ ReadbackLayout satisfies FixedLayout<Readback> {
     }
 }
 
-machine snapshot(space: u64) -> u64 invokes ImageReadback + MacosImageData + MacosImageObjects {
+machine snapshot(space: u64) -> u64 invokes ImageReadback invokes MacosImageData invokes MacosImageObjects {
     let mut pixels: [i32; 6] = [0x00112233, 0x00223344, 0x00334455, 0x00445566, 0x00556677, 0x00667788];
     let image: u64 = macos_image_snapshot(3, 2, &pixels[..], space);
     // An actual foreign write prevents dead-store removal of the poison.
@@ -105,7 +105,7 @@ machine inspect(image: u64) -> bool invokes ImageReadback {
     }
 }
 
-machine main() reaches Console invokes ImageReadback + MacosImageData + MacosImageObjects {
+machine main() reaches Console invokes ImageReadback invokes MacosImageData invokes MacosImageObjects {
     let space: u64 = cg_color_space_rgb();
     let image: u64 = snapshot(space);
     cg_color_space_release(space);

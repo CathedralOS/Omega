@@ -262,6 +262,8 @@ pub(crate) fn map_obligations(
         | OperationKind::EstablishMutableElementView { region, .. } => {
             if let ElementViewRegion::RepresentationBytes { obligation, .. } = region {
                 *obligation = map(*obligation);
+            } else if let ElementViewRegion::WholeRepresentation { obligation, .. } = region {
+                *obligation = map(*obligation);
             }
         }
         OperationKind::Call {

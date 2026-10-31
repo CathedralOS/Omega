@@ -220,6 +220,28 @@ impl Emission<'_, '_, '_> {
                 Some((start, end))
             }
         };
+        // Capture the exact descriptor count as an ordinary scalar observation.
+        // The following region owns a separate count-fit obligation: a backing
+        // address envelope alone cannot justify narrowing a mathematical count.
+        let source_length = if matches!(
+            region,
+            checked_trees::CheckedElementViewRegion::WholeRepresentation
+        ) {
+            Some(
+                crate::emission::operation_emission::expressions::emit_scalar_leaf(
+                    terminal_psi::OperationKind::ElementViewLength {
+                        source: argument.clone(),
+                    },
+                    crate::emission::scalar_types::terminal_scalar_type(
+                        checked_trees::types::PrimitiveType::U64,
+                    )?,
+                    self.next_value,
+                    self.operations,
+                ),
+            )
+        } else {
+            None
+        };
         let id = self.operations.allocate();
         let region = match endpoints {
             None if matches!(
@@ -227,7 +249,16 @@ impl Emission<'_, '_, '_> {
                 checked_trees::CheckedElementViewRegion::WholeRepresentation
             ) =>
             {
-                terminal_psi::ElementViewRegion::WholeRepresentation
+                terminal_psi::ElementViewRegion::WholeRepresentation {
+                    source_length: source_length.ok_or(LoweringError::Unsupported(
+                        "representation view lost its captured count",
+                    ))?,
+                    obligation: crate::terminal_identities::obligation_id(
+                        id.get().checked_add(1).ok_or(LoweringError::Unsupported(
+                            "representation count obligation identity overflows",
+                        ))?,
+                    )?,
+                }
             }
             None => terminal_psi::ElementViewRegion::WholeCollection,
             Some((start, end)) => terminal_psi::ElementViewRegion::RepresentationBytes {

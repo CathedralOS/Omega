@@ -155,6 +155,57 @@ pub(super) fn valid_whole(
             if result.value == length && terminal_semantics::same_descriptor_coordinate(measured, source)))
 }
 
+/// Whole representation recasts scale this exact descriptor observation.
+/// A fixed array instead carries a u64 literal equal to its declared count;
+/// an equal-valued scalar from another descriptor cannot authorize the recast.
+pub(super) fn valid_representation_count(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
+    source: &terminal_psi::StructuralArgument,
+    source_length: semantic_vocabulary::ValueId,
+) -> bool {
+    if source.access != StructuralAccess::SharedBorrow {
+        return false;
+    }
+    let Some(shape) = source_shape(
+        function,
+        types,
+        domains,
+        source,
+        StructuralAccess::SharedBorrow,
+    ) else {
+        return false;
+    };
+    match shape {
+        StructuralTypeShape::ElementView { .. } => function.block_nodes().any(|node| {
+            matches!(&node.operation,
+                Operation::ElementViewLength { source: observed, result, .. }
+                    if result.value == source_length
+                        && terminal_semantics::same_descriptor_coordinate(observed, source))
+        }),
+        StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(count),
+            ..
+        } => function.block_nodes().any(|node| {
+            matches!(&node.operation,
+                Operation::IntegerConstant {
+                    result,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
+                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                    ..
+                } if *result == source_length
+                    && Ok(*integer) == semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned, 64)
+                    && *value == u128::from(count))
+        }),
+        _ => false,
+    }
+}
+
 fn source_shape(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -244,18 +295,41 @@ pub(super) fn validate_whole_freshness(
 ) -> Result<(), crate::OptimizationUnitValidationError> {
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_position, node) in block.nodes.iter().enumerate() {
-            let operands = match &node.operation {
+            let (byte_operands, representation_count) = match &node.operation {
                 Operation::EstablishByteSequenceConcatenation { left, right, .. }
-                | Operation::ByteSequenceEqual { left, right, .. } => [Some(left), Some(right)],
-                Operation::ByteSequencePredicate { operand, .. } => [Some(operand), None],
+                | Operation::ByteSequenceEqual { left, right, .. } => {
+                    ([Some(left), Some(right)], None)
+                }
+                Operation::ByteSequencePredicate { operand, .. } => ([Some(operand), None], None),
+                Operation::EstablishElementView {
+                    source,
+                    region:
+                        terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
+                    ..
+                } => ([None, None], Some((source, *source_length))),
                 _ => continue,
             };
-            for operand in operands.into_iter().flatten() {
-                let terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } =
-                    operand
-                else {
+            let operands = byte_operands
+                .into_iter()
+                .flatten()
+                .filter_map(|operand| match operand {
+                    terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
+                        Some((source, *length, false))
+                    }
+                    _ => None,
+                })
+                .chain(representation_count.map(|(source, length)| (source, length, true)));
+            for (source, length, element_count) in operands {
+                // Fixed array count literals are checked against their static
+                // backing by valid_representation_count; metadata cannot resize it.
+                if element_count
+                    && function.block_nodes().any(|candidate| {
+                        matches!(candidate.operation, Operation::IntegerConstant { result, .. }
+                        if result == length)
+                    })
+                {
                     continue;
-                };
+                }
                 let invalid = || crate::unit_validation::catalog_mismatch(function);
                 let names = crate::unit_validation::arrival_storage::storage_names(
                     function,
@@ -264,12 +338,16 @@ pub(super) fn validate_whole_freshness(
                 );
                 let (producer, producer_root) = function.blocks.iter().enumerate().find_map(|(owner, block)| {
                     names.in_block(block.id).find_map(|name| {
-                        block.nodes.iter().position(|candidate| matches!(&candidate.operation,
-                            Operation::ByteSequenceLength { source: observed, result, .. }
-                            if observed.place == name
+                        block.nodes.iter().position(|candidate| {
+                            let (observed, result) = match &candidate.operation {
+                                Operation::ElementViewLength { source, result, .. } if element_count => (source, result),
+                                Operation::ByteSequenceLength { source, result, .. } if !element_count => (source, result),
+                                _ => return false,
+                            };
+                            observed.place == name
                                 && terminal_semantics::structural_paths_select_same_location(&observed.path, &source.path)
-                                && result.value == *length
-                        )).map(|position| ((owner, position), name))
+                                && result.value == length
+                        }).map(|position| ((owner, position), name))
                     })
                 }).ok_or_else(invalid)?;
                 if !super::structural_freshness::unchanged_since(

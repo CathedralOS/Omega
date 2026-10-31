@@ -178,7 +178,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC invokes MacosImageData + MacosImageObjects {
+    ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects {
     macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
 }
 

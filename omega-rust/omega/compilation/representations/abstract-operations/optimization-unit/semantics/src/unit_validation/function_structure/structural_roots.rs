@@ -377,6 +377,22 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
+                O::EstablishElementView {
+                    source,
+                    region:
+                        terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
+                    ..
+                } => {
+                    if !super::descriptor_sources::valid_representation_count(
+                        function,
+                        structural_types,
+                        structural_domains,
+                        source,
+                        *source_length,
+                    ) {
+                        return Err(catalog_mismatch(function));
+                    }
+                }
                 O::ByteSequenceSubslice { .. }
                 | O::ByteSequenceLength { .. }
                 | O::ElementViewSubslice { .. }

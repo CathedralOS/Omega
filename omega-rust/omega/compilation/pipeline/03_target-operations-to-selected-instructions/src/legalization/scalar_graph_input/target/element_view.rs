@@ -205,9 +205,17 @@ impl Checker<'_> {
                             terminal_psi::ElementViewRegion::WholeCollection,
                         ) => true,
                         (
-                            target_operations::TargetElementViewRegion::WholeRepresentation,
-                            terminal_psi::ElementViewRegion::WholeRepresentation,
-                        ) => true,
+                            target_operations::TargetElementViewRegion::WholeRepresentation {
+                                source_length,
+                                obligation,
+                            },
+                            terminal_psi::ElementViewRegion::WholeRepresentation {
+                                source_length: expected_length,
+                                obligation: expected_obligation,
+                            },
+                        ) => {
+                            *source_length == expected_length && *obligation == expected_obligation
+                        }
                         (
                             target_operations::TargetElementViewRegion::RepresentationBytes {
                                 start,

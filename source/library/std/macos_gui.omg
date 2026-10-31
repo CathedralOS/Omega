@@ -389,7 +389,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC + MacosImageData + MacosImageObjects
+invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 {
     macos_window_present(window_state, source_width, source_height, &mut pixels[0..4096])
 }
@@ -402,7 +402,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit
-invokes ObjectiveC + MacosImageData + MacosImageObjects
+invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 {
     let count: u64 = (source_width as u64) * (source_height as u64);
     transition source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192 && pixels.len == count && pixels.len > 0 {
@@ -413,7 +413,7 @@ invokes ObjectiveC + MacosImageData + MacosImageObjects
     requires source_width > 0 && source_width <= 8192
     requires source_height > 0 && source_height <= 8192
     requires pixels.len == (source_width as u64) * (source_height as u64)
-    invokes ObjectiveC + MacosImageData + MacosImageObjects
+    invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
     {
         let cgimg: u64 = macos_image_snapshot(source_width, source_height, pixels, window_state.space);
         transition cgimg != 0 {

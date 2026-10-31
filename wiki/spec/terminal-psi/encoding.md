@@ -777,7 +777,8 @@ identity even when the parameters have identical physical shapes.
 An element-view region is a required `u8` tag: `0` means the whole
 collection and carries no payload; `1` means a representation byte
 region and carries start value id, end value id, and obligation id, in that order;
-`2` means the whole captured representation and carries no payload. Its count
+`2` means the whole captured representation and carries its source-length value
+id and count-fit obligation id. Its count
 conversion and validity are reconstructed from both element declarations and
 the source descriptor, never supplied as unchecked stride constants.
 Unknown tags and truncated payloads reject. The source structural argument

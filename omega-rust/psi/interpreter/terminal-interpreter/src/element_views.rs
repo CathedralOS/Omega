@@ -818,7 +818,8 @@ impl TerminalExecution<'_> {
             root_type,
             declared_backing_path,
         )?;
-        if region == ElementViewRegion::WholeRepresentation {
+        if let ElementViewRegion::WholeRepresentation { source_length, .. } = region {
+            let source_length = count(&source_length, &self.values)?;
             self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
             let terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
                 backing,
@@ -873,6 +874,12 @@ impl TerminalExecution<'_> {
                 }
                 _ => return Err(malformed()),
             };
+            if captured.len() != source_length {
+                return Err(malformed());
+            }
+            // Admission owns the count-fit obligation. Match its observed SSA
+            // count to this exact captured window; checked scaling below is a
+            // defensive runtime check, not evidence establishing that proof.
             let representation =
                 self.whole_representation_view(captured, source_layout, target_layout)?;
             let length = representation.length;

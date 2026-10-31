@@ -1004,7 +1004,14 @@ pub(super) fn decode_store_structural_field(
 fn encode_element_view_region(writer: &mut Writer, region: terminal_psi::ElementViewRegion) {
     match region {
         terminal_psi::ElementViewRegion::WholeCollection => writer.u8(0),
-        terminal_psi::ElementViewRegion::WholeRepresentation => writer.u8(2),
+        terminal_psi::ElementViewRegion::WholeRepresentation {
+            source_length,
+            obligation,
+        } => {
+            writer.u8(2);
+            writer.id(source_length);
+            writer.id(obligation);
+        }
         terminal_psi::ElementViewRegion::RepresentationBytes {
             start,
             end,
@@ -1022,7 +1029,10 @@ fn decode_element_view_region(
 ) -> Result<terminal_psi::ElementViewRegion, CodecError> {
     match reader.u8()? {
         0 => Ok(terminal_psi::ElementViewRegion::WholeCollection),
-        2 => Ok(terminal_psi::ElementViewRegion::WholeRepresentation),
+        2 => Ok(terminal_psi::ElementViewRegion::WholeRepresentation {
+            source_length: reader.id("ValueId")?,
+            obligation: reader.id("ObligationId")?,
+        }),
         1 => Ok(terminal_psi::ElementViewRegion::RepresentationBytes {
             start: reader.id("ValueId")?,
             end: reader.id("ValueId")?,

@@ -1,6 +1,5 @@
 // Offscreen images own copied native storage. No image retains an Omega loan.
 use calling;
-use omega::language::core::integer;
 use posix_byte_view_calling;
 
 // CFDataCreate has three C arguments: allocator, byte pointer and CFIndex.
@@ -9,7 +8,7 @@ use posix_byte_view_calling;
 // is a Create-rule owned CFData handle, or zero; it retains no input reference.
 public boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling> {
     machine copy(allocator: u64, bytes: &[u8]) -> u64
-    requires bytes.len <= (integer::max<i64>() as u64)
+    requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
     reaches;
 }
 
@@ -43,13 +42,25 @@ requires width > 0 && width <= 8192
 requires height > 0 && height <= 8192
 requires pixels.len == (width as u64) * (height as u64)
 reaches
-invokes MacosImageData + MacosImageObjects
+invokes MacosImageData invokes MacosImageObjects
 {
     let bytes: &[u8] = pixels as &[u8];
-    let data: u64 = MacosImageData::copy(0, bytes);
-    transition data != 0 {
-        true -> provider(width, height, space, data)
+    // CFIndex is signed even though Omega view lengths are unsigned counts.
+    // Validate the native scalar lane independently of the borrowed extent.
+    transition bytes.len <= 0x7fff_ffff_ffff_ffffu64 {
+        true -> copy(width, height, space, bytes)
         _ -> (0)
+    }
+
+    machine copy(width: u32, height: u32, space: u64, bytes: &[u8]) -> u64
+    requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
+    invokes MacosImageData invokes MacosImageObjects
+    {
+        let data: u64 = MacosImageData::copy(0, bytes);
+        transition data != 0 {
+            true -> provider(width, height, space, data)
+            _ -> (0)
+        }
     }
 
     machine provider(width: u32, height: u32, space: u64, data: u64) -> u64

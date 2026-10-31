@@ -125,7 +125,7 @@ pub fn element_view_shape_region_geometry<'a>(
             crate::collection_backing::collection_shape_view_backing(types, shape, element, access)
                 .map(ElementViewRegionGeometry::WholeCollection)
         }
-        ElementViewRegion::WholeRepresentation => {
+        ElementViewRegion::WholeRepresentation { .. } => {
             // The descriptor's captured window supplies the source count.
             // Regroup complete source elements only: neither allocation tails
             // nor unused capacity can enlarge that window. Shared observation
@@ -196,6 +196,17 @@ fn literal(value: u64) -> ScalarTerm {
 }
 fn value(value: ValueId) -> ScalarTerm {
     ScalarTerm::value(value, ScalarType::Integer(word()))
+}
+/// A valid backing window may occupy an entire address space. Its regrouped
+/// element count still needs to fit its own scalar carrier independently.
+pub fn whole_representation_count_goal(source_length: ValueId, factor: u64) -> Option<Proposition> {
+    if factor == 0 {
+        return None;
+    }
+    Some(Proposition::LessOrEqual(
+        value(source_length),
+        literal(u64::MAX / factor),
+    ))
 }
 /// Ordered proof legs own both extent and tiling; geometry alone creates none.
 pub fn representation_region_goal(
