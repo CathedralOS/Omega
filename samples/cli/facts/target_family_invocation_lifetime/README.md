@@ -114,15 +114,36 @@ the retained actual diagnostic; neither old wrong-fragment report is relabeled
 as a passing run, and no new compiler execution is claimed for the text change.
 The invalid program is unchanged.
 
-Full-row acceptance remains open. The historical
-[run 41233740591](https://github.com/CathedralOS/Omega/actions/runs/41233740591)
-at source `19ba4aa0df0ac916ee6b20fe8d56b4600dcc9c05` retains its original
-call-result incompleteness and no native/Terminal acceptance. The historical
+The remaining eight ordinary places are established by
+[run 41241114672](https://github.com/CathedralOS/Omega/actions/runs/41241114672)
+at source `cf446f9620a9d95ed5c80bee0dc9565debde7fc6`: local, field, parameter,
+match join, const name, nested machine, another machine and selected target
+implementation all pass ordinary review and native/Terminal execution on Linux
+x86-64. This run authenticates the same compiler bytes as the call-result run
+above and runner SHA-256
+`9584aa1409dba9dbebfa0da41ea5740f7fef1fbcb4cc18cd9f6f73d1e151656d`.
+Together these observations fill all nine positive places with the same fact
+and operation on that host.
+
+All eight invalid twins reject at the intended output-region mismatch.
+[Run 41241547644](https://github.com/CathedralOS/Omega/actions/runs/41241547644)
+retains each full actual diagnostic from the byte-identical corpus sources,
+using the same compiler and runner. Every rejected comparison is fresh
+invocation output versus the implementation's enclosing captured item slot.
+The paired expectations now require the result-validation phase and explicit
+fresh-versus-captured comparison, as for call result. The existing matcher
+accepts all nine retained actual diagnostics against those specific fragments.
+The invalid programs and runtime oracles are unchanged.
+
+The canonical-eight run and rejection-only run retain their original failed
+statuses under the old fragments. This expectation maintenance does not claim
+another compiler execution or relabel those reports. Historical incompleteness
+in [run 41233740591](https://github.com/CathedralOS/Omega/actions/runs/41233740591)
+and wrong-fragment refusals in
 [run 41227086012](https://github.com/CathedralOS/Omega/actions/runs/41227086012)
-recorded eleven signature/telescope refusals with wrong diagnostic fragments.
-The two-lifetime pair and call-result twin are now attributed specifically;
-the other eight ordinary signature-twin reason frontiers remain open. These
-results do not establish other native hosts or the complete family.
+also retain their original identities. The nine-place row is established on
+Linux x86-64; other native hosts and the complete parent capability remain
+separate acceptance.
 
 The parent task remains open for its remaining source migrations, native and
 callback consumers, distinct-target execution and complete legacy model,
