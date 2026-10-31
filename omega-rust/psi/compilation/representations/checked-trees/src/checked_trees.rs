@@ -16,6 +16,7 @@ pub mod admissibility;
 pub mod borrow;
 pub mod facts;
 pub mod flow;
+pub use flow::CheckedCallOrigin;
 pub mod keyed_rows;
 pub mod operators;
 pub mod proof;

@@ -170,7 +170,7 @@ impl Expansion<'_> {
     pub(super) fn call(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        source_call: Handle<checked_trees::FlowCallFact>,
+        source_call: checked_trees::CheckedCallOrigin,
         callee: &checked_trees::CheckedScalarCallee,
         call_ordinal: u32,
         arguments: HandleSpan<Computation>,
@@ -183,6 +183,9 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
+        let source_call = source_call.statement().ok_or(LoweringError::Unsupported(
+            "declaration application call scheduling is unfinished",
+        ))?;
         let control = &self.checked.facts.flow.control;
         if !control.calls.is_valid(source_call) {
             return unsupported("scalar computation lost its exact checked invocation");

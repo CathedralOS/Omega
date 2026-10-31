@@ -77,10 +77,19 @@ pub(crate) fn prepare(
             ) {
                 continue;
             }
-            let root = produced_value_root(checked, source_call, argument)?;
+            let root = produced_value_root(
+                checked,
+                source_call.statement().ok_or(LoweringError::Unsupported(
+                    "declaration call has no structural producer custody",
+                ))?,
+                argument,
+            )?;
             operands.push((Some(argument_ordinal), root));
         }
         for (argument_ordinal, root) in operands {
+            let source_call = source_call.statement().ok_or(LoweringError::Unsupported(
+                "declaration call has no produced-owner custody",
+            ))?;
             // Reserve the produced value's physical carrier. A stored loan
             // owns a descriptor; peeling its shell would reserve the referent
             // home and invalidate the checked Referent path. Authority and

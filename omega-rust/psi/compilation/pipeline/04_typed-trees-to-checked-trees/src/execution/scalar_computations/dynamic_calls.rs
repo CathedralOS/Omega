@@ -82,7 +82,8 @@ impl Builder<'_, '_> {
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Call {
-                source_call,
+                source_expression: expression,
+                source_call: source_call.into(),
                 callee: checked_trees::CheckedScalarCallee::Dynamic {
                     selector,
                     slot: slot.symbol,

@@ -102,8 +102,11 @@ pub(super) fn form(
     };
     let decision = checked_trees::CheckedDeclarationCall {
         expression,
+        authored_target: call.target_symbol,
+        arguments: call.arguments,
         target_machine: machine.symbol,
         target_state: state.symbol,
+        target_contract: None,
     };
     if !decisions.calls.contains(&decision) {
         decisions.calls.push(decision);

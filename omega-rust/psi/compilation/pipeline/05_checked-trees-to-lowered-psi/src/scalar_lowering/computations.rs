@@ -622,7 +622,7 @@ impl<'a> Expansion<'a> {
         active.push(*handle);
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
-        let completion_expression = node.completion_expression(&self.checked.facts.flow.control);
+        let completion_expression = node.evaluated_expression();
         let completion = flow_facts(&self.checked)
             .terminal_unit_effects
             .cleanup_control
@@ -976,6 +976,7 @@ impl<'a> Expansion<'a> {
                 structural_arguments,
                 temporary_cleanups,
                 claim_transfers,
+                ..
             } => self.call(
                 identities,
                 source_call,
