@@ -27,6 +27,16 @@ fn x86_register_info_writes_stack_pointer(info: &iced_x86::InstructionInfo) -> b
     })
 }
 
+/// One function-relative x86 byte region, decoded at its own IP.
+pub(crate) fn x86_region_decoder(bytes: &[u8], start: usize, end: usize) -> iced_x86::Decoder<'_> {
+    iced_x86::Decoder::with_ip(
+        64,
+        &bytes[start..end],
+        start as u64,
+        iced_x86::DecoderOptions::NONE,
+    )
+}
+
 /// The little-endian byte image of one already-decided instruction-word list.
 pub(crate) fn instruction_bytes(instructions: Vec<u32>) -> Vec<u8> {
     instructions

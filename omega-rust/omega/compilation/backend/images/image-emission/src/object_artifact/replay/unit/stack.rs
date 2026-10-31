@@ -5,7 +5,7 @@
 //! encodings shared by neighboring scalar replay. It does not construct stack
 //! demand or emit executable images.
 
-use crate::object_artifact::replay::x86_register_info_writes_stack_pointer;
+use crate::object_artifact::replay::{x86_region_decoder, x86_register_info_writes_stack_pointer};
 
 use machine_code::{
     ForeignCallRelocation, StackAdjustmentPair, UnitCallStackEvidence, UnitStackEvidence,
@@ -393,12 +393,7 @@ pub(crate) fn validate_complete_unit_stack_evidence(
                 )
                 .collect::<std::collections::BTreeSet<_>>();
             for code in code_ranges(bytes.len(), inline_data) {
-                let mut decoder = iced_x86::Decoder::with_ip(
-                    64,
-                    &bytes[code.clone()],
-                    code.start as u64,
-                    iced_x86::DecoderOptions::NONE,
-                );
+                let mut decoder = x86_region_decoder(bytes, code.start, code.end);
                 while decoder.can_decode() {
                     let instruction = decoder.decode();
                     let offset =
