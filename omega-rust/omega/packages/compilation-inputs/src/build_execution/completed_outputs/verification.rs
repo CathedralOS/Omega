@@ -43,12 +43,7 @@ pub(super) fn verify_existing_set(
         let sets_metadata = sets.dir_metadata().map_err(|error| error.to_string())?;
         let directory = message(sets.open_dir_nofollow(name))?;
         let initial = message(directory.dir_metadata())?;
-        require_same(
-            &initial,
-            &sets
-                .symlink_metadata(name)
-                .map_err(|error| error.to_string())?,
-        )?;
+        require_same(&initial, &message(sets.symlink_metadata(name))?)?;
         let mut expected = BTreeMap::from([
             (b"files".to_vec(), ExpectedEntry::Directory),
             (
@@ -80,17 +75,10 @@ pub(super) fn verify_existing_set(
                 String::from_utf8_lossy(missing)
             ));
         }
-        require_same(
-            &initial,
-            &sets
-                .symlink_metadata(name)
-                .map_err(|error| error.to_string())?,
-        )?;
+        require_same(&initial, &message(sets.symlink_metadata(name))?)?;
         require_same(
             &sets_metadata,
-            &build
-                .symlink_metadata("completed")
-                .map_err(|error| error.to_string())?,
+            &message(build.symlink_metadata("completed"))?,
         )
     };
     check().map_err(|reason| format!(
@@ -129,24 +117,14 @@ fn verify_directory(
                     &child.dir_metadata().map_err(|error| error.to_string())?,
                 )?;
                 verify_directory(&child, &path, expected)?;
-                require_same(
-                    &metadata,
-                    &directory
-                        .symlink_metadata(&name)
-                        .map_err(|error| error.to_string())?,
-                )?;
+                require_same(&metadata, &message(directory.symlink_metadata(&name))?)?;
             }
             ExpectedEntry::File { bytes, executable } => {
                 verify_file(directory, &name, &metadata, bytes, executable)?;
             }
         }
     }
-    require_same(
-        &initial,
-        &directory
-            .dir_metadata()
-            .map_err(|error| error.to_string())?,
-    )
+    require_same(&initial, &message(directory.dir_metadata())?)
 }
 
 fn verify_file(
@@ -199,12 +177,7 @@ fn verify_file(
         &initial,
         &file.metadata().map_err(|error| error.to_string())?,
     )?;
-    require_same(
-        &initial,
-        &directory
-            .symlink_metadata(name)
-            .map_err(|error| error.to_string())?,
-    )
+    require_same(&initial, &message(directory.symlink_metadata(name))?)
 }
 
 fn require_same(initial: &CapabilityMetadata, observed: &CapabilityMetadata) -> Result<(), String> {
