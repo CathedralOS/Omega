@@ -218,7 +218,7 @@ impl fmt::Display for StateSignatureOwner<'_> {
     }
 }
 
-fn validate_machine_parameter_signatures<'program>(
+pub(crate) fn validate_machine_parameter_signatures<'program>(
     program: &'program dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,

@@ -215,7 +215,6 @@ pub struct SymbolResolvedTypeStorage {
     pub constraints: Arena<types::TypeConstraint>,
     pub references: types::TypeReferenceTable,
     pub generic_application_origins: Arena<types::GenericApplicationOrigin>,
-    pub type_alias_applications: Arena<crate::type_aliases::TypeAliasApplication>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

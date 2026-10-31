@@ -237,6 +237,10 @@ pub(crate) fn evaluate(
         sources.clone(),
         bindings,
         context.retained_base(),
+        [
+            context.declaration_syntax,
+            context.retained_declaration_syntax,
+        ],
         &declarations,
     )?;
     let frontier =

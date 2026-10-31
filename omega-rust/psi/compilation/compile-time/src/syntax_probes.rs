@@ -66,11 +66,30 @@ pub(crate) fn defer_pending_const_qualifications(
     }
 }
 
+pub(crate) fn normalize_type_aliases(
+    syntax: syntax_trees::SyntaxTrees,
+    context: &crate::build_time_evaluation::BuildTimeSources<'_>,
+) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
+    syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_type_aliases(
+        normalization_request(
+            syntax,
+            context.sources.clone(),
+            context.source_scoped_top_level_bindings,
+            context.retained_base(),
+            [
+                context.declaration_syntax,
+                context.retained_declaration_syntax,
+            ],
+        ),
+    )
+}
+
 pub(crate) fn normalize_generic_data(
     syntax_trees: syntax_trees::SyntaxTrees,
     sources: Option<Arc<source::SourceMap>>,
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declarations: [Option<&syntax_trees::SyntaxTrees>; 2],
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
     let _profile = phase_profile::guard("pre_resolution.generic_data");
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
@@ -79,6 +98,7 @@ pub(crate) fn normalize_generic_data(
             sources,
             source_scoped_top_level_bindings,
             retained_base,
+            declarations,
         ),
     )
 }
@@ -92,6 +112,7 @@ pub(crate) fn normalize_initializer_probe_data(
     sources: Option<Arc<source::SourceMap>>,
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declaration_forests: [Option<&syntax_trees::SyntaxTrees>; 2],
     declarations: &[syntax_trees::item::ItemHandle],
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_initializer_probe_data(
@@ -100,6 +121,7 @@ pub(crate) fn normalize_initializer_probe_data(
             sources,
             source_scoped_top_level_bindings,
             retained_base,
+            declaration_forests,
         ),
         declarations,
     )
@@ -173,6 +195,7 @@ fn normalization_request<'base>(
     sources: Option<Arc<source::SourceMap>>,
     bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,
+    declarations: [Option<&'base syntax_trees::SyntaxTrees>; 2],
 ) -> syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest<'base> {
     let has_sources = sources.is_some();
     syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest {
@@ -184,5 +207,7 @@ fn normalization_request<'base>(
             Vec::new()
         },
         retained_base: if has_sources { retained_base } else { None },
+        declaration_syntax: declarations[0],
+        retained_declaration_syntax: declarations[1],
     }
 }

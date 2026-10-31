@@ -400,6 +400,12 @@ fn validate<'program>(
         fact_call_projections,
         specification_calls,
     ) = phase_profile::scope("05.d.2.a.1a4b.data_and_proof_faces", || {
+        crate::declarations::type_aliases::validate(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         validate_data_field_types(
             program,
             &symbols,

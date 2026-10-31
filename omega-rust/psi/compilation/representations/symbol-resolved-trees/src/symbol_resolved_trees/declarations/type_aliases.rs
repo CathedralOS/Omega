@@ -20,16 +20,3 @@ pub struct TypeAliasDefinition {
     pub conformance_bounds: Vec<GenericConformanceBound>,
     pub expansion: TypeReference,
 }
-
-/// A use still owes the alias's own telescope even when an argument does not
-/// occur in its expansion. No alias application is inserted as a semantic
-/// type node: the consumer's type is the separately retained expansion.
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-pub struct TypeAliasApplication {
-    pub declaration: SymbolHandle,
-    pub declaration_source: source::SourceSpan,
-    pub name: DiagnosticName,
-    pub reference: source::SourceSpan,
-    pub arguments: HandleSpan<TypeReference>,
-    pub lifetime_arguments: Vec<DiagnosticName>,
-}

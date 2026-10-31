@@ -54,6 +54,14 @@ fn lower_item_with_exposure(
     item: &syntax::item::Item,
 ) -> Result<(), Diagnostic> {
     match item {
+        syntax::item::Item::TypeAlias(alias) => {
+            let alias = crate::lowering::type_aliases::lower_type_alias_definition(
+                lowerer,
+                syntax_trees,
+                alias,
+            )?;
+            lowerer.symbol_resolved_trees.type_aliases.push(alias);
+        }
         syntax::item::Item::Data(data_definition) => {
             let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
             crate::lowering::wire::derive_wire_schema(lowerer, &lowered);
@@ -376,6 +384,9 @@ fn item_expression_exposure(
 
     match item {
         syntax::item::Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::TypeAlias(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
         syntax::item::Item::Conformance(definition) if definition.is_public => {
             Exposure::PublicInterface
         }

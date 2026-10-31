@@ -71,7 +71,7 @@ pub(crate) fn validate_trait_conformance_bounds(
     );
 }
 
-fn validate_conformance_bounds(
+pub(crate) fn validate_conformance_bounds(
     program: &dyn crate::CheckingInput,
     owner_kind: &str,
     owner_name: &str,

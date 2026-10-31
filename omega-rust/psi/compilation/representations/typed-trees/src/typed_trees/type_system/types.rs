@@ -171,6 +171,58 @@ impl TypeReferenceTable {
         handle
     }
 
+    /// Alias applications are source-formation obligations on one occurrence,
+    /// independent of that occurrence's ordinary semantic type identity.
+    pub fn type_alias_applications(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> impl Iterator<Item = &crate::type_aliases::TypeAliasApplication> {
+        self.type_alias_applications
+            .iter()
+            .filter_map(move |(_, application)| {
+                (application.instance == reference).then_some(application)
+            })
+    }
+
+    pub fn retain_type_alias_application(
+        &mut self,
+        application: crate::type_aliases::TypeAliasApplication,
+    ) {
+        self.type_alias_applications.insert(application);
+    }
+
+    /// Give source obligations a distinct occurrence without changing the
+    /// underlying type graph or any of its supplying coordinates.
+    pub fn fresh_occurrence(&mut self, reference: TypeReferenceHandle) -> TypeReferenceHandle {
+        let fresh = self.insert(self.type_reference(reference).clone());
+        let source = Handle::from_parts(reference.arena_index(), reference.generation());
+        let target = Handle::from_parts(fresh.arena_index(), fresh.generation());
+        *self.constant_origin_spans.get_mut(target) = *self.constant_origin_spans.get(source);
+        *self
+            .operand_lifetime_owners
+            .get_mut(Handle::from_parts(fresh.arena_index(), fresh.generation())) =
+            self.operand_lifetime_owner(reference);
+        *self
+            .operand_lifetime_spans
+            .get_mut(Handle::from_parts(fresh.arena_index(), fresh.generation())) =
+            *self.operand_lifetime_spans.get(Handle::from_parts(
+                reference.arena_index(),
+                reference.generation(),
+            ));
+        self.set_operand_origin(fresh, self.operand_origin(reference));
+        let applications = self
+            .type_alias_applications(reference)
+            .cloned()
+            .collect::<Vec<_>>();
+        for application in applications {
+            self.retain_type_alias_application(crate::type_aliases::TypeAliasApplication {
+                instance: fresh,
+                ..application
+            });
+        }
+        fresh
+    }
+
     pub fn operand_origin(&self, reference: TypeReferenceHandle) -> TypeOperandOrigin {
         *self.operand_origins.get(Handle::from_parts(
             reference.arena_index(),

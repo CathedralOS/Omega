@@ -557,6 +557,12 @@ impl TypeReferenceTable {
                     .iter()
                     .any(|(_, origin)| origin.application == *handle)
             })
+            .filter(|(handle, _)| {
+                !self
+                    .type_alias_applications
+                    .iter()
+                    .any(|(_, origin)| origin.application == *handle)
+            })
             .filter_map(|(handle, node)| {
                 matches!(node, TypeReferenceNode::Generic { .. }).then_some(handle)
             })
@@ -685,6 +691,54 @@ impl TypeReferenceTable {
 
     pub fn type_reference(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
         self.type_references.get(handle)
+    }
+
+    /// Make a distinct source occurrence of an existing prepared type while
+    /// retaining every source obligation and supplying coordinate.
+    pub fn fresh_type_occurrence(&mut self, source: TypeReferenceHandle) -> TypeReferenceHandle {
+        let fresh = self.insert(self.type_reference(source).clone());
+        self.replace_type_occurrence(fresh, source);
+        fresh
+    }
+
+    /// Replace an occurrence by an already prepared occurrence in this same
+    /// forest, retaining its exact normalization and supplying metadata. The
+    /// old authored application must be retained separately before this call.
+    pub fn replace_type_occurrence(
+        &mut self,
+        destination: TypeReferenceHandle,
+        source: TypeReferenceHandle,
+    ) {
+        assert!(destination != source);
+        macro_rules! transfer {
+            ($table:ident, $field:ident) => {{
+                let rows = self
+                    .$table
+                    .iter()
+                    .filter_map(|(_, row)| (row.$field == source).then_some(row.clone()))
+                    .collect::<Vec<_>>();
+                let previous = self
+                    .$table
+                    .iter()
+                    .filter_map(|(handle, row)| (row.$field == destination).then_some(handle))
+                    .collect::<Vec<_>>();
+                for handle in previous {
+                    self.$table.free(handle);
+                }
+                for mut row in rows {
+                    row.$field = destination;
+                    self.$table.insert(row);
+                }
+            }};
+        }
+        let node = self.type_reference(source).clone();
+        self.replace_type_reference(destination, node);
+        transfer!(supplied_operand_owners, operand);
+        transfer!(generic_application_origins, instance);
+        transfer!(const_argument_normalizations, argument);
+        transfer!(integer_range_normalizations, owner);
+        transfer!(pending_const_arguments, position);
+        transfer!(type_alias_applications, instance);
     }
 
     /// Replace a node in place. Every site holding this handle sees the new

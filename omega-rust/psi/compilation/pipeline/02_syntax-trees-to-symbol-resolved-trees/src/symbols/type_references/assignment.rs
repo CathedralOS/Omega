@@ -155,6 +155,9 @@ pub(crate) fn assign_nominal_machine_requirement_arguments(
     for owner in program.data_definitions.iter() {
         collect_root(program.data_type_parameters(owner.type_parameters));
     }
+    for owner in program.type_aliases.iter() {
+        collect_root(program.data_type_parameters(owner.type_parameters));
+    }
     for owner in program.domain_definitions.iter() {
         collect_root(program.data_type_parameters(owner.type_parameters));
     }
@@ -862,6 +865,26 @@ fn assign_type_reference_symbol_with_context(
         }
         symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } => {
             *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
+        }
+        symbol_resolved_trees::types::TypeReference::AliasUse {
+            expansion,
+            application,
+            ..
+        } => {
+            assign_type_reference_symbol_with_context(
+                symbols,
+                child_type_references,
+                type_constraints,
+                local_type_parameters,
+                application,
+            );
+            assign_type_reference_symbol_with_context(
+                symbols,
+                child_type_references,
+                type_constraints,
+                local_type_parameters,
+                expansion,
+            );
         }
         symbol_resolved_trees::types::TypeReference::Unit => {}
     }

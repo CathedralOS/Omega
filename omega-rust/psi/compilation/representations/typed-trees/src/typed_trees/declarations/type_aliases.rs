@@ -25,6 +25,7 @@ pub struct TypeAliasDefinition {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypeAliasApplication {
     pub instance: TypeReferenceHandle,
+    pub application: TypeReferenceHandle,
     pub declaration: SymbolHandle,
     pub declaration_source: source::SourceSpan,
     pub reference: source::SourceSpan,

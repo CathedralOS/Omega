@@ -23,6 +23,12 @@ use std::ops::{Deref, DerefMut};
 pub(super) struct SyntaxCopy<'destination> {
     destination: &'destination mut SyntaxTrees,
     pub(super) expression_copies: Vec<(ExpressionHandle, ExpressionHandle)>,
+    pub(super) type_substitutions: Vec<(
+        crate::types::TypeReferenceHandle,
+        crate::types::TypeReferenceHandle,
+    )>,
+    pub(super) expression_substitutions: Vec<(ExpressionHandle, ExpressionHandle)>,
+    lifetime_substitutions: Vec<(source::SourceSpan, String, crate::identifier::Identifier)>,
     pub(super) match_subject_copies: Vec<(
         Handle<crate::expression::MatchSubjectCapture>,
         Handle<crate::expression::MatchSubjectCapture>,
@@ -35,6 +41,9 @@ impl<'destination> SyntaxCopy<'destination> {
         Self {
             destination,
             expression_copies: Vec::new(),
+            type_substitutions: Vec::new(),
+            expression_substitutions: Vec::new(),
+            lifetime_substitutions: Vec::new(),
             match_subject_copies: Vec::new(),
         }
     }
@@ -127,6 +136,37 @@ impl SyntaxTrees {
 
     /// Copy an operand from a retained snapshot of this syntax lineage.
     /// Independent forests use `extend_from`, which remaps declaration owners.
+    /// Copy only a selected declaration's telescope into this syntax lineage.
+    /// Imported headers do not become executable work roots.
+    pub fn copy_type_parameters_from(
+        &mut self,
+        other: &SyntaxTrees,
+        parameters: HandleSpan<TypeParameter>,
+    ) -> HandleSpan<TypeParameter> {
+        SyntaxCopy::new(self, other).copy_type_parameter_span(other, parameters)
+    }
+
+    /// Copy a declaration-owned type graph with simultaneous substitutions of
+    /// exact source occurrences. Actual handles already belong to the receiving
+    /// forest, so they retain their supplying scope and are not rewritten again.
+    pub fn instantiate_type_reference_from(
+        &mut self,
+        other: &SyntaxTrees,
+        reference: crate::types::TypeReferenceHandle,
+        types: &[(
+            crate::types::TypeReferenceHandle,
+            crate::types::TypeReferenceHandle,
+        )],
+        expressions: &[(ExpressionHandle, ExpressionHandle)],
+        lifetimes: &[(source::SourceSpan, String, crate::identifier::Identifier)],
+    ) -> crate::types::TypeReferenceHandle {
+        let mut copy = SyntaxCopy::new(self, other);
+        copy.type_substitutions.extend_from_slice(types);
+        copy.expression_substitutions.extend_from_slice(expressions);
+        copy.lifetime_substitutions.extend_from_slice(lifetimes);
+        copy.copy_type_reference_handle(other, reference)
+    }
+
     pub fn copy_type_reference_handle(
         &mut self,
         other: &SyntaxTrees,
@@ -137,6 +177,20 @@ impl SyntaxTrees {
 }
 
 impl SyntaxCopy<'_> {
+    pub(super) fn copied_lifetime(
+        &self,
+        other: &SyntaxTrees,
+        name: &crate::identifier::Identifier,
+    ) -> crate::identifier::Identifier {
+        self.lifetime_substitutions
+            .iter()
+            .find_map(|(source, spelling, actual)| {
+                (*source == name.source_span() && spelling == name.as_str(other))
+                    .then(|| actual.clone())
+            })
+            .unwrap_or_else(|| name.clone())
+    }
+
     /// Deep-copy one proof fact from another syntax tree. Generic-instance
     /// synthesis uses this to retain field-dependent default-domain facts
     /// while discharging facts that depend only on concrete const arguments.

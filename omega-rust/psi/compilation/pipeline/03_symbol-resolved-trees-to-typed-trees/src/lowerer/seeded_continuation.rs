@@ -115,6 +115,7 @@ impl SeededTypingBase {
         select_roots!(
             const_declarations,
             data_definitions,
+            type_aliases,
             domain_definitions,
             machines,
             measures,
@@ -746,6 +747,7 @@ fn resolved_root_prefix_is_retained(
     retains!(
         const_declarations,
         data_definitions,
+        type_aliases,
         domain_definitions,
         machines,
         measures,
@@ -765,7 +767,8 @@ fn retained_declaration_families_are_exact(
     base: &SymbolResolvedTrees,
     candidate: &SymbolResolvedTrees,
 ) -> bool {
-    candidate.domain_definitions == base.domain_definitions
+    candidate.type_aliases == base.type_aliases
+        && candidate.domain_definitions == base.domain_definitions
         && candidate.measures == base.measures
         && candidate.operators == base.operators
         && candidate.propositions == base.propositions

@@ -197,6 +197,10 @@ fn evaluate_application_group(
         sources.clone(),
         source_scoped_top_level_bindings,
         context.retained_base(),
+        [
+            context.declaration_syntax,
+            context.retained_declaration_syntax,
+        ],
         &declarations,
     )?;
     let endpoint_references = endpoint_leaves

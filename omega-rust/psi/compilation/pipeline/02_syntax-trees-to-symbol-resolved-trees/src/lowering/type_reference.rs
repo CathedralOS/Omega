@@ -137,7 +137,7 @@ pub(crate) fn lower_type_reference_handle(
                 })?;
         }
     }
-    let lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
+    let mut lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
     let origin = syntax_type_references(&syntax_trees).generic_application_origin(type_reference);
     if origin.is_valid() {
         let application = lower_generic_application_origin(lowerer, syntax_trees, origin)?;
@@ -156,6 +156,21 @@ pub(crate) fn lower_type_reference_handle(
                 instance,
                 application,
             });
+    }
+    let aliases = syntax_trees
+        .type_references
+        .type_alias_applications(type_reference)
+        .cloned()
+        .collect::<Vec<_>>();
+    for alias in aliases {
+        let application = lower_type_reference_node(lowerer, syntax_trees, alias.application)?;
+        let supplied_operand_owner = application.supplied_operand_owner();
+        lowered = TypeReference::AliasUse {
+            expansion: Box::new(lowered),
+            application: Box::new(application),
+            declaration_source: alias.declaration,
+            supplied_operand_owner,
+        };
     }
     Ok(lowered)
 }

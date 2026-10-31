@@ -162,6 +162,12 @@ impl<'base> ConstantSelection<'base> {
                     definition.name.source_span(),
                     Some(definition),
                 )),
+                Item::TypeAlias(definition) => declarations.push((
+                    SymbolKind::TypeAlias,
+                    definition.name.as_str(syntax).to_owned(),
+                    definition.name.source_span(),
+                    None,
+                )),
                 Item::Domain(definition) => declarations.push((
                     SymbolKind::Domain,
                     definition.name.as_str(syntax).to_owned(),
@@ -795,6 +801,95 @@ impl<'base> ConstantSelection<'base> {
         )
     }
 
+    /// Select an alias in the ordinary type namespace. A same-scope nominal
+    /// or builtin remains that declaration, never a name-based alias fallback.
+    pub(crate) fn type_alias_source(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+    ) -> Option<source::SourceSpan> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(syntax),
+            &[
+                SymbolKind::BuiltinType,
+                SymbolKind::Data,
+                SymbolKind::TypeAlias,
+            ],
+            name.source_span(),
+        )?;
+        (self.symbols.get(selected).kind == SymbolKind::TypeAlias)
+            .then(|| self.symbols.symbol_source_span(selected))
+            .flatten()
+    }
+
+    /// The complete selected telescope, including non-type roles. The result
+    /// is scratch source syntax; its receiving declaration is selected once
+    /// by source custody and no transient symbol identity escapes.
+    pub(crate) fn generic_parameter_header(
+        &self,
+        syntax: &mut SyntaxTrees,
+        declaration_syntax: &[&SyntaxTrees],
+        name: &Identifier,
+        kinds: &[SymbolKind],
+    ) -> Option<Vec<syntax_trees::item::TypeParameter>> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            name.as_str(syntax),
+            kinds,
+            name.source_span(),
+        )?;
+        let reference = self.symbols.symbol_source_span(selected)?;
+        let selected_kind = self.symbols.get(selected).kind;
+        let selected_name = self.symbols.name(selected);
+        let parameters = |forest: &SyntaxTrees| {
+            let mut headers = forest.root_items().filter_map(|item| {
+                let (kind, declaration, parameters) = match item {
+                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                    Item::Domain(domain) => {
+                        (SymbolKind::Domain, &domain.name, domain.type_parameters)
+                    }
+                    Item::TypeAlias(alias) => {
+                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters)
+                    }
+                    Item::Machine(machine) => {
+                        (SymbolKind::Machine, &machine.name, machine.type_parameters)
+                    }
+                    Item::Trait(definition) => (
+                        SymbolKind::Trait,
+                        &definition.name,
+                        definition.type_parameters,
+                    ),
+                    Item::Conformance(definition) => (
+                        SymbolKind::Conformance,
+                        definition.alias.as_ref()?,
+                        definition.type_parameters,
+                    ),
+                    _ => return None,
+                };
+                (kind == selected_kind
+                    && declaration.source_span() == reference
+                    && declaration.as_str(forest) == selected_name)
+                    .then_some(parameters)
+            });
+            let Some(result) = headers.next() else {
+                return Ok(None);
+            };
+            if headers.next().is_some() {
+                return Err(());
+            }
+            Ok(Some(result))
+        };
+        if let Some(parameters) = parameters(syntax).ok()? {
+            return Some(syntax.items.type_parameters(parameters).to_vec());
+        }
+        for forest in declaration_syntax {
+            if let Some(parameters) = parameters(forest).ok()? {
+                let copied = syntax.copy_type_parameters_from(forest, parameters);
+                return Some(syntax.items.type_parameters(copied).to_vec());
+            }
+        }
+        None
+    }
+
     /// Read the receiving telescope selected in this invocation's namespace.
     /// Parsed headers supply carrier syntax only; they never add declarations
     /// or authorize evaluation. Retained headers are outside the cohort's work
@@ -818,6 +913,9 @@ impl<'base> ConstantSelection<'base> {
             let mut declarations = forest.root_items().filter_map(|item| {
                 let (kind, declaration, parameters) = match item {
                     Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                    Item::TypeAlias(alias) => {
+                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters)
+                    }
                     Item::Machine(machine) => {
                         (SymbolKind::Machine, &machine.name, machine.type_parameters)
                     }

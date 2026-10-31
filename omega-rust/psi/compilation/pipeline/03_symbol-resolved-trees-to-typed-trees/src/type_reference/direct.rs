@@ -139,6 +139,22 @@ pub(super) fn lower_type_reference_handle_with_context(
         resolved::types::TypeReference::Named { symbol, name, .. } => {
             super::lower_named_type_reference(source_trees, typed_trees, *symbol, name, exposure)
         }
+        resolved::types::TypeReference::AliasUse {
+            expansion,
+            application,
+            declaration_source,
+            ..
+        } => {
+            let expansion = lower!(expansion)?;
+            let application = lower!(application)?;
+            super::alias_uses::retain_application(
+                source_trees,
+                typed_trees,
+                expansion,
+                application,
+                *declaration_source,
+            )
+        }
         resolved::types::TypeReference::Unit => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Unit)),

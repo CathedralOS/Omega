@@ -39,6 +39,7 @@ mod measures;
 mod operators;
 mod propositions;
 mod traits;
+mod type_aliases;
 
 use crate::tables::resolved_declarations;
 use arena::Arena;
@@ -127,6 +128,7 @@ pub(super) fn assign_top_level_symbols(
     let mut diagnostics = Vec::new();
     assign_domain_symbols(program, symbols);
     assign_data_symbols(program, symbols);
+    type_aliases::assign_type_alias_symbols(program, symbols);
     assign_conformance_parameter_symbols(program, symbols);
     diagnostics.extend(assign_machine_symbols(program, symbols));
     assign_proposition_symbols(program, symbols);

@@ -115,6 +115,7 @@ pub(super) fn top_level_type_symbol_for_source(
         &[
             SymbolKind::BuiltinType,
             SymbolKind::Data,
+            SymbolKind::TypeAlias,
             SymbolKind::Machine,
             SymbolKind::Trait,
             // Named application operands share this syntax with type leaves.

@@ -78,6 +78,7 @@ pub mod pre_resolution {
         normalize_generic_data, normalize_initializer_probe_data, retain_deferred_array_extent,
     };
     pub use crate::preparation::trait_defaults::synthesize_trait_defaults;
+    pub use crate::preparation::type_aliases::normalize_type_aliases;
     pub use crate::resolution::{
         ConstArgumentSelection, ConstDestinationObligation, ConstInitializerPayload,
         ConstInitializerSelection, prepare_const_initializer_selection,

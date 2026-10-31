@@ -28,6 +28,7 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
+mod alias_uses;
 mod arithmetic_results;
 mod computed_results;
 mod const_arguments;
