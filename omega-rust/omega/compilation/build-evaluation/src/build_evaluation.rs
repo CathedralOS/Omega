@@ -4,7 +4,8 @@
 //! requests join caller consent before execution. The result retains the source
 //! commitment and requested authority beside the evaluated configuration.
 
-use crate::PureBuildCompilation;
+use crate::completed_pure_build::CompletedPureBuildInputs;
+use crate::{BuildConfig, ComputedBuildConfig, PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
@@ -43,8 +44,8 @@ pub struct BuildEvaluationRequest<'request> {
 pub use compilation_products::EvaluatedBuild;
 
 enum BuildEvaluationState {
-    Complete(Arc<crate::ComputedBuildConfig>),
-    Execute(crate::PreparedBuildExecution),
+    Complete(Arc<ComputedBuildConfig>),
+    Execute(PreparedBuildExecution),
 }
 
 /// Admission and host grants retained across caller-owned execution. No source
@@ -55,10 +56,7 @@ pub struct PreparedBuildEvaluation {
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     retained_check: Option<psi_compiler::RetainedCheck>,
-    pure_retention: Option<(
-        crate::completed_pure_build::CompletedPureBuildInputs,
-        PureBuildCompilation,
-    )>,
+    pure_retention: Option<(CompletedPureBuildInputs, PureBuildCompilation)>,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
 }
 
@@ -78,7 +76,7 @@ impl PreparedBuildEvaluation {
         }
     }
     /// Defaults and freshly charged Pure reuse need no new activation.
-    pub fn execution(&mut self) -> Option<&mut crate::PreparedBuildExecution> {
+    pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
         match &mut self.state {
             BuildEvaluationState::Complete(_) => None,
             BuildEvaluationState::Execute(execution) => Some(execution),
@@ -193,8 +191,8 @@ pub fn prepare_build_evaluation(
         .transpose()?;
     let Some(selected_machine) = selected_machine else {
         return Ok(PreparedBuildEvaluation {
-            state: BuildEvaluationState::Complete(Arc::new(crate::ComputedBuildConfig {
-                config: crate::BuildConfig::default(),
+            state: BuildEvaluationState::Complete(Arc::new(ComputedBuildConfig {
+                config: BuildConfig::default(),
                 root_binding_requests: Vec::new(),
                 declared_product_selections: Vec::new(),
                 product_selection_requests: Vec::new(),
@@ -295,7 +293,7 @@ pub fn prepare_build_evaluation(
         };
         BuildEvaluationState::Complete(configuration)
     } else {
-        BuildEvaluationState::Execute(crate::PreparedBuildExecution::prepare(admitted)?)
+        BuildEvaluationState::Execute(PreparedBuildExecution::prepare(admitted)?)
     };
     Ok(PreparedBuildEvaluation {
         state,
