@@ -127,9 +127,9 @@ impl CurrentScalarValues<'_> {
                     "state:{:?}:parameter:{:?}:field:{path:?}",
                     self.state.symbol, parameter.symbol
                 );
-                if let Some(value) =
-                    super::fixed_length(self.program, reference, || format!("{identity}:length"))
-                {
+                if let Some(value) = super::entry_collection_length(self.program, reference, || {
+                    format!("{identity}:length")
+                }) {
                     if !path.is_empty() {
                         let coordinate = path
                             .iter()

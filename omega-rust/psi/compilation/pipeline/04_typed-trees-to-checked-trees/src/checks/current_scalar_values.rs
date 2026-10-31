@@ -262,12 +262,16 @@ impl<'program> CurrentScalarValues<'program> {
                     name: parameter.name.to_string(),
                     stable: true,
                     type_reference: parameter.type_reference,
-                    value: Some(fixed_length(program, parameter.type_reference, || {
-                        format!(
-                            "state:{:?}:parameter:{:?}:length",
-                            state.symbol, parameter.symbol
-                        )
-                    })?),
+                    value: Some(entry_collection_length(
+                        program,
+                        parameter.type_reference,
+                        || {
+                            format!(
+                                "state:{:?}:parameter:{:?}:length",
+                                state.symbol, parameter.symbol
+                            )
+                        },
+                    )?),
                 })
             })
             .collect();
@@ -1234,6 +1238,22 @@ fn integer_carrier(
 }
 /// A collection type's length when no store or reseat can change it during
 /// the activation: a literal fixed array's own length, or one unsigned unknown.
+/// Entry metadata includes inline fixed arrays as well as borrowed descriptors.
+/// Only the descriptor owner below may create a live length atom; a declared
+/// extent supplies its exact constant without treating owned storage as a loan.
+fn entry_collection_length(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    identity: impl FnOnce() -> String,
+) -> Option<ScopedArithmeticValue> {
+    if let Some(extent) = validation::fixed_array_type_length(program, reference) {
+        return Some(ScopedArithmeticValue::Integer(
+            numerics::bignum::BigInt::from_u64(u64::try_from(extent).ok()?),
+        ));
+    }
+    fixed_length(program, reference, identity)
+}
+
 fn fixed_length(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
