@@ -1547,14 +1547,14 @@ defines the complete product bar.
   lending, subordinate placed-input reborrowing, and retirement end to end (`Psi
   04–07` and `Omega 00–09`) under
   [placed access](wiki/spec/resources/access.md#establishment-and-retirement).
-  - Reuse `add_placed_accessor_attachment` in
+  - Reuse `add_accessor_attachment` in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/establishment.rs`,
-    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/placed_views.rs`.
+    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/access_views.rs`.
   - Extend native publication in
     `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/{fragment_object_publication,entry_receiver}.rs`
     and target-operation lowering in
-    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/placed_view_inputs.rs`
+    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/access_view_inputs.rs`
     so direct-entry and subordinate placed-view loans establish, access, and
     retire with exact original backing and qualifications across Terminal Psi
     and native execution.

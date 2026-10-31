@@ -32,33 +32,35 @@ fn application_provenance(application: &Application) -> source::SourceSpan {
 
 pub(super) fn synthesize_probe_records(
     syntax: &mut SyntaxTrees,
+    retained_templates: Option<&SyntaxTrees>,
     applications: &[Application],
     rewrites: &[PendingRewrite],
     schemas: &BTreeMap<DeclarationKey, SchemaRecord>,
     sources: Option<&source::SourceMap>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let templates = syntax
-        .root_items()
-        .filter_map(|item| item.as_data())
-        .filter(|data| {
-            data.name.as_str(syntax).rsplit("::").next() == Some("Accessor")
-                && sources.is_none_or(|sources| {
-                    sources
-                        .file_at(data.name.source_span())
-                        .is_some_and(|source| {
-                            source.origin == source::SourceOrigin::Toolchain
-                                && source.path.strip_prefix(&source.package_root).ok()
-                                    == Some(std::path::Path::new("layout.omg"))
-                        })
-                })
-        })
-        .map(|data| data.name.clone())
-        .collect::<Vec<_>>();
-    let [template] = templates.as_slice() else {
+    let template_spans = |forest: &SyntaxTrees| {
+        forest
+            .root_items()
+            .filter_map(|item| item.as_data())
+            .filter(|data| {
+                data.name.as_str(forest).rsplit("::").next() == Some("Accessor")
+                    && super::toolchain_layout_declaration(sources, data.name.source_span())
+            })
+            .map(|data| data.name.source_span())
+            .collect::<Vec<_>>()
+    };
+    let templates = match retained_templates {
+        Some(forest) => template_spans(forest),
+        None => template_spans(syntax),
+    };
+    let [template_span] = templates.as_slice() else {
         return Err(vec![Diagnostic::error(
-            "placed probe requires one exact sealed accessor template",
+            "access probe requires one exact sealed accessor template",
         )]);
     };
+    // The identifier carries its own text: the template may live in another
+    // forest whose text pages this probe does not share.
+    let template = generated_identifier("Accessor", *template_span);
     for application in applications {
         let members = schemas[&application.key.schema]
             .fields
@@ -101,18 +103,26 @@ pub(super) fn synthesize_probe_records(
 
 pub(super) fn synthesize_exact_records(
     syntax: &mut SyntaxTrees,
+    retained_templates: Option<&SyntaxTrees>,
     applications: &[Application],
     rewrites: &[PendingRewrite],
     schemas: &BTreeMap<DeclarationKey, SchemaRecord>,
     plans: &BTreeMap<ApplicationKey, ValidatedAccessPlan>,
     sources: Option<&source::SourceMap>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let template = syntax.clone();
+    let cohort_template;
+    let template: &SyntaxTrees = match retained_templates {
+        Some(forest) => forest,
+        None => {
+            cohort_template = syntax.clone();
+            &cohort_template
+        }
+    };
     let template_machines = template
         .root_items()
         .filter_map(|item| {
             let machine = item.as_machine()?;
-            sealed_accessor_template(syntax, machine, sources).then_some(machine.clone())
+            sealed_accessor_template(template, machine, sources).then_some(machine.clone())
         })
         .collect::<Vec<_>>();
 
@@ -170,7 +180,7 @@ pub(super) fn synthesize_exact_records(
                 let Some(machine) = template_machines.iter().find(|machine| {
                     machine
                         .name
-                        .as_str(syntax)
+                        .as_str(template)
                         .rsplit("::")
                         .next()
                         .is_some_and(|name| name == operation)
@@ -181,7 +191,7 @@ pub(super) fn synthesize_exact_records(
                 };
                 clone_accessor_machine(
                     syntax,
-                    &template,
+                    template,
                     machine,
                     &accessor_name,
                     value_leaf,
@@ -357,7 +367,7 @@ fn clone_accessor_machine(
     };
     let operation = machine
         .name
-        .as_str(syntax)
+        .as_str(template)
         .rsplit("::")
         .next()
         .expect("accessor template operation");

@@ -636,6 +636,9 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	duplicate data `Access`
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/proofs/exact_widening_without_source_bound rejected 991ms expected @b80d7416b671+wt
+	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/providers/boundary_guarded_array_requires_false rejected 1400ms expected @a889c2d8b84c
@@ -11763,12 +11766,21 @@ pass/layouts/declaration_only_initializer_formation checked 2763ms @ccdb99ca2214
 pass/layouts/direct_encoded_assignment_preserves_descriptor_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/empty_cases_sum_layout_compile checked 3776ms @ccdb99ca2214
 pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
-pass/layouts/extent_view_external_content rejected 1671ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @ccdb99ca2214
-	provider choice must supply the declaration's complete static application
-	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 109, end: 124 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/layouts/extent_view_external_content/build.omg", line: 3, column: 12 }) }]
-pass/layouts/extent_view_external_write rejected 5166ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @b43a5fa574e6
-	provider choice must supply the declaration's complete static application
-	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 107, end: 122 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "\\\\\\\\?\\\\C:\\\\Projects\\\\Omega\\\\.agents\\\\worktree\\\\access-vocab\\\\tests\\\\omega\\\\pass\\\\layouts\\\\extent_view_external_write\\\\build.omg", line: 3, column: 12 }) }]
+pass/layouts/extent_view_external_content rejected 12924ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @b80d7416b671+wt
+	machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view`: no captured source place is available
+	machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view.entries`: no captured source place is available
+	machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view.entries[1]`: no captured source place is available
+	machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `&__transition_subject#46.view.entries[1]`: no captured source place is available
+	machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view`: no captured source place is available
+	machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view.entries`: no captured source place is available
+	machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view.entries[1]`: no captured source place is available
+	machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `&forwarded.view.entries[1]`: no captured source place is available
+	inspection attempt admission: [Diagnostic { severity: Error, message: "machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view.entries`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view.entries[1]`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `&__transition_subject#46.view.entries[1]`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view.entries`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view.entries[1]`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `&forwarded.view.entries[1]`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/layouts/extent_view_external_write rejected 15293ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @b80d7416b671+wt
+	machine `update_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#57.view`: no captured source place is available
+	machine `observe_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#228.view`: no captured source place is available
+	cannot prove ensures contract for exit from attempt at statement 3: result in Extent::Registered
+	inspection attempt admission: [Diagnostic { severity: Error, message: "machine `update_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#57.view`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `observe_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#228.view`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "cannot prove ensures contract for exit from attempt at statement 3: result in Extent::Registered", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 2539ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/fixed_layout_computed_const_policy_exit checked 2288ms check-target:macos_arm64 @2ba727eefb59+wt
@@ -11807,16 +11819,12 @@ pass/layouts/placed_primitive_mixed_backing_rejected rejected 4782ms expected ch
 pass/layouts/placed_primitive_returned_backing checked 4447ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_stored_backing checked 4659ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_unused_valid checked 5047ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_ram_mixed_callback rejected 20382ms regressed-from:checked @b43a5fa574e6
-	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/layouts/placed_ram_mixed_callback checked 26998ms @b80d7416b671+wt
 pass/layouts/placed_reference_results/forwarded checked 4722ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/nested checked 4971ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/returned checked 5093ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/two_live checked 4345ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_view_call_custody rejected 18261ms terminal-inspections:failed regressed-from:checked+terminal-inspections:match @b43a5fa574e6
-	inspection unit_delegate production: [Diagnostic { severity: Error, message: "`unit_delegate` calls `observe`; `observe` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `observe::entry`", exceeded_provision: Some(ExceededProvision { resource: "coverage_state_signatures", limit: 0, requested: 1, coordinate: 2366 }), source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2366, end: 2373 } }), resolved_location: None }]
+pass/layouts/placed_view_call_custody checked 11861ms terminal-inspections:match @b80d7416b671+wt
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
@@ -12429,6 +12437,7 @@ pass/proofs/embedded_address_bounds_exit rejected 12259ms check-target:macos_arm
 pass/proofs/embedded_successor_call_requirement_exit checked 3945ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/embedded_successor_transports_upper_bound_exit checked 3751ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/erased_mathematical_initializers checked 2617ms @ccdb99ca2214
+pass/proofs/exact_widening_keeps_source_carrier checked 3588ms @b80d7416b671+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/family_carrier_relation_laws checked 2732ms @ccdb99ca2214
 pass/proofs/field_view_index_contract checked 5485ms @ccdb99ca2214
@@ -36382,10 +36391,8 @@ fail/layouts/placed_primitive_unused_invalid rejected 2185ms expected @b43a5fa57
 	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
 fail/layouts/placed_primitive_wrong_value rejected 2443ms expected @b43a5fa574e6
 	accessor read application: value type does not match the accessor's exact value type
-fail/layouts/placed_ram_mixed_callback rejected 17726ms unexpected @b43a5fa574e6
-	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/layouts/placed_ram_mixed_callback rejected 28089ms expected @b80d7416b671+wt
+	placed scalar native access requires captured RAM or a checked resident formation on every entry-relative origin; a formal or host pointer is not backing authority (machine MachineId(18), operation OperationId(177), boundary BoundaryMachineId(197), arguments [StructuralArgument { place: PlaceId(84), path: [], access: SharedBorrow }])
 fail/layouts/placed_reference_results/overlapping_loans rejected 4514ms expected @ccdb99ca2214
 	state `forward_holder` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
 	state `package_view` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -39780,42 +39787,10 @@ run/facts/float_comparison_route_through_target_body_traps checked 5367ms check-
 run/facts/signed_division_quotient_truncation_not_floor_traps checked 2617ms check-target:macos_arm64 @ccdb99ca2214
 run/float/folded_anonymous_operator_custody_exit checked 12880ms check-target:macos_arm64 @ccdb99ca2214
 run/generics/runtime_value_index_operands checked 3080ms check-target:macos_arm64 @ccdb99ca2214
-run/layouts/placed_ram_capture_forwarding rejected 17802ms check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_helper rejected 17427ms check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_retirement rejected 17601ms check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_return rejected 15978ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
+run/layouts/placed_ram_capture_forwarding checked 23301ms check-target:macos_arm64 @b80d7416b671+wt
+run/layouts/placed_ram_capture_helper checked 24091ms check-target:macos_arm64 @b80d7416b671+wt
+run/layouts/placed_ram_capture_retirement checked 25544ms check-target:macos_arm64 @b80d7416b671+wt
+run/layouts/placed_ram_capture_return checked 23929ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_original_backing rejected 16680ms check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
@@ -39825,19 +39800,7 @@ run/layouts/placed_ram_original_backing rejected 16680ms check-target:macos_arm6
 	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
 	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_scalar_types rejected 16091ms check-target:macos_arm64 @b43a5fa574e6
-	machine `mutate` state `entry` reads a nested member `signed`, but data `Access` has no field `signed` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `flag`, but data `Access` has no field `flag` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `narrow`, but data `Access` has no field `narrow` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `wide`, but data `Access` has no field `wide` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `signed.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry`: value call `flag.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry`: value call `narrow.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry`: value call `wide.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+run/layouts/placed_ram_scalar_types checked 28056ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_stored_field_return rejected 14752ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
