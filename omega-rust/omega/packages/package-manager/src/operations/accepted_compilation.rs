@@ -6,6 +6,7 @@
 
 use crate::declarations::BuildDeclarationKind;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use std::iter::empty;
 mod identity;
 pub(crate) use identity::compiler_input_identity;
 
@@ -542,9 +543,7 @@ fn prepare_occurrence_contexts(
             } else {
                 None
             }
-            .unwrap_or_else(|| {
-                build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
-            });
+            .unwrap_or_else(|| build_evaluation::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
             let inputs = if !is_root && !request.verify {
                 match custody.compiled_review_cache_dir() {
                     Some(directory) => {
