@@ -4,7 +4,9 @@ use crate::tables::expression_table;
 use crate::tables::resolved_statements;
 use crate::tables::statement_table_mut;
 use diagnostics::Diagnostic;
+use language_semantics::CallOperationalAcknowledgementOrigin;
 use symbol_resolved_trees as resolved;
+use symbols::SymbolHandle;
 use typed_trees as typed;
 
 /// Lower the declaration once; deferred implementation completion reuses these
@@ -199,7 +201,7 @@ fn proof_output_runtime_call(
         }
     }
     let authored_call_selection = match call.operational_acknowledgement.origin {
-        language_semantics::CallOperationalAcknowledgementOrigin::Source => {
+        CallOperationalAcknowledgementOrigin::Source => {
             let [occurrence] = call_occurrences.as_slice() else {
                 return Err(Diagnostic::error(format!(
                     "proof-output call retains {} authored call selections; expected one",
@@ -208,7 +210,7 @@ fn proof_output_runtime_call(
             };
             Some(*occurrence)
         }
-        language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
+        CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
     };
     let (receiver_root_symbol, receiver_symbol, receiver_members) =
         proof_output_receiver_parts(&lowerer.typed_trees, call.receiver)
@@ -254,17 +256,9 @@ fn proof_output_runtime_call(
 fn proof_output_receiver_parts(
     program: &typed::TypedTrees,
     expression: typed::expression::ExpressionHandle,
-) -> Option<(
-    symbols::SymbolHandle,
-    symbols::SymbolHandle,
-    Vec<typed::name::Identifier>,
-)> {
+) -> Option<(SymbolHandle, SymbolHandle, Vec<typed::name::Identifier>)> {
     if !expression.is_valid() {
-        return Some((
-            symbols::SymbolHandle::invalid(),
-            symbols::SymbolHandle::invalid(),
-            Vec::new(),
-        ));
+        return Some((SymbolHandle::invalid(), SymbolHandle::invalid(), Vec::new()));
     }
     match program.expression_table.expression(expression) {
         typed::expression::ExpressionNode::Borrow(inner) => {

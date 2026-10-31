@@ -1,7 +1,9 @@
+use crate::contracts::proof_facts::lower_proof_facts;
 use crate::lowerer::Lowerer;
-use crate::lowerer::name::lower_names;
+use crate::lowerer::name::{lower_name, lower_names};
 use crate::signatures::type_parameters::lower_type_parameters;
-use crate::type_reference::lower_type_reference_into_table;
+use crate::type_reference::{lower_type_reference_into_table, retain_static_path_selection};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
@@ -26,7 +28,7 @@ fn lower_data_definition_contents(
 ) -> Result<typed::data::DataDefinition, Diagnostic> {
     let mut typed_data_definition = typed::data::DataDefinition {
         symbol: data_definition.symbol,
-        name: crate::lowerer::name::lower_name(&data_definition.name),
+        name: lower_name(&data_definition.name),
         is_public: data_definition.is_public,
         predicate_subject_symbol: data_definition.predicate_subject_symbol,
         predicate_subject_type: if data_definition.predicate_subject_symbol.is_valid() {
@@ -38,7 +40,7 @@ fn lower_data_definition_contents(
         },
         supply_mode: data_definition.supply_mode,
         lifetime_parameters: lower_names(&data_definition.lifetime_parameters),
-        type_parameters: arena::HandleSpan::empty(),
+        type_parameters: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
         generic_instance: data_definition
             .generic_instance
@@ -54,7 +56,7 @@ fn lower_data_definition_contents(
             .quotient
             .as_ref()
             .map(|quotient| {
-                crate::type_reference::retain_static_path_selection(
+                retain_static_path_selection(
                     &mut lowerer.typed_trees,
                     &quotient.relation,
                     quotient.relation_symbol,
@@ -62,7 +64,7 @@ fn lower_data_definition_contents(
                     "quotient relation",
                 )?;
                 if let Some(selection) = &quotient.equivalence {
-                    crate::type_reference::retain_static_path_selection(
+                    retain_static_path_selection(
                         &mut lowerer.typed_trees,
                         &selection.relation,
                         selection.relation_symbol,
@@ -95,13 +97,13 @@ fn lower_data_definition_contents(
                             Ok::<_, Diagnostic>(typed::data::QuotientEquivalenceSelection {
                                 relation: lower_names(&selection.relation),
                                 relation_symbol: selection.relation_symbol,
-                                trait_name: crate::lowerer::name::lower_name(&selection.trait_name),
+                                trait_name: lower_name(&selection.trait_name),
                                 trait_symbol: selection.trait_symbol,
                                 trait_arguments: lowerer
                                     .typed_trees
                                     .type_reference_table
                                     .insert_type_reference_handles(trait_arguments),
-                                conformance_name: crate::lowerer::name::lower_name(
+                                conformance_name: lower_name(
                                     &selection.conformance_name,
                                 ),
                                 conformance_symbol: selection.conformance_symbol,
@@ -113,10 +115,10 @@ fn lower_data_definition_contents(
             .transpose()?,
         // R2 rung 2 slice 2: copied (re-lowered) from the resolved record;
         // inert until rung 3's atomic consumer.
-        where_facts: crate::contracts::proof_facts::lower_proof_facts(lowerer, data_definition.where_facts)?,
+        where_facts: lower_proof_facts(lowerer, data_definition.where_facts)?,
         zero_gated: data_definition.zero_gated,
         retired_identities: data_definition.retired_identities.clone(),
-        members: arena::HandleSpan::empty(),
+        members: HandleSpan::empty(),
     };
 
     for bound in &data_definition.conformance_bounds {
@@ -128,9 +130,9 @@ fn lower_data_definition_contents(
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
                 binder: bound.binder,
-                binder_name: crate::lowerer::name::lower_name(&bound.binder_name),
+                binder_name: lower_name(&bound.binder_name),
                 trait_symbol: bound.trait_symbol,
-                trait_name: crate::lowerer::name::lower_name(&bound.trait_name),
+                trait_name: lower_name(&bound.trait_name),
                 arguments,
             });
     }
@@ -202,7 +204,7 @@ fn lower_data_member(
             Ok(typed::data::DataMember::Field(typed::data::DataField {
                 identity: field.identity,
                 symbol: field.symbol,
-                name: crate::lowerer::name::lower_name(&field.name),
+                name: lower_name(&field.name),
                 relevance: field.relevance,
                 type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
             }))
@@ -211,12 +213,9 @@ fn lower_data_member(
             let mut typed_variant = typed::data::DataVariant {
                 identity: variant.identity,
                 symbol: variant.symbol,
-                name: crate::lowerer::name::lower_name(&variant.name),
-                payload: arena::HandleSpan::empty(),
-                where_facts: crate::contracts::proof_facts::lower_proof_facts(
-                    lowerer,
-                    variant.where_facts,
-                )?,
+                name: lower_name(&variant.name),
+                payload: HandleSpan::empty(),
+                where_facts: lower_proof_facts(lowerer, variant.where_facts)?,
                 retired_payload_identities: variant.retired_payload_identities.clone(),
             };
             let payload_fields = lowerer
@@ -227,7 +226,7 @@ fn lower_data_member(
                 let lowered = typed::data::DataField {
                     identity: field.identity,
                     symbol: field.symbol,
-                    name: crate::lowerer::name::lower_name(&field.name),
+                    name: lower_name(&field.name),
                     relevance: field.relevance,
                     type_reference: lower_type_reference_into_table(
                         lowerer,

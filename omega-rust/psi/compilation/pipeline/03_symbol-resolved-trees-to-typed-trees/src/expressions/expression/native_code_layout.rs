@@ -4,6 +4,7 @@
 
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use symbols::SymbolKind;
 use typed_trees as typed;
 
 pub(crate) fn lower_request(
@@ -26,9 +27,7 @@ pub(crate) fn lower_request(
         operand.symbol.is_valid()
             && matches!(
                 program.symbols.get(operand.symbol).kind,
-                symbols::SymbolKind::Machine
-                    | symbols::SymbolKind::State
-                    | symbols::SymbolKind::MachineParameter
+                SymbolKind::Machine | SymbolKind::State | SymbolKind::MachineParameter
             )
     });
     if !valid || operand.const_literal.is_some() || operand.evidence_projection.is_some() {

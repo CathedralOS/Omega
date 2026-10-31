@@ -1,4 +1,5 @@
 use crate::lowerer::Lowerer;
+use crate::lowerer::name::lower_name;
 use crate::type_reference::lower_type_reference_into_table;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -13,12 +14,9 @@ pub(crate) fn lower_wire_schema(
 
     Ok(typed::wire::WireSchema {
         symbol: wire_schema.symbol,
-        name: crate::lowerer::name::lower_name(&wire_schema.name),
+        name: lower_name(&wire_schema.name),
         is_public: wire_schema.is_public,
-        encoding: wire_schema
-            .encoding
-            .as_ref()
-            .map(crate::lowerer::name::lower_name),
+        encoding: wire_schema.encoding.as_ref().map(lower_name),
         members,
     })
 }
@@ -34,7 +32,7 @@ fn lower_wire_members(
             resolved::wire::WireMember::Field(field) => {
                 typed::wire::WireMember::Field(typed::wire::WireField {
                     number: field.number,
-                    name: crate::lowerer::name::lower_name(&field.name),
+                    name: lower_name(&field.name),
                     relevance: field.relevance,
                     type_reference: lower_type_reference_into_table(
                         lowerer,
@@ -50,7 +48,7 @@ fn lower_wire_members(
             resolved::wire::WireMember::Version(version) => {
                 let members = lower_wire_members(lowerer, version.members)?;
                 typed::wire::WireMember::Version(typed::wire::WireVersion {
-                    name: crate::lowerer::name::lower_name(&version.name),
+                    name: lower_name(&version.name),
                     members,
                 })
             }

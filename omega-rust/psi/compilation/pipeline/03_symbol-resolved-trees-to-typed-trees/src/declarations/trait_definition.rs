@@ -1,8 +1,12 @@
 use crate::lowerer::Lowerer;
-use crate::lowerer::name::lower_names;
+use crate::lowerer::name::{lower_name, lower_names};
 use crate::signatures::callable_signature::lower_state_signature;
 use crate::signatures::type_parameters::lower_type_parameters;
+use crate::type_reference::lower_type_reference_into_table;
+use crate::type_reference::retain_type_reference_selection;
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
@@ -14,12 +18,12 @@ pub(crate) fn lower_trait_definition(
         symbol: trait_definition.symbol,
         is_boundary: trait_definition.is_boundary,
         is_public: trait_definition.is_public,
-        name: crate::lowerer::name::lower_name(&trait_definition.name),
+        name: lower_name(&trait_definition.name),
         lifetime_parameters: lower_names(&trait_definition.lifetime_parameters),
-        type_parameters: arena::HandleSpan::empty(),
+        type_parameters: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
-        requires: arena::HandleSpan::empty(),
-        machines: arena::HandleSpan::empty(),
+        requires: HandleSpan::empty(),
+        machines: HandleSpan::empty(),
         refines: None,
         refinement_clauses: Vec::new(),
     };
@@ -29,17 +33,15 @@ pub(crate) fn lower_trait_definition(
     for bound in &trait_definition.conformance_bounds {
         let mut arguments = Vec::new();
         for argument in lowerer.source_trees.child_type_references(bound.arguments) {
-            arguments.push(crate::type_reference::lower_type_reference_into_table(
-                lowerer, argument,
-            )?);
+            arguments.push(lower_type_reference_into_table(lowerer, argument)?);
         }
         typed_trait
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
                 binder: bound.binder,
-                binder_name: crate::lowerer::name::lower_name(&bound.binder_name),
+                binder_name: lower_name(&bound.binder_name),
                 trait_symbol: bound.trait_symbol,
-                trait_name: crate::lowerer::name::lower_name(&bound.trait_name),
+                trait_name: lower_name(&bound.trait_name),
                 arguments,
             });
     }
@@ -48,22 +50,21 @@ pub(crate) fn lower_trait_definition(
         .source_trees
         .trait_requirements(trait_definition.requires)
     {
-        crate::type_reference::retain_type_reference_selection(
+        retain_type_reference_selection(
             lowerer.source_trees,
             &mut lowerer.typed_trees,
             &requirement.name,
             requirement.symbol,
             lowerer.type_reference_exposure,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            AuthoredDeclarationSelectionKind::TypeReference,
         )?;
-        let mut arguments = arena::HandleSpan::empty();
+        let mut arguments = HandleSpan::empty();
         let source_arguments = lowerer
             .source_trees
             .child_type_references(requirement.arguments)
             .to_vec();
         for argument in &source_arguments {
-            let argument =
-                crate::type_reference::lower_type_reference_into_table(lowerer, argument)?;
+            let argument = lower_type_reference_into_table(lowerer, argument)?;
             lowerer
                 .typed_trees
                 .type_reference_table
@@ -73,7 +74,7 @@ pub(crate) fn lower_trait_definition(
             &mut typed_trait,
             typed::trait_definition::TraitRequirement {
                 symbol: requirement.symbol,
-                name: crate::lowerer::name::lower_name(&requirement.name),
+                name: lower_name(&requirement.name),
                 lifetime_arguments: lower_names(&requirement.lifetime_arguments),
                 arguments,
                 source_span: requirement.name.source_span(),
@@ -100,18 +101,17 @@ pub(crate) fn lower_trait_definition(
                 base.name.as_str(),
             )));
         };
-        crate::type_reference::retain_type_reference_selection(
+        retain_type_reference_selection(
             lowerer.source_trees,
             &mut lowerer.typed_trees,
             &base.name,
             base.symbol,
             lowerer.type_reference_exposure,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            AuthoredDeclarationSelectionKind::TypeReference,
         )?;
-        let mut base_arguments = arena::HandleSpan::empty();
+        let mut base_arguments = HandleSpan::empty();
         for argument in lowerer.source_trees.child_type_references(base.arguments) {
-            let argument =
-                crate::type_reference::lower_type_reference_into_table(lowerer, argument)?;
+            let argument = lower_type_reference_into_table(lowerer, argument)?;
             lowerer
                 .typed_trees
                 .type_reference_table
@@ -119,7 +119,7 @@ pub(crate) fn lower_trait_definition(
         }
         typed_trait.refines = Some(typed::trait_definition::TraitRequirement {
             symbol: base.symbol,
-            name: crate::lowerer::name::lower_name(&base.name),
+            name: lower_name(&base.name),
             lifetime_arguments: lower_names(&base.lifetime_arguments),
             arguments: base_arguments,
             source_span: base.name.source_span(),
@@ -263,7 +263,7 @@ pub(crate) fn lower_trait_definition(
                     covered
                         .iter()
                         .map(|machine| typed::trait_definition::ClauseAbstractReachRow {
-                            requirement: crate::lowerer::name::lower_name(&machine.name),
+                            requirement: lower_name(&machine.name),
                             row: lowerer
                                 .typed_trees
                                 .service_reach_rows
@@ -282,10 +282,7 @@ pub(crate) fn lower_trait_definition(
             typed_trait
                 .refinement_clauses
                 .push(typed::trait_definition::TraitRefinementClause {
-                    requirement: clause
-                        .requirement
-                        .as_ref()
-                        .map(crate::lowerer::name::lower_name),
+                    requirement: clause.requirement.as_ref().map(lower_name),
                     signature,
                     service_reaches: lower_names(&clause.service_reaches),
                     service_reach,

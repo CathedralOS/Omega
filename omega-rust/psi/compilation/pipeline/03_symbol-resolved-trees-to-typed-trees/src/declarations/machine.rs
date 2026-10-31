@@ -1,14 +1,20 @@
 use crate::contracts::invocations::lower_authored_invocations;
 use crate::declarations::state::{complete_state_body, lower_state_declaration};
+use crate::expressions::equatable::EqualityScope;
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
-use crate::lowerer::name::lower_names;
+use crate::lowerer::name::{lower_name, lower_names};
 use crate::signatures::type_parameters::lower_type_parameters;
 use crate::tables::expression_table_mut;
 use crate::tables::resolved_expressions;
-use crate::type_reference::lower_type_reference_into_table;
+use crate::type_reference::{lower_type_reference_into_table, retain_type_reference_selection};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 use symbol_resolved_trees as resolved;
+use symbols::SymbolHandle;
 use typed_trees as typed;
 
 mod generic_data;
@@ -77,8 +83,7 @@ pub(crate) fn lower_token_binding_view(
         is_public: typed_machine.is_public,
         is_boundary: matches!(
             typed_machine.supply_mode,
-            language_semantics::MachineSupplyMode::Boundary
-                | language_semantics::MachineSupplyMode::TopLevelRequirement
+            MachineSupplyMode::Boundary | MachineSupplyMode::TopLevelRequirement
         ),
         symbol: typed_machine.symbol,
         name: Default::default(),
@@ -118,12 +123,12 @@ pub(crate) fn lower_token_binding_view(
 fn attached_domain_symbol(
     lowerer: &Lowerer,
     typed_machine: &typed::machine::Machine,
-) -> symbols::SymbolHandle {
+) -> SymbolHandle {
     if typed_machine.attached_data_symbol.is_valid() {
-        return symbols::SymbolHandle::invalid();
+        return SymbolHandle::invalid();
     }
     let Some(attached) = typed_machine.attached_data.as_ref() else {
-        return symbols::SymbolHandle::invalid();
+        return SymbolHandle::invalid();
     };
     let mut matches = lowerer
         .typed_trees
@@ -132,7 +137,7 @@ fn attached_domain_symbol(
         .filter(|domain| domain.name.as_str() == attached.as_str());
     match (matches.next(), matches.next()) {
         (Some(domain), None) => domain.symbol,
-        _ => symbols::SymbolHandle::invalid(),
+        _ => SymbolHandle::invalid(),
     }
 }
 
@@ -144,7 +149,7 @@ fn attached_domain_symbol(
 /// declarations acquire type meaning, rather than leave it to whether some
 /// other declaration happens to mention the type. A generic attachment is
 /// typed by its `attached_data_application` instead and needs no bare name.
-fn retain_attached_data_type_reference(lowerer: &mut Lowerer, symbol: symbols::SymbolHandle) {
+fn retain_attached_data_type_reference(lowerer: &mut Lowerer, symbol: SymbolHandle) {
     if !symbol.is_valid()
         || lowerer
             .typed_trees
@@ -160,7 +165,7 @@ fn retain_attached_data_type_reference(lowerer: &mut Lowerer, symbol: symbols::S
     if !owner.type_parameters.is_empty() {
         return;
     }
-    let name = crate::lowerer::name::lower_name(&owner.name);
+    let name = lower_name(&owner.name);
     lowerer
         .typed_trees
         .type_reference_table
@@ -172,13 +177,13 @@ fn lower_machine_contents(
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
     if let Some(attached_data) = &machine.attached_data {
-        crate::type_reference::retain_type_reference_selection(
+        retain_type_reference_selection(
             lowerer.source_trees,
             &mut lowerer.typed_trees,
             attached_data,
             machine.attached_data_symbol,
             lowerer.type_reference_exposure,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            AuthoredDeclarationSelectionKind::TypeReference,
         )?;
     }
     retain_attached_data_type_reference(lowerer, machine.attached_data_symbol);
@@ -186,11 +191,8 @@ fn lower_machine_contents(
         lexical_region_origin: None,
         assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability::Any,
         symbol: machine.symbol,
-        name: crate::lowerer::name::lower_name(&machine.name),
-        attached_data: machine
-            .attached_data
-            .as_ref()
-            .map(crate::lowerer::name::lower_name),
+        name: lower_name(&machine.name),
+        attached_data: machine.attached_data.as_ref().map(lower_name),
         attached_data_symbol: machine.attached_data_symbol,
         attached_data_application: typed::types::TypeReferenceHandle::invalid(),
         // `lower_machine` validates the exact clone origin before entering
@@ -203,14 +205,8 @@ fn lower_machine_contents(
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
         purpose: typed::machine::MachinePurpose::Runtime,
-        target: machine
-            .target
-            .as_ref()
-            .map(crate::lowerer::name::lower_name),
-        authored_target: machine
-            .authored_target
-            .as_ref()
-            .map(crate::lowerer::name::lower_name),
+        target: machine.target.as_ref().map(lower_name),
+        authored_target: machine.authored_target.as_ref().map(lower_name),
         body_is_present: machine.body_is_present,
         target_family_interface: machine.target_family_interface,
         body_status: typed::machine::MachineBodyStatus::Deferred,
@@ -225,17 +221,17 @@ fn lower_machine_contents(
         suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
         blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
         lifetime_parameters: lower_names(&machine.lifetime_parameters),
-        type_parameters: arena::HandleSpan::empty(),
-        declared_type_equations: arena::HandleSpan::empty(),
-        declared_type_predicates: arena::HandleSpan::empty(),
-        owned_data: arena::HandleSpan::empty(),
-        satisfies: arena::HandleSpan::empty(),
+        type_parameters: HandleSpan::empty(),
+        declared_type_equations: HandleSpan::empty(),
+        declared_type_predicates: HandleSpan::empty(),
+        owned_data: HandleSpan::empty(),
+        satisfies: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
-        invokes: arena::HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
         suspends: machine.suspends,
         blocks: machine.blocks,
-        contracts: arena::HandleSpan::empty(),
-        states: arena::HandleSpan::empty(),
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::empty(),
     };
 
     // The public termination interface is declaration data; its private witness
@@ -296,11 +292,11 @@ fn lower_machine_contents(
 
     for owned_data in lowerer.source_trees.machine_owned_data(machine.owned_data) {
         let owned_data = lowerer.with_type_reference_exposure(
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
             |lowerer| {
                 Ok::<_, Diagnostic>(typed::machine::OwnedData {
                     symbol: owned_data.symbol,
-                    name: crate::lowerer::name::lower_name(&owned_data.name),
+                    name: lower_name(&owned_data.name),
                     type_reference: lower_type_reference_into_table(
                         lowerer,
                         &owned_data.type_reference,
@@ -318,15 +314,15 @@ fn lower_machine_contents(
         .source_trees
         .machine_trait_conformances(machine.satisfies)
     {
-        crate::type_reference::retain_type_reference_selection(
+        retain_type_reference_selection(
             lowerer.source_trees,
             &mut lowerer.typed_trees,
             &conformance.name,
             conformance.symbol,
             lowerer.type_reference_exposure,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            AuthoredDeclarationSelectionKind::TypeReference,
         )?;
-        let mut arguments = arena::HandleSpan::empty();
+        let mut arguments = HandleSpan::empty();
         for argument in lowerer
             .source_trees
             .child_type_references(conformance.arguments)
@@ -369,23 +365,17 @@ fn lower_machine_contents(
             &mut typed_machine,
             typed::machine::TraitConformance {
                 symbol: conformance.symbol,
-                name: crate::lowerer::name::lower_name(&conformance.name),
+                name: lower_name(&conformance.name),
                 trait_lifetime_arguments,
                 arguments,
-                requirement: conformance
-                    .requirement
-                    .as_ref()
-                    .map(crate::lowerer::name::lower_name),
-                requirement_symbol: symbols::SymbolHandle::invalid(),
+                requirement: conformance.requirement.as_ref().map(lower_name),
+                requirement_symbol: SymbolHandle::invalid(),
                 requirement_source_span: conformance
                     .requirement
                     .as_ref()
                     .filter(|requirement| requirement.is_source_backed())
                     .map(|requirement| requirement.source_span()),
-                alias: conformance
-                    .alias
-                    .as_ref()
-                    .map(crate::lowerer::name::lower_name),
+                alias: conformance.alias.as_ref().map(lower_name),
                 external_binding: conformance.external_binding,
                 via_expression,
                 external_binding_source_span: conformance.external_binding_source_span,
@@ -407,9 +397,9 @@ fn lower_machine_contents(
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
                 binder: bound.binder,
-                binder_name: crate::lowerer::name::lower_name(&bound.binder_name),
+                binder_name: lower_name(&bound.binder_name),
                 trait_symbol: bound.trait_symbol,
-                trait_name: crate::lowerer::name::lower_name(&bound.trait_name),
+                trait_name: lower_name(&bound.trait_name),
                 arguments,
             });
     }
@@ -452,17 +442,17 @@ fn lower_machine_contents(
         let state = lowerer.source_trees.machine_state(*state);
         // Signature equality may use parameter types without inspecting an
         // implementation that has not been demanded.
-        lowerer.equality_scope = Some(
-            crate::expressions::equatable::EqualityScope::for_state_interface(
-                lowerer.source_trees,
-                machine,
-                state,
-            ),
-        );
-        let exposure = lowerer.type_reference_exposure.map(|_| if state_index == 0 {
-            machine.interface_exposure
-        } else {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        lowerer.equality_scope = Some(EqualityScope::for_state_interface(
+            lowerer.source_trees,
+            machine,
+            state,
+        ));
+        let exposure = lowerer.type_reference_exposure.map(|_| {
+            if state_index == 0 {
+                machine.interface_exposure
+            } else {
+                AuthoredDeclarationSelectionExposure::PrivateImplementation
+            }
         });
         let state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
             lower_state_declaration(lowerer, state)
@@ -478,9 +468,9 @@ fn lower_machine_contents(
     // with the entry formals so projection can account for their selections.
     // The private implementation witness below is still absent until the body
     // completes; retaining an expression proves no termination or admission.
-    let ranking_exposure = lowerer.type_reference_exposure.map(|_| {
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-    });
+    let ranking_exposure = lowerer
+        .type_reference_exposure
+        .map(|_| AuthoredDeclarationSelectionExposure::PrivateImplementation);
     lowerer.with_type_reference_exposure(ranking_exposure, |lowerer| {
         retain_machine_ranking_expressions(lowerer, machine)
     })?;
@@ -547,9 +537,9 @@ pub(crate) fn complete_machine_body(
     machine: &resolved::machine::Machine,
     typed_machine: &mut typed::machine::Machine,
 ) -> Result<(), Diagnostic> {
-    let exposure = lowerer.type_reference_exposure.map(|_| {
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-    });
+    let exposure = lowerer
+        .type_reference_exposure
+        .map(|_| AuthoredDeclarationSelectionExposure::PrivateImplementation);
     lowerer.with_type_reference_exposure(exposure, |lowerer| {
         lower_machine_implementation(lowerer, machine, typed_machine)
     })
@@ -629,20 +619,18 @@ fn lower_machine_implementation(
     }
     for (ordinal, source) in source_states.iter().enumerate() {
         let source = lowerer.source_trees.machine_state(*source);
-        lowerer.equality_scope = Some(
-            crate::expressions::equatable::EqualityScope::for_state_interface(
-                lowerer.source_trees,
-                machine,
-                source,
-            ),
-        );
+        lowerer.equality_scope = Some(EqualityScope::for_state_interface(
+            lowerer.source_trees,
+            machine,
+            source,
+        ));
         let mut state = if ordinal < retained_count {
             lowerer.typed_trees.machine_states(typed_machine)[ordinal].clone()
         } else {
             // Body normalization may append synthetic continuation states.
             lower_state_declaration(lowerer, source)?
         };
-        lowerer.equality_scope = Some(crate::expressions::equatable::EqualityScope::for_state(
+        lowerer.equality_scope = Some(EqualityScope::for_state(
             lowerer.source_trees,
             machine,
             source,
@@ -718,7 +706,7 @@ pub(crate) fn settle_satisfied_declarations_from(
                 .record_resolved_authored_declaration_selection_once(
                     source_span,
                     exposure,
-                    language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
+                    AuthoredDeclarationSelectionKind::StaticPathSegment,
                     requirement_symbol,
                 )
                 .map_err(|error| {

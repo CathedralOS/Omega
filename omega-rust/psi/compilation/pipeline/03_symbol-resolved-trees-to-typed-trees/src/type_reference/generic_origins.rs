@@ -7,8 +7,10 @@
 //! operator which vetoes builtin arithmetic. Final replay uses original operands,
 //! not the syntax producer's interval observations or its synthetic names.
 use super::{Diagnostic, resolved, typed};
+use crate::expressions::expression::lower_expression_handle_from_table;
 use crate::tables::type_constraints;
 use arena::{Handle, HandleSpan};
+use numerics::bignum::BigInt;
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -623,21 +625,11 @@ impl Equality<'_, '_> {
         minimum: resolved::expression::ExpressionHandle,
         maximum: resolved::expression::ExpressionHandle,
         end_inclusive: bool,
-    ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    ) -> Option<(BigInt, BigInt)> {
         let expressions = &self.source.tables.bodies.expressions;
         let typed = self.typed.as_mut()?.get_mut();
-        let minimum = crate::expressions::expression::lower_expression_handle_from_table(
-            expressions,
-            typed,
-            minimum,
-        )
-        .ok()?;
-        let maximum = crate::expressions::expression::lower_expression_handle_from_table(
-            expressions,
-            typed,
-            maximum,
-        )
-        .ok()?;
+        let minimum = lower_expression_handle_from_table(expressions, typed, minimum).ok()?;
+        let maximum = lower_expression_handle_from_table(expressions, typed, maximum).ok()?;
         Some((
             typed.closed_integer_expression_value(minimum)?,
             typed.closed_integer_range_endpoint(maximum, end_inclusive)?,

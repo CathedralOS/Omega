@@ -35,6 +35,7 @@
 //! Runtime control still tries the admitted arms in order.
 
 use crate::tables::{resolved_expressions, resolved_statements};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataMember};
@@ -42,6 +43,7 @@ use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use resolved::statement::{StatementNode, TransitionGuardNode};
 use resolved::types::TypeReference;
 use symbol_resolved_trees as resolved;
+use symbols::SymbolHandle;
 
 pub(crate) fn validate_case_dispatch_exhaustiveness_in(
     program: &SymbolResolvedTrees,
@@ -837,7 +839,7 @@ fn classify_membership_leaf(
 /// Anything else over a case-bearing target is a predicate domain.
 fn classify_declared_domain(
     scope: &DispatchScope<'_>,
-    domain_symbol: symbols::SymbolHandle,
+    domain_symbol: SymbolHandle,
 ) -> LeafContribution {
     let program = scope.program;
     let Some(domain) = program.domain_definition_by_symbol(domain_symbol) else {
@@ -1278,10 +1280,7 @@ fn name_declared_type(
 
 /// The declared type a field or owned-data symbol carries, found across
 /// machine-owned `data` members, record fields and case payload fields.
-fn field_declared_type(
-    scope: &DispatchScope<'_>,
-    symbol: symbols::SymbolHandle,
-) -> Option<TypeReference> {
+fn field_declared_type(scope: &DispatchScope<'_>, symbol: SymbolHandle) -> Option<TypeReference> {
     if !symbol.is_valid() {
         return None;
     }
@@ -1347,7 +1346,7 @@ fn data_index_for_type(
 
 /// The template symbol a synthesized closed instance records as its
 /// generic application base.
-fn generic_base_symbol(definition: &DataDefinition) -> Option<symbols::SymbolHandle> {
+fn generic_base_symbol(definition: &DataDefinition) -> Option<SymbolHandle> {
     match &definition.generic_instance {
         Some(TypeReference::Generic(application)) => Some(application.base_symbol),
         _ => None,
@@ -1360,8 +1359,8 @@ fn generic_base_symbol(definition: &DataDefinition) -> Option<symbols::SymbolHan
 /// unrefuted case list.
 fn type_arguments_equal(
     program: &SymbolResolvedTrees,
-    left: arena::HandleSpan<TypeReference>,
-    right: arena::HandleSpan<TypeReference>,
+    left: HandleSpan<TypeReference>,
+    right: HandleSpan<TypeReference>,
 ) -> bool {
     let left = program.child_type_references(left);
     let right = program.child_type_references(right);

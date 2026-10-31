@@ -5,8 +5,16 @@ use super::{
     lower_evidence_forwarding, lower_symbol_resolved_trees, type_resolved_cohort,
 };
 use diagnostics::Diagnostic;
+use language_semantics::SemanticDomainId;
+use language_semantics::SemanticDomainTable;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use source::SourceMap;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::machine::MachineBodyStatus;
+use symbols::SourceScopedTopLevelBinding;
+use symbols::SymbolHandle;
+use syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier;
 use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,16 +51,10 @@ impl SeededTypingBase {
     /// bodies. Do not project roots yet: their syntax owns positional links.
     pub fn activate_body_completion(
         mut self,
-        frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
-        sources: Arc<source::SourceMap>,
-        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    ) -> Result<
-        (
-            Self,
-            syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
-        ),
-        Vec<Diagnostic>,
-    > {
+        frontier: DeferredResolvedFrontier,
+        sources: Arc<SourceMap>,
+        bindings: Vec<SourceScopedTopLevelBinding>,
+    ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
         let frontier = self
             .join_prepared_allocations(frontier)?
             .activate_sources(sources, bindings)?;
@@ -67,13 +69,7 @@ impl SeededTypingBase {
     pub fn append_deferred(
         self,
         extension: syntax_trees_to_symbol_resolved_trees::DeferredResolvedExtension,
-    ) -> Result<
-        (
-            Self,
-            syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
-        ),
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
         let (source, frontier) = extension
             .rebase_for_typed_continuation(self.typed.authored_declaration_selections())?;
         let typed = lower_seeded_extension(source, self).map_err(|(_, reason)| {
@@ -90,9 +86,9 @@ impl SeededTypingBase {
     /// using this operation, then resolves the new authored cohort ordinarily.
     pub fn activate_sources(
         mut self,
-        sources: Arc<source::SourceMap>,
-        current_sources: Arc<source::SourceMap>,
-        bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+        sources: Arc<SourceMap>,
+        current_sources: Arc<SourceMap>,
+        bindings: Vec<SourceScopedTopLevelBinding>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut resolved = self.resolved_base_for_extension()?;
         if resolved
@@ -125,7 +121,7 @@ impl SeededTypingBase {
             conformances,
             wire_schemas,
         );
-        let retained_owner = |mut owner: symbols::SymbolHandle| {
+        let retained_owner = |mut owner: SymbolHandle| {
             while owner.is_valid() {
                 if selection.contains(owner) {
                     return true;
@@ -166,9 +162,8 @@ impl SeededTypingBase {
     /// spaces with authored declarations, just as generated symbols do.
     pub fn join_prepared_allocations(
         &mut self,
-        frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
-    ) -> Result<syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier, Vec<Diagnostic>>
-    {
+        frontier: DeferredResolvedFrontier,
+    ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
         let frontier = frontier.with_prepared_allocations(
             &self.resolved,
             &self.typed.symbols,
@@ -185,13 +180,7 @@ impl SeededTypingBase {
     pub fn complete_bodies(
         self,
         source: syntax_trees_to_symbol_resolved_trees::ResolvedBodyCompletion,
-    ) -> Result<
-        (
-            Self,
-            syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
-        ),
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
         let source = source
             .rebase_authored_selections_for_typed_completion(
                 self.typed.authored_declaration_selections(),
@@ -341,8 +330,7 @@ pub fn lower_seeded_extension(
         typed_trees: candidate,
         source_trees: &source,
         equality_scope: None,
-        type_reference_exposure:
-            Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
+        type_reference_exposure: Some(AuthoredDeclarationSelectionExposure::PrivateImplementation),
     };
     if let Err(error) = type_resolved_cohort(&mut lowerer, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
@@ -386,13 +374,7 @@ pub fn lower_seeded_extension(
 fn lower_body_completion(
     source: syntax_trees_to_symbol_resolved_trees::RebasedResolvedBodyCompletion,
     retained: SeededTypingBase,
-) -> Result<
-    (
-        SeededTypingBase,
-        syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
-    ),
-    Diagnostic,
-> {
+) -> Result<(SeededTypingBase, DeferredResolvedFrontier), Diagnostic> {
     let (frontier, predecessor, selected) = source.into_typing_completion_parts();
     let source = frontier.shared_trees();
     if predecessor != retained.resolved {
@@ -432,9 +414,7 @@ fn lower_body_completion(
         typed_trees: candidate,
         source_trees: &source,
         equality_scope: None,
-        type_reference_exposure: Some(
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-        ),
+        type_reference_exposure: Some(AuthoredDeclarationSelectionExposure::PrivateImplementation),
     };
     type_resolved_cohort(&mut lowerer, &cohort)?;
     for forwarding in source
@@ -505,13 +485,10 @@ fn resolved_normalized_prefix_is_retained(
         })
 }
 
-fn domain_table_retains(
-    base: &language_semantics::SemanticDomainTable,
-    candidate: &language_semantics::SemanticDomainTable,
-) -> bool {
+fn domain_table_retains(base: &SemanticDomainTable, candidate: &SemanticDomainTable) -> bool {
     candidate.len() >= base.len()
         && (1..=base.len()).all(|ordinal| {
-            let identity = language_semantics::SemanticDomainId(ordinal as u32);
+            let identity = SemanticDomainId(ordinal as u32);
             candidate.name(identity) == base.name(identity)
         })
 }
@@ -519,7 +496,7 @@ fn domain_table_retains(
 fn resolved_completion_retains_declarations(
     base: &SymbolResolvedTrees,
     candidate: &SymbolResolvedTrees,
-    selected: &[symbols::SymbolHandle],
+    selected: &[SymbolHandle],
 ) -> bool {
     if candidate.machines.len() < base.machines.len()
         || selected
@@ -553,8 +530,8 @@ fn resolved_completion_retains_declarations(
             }
             continue;
         }
-        if old.body_status != symbol_resolved_trees::machine::MachineBodyStatus::Deferred
-            || new.body_status != symbol_resolved_trees::machine::MachineBodyStatus::Complete
+        if old.body_status != MachineBodyStatus::Deferred
+            || new.body_status != MachineBodyStatus::Complete
         {
             return false;
         }
@@ -709,7 +686,7 @@ fn join_resolved_semantics(
         }
     }
     for ordinal in 1..=source.semantic_domains.len() {
-        let identity = language_semantics::SemanticDomainId(ordinal as u32);
+        let identity = SemanticDomainId(ordinal as u32);
         let Some(name) = source.semantic_domains.name(identity) else {
             return Err(Diagnostic::error(
                 "source continuation lost a semantic domain identity",

@@ -1,5 +1,6 @@
-use crate::lowerer::name::lower_names;
+use crate::lowerer::name::{lower_name, lower_names};
 use crate::lowerer::{Lowerer, declaration_exposure};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::trait_definition::Conformance;
 
@@ -28,7 +29,7 @@ pub(crate) fn lower_conformance(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
     )?;
     let source_type_parameters = conformance.type_parameters;
-    let mut arguments = arena::HandleSpan::empty();
+    let mut arguments = HandleSpan::empty();
     for argument in symbol_resolved_trees
         .tables
         .declarations
@@ -76,26 +77,23 @@ pub(crate) fn lower_conformance(
         symbol: conformance.symbol,
         is_public: conformance.is_public,
         lifetime_parameters: lower_names(&conformance.lifetime_parameters),
-        type_parameters: arena::HandleSpan::empty(),
-        trait_name: crate::lowerer::name::lower_name(&conformance.trait_name),
+        type_parameters: HandleSpan::empty(),
+        trait_name: lower_name(&conformance.trait_name),
         trait_symbol: conformance.trait_symbol,
         trait_lifetime_arguments,
         arguments,
-        alias: conformance
-            .alias
-            .as_ref()
-            .map(crate::lowerer::name::lower_name),
+        alias: conformance.alias.as_ref().map(lower_name),
         rows: conformance
             .rows
             .iter()
             .map(|row| typed_trees::trait_definition::ConformanceRow {
                 declaring_trait: row.declaring_trait,
-                declaring_trait_name: crate::lowerer::name::lower_name(&row.declaring_trait_name),
+                declaring_trait_name: lower_name(&row.declaring_trait_name),
                 requirement: row.requirement,
-                requirement_name: crate::lowerer::name::lower_name(&row.requirement_name),
+                requirement_name: lower_name(&row.requirement_name),
                 realization_machine: row.realization_machine,
                 realization_state: row.realization_state,
-                realization_name: crate::lowerer::name::lower_name(&row.realization_name),
+                realization_name: lower_name(&row.realization_name),
                 source: match row.source {
                     symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline => {
                         typed_trees::trait_definition::ConformanceRowSource::Inline
