@@ -72,10 +72,7 @@ impl BlockSlotSummary {
 
     #[inline]
     pub fn has_non_load_register(&self, register: VirtualRegisterId) -> bool {
-        let word = (register.0 as usize) >> 6;
-        self.non_load_register_bits
-            .get(word)
-            .is_some_and(|&bits| (bits & (1u64 << (register.0 & 63))) != 0)
+        test_register_bit(&self.non_load_register_bits, register)
     }
 
     #[inline]
@@ -104,10 +101,14 @@ fn set_register_bit(bits: &mut Vec<u64>, register: VirtualRegisterId) {
 }
 
 #[inline]
+fn test_u32_bit(bits: &[u64], id: u32) -> bool {
+    bits.get((id as usize) >> 6)
+        .is_some_and(|&w| (w & (1u64 << (id & 63))) != 0)
+}
+
+#[inline]
 fn test_register_bit(bits: &[u64], register: VirtualRegisterId) -> bool {
-    let word = (register.0 as usize) >> 6;
-    bits.get(word)
-        .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
+    test_u32_bit(bits, register.0)
 }
 
 #[derive(Clone)]
@@ -713,28 +714,16 @@ impl SelectedBlocks {
     /// A mechanical negative filter for split admission. Positive candidates
     /// still undergo the complete source/constraint/use audit at its owner.
     pub fn has_fixed_definition(&self, register: VirtualRegisterId) -> bool {
-        let word = (register.0 as usize) >> 6;
-        let mask = 1u64 << (register.0 & 63);
-        self.0.iter().any(|entry| {
-            entry
-                .lookup()
-                .fixed_definition_bits
-                .get(word)
-                .is_some_and(|&bits| (bits & mask) != 0)
-        })
+        self.0
+            .iter()
+            .any(|entry| test_register_bit(&entry.lookup().fixed_definition_bits, register))
     }
     /// A mechanical negative filter for rematerialization admission. Positive
     /// candidates still undergo the complete source/constraint/use audit at its owner.
     pub fn has_materialize_definition(&self, register: VirtualRegisterId) -> bool {
-        let word = (register.0 as usize) >> 6;
-        let mask = 1u64 << (register.0 & 63);
-        self.0.iter().any(|entry| {
-            entry
-                .lookup()
-                .materialize_definition_bits
-                .get(word)
-                .is_some_and(|&bits| (bits & mask) != 0)
-        })
+        self.0
+            .iter()
+            .any(|entry| test_register_bit(&entry.lookup().materialize_definition_bits, register))
     }
     pub fn maximum_instruction_id(&self) -> Option<SelectedInstructionId> {
         self.0
@@ -775,12 +764,7 @@ impl SelectedBlocks {
             return None;
         }
         let lookup = entry.lookup();
-        let word = (register.0 as usize) >> 6;
-        lookup
-            .referenced_register_bits
-            .get(word)
-            .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
-            .then_some((lookup, len))
+        test_register_bit(&lookup.referenced_register_bits, register).then_some((lookup, len))
     }
     /// Inclusive `(first_instruction_index, last_instruction_index)` in `block_index`'s
     /// body instructions where `register` appears as an operand, or `None` when no
@@ -853,15 +837,9 @@ impl SelectedBlocks {
     /// Block index containing the body instruction `instruction`, using each
     /// block's memoized instruction index.
     pub fn instruction_block(&self, instruction: SelectedInstructionId) -> Option<usize> {
-        let word = (instruction.0 as usize) >> 6;
-        let mask = 1u64 << (instruction.0 & 63);
-        self.0.iter().position(|entry| {
-            entry
-                .lookup()
-                .instruction_bits
-                .get(word)
-                .is_some_and(|&bits| (bits & mask) != 0)
-        })
+        self.0
+            .iter()
+            .position(|entry| test_u32_bit(&entry.lookup().instruction_bits, instruction.0))
     }
     /// Instruction index inside `block_index` for body instruction `instruction`.
     pub fn instruction_index_in_block(
@@ -870,12 +848,7 @@ impl SelectedBlocks {
         instruction: SelectedInstructionId,
     ) -> Option<usize> {
         let lookup = self.0.get(block_index)?.lookup();
-        let word = (instruction.0 as usize) >> 6;
-        if !lookup
-            .instruction_bits
-            .get(word)
-            .is_some_and(|&bits| (bits & (1u64 << (instruction.0 & 63))) != 0)
-        {
+        if !test_u32_bit(&lookup.instruction_bits, instruction.0) {
             return None;
         }
         lookup
@@ -940,10 +913,7 @@ impl SelectedBlocks {
     /// Whether `block_index` references `register` in any instruction, terminator, or edge transport.
     pub fn block_references_register(&self, block_index: usize, register: VirtualRegisterId) -> bool {
         self.0.get(block_index).is_some_and(|entry| {
-            let bits = &entry.lookup().referenced_register_bits;
-            let word = (register.0 as usize) >> 6;
-            bits.get(word)
-                .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
+            test_register_bit(&entry.lookup().referenced_register_bits, register)
         })
     }
     pub fn len(&self) -> usize {
