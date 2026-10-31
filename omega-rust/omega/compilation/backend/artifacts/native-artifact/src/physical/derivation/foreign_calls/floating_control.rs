@@ -5,7 +5,10 @@
 
 use crate::physical::fragment_publication::FragmentPublicationBinding;
 use image_emission::ObjectForeignCall;
+use image_emission::fragment_instruction_span;
 use machine_code::PlacedFunctionFragment;
+use selected_instructions::calls::normalized_foreign::return_transport;
+use selected_instructions::calls::normalized_foreign::return_transport::resolve;
 use selected_instructions::{
     LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedNormalizedForeignCall,
 };
@@ -81,33 +84,22 @@ fn check(
         return None;
     }
 
-    let transport = selected_instructions::calls::normalized_foreign::return_transport::resolve(
-        function, block, record,
-    )?;
+    let transport = resolve(function, block, record)?;
     let call_position = transport.call_position;
     let restore_position = transport.restore_position?;
     let restore = block.instructions.get(restore_position)?;
-    let save_position =
-        selected_instructions::calls::normalized_foreign::return_transport::save_position(
-            function,
-            block,
-            record,
-            call_position,
-        )?;
+    let save_position = return_transport::save_position(function, block, record, call_position)?;
     let save = &block.instructions[save_position];
     let matches_span = |instruction, offset, count| {
-        image_emission::fragment_instruction_span(fragment, instruction).is_some_and(
-            |(start, size)| {
-                usize::try_from(start) == Ok(offset) && usize::try_from(size) == Ok(count)
-            },
-        )
+        fragment_instruction_span(fragment, instruction).is_some_and(|(start, size)| {
+            usize::try_from(start) == Ok(offset) && usize::try_from(size) == Ok(count)
+        })
     };
-    let (call_start, call_size) =
-        image_emission::fragment_instruction_span(fragment, record.instruction)?;
+    let (call_start, call_size) = fragment_instruction_span(fragment, record.instruction)?;
     let transported_end = block.instructions[call_position + 1..restore_position]
         .iter()
         .try_fold(call_start.checked_add(call_size)?, |end, copy| {
-            let (offset, count) = image_emission::fragment_instruction_span(fragment, copy.id)?;
+            let (offset, count) = fragment_instruction_span(fragment, copy.id)?;
             (offset == end).then_some(())?;
             offset.checked_add(count)
         })?;
