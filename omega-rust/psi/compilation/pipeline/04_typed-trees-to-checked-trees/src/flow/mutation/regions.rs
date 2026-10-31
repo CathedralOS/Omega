@@ -40,8 +40,7 @@ impl StorageRegion {
     pub(crate) fn anchor(&self) -> &CanonicalPlace {
         match self {
             Self::Declared(place) => place,
-            Self::ResidentContent { owner, .. } => owner,
-            Self::NonresidentContent { owner, .. } => owner,
+            Self::ResidentContent { owner, .. } | Self::NonresidentContent { owner, .. } => owner,
             Self::UnresolvedContent { carrier } => carrier,
         }
     }
