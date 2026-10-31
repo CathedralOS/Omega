@@ -1,0 +1,471 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "2fc408782574caca80f6fa48deee61c767f1616e",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 21841
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_header_contracts_,contracts/header_,fail/generics/static_requirement_record_blocking_ceiling,fail/generics/selected_operator_preserves_blocking_ceiling,fail/tasks/task_runtime_provider_contract_narrowing,fail/capabilities/blocking_beneath_no_block_root,fail/capabilities/undeclared_synchronous_invocation,fail/capabilities/recursive_synchronous_invocations,fail/targets/family_callback_member_effect_ceiling_rejected,fail/targets/family_forwarded_callback_member_effect_ceiling_rejected,fail/parse/machine_clause_garbage_rejected,fail/build/root_binding_descriptor_helper_invocation",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 34,
+    "by_status": {
+      "checked": 15,
+      "rejected": 19
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/contracts/header_blocks_before_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2158,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/contracts/header_ranked_terminates_before_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2133,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/contracts/header_suspends_before_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2531,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/contracts/header_terminates_before_body",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2444,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/contracts/header_terminates_before_requires",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2345,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/contracts/header_termination_before_requires",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2274,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3283,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2815,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3201,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3823,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3445,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3238,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3792,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2923,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4424,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/build/root_binding_descriptor_helper_invocation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 161,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `choose` omits `invokes Probe` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])",
+        "machine `choose` omits `invokes BuildProductOperations` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/capabilities/blocking_beneath_no_block_root",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1727,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `Main::main` omits `blocks` from its published contract, but its body may block"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/capabilities/recursive_synchronous_invocations",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2175,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/capabilities/undeclared_synchronous_invocation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1502,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler` (requirement invokes: [])"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 225,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_call_result_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 269,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_const_name_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 244,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_field_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 214,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_local_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 240,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_match_join_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 203,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_other_machine_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 246,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_other_state_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 200,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_parameter_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_header_contracts_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 202,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/facts/nested_machine_header_contracts_target_body_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/generics/selected_operator_preserves_blocking_ceiling",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1957,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `choose` omits `blocks` from its published contract, but its body may block"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/generics/static_requirement_record_blocking_ceiling",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3768,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `wrap` omits `blocks` from its published contract, but its body may block"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/parse/machine_clause_garbage_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 7,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/targets/family_callback_member_effect_ceiling_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1636,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine argument `may_block` for `choose` does not refine `Callback`: it may block, but the requirement omits `blocks`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/targets/family_forwarded_callback_member_effect_ceiling_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 461,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine parameter `Forward` forwarded into `choose` does not refine `Callback`: it may block, but the requirement omits `blocks`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    },
+    {
+      "fixture": "fail/tasks/task_runtime_provider_contract_narrowing",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1574,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` does not refine `Target`: it may block, but the requirement omits `blocks`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574"
+    }
+  ],
+  "fixtures": []
+}

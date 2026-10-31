@@ -1,0 +1,195 @@
+{
+  "schema": "omega-independent-semantic-review-v1",
+  "candidate": "5e183ca227da696ac4549f5c38675158711dffe4",
+  "base": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+  "reviewer": "/root/saved_reference_final_review",
+  "accepted": true,
+  "blockers": [],
+  "scope": "PR1023 machine-clause-delimiters prerequisite under REQUIRES-UNIFICATION; separate parent call-computed ranking work is excluded.",
+  "review_method": "Independent source and raw-evidence review. Retained full implementation audit at18b04a56a4398b07018b4fc59ba0f187c825bd7b plus exact final documentation/board/success-label delta. No builds or compiler executions by this reviewer; only this ignored report written.",
+  "findings": [
+    {
+      "status": "resolved",
+      "finding": "Nongeneric structural requirements previously invoked a parser that unconditionally consumed a Less opener. Explicit opener guard now freezes generic_count zero otherwise; native owner controls exercise nongeneric siblings and nested signatures."
+    },
+    {
+      "status": "resolved",
+      "finding": "Lexicographic measures previously reused a prior callable contract_count. Per-machine and lexicographic-path zero resets restore empty contract ranges; native owner control covers the sequence."
+    },
+    {
+      "status": "resolved",
+      "finding": "Termination clause spans now close at the last consumed token. The final native product decoder validates full nonempty ranges."
+    }
+  ],
+  "rationale": [
+    "The canonical named machine-clause-delimiters decision is the premise: callable clauses own no trailing semicolons; each bodyless declaration owns exactly one. Nested contracts close independently and outer clauses resume only after that terminator. The reviewed Rust change removes context-free operational separator lookahead without weakening effect, formation or callable obligations.",
+    "The product parser explicit frame stack freezes each declaration signature before descending and stages only direct rows. Descendants publish before contiguous direct-child/clause ranges; parent reclaim boundaries preserve siblings. The existing syntax-table budgets include output, staged and open contracts, with the root occupying only the extra frame. Unsupported nested product-resolution forms decline explicitly rather than flattening their obligations.",
+    "The nine transport witnesses preserve the same nested callable input/result contracts. Each positive executes both distinct four/seven inputs and observes five/eight; wrong input-arm selection, dropped increment or misplaced scalar argument violates main and traps. Each invalid twin changes only one extra same-level terminator. These static/runtime oracles are sensitive to the repaired delimiter and contract-owner behavior, without asserting unrelated cleanup or storage facts.",
+    "Raw C6 row evidence and the qualified source/BOTH observations were inspected. The source capture has34 observations:15checked positives and19expected rejections, with no oracle failure or wrong rejection reason. Nine BOTH observations each report actual native exit0, Terminal exit0 and agreement. Immutable receipt and stdout/stderr digests match.",
+    "The native Omega-written product artifact78b9f2e87ee546d37dfe96ea4ccc0053fce04df3e23b636715f2445aa5352617 and current decoder hashes match their records; the raw decoder observation reports504cases passed. Its source/psi, library and harness inputs remain unchanged at final. Four earlier focused native owner controls retain their actual59f394 artifact identity, rather than being relabeled as the later product run.",
+    "The lower-chain D customer now actually completed. Raw output identifies584640customer bytes SHAacd224c6ae0dc2717d99944ed0f2cf638587487be22f793b8c1d4384acfb4f9c, receipt reconstruction148.663seconds and customer6529.480seconds, both status0 and empty stderr. The source gate emits its final success only after exact comparison to expected000000000041. The original wrapper terminal observation is exit0. Independently counted20bound parser calls; original16label remains in raw historical output.",
+    "Final gate.py differs only in the terminal success-label constant after all executions and checks; executable D, manifest, customer entry, expected bytes, Rust, product, library and toolchain closures remain unchanged. The latest fixed-base assessment at revision59 reuses3checks and invalidates0. Exact receipt digest verified.",
+    "Migration replay retains5788normalized full Item snapshots; normalization removes source positions and fact token counts, not semantic Item contents. This is structural admission evidence, not runtime equivalence. The implementation/harness exception and authored swallowed-domain repair are treated explicitly. The420comma-substitution audit preserves authored declaration-boundary meaning instead of accepting old parser loss as its oracle.",
+    "Fresh isolated baseline comparison retains17contract observations with no per-row difference, and affected Rust parser comparison retains11baseline failures across277cases. Contaminated shared-target C5 and the earlier invalid baseline comparison remain excluded. No new semantic authority or failed-capture compatibility path was found."
+  ],
+  "producer_identities": {
+    "C6_revision": "2fc408782574caca80f6fa48deee61c767f1616e",
+    "C6_cli_sha256": "fcdd021bc488acadbf96f2defe73abe77675cc9056078a87ab9c8098a95d5a59",
+    "C6_corpus_sha256": "a3453781d35d112da79dc4e88a73d17cc01f22ad8a652fd0c6cb0374a13685a4",
+    "qualified_source_and_both_workspace_revision": "18b04a56a4398b07018b4fc59ba0f187c825bd7b",
+    "product_source_revision": "40cceb6601fcc00a432ad5c2e1f931dd9951b7f6",
+    "product_compiler": "historical C4, actual receipt revision65d9ab796e6d584835cc24c61a9178640f52b461 plus retained dirty source diff",
+    "D_customer_source_subject": "18b04a56a4398b07018b4fc59ba0f187c825bd7b",
+    "applicability": "The final submitted head does not change these observations\u2019 executable consumers or authored oracles. Their actual producer and observed workspace identities remain historical and explicit; no final-head rebuild is claimed."
+  },
+  "limitations": [
+    "Actual native/Terminal and lower-chain customer execution is macos_arm64 only; other hosted execution remains unverified.",
+    "The Epsilon D parser repair covers its already-supported termination-by-view/reaches header slice, not the full product language.",
+    "The eleven reproduced Rust parser failures and seventeen unchanged contract observations remain unresolved baseline evidence; no whole-corpus green claim is made.",
+    "Structural migration replay and the comma premise audit do not establish runtime equivalence of all migrated programs.",
+    "Broader REQUIRES-UNIFICATION and NESTED-MACHINE-UNIFICATION remain open. Parent call-computed rank work and its pending native realization are excluded.",
+    "Runtime counterfactuals were reviewed against source oracles; the reviewer did not execute mutated programs."
+  ],
+  "evidence": [
+    {
+      "path": "build/header-contracts/final-review-context.json",
+      "sha256": "700d80ebb9d90b41d143bf591ab097a3b6740f73d887ecbb4efb773bb630e946"
+    },
+    {
+      "path": "build/header-contracts/review-context.json",
+      "sha256": "13c767556fe879b39b8d4404eb473126b6ff39f99186181deb9dc004dd1b3797"
+    },
+    {
+      "path": "build/header-contracts/bootstrap-parser-execution2-result.json",
+      "sha256": "a912d2912a239572eae6a24ef871349c7f6183ba1f67c4307a0924e593a0e2c3"
+    },
+    {
+      "path": "build/header-contracts/bootstrap-parser-execution2.stdout",
+      "sha256": "3a0cb1a94f27f07aa82a2a26a9ba09cb20c57a2caecd41f8bc9e98aea6d61d93"
+    },
+    {
+      "path": "build/header-contracts/bootstrap-parser-execution2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build/header-contracts/bootstrap-customer-shadow-repair.json",
+      "sha256": "47fb97df3ccec154f544cf116f647e7003e4fcd8ad6960919e6ce8a6458ab2c0"
+    },
+    {
+      "path": "build/header-contracts/candidate6-producer/cli-producer.json",
+      "sha256": "bf77caa735a64abc323d741aed7a9601dec6bbf209159dba5ee258aa0699fcf4"
+    },
+    {
+      "path": "build/header-contracts/candidate6-producer/corpus-producer.json",
+      "sha256": "76ca70ab8ef93969bcf0d3d8ca2b30ba3df82dd804af798a9532a4967466a0cd"
+    },
+    {
+      "path": "build/header-contracts/candidate6-native-row-results.json",
+      "sha256": "7c1b50dea0663c519250073b036492c8234fc84511ca8356cd0785692108141d"
+    },
+    {
+      "path": "build/header-contracts/qualified-source.json",
+      "sha256": "708f1687d9ed2d353737f344fad65c0a6f8fe2711bd5c8fb4dd6f58dc9764d88"
+    },
+    {
+      "path": "build/header-contracts/qualified-both.json",
+      "sha256": "d51b074664bbcbb63b3f06b283c73f9475e30d73220eb2aa6e1b3efcf303be0a"
+    },
+    {
+      "path": "build/header-contracts/candidate4-product-decoder-pass.json",
+      "sha256": "7ca260fb7541234f62fbd94b7e9d7f9f962b683b1cf74a576da747f02db1f42e"
+    },
+    {
+      "path": "build/header-contracts/candidate4-header-owner-controls.json",
+      "sha256": "c7c2562e2b781eb04b08fe99ba0ebcf1cfb974b24b4a9811f2c8686c3e16e463"
+    },
+    {
+      "path": "build/header-contracts/candidate4-product-native.json",
+      "sha256": "bee6b3fcf7c8d63fed0796e65a0f7a0ea91543b1ba8f121a2f9a13a6910e077c"
+    },
+    {
+      "path": "build/header-contracts/parser-unit-comparison.json",
+      "sha256": "d200c798962b471e88191383d4def16588df699312bc01c6536a75bb308cd114"
+    },
+    {
+      "path": "build/header-contracts/contract-baseline-comparison.json",
+      "sha256": "7c04c98238f92aaf4406b5cf0d002359bba613195ccb4db668a3d21a76043058"
+    },
+    {
+      "path": "build/header-contracts/baseline-corpus-producer/corpus-producer.json",
+      "sha256": "154e23c1f32d565aa0465c84aca476c4ba6b6b702c20fc6fc29ebc19731cae1c"
+    },
+    {
+      "path": "build/header-contracts/baseline-row.json",
+      "sha256": "b5bdb6e9ca4a35bb2e454698e20b3b057670b3a6420594a4af373db58a60a6b4"
+    },
+    {
+      "path": "build/header-contracts/candidate3-migration-replay-summary.json",
+      "sha256": "8c4b421ed237e4de0b2957cd8cdc7ee588afeb6b35e34f81aad3fa8e3461aeb8"
+    },
+    {
+      "path": "build/header-contracts/candidate3-migration-replay.jsonl.gz",
+      "sha256": "e58c90e4060f65fffc1d0b2fbccc0c02e5bc78e319e12bcf0d987450ad6c2dd5"
+    },
+    {
+      "path": "build/header-contracts/comma-migration-premise-audit.json",
+      "sha256": "a9ccc8873a879d18ea3378140b8314592417d6f41839f2635e024aa91dffca7c"
+    },
+    {
+      "path": "build/header-contracts/comma-all-substitutions-exact-replay.json",
+      "sha256": "18341f1a8a44adf400e0b3054d5a3f3721dfb35c23ad2a7753fa4ec7a083836a"
+    },
+    {
+      "path": "tests/bootstrap/omega-parser/main.epsilon",
+      "sha256": "211bb77c96ae219dc6aa8abfd67cebb5b12e02e2464b3184bf31538b95009a56"
+    },
+    {
+      "path": "tests/bootstrap/omega-parser/gate.py",
+      "sha256": "644f997f2bd4dcc295c167935f309b41aa693f2800312726a853681e0418cf7a"
+    },
+    {
+      "path": "tests/bootstrap/omega-parser/expected.hex",
+      "sha256": "20b33a5908e7f918b84a0888e399ef8d54b5ad67ee08995e10a749f43ff88cb2"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/736754a7ee1bdc9a87b488c2ea596c5bc69509faa3d0794aedadb919115b5084.assessment.json",
+      "sha256": "736754a7ee1bdc9a87b488c2ea596c5bc69509faa3d0794aedadb919115b5084"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/f053be59914047a293aa62a964dbb3f1.json",
+      "sha256": "f824bf0924622824e23da820a65b2de526894655e3b895c9e71c162461f0f132"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/f053be59914047a293aa62a964dbb3f1.stdout",
+      "sha256": "0a04cc581fd87845379ce63a1b36cd0f10f11dfa687bfeebfb93f296e029f175"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/f053be59914047a293aa62a964dbb3f1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/78d72bbd6bf740acb12b28efdb0d4088.json",
+      "sha256": "dd3287e40359b9f689cae68787014a588940759af9fed066f58c882559ce0dbf"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/78d72bbd6bf740acb12b28efdb0d4088.stdout",
+      "sha256": "1756ff5b154bf0d0abdc28d12fcd03aec6aa8b7711bd2fe36a0bde3022e5ee20"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/78d72bbd6bf740acb12b28efdb0d4088.stderr",
+      "sha256": "376ac311a294d67940e8dbcafbed2378e26c9cd33a8002fc7b33f113e4468ed3"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/3c47e0ae37a54edcbd10d7b22c72ef25.json",
+      "sha256": "05d7fefc825934ac9529da215e1a48faa25fa998c3a4e52bd854f4b5af31601d"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/3c47e0ae37a54edcbd10d7b22c72ef25.stdout",
+      "sha256": "dbd1059e2836ec3a9fe4d71cf79c5f06e70373bf4788f672b4613ddf5a542f44"
+    },
+    {
+      "path": "build/declared-joint/qualification.records/3c47e0ae37a54edcbd10d7b22c72ef25.stderr",
+      "sha256": "1d6e4547cb9ad2702533b6f54d0407637a4fd53eb7c28d1ebba6592a385e436e"
+    }
+  ]
+}

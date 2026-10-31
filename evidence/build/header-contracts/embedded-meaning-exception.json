@@ -1,0 +1,237 @@
+{
+  "classification": "Explicit authored-meaning repair, excluded from migration equivalence claims. Old Rust C0 incorrectly consumed the following domain declaration as a second predicate. Canonical C3 retains the authored terminator and independently parses the domain root.",
+  "source": "linux_arm64 machine Clock::now() -> u64;\nmachine f(x: u64) -> u64 requires x > 0;\ndomain<T> T::Wrapped;",
+  "source_sha256": "cd87242248c6e9a7f0efc66fa7e2d95f3d78d56395d3d4ee581e48463225122b",
+  "current_parser": "build/header-contracts/candidate3-parser",
+  "observed": {
+    "path": "bodyless-declarations-before-roots",
+    "snapshot": {
+      "root_items": [
+        {
+          "attached_data": {
+            "end": 25,
+            "source_backed": true,
+            "source_id": 0,
+            "start": 20,
+            "text": "Clock"
+          },
+          "authored_target": {
+            "end": 11,
+            "source_backed": true,
+            "source_id": 0,
+            "start": 0,
+            "text": "linux_arm64"
+          },
+          "blocks": false,
+          "bodyless": true,
+          "boundary": false,
+          "conformance_bounds": [],
+          "contracts": [],
+          "invokes": [],
+          "is_public": false,
+          "is_top_level_boundary_requirement": false,
+          "kind": "machine",
+          "name": {
+            "end": 30,
+            "source_backed": true,
+            "source_id": 0,
+            "start": 20,
+            "text": "Clock::now"
+          },
+          "ranking_subjects": [],
+          "ranking_view": [],
+          "ranking_view_arguments": [],
+          "satisfies": [],
+          "service_reaches": [],
+          "states": [
+            {
+              "contracts": [],
+              "name": {
+                "end": 30,
+                "source_backed": true,
+                "source_id": 0,
+                "start": 27,
+                "text": "now"
+              },
+              "parameters": [],
+              "return_type": {
+                "kind": "named",
+                "name": {
+                  "end": 39,
+                  "source_backed": true,
+                  "source_id": 0,
+                  "start": 36,
+                  "text": "u64"
+                }
+              },
+              "statements": []
+            }
+          ],
+          "suspends": false,
+          "target": {
+            "end": 11,
+            "source_backed": true,
+            "source_id": 0,
+            "start": 0,
+            "text": "linux_arm64"
+          },
+          "terminates_guarantee": false,
+          "type_parameters": []
+        },
+        {
+          "attached_data": null,
+          "blocks": false,
+          "bodyless": true,
+          "boundary": false,
+          "conformance_bounds": [],
+          "contracts": [
+            {
+              "facts": [
+                {
+                  "expression": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "end": 76,
+                          "source_backed": true,
+                          "source_id": 0,
+                          "start": 75,
+                          "text": "x"
+                        }
+                      ]
+                    },
+                    "operator": "greater",
+                    "right": {
+                      "kind": "integer",
+                      "text": "0"
+                    }
+                  },
+                  "kind": "expression"
+                }
+              ],
+              "kind": {
+                "kind": "requires"
+              },
+              "token_count": 5
+            }
+          ],
+          "invokes": [],
+          "is_public": false,
+          "is_top_level_boundary_requirement": false,
+          "kind": "machine",
+          "name": {
+            "end": 50,
+            "source_backed": true,
+            "source_id": 0,
+            "start": 49,
+            "text": "f"
+          },
+          "ranking_subjects": [],
+          "ranking_view": [],
+          "ranking_view_arguments": [],
+          "satisfies": [],
+          "service_reaches": [],
+          "states": [
+            {
+              "contracts": [],
+              "name": {
+                "end": 0,
+                "source_backed": false,
+                "source_id": 0,
+                "start": 0,
+                "text": "entry"
+              },
+              "parameters": [
+                {
+                  "is_const": false,
+                  "is_mutable": false,
+                  "name": {
+                    "end": 52,
+                    "source_backed": true,
+                    "source_id": 0,
+                    "start": 51,
+                    "text": "x"
+                  },
+                  "relevance": "relevant",
+                  "type_reference": {
+                    "kind": "named",
+                    "name": {
+                      "end": 57,
+                      "source_backed": true,
+                      "source_id": 0,
+                      "start": 54,
+                      "text": "u64"
+                    }
+                  }
+                }
+              ],
+              "return_type": {
+                "kind": "named",
+                "name": {
+                  "end": 65,
+                  "source_backed": true,
+                  "source_id": 0,
+                  "start": 62,
+                  "text": "u64"
+                }
+              },
+              "statements": []
+            }
+          ],
+          "suspends": false,
+          "target": null,
+          "terminates_guarantee": false,
+          "type_parameters": []
+        },
+        {
+          "facts": [],
+          "index_arguments": [],
+          "is_public": false,
+          "kind": "domain",
+          "name": {
+            "end": 102,
+            "source_backed": true,
+            "source_id": 0,
+            "start": 95,
+            "text": "Wrapped"
+          },
+          "operators": [],
+          "predicate_presence": "bodyless",
+          "semantic_clause_token_count": 0,
+          "target_type": {
+            "kind": "named",
+            "name": {
+              "end": 93,
+              "source_backed": true,
+              "source_id": 0,
+              "start": 92,
+              "text": "T"
+            }
+          },
+          "type_parameters": [
+            {
+              "bounds": {
+                "multiplicity": "affine"
+              },
+              "const_type": null,
+              "kind": "type",
+              "name": {
+                "end": 90,
+                "source_backed": true,
+                "source_id": 0,
+                "start": 89,
+                "text": "T"
+              }
+            }
+          ]
+        }
+      ],
+      "source_id": 0
+    },
+    "status": "ok"
+  },
+  "embedded_record_index": 50,
+  "preserved_author_oracle": "tests/psi/parser/test_parser.py bodyless-declarations-before-roots: two machine roots and one separate domain root"
+}

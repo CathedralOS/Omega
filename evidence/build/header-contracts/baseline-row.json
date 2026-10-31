@@ -1,0 +1,300 @@
+{
+  "producer": {
+    "revision": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+    "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/call-rank/baseline-producer/omega",
+    "sha256": "6b622ed6bbbc2b4042e2f2f31392d1fa66e4d9609ffe752e8c56770cb40ab77a",
+    "profile": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/call-rank/baseline-producer/omega",
+      "sha256": "6b622ed6bbbc2b4042e2f2f31392d1fa66e4d9609ffe752e8c56770cb40ab77a",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "dirty": false,
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json"
+    ],
+    "seconds": 170.498482291,
+    "inputs": "100644 blob 15189e48ff99e162ec8fcda46c1fb927fd647834\tCargo.lock\n100644 blob 2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a\tCargo.toml\n040000 tree 3102ddff4f964a04fab0c8db602d96878331fd64\tomega-rust\n100644 blob 34677fc928123970d13e8b81641724e2a9e6f929\trust-toolchain.toml\n040000 tree 3cd4e7410614362a972c74aca33ad8be58b0a9d1\tsource/library\n"
+  },
+  "rows": [
+    {
+      "case": {
+        "place": "local",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/local/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/local",
+        "files": {
+          "main.omg": "34ae01b8fcb50ca950573565297b4df4f34a83fc665023c8623da8353032146d",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/local/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "local",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/local/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/local/invalid",
+        "files": {
+          "main.omg": "12daff0d8b12ecc7e763fa3f1719ec048c5e915c6f24ec45a9c25e8f6cab172e",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/local/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "field",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/field/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/field",
+        "files": {
+          "main.omg": "d68eedb63d46f0451cbc62305284ec27a9f4abcd9a30e4f883f4fdbf55dea308",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/field/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "field",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/field/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/field/invalid",
+        "files": {
+          "main.omg": "a26d23f8563a1ac8f89b441227c347d9836a882dd13e6734ee2e21bacff267da",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/field/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "parameter",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/parameter/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/parameter",
+        "files": {
+          "main.omg": "1b04090d5527e44477740fd8f5820b43362bb4421f0104ff98e648473695991a",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/parameter/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "parameter",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/parameter/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/parameter/invalid",
+        "files": {
+          "main.omg": "41e179090cfe14f1ade36e550a540543d0c46b75c45f22e12fe4fe63b39f17cd",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/parameter/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "call_result",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/call_result/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/call_result",
+        "files": {
+          "main.omg": "2a2dd22ae49a2f3232592490d01e390036de597843e50f10aa13a4c4b9134126",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/call_result/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "call_result",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/call_result/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/call_result/invalid",
+        "files": {
+          "main.omg": "3e33247aa8d4d60fa32446be2925abdb44787f32424b1dbe950f21c1a1ec4089",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/call_result/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "match_join",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/match_join/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/match_join",
+        "files": {
+          "main.omg": "cc0ecd2d2dbb7a6874f27a6c322aede05df50e0510b76225c3d1017aec606f8f",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/match_join/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "match_join",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/match_join/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/match_join/invalid",
+        "files": {
+          "main.omg": "d474b3efef1a6bc33709333799cd24a290de9ab0cbf0d6b41c8460598442eaea",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/match_join/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "const_name",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/const_name/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/const_name",
+        "files": {
+          "main.omg": "92a6c39dd48989e146a5d832a5a84452aab7dac58858f96ae66f009119f41e3e",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/const_name/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "const_name",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/const_name/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/const_name/invalid",
+        "files": {
+          "main.omg": "c5e2d8fb9a8dfe318df14399e3c869ed133b6db42efb8b34c169e2841469758f",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/const_name/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "other_state",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/other_state/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/other_state",
+        "files": {
+          "main.omg": "076bee842ad75ad6995b3ca02215c51c38af504e1672563e7bd47b6c98b4288d",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/other_state/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "other_state",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/other_state/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/other_state/invalid",
+        "files": {
+          "main.omg": "2db5bab586dbbc8efaa828c88c1d069cdd405b155eebc3d04fab04c7cf2efd32",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/other_state/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "other_machine",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/other_machine/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/other_machine",
+        "files": {
+          "main.omg": "a931f7df8121f0df2a0d82c36af79fb1507be82b126a094c84bf2ed240ac7699",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/other_machine/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "other_machine",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/other_machine/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/other_machine/invalid",
+        "files": {
+          "main.omg": "4586316643b76150252cdb045cd54afbef1c6f446cdd63f893d82b53ad3cccdb",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/other_machine/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "target_body",
+        "invalid": false,
+        "path": "build/header-contracts/frozen/target_body/positive",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/target_body",
+        "files": {
+          "main.omg": "3529487f3567300c9d1b0363eacca37b6993db7d9d31ff2e509554af6702d731",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/target_body/positive/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    },
+    {
+      "case": {
+        "place": "target_body",
+        "invalid": true,
+        "path": "build/header-contracts/frozen/target_body/invalid",
+        "destination": "samples/cli/facts/nested_machine_invocation/header_contracts/target_body/invalid",
+        "files": {
+          "main.omg": "edb647ecbcea2ec4c6dd0224e3334e29e55007661d5868fdc08efd5d80deac1d",
+          "build.omg": "8b79ccd395b3f501f5ebed58438e8d339bb8eb2f304dd59b69aeb4e3aa99bdd9"
+        }
+      },
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `nested_header_contracts` with 1 diagnostic(s)\n  error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/frozen/target_body/invalid/main.omg:6:1: expected `;`, found identifier `ensures`\n"
+    }
+  ]
+}

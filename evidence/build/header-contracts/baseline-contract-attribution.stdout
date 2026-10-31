@@ -1,0 +1,35 @@
+corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 21824 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
+~ pass/contracts/returned_reference_field_mutation_exit: status moved
+    - checked
+    + incomplete
+~ pass/contracts/runtime_generic_component_window_tick_exit: diagnostics moved
+    - cannot prove requires contract for call consume from head: Rooms >= 1 && changed.room < Rooms && commands[0].direction >= -1 && commands[0].direction < 4 (needs fact `Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4` here; establish it before the call via a prior contract guarant
+    + runtime indexed construction has no exact substituted field telescope | runtime indexed construction has no exact substituted field telescope | cannot prove requires contract for call consume from head: Rooms >= 1 && changed.room < Rooms && commands[0].direction >= -1 && commands[0].direction < 4 (n
+~ fail/contracts/indexed_crash_missing_independent_index_bound: expected_satisfied moved
+    - True
+    + False
+~ fail/contracts/recursive_result_bound_changed_actual: expected_satisfied moved
+    - True
+    + False
+~ fail/contracts/replacement_call_child_false_snapshot: expected_satisfied moved
+    - True
+    + False
+~ fail/contracts/scalar_copy_guard_after_source_restore: status moved
+    - rejected
+    + checked
+corpus_gate: 6 structural move(s), 0 perf move(s) — 17 fixtures ({'rejected': 15, 'incomplete': 1, 'checked': 1}), 9 rejected without their expected fragment, 1 fail fixtures did not reject; verdicts {'regressed': 5, 'moved': 1}
+corpus_gate: of those — 5 REGRESSED, 1 diagnostics or facts moved
+corpus_gate: golden provenance: 17 rows stamped, 0 legacy (unstamped), 1 revision distance(s) unavailable
+corpus_gate: measured at jobs=2, golden jobs=runner default
+corpus_gate: fail/contracts/call_write_retires_overlapping_guard rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/generic_component_nondecreasing_window rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/indexed_crash_missing_independent_index_bound rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/negated_edge_guard_unproven_bound rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/normal_return_written_state_premise rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/recursive_result_bound_changed_actual rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/replacement_call_child_false_snapshot rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/state_write_retires_overlapping_guard_conjunct rejected without its expected fragment — it no longer pins its authored reason
+corpus_gate: fail/contracts/scalar_copy_guard_after_source_restore did not reject at all
+corpus_gate: 1113 pass/run row(s) pinned without a success and 78 fail row(s) pinned as a success (947 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions

@@ -1,0 +1,174 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "2fc408782574caca80f6fa48deee61c767f1616e",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 6748
+  },
+  "subset": true,
+  "filter": "facts/nested_machine_header_contracts_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 9,
+    "by_status": {
+      "built": 9
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2191,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2020,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1546,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1790,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1509,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1532,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1522,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1519,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_header_contracts_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1475,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "2fc408782574+wt"
+    }
+  ],
+  "fixtures": []
+}

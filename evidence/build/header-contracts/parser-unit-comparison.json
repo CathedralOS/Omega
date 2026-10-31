@@ -1,0 +1,31 @@
+{
+  "baseline": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+  "candidate_compiler_revision": "65d9ab796e6d584835cc24c61a9178640f52b461",
+  "candidate_test_sources": "current tracked test migration; unit2 raw logs retained",
+  "baseline_cases": 277,
+  "candidate_cases": 277,
+  "lost": [],
+  "gained": [],
+  "retained_failures": [
+    "parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission",
+    "tests::definitions_and_contracts::parses_machine_parameter_on_proof_data_declaration",
+    "tests::definitions_and_contracts::rejects_domain_classification_after_requires",
+    "tests::definitions_and_contracts::tail_self_call_retains_authored_call_until_resolution",
+    "tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements",
+    "tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once",
+    "tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source",
+    "tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests",
+    "tests::mathematical_definitions::parses_mathematical_let_with_relevant_and_erased_parameters",
+    "tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections",
+    "type_syntax::qualified_names::boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts"
+  ],
+  "renamed_cases": [
+    {
+      "baseline": "tests::definitions_and_contracts::parses_bodyless_nominal_machine_parameter_with_one_semicolon",
+      "candidate": "tests::definitions_and_contracts::parses_bodyless_nominal_parameter_with_one_terminator_per_declaration",
+      "baseline_result": "ok",
+      "candidate_result": "ok",
+      "reason": "Test migrated from one shared semicolon to one terminator per bodyless declaration."
+    }
+  ]
+}

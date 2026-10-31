@@ -1,0 +1,3472 @@
+{
+  "counts": {
+    "migration-complete.jsonl.gz": {
+      "declared": 372,
+      "diff_found": 335
+    },
+    "migration-last-owner.jsonl.gz": {
+      "declared": 0,
+      "diff_found": 0
+    },
+    "remaining-first-proposals.jsonl.gz": {
+      "declared": 44,
+      "diff_found": 30
+    },
+    "embedded-proposals.jsonl.gz": {
+      "declared": 4,
+      "diff_found": 4
+    },
+    "rust-string-proposals.jsonl.gz": {
+      "declared": 0,
+      "diff_found": 0
+    }
+  },
+  "following_tokens": {
+    "bytes": 46,
+    "index": 131,
+    "start": 39,
+    "rooms": 2,
+    "right": 25,
+    "macos_arm64": 5,
+    "value": 8,
+    "length": 1,
+    "strategy": 1,
+    "result": 4,
+    "remaining": 3,
+    "residual": 1,
+    "(": 46,
+    "domain": 2,
+    "trait": 1,
+    "operator": 3,
+    "requested": 1,
+    "returned": 1,
+    "fixed_vec_i32x4": 4,
+    "counter": 4,
+    "countdown": 6,
+    "second": 1,
+    "capacity": 13,
+    "forwarded": 5,
+    "holder": 2,
+    "bucket": 2,
+    "timer": 7,
+    "socket": 2,
+    "main": 1,
+    "b": 2
+  },
+  "alignment_exceptions": [
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3777,
+      "path": "tests/omega/fail/proofs/mathematical_mutated_capture/main.omg",
+      "declared": 1,
+      "diff_found": 0
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4148,
+      "path": "tests/omega/pass/contracts/contract_declaration_boundary/main.omg",
+      "declared": 9,
+      "diff_found": 3
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5417,
+      "path": "tests/omega/pass/proofs/selected_specification_requires_composition/main.omg",
+      "declared": 2,
+      "diff_found": 0
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "declared": 12,
+      "diff_found": 8
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "declared": 12,
+      "diff_found": 8
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "declared": 12,
+      "diff_found": 8
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "declared": 12,
+      "diff_found": 8
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "declared": 12,
+      "diff_found": 8
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "declared": 12,
+      "diff_found": 8
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "declared": 12,
+      "diff_found": 8
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 21,
+      "path": "samples/cli/memory/derived_content_partition/repeated/main.omg",
+      "declared": 4,
+      "diff_found": 1
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 31,
+      "path": "source/library/core/rat.omg",
+      "declared": 15,
+      "diff_found": 5
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 69,
+      "path": "tests/omega/pass/proofs/nat_metric_triangle_compile/main.omg",
+      "declared": 1,
+      "diff_found": 0
+    }
+  ],
+  "substitutions": [
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5,
+      "path": "samples/cli/basics/text_greeting/main.omg",
+      "literal_offset": null,
+      "line": 13,
+      "next_token": "bytes",
+      "before_context": " 32] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 32; bytes.len <= 32 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5,
+      "path": "samples/cli/basics/text_greeting/main.omg",
+      "literal_offset": null,
+      "line": 18,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index <= 32\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5,
+      "path": "samples/cli/basics/text_greeting/main.omg",
+      "literal_offset": null,
+      "line": 27,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5,
+      "path": "samples/cli/basics/text_greeting/main.omg",
+      "literal_offset": null,
+      "line": 27,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5,
+      "path": "samples/cli/basics/text_greeting/main.omg",
+      "literal_offset": null,
+      "line": 27,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2137,
+      "path": "samples/cli/games/dungeon_crawler_cli/player/player.omg",
+      "literal_offset": null,
+      "line": 86,
+      "next_token": "bytes",
+      "before_context": " 16] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 16; bytes.len <= 16 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2137,
+      "path": "samples/cli/games/dungeon_crawler_cli/player/player.omg",
+      "literal_offset": null,
+      "line": 91,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 16; index <= 16\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2137,
+      "path": "samples/cli/games/dungeon_crawler_cli/player/player.omg",
+      "literal_offset": null,
+      "line": 100,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2137,
+      "path": "samples/cli/games/dungeon_crawler_cli/player/player.omg",
+      "literal_offset": null,
+      "line": 100,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2137,
+      "path": "samples/cli/games/dungeon_crawler_cli/player/player.omg",
+      "literal_offset": null,
+      "line": 100,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2138,
+      "path": "samples/cli/games/dungeon_crawler_cli/rooms/room_lookup.omg",
+      "literal_offset": null,
+      "line": 28,
+      "next_token": "index",
+      "before_context": "ut Room,\n        index: u64 in Wrapping)\n    requires room_count <= 16; index < 16; rooms.len == 16\n    {\n        let found: bool = rooms[index].cell == cell;\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2138,
+      "path": "samples/cli/games/dungeon_crawler_cli/rooms/room_lookup.omg",
+      "literal_offset": null,
+      "line": 28,
+      "next_token": "rooms",
+      "before_context": "     index: u64 in Wrapping)\n    requires room_count <= 16; index < 16; rooms.len == 16\n    {\n        let found: bool = rooms[index].cell == cell;\n        let next_in"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2138,
+      "path": "samples/cli/games/dungeon_crawler_cli/rooms/room_lookup.omg",
+      "literal_offset": null,
+      "line": 81,
+      "next_token": "index",
+      "before_context": "    index: u64 in Wrapping) -> &mut Room\n    requires room_count <= 16; index < 16; rooms.len == 16\n    {\n        let found: bool = rooms[index].cell == cell;\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2138,
+      "path": "samples/cli/games/dungeon_crawler_cli/rooms/room_lookup.omg",
+      "literal_offset": null,
+      "line": 81,
+      "next_token": "rooms",
+      "before_context": "64 in Wrapping) -> &mut Room\n    requires room_count <= 16; index < 16; rooms.len == 16\n    {\n        let found: bool = rooms[index].cell == cell;\n        let next_in"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 7,
+      "next_token": "bytes",
+      "before_context": "28] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 128; bytes.len <= 128 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 12,
+      "next_token": "index",
+      "before_context": "tes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 128; index <= 128\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 21,
+      "next_token": "index",
+      "before_context": "tes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 128; index < 128; index < bytes.len; start + index < 128\n    ensures buffer in Ascii\n    {\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 21,
+      "next_token": "index",
+      "before_context": " Ascii, start: u64, index: u64)\n    requires start <= 128; index < 128; index < bytes.len; start + index < 128\n    ensures buffer in Ascii\n    {\n        buffer[start "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 21,
+      "next_token": "start",
+      "before_context": " index: u64)\n    requires start <= 128; index < 128; index < bytes.len; start + index < 128\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[in"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 37,
+      "next_token": "right",
+      "before_context": ", left: &[u8] in Ascii, right: &[u8] in Ascii)\nrequires left.len <= 24; right.len <= 100\n{\n    TextBuffer::copy(&mut buffer.storage, left, 0);\n    TextBuffer::copy(&m"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 51,
+      "next_token": "bytes",
+      "before_context": "8; 8] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 8; bytes.len <= 8 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes, "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 56,
+      "next_token": "index",
+      "before_context": "bytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 8; index <= 8\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + i"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 65,
+      "next_token": "index",
+      "before_context": "bytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8\n    ensures buffer in Ascii\n    {\n        buff"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 65,
+      "next_token": "index",
+      "before_context": "] in Ascii, start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8\n    ensures buffer in Ascii\n    {\n        buffer[start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 65,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[inde"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 89,
+      "next_token": "bytes",
+      "before_context": " 16] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 16; bytes.len <= 16 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 94,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 16; index <= 16\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 103,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 103,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 103,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 127,
+      "next_token": "bytes",
+      "before_context": " 24] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 24; bytes.len <= 24 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 132,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 24; index <= 24\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 141,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 24; index < 24; index < bytes.len; start + index < 24\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 141,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 24; index < 24; index < bytes.len; start + index < 24\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 141,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 24; index < 24; index < bytes.len; start + index < 24\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 164,
+      "next_token": "bytes",
+      "before_context": " 64] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 64; bytes.len <= 64 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 169,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 64; index <= 64\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 178,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 64; index < 64; index < bytes.len; start + index < 64\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 178,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 64; index < 64; index < bytes.len; start + index < 64\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2139,
+      "path": "samples/cli/games/dungeon_crawler_cli/text/buffer.omg",
+      "literal_offset": null,
+      "line": 178,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 64; index < 64; index < bytes.len; start + index < 64\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2285,
+      "path": "samples/cli/probes/bounded_concat/main.omg",
+      "literal_offset": null,
+      "line": 8,
+      "next_token": "bytes",
+      "before_context": " 16] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 16; bytes.len <= 16 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2285,
+      "path": "samples/cli/probes/bounded_concat/main.omg",
+      "literal_offset": null,
+      "line": 13,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 16; index <= 16\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2285,
+      "path": "samples/cli/probes/bounded_concat/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2285,
+      "path": "samples/cli/probes/bounded_concat/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2285,
+      "path": "samples/cli/probes/bounded_concat/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2309,
+      "path": "samples/cli/systems/adjacent_foreign_contracts/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "macos_arm64",
+      "before_context": "ed_offset(value: i32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\n\ndata Main { }\nmachine Main::main(main: &mut Main"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2309,
+      "path": "samples/cli/systems/adjacent_foreign_contracts/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "value",
+      "before_context": "32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\n\ndata Main { }\nmachine Main::main(main: &mut Main) reaches Magnitud"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2315,
+      "path": "samples/cli/systems/status_report/main.omg",
+      "literal_offset": null,
+      "line": 12,
+      "next_token": "bytes",
+      "before_context": " 32] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 32; bytes.len <= 32 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2315,
+      "path": "samples/cli/systems/status_report/main.omg",
+      "literal_offset": null,
+      "line": 17,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index <= 32\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2315,
+      "path": "samples/cli/systems/status_report/main.omg",
+      "literal_offset": null,
+      "line": 26,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2315,
+      "path": "samples/cli/systems/status_report/main.omg",
+      "literal_offset": null,
+      "line": 26,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2315,
+      "path": "samples/cli/systems/status_report/main.omg",
+      "literal_offset": null,
+      "line": 26,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2317,
+      "path": "samples/cli/text/string_catalog/main.omg",
+      "literal_offset": null,
+      "line": 37,
+      "next_token": "bytes",
+      "before_context": " 32] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 32; bytes.len <= 32 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2317,
+      "path": "samples/cli/text/string_catalog/main.omg",
+      "literal_offset": null,
+      "line": 42,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index <= 32\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2317,
+      "path": "samples/cli/text/string_catalog/main.omg",
+      "literal_offset": null,
+      "line": 51,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2317,
+      "path": "samples/cli/text/string_catalog/main.omg",
+      "literal_offset": null,
+      "line": 51,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2317,
+      "path": "samples/cli/text/string_catalog/main.omg",
+      "literal_offset": null,
+      "line": 51,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2336,
+      "path": "source/library/alloc/bump.omg",
+      "literal_offset": null,
+      "line": 64,
+      "next_token": "length",
+      "before_context": "xtent in Granted & Vacant\nrequires\n    available == strategy.remaining;\n    length <= available\nensures\n    strategy.remaining == available - length;\n    strategy.tai"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2336,
+      "path": "source/library/alloc/bump.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "strategy",
+      "before_context": "ngth <= available\nensures\n    strategy.remaining == available - length;\n    strategy.tail.length == available - length;\n    result.length == length\n{\n    let tail: Ex"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2336,
+      "path": "source/library/alloc/bump.omg",
+      "literal_offset": null,
+      "line": 68,
+      "next_token": "result",
+      "before_context": " == available - length;\n    strategy.tail.length == available - length;\n    result.length == length\n{\n    let tail: Extent in Granted & Vacant = strategy.tail;\n    le"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2336,
+      "path": "source/library/alloc/bump.omg",
+      "literal_offset": null,
+      "line": 84,
+      "next_token": "remaining",
+      "before_context": "ning: u64, previous: u64, length: u64)\nrequires\n    length <= previous;\n    remaining == previous - length\n{}\n\n// The split's exact returned extent carries the reques"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2336,
+      "path": "source/library/alloc/bump.omg",
+      "literal_offset": null,
+      "line": 137,
+      "next_token": "result",
+      "before_context": "leased\nensures\n    result.strategy.tail.length == strategy.tail.length;\n    result.strategy.remaining == strategy.remaining;\n    result.retired_storage.length == retu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2336,
+      "path": "source/library/alloc/bump.omg",
+      "literal_offset": null,
+      "line": 138,
+      "next_token": "result",
+      "before_context": "ategy.tail.length;\n    result.strategy.remaining == strategy.remaining;\n    result.retired_storage.length == returned.length\n{\n    Released { strategy: strategy, reti"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2336,
+      "path": "source/library/alloc/bump.omg",
+      "literal_offset": null,
+      "line": 162,
+      "next_token": "residual",
+      "before_context": "city: u64, residual: u64) -> BumpVec\nrequires\n    capacity <= residual;\n    residual == whole.length\nensures\n    result.buffer.length == capacity\nreaches ExtentPartit"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 24,
+      "next_token": "(",
+      "before_context": "saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;\n    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 25,
+      "next_token": "(",
+      "before_context": "ero;\n    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero\n{\n    let left: Rat = Seque"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 42,
+      "next_token": "(",
+      "before_context": "saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;\n    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 43,
+      "next_token": "(",
+      "before_context": "ero;\n    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero\n{\n    let left: Rat = Left("
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 58,
+      "next_token": "(",
+      "before_context": "saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;\n    (saturating_sub(Modulus(precision), index)) == Nat::Zero\nensures\n    (cauchy_at<Sequence, "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 80,
+      "next_token": "(",
+      "before_context": "saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;\n    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 81,
+      "next_token": "(",
+      "before_context": "ero;\n    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;\n    (converges_together_at"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 82,
+      "next_token": "(",
+      "before_context": "ro;\n    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;\n    (converges_together_at<Left, Right, Modulus>(\n        precision,\n        left_index,\n     "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 121,
+      "next_token": "(",
+      "before_context": "saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;\n    (saturating_sub(\n        Nat::Succ { prev: Nat::Zero },\n        add(precision, precision)\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 125,
+      "next_token": "(",
+      "before_context": "ev: Nat::Zero },\n        add(precision, precision)\n    )) == Nat::Zero;\n    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 126,
+      "next_token": "(",
+      "before_context": "ero;\n    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;\n    (saturating_sub(Modulu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 127,
+      "next_token": "(",
+      "before_context": "ro;\n    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;\n    (saturating_sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;\n    (satura"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 128,
+      "next_token": "(",
+      "before_context": "ting_sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;\n    (saturating_sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;\n    (satu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 129,
+      "next_token": "(",
+      "before_context": "ng_sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;\n    (saturating_sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;\n    (satur"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 130,
+      "next_token": "(",
+      "before_context": "ing_sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;\n    (saturating_sub(\n        Nat::Succ { prev: Nat::Zero },\n        (Middle(middle_index)).den"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 134,
+      "next_token": "(",
+      "before_context": "v: Nat::Zero },\n        (Middle(middle_index)).den\n    )) == Nat::Zero;\n    (converges_together_at<Left, Middle, Modulus>(\n        add(precision, precision),\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 139,
+      "next_token": "(",
+      "before_context": "ecision),\n        left_index,\n        middle_index\n    )) == Nat::Zero;\n    (converges_together_at<Middle, Right, Modulus>(\n        add(precision, precision),\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2339,
+      "path": "source/library/core/cauchy.omg",
+      "literal_offset": null,
+      "line": 197,
+      "next_token": "(",
+      "before_context": "tModulus(add(precision, precision)),\n        index\n    )) == Nat::Zero;\n    (saturating_sub(\n        SecondModulus(add(precision, precision)),\n        index\n    )) =="
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2342,
+      "path": "source/library/core/nat.omg",
+      "literal_offset": null,
+      "line": 466,
+      "next_token": "(",
+      "before_context": "ub_zero.\nmachine sub_zero_right(a: Nat) -> Nat\nensures\n    result == a;\n    (saturating_sub(a, Nat::Zero)) == a\n{\n    transition { _ -> (saturating_sub(a, Nat::Zero))"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2342,
+      "path": "source/library/core/nat.omg",
+      "literal_offset": null,
+      "line": 685,
+      "next_token": "(",
+      "before_context": "es\n    (saturating_sub(Nat::Succ { prev: Nat::Zero }, b)) == Nat::Zero;\n    (saturating_sub(b, a)) == Nat::Zero\nensures\n    (saturating_sub(Nat::Succ { prev: (saturat"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2343,
+      "path": "source/library/core/nat_metric.omg",
+      "literal_offset": null,
+      "line": 83,
+      "next_token": "(",
+      "before_context": " Nat\nterminates by a;\nrequires\n    (saturating_sub(a, b)) == Nat::Zero;\n    (saturating_sub(b, c)) == Nat::Zero\nensures\n    (saturating_sub(a, c)) == Nat::Zero\n{\n    "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2343,
+      "path": "source/library/core/nat_metric.omg",
+      "literal_offset": null,
+      "line": 126,
+      "next_token": "(",
+      "before_context": " Nat, c: Nat, d: Nat)\nrequires\n    (saturating_sub(a, b)) == Nat::Zero;\n    (saturating_sub(c, d)) == Nat::Zero\nensures\n    (saturating_sub(add(a, c), add(b, d))) == "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2343,
+      "path": "source/library/core/nat_metric.omg",
+      "literal_offset": null,
+      "line": 174,
+      "next_token": "(",
+      "before_context": "  (saturating_sub(Nat::Succ { prev: Nat::Zero }, factor)) == Nat::Zero;\n    (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero\nensures\n    (saturating_sub("
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2343,
+      "path": "source/library/core/nat_metric.omg",
+      "literal_offset": null,
+      "line": 495,
+      "next_token": "(",
+      "before_context": " Nat\nterminates by a;\nrequires\n    (saturating_sub(a, c)) == Nat::Zero;\n    (saturating_sub(b, c)) == Nat::Zero\nensures\n    (saturating_sub((nat_max(a, b)), c)) == Na"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2516,
+      "path": "tests/omega/fail/contracts/contract_declaration_boundary_comparison/main.omg",
+      "literal_offset": null,
+      "line": 4,
+      "next_token": "domain",
+      "before_context": "imited(value: i32, domain: i32, trait: i32) -> i32\nrequires value >= 0; domain >= 0; trait >= 0; value < 100; { value }\nmachine probe() -> i32 { limited(100, 0, 0) }\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2516,
+      "path": "tests/omega/fail/contracts/contract_declaration_boundary_comparison/main.omg",
+      "literal_offset": null,
+      "line": 4,
+      "next_token": "trait",
+      "before_context": " i32, domain: i32, trait: i32) -> i32\nrequires value >= 0; domain >= 0; trait >= 0; value < 100; { value }\nmachine probe() -> i32 { limited(100, 0, 0) }\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2516,
+      "path": "tests/omega/fail/contracts/contract_declaration_boundary_comparison/main.omg",
+      "literal_offset": null,
+      "line": 4,
+      "next_token": "value",
+      "before_context": ": i32, trait: i32) -> i32\nrequires value >= 0; domain >= 0; trait >= 0; value < 100; { value }\nmachine probe() -> i32 { limited(100, 0, 0) }\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2517,
+      "path": "tests/omega/fail/contracts/contract_declaration_boundary_operator/main.omg",
+      "literal_offset": null,
+      "line": 2,
+      "next_token": "operator",
+      "before_context": "machine limited(value: i32, operator: i32) -> i32\nrequires value >= 0; operator < value; { value }\nmachine probe() -> i32 { limited(5, 5) }\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2548,
+      "path": "tests/omega/fail/contracts/target_named_fact_preserved/main.omg",
+      "literal_offset": null,
+      "line": 2,
+      "next_token": "macos_arm64",
+      "before_context": "ne offset(value: i32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\nmachine probe() -> i32 { offset(41, -1) }\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 2548,
+      "path": "tests/omega/fail/contracts/target_named_fact_preserved/main.omg",
+      "literal_offset": null,
+      "line": 2,
+      "next_token": "value",
+      "before_context": "32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\nmachine probe() -> i32 { offset(41, -1) }\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3763,
+      "path": "tests/omega/fail/proofs/conditional_ih_requires_discharge/main.omg",
+      "literal_offset": null,
+      "line": 15,
+      "next_token": "(",
+      "before_context": "terminates by factor;\nrequires\n    (saturating_sub(a, b)) == Nat::Zero;\n    (saturating_sub(witness_left, witness_right)) == Nat::Zero\nensures\n    (saturating_sub(mul"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3778,
+      "path": "tests/omega/fail/proofs/mathematical_wrapping_capture/main.omg",
+      "literal_offset": null,
+      "line": 5,
+      "next_token": "requested",
+      "before_context": "4 in Wrapping, requested: u64) -> addr\nrequires fits(base, length + 1); requested < length\n{ base + requested }\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3812,
+      "path": "tests/omega/fail/providers/target_contract_requires_preserved/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "macos_arm64",
+      "before_context": "ed_offset(value: i32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\n\ndata Main { }\nmachine Main::main(main: &mut Main"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3812,
+      "path": "tests/omega/fail/providers/target_contract_requires_preserved/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "value",
+      "before_context": "32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\n\ndata Main { }\nmachine Main::main(main: &mut Main) reaches Magnitud"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3960,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_missing_predicate/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3960,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_missing_predicate/main.omg",
+      "literal_offset": null,
+      "line": 26,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3960,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_missing_predicate/main.omg",
+      "literal_offset": null,
+      "line": 33,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3960,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_missing_predicate/main.omg",
+      "literal_offset": null,
+      "line": 33,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3960,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_missing_predicate/main.omg",
+      "literal_offset": null,
+      "line": 33,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3960,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_missing_predicate/main.omg",
+      "literal_offset": null,
+      "line": 45,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3961,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_reseated_descriptor/main.omg",
+      "literal_offset": null,
+      "line": 28,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3961,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_reseated_descriptor/main.omg",
+      "literal_offset": null,
+      "line": 31,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3961,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_reseated_descriptor/main.omg",
+      "literal_offset": null,
+      "line": 38,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3961,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_reseated_descriptor/main.omg",
+      "literal_offset": null,
+      "line": 38,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3961,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_reseated_descriptor/main.omg",
+      "literal_offset": null,
+      "line": 38,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3961,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_reseated_descriptor/main.omg",
+      "literal_offset": null,
+      "line": 50,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3962,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_unbounded/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3962,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_unbounded/main.omg",
+      "literal_offset": null,
+      "line": 25,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3962,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_unbounded/main.omg",
+      "literal_offset": null,
+      "line": 32,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3962,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_unbounded/main.omg",
+      "literal_offset": null,
+      "line": 32,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3962,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_unbounded/main.omg",
+      "literal_offset": null,
+      "line": 32,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3962,
+      "path": "tests/omega/fail/text/borrowed_byte_snapshot_unbounded/main.omg",
+      "literal_offset": null,
+      "line": 44,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3963,
+      "path": "tests/omega/fail/text/bounded_carrier_growth_overflow_rejected/main.omg",
+      "literal_offset": null,
+      "line": 7,
+      "next_token": "bytes",
+      "before_context": " 16] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 16; bytes.len <= 16 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3963,
+      "path": "tests/omega/fail/text/bounded_carrier_growth_overflow_rejected/main.omg",
+      "literal_offset": null,
+      "line": 12,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 16; index <= 16\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3963,
+      "path": "tests/omega/fail/text/bounded_carrier_growth_overflow_rejected/main.omg",
+      "literal_offset": null,
+      "line": 21,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3963,
+      "path": "tests/omega/fail/text/bounded_carrier_growth_overflow_rejected/main.omg",
+      "literal_offset": null,
+      "line": 21,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 3963,
+      "path": "tests/omega/fail/text/bounded_carrier_growth_overflow_rejected/main.omg",
+      "literal_offset": null,
+      "line": 21,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4020,
+      "path": "tests/omega/pass/borrow/runtime_write_only_utf8_field_exit/main.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 8], bytes: &[u8], start: u64)\nrequires start <= 8; bytes.len <= 8 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4020,
+      "path": "tests/omega/pass/borrow/runtime_write_only_utf8_field_exit/main.omg",
+      "literal_offset": null,
+      "line": 70,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index <= 8 {\n        transition index < bytes.len && start + index < 8 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4020,
+      "path": "tests/omega/pass/borrow/runtime_write_only_utf8_field_exit/main.omg",
+      "literal_offset": null,
+      "line": 77,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4020,
+      "path": "tests/omega/pass/borrow/runtime_write_only_utf8_field_exit/main.omg",
+      "literal_offset": null,
+      "line": 77,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4020,
+      "path": "tests/omega/pass/borrow/runtime_write_only_utf8_field_exit/main.omg",
+      "literal_offset": null,
+      "line": 77,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4020,
+      "path": "tests/omega/pass/borrow/runtime_write_only_utf8_field_exit/main.omg",
+      "literal_offset": null,
+      "line": 89,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer8\n    requires left.len <= 8; right.len <= 8 - left.len {\n    let mut result: Buffer8;\n    Buffer8::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4030,
+      "path": "tests/omega/pass/borrows/owned_byte_value_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 58,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4030,
+      "path": "tests/omega/pass/borrows/owned_byte_value_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 61,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4030,
+      "path": "tests/omega/pass/borrows/owned_byte_value_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 68,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4030,
+      "path": "tests/omega/pass/borrows/owned_byte_value_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 68,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4030,
+      "path": "tests/omega/pass/borrows/owned_byte_value_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 68,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4030,
+      "path": "tests/omega/pass/borrows/owned_byte_value_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 75,
+      "next_token": "right",
+      "before_context": "[u8], right: &[u8]) -> TextBuffer crashes Trap\nrequires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: TextBuffer;\n    TextBuffer::copy(&mut result."
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4031,
+      "path": "tests/omega/pass/borrows/qualified_byte_owner_shared_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 77,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4031,
+      "path": "tests/omega/pass/borrows/qualified_byte_owner_shared_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 80,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4031,
+      "path": "tests/omega/pass/borrows/qualified_byte_owner_shared_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 87,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4031,
+      "path": "tests/omega/pass/borrows/qualified_byte_owner_shared_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 87,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4031,
+      "path": "tests/omega/pass/borrows/qualified_byte_owner_shared_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 87,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4031,
+      "path": "tests/omega/pass/borrows/qualified_byte_owner_shared_call_exit/main.omg",
+      "literal_offset": null,
+      "line": 94,
+      "next_token": "right",
+      "before_context": "[u8], right: &[u8]) -> TextBuffer crashes Trap\nrequires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: TextBuffer;\n    TextBuffer::copy(&mut result."
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4039,
+      "path": "tests/omega/pass/borrows/runtime_shared_view_record_presentation_exit/main.omg",
+      "literal_offset": null,
+      "line": 35,
+      "next_token": "returned",
+      "before_context": "ect(first: Window, returned: Window)\n    requires first.items.len == 3; returned.items.len == 3\n    {\n        transition first.items[0] == 17 && returned.items[2] == "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4093,
+      "path": "tests/omega/pass/calls/prefix_effectful_call/main.omg",
+      "literal_offset": null,
+      "line": 15,
+      "next_token": "remaining",
+      "before_context": "maining: u32, ceiling: u32)\nrequires\n    5 <= ceiling && ceiling <= 10;\n    remaining <= ceiling;\nterminates by remaining in 0..=ceiling;\n-> u32 {\n    Main::audit(mai"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4127,
+      "path": "tests/omega/pass/collections/runtime_fixed_vec_contract_chain_exit/main.omg",
+      "literal_offset": null,
+      "line": 50,
+      "next_token": "fixed_vec_i32x4",
+      "before_context": "gth < fixed_vec_i32x4.items.len\nensures\n    fixed_vec_i32x4.length > 0;\n    fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len\n{\n    let slots: &mut [i32] = &mut "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4127,
+      "path": "tests/omega/pass/collections/runtime_fixed_vec_contract_chain_exit/main.omg",
+      "literal_offset": null,
+      "line": 68,
+      "next_token": "fixed_vec_i32x4",
+      "before_context": "x4: &mut FixedVecI32x4) -> i32\nrequires\n    fixed_vec_i32x4.length > 0;\n    fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len\n{\n    let slots: &[i32] = &fixed_ve"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4127,
+      "path": "tests/omega/pass/collections/runtime_fixed_vec_contract_chain_exit/main.omg",
+      "literal_offset": null,
+      "line": 81,
+      "next_token": "index",
+      "before_context": "x: u64 in Wrapping) -> i32\nrequires\n    fixed_vec_i32x4.length > index;\n    index < fixed_vec_i32x4.items.len\n{\n    let slots: &[i32] = &fixed_vec_i32x4.items[..];\n  "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4128,
+      "path": "tests/omega/pass/collections/runtime_fixed_vec_round_trip_exit/main.omg",
+      "literal_offset": null,
+      "line": 50,
+      "next_token": "fixed_vec_i32x4",
+      "before_context": "gth < fixed_vec_i32x4.items.len\nensures\n    fixed_vec_i32x4.length > 0;\n    fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len\n{\n    let slots: &mut [i32] = &mut "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4128,
+      "path": "tests/omega/pass/collections/runtime_fixed_vec_round_trip_exit/main.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "fixed_vec_i32x4",
+      "before_context": "x4: &mut FixedVecI32x4) -> i32\nrequires\n    fixed_vec_i32x4.length > 0;\n    fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len\n{\n    let slots: &[i32] = &fixed_ve"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4128,
+      "path": "tests/omega/pass/collections/runtime_fixed_vec_round_trip_exit/main.omg",
+      "literal_offset": null,
+      "line": 80,
+      "next_token": "index",
+      "before_context": "x: u64 in Wrapping) -> i32\nrequires\n    fixed_vec_i32x4.length > index;\n    index < fixed_vec_i32x4.items.len\n{\n    let slots: &[i32] = &fixed_vec_i32x4.items[..];\n  "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4148,
+      "path": "tests/omega/pass/contracts/contract_declaration_boundary/main.omg",
+      "literal_offset": null,
+      "line": 55,
+      "next_token": "value",
+      "before_context": " 0; domain <= 100; trait >= 0;\n         operator >= 0; operator <= 100; value < 100;\n         operator + domain >= 0;\n         operator < value; operator == domain;\ne"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4148,
+      "path": "tests/omega/pass/contracts/contract_declaration_boundary/main.omg",
+      "literal_offset": null,
+      "line": 55,
+      "next_token": "operator",
+      "before_context": " 100; trait >= 0;\n         operator >= 0; operator <= 100; value < 100;\n         operator + domain >= 0;\n         operator < value; operator == domain;\nensures result"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4148,
+      "path": "tests/omega/pass/contracts/contract_declaration_boundary/main.omg",
+      "literal_offset": null,
+      "line": 56,
+      "next_token": "operator",
+      "before_context": "or >= 0; operator <= 100; value < 100;\n         operator + domain >= 0;\n         operator < value; operator == domain;\nensures result == value; { value }\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4150,
+      "path": "tests/omega/pass/contracts/ensures_fact_list_exit/main.omg",
+      "literal_offset": null,
+      "line": 31,
+      "next_token": "counter",
+      "before_context": "es\n    counter.count < counter.slots.len\nensures\n    counter.count > 0;\n    counter.count <= counter.slots.len\n{\n    counter.count = counter.count + 1;\n}\n\nmachine Cou"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4150,
+      "path": "tests/omega/pass/contracts/ensures_fact_list_exit/main.omg",
+      "literal_offset": null,
+      "line": 39,
+      "next_token": "counter",
+      "before_context": "Counter::release(counter: &mut Counter)\nrequires\n    counter.count > 0;\n    counter.count <= counter.slots.len\n{\n    counter.count = counter.count - 1;\n}\n\ndata Main {"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4151,
+      "path": "tests/omega/pass/contracts/ensures_wrapping_field_arithmetic_exit/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "countdown",
+      "before_context": "n Wrapping)\nrequires\n    start < 8\nensures\n    countdown.remaining > 0;\n    countdown.remaining - 1 < 8\n{\n    countdown.remaining = start + 1;\n}\n\nmachine Countdown::t"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4151,
+      "path": "tests/omega/pass/contracts/ensures_wrapping_field_arithmetic_exit/main.omg",
+      "literal_offset": null,
+      "line": 30,
+      "next_token": "countdown",
+      "before_context": "mut Countdown) -> u32 in Wrapping\nrequires\n    countdown.remaining > 0;\n    countdown.remaining - 1 < 8\n{\n    countdown.remaining = countdown.remaining - 1;\n    count"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4183,
+      "path": "tests/omega/pass/domains/unit_membership_postcondition_exit/main.omg",
+      "literal_offset": null,
+      "line": 107,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4183,
+      "path": "tests/omega/pass/domains/unit_membership_postcondition_exit/main.omg",
+      "literal_offset": null,
+      "line": 110,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4183,
+      "path": "tests/omega/pass/domains/unit_membership_postcondition_exit/main.omg",
+      "literal_offset": null,
+      "line": 117,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4183,
+      "path": "tests/omega/pass/domains/unit_membership_postcondition_exit/main.omg",
+      "literal_offset": null,
+      "line": 117,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4183,
+      "path": "tests/omega/pass/domains/unit_membership_postcondition_exit/main.omg",
+      "literal_offset": null,
+      "line": 117,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4183,
+      "path": "tests/omega/pass/domains/unit_membership_postcondition_exit/main.omg",
+      "literal_offset": null,
+      "line": 129,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n        let mut storage: [u8; 16];\n        Buffer16::copy(&mut st"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 4185,
+      "path": "tests/omega/pass/drops/contextual_cleanup_exit/main.omg",
+      "literal_offset": null,
+      "line": 127,
+      "next_token": "second",
+      "before_context": ";\n}\n\nmachine consume(first: Token, second: Token)\nrequires first.ready; second.ready\nreaches Console\n{}\n\ndata Main { }\nmachine Main::main(main: &mut Main) reaches Con"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 19,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let mut strategy: Bump = Bump { tai"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 45,
+      "next_token": "capacity",
+      "before_context": "ant, capacity: u64, demand: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let mut strategy: Bump = Bump { tai"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 88,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let mut strategy: Bump = Bump { tai"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 119,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let vec: BumpVec = open(whole, 16, "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 145,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let vec: BumpVec = open(whole, 16, "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 190,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let vec: BumpVec = open(whole, 16, "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 237,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let vec: BumpVec = open(whole, 32, "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 347,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    16 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition, ResidentStorage, VacantContentTransfer\n{"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 370,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    16 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition, ResidentStorage, VacantContentTransfer\n{"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5371,
+      "path": "tests/omega/pass/memory/bump_allocator_canary/main.omg",
+      "literal_offset": null,
+      "line": 390,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    16 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let mut strategy: Bump = Bump { tai"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 41,
+      "next_token": "(",
+      "before_context": "saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;\n    (saturating_sub(immediate_modulus(precision), index)) == Nat::Zero\nensures\n    (cauchy_at<"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 59,
+      "next_token": "(",
+      "before_context": "saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;\n    (saturating_sub(immediate_modulus(precision), left_index)) == Nat::Zero;\n    (saturating_s"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 60,
+      "next_token": "(",
+      "before_context": "saturating_sub(immediate_modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(immediate_modulus(precision), right_index)) == Nat::Zero;\n    (converges_t"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 61,
+      "next_token": "(",
+      "before_context": "aturating_sub(immediate_modulus(precision), right_index)) == Nat::Zero;\n    (converges_together_at<unit_sample, unit_sample, immediate_modulus>(\n        precision,\n  "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 88,
+      "next_token": "(",
+      "before_context": "saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;\n    (saturating_sub(\n        Nat::Succ { prev: Nat::Zero },\n        add(precision, precision)\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 92,
+      "next_token": "(",
+      "before_context": "ev: Nat::Zero },\n        add(precision, precision)\n    )) == Nat::Zero;\n    (saturating_sub(immediate_modulus(precision), left_index)) == Nat::Zero;\n    (saturating_s"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 93,
+      "next_token": "(",
+      "before_context": "saturating_sub(immediate_modulus(precision), left_index)) == Nat::Zero;\n    (saturating_sub(immediate_modulus(precision), right_index)) == Nat::Zero;\n    (saturating_"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 94,
+      "next_token": "(",
+      "before_context": "aturating_sub(immediate_modulus(precision), right_index)) == Nat::Zero;\n    (saturating_sub(immediate_modulus(add(precision, precision)), left_index)) == Nat::Zero;\n "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 95,
+      "next_token": "(",
+      "before_context": "mmediate_modulus(add(precision, precision)), left_index)) == Nat::Zero;\n    (saturating_sub(immediate_modulus(add(precision, precision)), middle_index)) == Nat::Zero;"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 96,
+      "next_token": "(",
+      "before_context": "ediate_modulus(add(precision, precision)), middle_index)) == Nat::Zero;\n    (saturating_sub(immediate_modulus(add(precision, precision)), right_index)) == Nat::Zero;\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 97,
+      "next_token": "(",
+      "before_context": "mediate_modulus(add(precision, precision)), right_index)) == Nat::Zero;\n    (saturating_sub(\n        Nat::Succ { prev: Nat::Zero },\n        (unit_sample(middle_index)"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 101,
+      "next_token": "(",
+      "before_context": "t::Zero },\n        (unit_sample(middle_index)).den\n    )) == Nat::Zero;\n    (converges_together_at<unit_sample, unit_sample, immediate_modulus>(\n        add(precision"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5385,
+      "path": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+      "literal_offset": null,
+      "line": 106,
+      "next_token": "(",
+      "before_context": "ecision),\n        left_index,\n        middle_index\n    )) == Nat::Zero;\n    (converges_together_at<unit_sample, unit_sample, immediate_modulus>(\n        add(precision"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5415,
+      "path": "tests/omega/pass/proofs/runtime_static_result_projection_citation_exit/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "forwarded",
+      "before_context": "on terminates;\nensures\n    project<Read>(index) == (Read(index)).value;\n    forwarded<Read>(index) == (Read(index)).value\n{\n}\n\nmachine literal(index: Nat) -> Observat"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5415,
+      "path": "tests/omega/pass/proofs/runtime_static_result_projection_citation_exit/main.omg",
+      "literal_offset": null,
+      "line": 34,
+      "next_token": "forwarded",
+      "before_context": "te_projection(index: Nat)\nensures\n    project<literal>(index) == index;\n    forwarded<literal>(index) == index\n{\n    result_projection<literal>(index);\n}\n\nmachine ver"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5415,
+      "path": "tests/omega/pass/proofs/runtime_static_result_projection_citation_exit/main.omg",
+      "literal_offset": null,
+      "line": 42,
+      "next_token": "forwarded",
+      "before_context": "ode: i32) -> i32\nrequires\n    project<literal>(Nat::Zero) == Nat::Zero;\n    forwarded<literal>(Nat::Zero) == Nat::Zero\n{\n    code\n}\n\ndata Main {}\n\nmachine Main::main("
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5418,
+      "path": "tests/omega/pass/proofs/static_machine_result_projection/main.omg",
+      "literal_offset": null,
+      "line": 18,
+      "next_token": "forwarded",
+      "before_context": "on terminates;\nensures\n    project<Read>(index) == (Read(index)).value;\n    forwarded<Read>(index) == (Read(index)).value\n{\n}\nmachine literal(index: Nat) -> Observati"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5418,
+      "path": "tests/omega/pass/proofs/static_machine_result_projection/main.omg",
+      "literal_offset": null,
+      "line": 27,
+      "next_token": "forwarded",
+      "before_context": "te_projection(index: Nat)\nensures\n    project<literal>(index) == index;\n    forwarded<literal>(index) == index\n{\n}\nmachine main() {}\n"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5443,
+      "path": "tests/omega/pass/providers/target_contract_adjacency_exit/main.omg",
+      "literal_offset": null,
+      "line": 24,
+      "next_token": "macos_arm64",
+      "before_context": "ed_offset(value: i32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\n\npublic linux_x86_64 machine linux_x86_64_absolut"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5443,
+      "path": "tests/omega/pass/providers/target_contract_adjacency_exit/main.omg",
+      "literal_offset": null,
+      "line": 24,
+      "next_token": "value",
+      "before_context": "32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\n\npublic linux_x86_64 machine linux_x86_64_absolute_binding() -> For"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5443,
+      "path": "tests/omega/pass/providers/target_contract_adjacency_exit/main.omg",
+      "literal_offset": null,
+      "line": 40,
+      "next_token": "macos_arm64",
+      "before_context": "ed_offset(value: i32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\n\ndata Main { }\nmachine Main::main(main: &mut Main"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5443,
+      "path": "tests/omega/pass/providers/target_contract_adjacency_exit/main.omg",
+      "literal_offset": null,
+      "line": 40,
+      "next_token": "value",
+      "before_context": "32, macos_arm64: i32) -> i32\n    requires value >= 0; macos_arm64 >= 0; value < 100; { value + 1 }\n\ndata Main { }\nmachine Main::main(main: &mut Main) reaches Magnitud"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5569,
+      "path": "tests/omega/pass/termination/rank_range_prefix_call/main.omg",
+      "literal_offset": null,
+      "line": 18,
+      "next_token": "remaining",
+      "before_context": "maining: u32, ceiling: u32)\nrequires\n    5 <= ceiling && ceiling <= 10;\n    remaining <= ceiling;\nterminates by remaining in 0..=ceiling;\n-> u32 {\n    Main::audit(mai"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5572,
+      "path": "tests/omega/pass/termination/rank_range_scratch_input_write/main.omg",
+      "literal_offset": null,
+      "line": 11,
+      "next_token": "index",
+      "before_context": " walk(index: u64, limit: u64, mut count: u64)\nrequires\n    limit <= 10;\n    index <= limit;\nterminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);\n-> u64"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5623,
+      "path": "tests/omega/pass/termination/scratch_input_rank/main.omg",
+      "literal_offset": null,
+      "line": 11,
+      "next_token": "index",
+      "before_context": " walk(index: u64, limit: u64, mut count: u64)\nrequires\n    limit <= 10;\n    index <= limit;\nterminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);\n-> u64"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5633,
+      "path": "tests/omega/pass/text/borrowed_bounded_byte_indexed_write_exit/main.omg",
+      "literal_offset": null,
+      "line": 13,
+      "next_token": "value",
+      "before_context": "tes: &mut Buffer, value: u8, repeat: bool) -> bool\n    requires at < 8; value < 128 {\n        bytes.storage[at] = value;\n        transition repeat {\n            true "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5634,
+      "path": "tests/omega/pass/text/byte_content_store_continuation_exit/main.omg",
+      "literal_offset": null,
+      "line": 57,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5634,
+      "path": "tests/omega/pass/text/byte_content_store_continuation_exit/main.omg",
+      "literal_offset": null,
+      "line": 60,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5634,
+      "path": "tests/omega/pass/text/byte_content_store_continuation_exit/main.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5634,
+      "path": "tests/omega/pass/text/byte_content_store_continuation_exit/main.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5634,
+      "path": "tests/omega/pass/text/byte_content_store_continuation_exit/main.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5634,
+      "path": "tests/omega/pass/text/byte_content_store_continuation_exit/main.omg",
+      "literal_offset": null,
+      "line": 79,
+      "next_token": "right",
+      "before_context": "g(left: &[u8], right: &[u8]) -> TextBuffer\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: TextBuffer;\n    TextBuffer::copy(&mut result."
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 8], bytes: &[u8], start: u64)\nrequires start <= 8; bytes.len <= 8 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "literal_offset": null,
+      "line": 70,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index <= 8 {\n        transition index < bytes.len && start + index < 8 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "literal_offset": null,
+      "line": 77,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "literal_offset": null,
+      "line": 77,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "literal_offset": null,
+      "line": 77,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "literal_offset": null,
+      "line": 89,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer8\n    requires left.len <= 8; right.len <= 8 - left.len {\n    let mut result: Buffer8;\n    Buffer8::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "literal_offset": null,
+      "line": 125,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5636,
+      "path": "tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg",
+      "literal_offset": null,
+      "line": 128,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5638,
+      "path": "tests/omega/pass/text/runtime_borrowed_byte_snapshot_exit/main.omg",
+      "literal_offset": null,
+      "line": 90,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5638,
+      "path": "tests/omega/pass/text/runtime_borrowed_byte_snapshot_exit/main.omg",
+      "literal_offset": null,
+      "line": 93,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5638,
+      "path": "tests/omega/pass/text/runtime_borrowed_byte_snapshot_exit/main.omg",
+      "literal_offset": null,
+      "line": 100,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5638,
+      "path": "tests/omega/pass/text/runtime_borrowed_byte_snapshot_exit/main.omg",
+      "literal_offset": null,
+      "line": 100,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5638,
+      "path": "tests/omega/pass/text/runtime_borrowed_byte_snapshot_exit/main.omg",
+      "literal_offset": null,
+      "line": 100,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5638,
+      "path": "tests/omega/pass/text/runtime_borrowed_byte_snapshot_exit/main.omg",
+      "literal_offset": null,
+      "line": 112,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 64,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 8], bytes: &[u8], start: u64)\nrequires start <= 8; bytes.len <= 8 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index <= 8 {\n        transition index < bytes.len && start + index < 8 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 74,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 74,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 74,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 86,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer8\n    requires left.len <= 8; right.len <= 8 - left.len {\n    let mut result: Buffer8;\n    Buffer8::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 122,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 125,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 132,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 132,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 132,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5639,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 144,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 55,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 4], bytes: &[u8], start: u64)\nrequires start <= 4; bytes.len <= 4 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 58,
+      "next_token": "index",
+      "before_context": "[u8; 4], bytes: &[u8], start: u64, index: u64)\n    requires start <= 4; index <= 4 {\n        transition index < bytes.len && start + index < 4 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 65,
+      "next_token": "index",
+      "before_context": "[u8; 4], bytes: &[u8], start: u64, index: u64)\n    requires start <= 4; index < 4; index < bytes.len; start + index < 4 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 65,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 4; index < 4; index < bytes.len; start + index < 4 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 65,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 4; index < 4; index < bytes.len; start + index < 4 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 77,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer4\n    requires left.len <= 4; right.len <= 4 - left.len {\n    let mut result: Buffer4;\n    Buffer4::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 113,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5640,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg",
+      "literal_offset": null,
+      "line": 116,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5641,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_copy_exit/main.omg",
+      "literal_offset": null,
+      "line": 106,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 32], bytes: &[u8], start: u64)\nrequires start <= 32; bytes.len <= 32 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5641,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_copy_exit/main.omg",
+      "literal_offset": null,
+      "line": 109,
+      "next_token": "index",
+      "before_context": "8; 32], bytes: &[u8], start: u64, index: u64)\n    requires start <= 32; index <= 32 {\n        transition index < bytes.len && start + index < 32 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5641,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_copy_exit/main.omg",
+      "literal_offset": null,
+      "line": 116,
+      "next_token": "index",
+      "before_context": "8; 32], bytes: &[u8], start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5641,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_copy_exit/main.omg",
+      "literal_offset": null,
+      "line": 116,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5641,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_copy_exit/main.omg",
+      "literal_offset": null,
+      "line": 116,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5641,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_copy_exit/main.omg",
+      "literal_offset": null,
+      "line": 128,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer32\n    requires left.len <= 32; right.len <= 32 - left.len {\n    let mut result: Buffer32;\n    Buffer32::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "literal_offset": null,
+      "line": 46,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 8], bytes: &[u8], start: u64)\nrequires start <= 8; bytes.len <= 8 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "literal_offset": null,
+      "line": 49,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index <= 8 {\n        transition index < bytes.len && start + index < 8 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "literal_offset": null,
+      "line": 56,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "literal_offset": null,
+      "line": 56,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "literal_offset": null,
+      "line": 56,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "literal_offset": null,
+      "line": 68,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer8\n    requires left.len <= 8; right.len <= 8 - left.len {\n    let mut result: Buffer8;\n    Buffer8::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "literal_offset": null,
+      "line": 104,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 32], bytes: &[u8], start: u64)\nrequires start <= 32; bytes.len <= 32 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5642,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_length_exit/main.omg",
+      "literal_offset": null,
+      "line": 107,
+      "next_token": "index",
+      "before_context": "8; 32], bytes: &[u8], start: u64, index: u64)\n    requires start <= 32; index <= 32 {\n        transition index < bytes.len && start + index < 32 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "literal_offset": null,
+      "line": 71,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 8], bytes: &[u8], start: u64)\nrequires start <= 8; bytes.len <= 8 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "literal_offset": null,
+      "line": 74,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index <= 8 {\n        transition index < bytes.len && start + index < 8 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "literal_offset": null,
+      "line": 81,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "literal_offset": null,
+      "line": 81,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "literal_offset": null,
+      "line": 81,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "literal_offset": null,
+      "line": 93,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer8\n    requires left.len <= 8; right.len <= 8 - left.len {\n    let mut result: Buffer8;\n    Buffer8::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "literal_offset": null,
+      "line": 129,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 32], bytes: &[u8], start: u64)\nrequires start <= 32; bytes.len <= 32 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5643,
+      "path": "tests/omega/pass/text/runtime_bounded_carrier_normal_status_exit/main.omg",
+      "literal_offset": null,
+      "line": 132,
+      "next_token": "index",
+      "before_context": "8; 32], bytes: &[u8], start: u64, index: u64)\n    requires start <= 32; index <= 32 {\n        transition index < bytes.len && start + index < 32 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5644,
+      "path": "tests/omega/pass/text/runtime_chained_string_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 54,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5644,
+      "path": "tests/omega/pass/text/runtime_chained_string_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 57,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5644,
+      "path": "tests/omega/pass/text/runtime_chained_string_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 64,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5644,
+      "path": "tests/omega/pass/text/runtime_chained_string_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 64,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5644,
+      "path": "tests/omega/pass/text/runtime_chained_string_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 64,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5644,
+      "path": "tests/omega/pass/text/runtime_chained_string_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 76,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "literal_offset": null,
+      "line": 64,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "literal_offset": null,
+      "line": 67,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "literal_offset": null,
+      "line": 74,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "literal_offset": null,
+      "line": 74,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "literal_offset": null,
+      "line": 74,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "literal_offset": null,
+      "line": 86,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "literal_offset": null,
+      "line": 122,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 32], bytes: &[u8], start: u64)\nrequires start <= 32; bytes.len <= 32 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5647,
+      "path": "tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg",
+      "literal_offset": null,
+      "line": 125,
+      "next_token": "index",
+      "before_context": "8; 32], bytes: &[u8], start: u64, index: u64)\n    requires start <= 32; index <= 32 {\n        transition index < bytes.len && start + index < 32 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "literal_offset": null,
+      "line": 66,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 8], bytes: &[u8], start: u64)\nrequires start <= 8; bytes.len <= 8 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "literal_offset": null,
+      "line": 69,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index <= 8 {\n        transition index < bytes.len && start + index < 8 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "literal_offset": null,
+      "line": 76,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "literal_offset": null,
+      "line": 76,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "literal_offset": null,
+      "line": 76,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "literal_offset": null,
+      "line": 88,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer8\n    requires left.len <= 8; right.len <= 8 - left.len {\n    let mut result: Buffer8;\n    Buffer8::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "literal_offset": null,
+      "line": 124,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5648,
+      "path": "tests/omega/pass/text/runtime_string_concat_two_fields_exit/main.omg",
+      "literal_offset": null,
+      "line": 127,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "literal_offset": null,
+      "line": 62,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 4], bytes: &[u8], start: u64)\nrequires start <= 4; bytes.len <= 4 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "literal_offset": null,
+      "line": 65,
+      "next_token": "index",
+      "before_context": "[u8; 4], bytes: &[u8], start: u64, index: u64)\n    requires start <= 4; index <= 4 {\n        transition index < bytes.len && start + index < 4 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "literal_offset": null,
+      "line": 72,
+      "next_token": "index",
+      "before_context": "[u8; 4], bytes: &[u8], start: u64, index: u64)\n    requires start <= 4; index < 4; index < bytes.len; start + index < 4 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "literal_offset": null,
+      "line": 72,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 4; index < 4; index < bytes.len; start + index < 4 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "literal_offset": null,
+      "line": 72,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 4; index < 4; index < bytes.len; start + index < 4 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "literal_offset": null,
+      "line": 84,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer4\n    requires left.len <= 4; right.len <= 4 - left.len {\n    let mut result: Buffer4;\n    Buffer4::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "literal_offset": null,
+      "line": 120,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5649,
+      "path": "tests/omega/pass/text/runtime_text_builder/main.omg",
+      "literal_offset": null,
+      "line": 123,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 73,
+      "next_token": "bytes",
+      "before_context": "y(storage: &mut [u8; 8], bytes: &[u8], start: u64)\nrequires start <= 8; bytes.len <= 8 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machine"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 76,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index <= 8 {\n        transition index < bytes.len && start + index < 8 {\n            true -> w"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 83,
+      "next_token": "index",
+      "before_context": "[u8; 8], bytes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 83,
+      "next_token": "index",
+      "before_context": "tes: &[u8], start: u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 83,
+      "next_token": "start",
+      "before_context": "u64, index: u64)\n    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {\n        storage[start + index] = bytes[index];\n        transition { _ -> c"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 95,
+      "next_token": "right",
+      "before_context": "ining(left: &[u8], right: &[u8]) -> Buffer8\n    requires left.len <= 8; right.len <= 8 - left.len {\n    let mut result: Buffer8;\n    Buffer8::copy(&mut result.storage"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 131,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 134,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 141,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 141,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 141,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5650,
+      "path": "tests/omega/pass/text/state_parameter_byte_replacement_exit/main.omg",
+      "literal_offset": null,
+      "line": 153,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5651,
+      "path": "tests/omega/pass/text/text_concat_assign/main.omg",
+      "literal_offset": null,
+      "line": 43,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5651,
+      "path": "tests/omega/pass/text/text_concat_assign/main.omg",
+      "literal_offset": null,
+      "line": 46,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5651,
+      "path": "tests/omega/pass/text/text_concat_assign/main.omg",
+      "literal_offset": null,
+      "line": 53,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5651,
+      "path": "tests/omega/pass/text/text_concat_assign/main.omg",
+      "literal_offset": null,
+      "line": 53,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5651,
+      "path": "tests/omega/pass/text/text_concat_assign/main.omg",
+      "literal_offset": null,
+      "line": 53,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5651,
+      "path": "tests/omega/pass/text/text_concat_assign/main.omg",
+      "literal_offset": null,
+      "line": 65,
+      "next_token": "right",
+      "before_context": "ing(left: &[u8], right: &[u8]) -> Buffer16\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: Buffer16;\n    Buffer16::copy(&mut result.stor"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5680,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_exit/main.omg",
+      "literal_offset": null,
+      "line": 9,
+      "next_token": "bytes",
+      "before_context": " 32] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 32; bytes.len <= 32 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5680,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_exit/main.omg",
+      "literal_offset": null,
+      "line": 14,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index <= 32\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5680,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_exit/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5680,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_exit/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5680,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_exit/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5681,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_mismatch/main.omg",
+      "literal_offset": null,
+      "line": 9,
+      "next_token": "bytes",
+      "before_context": " 32] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 32; bytes.len <= 32 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5681,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_mismatch/main.omg",
+      "literal_offset": null,
+      "line": 14,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index <= 32\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5681,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_mismatch/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5681,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_mismatch/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5681,
+      "path": "tests/omega/run/calls/call_result_ascii_prefix_literal_mismatch/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5685,
+      "path": "tests/omega/run/contained_health_loop_command_branch/main.omg",
+      "literal_offset": null,
+      "line": 163,
+      "next_token": "bytes",
+      "before_context": "storage: &mut [u8; 16], bytes: &[u8], start: u64)\nrequires start <= 16; bytes.len <= 16 - start {\n    transition { _ -> copying(storage, bytes, start, 0) }\n    machin"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5685,
+      "path": "tests/omega/run/contained_health_loop_command_branch/main.omg",
+      "literal_offset": null,
+      "line": 166,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index <= 16 {\n        transition index < bytes.len && start + index < 16 {\n            true ->"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5685,
+      "path": "tests/omega/run/contained_health_loop_command_branch/main.omg",
+      "literal_offset": null,
+      "line": 173,
+      "next_token": "index",
+      "before_context": "8; 16], bytes: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5685,
+      "path": "tests/omega/run/contained_health_loop_command_branch/main.omg",
+      "literal_offset": null,
+      "line": 173,
+      "next_token": "index",
+      "before_context": "s: &[u8], start: u64, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n       "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5685,
+      "path": "tests/omega/run/contained_health_loop_command_branch/main.omg",
+      "literal_offset": null,
+      "line": 173,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {\n        storage[start + index] = bytes[index];\n        transition { _ -> "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5685,
+      "path": "tests/omega/run/contained_health_loop_command_branch/main.omg",
+      "literal_offset": null,
+      "line": 185,
+      "next_token": "right",
+      "before_context": "g(left: &[u8], right: &[u8]) -> LineBuffer\n    requires left.len <= 16; right.len <= 16 - left.len {\n    let mut result: LineBuffer;\n    LineBuffer::copy(&mut result."
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5689,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 8,
+      "next_token": "bytes",
+      "before_context": " 32] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 32; bytes.len <= 32 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5689,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 13,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index <= 32\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5689,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5689,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5689,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_append_exit/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5690,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_field_source_exit/main.omg",
+      "literal_offset": null,
+      "line": 8,
+      "next_token": "bytes",
+      "before_context": " 32] in Ascii, bytes: &[u8] in Ascii, start: u64)\nrequires start <= 32; bytes.len <= 32 - start\nensures buffer in Ascii\n{\n    transition { _ -> copying(buffer, bytes,"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5690,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_field_source_exit/main.omg",
+      "literal_offset": null,
+      "line": 13,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index <= 32\n    ensures buffer in Ascii\n    {\n        transition index < bytes.len && start + "
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5690,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_field_source_exit/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "index",
+      "before_context": "ytes: &[u8] in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        bu"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5690,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_field_source_exit/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "index",
+      "before_context": "in Ascii, start: u64, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start +"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5690,
+      "path": "tests/omega/run/domains/qualified_explicit_byte_buffer_field_source_exit/main.omg",
+      "literal_offset": null,
+      "line": 22,
+      "next_token": "start",
+      "before_context": "4, index: u64)\n    requires start <= 32; index < 32; index < bytes.len; start + index < 32\n    ensures buffer in Ascii\n    {\n        buffer[start + index] = bytes[ind"
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5692,
+      "path": "tests/omega/run/ownership/content_transform_case_alias/main.omg",
+      "literal_offset": null,
+      "line": 14,
+      "next_token": "holder",
+      "before_context": "(holder: Holder, cut: u64) -> Pieces\nrequires holder in Holder::Filled;\n    holder.region.start <= cut && cut <= holder.region.end\nensures Owned::content(old(&holder."
+    },
+    {
+      "journal": "migration-complete.jsonl.gz",
+      "record": 5693,
+      "path": "tests/omega/run/ownership/content_transform_case_parent/main.omg",
+      "literal_offset": null,
+      "line": 14,
+      "next_token": "holder",
+      "before_context": "(holder: Holder, cut: u64) -> Pieces\nrequires holder in Holder::Filled;\n    holder.region.start <= cut && cut <= holder.region.end\nensures Owned::content(old(&holder."
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 21,
+      "path": "samples/cli/memory/derived_content_partition/repeated/main.omg",
+      "literal_offset": null,
+      "line": 18,
+      "next_token": "result",
+      "before_context": "= cut && cut <= whole.end\nensures\n    result.left.start == whole.start;\n    result.left.end == cut;\n    result.right.start == cut;\n    result.right.end == whole.end;\n"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 22,
+      "path": "samples/cli/probes/bucket_contract_chain/main.omg",
+      "literal_offset": null,
+      "line": 39,
+      "next_token": "bucket",
+      "before_context": "res\n    bucket.length < bucket.items.len\nensures\n    bucket.length > 0;\n    bucket.length - 1 < bucket.items.len\n{\n    let slots: &mut [u8] = &mut bucket.items[..];\n "
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 22,
+      "path": "samples/cli/probes/bucket_contract_chain/main.omg",
+      "literal_offset": null,
+      "line": 51,
+      "next_token": "index",
+      "before_context": "cket, index: u64 in Wrapping) -> u8\nrequires\n    bucket.length > index;\n    index < bucket.items.len\n{\n    let slots: &[u8] = &bucket.items[..];\n    slots[index]\n}\n\n/"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 22,
+      "path": "samples/cli/probes/bucket_contract_chain/main.omg",
+      "literal_offset": null,
+      "line": 62,
+      "next_token": "bucket",
+      "before_context": " Bucket::pop(bucket: &mut Bucket) -> u8\nrequires\n    bucket.length > 0;\n    bucket.length - 1 < bucket.items.len\n{\n    let slots: &[u8] = &bucket.items[..];\n    let i"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 23,
+      "path": "samples/cli/probes/contract_fact_chains/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "timer",
+      "before_context": "t: u32 in Wrapping)\nrequires start < 8\nensures\n    timer.remaining > 0;\n    timer.remaining - 1 < 8\n{\n    timer.remaining = start + 1;\n}\n\nmachine Countdown::tick(coun"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 23,
+      "path": "samples/cli/probes/contract_fact_chains/main.omg",
+      "literal_offset": null,
+      "line": 31,
+      "next_token": "countdown",
+      "before_context": "mut Countdown) -> u32 in Wrapping\nrequires\n    countdown.remaining > 0;\n    countdown.remaining - 1 < 8\n{\n    countdown.remaining = countdown.remaining - 1;\n    count"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 24,
+      "path": "samples/cli/probes/domain_conjunction_pairs/main.omg",
+      "literal_offset": null,
+      "line": 40,
+      "next_token": "socket",
+      "before_context": "chine forward(socket: Socket)\nrequires\n    socket in Socket::Connected;\n    socket in Socket::Authenticated;\n{\n    consume(socket)\n}\n\nmachine Main::good(main: &mut Ma"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 28,
+      "path": "source/library/core/float_meaning.omg",
+      "literal_offset": null,
+      "line": 44,
+      "next_token": "(",
+      "before_context": "denominator: Nat\n) -> Rat in NonZero\nrequires\n    positive != negative;\n    (saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator)) == Nat::Zero\n{\n    Rat {\n    "
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 29,
+      "path": "source/library/core/int.omg",
+      "literal_offset": null,
+      "line": 186,
+      "next_token": "(",
+      "before_context": "ir) -> IntPair\nrequires\n    (add(a.pos, b.neg)) == (add(b.pos, a.neg));\n    (add(b.pos, c.neg)) == (add(c.pos, b.neg))\nensures\n    (add(a.pos, c.neg)) == (add(c.pos, "
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 31,
+      "path": "source/library/core/rat.omg",
+      "literal_offset": null,
+      "line": 53,
+      "next_token": "(",
+      "before_context": "es\n    (saturating_sub(Nat::Succ { prev: Nat::Zero }, d)) == Nat::Zero;\n    (gcd(add(saturating_sub(n.neg, n.pos), saturating_sub(n.pos, n.neg)), d)) == (g);\n    (sat"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 31,
+      "path": "source/library/core/rat.omg",
+      "literal_offset": null,
+      "line": 54,
+      "next_token": "(",
+      "before_context": "aturating_sub(n.neg, n.pos), saturating_sub(n.pos, n.neg)), d)) == (g);\n    (saturating_sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero\n{\n    let negative: Nat = "
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 31,
+      "path": "source/library/core/rat.omg",
+      "literal_offset": null,
+      "line": 125,
+      "next_token": "(",
+      "before_context": "chine rat_gap_reflexive(p: Rat) -> Nat\nensures\n    result == Nat::Zero;\n    (rat_gap(p, p)) == Nat::Zero\n{\n    let p_positive: Nat = mul(p.num.pos, p.den);\n    let p_"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 31,
+      "path": "source/library/core/rat.omg",
+      "literal_offset": null,
+      "line": 409,
+      "next_token": "(",
+      "before_context": "   (saturating_sub(Nat::Succ { prev: Nat::Zero }, q.den)) == Nat::Zero;\n    (rat_close(p, q, add(precision, precision))) == Nat::Zero;\n    (rat_close(q, r, add(precis"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 31,
+      "path": "source/library/core/rat.omg",
+      "literal_offset": null,
+      "line": 410,
+      "next_token": "(",
+      "before_context": "t::Zero;\n    (rat_close(p, q, add(precision, precision))) == Nat::Zero;\n    (rat_close(q, r, add(precision, precision))) == Nat::Zero\nensures\n    (rat_close(p, r, pre"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 32,
+      "path": "tests/omega/fail/contracts/ensures_named_parameter_arithmetic_wrong/main.omg",
+      "literal_offset": null,
+      "line": 6,
+      "next_token": "timer",
+      "before_context": "t: u32 in Wrapping)\nrequires start < 8\nensures\n    timer.remaining > 0;\n    timer.remaining - 1 < 8\n{\n    timer.remaining = start + 1;\n    timer.remaining = 0;\n}\n"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 43,
+      "path": "tests/omega/fail/memory/bump_allocator_live_allocation_dropped/main.omg",
+      "literal_offset": null,
+      "line": 58,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let issued: Issued = allocate(Bump "
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 44,
+      "path": "tests/omega/fail/memory/bump_allocator_release_with_live_resident/main.omg",
+      "literal_offset": null,
+      "line": 105,
+      "next_token": "capacity",
+      "before_context": "Granted & Vacant, capacity: u64) -> Extent\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition, ResidentStorage\n{\n    let issued_first: "
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 45,
+      "path": "tests/omega/fail/memory/bump_allocator_retired_extent_unavailable/main.omg",
+      "literal_offset": null,
+      "line": 20,
+      "next_token": "capacity",
+      "before_context": "n Granted & Vacant, capacity: u64) -> Held\nrequires\n    48 <= capacity;\n    capacity == whole.length\nreaches ExtentPartition\n{\n    let mut strategy: Bump = Bump { tai"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 49,
+      "path": "tests/omega/pass/calls/runtime_copied_argument_live_mutable_ensures_exit/main.omg",
+      "literal_offset": null,
+      "line": 9,
+      "next_token": "main",
+      "before_context": "i32, main: &mut Main) -> bool\nrequires value < 0\nensures\n    value < 0;\n    main.amount > 0\n{\n    main.amount = 7;\n    value == -41\n}\n\nmachine take_positive(value: i3"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 50,
+      "path": "tests/omega/pass/contracts/ensures_fact_list/main.omg",
+      "literal_offset": null,
+      "line": 19,
+      "next_token": "counter",
+      "before_context": "es\n    counter.count < counter.slots.len\nensures\n    counter.count > 0;\n    counter.count <= counter.slots.len\n{\n    counter.count = counter.count + 1;\n}\nmachine Coun"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 50,
+      "path": "tests/omega/pass/contracts/ensures_fact_list/main.omg",
+      "literal_offset": null,
+      "line": 26,
+      "next_token": "counter",
+      "before_context": "Counter::release(counter: &mut Counter)\nrequires\n    counter.count > 0;\n    counter.count <= counter.slots.len\n{\n    counter.count = counter.count - 1;\n}\n\ndata Main {"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 51,
+      "path": "tests/omega/pass/contracts/ensures_named_parameter_arithmetic_exit/main.omg",
+      "literal_offset": null,
+      "line": 10,
+      "next_token": "timer",
+      "before_context": "t: u32 in Wrapping)\nrequires start < 8\nensures\n    timer.remaining > 0;\n    timer.remaining - 1 < 8\n{\n    timer.remaining = start + 1;\n}\n\nmachine Countdown::tick(coun"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 51,
+      "path": "tests/omega/pass/contracts/ensures_named_parameter_arithmetic_exit/main.omg",
+      "literal_offset": null,
+      "line": 18,
+      "next_token": "countdown",
+      "before_context": "mut Countdown) -> u32 in Wrapping\nrequires\n    countdown.remaining > 0;\n    countdown.remaining - 1 < 8\n{\n    countdown.remaining = countdown.remaining - 1;\n    count"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 52,
+      "path": "tests/omega/pass/contracts/ensures_saturating_field_arithmetic_exit/main.omg",
+      "literal_offset": null,
+      "line": 15,
+      "next_token": "countdown",
+      "before_context": "Saturating)\nrequires\n    start < 8\nensures\n    countdown.remaining > 0;\n    countdown.remaining - 1 < 8\n{\n    countdown.remaining = start + 1;\n}\n\nmachine Countdown::t"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 52,
+      "path": "tests/omega/pass/contracts/ensures_saturating_field_arithmetic_exit/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "countdown",
+      "before_context": "t Countdown) -> u32 in Saturating\nrequires\n    countdown.remaining > 0;\n    countdown.remaining - 1 < 8\n{\n    countdown.remaining = countdown.remaining - 1;\n    count"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 53,
+      "path": "tests/omega/pass/contracts/policy_field_ensures/main.omg",
+      "literal_offset": null,
+      "line": 16,
+      "next_token": "timer",
+      "before_context": "32 in Wrapping)\nrequires\n    start < 8\nensures\n    timer.remaining > 0;\n    timer.remaining - 1 < 8\n{\n    timer.remaining = start + 1;\n}\nmachine WrapTimer::tick(timer"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 53,
+      "path": "tests/omega/pass/contracts/policy_field_ensures/main.omg",
+      "literal_offset": null,
+      "line": 23,
+      "next_token": "timer",
+      "before_context": "r: &mut WrapTimer) -> u32 in Wrapping\nrequires\n    timer.remaining > 0;\n    timer.remaining - 1 < 8\n{\n    timer.remaining = timer.remaining - 1;\n    timer.remaining\n}"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 53,
+      "path": "tests/omega/pass/contracts/policy_field_ensures/main.omg",
+      "literal_offset": null,
+      "line": 33,
+      "next_token": "timer",
+      "before_context": " in Saturating)\nrequires\n    start < 8\nensures\n    timer.remaining > 0;\n    timer.remaining - 1 < 8\n{\n    timer.remaining = start + 1;\n}\nmachine SaturatingTimer::tick"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 53,
+      "path": "tests/omega/pass/contracts/policy_field_ensures/main.omg",
+      "literal_offset": null,
+      "line": 40,
+      "next_token": "timer",
+      "before_context": "SaturatingTimer) -> u32 in Saturating\nrequires\n    timer.remaining > 0;\n    timer.remaining - 1 < 8\n{\n    timer.remaining = timer.remaining - 1;\n    timer.remaining\n}"
+    },
+    {
+      "journal": "remaining-first-proposals.jsonl.gz",
+      "record": 54,
+      "path": "tests/omega/pass/domains/transparent_alias_expansion/main.omg",
+      "literal_offset": null,
+      "line": 34,
+      "next_token": "socket",
+      "before_context": "chine forward(socket: Socket)\nrequires\n    socket in Socket::Connected;\n    socket in Socket::Authenticated\n{\n    consume(socket);\n}\n\nmachine is_usable(socket: Socket"
+    },
+    {
+      "journal": "embedded-proposals.jsonl.gz",
+      "record": 50,
+      "path": "tests/psi/parser/test_parser.py",
+      "literal_offset": 45346,
+      "line": 2,
+      "next_token": "domain",
+      "before_context": "4 machine Clock::now() -> u64;\nmachine f(x: u64) -> u64 requires x > 0;\ndomain<T> T::Wrapped;"
+    },
+    {
+      "journal": "embedded-proposals.jsonl.gz",
+      "record": 59,
+      "path": "tests/psi/parser/test_parser.py",
+      "literal_offset": 175108,
+      "line": 1,
+      "next_token": "(",
+      "before_context": "machine f() requires a; (b) == c; ensures d; {}"
+    },
+    {
+      "journal": "embedded-proposals.jsonl.gz",
+      "record": 60,
+      "path": "tests/psi/parser/test_parser.py",
+      "literal_offset": 175215,
+      "line": 1,
+      "next_token": "b",
+      "before_context": "machine f() requires a; b; machine g() requires c;"
+    },
+    {
+      "journal": "embedded-proposals.jsonl.gz",
+      "record": 61,
+      "path": "tests/psi/parser/test_parser.py",
+      "literal_offset": 175536,
+      "line": 1,
+      "next_token": "b",
+      "before_context": "machine f() requires a; b as u8 == 4; {}"
+    }
+  ]
+}

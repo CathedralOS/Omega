@@ -1,0 +1,19 @@
+canonical: bound manifest and packed closure pass
+entries: bound gate-local customer entries pass
+materialize: packed compiler is exactly the bound member bytes
+customers: materialized compiler plus each bound entry is the recorded customer bytes
+truncate: a truncated manifest is refused before packing
+member: a one-byte member change is refused during packing
+parser entry: a one-byte change or truncation is refused with its record
+outcome entry: a one-byte change or truncation is refused with its record
+request entry: a one-byte change or truncation is refused with its record
+executable entries: a one-byte change or truncation is refused with its record
+records: bound identities match every inline packed-record pin
+entries: bound entry pins agree with the gate.py pins
+Omega identity: bound closure materialized exactly; corrupted manifest, member, and gate-local entries refused
+Complete D customer: 584640 bytes, SHA-256 acd224c6ae0dc2717d99944ed0f2cf638587487be22f793b8c1d4384acfb4f9c
+Epsilon receipt reconstruction: started; observation allowance 1800s
+Epsilon receipt reconstruction: status 0, empty stderr, 148.663s
+Interpreted D parser: started; observation allowance 14400s
+Interpreted D parser: status 0, empty stderr, 6529.480s
+Interpreted D parser: 16 invocations, exact Exit(0) and A

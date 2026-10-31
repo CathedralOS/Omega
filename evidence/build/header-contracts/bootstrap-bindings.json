@@ -1,0 +1,34 @@
+{
+  "classification": "Exact source identity bindings only; these hashes are not semantic proof or execution results. New parser customer execution pending.",
+  "parser": {
+    "bytes": 358282,
+    "sha256": "234930b21858a834d4a2d487feba7543176ef9585d457be450b1055d255763fc"
+  },
+  "manifest": {
+    "bytes": 1338,
+    "sha256": "27073567897cff13e63ae30fecf2997ed86140b646dfa3ed27d5ac972256dc4b"
+  },
+  "packed": {
+    "bytes": 571866,
+    "lines": 16493,
+    "sha256": "ad9a78c953bd3ec67c9e0ccc5283cb36f63a8ce1a491f9a97293cce51b836d29"
+  },
+  "entry": {
+    "bytes": 12762,
+    "sha256": "a87644b6264ae90ea6adca2f46ea1c9faa53b4484da79a9fbfa1f219a26ca823"
+  },
+  "customer": {
+    "bytes": 584628,
+    "sha256": "d58391eac0c7acb3226e562385d6038806422b5e61b5ee0f00a4d58f98d39107"
+  },
+  "binding_consumers": [
+    "tools/bootstrap/omega/compiler_env.sh",
+    "tests/bootstrap/gate_lib.py",
+    "tests/bootstrap/source-closure.py",
+    "tests/bootstrap/omega-executable/gate.py",
+    "tests/bootstrap/omega-parser/gate.py",
+    "tests/epsilon/d-composition/customers.py",
+    "bootstrap/5_omega/README.md",
+    "tests/bootstrap/omega-parser/README.md"
+  ]
+}

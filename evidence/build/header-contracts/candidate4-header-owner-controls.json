@@ -1,0 +1,15 @@
+{
+  "artifact": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-native",
+  "artifact_sha256": "59f39451a5570c928c4a47a1ea8ddb5e122ff248f0b2579bef47f75588fa6fa1",
+  "producer_receipt": "build/header-contracts/candidate4-product-native.json",
+  "decoder_sha256": "5f7cb8e4117d48842a5d76f2c6b97b2d76a1bb4e9599800c1a6011f5a5c87a69",
+  "controls": [
+    "grandchild and nongeneric sibling retain direct clauses/binders",
+    "contracted machine followed by lexicographic measure clears contract count",
+    "proposition-contract trait followed by refinement clears count",
+    "ordinary predicate before structural requirement retains owner"
+  ],
+  "exit": 0,
+  "seconds": 0.076497459,
+  "scope": "Focused actual native observations; does not excuse the known termination-span failure in the full decoder."
+}

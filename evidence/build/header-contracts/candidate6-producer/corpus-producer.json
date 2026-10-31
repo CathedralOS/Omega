@@ -1,0 +1,35 @@
+{
+  "revision": "2fc408782574caca80f6fa48deee61c767f1616e",
+  "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus_runner",
+  "sha256": "a3453781d35d112da79dc4e88a73d17cc01f22ad8a652fd0c6cb0374a13685a4",
+  "profile": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus_runner",
+    "sha256": "a3453781d35d112da79dc4e88a73d17cc01f22ad8a652fd0c6cb0374a13685a4",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--no-run",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner",
+    "--message-format=json"
+  ],
+  "seconds": 53.51160358300001,
+  "compiler_inputs_dirty": false,
+  "inputs": "100644 blob 15189e48ff99e162ec8fcda46c1fb927fd647834\tCargo.lock\n100644 blob 2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a\tCargo.toml\n040000 tree b1991e23856bfcdcc7128476f8ec325d3c5b18ff\tomega-rust\n100644 blob 34677fc928123970d13e8b81641724e2a9e6f929\trust-toolchain.toml\n040000 tree da4874962247958f1a949e1dd4d13bd8451dbe87\tsource/library\n",
+  "scope": [
+    "omega-rust",
+    "source/library",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    ".cargo"
+  ]
+}

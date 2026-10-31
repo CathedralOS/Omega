@@ -1,0 +1,28 @@
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[48927]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[73832]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `compiler-storage-derive` (lib) generated 1 warning
+warning: `syntax-trees-derive` (lib) generated 1 warning
+   Compiling tokens-to-syntax-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[23376]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `tokens-to-syntax-trees` (lib test) generated 1 warning
+    Finished `test` profile [optimized] target(s) in 4.24s
+     Running unittests src/lib.rs (target-source-matched/debug/build/tokens-to-syntax-trees/9a946212c2bacc3d/out/tokens_to_syntax_trees-9a946212c2bacc3d)
+error: test failed, to rerun pass `-p tokens-to-syntax-trees --lib`

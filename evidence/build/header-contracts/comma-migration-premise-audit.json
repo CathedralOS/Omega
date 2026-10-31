@@ -1,0 +1,87 @@
+{
+  "decision": "One confirmed authored declaration-boundary migration error; no additional suspect found in all recorded comma substitutions",
+  "scope": "Read-only semantic-premise audit of before_source semicolon -> after_source comma changes; in-memory text replay only; no compiler execution or tracked edit",
+  "journal_sha256": {
+    "migration-complete.jsonl.gz": "e93d438868e015e022153b9bf2826ef77ee49b19dbcdd7314f6d15bc4272a883",
+    "migration-last-owner.jsonl.gz": "52587bae9a0cb27deda11077b7a94b5c7dcc64826d0351fb3980b35207bbb9ec",
+    "remaining-first-proposals.jsonl.gz": "9ccb4cdd8cb8c77f4f29725e077d77e5ff3a52489a671462b610661fd3f9ac2d",
+    "embedded-proposals.jsonl.gz": "1fbb74159e9d2e55c4320d9c77b276c2624aa74f446d2c5ef6501bb56871047a",
+    "rust-string-proposals.jsonl.gz": "7a014620a1c46cdb6d5602e69c2af8b02a2c31bd52e079b1c93a52de8a50dcb9"
+  },
+  "counts": {
+    "migration-complete.jsonl.gz": {
+      "comma_records": 66,
+      "comma_edits_replayed": 372
+    },
+    "migration-last-owner.jsonl.gz": {
+      "comma_records": 0,
+      "comma_edits_replayed": 0
+    },
+    "remaining-first-proposals.jsonl.gz": {
+      "comma_records": 18,
+      "comma_edits_replayed": 44
+    },
+    "embedded-proposals.jsonl.gz": {
+      "comma_records": 4,
+      "comma_edits_replayed": 4
+    },
+    "rust-string-proposals.jsonl.gz": {
+      "comma_records": 0,
+      "comma_edits_replayed": 0
+    }
+  },
+  "total_comma_substitutions": 420,
+  "exact_edit_replay_exceptions": [],
+  "full_substitution_record": "build/header-contracts/comma-all-substitutions-exact-replay.json",
+  "full_substitution_record_sha256": "18341f1a8a44adf400e0b3054d5a3f3721dfb35c23ad2a7753fa4ec7a083836a",
+  "confirmed_suspects": [
+    {
+      "path": "tests/psi/parser/test_parser.py",
+      "authored_source_line_at_audit": 1164,
+      "journal": "embedded-proposals.jsonl.gz",
+      "record": 50,
+      "literal_offset": 45346,
+      "source_byte": 80,
+      "before": "machine f(x: u64) -> u64 requires x > 0;\ndomain<T> T::Wrapped;",
+      "after": "machine f(x: u64) -> u64 requires x > 0,\ndomain<T> T::Wrapped;",
+      "authored_meaning_evidence": "Test bodyless-declarations-before-roots expects three roots including DOMAIN and separately asserts Wrapped domain row. Its second machine span includes the semicolon.",
+      "c0_snapshot_root_kinds": [
+        "machine",
+        "machine"
+      ],
+      "migrated_snapshot_root_kinds": [
+        "machine",
+        "machine"
+      ],
+      "interpretation": "Equality of actual C0/current comma ASTs is true, but both omit the authored separate domain root. Restore original declaration terminator and reclassify/exclude this migration-equivalence claim."
+    }
+  ],
+  "reviewed_keyword_fact_continuations": [
+    {
+      "path": "tests/omega/fail/contracts/contract_declaration_boundary_comparison/main.omg",
+      "reason": "domain and trait are explicit i32 formals; domain>=0 and trait>=0 are authored Requires facts, not declaration heads."
+    },
+    {
+      "path": "tests/omega/pass/contracts/contract_declaration_boundary/main.omg",
+      "reason": "domain, trait and operator are explicit formals; comparisons/arithmetic continue same Requires list."
+    },
+    {
+      "path": "tests/omega/fail/contracts/contract_declaration_boundary_operator/main.omg",
+      "reason": "operator is explicit i32 formal; operator<value continues Requires."
+    },
+    {
+      "path": "samples/cli/systems/adjacent_foreign_contracts/main.omg + target_named_fact_preserved/target_contract_requires_preserved/target_contract_adjacency_exit fixtures",
+      "reason": "macos_arm64 is an explicit i32 formal followed by comparison, not a target-scoped declaration head."
+    },
+    {
+      "path": "samples/cli/memory/derived_content_partition/repeated/main.omg",
+      "reason": "Owned::content(old(&whole)) == separate(...) is an Ensures equation, not a declaration."
+    }
+  ],
+  "mathematical_roots": {
+    "concrete_additional_lost_declaration": null,
+    "finding": "No changed comma boundary is followed by let/proposition/definition/assume/axiom/data/machine/measure/use/type or modifiers introducing those declarations. Parenthesized continuations and contextual names inspected as fact expressions.",
+    "limit": "This checks only the 420 recorded comma substitutions. It does not repair the snapshot schema or establish mathematical-root completeness for unrelated edits."
+  },
+  "preserved_evidence_boundary": "Do not invalidate other AST-equivalence observations solely because C0 misparsed this one authored domain boundary. Actual C0/current semantic observations retain their historical identities."
+}

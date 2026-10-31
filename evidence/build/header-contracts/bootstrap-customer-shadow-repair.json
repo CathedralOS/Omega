@@ -1,0 +1,19 @@
+{
+  "failure_packet": "0209efea0800",
+  "classification": "Epsilon DuplicateName9 at packed coordinate584431 / entry12565; state parameter reached shadows parent machine formal reached.",
+  "governing_rule": "bootstrap/4_epsilon/checking/declarations/local_scopes.delta epsilon_census_parameter_outer_collisions and epsilon_census_state_scope",
+  "repair": "Rename the state formal to service_index; keep explicit argument and same operations/assertions.",
+  "before_entry": {
+    "bytes": 12762,
+    "sha256": "a87644b6264ae90ea6adca2f46ea1c9faa53b4484da79a9fbfa1f219a26ca823"
+  },
+  "after_entry": {
+    "bytes": 12774,
+    "sha256": "211bb77c96ae219dc6aa8abfd67cebb5b12e02e2464b3184bf31538b95009a56"
+  },
+  "after_customer": {
+    "bytes": 584640,
+    "sha256": "acd224c6ae0dc2717d99944ed0f2cf638587487be22f793b8c1d4384acfb4f9c"
+  },
+  "D_source_changed": false
+}

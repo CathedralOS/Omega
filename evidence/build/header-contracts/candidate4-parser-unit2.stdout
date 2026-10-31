@@ -1,0 +1,364 @@
+
+running 277 tests
+test input::literals::tests::real_float_suffix_is_retired_with_a_directed_diagnostic ... ok
+test input::token_cursor::storage_tests::escaping_text_and_literal_bytes_outlive_token_storage ... ok
+test parameters::generic_parameters_tests::proposition_binders_remain_trait_only ... ok
+test expressions::static_targets_tests::structural_static_argument_probe_preserves_indexed_comparisons ... ok
+test expressions::static_targets_tests::applied_requirement_call_keeps_its_trait_application_as_static_receiver ... ok
+test tests::bindings_and_conformances::closed_conformance_member_cannot_repeat_satisfaction ... ok
+test tests::bindings_and_conformances::distinguishes_shared_mutable_and_write_only_reference_access ... ok
+test tests::bindings_and_conformances::empty_binding_brackets_stay_relevant_on_signature_parameters_and_locals ... ok
+test expressions::parse_postfix::transaction_tests::rejected_nested_static_attempts_leave_the_published_prefix_intact ... ok
+test expressions::static_targets_tests::static_and_value_call_targets_remain_distinct_after_syntax_copy ... ok
+test expressions::static_targets_tests::call_roots_retain_distinct_target_occurrences_through_syntax_copy ... ok
+test tests::bindings_and_conformances::data_subject_satisfaction_is_rejected ... ok
+test tests::bindings_and_conformances::enforces_all_or_nothing_numbering_per_identity_scope ... ok
+test tests::bindings_and_conformances::exact_requirement_application_parses_lifetimes_before_type_arguments ... ok
+test parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission ... FAILED
+test tests::bindings_and_conformances::numbered_mixed_data_is_independent_of_member_order ... ok
+test tests::bindings_and_conformances::named_implementation_requires_a_closed_body ... ok
+test tests::bindings_and_conformances::parses_attached_main_state_name_as_main ... ok
+test tests::bindings_and_conformances::parses_binding_relevance_on_signature_parameters_and_locals ... ok
+test tests::bindings_and_conformances::parses_compiler_intrinsic_external_binding_as_a_closed_binding_case ... ok
+test tests::bindings_and_conformances::parses_closed_conformance_block_members ... ok
+test tests::bindings_and_conformances::parses_dynamic_selector_trait_application ... ok
+test tests::bindings_and_conformances::parses_consecutive_bodyless_boundary_machines ... ok
+test tests::bindings_and_conformances::parses_evidence_binder_in_machine_telescope ... ok
+test tests::bindings_and_conformances::parses_generic_standalone_conformance_arguments ... ok
+test tests::bindings_and_conformances::parses_field_relevance_on_record_and_case_payload_bindings ... ok
+test tests::bindings_and_conformances::parses_name_owned_generic_conformance_telescope ... ok
+test tests::bindings_and_conformances::parses_independently_numbered_cases_and_structured_payloads ... ok
+test tests::bindings_and_conformances::parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction ... ok
+test tests::bindings_and_conformances::parses_trait_header_evidence_binder ... ok
+test tests::bindings_and_conformances::parses_named_implementation_block ... ok
+test tests::bindings_and_conformances::parses_zero_value_of_nested_generic_type_without_spacing_closes ... ok
+test tests::bindings_and_conformances::preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments ... ok
+test tests::bindings_and_conformances::preserves_erased_lifetime_parameters_separately_from_runtime_generics ... ok
+test tests::bindings_and_conformances::rejects_data_carrier_dynamic_selector ... ok
+test tests::bindings_and_conformances::qualified_trait_requirement_names_are_rejected ... ok
+test tests::bindings_and_conformances::rejects_duplicate_names_across_lifetime_and_runtime_generic_parameters ... ok
+test tests::bindings_and_conformances::rejects_legacy_named_compiler_intrinsic_payload ... ok
+test tests::bindings_and_conformances::rejects_lifetime_parameters_and_arguments_after_runtime_generics ... ok
+test tests::bindings_and_conformances::rejects_retired_where_conformance_test ... ok
+test tests::bindings_and_conformances::rejects_stable_identities_above_u64_max ... ok
+test tests::bindings_and_conformances::rejects_subject_spelled_evidence_binder ... ok
+test tests::bindings_and_conformances::rejects_unknown_or_duplicate_field_relevance_properties ... ok
+test tests::bindings_and_conformances::retired_abi_declaration_names_requirement_owned_calling_policy ... ok
+test tests::bindings_and_conformances::retired_conformance_alias_order_is_rejected ... ok
+test tests::bindings_and_conformances::retired_library_block_names_the_boundary_provider_migration ... ok
+test tests::bindings_and_conformances::retired_provides_declarations_name_the_external_leaf_migration ... ok
+test tests::bindings_and_conformances::retired_spawn_forms_name_the_task_runtime_migration ... ok
+test tests::bindings_and_conformances::retired_string_backed_dllimport_names_the_evaluated_producer_migration ... ok
+test tests::bindings_and_conformances::retired_vtable_slot_rejects_before_consuming_its_payload ... ok
+test tests::body_sequences::every_machine_body_rejects_bare_arrows ... ok
+test tests::body_sequences::entry_and_nested_bodies_preserve_expanded_statement_order_and_boundaries ... ok
+test tests::body_sequences::final_values_are_completion_edges_but_semicolon_expressions_are_not ... ok
+test tests::body_sequences::nested_machine_declarations_and_copies_retain_direct_child_cohorts ... ok
+test tests::body_sequences::nested_machine_layout_rejects_resumed_statements_and_package_exports ... ok
+test tests::constructors::constructor_paths_keep_authored_field_evaluation_order_and_full_span ... ok
+test tests::definitions_and_contracts::boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_realizers ... ok
+test tests::definitions_and_contracts::parses_bodyless_nominal_parameter_with_one_terminator_per_declaration ... ok
+test tests::definitions_and_contracts::destructure_marker_preserves_double_underscore_field_as_one_component ... ok
+test tests::definitions_and_contracts::domain_semicolon_preserves_following_mathematical_declarations ... ok
+test tests::definitions_and_contracts::parses_domain_definition_surface ... ok
+test tests::definitions_and_contracts::parses_domain_predicate_absence_distinct_from_true_predicate ... ok
+test tests::definitions_and_contracts::parses_domain_requires_and_requirement_routes_independently ... ok
+test tests::definitions_and_contracts::declaration_lookahead_rewinds_private_rows_and_preserves_source_custody ... ok
+test tests::definitions_and_contracts::parses_evidence_lane_on_named_transition_without_dropping_it ... ok
+test tests::definitions_and_contracts::parses_evidence_only_call_lane_with_leading_semicolon ... ok
+test tests::definitions_and_contracts::parses_evidence_term_member_as_a_distinct_proof_static_argument ... ok
+test tests::definitions_and_contracts::parses_explicit_parameter_use_as_ordinary_name ... ok
+test tests::definitions_and_contracts::parses_explicit_progress_profile_classification ... ok
+test tests::definitions_and_contracts::parses_explicit_shared_borrow_with_exact_access_mode ... ok
+test tests::definitions_and_contracts::parses_explicit_write_only_borrow_with_exact_access_mode ... ok
+test tests::definitions_and_contracts::parses_explicit_parameter_with_named_carrier_type ... ok
+test tests::definitions_and_contracts::parses_higher_order_machine_parameter_contract ... ok
+test tests::definitions_and_contracts::parses_machine_parameter_on_proof_data_declaration ... FAILED
+test tests::definitions_and_contracts::parses_nested_call_arguments_as_contiguous_expression_spans ... ok
+test tests::definitions_and_contracts::parses_machine_parameter_with_mandatory_contract ... ok
+test tests::definitions_and_contracts::parses_nominal_machine_parameter_requirement ... ok
+test tests::definitions_and_contracts::parses_nested_static_conformance_application ... ok
+test tests::definitions_and_contracts::parses_positional_erased_evidence_call_lane_after_semicolon ... ok
+test tests::definitions_and_contracts::parses_proof_quotient_data_declaration ... ok
+test tests::definitions_and_contracts::parses_static_machine_symbol_call_argument ... ok
+test tests::definitions_and_contracts::parses_structural_and_nominal_machine_parameter_contracts_together ... ok
+test tests::definitions_and_contracts::parses_transparent_domain_alias_as_an_independent_record ... ok
+test tests::definitions_and_contracts::parses_unqualified_machine_establishment_routes ... ok
+test tests::definitions_and_contracts::proof_fact_carry_permission_rejects_index_arguments ... ok
+test tests::definitions_and_contracts::parses_target_scoped_bodyless_boundary_machine ... ok
+test tests::definitions_and_contracts::proof_fact_membership_carries_indexed_domain_application_by_argument ... ok
+test tests::definitions_and_contracts::proof_output_binding_separates_type_and_prop_lanes ... ok
+test tests::definitions_and_contracts::proof_fact_pipe_alternative_rejects_indexed_domain_application ... ok
+test tests::definitions_and_contracts::rejects_empty_domain_bodies_with_migration_guidance ... ok
+test tests::definitions_and_contracts::rejects_domain_classification_after_requires ... FAILED
+test tests::definitions_and_contracts::rejects_higher_order_parameter_without_nested_contract ... ok
+test tests::definitions_and_contracts::rejects_legacy_domain_body_predicates_with_migration_guidance ... ok
+test tests::definitions_and_contracts::rejects_machine_parameter_without_authored_contract ... ok
+test tests::definitions_and_contracts::rejects_legacy_domain_route_bodies_with_migration_guidance ... ok
+test tests::definitions_and_contracts::rejects_nested_domain_operators_with_top_level_home_guidance ... ok
+test tests::definitions_and_contracts::rejects_malformed_nominal_machine_parameter_requirements ... ok
+test tests::definitions_and_contracts::rejects_one_off_machine_member_requirements_instead_of_discarding_them ... ok
+test tests::definitions_and_contracts::rejects_self_as_ordinary_declaration_name ... ok
+test tests::definitions_and_contracts::rejects_unknown_or_duplicate_domain_classifications ... ok
+test tests::definitions_and_contracts::retains_nominal_machine_parameter_trait_application ... ok
+test tests::definitions_and_contracts::retired_generated_proof_package_has_directed_migration ... ok
+test tests::domains_and_transitions::accepts_exit_contract_clauses_on_nested_machines ... ok
+test tests::definitions_and_contracts::static_call_lookahead_keeps_delimiters_inside_argument_groups ... ok
+test tests::definitions_and_contracts::tail_self_call_retains_authored_call_until_resolution ... FAILED
+test tests::domains_and_transitions::expands_carry_portable_contract_guarantee_to_four_atomic_facts ... ok
+test tests::domains_and_transitions::logical_domain_subject_preserves_generic_references ... ok
+test tests::domains_and_transitions::logical_domain_subject_preserves_ordinary_machine_operands ... ok
+test tests::domains_and_transitions::parses_asm_mnemonics_as_intrinsic_calls ... ok
+test tests::domains_and_transitions::outcome_proof_selectors_do_not_change_the_runtime_statement_plan ... ok
+test tests::domains_and_transitions::parses_asm_jmp_block_as_transition_statement ... ok
+test tests::domains_and_transitions::parses_compiler_owned_carry_atoms_and_expands_portable ... ok
+test tests::domains_and_transitions::parses_machine_termination_argumented_view ... ok
+test tests::domains_and_transitions::parses_data_default_domain_where_clause ... ok
+test tests::domains_and_transitions::parses_machine_termination_tuple_subjects ... ok
+test tests::domains_and_transitions::parses_machine_termination_clauses ... ok
+test tests::domains_and_transitions::parses_outcome_arm_payload_and_erased_proof_selectors ... ok
+test tests::domains_and_transitions::parses_record_field_value_pattern_as_subject_member_equality ... ok
+test tests::domains_and_transitions::parses_data_destructure_transition_guard_as_subject_member_guard ... ok
+test tests::domains_and_transitions::parses_trait_machine_contract_clauses ... ok
+test tests::domains_and_transitions::parses_slice_range_indexing_into_range_expression ... ok
+test tests::domains_and_transitions::parses_structural_recast_targets_as_type_references ... ok
+test tests::domains_and_transitions::parses_value_and_policy_domain_chain_as_one_constrained_type ... ok
+test tests::domains_and_transitions::parses_trait_requirement_termination_guarantee ... ok
+test tests::domains_and_transitions::preserves_open_index_operator_expression_in_domain_argument ... ok
+test tests::domains_and_transitions::rejects_case_local_where_clause ... ok
+test tests::domains_and_transitions::rejects_duplicate_and_noncase_outcome_proof_selectors ... ok
+test tests::domains_and_transitions::rejects_every_authored_domain_subject_shape ... ok
+test tests::domains_and_transitions::projects_default_domain_case_predicate ... ok
+test tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements ... FAILED
+test tests::expression_stack::membership_remains_a_separate_operand_grammar ... ok
+test tests::domains_and_transitions::rejects_ranking_witness_on_trait_requirement ... ok
+test tests::expression_stack::nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack ... ok
+test tests::inline_assembly::parses_asm_where_facts_at_entry_and_exit ... ok
+test tests::expression_stack::operator_stack_retains_precedence_associativity_and_operator_spans ... ok
+test tests::inline_assembly::parses_register_move_as_an_ordinary_checked_assignment ... ok
+test tests::inline_assembly::parses_multi_instruction_asm_in_nested_machines_and_trait_defaults ... ok
+test tests::inline_assembly::parses_exact_asm_where_clobber_contracts ... ok
+test tests::inline_assembly::parses_x86_control_registers_as_structured_value_operations ... ok
+test tests::inline_assembly::parses_x86_flags_as_explicit_value_operations ... ok
+test tests::inline_assembly::parses_x86_interrupt_control_as_zero_operand_intrinsics ... ok
+test tests::inline_assembly::parses_x86_memory_fences_as_zero_operand_intrinsics ... ok
+test tests::inline_assembly::parses_x86_msr_as_structured_value_operations ... ok
+test tests::inline_assembly::parses_memory_transfers_as_place_assignments ... ok
+test tests::inline_assembly::rejects_asm_availability_and_unmodeled_operation_classes ... ok
+test tests::inline_assembly::rejects_ambiguous_or_empty_multi_instruction_asm_blocks ... ok
+test tests::inline_assembly::rejects_bracketed_memory_operands_on_register_moves ... ok
+test tests::inline_assembly::rejects_inexact_asm_where_clobber_contracts ... ok
+test tests::inline_assembly::rejects_unknown_asm_mnemonics ... ok
+test tests::items_and_selections::array_literal_retains_its_complete_authored_source_span ... ok
+test tests::items_and_selections::boolean_transition_targets_are_literals_without_parentheses ... ok
+test tests::items_and_selections::local_bindings_parse_their_type_and_initializer_once ... ok
+test tests::items_and_selections::decisive_compare_exchange_desugar_derives_scalar_result_custody ... ok
+test tests::items_and_selections::entry_remains_an_ordinary_machine_name_with_a_generated_internal_entry ... ok
+test tests::items_and_selections::malformed_binding_reports_its_initializer_error ... ok
+test tests::items_and_selections::name_expression_source_custody_survives_nested_constant_leaves ... ok
+test tests::items_and_selections::old_remains_an_ordinary_parameter_and_local_identifier ... ok
+test tests::items_and_selections::opaque_representation_selection_retains_data_and_conformance_paths ... ok
+test tests::items_and_selections::name_expression_source_custody_retains_complete_authored_paths ... ok
+test tests::items_and_selections::atomic_bindings_classify_one_initializer_and_preserve_binding_properties ... ok
+test tests::items_and_selections::owns_non_utf8_string_literal_bytes_in_syntax_tree ... ok
+test tests::items_and_selections::parses_primitive_witness_and_transparent_proposition_declarations ... ok
+test tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once ... FAILED
+test tests::items_and_selections::parses_relevance_on_ordinary_numbered_fields ... ok
+test tests::items_and_selections::parses_stable_identities_through_the_full_u64_range ... ok
+test tests::items_and_selections::proposition_declarations_reject_retired_brace_evidence_with_migration_guidance ... ok
+test tests::items_and_selections::parses_type_and_integer_const_proposition_arguments ... ok
+test tests::items_and_selections::parses_trait_proposition_parameter_with_authored_signature ... ok
+test tests::items_and_selections::proposition_declarations_reject_runtime_or_ambiguous_body_shapes ... ok
+test tests::items_and_selections::provider_selection_retains_two_structural_type_paths ... ok
+test tests::items_and_selections::rejects_pub_when_the_declaration_cannot_retain_visibility ... ok
+test tests::items_and_selections::provider_selection_retains_one_explicit_composition_mode_argument ... ok
+test tests::items_and_selections::root_binding_statement_retains_computed_operands_without_a_declaration_path ... ok
+test tests::items_and_selections::root_binding_statement_rejects_malformed_operands ... ok
+test tests::items_and_selections::root_binding_statement_retains_operand_paths_and_the_authored_bind_span ... ok
+test tests::items_and_selections::service_exclusion_rejects_retired_receiver_calls ... ok
+test tests::items_and_selections::service_exclusion_retains_namespace_type_path_and_explicit_build_argument ... ok
+test tests::items_and_selections::struct_literal_retains_its_complete_authored_source_span ... ok
+test tests::items_and_selections::trait_machine_parameter_is_requirement_identity ... ok
+test tests::items_and_selections::source_target_declarations_are_retired ... ok
+test tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source ... FAILED
+test tests::items_and_selections::trait_defaults_share_atomic_binding_dispatch ... ok
+test tests::items_and_selections::trait_proposition_parameter_requires_authored_signature ... ok
+test tests::items_and_selections::unmatched_atomic_shapes_publish_only_the_ordinary_binding ... ok
+test tests::items_and_selections::tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordinates ... ok
+test tests::mathematical_definitions::boundary_let_rejects_a_body ... ok
+test tests::mathematical_definitions::arrow_types_associate_right_and_bind_domains ... ok
+test tests::mathematical_definitions::dependent_binder_requires_an_arrow ... ok
+test tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests ... FAILED
+test tests::mathematical_definitions::empty_parameter_list_names_a_nullary_definition ... ok
+test tests::mathematical_definitions::let_declaration_rejects_lifetime_and_machine_binders ... ok
+test tests::mathematical_definitions::parses_boundary_let_as_bodyless_assumption ... ok
+test tests::mathematical_definitions::parses_universe_and_type_binder_telescope ... ok
+test tests::mathematical_definitions::top_level_let_requires_a_body_or_boundary ... ok
+test tests::numbered_data::nested_version_blocks_reject_regardless_of_leading_member ... ok
+test tests::numbered_data::numbered_declarations_share_ordinary_data_and_source_identity ... ok
+test tests::numbered_data::numbered_data_rejects_duplicate_and_retired_identity_reuse ... ok
+test tests::properties_and_requirements::bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rejects ... ok
+test tests::properties_and_requirements::boundary_data_parses_as_an_opaque_carrier_without_a_shape ... ok
+test tests::mathematical_definitions::parses_mathematical_let_with_relevant_and_erased_parameters ... FAILED
+test tests::properties_and_requirements::carry_property_parses_all_four_axes_on_data_and_bounds ... ok
+test tests::properties_and_requirements::carry_property_requires_every_axis_and_retires_send ... ok
+test tests::properties_and_requirements::contract_terminated_top_level_requirement_stops_before_public_requirement ... ok
+test tests::properties_and_requirements::contextual_clause_names_retain_their_first_contract_proposition ... ok
+test tests::properties_and_requirements::copy_and_linear_properties_are_mutually_exclusive ... ok
+test tests::properties_and_requirements::linear_property_is_first_class_on_data_and_type_parameters ... ok
+test tests::properties_and_requirements::operational_clause_semicolon_terminates_requirement_before_boundary_item ... ok
+test tests::properties_and_requirements::multiplicity_property_lists_accept_trailing_commas ... ok
+test tests::properties_and_requirements::erased_join_type_is_rejected_but_join_names_are_ordinary ... ok
+test tests::properties_and_requirements::parses_explicit_crash_terminal_and_retires_trap_statement ... ok
+test tests::properties_and_requirements::parses_fixed_operator_tokens_in_declaration_heads ... ok
+test tests::properties_and_requirements::parses_guarded_crash_bucket_on_operator_contract ... ok
+test tests::properties_and_requirements::ordinary_entry_named_calls_do_not_become_retired_members ... ok
+test tests::properties_and_requirements::parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_machine ... ok
+test tests::properties_and_requirements::parses_contract_clause_orderings_and_predicate_boundaries ... ok
+test tests::properties_and_requirements::parses_fixed_operator_tokens_on_machine_declarations ... ok
+test tests::properties_and_requirements::parses_installation_bound_reach_on_bodyless_boundary_requirement ... ok
+test tests::properties_and_requirements::parses_guarded_crash_buckets_on_machines_and_requirements ... ok
+test tests::properties_and_requirements::parses_independent_operational_clauses_on_machines_and_requirements ... ok
+test tests::properties_and_requirements::parses_machine_requires_before_reaches_on_one_line ... ok
+test tests::properties_and_requirements::parses_machine_contract_clauses ... ok
+test tests::properties_and_requirements::parses_named_bodyless_signature_contract_bindings ... ok
+test tests::properties_and_requirements::parses_nested_machine_requires ... ok
+test tests::properties_and_requirements::parses_named_machine_contract_evidence_bindings ... ok
+test tests::properties_and_requirements::parses_plain_and_boundary_traits ... ok
+test tests::properties_and_requirements::parses_outcome_specific_ensures_as_rows_without_group_identity ... ok
+test tests::properties_and_requirements::parses_trait_owned_fixed_operator_requirements ... ok
+test tests::properties_and_requirements::rejects_duplicate_operational_clauses ... ok
+test tests::properties_and_requirements::rejects_all_retired_invariant_declaration_forms_with_direction ... ok
+test tests::properties_and_requirements::parses_unguarded_crash_bucket_on_a_bodyless_machine_head ... ok
+test tests::properties_and_requirements::rejects_installation_bound_reach_outside_bodyless_boundary_requirement ... ok
+test tests::properties_and_requirements::rejects_ambiguous_and_duplicate_outcome_specific_ensures_surfaces ... ok
+test tests::properties_and_requirements::rejects_empty_or_mixed_installation_bound_reach_rows ... ok
+test tests::properties_and_requirements::rejects_legacy_effects_reach_clause ... ok
+test tests::properties_and_requirements::rejects_malformed_requires_fact_lists ... ok
+test tests::properties_and_requirements::rejects_invalid_explicit_top_level_boundary_requirement_forms ... ok
+test tests::properties_and_requirements::rejects_malformed_operator_tokens_on_machine_declarations ... ok
+test tests::properties_and_requirements::rejects_retired_operator_spelling_clause ... ok
+test tests::properties_and_requirements::rejects_named_contract_with_multiple_propositions ... ok
+test tests::properties_and_requirements::rejects_operational_members_in_service_reach_rows ... ok
+test tests::properties_and_requirements::rejects_unknown_or_multiple_fixed_operator_tokens ... ok
+test tests::properties_and_requirements::rejects_retired_provider_item_and_operator_clause ... ok
+test tests::properties_and_requirements::rejects_top_level_installation_bound_reach_outside_fresh_boundary_requirement ... ok
+test tests::properties_and_requirements::rejects_unknown_crash_causes ... ok
+test tests::properties_and_requirements::retired_trailing_boundary_contracts_name_current_boundary_surfaces ... ok
+test tests::properties_and_requirements::retired_capability_entry_names_the_boundary_provider_migration ... ok
+test tests::properties_and_requirements::retired_explicit_machine_entry_members_name_the_machine_body_migration ... ok
+test tests::source_parsing::appending_sources_preserves_root_handles_and_source_identity ... ok
+test tests::source_parsing::float_spellings_share_forest_custody_and_survive_cross_forest_copy ... ok
+test tests::source_parsing::parser_retains_one_worker_page_identity_through_nested_handles ... ok
+test tests::expression_stack::long_operator_chains_keep_bounded_parser_stack_and_exact_prefix_order ... ok
+test tests::source_parsing::rejection_preserves_the_parsed_prefix_and_reports_the_current_source ... ok
+test tests::source_parsing::syntax_names_remain_valid_after_all_token_and_source_rows_are_released ... ok
+test tests::static_parameters::implicit_self_expressions_and_transition_targets_reject ... ok
+test tests::static_parameters::explicit_owned_shared_mutable_and_write_only_parameters_parse ... ok
+test tests::type_constraints::comma_constraint_slots_inside_type_brackets_reject ... ok
+test tests::static_parameters::retired_receiver_parameters_reject_in_every_signature_owner ... ok
+test tests::type_constraints::fixed_array_equation_elements_use_existing_generic_type_grammar ... ok
+test tests::type_constraints::fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy ... ok
+test tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections ... FAILED
+test tests::type_constraints::fixed_array_type_operand_is_not_runtime_value_syntax ... ok
+test tests::type_constraints::named_proof_constraints_reject_in_scalar_and_slice_type_positions ... ok
+test tests::type_constraints::range_constraints_keep_literal_and_named_lower_bounds ... ok
+test tests::type_constraints::proof_fact_array_values_remain_value_expressions ... ok
+test tests::type_constraints::reference_operands_retain_access_and_element_type_role_through_copy ... ok
+test tests::value_dispatch::machine_tail_match_is_a_value_dispatch_not_source_transitions ... ok
+test tests::value_dispatch::nested_initializer_match_retains_expression_local_dispatch ... ok
+test tests::value_dispatch::value_match_rejects_empty_dispatch_and_duplicate_bindings ... ok
+test tests::source_parsing::import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes ... ok
+test tests::value_dispatch::value_match_retains_subject_once_ordered_duplicate_arms_and_spans ... ok
+test tests::type_constraints::unary_const_arguments_retain_their_typed_evaluation_obligation ... ok
+test tests::type_constraints::range_end_kind_and_authored_endpoints_survive_tree_copy ... ok
+test tests::type_constraints::reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes ... ok
+test type_syntax::qualified_names::boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts ... FAILED
+test type_syntax::qualified_names::qualified_type_names_reject_missing_path_members ... ok
+test type_syntax::remainder_tests::division_and_remainder_const_arguments_retain_operations_before_semantic_admission ... ok
+test tests::source_parsing::parallel_parser_pages_preserve_source_order_and_direct_handle_lookup ... ok
+
+failures:
+
+---- parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission stdout ----
+
+thread 'parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission' (6302530) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parameters/generic_parameters_tests.rs:49:9:
+assertion `left == right` failed
+  left: true
+ right: false
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::definitions_and_contracts::parses_machine_parameter_on_proof_data_declaration stdout ----
+
+thread 'tests::definitions_and_contracts::parses_machine_parameter_on_proof_data_declaration' (6302596) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests.rs:35:48:
+proof-data machine parameter should parse: ParseError { message: "machine parameter `S` already has a `requires machine` contract", source_span: SourceSpan { source_id: SourceId(0), span: Span { start: 58, end: 59 } } }
+
+---- tests::definitions_and_contracts::rejects_domain_classification_after_requires stdout ----
+
+thread 'tests::definitions_and_contracts::rejects_domain_classification_after_requires' (6302612) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests.rs:155:5:
+unexpected diagnostic: domain `requires` must contain at least one proposition
+
+---- tests::definitions_and_contracts::tail_self_call_retains_authored_call_until_resolution stdout ----
+
+thread 'tests::definitions_and_contracts::tail_self_call_retains_authored_call_until_resolution' (6302626) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/definitions_and_contracts.rs:611:9:
+parsing retains the authored expression; resolution owns tail normalization
+
+---- tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements stdout ----
+
+thread 'tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements' (6302653) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/expression_stack.rs:162:9:
+borrow
+
+---- tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once stdout ----
+
+thread 'tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once' (6302684) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:268:9:
+assertion `left == right` failed
+  left: 3
+ right: 2
+
+---- tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source stdout ----
+
+thread 'tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source' (6302701) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:411:5:
+assertion failed: !parsed.expressions.iter_expressions().any(|(_, expression)|
+            {
+                matches!(expression, ExpressionNode::Atomic(atomic) if
+                    matches!(atomic.ordering,
+                    language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce
+                    { .. }))
+            })
+
+---- tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests stdout ----
+
+thread 'tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests' (6302709) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs:313:17:
+authored transition
+
+---- tests::mathematical_definitions::parses_mathematical_let_with_relevant_and_erased_parameters stdout ----
+
+thread 'tests::mathematical_definitions::parses_mathematical_let_with_relevant_and_erased_parameters' (6302716) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/mathematical_definitions.rs:91:18:
+unexpected type reference in test: ConstExpression(Handle { arena_index: 1, generation: 1 })
+
+---- tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections stdout ----
+
+thread 'tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections' (6302798) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/type_constraints.rs:276:9:
+[Element; -1]
+
+---- type_syntax::qualified_names::boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts stdout ----
+
+thread 'type_syntax::qualified_names::boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts' (6302817) panicked at omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax/qualified_names.rs:40:17:
+boolean literal retains the canonical named-atom syntax
+
+
+failures:
+    parameters::generic_parameters_tests::conformance_and_value_binders_keep_distinct_admission
+    tests::definitions_and_contracts::parses_machine_parameter_on_proof_data_declaration
+    tests::definitions_and_contracts::rejects_domain_classification_after_requires
+    tests::definitions_and_contracts::tail_self_call_retains_authored_call_until_resolution
+    tests::expression_stack::iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements
+    tests::items_and_selections::opposite_boolean_subject_arms_test_the_subject_once
+    tests::items_and_selections::single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source
+    tests::items_and_selections::unrelated_or_nonpair_boolean_guards_keep_their_tests
+    tests::mathematical_definitions::parses_mathematical_let_with_relevant_and_erased_parameters
+    tests::type_constraints::fixed_array_equation_operands_use_the_type_grammars_rejections
+    type_syntax::qualified_names::boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts
+
+test result: FAILED. 266 passed; 11 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

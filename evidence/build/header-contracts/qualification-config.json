@@ -1,0 +1,212 @@
+{
+  "context": {
+    "parent": "NESTED-MACHINE-UNIFICATION",
+    "task": "REQUIRES-UNIFICATION header delimiter prerequisite",
+    "fixed_base": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+    "host": "macos_arm64",
+    "baseline": "Exact immutable initial C0 CLI6b622ed6 refuses canonical headers. Fresh isolated C0 corpus17 comparison matches valid C4 observations; C5 and first comparison are explicitly invalidated after shared-target contamination.",
+    "remaining": "Finish bound D20 customer execution, exact review and normal queue/main publication, then return to the frozen declared-call-rank probe."
+  },
+  "semantic_contracts": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
+        "omega-rust/psi/compilation/checking",
+        "source/psi/parse",
+        "source/psi/syntax",
+        "source/psi/resolve/forms.omg",
+        "bootstrap/5_omega/parser.epsilon"
+      ],
+      "contract": "wiki/spec/language/state_contracts.md",
+      "classification": "missing_implementation",
+      "reason": "Fixed baseline wrongly demands clause semicolons. Honor the settled machine-clause-delimiters decision: header clauses have none, every bodyless declaration owns exactly one terminator, nested signatures retain exact ownership, no compatibility separators. Migrate affected authored inputs preserving semantics.",
+      "passages": [
+        "Named decision: `machine-clause-delimiters`, confirmed 2026-10-30.\n\nMachine header clauses have no trailing semicolons. This applies uniformly to\n`requires`, `ensures`, `reaches`, `invokes`, `suspends`, `blocks`, `crashes`,\n`terminates` (including `terminates by`), and other machine header clauses.\nThe next clause keyword or the implementation body delimits a clause; a newline\ndoes not change its owner. A checked machine proceeds directly from its last\nclause to its body. A semicolon before that body does not terminate a clause and\nthen resume the same declaration.\n\nA bodyless machine declaration or requirement ends with one semicolon after its\ncomplete header. That terminator belongs to the declaration, not whichever\nclause happens to come last. A nested `requires machine` is such a declaration:\nits semicolon closes the nested contract and subsequent clauses belong to the\nenclosing declaration.\n\n```omega\nmachine invoke<machine Step>() -> u64\nrequires machine Step() -> u64\n    terminates;\ncrashes Trap\n{\n    Step()\n}\n```\n\nHere `terminates` belongs to `Step`, and `crashes Trap` belongs to `invoke`.\nTo put a crash ceiling on `Step`, put that clause before its declaration\nterminator. A callback with several operational axes writes them together:\n\n```omega\nrequires machine Target() -> u64\n    suspends\n    blocks\n    terminates;\n```\n\nNo extra semicolon is needed after a termination clause to end that callable.\nAn additional same-level terminator rejects; it is not a compatibility spelling.\n[Nested callable families](generics.md#nested-contracts-and-proof-families) still\nhave one terminator per bodyless declaration: closing an inner requirement and\nthen its enclosing bodyless requirement legitimately needs two declaration\nterminators. Neither is a clause terminator. Statement, data-field, and other\ndeclaration punctuation is unchanged by this rule."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "source",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "tools/corpus_gate.py",
+        "--runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus_runner",
+        "--filter",
+        "facts/nested_machine_header_contracts_,contracts/header_,fail/generics/static_requirement_record_blocking_ceiling,fail/generics/selected_operator_preserves_blocking_ceiling,fail/tasks/task_runtime_provider_contract_narrowing,fail/capabilities/blocking_beneath_no_block_root,fail/capabilities/undeclared_synchronous_invocation,fail/capabilities/recursive_synchronous_invocations,fail/targets/family_callback_member_effect_ceiling_rejected,fail/targets/family_forwarded_callback_member_effect_ceiling_rejected,fail/parse/machine_clause_garbage_rejected,fail/build/root_binding_descriptor_helper_invocation",
+        "--json",
+        "build/header-contracts/qualified-source.json"
+      ],
+      "inputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "omega-rust",
+        "source/library",
+        "tools",
+        "tests/omega/pass/facts/nested_machine_header_contracts_local_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_local_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_field_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_field_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_parameter_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_parameter_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_call_result_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_call_result_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_match_join_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_match_join_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_const_name_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_const_name_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_other_state_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_other_state_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_other_machine_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_other_machine_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_target_body_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_target_body_rejected",
+        "tests/omega/pass/contracts/header_blocks_before_body",
+        "tests/omega/pass/contracts/header_termination_before_requires",
+        "tests/omega/pass/contracts/header_terminates_before_requires",
+        "tests/omega/pass/contracts/header_terminates_before_body",
+        "tests/omega/pass/contracts/header_suspends_before_body",
+        "tests/omega/pass/contracts/header_ranked_terminates_before_body",
+        "tests/omega/fail/generics/static_requirement_record_blocking_ceiling",
+        "tests/omega/fail/generics/selected_operator_preserves_blocking_ceiling",
+        "tests/omega/fail/tasks/task_runtime_provider_contract_narrowing",
+        "tests/omega/fail/capabilities/blocking_beneath_no_block_root",
+        "tests/omega/fail/capabilities/undeclared_synchronous_invocation",
+        "tests/omega/fail/capabilities/recursive_synchronous_invocations",
+        "tests/omega/fail/targets/family_callback_member_effect_ceiling_rejected",
+        "tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected",
+        "tests/omega/fail/parse/machine_clause_garbage_rejected",
+        "tests/omega/fail/build/root_binding_descriptor_helper_invocation",
+        "tests/omega/corpus_outcomes.txt"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus-producer.json"
+      ],
+      "producer": {
+        "revision": "2fc408782574caca80f6fa48deee61c767f1616e",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus_runner"
+        ]
+      },
+      "closure_reason": "Full compiler/library/toolchain and validator closure, exact selected authored fixtures/oracles and immutable isolated C6 producer. Runtime claims are macos_arm64 only. Baseline comparison and historical native product parser observations retain their actual producers.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 900
+    },
+    {
+      "id": "both",
+      "kind": "native",
+      "command": [
+        "python3",
+        "tools/corpus_gate.py",
+        "--runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus_runner",
+        "--both",
+        "--filter",
+        "facts/nested_machine_header_contracts_",
+        "--json",
+        "build/header-contracts/qualified-both.json"
+      ],
+      "inputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "omega-rust",
+        "source/library",
+        "tools",
+        "tests/omega/pass/facts/nested_machine_header_contracts_local_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_local_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_field_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_field_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_parameter_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_parameter_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_call_result_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_call_result_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_match_join_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_match_join_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_const_name_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_const_name_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_other_state_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_other_state_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_other_machine_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_other_machine_rejected",
+        "tests/omega/pass/facts/nested_machine_header_contracts_target_body_exit",
+        "tests/omega/fail/facts/nested_machine_header_contracts_target_body_rejected",
+        "tests/omega/pass/contracts/header_blocks_before_body",
+        "tests/omega/pass/contracts/header_termination_before_requires",
+        "tests/omega/pass/contracts/header_terminates_before_requires",
+        "tests/omega/pass/contracts/header_terminates_before_body",
+        "tests/omega/pass/contracts/header_suspends_before_body",
+        "tests/omega/pass/contracts/header_ranked_terminates_before_body",
+        "tests/omega/fail/generics/static_requirement_record_blocking_ceiling",
+        "tests/omega/fail/generics/selected_operator_preserves_blocking_ceiling",
+        "tests/omega/fail/tasks/task_runtime_provider_contract_narrowing",
+        "tests/omega/fail/capabilities/blocking_beneath_no_block_root",
+        "tests/omega/fail/capabilities/undeclared_synchronous_invocation",
+        "tests/omega/fail/capabilities/recursive_synchronous_invocations",
+        "tests/omega/fail/targets/family_callback_member_effect_ceiling_rejected",
+        "tests/omega/fail/targets/family_forwarded_callback_member_effect_ceiling_rejected",
+        "tests/omega/fail/parse/machine_clause_garbage_rejected",
+        "tests/omega/fail/build/root_binding_descriptor_helper_invocation",
+        "tests/omega/corpus_both_macos_arm64.txt"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus-producer.json"
+      ],
+      "producer": {
+        "revision": "2fc408782574caca80f6fa48deee61c767f1616e",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/corpus_runner"
+        ]
+      },
+      "closure_reason": "Full compiler/library/toolchain and validator closure, exact selected authored fixtures/oracles and immutable isolated C6 producer. Runtime claims are macos_arm64 only. Baseline comparison and historical native product parser observations retain their actual producers.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 900
+    },
+    {
+      "id": "product-parser",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "tests/psi/parser/test_parser.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-span-native"
+      ],
+      "inputs": [
+        "source/psi",
+        "source/library",
+        "tests/psi/parser",
+        "tests/product/gate.sh"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-span-native",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-span-native.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-producer/cli-producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-producer/source.diff"
+      ],
+      "closure_reason": "Actual direct native execution of immutable Omega-written parser78b9f2e8 compiled by retained C4af66049e. Product source/harness and bundled library bytes match their retained source trees; C6 Rust changes only diagnostic rendering. This is a historical producer observation, not a claim that C6 compiled this image.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 180
+    }
+  ]
+}

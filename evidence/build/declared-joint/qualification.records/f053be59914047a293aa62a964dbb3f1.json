@@ -1,0 +1,2413 @@
+{
+  "artifact_stamps": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-producer/cli-producer.json": [
+      16777233,
+      162234410,
+      774,
+      1793449478164255126,
+      1793449478164255126
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-producer/source.diff": [
+      16777233,
+      162234409,
+      19977,
+      1793448625476765314,
+      1793448625476765314
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-span-native": [
+      16777233,
+      162243293,
+      607616,
+      1793450881704914510,
+      1793450969650245818
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-span-native.json": [
+      16777233,
+      162243294,
+      1756,
+      1793450969805175775,
+      1793450969805175775
+    ],
+    "/usr/bin/python3": [
+      16777233,
+      1152921500312522570,
+      118848,
+      1746337162000000000,
+      1746337162000000000
+    ]
+  },
+  "artifacts": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-producer/cli-producer.json": "5acd1ccc27a327d61eee499f4fa96795bd9ace71d9cf6e56e8e9639fe919a369",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-producer/source.diff": "13508a20fdea9141e7afdd9ffc1986543157657c72e9ea6871f97df67fc4b164",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-span-native": "78b9f2e87ee546d37dfe96ea4ccc0053fce04df3e23b636715f2445aa5352617",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-span-native.json": "dc5d0889355f9bd730f7bbd0bdeafb62d49905c11b645446cea9d8404cd62679",
+    "/usr/bin/python3": "bed335fb48472e4ee3c2c3a38517b208326f37865bd57792df88b42669ec9603"
+  },
+  "check": "product-parser",
+  "command": [
+    "python3",
+    "tests/psi/parser/test_parser.py",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-span-native"
+  ],
+  "compiler_profiles": [],
+  "definition": "1b6412928cce9313d181a35127535ab6a396f633cd5fbde540b102d34bd7fe73",
+  "duration_seconds": 18.414625625,
+  "environment": {
+    "context": {
+      "baseline": "Exact immutable initial C0 CLI6b622ed6 refuses canonical headers. Fresh isolated C0 corpus17 comparison matches valid C4 observations; C5 and first comparison are explicitly invalidated after shared-target contamination.",
+      "fixed_base": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+      "host": "macos_arm64",
+      "parent": "NESTED-MACHINE-UNIFICATION",
+      "remaining": "Finish bound D20 customer execution, exact review and normal queue/main publication, then return to the frozen declared-call-rank probe.",
+      "task": "REQUIRES-UNIFICATION header delimiter prerequisite"
+    },
+    "machine": "arm64",
+    "profiles": {
+      "CARGO_BUILD_JOBS": null,
+      "CARGO_ENCODED_RUSTFLAGS": null,
+      "CARGO_PROFILE_DEV_DEBUG": null,
+      "CARGO_PROFILE_DEV_OPT_LEVEL": null,
+      "CARGO_PROFILE_TEST_DEBUG": null,
+      "CARGO_PROFILE_TEST_OPT_LEVEL": null,
+      "CARGO_TARGET_DIR": null,
+      "RUSTFLAGS": null
+    },
+    "python": "3.9.6",
+    "system": "Darwin"
+  },
+  "exit": 0,
+  "id": "f053be59914047a293aa62a964dbb3f1",
+  "invalidations": [],
+  "producer": null,
+  "repeated_work": false,
+  "revision": "f39690b3cfb4c3b6e41d60d1652ba7c2c44f91c4",
+  "source_inputs": {
+    "source/library": "da4874962247958f1a949e1dd4d13bd8451dbe87",
+    "source/psi": "253918fd97c3e105ddd7705abfabd0a9485e2825",
+    "tests/product/gate.sh": "cc54090b6aa851408b25c52a2a24692b4a87db1e",
+    "tests/psi/parser": "94eb1ec5b989a092e1de441e24b638cdba259380",
+    "wiki/spec/language/state_contracts.md": "58df5543c427ed92730f32e86573f4e5700911ee"
+  },
+  "source_ref": "refs/qualification/b140b3c8462d9c9964a35e4d/f39690b3cfb4c3b6e41d60d1652ba7c2c44f91c4",
+  "source_stamps": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source": [
+      16777233,
+      157311828,
+      192,
+      1792993437168498347,
+      1792993437168498347
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library": [
+      16777233,
+      157311830,
+      288,
+      1793151360921234877,
+      1793151360921234877
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/README.md": [
+      16777233,
+      158555059,
+      6217,
+      1793448729834794105,
+      1793448729834794105
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/alloc": [
+      16777233,
+      157311832,
+      224,
+      1793081058786816474,
+      1793081058786816474
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/alloc/.gitkeep": [
+      16777233,
+      157311833,
+      1,
+      1792993437154553444,
+      1792993437154553444
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/alloc/build.omg": [
+      16777233,
+      157311834,
+      224,
+      1792993437154605444,
+      1792993437154605444
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/alloc/bump.omg": [
+      16777233,
+      157726406,
+      16087,
+      1793445769219980981,
+      1793445769219980981
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/alloc/main.omg": [
+      16777233,
+      157311836,
+      1529,
+      1792993437154752861,
+      1792993437154752861
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/alloc/vec.omg": [
+      16777233,
+      157726407,
+      14495,
+      1793081058786853183,
+      1793081058786853183
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/blocking-executor": [
+      16777233,
+      157311838,
+      192,
+      1793395276773907681,
+      1793395276773907681
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/blocking-executor/build.omg": [
+      16777233,
+      157311839,
+      285,
+      1792993437154911319,
+      1792993437154911319
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/blocking-executor/executor.omg": [
+      16777233,
+      160703699,
+      8815,
+      1793445769220051231,
+      1793445769220051231
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/blocking-executor/main.omg": [
+      16777233,
+      157311841,
+      2829,
+      1793445769220099982,
+      1793445769220099982
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/blocking-executor/queue.omg": [
+      16777233,
+      157311842,
+      2293,
+      1792993437155098902,
+      1792993437155098902
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core": [
+      16777233,
+      157311843,
+      1664,
+      1793424343001303139,
+      1793424343001303139
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/.gitkeep": [
+      16777233,
+      157311844,
+      1,
+      1792993437155193235,
+      1792993437155193235
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/activation.omg": [
+      16777233,
+      157311845,
+      2571,
+      1792993437155252485,
+      1792993437155252485
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/algebra.omg": [
+      16777233,
+      157311846,
+      2440,
+      1792993437155320527,
+      1792993437155320527
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/arena.omg": [
+      16777233,
+      157311847,
+      1197,
+      1792993437155385402,
+      1792993437155385402
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/array.omg": [
+      16777233,
+      157311848,
+      1705,
+      1792993437155461652,
+      1792993437155461652
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/assembly.omg": [
+      16777233,
+      157311849,
+      502,
+      1792993437155517985,
+      1792993437155517985
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/assembly_model.omg": [
+      16777233,
+      157311850,
+      736,
+      1792993437155569443,
+      1792993437155569443
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/atomic.omg": [
+      16777233,
+      157311851,
+      480,
+      1792993437155618443,
+      1792993437155618443
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/cauchy.omg": [
+      16777233,
+      160703700,
+      8339,
+      1793445769220138440,
+      1793445769220138440
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/code_layout.omg": [
+      16777233,
+      157311853,
+      297,
+      1792993437155875776,
+      1792993437155875776
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/content.omg": [
+      16777233,
+      157311854,
+      1973,
+      1792993437155941068,
+      1792993437155941068
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/device.omg": [
+      16777233,
+      157311855,
+      8144,
+      1792993437156002609,
+      1792993437156002609
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/drop.omg": [
+      16777233,
+      157311856,
+      952,
+      1792993437156053484,
+      1792993437156053484
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/extent.omg": [
+      16777233,
+      158555060,
+      7764,
+      1793151360921407296,
+      1793151360921407296
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/external_binding.omg": [
+      16777233,
+      157311858,
+      1463,
+      1792993437156207651,
+      1792993437156207651
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/filesystem_authority.omg": [
+      16777233,
+      157311859,
+      526,
+      1792993437156255734,
+      1792993437156255734
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/fixed_vec.omg": [
+      16777233,
+      157311860,
+      5321,
+      1792993437156313734,
+      1792993437156313734
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/float.omg": [
+      16777233,
+      159856527,
+      11733,
+      1793260729651904144,
+      1793260729651904144
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/float_format.omg": [
+      16777233,
+      157311861,
+      2579,
+      1792993437156366942,
+      1792993437156366942
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/float_meaning.omg": [
+      16777233,
+      158555061,
+      1833,
+      1793448756357086124,
+      1793448756357086124
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/float_operations.omg": [
+      16777233,
+      157311863,
+      43137,
+      1792993437156517692,
+      1792993437156517692
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/float_order.omg": [
+      16777233,
+      157311864,
+      2096,
+      1792993437156573901,
+      1792993437156573901
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/int.omg": [
+      16777233,
+      157311865,
+      8870,
+      1793448756357240791,
+      1793448756357240791
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/integer.omg": [
+      16777233,
+      159539437,
+      3266,
+      1793234213701388363,
+      1793234213701388363
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/interrupt.omg": [
+      16777233,
+      157311866,
+      2892,
+      1792993437156843109,
+      1792993437156843109
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/iteration.omg": [
+      16777233,
+      160703701,
+      534,
+      1793445769220184524,
+      1793445769220184524
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/layout.omg": [
+      16777233,
+      161353120,
+      31810,
+      1793445769220303983,
+      1793445769220303983
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/mathematics.md": [
+      16777233,
+      157311869,
+      2084,
+      1792993437157064692,
+      1792993437157064692
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/nat.omg": [
+      16777233,
+      157726410,
+      31232,
+      1793445769220360151,
+      1793445769220360151
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/nat_metric.omg": [
+      16777233,
+      157726411,
+      17037,
+      1793445769220523485,
+      1793445769220523485
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/native_execution_authority.omg": [
+      16777233,
+      157311872,
+      44,
+      1792993437157299567,
+      1792993437157299567
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/numeric_conversion.omg": [
+      16777233,
+      159539438,
+      30618,
+      1793448756357440584,
+      1793448756357440584
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/option.omg": [
+      16777233,
+      157311874,
+      418,
+      1792993437157594441,
+      1792993437157594441
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/presentation_authority.omg": [
+      16777233,
+      157311875,
+      227,
+      1792993437157644941,
+      1792993437157644941
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/process_authority.omg": [
+      16777233,
+      157311876,
+      76,
+      1792993437157687775,
+      1792993437157687775
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/process_exit.omg": [
+      16777233,
+      157311877,
+      874,
+      1792993437157738775,
+      1792993437157738775
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/program_image.omg": [
+      16777233,
+      157311878,
+      653,
+      1792993437157790358,
+      1792993437157790358
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/ptr.omg": [
+      16777233,
+      157311879,
+      1205,
+      1792993437157848608,
+      1792993437157848608
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/rat.omg": [
+      16777233,
+      157726413,
+      16425,
+      1793448756357730210,
+      1793448756357730210
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/real.omg": [
+      16777233,
+      157311881,
+      873,
+      1792993437157965983,
+      1792993437157965983
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/relation.omg": [
+      16777233,
+      157311882,
+      1773,
+      1792993437158015982,
+      1792993437158015982
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/representation.omg": [
+      16777233,
+      157311883,
+      726,
+      1792993437158064399,
+      1792993437158064399
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/seq.omg": [
+      16777233,
+      160703702,
+      11403,
+      1793445769220572152,
+      1793445769220572152
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/slice.omg": [
+      16777233,
+      157311885,
+      2783,
+      1792993437158174316,
+      1792993437158174316
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/slice_views.omg": [
+      16777233,
+      157311886,
+      536,
+      1792993437158219441,
+      1792993437158219441
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets": [
+      16777233,
+      157311887,
+      224,
+      1792993437158747732,
+      1792993437158747732
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/linux_arm64": [
+      16777233,
+      157311888,
+      96,
+      1792993437158303274,
+      1792993437158303274
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/linux_arm64/float_impl.omg": [
+      16777233,
+      157311889,
+      24774,
+      1792993437158372441,
+      1792993437158372441
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/linux_x86_64": [
+      16777233,
+      157311890,
+      96,
+      1792993437158427274,
+      1792993437158427274
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/linux_x86_64/float_impl.omg": [
+      16777233,
+      157311891,
+      23461,
+      1792993437158492690,
+      1792993437158492690
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/macos_arm64": [
+      16777233,
+      157311892,
+      96,
+      1792993437158549399,
+      1792993437158549399
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/macos_arm64/float_impl.omg": [
+      16777233,
+      157311893,
+      24774,
+      1792993437158602732,
+      1792993437158602732
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/macos_x86_64": [
+      16777233,
+      157311894,
+      96,
+      1792993437158655148,
+      1792993437158655148
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/macos_x86_64/float_impl.omg": [
+      16777233,
+      157311895,
+      23461,
+      1792993437158720148,
+      1792993437158720148
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/windows_x86_64": [
+      16777233,
+      157311896,
+      96,
+      1792993437158784523,
+      1792993437158784523
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/targets/windows_x86_64/float_impl.omg": [
+      16777233,
+      157311897,
+      23747,
+      1792993437158828482,
+      1792993437158828482
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/task.omg": [
+      16777233,
+      160703703,
+      2784,
+      1793445769220624736,
+      1793445769220624736
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/time_authority.omg": [
+      16777233,
+      157311899,
+      81,
+      1792993437158927523,
+      1792993437158927523
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/vec.omg": [
+      16777233,
+      157311900,
+      3550,
+      1792993437158986482,
+      1792993437158986482
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/core/wait_wake.omg": [
+      16777233,
+      157311901,
+      2899,
+      1792993437159034815,
+      1792993437159034815
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics": [
+      16777233,
+      157311902,
+      288,
+      1792993437159659897,
+      1792993437159659897
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/INTERFACES.txt": [
+      16777233,
+      157311903,
+      851,
+      1792993437159122315,
+      1792993437159122315
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/arrays": [
+      16777233,
+      157311904,
+      128,
+      1793081058788292478,
+      1793081058788292478
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/arrays/shape_layout_contract.api.txt": [
+      16777233,
+      157311905,
+      1678,
+      1792993437159208856,
+      1792993437159208856
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/arrays/shape_layout_contract.omg": [
+      16777233,
+      157726415,
+      7551,
+      1793445769220670903,
+      1793445769220670903
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/build.omg": [
+      16777233,
+      157311907,
+      80,
+      1792993437159310148,
+      1792993437159310148
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/complex": [
+      16777233,
+      157311908,
+      128,
+      1793081058788386520,
+      1793081058788386520
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/complex/complex_carrier_ops.api.txt": [
+      16777233,
+      157311909,
+      3879,
+      1792993437159390648,
+      1792993437159390648
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/complex/complex_carrier_ops.omg": [
+      16777233,
+      157726416,
+      7816,
+      1793081058788416603,
+      1793081058788416603
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/linalg": [
+      16777233,
+      157311911,
+      128,
+      1793081058788471228,
+      1793081058788471228
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/linalg/dot_scaled_norm_axpy.api.txt": [
+      16777233,
+      157311912,
+      2988,
+      1792993437159537106,
+      1792993437159537106
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/linalg/dot_scaled_norm_axpy.omg": [
+      16777233,
+      157726417,
+      7882,
+      1793081058788501645,
+      1793081058788501645
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/main.omg": [
+      16777233,
+      157311914,
+      143,
+      1792993437159638523,
+      1792993437159638523
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/numeric": [
+      16777233,
+      157311915,
+      128,
+      1793081058788564645,
+      1793081058788564645
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/numeric/numeric_accuracy_policy.api.txt": [
+      16777233,
+      157311916,
+      6098,
+      1792993437159733564,
+      1792993437159733564
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/numerics/numeric/numeric_accuracy_policy.omg": [
+      16777233,
+      157726418,
+      11309,
+      1793081058788596937,
+      1793081058788596937
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std": [
+      16777233,
+      157311918,
+      800,
+      1793407706684220357,
+      1793407706684220357
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/build.omg": [
+      16777233,
+      157311919,
+      91,
+      1792993437159878772,
+      1792993437159878772
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/calling.omg": [
+      16777233,
+      161054626,
+      8430,
+      1793407706682260340,
+      1793407706682260340
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/clock.omg": [
+      16777233,
+      161054627,
+      3663,
+      1793445769220727737,
+      1793445769220727737
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/console.omg": [
+      16777233,
+      161054628,
+      6685,
+      1793445769220803862,
+      1793445769220803862
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/entry_shapes.omg": [
+      16777233,
+      157682627,
+      4293,
+      1793073874146034128,
+      1793073874146034128
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/filesystem.omg": [
+      16777233,
+      157693231,
+      28907,
+      1793445769220950697,
+      1793445769220950697
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/filesystem_host.omg": [
+      16777233,
+      158555063,
+      195,
+      1793151360921779799,
+      1793151360921779799
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/format_lineage.omg": [
+      16777233,
+      157311926,
+      690,
+      1792993437160439272,
+      1792993437160439272
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/macos_gui.omg": [
+      16777233,
+      159539439,
+      28668,
+      1793234213701895570,
+      1793234213701895570
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/main.omg": [
+      16777233,
+      157311928,
+      448,
+      1792993437160692855,
+      1792993437160692855
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/math.omg": [
+      16777233,
+      157693232,
+      16091,
+      1793075932200040149,
+      1793075932200040149
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_byte_view_calling.omg": [
+      16777233,
+      157682628,
+      15796,
+      1793445769221662328,
+      1793445769221662328
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_adapter.omg": [
+      16777233,
+      158555065,
+      94194,
+      1793445769222577293,
+      1793445769222577293
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/posix_filesystem_host.omg": [
+      16777233,
+      157726421,
+      17923,
+      1793445769222633585,
+      1793445769222633585
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/process_exit.omg": [
+      16777233,
+      157311933,
+      1085,
+      1792993437161329938,
+      1792993437161329938
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets": [
+      16777233,
+      157311934,
+      448,
+      1792993437164000185,
+      1792993437164000185
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64": [
+      16777233,
+      157311936,
+      288,
+      1793424343001577598,
+      1793424343001577598
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64.omg": [
+      16777233,
+      157311935,
+      351,
+      1792993437161405729,
+      1792993437161405729
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/clock_impl.omg": [
+      16777233,
+      161054629,
+      1966,
+      1793407706682868554,
+      1793407706682868554
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/console_impl.omg": [
+      16777233,
+      157311938,
+      967,
+      1792993437161540562,
+      1792993437161540562
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/entry.omg": [
+      16777233,
+      161299681,
+      12333,
+      1793412900931513891,
+      1793412900931513891
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/filesystem_impl.omg": [
+      16777233,
+      161353121,
+      8728,
+      1793445769222836795,
+      1793445769222836795
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/posix_filesystem_impl.omg": [
+      16777233,
+      157726423,
+      24875,
+      1793445769223130256,
+      1793445769223130256
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/process_exit_impl.omg": [
+      16777233,
+      157311942,
+      726,
+      1792993437162179770,
+      1792993437162179770
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_arm64/time_host_impl.omg": [
+      16777233,
+      161054630,
+      6683,
+      1793445769223181465,
+      1793445769223181465
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64": [
+      16777233,
+      157311945,
+      288,
+      1793424343001685015,
+      1793424343001685015
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64.omg": [
+      16777233,
+      157311944,
+      355,
+      1792993437162300562,
+      1792993437162300562
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/clock_impl.omg": [
+      16777233,
+      161054631,
+      2520,
+      1793407706683277099,
+      1793407706683277099
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/console_impl.omg": [
+      16777233,
+      157311947,
+      972,
+      1792993437162446353,
+      1792993437162446353
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/entry.omg": [
+      16777233,
+      161299682,
+      9378,
+      1793412900931645600,
+      1793412900931645600
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/filesystem_impl.omg": [
+      16777233,
+      161353122,
+      8683,
+      1793445769223227673,
+      1793445769223227673
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/posix_filesystem_impl.omg": [
+      16777233,
+      157726426,
+      27687,
+      1793445769223402550,
+      1793445769223402550
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/process_exit_impl.omg": [
+      16777233,
+      157311951,
+      729,
+      1792993437162711103,
+      1792993437162711103
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/linux_x86_64/time_host_impl.omg": [
+      16777233,
+      161054632,
+      7779,
+      1793445769223726802,
+      1793445769223726802
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64": [
+      16777233,
+      157311954,
+      320,
+      1793424343001859765,
+      1793424343001859765
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64.omg": [
+      16777233,
+      157311953,
+      351,
+      1792993437162812936,
+      1792993437162812936
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/clock_impl.omg": [
+      16777233,
+      161054633,
+      2836,
+      1793407706683437142,
+      1793407706683437142
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/console_impl.omg": [
+      16777233,
+      157311956,
+      969,
+      1792993437162948728,
+      1792993437162948728
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/entry.omg": [
+      16777233,
+      161299683,
+      10225,
+      1793412900931752434,
+      1793412900931752434
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/filesystem_impl.omg": [
+      16777233,
+      161353123,
+      9110,
+      1793445769223785011,
+      1793445769223785011
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/macos_gui_impl.omg": [
+      16777233,
+      157311959,
+      9217,
+      1792993437163116602,
+      1792993437163116602
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/posix_filesystem_impl.omg": [
+      16777233,
+      161353124,
+      52666,
+      1793445769223843803,
+      1793445769223843803
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/process_exit_impl.omg": [
+      16777233,
+      157311961,
+      726,
+      1792993437163265269,
+      1792993437163265269
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_arm64/time_host_impl.omg": [
+      16777233,
+      161054634,
+      4524,
+      1793445769223899845,
+      1793445769223899845
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64": [
+      16777233,
+      157311964,
+      192,
+      1793412900931815809,
+      1793412900931815809
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64.omg": [
+      16777233,
+      157311963,
+      355,
+      1792993437163375019,
+      1792993437163375019
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64/console_impl.omg": [
+      16777233,
+      157311965,
+      974,
+      1792993437163450935,
+      1792993437163450935
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64/entry.omg": [
+      16777233,
+      161299684,
+      10749,
+      1793412900931844809,
+      1793412900931844809
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64/process_exit_impl.omg": [
+      16777233,
+      157311967,
+      729,
+      1792993437163549102,
+      1792993437163549102
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/macos_x86_64/time_host_impl.omg": [
+      16777233,
+      161054635,
+      5549,
+      1793445769223967596,
+      1793445769223967596
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/uefi_x86_64": [
+      16777233,
+      157311970,
+      192,
+      1793424343002075308,
+      1793424343002075308
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/uefi_x86_64.omg": [
+      16777233,
+      157311969,
+      291,
+      1792993437163637060,
+      1792993437163637060
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/uefi_x86_64/entry.omg": [
+      16777233,
+      161299685,
+      8948,
+      1793412900931942809,
+      1793412900931942809
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/uefi_x86_64/handoff.omg": [
+      16777233,
+      157726432,
+      22837,
+      1793445769224033846,
+      1793445769224033846
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/uefi_x86_64/integrity.omg": [
+      16777233,
+      157726433,
+      3180,
+      1793445769224085972,
+      1793445769224085972
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/uefi_x86_64/tables.omg": [
+      16777233,
+      161353125,
+      6772,
+      1793445769224130181,
+      1793445769224130181
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64": [
+      16777233,
+      157311976,
+      1152,
+      1793412900932183185,
+      1793412900932183185
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64.omg": [
+      16777233,
+      157311975,
+      363,
+      1792993437163975310,
+      1792993437163975310
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/clock_impl.omg": [
+      16777233,
+      157311977,
+      901,
+      1792993437164066101,
+      1792993437164066101
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/console_impl.omg": [
+      16777233,
+      157682634,
+      4884,
+      1793445769224681893,
+      1793445769224681893
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/entry.omg": [
+      16777233,
+      161299686,
+      7552,
+      1793412900932225893,
+      1793412900932225893
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem": [
+      16777233,
+      157311980,
+      352,
+      1793151360922714017,
+      1793151360922714017
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/copy.omg": [
+      16777233,
+      157726434,
+      4805,
+      1793445769224840478,
+      1793445769224840478
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/directory.omg": [
+      16777233,
+      157726435,
+      2828,
+      1793445769224889437,
+      1793445769224889437
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/errors.omg": [
+      16777233,
+      157726436,
+      2419,
+      1793081058791080278,
+      1793081058791080278
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/handles.omg": [
+      16777233,
+      157726437,
+      10718,
+      1793445769225013229,
+      1793445769225013229
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/locking.omg": [
+      16777233,
+      157311985,
+      1638,
+      1793445769225141355,
+      1793445769225141355
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/metadata.omg": [
+      16777233,
+      157726438,
+      8701,
+      1793445769225199023,
+      1793445769225199023
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/paths.omg": [
+      16777233,
+      158555066,
+      11311,
+      1793445769225249439,
+      1793445769225249439
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/provider.omg": [
+      16777233,
+      157311988,
+      11913,
+      1793445769225447941,
+      1793445769225447941
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem/sequences.omg": [
+      16777233,
+      157726440,
+      5129,
+      1793445769225506317,
+      1793445769225506317
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_impl.omg": [
+      16777233,
+      157311990,
+      519,
+      1792993437164688142,
+      1792993437164688142
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal": [
+      16777233,
+      157311991,
+      256,
+      1793151360922799726,
+      1793151360922799726
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg": [
+      16777233,
+      158555067,
+      7174,
+      1793151360922866685,
+      1793151360922866685
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg": [
+      16777233,
+      157726442,
+      1758,
+      1793111811605289087,
+      1793111811605289087
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg": [
+      16777233,
+      157726443,
+      2295,
+      1793111811605425503,
+      1793111811605425503
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/native.omg": [
+      16777233,
+      157311995,
+      5210,
+      1793445769225592817,
+      1793445769225592817
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg": [
+      16777233,
+      157726444,
+      2513,
+      1793111811602220049,
+      1793111811602220049
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg": [
+      16777233,
+      157726445,
+      10134,
+      1793111811605658920,
+      1793111811605658920
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/process_exit_impl.omg": [
+      16777233,
+      157311998,
+      934,
+      1792993437165083892,
+      1792993437165083892
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/time_host_impl.omg": [
+      16777233,
+      161054636,
+      6921,
+      1793407706683960188,
+      1793407706683960188
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_calling.omg": [
+      16777233,
+      157726447,
+      6655,
+      1793081058792208032,
+      1793081058792208032
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_control.omg": [
+      16777233,
+      157726448,
+      10805,
+      1793081058792306115,
+      1793081058792306115
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg": [
+      16777233,
+      158555068,
+      8353,
+      1793151360923120979,
+      1793151360923120979
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg": [
+      16777233,
+      157726450,
+      8965,
+      1793111811601075342,
+      1793111811601075342
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_directory_native.omg": [
+      16777233,
+      157312004,
+      6024,
+      1793445769225639693,
+      1793445769225639693
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg": [
+      16777233,
+      157726451,
+      6062,
+      1793111811600127593,
+      1793111811600127593
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_file_control_native.omg": [
+      16777233,
+      157312006,
+      4105,
+      1793445769225683526,
+      1793445769225683526
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_impl.omg": [
+      16777233,
+      157312007,
+      9780,
+      1792993437165867600,
+      1792993437165867600
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg": [
+      16777233,
+      157726452,
+      3704,
+      1793111811601668091,
+      1793111811601668091
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_lock_native.omg": [
+      16777233,
+      157312009,
+      4190,
+      1793445769225725068,
+      1793445769225725068
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg": [
+      16777233,
+      158555069,
+      8141,
+      1793151360923406357,
+      1793151360923406357
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_metadata_native.omg": [
+      16777233,
+      158555070,
+      7246,
+      1793445769225945945,
+      1793445769225945945
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_native.omg": [
+      16777233,
+      158555071,
+      17457,
+      1793445769225998112,
+      1793445769225998112
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg": [
+      16777233,
+      157726454,
+      4847,
+      1793111811601436633,
+      1793111811601436633
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_path_query_native.omg": [
+      16777233,
+      157312014,
+      3273,
+      1793445769226049738,
+      1793445769226049738
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_paths.omg": [
+      16777233,
+      157726455,
+      7930,
+      1793445769226106571,
+      1793445769226106571
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position.omg": [
+      16777233,
+      157726456,
+      5471,
+      1793111811600397259,
+      1793111811600397259
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_native.omg": [
+      16777233,
+      157312017,
+      4000,
+      1793445769226157322,
+      1793445769226157322
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg": [
+      16777233,
+      157726457,
+      3873,
+      1793111811604977879,
+      1793111811604977879
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_private_handles.omg": [
+      16777233,
+      158555072,
+      833,
+      1793151360923937279,
+      1793151360923937279
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg": [
+      16777233,
+      157726458,
+      6163,
+      1793111811602038382,
+      1793111811602038382
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_reparse_data.omg": [
+      16777233,
+      157726459,
+      5523,
+      1793081058793303327,
+      1793081058793303327
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_reparse_native.omg": [
+      16777233,
+      157312022,
+      2884,
+      1793445769226212072,
+      1793445769226212072
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg": [
+      16777233,
+      158555073,
+      8089,
+      1793151360924042071,
+      1793151360924042071
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_filesystem_transfer_native.omg": [
+      16777233,
+      158555074,
+      3355,
+      1793445769226264864,
+      1793445769226264864
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/targets/windows_x86_64/windows_gui_impl.omg": [
+      16777233,
+      157726461,
+      14786,
+      1793081058793487077,
+      1793081058793487077
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/tests": [
+      16777233,
+      157312026,
+      128,
+      1793424343002181807,
+      1793424343002181807
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/tests/callback_materialization_closure.omg": [
+      16777233,
+      161353126,
+      5064,
+      1793424343002220474,
+      1793424343002220474
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/tests/direct_callback_parameter.omg": [
+      16777233,
+      161299688,
+      7088,
+      1793412900932505769,
+      1793412900932505769
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/time.omg": [
+      16777233,
+      159539442,
+      55981,
+      1793445769226516866,
+      1793445769226516866
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/time_host.omg": [
+      16777233,
+      161054637,
+      6059,
+      1793445769226570033,
+      1793445769226570033
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/units.omg": [
+      16777233,
+      157312031,
+      6292,
+      1792993437167501181,
+      1792993437167501181
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/windows_filesystem_host.omg": [
+      16777233,
+      157312032,
+      11854,
+      1793445769226614326,
+      1793445769226614326
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/windows_gui_host.omg": [
+      16777233,
+      159539443,
+      5215,
+      1793234213702810984,
+      1793234213702810984
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/std/wire.omg": [
+      16777233,
+      157312034,
+      3583,
+      1792993437167651139,
+      1792993437167651139
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/topology": [
+      16777233,
+      157312035,
+      192,
+      1793081058793833495,
+      1793081058793833495
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/topology/build.omg": [
+      16777233,
+      157312036,
+      296,
+      1792993437167727931,
+      1792993437167727931
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/topology/digest.omg": [
+      16777233,
+      157726464,
+      15886,
+      1793081058793784953,
+      1793081058793784953
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/topology/main.omg": [
+      16777233,
+      157312038,
+      2173,
+      1792993437167864431,
+      1792993437167864431
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/library/topology/verify.omg": [
+      16777233,
+      157726465,
+      146597,
+      1793081058794275705,
+      1793081058794275705
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi": [
+      16777233,
+      157312047,
+      512,
+      1793424343002997684,
+      1793424343002997684
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/README.md": [
+      16777233,
+      161353131,
+      54514,
+      1793448729837530489,
+      1793448729837530489
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/build.omg": [
+      16777233,
+      157312049,
+      160,
+      1792993437168890388,
+      1792993437168890388
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking": [
+      16777233,
+      157312050,
+      1088,
+      1793424343004223603,
+      1793424343004223603
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/aliases.omg": [
+      16777233,
+      157726469,
+      14058,
+      1793081058794672206,
+      1793081058794672206
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/arithmetic.omg": [
+      16777233,
+      157726470,
+      16674,
+      1793081058794771540,
+      1793081058794771540
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/arrivals.omg": [
+      16777233,
+      159539446,
+      22893,
+      1793234213703958481,
+      1793234213703958481
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/checker.omg": [
+      16777233,
+      161353132,
+      62508,
+      1793424343003231893,
+      1793424343003231893
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/completions.omg": [
+      16777233,
+      159539448,
+      12061,
+      1793234213704678728,
+      1793234213704678728
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/constructions.omg": [
+      16777233,
+      157726473,
+      19543,
+      1793081058795140291,
+      1793081058795140291
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/contracts.omg": [
+      16777233,
+      161299689,
+      17326,
+      1793412900932616811,
+      1793412900932616811
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/demand.omg": [
+      16777233,
+      159539449,
+      42578,
+      1793234213706853430,
+      1793234213706853430
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/domains.omg": [
+      16777233,
+      161299690,
+      33350,
+      1793412900932824186,
+      1793412900932824186
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/evaluation.omg": [
+      16777233,
+      157726477,
+      26625,
+      1793081058796303628,
+      1793081058796303628
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/fact_values.omg": [
+      16777233,
+      157726478,
+      8411,
+      1793081058796423753,
+      1793081058796423753
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/facts.omg": [
+      16777233,
+      157726479,
+      19303,
+      1793081058796532128,
+      1793081058796532128
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/flow.omg": [
+      16777233,
+      159539450,
+      61817,
+      1793234213708330884,
+      1793234213708330884
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/frames.omg": [
+      16777233,
+      161353133,
+      28102,
+      1793424343003491768,
+      1793424343003491768
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/holds.omg": [
+      16777233,
+      159539452,
+      28780,
+      1793234213710264587,
+      1793234213710264587
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/invocations.omg": [
+      16777233,
+      161353134,
+      34314,
+      1793424343003820727,
+      1793424343003820727
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/loans.omg": [
+      16777233,
+      159539454,
+      59501,
+      1793234213710828335,
+      1793234213710828335
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/matches.omg": [
+      16777233,
+      157726484,
+      18711,
+      1793081058797599173,
+      1793081058797599173
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/obligations.omg": [
+      16777233,
+      160703709,
+      49188,
+      1793395276776313073,
+      1793395276776313073
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/owned_places.omg": [
+      16777233,
+      157726486,
+      27119,
+      1793081058797966508,
+      1793081058797966508
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/ownership.omg": [
+      16777233,
+      159539456,
+      82173,
+      1793234213713200786,
+      1793234213713200786
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/places.omg": [
+      16777233,
+      159539457,
+      36813,
+      1793234213713621702,
+      1793234213713621702
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/qualification.omg": [
+      16777233,
+      157726489,
+      18919,
+      1793081058798572301,
+      1793081058798572301
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/ranking.omg": [
+      16777233,
+      159539458,
+      25887,
+      1793234213713979325,
+      1793234213713979325
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/recasts.omg": [
+      16777233,
+      157726490,
+      5558,
+      1793081058798669385,
+      1793081058798669385
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/references.omg": [
+      16777233,
+      157726491,
+      19373,
+      1793081058798791385,
+      1793081058798791385
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/slot_review.omg": [
+      16777233,
+      161353135,
+      3746,
+      1793424343003882519,
+      1793424343003882519
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/slots.omg": [
+      16777233,
+      161353136,
+      7693,
+      1793424343003934185,
+      1793424343003934185
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/snapshots.omg": [
+      16777233,
+      159539459,
+      18641,
+      1793234213714499157,
+      1793234213714499157
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/supply.omg": [
+      16777233,
+      160703710,
+      17375,
+      1793395276776527366,
+      1793395276776527366
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/termination.omg": [
+      16777233,
+      161353137,
+      32503,
+      1793424343004276019,
+      1793424343004276019
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checking/zone.omg": [
+      16777233,
+      157726495,
+      15101,
+      1793081058799417846,
+      1793081058799417846
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checks": [
+      16777233,
+      157312078,
+      96,
+      1793424343004466686,
+      1793424343004466686
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/checks/checks.omg": [
+      16777233,
+      161353138,
+      10583,
+      1793424343004515603,
+      1793424343004515603
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/integers": [
+      16777233,
+      157312080,
+      96,
+      1793081058799580346,
+      1793081058799580346
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/integers/integers.omg": [
+      16777233,
+      157726497,
+      17298,
+      1793081058799628346,
+      1793081058799628346
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/lex": [
+      16777233,
+      157312082,
+      96,
+      1793234213718898810,
+      1793234213718898810
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/lex/lexer.omg": [
+      16777233,
+      159539463,
+      61879,
+      1793234213718988144,
+      1793234213718988144
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse": [
+      16777233,
+      157312084,
+      608,
+      1793448235988685734,
+      1793448235988685734
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/callable_header.omg": [
+      16777233,
+      162230421,
+      15972,
+      1793449361170911332,
+      1793449361170911332
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/clause.omg": [
+      16777233,
+      161054638,
+      54179,
+      1793450490776153692,
+      1793450490776153692
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/conformance.omg": [
+      16777233,
+      159539465,
+      10097,
+      1793234213719644641,
+      1793234213719644641
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/constant.omg": [
+      16777233,
+      157726501,
+      6278,
+      1793081058800194723,
+      1793081058800194723
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/data.omg": [
+      16777233,
+      161299691,
+      28840,
+      1793412900933091437,
+      1793412900933091437
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/definition.omg": [
+      16777233,
+      157726503,
+      7048,
+      1793081058800420265,
+      1793081058800420265
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/domain.omg": [
+      16777233,
+      161054640,
+      13454,
+      1793407706685122490,
+      1793407706685122490
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/expression.omg": [
+      16777233,
+      161054641,
+      94061,
+      1793407706685526285,
+      1793407706685526285
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/generics.omg": [
+      16777233,
+      157726506,
+      12431,
+      1793081058800782600,
+      1793081058800782600
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/input.omg": [
+      16777233,
+      157726507,
+      20895,
+      1793081058800888725,
+      1793081058800888725
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/machine.omg": [
+      16777233,
+      160703712,
+      32197,
+      1793449361171412413,
+      1793449361171412413
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/parser.omg": [
+      16777233,
+      161054642,
+      36094,
+      1793448999379446816,
+      1793448999379446816
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/path.omg": [
+      16777233,
+      157726510,
+      3385,
+      1793081058801383185,
+      1793081058801383185
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/proposition.omg": [
+      16777233,
+      157726511,
+      7282,
+      1793081058801465435,
+      1793081058801465435
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/statement.omg": [
+      16777233,
+      159539468,
+      47340,
+      1793234213720829846,
+      1793234213720829846
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/traits.omg": [
+      16777233,
+      159539469,
+      23794,
+      1793448999381827533,
+      1793448999381827533
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/parse/types.omg": [
+      16777233,
+      157726514,
+      42672,
+      1793081058801889228,
+      1793081058801889228
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolution": [
+      16777233,
+      157312101,
+      96,
+      1793407706685902080,
+      1793407706685902080
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolution/resolution.omg": [
+      16777233,
+      161054643,
+      25658,
+      1793407706685948789,
+      1793407706685948789
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve": [
+      16777233,
+      157312103,
+      448,
+      1793407706686371376,
+      1793407706686371376
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/clauses.omg": [
+      16777233,
+      159539471,
+      18552,
+      1793234213721605552,
+      1793234213721605552
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/containers.omg": [
+      16777233,
+      159539472,
+      22773,
+      1793234213721778718,
+      1793234213721778718
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/contracts.omg": [
+      16777233,
+      160703715,
+      5839,
+      1793395276778198169,
+      1793395276778198169
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/domains.omg": [
+      16777233,
+      157726519,
+      30458,
+      1793081058802465480,
+      1793081058802465480
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/facts.omg": [
+      16777233,
+      161054644,
+      21935,
+      1793407706686059332,
+      1793407706686059332
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/forms.omg": [
+      16777233,
+      160703717,
+      13641,
+      1793448236033742686,
+      1793448236033742686
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/identities.omg": [
+      16777233,
+      157726522,
+      13857,
+      1793081058802760231,
+      1793081058802760231
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/imports.omg": [
+      16777233,
+      159539474,
+      37097,
+      1793234213722257259,
+      1793234213722257259
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/measures.omg": [
+      16777233,
+      157726524,
+      5497,
+      1793081058803495150,
+      1793081058803495150
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/names.omg": [
+      16777233,
+      161054645,
+      64350,
+      1793407706686445335,
+      1793407706686445335
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/operators.omg": [
+      16777233,
+      159539476,
+      6743,
+      1793234213722610841,
+      1793234213722610841
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/resolve/resolver.omg": [
+      16777233,
+      160703718,
+      125499,
+      1793395276778885341,
+      1793395276778885341
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/source": [
+      16777233,
+      157312116,
+      96,
+      1793081058804435736,
+      1793081058804435736
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/source/source.omg": [
+      16777233,
+      157726528,
+      22819,
+      1793081058804485945,
+      1793081058804485945
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/syntax": [
+      16777233,
+      157312118,
+      96,
+      1793407706686516086,
+      1793407706686516086
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/syntax/syntax.omg": [
+      16777233,
+      161054646,
+      56035,
+      1793448158009521953,
+      1793448158009521953
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/tokens": [
+      16777233,
+      157312120,
+      96,
+      1793234213723642838,
+      1793234213723642838
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/tokens/tokens.omg": [
+      16777233,
+      159539479,
+      5605,
+      1793234213723700421,
+      1793234213723700421
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/types": [
+      16777233,
+      157312122,
+      96,
+      1793395276779566887,
+      1793395276779566887
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/types/types.omg": [
+      16777233,
+      160703720,
+      27211,
+      1793395276779621763,
+      1793395276779621763
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing": [
+      16777233,
+      157312124,
+      672,
+      1793412900933274521,
+      1793412900933274521
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/admission.omg": [
+      16777233,
+      159539481,
+      23797,
+      1793234213723986253,
+      1793234213723986253
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/arrays.omg": [
+      16777233,
+      157726533,
+      3646,
+      1793081058805202322,
+      1793081058805202322
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/binders.omg": [
+      16777233,
+      160703721,
+      17115,
+      1793395276779971182,
+      1793395276779971182
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/calls.omg": [
+      16777233,
+      160703722,
+      56442,
+      1793395276780214350,
+      1793395276780214350
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/clauses.omg": [
+      16777233,
+      157726536,
+      19079,
+      1793081058805676782,
+      1793081058805676782
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/coverage.omg": [
+      16777233,
+      157726537,
+      21331,
+      1793081058805785157,
+      1793081058805785157
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/expressions.omg": [
+      16777233,
+      161054647,
+      80676,
+      1793407706686913548,
+      1793407706686913548
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/facts.omg": [
+      16777233,
+      161299692,
+      7766,
+      1793412900933312979,
+      1793412900933312979
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/generics.omg": [
+      16777233,
+      157726540,
+      24421,
+      1793081058806237242,
+      1793081058806237242
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/joins.omg": [
+      16777233,
+      159539485,
+      8105,
+      1793234213725338541,
+      1793234213725338541
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/landing.omg": [
+      16777233,
+      157726542,
+      13889,
+      1793081058806531659,
+      1793081058806531659
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/literals.omg": [
+      16777233,
+      157726543,
+      20991,
+      1793081058806639285,
+      1793081058806639285
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/matches.omg": [
+      16777233,
+      157726544,
+      5673,
+      1793081058806731077,
+      1793081058806731077
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/memberships.omg": [
+      16777233,
+      157726545,
+      3313,
+      1793081058806843369,
+      1793081058806843369
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/operators.omg": [
+      16777233,
+      157726546,
+      10085,
+      1793081058806930494,
+      1793081058806930494
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/patterns.omg": [
+      16777233,
+      157726547,
+      2868,
+      1793081058807013411,
+      1793081058807013411
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/references.omg": [
+      16777233,
+      157726548,
+      28892,
+      1793081058807136161,
+      1793081058807136161
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/statements.omg": [
+      16777233,
+      159539486,
+      29233,
+      1793234213725699248,
+      1793234213725699248
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/source/psi/typing/typer.omg": [
+      16777233,
+      159539487,
+      13851,
+      1793234213725863081,
+      1793234213725863081
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests": [
+      16777233,
+      157312145,
+      448,
+      1792993440823286897,
+      1792993440823286897
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/product": [
+      16777233,
+      157386225,
+      256,
+      1793395276899717108,
+      1793395276899717108
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/product/gate.sh": [
+      16777233,
+      160704347,
+      3035,
+      1793395276899756442,
+      1793395276899756442
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/psi": [
+      16777233,
+      157386242,
+      224,
+      1793424343226255935,
+      1793424343226255935
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/psi/parser": [
+      16777233,
+      157386249,
+      288,
+      1793450665658409942,
+      1793450665658409942
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/psi/parser/build.omg": [
+      16777233,
+      159542058,
+      1192,
+      1793234213990485904,
+      1793234213990485904
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/psi/parser/harness.omg": [
+      16777233,
+      160704349,
+      104963,
+      1793448324807840029,
+      1793448324807840029
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/psi/parser/main.omg": [
+      16777233,
+      157386252,
+      13,
+      1792993440824761104,
+      1792993440824761104
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/psi/parser/test-parser.sh": [
+      16777233,
+      157386253,
+      236,
+      1792993440824972479,
+      1792993440824972479
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/tests/psi/parser/test_parser.py": [
+      16777233,
+      160704350,
+      180335,
+      1793451296047083185,
+      1793451296047083185
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/wiki": [
+      16777233,
+      157386593,
+      320,
+      1793412901019985738,
+      1793412901019985738
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/wiki/spec": [
+      16777233,
+      157387970,
+      288,
+      1792993441049933545,
+      1792993441049933545
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/wiki/spec/language": [
+      16777233,
+      157388002,
+      768,
+      1793424343245620259,
+      1793424343245620259
+    ],
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/wiki/spec/language/state_contracts.md": [
+      16777233,
+      161354084,
+      12858,
+      1793424343245512634,
+      1793424343245512634
+    ]
+  },
+  "stderr": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/declared-joint/qualification.records/f053be59914047a293aa62a964dbb3f1.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "stdout": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/declared-joint/qualification.records/f053be59914047a293aa62a964dbb3f1.stdout",
+    "sha256": "0a04cc581fd87845379ce63a1b36cd0f10f11dfa687bfeebfb93f296e029f175"
+  },
+  "utc": "2026-10-31T14:01:21.390972+00:00"
+}

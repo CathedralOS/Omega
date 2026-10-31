@@ -1,0 +1,148 @@
+{
+  "schema": "machine-header-delimiter-final-evidence-1",
+  "candidate": "5e183ca227da696ac4549f5c38675158711dffe4",
+  "fixed_base": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+  "observed_at_utc": "2026-10-31T15:57:59.909469+00:00",
+  "target": "macos_arm64",
+  "bootstrap": {
+    "source_subject_revision": "18b04a56a4398b07018b4fc59ba0f187c825bd7b",
+    "command": [
+      "python3",
+      "tools/build_slot.py",
+      "--slots",
+      "2",
+      "--",
+      "sh",
+      "-c",
+      "sh tests/bootstrap/omega-identity.sh && sh tests/bootstrap/omega-parser/run.sh"
+    ],
+    "original_session": 84156,
+    "wrapper_exit": 0,
+    "receipt_seconds": 148.663,
+    "receipt_bytes": 721484,
+    "receipt_sha256": "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082",
+    "customer_seconds": 6529.48,
+    "customer_host_exit": 0,
+    "customer_stderr": "",
+    "observed_hex": "000000000041",
+    "observation_basis": "Original gate only emits its final success line after direct observation-byte equality against expected.hex, subprocess status0 and empty stderr. Raw log retains old16 label; bound customer contains20 invocations.",
+    "D_bytes": 571866,
+    "D_sha256": "ad9a78c953bd3ec67c9e0ccc5283cb36f63a8ce1a491f9a97293cce51b836d29",
+    "customer_bytes": 584640,
+    "customer_sha256": "acd224c6ae0dc2717d99944ed0f2cf638587487be22f793b8c1d4384acfb4f9c",
+    "entry_bytes": 12774,
+    "entry_sha256": "211bb77c96ae219dc6aa8abfd67cebb5b12e02e2464b3184bf31538b95009a56",
+    "expected_hex_file_sha256": "20b33a5908e7f918b84a0888e399ef8d54b5ad67ee08995e10a749f43ff88cb2",
+    "stdout": {
+      "path": "build/header-contracts/bootstrap-parser-execution2.stdout",
+      "sha256": "3a0cb1a94f27f07aa82a2a26a9ba09cb20c57a2caecd41f8bc9e98aea6d61d93"
+    },
+    "stderr": {
+      "path": "build/header-contracts/bootstrap-parser-execution2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "wrapper_exit_evidence": {
+      "observer": "/root",
+      "tool": "write_stdin",
+      "original_session": 84156,
+      "exit_code": 0,
+      "final_output": "",
+      "chunk": "c8acae",
+      "wall_time_seconds": 1.3541e-05
+    }
+  },
+  "final_delta_applicability": {
+    "base_for_final_nonsemantic_delta": "be05ba1c315dd4e4e9d2429a3e9d6d2979cf80f9",
+    "changed_paths": [
+      "TASKS.md",
+      "bootstrap/5_omega/README.md",
+      "samples/cli/facts/nested_machine_invocation/header_contracts/README.md",
+      "tests/bootstrap/omega-parser/README.md",
+      "tests/bootstrap/omega-parser/gate.py"
+    ],
+    "gate_label_only_exact_text_and_ast_check": true,
+    "unchanged_materializations": [
+      {
+        "path": "tests/bootstrap/omega-parser/main.epsilon",
+        "before": "1e9d0832d14c3a4ac2e0bac38d1679a68d6b15f0",
+        "after": "1e9d0832d14c3a4ac2e0bac38d1679a68d6b15f0"
+      },
+      {
+        "path": "tests/bootstrap/omega-parser/expected.hex",
+        "before": "999cafe8576222f9a2d980e31d57d521919dfdc4",
+        "after": "999cafe8576222f9a2d980e31d57d521919dfdc4"
+      },
+      {
+        "path": "omega-rust",
+        "before": "b1991e23856bfcdcc7128476f8ec325d3c5b18ff",
+        "after": "b1991e23856bfcdcc7128476f8ec325d3c5b18ff"
+      },
+      {
+        "path": "source/psi",
+        "before": "253918fd97c3e105ddd7705abfabd0a9485e2825",
+        "after": "253918fd97c3e105ddd7705abfabd0a9485e2825"
+      },
+      {
+        "path": "source/library",
+        "before": "da4874962247958f1a949e1dd4d13bd8451dbe87",
+        "after": "da4874962247958f1a949e1dd4d13bd8451dbe87"
+      },
+      {
+        "path": "Cargo.toml",
+        "before": "2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a",
+        "after": "2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a"
+      },
+      {
+        "path": "Cargo.lock",
+        "before": "15189e48ff99e162ec8fcda46c1fb927fd647834",
+        "after": "15189e48ff99e162ec8fcda46c1fb927fd647834"
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "before": "34677fc928123970d13e8b81641724e2a9e6f929",
+        "after": "34677fc928123970d13e8b81641724e2a9e6f929"
+      },
+      {
+        "path": "bootstrap/5_omega/parser.epsilon",
+        "before": "750d60e2df6e2bafe409b62455673a53c1b13338",
+        "after": "750d60e2df6e2bafe409b62455673a53c1b13338"
+      },
+      {
+        "path": "bootstrap/5_omega/omega_compiler.epsilon.sources",
+        "before": "354ef1e4c9e7486d49e0ed809403f0b82145450f",
+        "after": "354ef1e4c9e7486d49e0ed809403f0b82145450f"
+      }
+    ],
+    "qualified_assessment_revision": 59,
+    "reused": 3,
+    "invalidated": 0,
+    "assessment_receipt": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/declared-joint/qualification.records/736754a7ee1bdc9a87b488c2ea596c5bc69509faa3d0794aedadb919115b5084.assessment.json",
+      "sha256": "736754a7ee1bdc9a87b488c2ea596c5bc69509faa3d0794aedadb919115b5084"
+    },
+    "reason": "Four documentation/board files change no executable input. gate.py changes only the final success-label constant after all calls and byte/exit checks; the current observed log is not relabeled. Rust/product/materialized-D/customer/receipt/expected input meaning unchanged."
+  },
+  "retained_checks": {
+    "C6_producer": "2fc408782574caca80f6fa48deee61c767f1616e",
+    "CLI_sha256": "fcdd021bc488acadbf96f2defe73abe77675cc9056078a87ab9c8098a95d5a59",
+    "corpus_sha256": "a3453781d35d112da79dc4e88a73d17cc01f22ad8a652fd0c6cb0374a13685a4",
+    "native_row": {
+      "path": "build/header-contracts/candidate6-native-row-results.json",
+      "sha256": "7c1b50dea0663c519250073b036492c8234fc84511ca8356cd0785692108141d",
+      "positive_both_zero": 9,
+      "sensitive_rejects": 9
+    },
+    "source_receipt": "78d72bbd6bf740acb12b28efdb0d4088",
+    "both_receipt": "3c47e0ae37a54edcbd10d7b22c72ef25",
+    "product_native_sha256": "78b9f2e87ee546d37dfe96ea4ccc0053fce04df3e23b636715f2445aa5352617",
+    "product_decoder_cases": 504
+  },
+  "limitations": [
+    "Only macOS ARM64 native/Terminal and this lower-chain execution observed; other hosted execution unverified.",
+    "11 Rust parser failures reproduce fixed base;17 historical contract observations retain exact baseline outcomes.",
+    "5788 normalized full Item structures preserved; one explicit domain-boundary repair excluded; no complete runtime equivalence claim.",
+    "C5/first shared-target baseline contamination invalid, retained and excluded.",
+    "Broader REQUIRES-UNIFICATION and NESTED-MACHINE-UNIFICATION remain open."
+  ]
+}

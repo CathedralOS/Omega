@@ -1,0 +1,6 @@
+{
+  "original_fixed_base": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+  "header_candidate": "be05ba1c315dd4e4e9d2429a3e9d6d2979cf80f9",
+  "reused_worktree": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base",
+  "purpose": "Continue the retained ordinary-call rank repair while the frozen header PR runs bootstrap acceptance. Baseline comparisons already completed; original baseline source remains at the immutable Git revision and bundled library archive. Do not run old-baseline binaries against the reused worktree current library. The schedule worktree and remote header candidate remain isolated from parent implementation edits."
+}

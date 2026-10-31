@@ -1,0 +1,33 @@
+{
+  "artifact": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-product-native",
+  "sha256": "59f39451a5570c928c4a47a1ea8ddb5e122ff248f0b2579bef47f75588fa6fa1",
+  "cli_producer": {
+    "revision": "65d9ab796e6d584835cc24c61a9178640f52b461",
+    "compiler_source_diff_sha256": "13508a20fdea9141e7afdd9ffc1986543157657c72e9ea6871f97df67fc4b164",
+    "compiler_source_diff": "build/header-contracts/candidate4-producer/source.diff",
+    "sha256": "af66049e0d2674512b4c950bc0030b2148f4cbe9163c13524f30f913c52b5e25",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    },
+    "dirty": true,
+    "build_log": "build/header-contracts/candidate4-cli-build.jsonl",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json"
+    ],
+    "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate4-producer/omega"
+  },
+  "source_revision": "01f1a73a5bca0d38be804a38690c27630d9bf096",
+  "source_trees": "040000 tree da4874962247958f1a949e1dd4d13bd8451dbe87\tsource/library\n040000 tree 9c1ae8f62b45a3ad6e4258361c43549578f98eb9\tsource/psi\n100644 blob 028b92ff20d259d08ea5c6064ce034a4594d3fad\ttests/psi/parser/build.omg\n100644 blob 9670c99d9f83e2012da33e86982c174150e11228\ttests/psi/parser/harness.omg\n",
+  "target": "macos_arm64",
+  "native_build_gate_status": 1,
+  "gate_log": "build/header-contracts/candidate4-product5.stderr",
+  "gate_failure": "Decoder expected legacy clause span including declaration punctuation; native artifact built successfully, focused decoder migration continuing."
+}

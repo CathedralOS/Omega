@@ -1,0 +1,26 @@
+{
+  "revision": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+  "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/baseline-corpus-producer/corpus_runner",
+  "sha256": "ae127d3bad9320d76ac7ecc17bbc5890bf17ffee967e04676ab5721de7bab8ba",
+  "profile": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/baseline-corpus-producer/corpus_runner",
+    "sha256": "ae127d3bad9320d76ac7ecc17bbc5890bf17ffee967e04676ab5721de7bab8ba",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--no-run",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner",
+    "--message-format=json"
+  ],
+  "seconds": 234.068214667,
+  "dirty": false
+}

@@ -1,0 +1,600 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 21824
+  },
+  "subset": true,
+  "filter": "fail/contracts/call_write_retires_overlapping_guard,fail/contracts/generic_component_nondecreasing_window,fail/contracts/indexed_crash_missing_independent_index_bound,fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts,fail/contracts/negated_edge_guard_unproven_bound,fail/contracts/normal_return_written_state_premise,fail/contracts/recursive_result_bound_changed_actual,fail/contracts/replacement_call_child_false_snapshot,fail/contracts/scalar_copy_guard_after_source_restore,fail/contracts/state_write_retires_overlapping_guard_conjunct,pass/contracts/adapter_result_membership_forwarded,pass/contracts/float_guard_disjoint_operand_write,pass/contracts/normal_return_contextual_call_arguments_exit,pass/contracts/returned_reference_field_mutation_exit,pass/contracts/runtime_float_entry_relations_exit,pass/contracts/runtime_float_fused_crash_guard_exit,pass/contracts/runtime_generic_component_window_tick_exit",
+  "shard": null,
+  "verdict": "regressed",
+  "exit_code": 3,
+  "counts": {
+    "fixtures": 17,
+    "by_status": {
+      "rejected": 15,
+      "incomplete": 1,
+      "checked": 1
+    },
+    "wrong_reason": 9,
+    "wrong_reason_fixtures": [
+      "fail/contracts/call_write_retires_overlapping_guard",
+      "fail/contracts/generic_component_nondecreasing_window",
+      "fail/contracts/indexed_crash_missing_independent_index_bound",
+      "fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts",
+      "fail/contracts/negated_edge_guard_unproven_bound",
+      "fail/contracts/normal_return_written_state_premise",
+      "fail/contracts/recursive_result_bound_changed_actual",
+      "fail/contracts/replacement_call_child_false_snapshot",
+      "fail/contracts/state_write_retires_overlapping_guard_conjunct"
+    ],
+    "fail_not_rejected": 1,
+    "fail_not_rejected_fixtures": [
+      "fail/contracts/scalar_copy_guard_after_source_restore"
+    ],
+    "lost_successes": 8,
+    "lost_success_fixtures": [
+      "pass/contracts/adapter_result_membership_forwarded",
+      "pass/contracts/float_guard_disjoint_operand_write",
+      "pass/contracts/normal_return_contextual_call_arguments_exit",
+      "pass/contracts/returned_reference_field_mutation_exit",
+      "pass/contracts/runtime_float_entry_relations_exit",
+      "pass/contracts/runtime_float_fused_crash_guard_exit",
+      "pass/contracts/runtime_generic_component_window_tick_exit",
+      "fail/contracts/normal_return_written_state_premise"
+    ],
+    "pinned_off_target": 8,
+    "pinned_off_target_fixtures": [
+      "pass/contracts/adapter_result_membership_forwarded",
+      "pass/contracts/float_guard_disjoint_operand_write",
+      "pass/contracts/normal_return_contextual_call_arguments_exit",
+      "pass/contracts/returned_reference_field_mutation_exit",
+      "pass/contracts/runtime_float_entry_relations_exit",
+      "pass/contracts/runtime_float_fused_crash_guard_exit",
+      "pass/contracts/runtime_generic_component_window_tick_exit",
+      "fail/contracts/scalar_copy_guard_after_source_restore"
+    ],
+    "by_verdict": {
+      "regressed": 5,
+      "moved": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 17,
+    "legacy": 0,
+    "unknown_revisions": 1,
+    "oldest": null
+  },
+  "perf_context": {
+    "golden": {
+      "incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585",
+      "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6",
+      "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.",
+      "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "2",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 3.63,
+      "load1_end": 3.58
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/contracts/adapter_result_membership_forwarded",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 1524,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "cannot prove ensures contract for exit from direct at statement 0: result in Token::Ready"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/float_guard_disjoint_operand_write",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2538,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "call from `read` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/normal_return_contextual_call_arguments_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 164,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "provider choice must supply the declaration's complete static application"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/returned_reference_field_mutation_exit",
+      "tier": "pass",
+      "status": "incomplete",
+      "millis": 1372,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "`main` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `main::entry`"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/runtime_float_entry_relations_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2009,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "call from `same` to `invalid` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/runtime_float_fused_crash_guard_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2305,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "call from `ping` to `pong` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation",
+        "call from `pong` to `finish` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation",
+        "call from `pong` to `ping` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/contracts/runtime_generic_component_window_tick_exit",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 9272,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [
+        "runtime indexed construction has no exact substituted field telescope",
+        "runtime indexed construction has no exact substituted field telescope",
+        "cannot prove requires contract for call consume from head: Rooms >= 1 && changed.room < Rooms && commands[0].direction >= -1 && commands[0].direction < 4 (needs fact `Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {
+          "check-target": "macos_arm64"
+        }
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/call_write_retires_overlapping_guard",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 911,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call pop from twice: main.a.count >= 1 && main.a.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/generic_component_nondecreasing_window",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 854,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `walk`, `head` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/indexed_crash_missing_independent_index_bound",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 451,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot form specification index in machine `read_seven` requires contract: independent collection bounds are not established by preceding formed facts"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 874,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call accept from later: value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/negated_edge_guard_unproven_bound",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 871,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call check from then: v < 50 (needs fact `v < 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/normal_return_written_state_premise",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 872,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from wrong at statement 0: result.code == 7 && original.value != 0"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {}
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/recursive_result_bound_changed_actual",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 436,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `__transition_subject#14 == true`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/replacement_call_child_false_snapshot",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 697,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "machine `false_producer` ensures contract proof fact `result == 9` is disproved by constant arithmetic on the transition arm guarded by `<always>`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/scalar_copy_guard_after_source_restore",
+      "tier": "fail",
+      "status": "checked",
+      "millis": 6836,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/state_write_retires_overlapping_guard_conjunct",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 872,
+      "expected_satisfied": false,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call pop from second: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/contracts/returned_reference_field_mutation_exit",
+      "verdict": "regressed",
+      "reasons": [
+        "status checked -> incomplete",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/contracts/returned_reference_field_mutation_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 3207,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/contracts/returned_reference_field_mutation_exit",
+        "tier": "pass",
+        "status": "incomplete",
+        "millis": 1372,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "`main` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `main::entry`"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "pass/contracts/runtime_generic_component_window_tick_exit",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "pass/contracts/runtime_generic_component_window_tick_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 17166,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "cannot prove requires contract for call consume from head: Rooms >= 1 && changed.room < Rooms && commands[0].direction >= -1 && commands[0].direction < 4 (needs fact `Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/contracts/runtime_generic_component_window_tick_exit",
+        "tier": "pass",
+        "status": "rejected",
+        "millis": 9272,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [
+          "runtime indexed construction has no exact substituted field telescope",
+          "runtime indexed construction has no exact substituted field telescope",
+          "cannot prove requires contract for call consume from head: Rooms >= 1 && changed.room < Rooms && commands[0].direction >= -1 && commands[0].direction < 4 (needs fact `Rooms >= 1 && actor.room < Rooms && direction >= -1 && direction < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": {
+          "status": "checked",
+          "facts": {
+            "check-target": "macos_arm64"
+          }
+        },
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/contracts/indexed_crash_missing_independent_index_bound",
+      "verdict": "regressed",
+      "reasons": [
+        "rejected without its expected fragment",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/contracts/indexed_crash_missing_independent_index_bound",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2886,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call maybe_zero from read_seven: index < 2 (needs fact `index < 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/contracts/indexed_crash_missing_independent_index_bound",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 451,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "cannot form specification index in machine `read_seven` requires contract: independent collection bounds are not established by preceding formed facts"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/contracts/recursive_result_bound_changed_actual",
+      "verdict": "regressed",
+      "reasons": [
+        "rejected without its expected fragment",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/contracts/recursive_result_bound_changed_actual",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2897,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from descend at statement 1: result <= previous"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/contracts/recursive_result_bound_changed_actual",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 436,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `__transition_subject#14 == true`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/contracts/replacement_call_child_false_snapshot",
+      "verdict": "regressed",
+      "reasons": [
+        "rejected without its expected fragment",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/contracts/replacement_call_child_false_snapshot",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2350,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove ensures contract for exit from false_producer at statement 0: result == 9",
+          "cannot prove ensures contract for exit from overwrite at statement 2: pair.first.value == 9",
+          "cannot prove ensures contract for exit from install_interval at statement 1: pair.first.value == 9"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/contracts/replacement_call_child_false_snapshot",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 697,
+        "expected_satisfied": false,
+        "facts": {},
+        "diagnostics": [
+          "machine `false_producer` ensures contract proof fact `result == 9` is disproved by constant arithmetic on the transition arm guarded by `<always>`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/contracts/scalar_copy_guard_after_source_restore",
+      "verdict": "regressed",
+      "reasons": [
+        "fail fixture stopped rejecting",
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/contracts/scalar_copy_guard_after_source_restore",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 16955,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call bounded from inspect: main.items[selector] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+          "cannot prove requires contract for call bounded from inspect: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/contracts/scalar_copy_guard_after_source_restore",
+        "tier": "fail",
+        "status": "checked",
+        "millis": 6836,
+        "expected_satisfied": null,
+        "facts": {},
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

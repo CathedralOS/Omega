@@ -1,0 +1,70 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling version_check v0.9.5
+   Compiling typenum v1.20.1
+   Compiling libc v0.2.189
+   Compiling cfg-if v1.0.4
+   Compiling rustversion v1.0.23
+   Compiling crossbeam-utils v0.8.23
+   Compiling crossbeam-epoch v0.9.21
+   Compiling serde_core v1.0.229
+   Compiling crossbeam-deque v0.8.8
+   Compiling generic-array v0.14.7
+   Compiling zmij v1.0.23
+   Compiling rayon-core v1.13.0
+   Compiling syn v3.0.4
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling arc-swap v1.9.2
+   Compiling itoa v1.0.18
+   Compiling cpufeatures v0.2.17
+   Compiling either v1.19.0
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling memchr v2.8.3
+   Compiling digest v0.10.7
+   Compiling sha2 v0.10.9
+   Compiling rayon v1.12.0
+   Compiling optimization v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/optimization-selections)
+   Compiling compiler-storage-derive v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/compiler-storage/derive)
+   Compiling serde_derive v1.0.229
+   Compiling syntax-trees-derive v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/compilation/representations/syntax-trees/derive)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[22735]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `syntax-trees-derive` (lib) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[22736]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `compiler-storage-derive` (lib) generated 1 warning
+   Compiling compiler-storage v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/compiler-storage)
+   Compiling arena v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/arena)
+   Compiling numerics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/numerics)
+   Compiling semantic-vocabulary v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/semantic-vocabulary)
+   Compiling language-core v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/language-core)
+   Compiling source v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/source)
+   Compiling diagnostics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/foundation/diagnostics)
+   Compiling tokens v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/compilation/representations/tokens)
+   Compiling source-files-to-tokens v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/compilation/pipeline/00_source-files-to-tokens)
+   Compiling syntax-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/compilation/representations/syntax-trees)
+   Compiling tokens-to-syntax-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[22816]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/.rustup/toolchains/nightly-2026-09-04-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/zcanann/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `tokens-to-syntax-trees` (lib test) generated 1 warning
+    Finished `test` profile [optimized] target(s) in 13.52s
+     Running unittests src/lib.rs (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/baseline-parser-target/debug/build/tokens-to-syntax-trees/9a946212c2bacc3d/out/tokens_to_syntax_trees-9a946212c2bacc3d)
+error: test failed, to rerun pass `-p tokens-to-syntax-trees --lib`

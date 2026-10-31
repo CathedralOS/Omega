@@ -1,0 +1,16 @@
+{
+  "cause": "Baseline and candidate Cargo commands shared target-source-matched. Cargo marked candidate parser fresh after baseline overwrote the same output artifact. Candidate5 actual canonical positive refuses expected-semicolon despite current source allowing it.",
+  "evidence": [
+    "candidate5-cli-build.jsonl",
+    "baseline-corpus-build.jsonl",
+    "candidate5-native-row-results.json"
+  ],
+  "invalid": [
+    "candidate5-producer/cli-producer.json",
+    "candidate5-producer/corpus-producer.json",
+    "baseline-corpus-producer/corpus-producer.json",
+    "contract-baseline-comparison.json"
+  ],
+  "unaffected": "Immutable C0 CLI6b622ed6, C4 CLIaf66049e, C4 corpus47162b85, native product78b9f2e8 and their earlier observations predate the shared-target overwrite. The C0 unit binary used its own target directory.",
+  "recovery": "Separate candidate target-candidate-isolated and fixed-base build/header-contracts/baseline-parser-target; rebuild affected producers. Previous comparison is not accepted evidence."
+}
