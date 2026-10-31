@@ -248,7 +248,7 @@ pub(crate) fn test_program_with_guarded_transition()
         .insert(crate::expression::ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(1),
         ));
-    let statements = program.tables.declarations.state_statements.insert_many([
+    let statements = program.declarations_mut().state_statements.insert_many([
         crate::statement::Statement::Transition(crate::statement::Transition {
             target: crate::statement::TransitionTarget::Terminal,
             continuation: None,
@@ -260,13 +260,11 @@ pub(crate) fn test_program_with_guarded_transition()
         }),
     ]);
     let state = program
-        .tables
-        .declarations
+        .declarations_mut()
         .machine_states
         .append(crate::state::test_state(statements));
     let states = program
-        .tables
-        .declarations
+        .declarations_mut()
         .machine_state_handles
         .insert_many([state]);
     (program, states)

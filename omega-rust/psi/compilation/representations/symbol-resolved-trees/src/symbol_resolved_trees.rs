@@ -240,6 +240,17 @@ impl SymbolResolvedTrees {
         &mut self.tables.bodies.statements
     }
 
+    /// The declaration arenas, named once: the span and handle readers below and
+    /// every declaration walker spell `declarations()` instead of chaining
+    /// `tables.declarations` into the arena they read.
+    pub(crate) fn declarations(&self) -> &SymbolResolvedDeclarationStorage {
+        &self.tables.declarations
+    }
+
+    pub(crate) fn declarations_mut(&mut self) -> &mut SymbolResolvedDeclarationStorage {
+        &mut self.tables.declarations
+    }
+
     /// The domain definition keyed `symbol`, when the trees declare it.
     pub fn domain_definition_by_symbol(
         &self,
@@ -264,10 +275,10 @@ impl SymbolResolvedTrees {
         AuthoredSelectionExtensionFrontier {
             selections: self.tables.authored_declaration_selections.len(),
             expressions: self.expression_table().expression_count(),
-            tree_statements: self.tables.declarations.state_statements.len(),
+            tree_statements: self.declarations().state_statements.len(),
             statements: self.statement_table().statement_count(),
             transition_targets: self.statement_table().transition_target_count(),
-            proof_facts: self.tables.declarations.proof_facts.len(),
+            proof_facts: self.declarations().proof_facts.len(),
         }
     }
 
@@ -378,7 +389,7 @@ impl SymbolResolvedTrees {
         frontier: usize,
         rebase: AuthoredDeclarationSelectionSuffixRebase,
     ) -> Result<(), AuthoredSelectionExtensionRebaseError> {
-        let statements = &self.tables.declarations.state_statements;
+        let statements = &self.declarations().state_statements;
         if frontier > statements.len() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
@@ -410,7 +421,7 @@ impl SymbolResolvedTrees {
         frontier: usize,
         rebase: AuthoredDeclarationSelectionSuffixRebase,
     ) {
-        let statements = &mut self.tables.declarations.state_statements;
+        let statements = &mut self.declarations_mut().state_statements;
         statements.for_each_mut(|handle, statement| {
             if usize::try_from(handle.arena_index()).expect("tree statement index overflow")
                 > frontier
@@ -425,7 +436,7 @@ impl SymbolResolvedTrees {
         frontier: usize,
         rebase: AuthoredDeclarationSelectionSuffixRebase,
     ) -> Result<(), AuthoredSelectionExtensionRebaseError> {
-        let facts = &self.tables.declarations.proof_facts;
+        let facts = &self.declarations().proof_facts;
         if frontier > facts.len() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
@@ -461,7 +472,7 @@ impl SymbolResolvedTrees {
         frontier: usize,
         rebase: AuthoredDeclarationSelectionSuffixRebase,
     ) {
-        let facts = &mut self.tables.declarations.proof_facts;
+        let facts = &mut self.declarations_mut().proof_facts;
         facts.for_each_mut(|handle, fact| {
             if usize::try_from(handle.arena_index()).expect("proof fact index overflow") <= frontier
             {
@@ -510,7 +521,7 @@ impl SymbolResolvedTrees {
     }
 
     pub fn data_members(&self, span: HandleSpan<data::DataMember>) -> &[data::DataMember] {
-        self.tables.declarations.data_members.span_or_empty(span)
+        self.declarations().data_members.span_or_empty(span)
     }
 
     pub fn record_resolved_authored_declaration_selection(
@@ -634,24 +645,18 @@ impl SymbolResolvedTrees {
     }
 
     pub fn data_payload_fields(&self, span: HandleSpan<data::DataField>) -> &[data::DataField] {
-        self.tables
-            .declarations
-            .data_payload_fields
-            .span_or_empty(span)
+        self.declarations().data_payload_fields.span_or_empty(span)
     }
 
     pub fn data_type_parameters(
         &self,
         span: HandleSpan<data::TypeParameter>,
     ) -> &[data::TypeParameter] {
-        self.tables
-            .declarations
-            .data_type_parameters
-            .span_or_empty(span)
+        self.declarations().data_type_parameters.span_or_empty(span)
     }
 
     pub fn proof_facts(&self, span: HandleSpan<domain::ProofFact>) -> &[domain::ProofFact] {
-        self.tables.declarations.proof_facts.span_or_empty(span)
+        self.declarations().proof_facts.span_or_empty(span)
     }
 
     /// One resolved mathematical type node (`Ordinary`/`Arrow`/`Application`)
@@ -660,7 +665,7 @@ impl SymbolResolvedTrees {
         &self,
         handle: mathematical::MathematicalTypeHandle,
     ) -> &mathematical::MathematicalType {
-        self.tables.declarations.mathematical_types.get(handle)
+        self.declarations().mathematical_types.get(handle)
     }
 
     /// The ordered ordinary telescope of a mathematical declaration.
@@ -668,8 +673,7 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<mathematical::MathematicalParameter>,
     ) -> &[mathematical::MathematicalParameter] {
-        self.tables
-            .declarations
+        self.declarations()
             .mathematical_parameters
             .span_or_empty(span)
     }
@@ -678,8 +682,7 @@ impl SymbolResolvedTrees {
         &self,
         handle: Handle<domain::ProofFact>,
     ) -> Option<source::SourceSpan> {
-        self.tables
-            .declarations
+        self.declarations()
             .proof_fact_source_spans
             .get(proof_fact_source_span_index(handle))
             .copied()
@@ -692,29 +695,24 @@ impl SymbolResolvedTrees {
         source_span: source::SourceSpan,
     ) {
         let index = proof_fact_source_span_index(handle);
-        self.tables
-            .declarations
+        self.declarations_mut()
             .proof_fact_source_spans
             .resize(index + 1, None);
-        self.tables.declarations.proof_fact_source_spans[index] = Some(source_span);
+        self.declarations_mut().proof_fact_source_spans[index] = Some(source_span);
     }
 
     pub fn domain_path_members(
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
     ) -> &[crate::name::DiagnosticName] {
-        self.tables
-            .declarations
-            .domain_path_members
-            .span_or_empty(span)
+        self.declarations().domain_path_members.span_or_empty(span)
     }
 
     pub fn operator_path_members(
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
     ) -> &[crate::name::DiagnosticName] {
-        self.tables
-            .declarations
+        self.declarations()
             .operator_path_members
             .span_or_empty(span)
     }
@@ -728,10 +726,7 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<operator::OperatorDefinition>,
     ) -> &[operator::OperatorDefinition] {
-        self.tables
-            .declarations
-            .operator_definitions
-            .span_or_empty(span)
+        self.declarations().operator_definitions.span_or_empty(span)
     }
 
     pub fn measure_path_members(
@@ -745,8 +740,7 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<signature::StateSignature>,
     ) -> &[signature::StateSignature] {
-        self.tables
-            .declarations
+        self.declarations()
             .trait_machine_signatures
             .span_or_empty(span)
     }
@@ -794,40 +788,28 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<crate::trait_definition::TraitRequirement>,
     ) -> &[crate::trait_definition::TraitRequirement] {
-        self.tables
-            .declarations
-            .trait_requirements
-            .span_or_empty(span)
+        self.declarations().trait_requirements.span_or_empty(span)
     }
 
     pub fn state_parameters(
         &self,
         span: HandleSpan<signature::StateParameter>,
     ) -> &[signature::StateParameter] {
-        self.tables
-            .declarations
-            .state_parameters
-            .span_or_empty(span)
+        self.declarations().state_parameters.span_or_empty(span)
     }
 
     pub fn signature_invokes(
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
     ) -> &[crate::name::DiagnosticName] {
-        self.tables
-            .declarations
-            .signature_invokes
-            .span_or_empty(span)
+        self.declarations().signature_invokes.span_or_empty(span)
     }
 
     pub fn signature_contracts(
         &self,
         span: HandleSpan<signature::SignatureContract>,
     ) -> &[signature::SignatureContract] {
-        self.tables
-            .declarations
-            .signature_contracts
-            .span_or_empty(span)
+        self.declarations().signature_contracts.span_or_empty(span)
     }
 
     /// The machine declaration keyed `symbol`.
@@ -885,7 +867,7 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
     ) -> &[crate::name::DiagnosticName] {
-        self.tables.declarations.ranking_views.span_or_empty(span)
+        self.declarations().ranking_views.span_or_empty(span)
     }
 
     pub fn machine_contracts(
@@ -899,32 +881,27 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<Handle<state::State>>,
     ) -> &[Handle<state::State>] {
-        self.tables
-            .declarations
+        self.declarations()
             .machine_state_handles
             .span_or_empty(span)
     }
 
     pub fn machine_state(&self, handle: Handle<state::State>) -> &state::State {
-        self.tables.declarations.machine_states.get(handle)
+        self.declarations().machine_states.get(handle)
     }
 
     pub fn machine_owned_data(
         &self,
         span: HandleSpan<crate::machine::OwnedData>,
     ) -> &[crate::machine::OwnedData] {
-        self.tables
-            .declarations
-            .machine_owned_data
-            .span_or_empty(span)
+        self.declarations().machine_owned_data.span_or_empty(span)
     }
 
     pub fn machine_trait_conformances(
         &self,
         span: HandleSpan<crate::machine::TraitConformance>,
     ) -> &[crate::machine::TraitConformance] {
-        self.tables
-            .declarations
+        self.declarations()
             .machine_trait_conformances
             .span_or_empty(span)
     }
@@ -933,18 +910,14 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<statement::Statement>,
     ) -> &[statement::Statement] {
-        self.tables
-            .declarations
-            .state_statements
-            .span_or_empty(span)
+        self.declarations().state_statements.span_or_empty(span)
     }
 
     pub fn child_type_references(
         &self,
         span: HandleSpan<types::TypeReference>,
     ) -> &[types::TypeReference] {
-        self.tables
-            .declarations
+        self.declarations()
             .child_type_references
             .span_or_empty(span)
     }
@@ -953,11 +926,11 @@ impl SymbolResolvedTrees {
         &self,
         handle: Handle<types::TypeReference>,
     ) -> &types::TypeReference {
-        self.tables.declarations.child_type_references.get(handle)
+        self.declarations().child_type_references.get(handle)
     }
 
     pub fn wire_members(&self, span: HandleSpan<wire::WireMember>) -> &[wire::WireMember] {
-        self.tables.declarations.wire_members.span_or_empty(span)
+        self.declarations().wire_members.span_or_empty(span)
     }
 
     pub fn rebuild_tables(&mut self) {
@@ -1173,11 +1146,10 @@ mod tests {
         let mut signature_invokes = HandleSpan::empty();
 
         trees
-            .tables
-            .declarations
+            .declarations_mut()
             .ranking_views
             .append_to_span(&mut ranking_view, DiagnosticName::generated("remaining"));
-        trees.tables.declarations.signature_invokes.append_to_span(
+        trees.declarations_mut().signature_invokes.append_to_span(
             &mut signature_invokes,
             DiagnosticName::generated("Console.write"),
         );
@@ -1260,8 +1232,7 @@ mod tests {
             .expression_table_mut()
             .attach_authored_selection_occurrences(base_expression, [base_occurrence]);
         trees
-            .tables
-            .declarations
+            .declarations_mut()
             .state_statements
             .append(tree_call(base_occurrence));
         trees
@@ -1271,8 +1242,7 @@ mod tests {
                 ..Default::default()
             }));
         trees
-            .tables
-            .declarations
+            .declarations_mut()
             .proof_facts
             .append(domain::ProofFact::Membership(domain::ProofMembershipFact {
                 authored_domain_selection: Some(base_occurrence),
@@ -1288,13 +1258,11 @@ mod tests {
             .expression_table_mut()
             .attach_authored_selection_occurrences(extension_expression, [extension_occurrence]);
         let extension_tree_statement = trees
-            .tables
-            .declarations
+            .declarations_mut()
             .state_statements
             .append(tree_call(extension_occurrence));
         let extension_tree_transition = trees
-            .tables
-            .declarations
+            .declarations_mut()
             .state_statements
             .append(tree_transition(extension_occurrence));
         let extension_table_statement =
@@ -1306,8 +1274,7 @@ mod tests {
                 }));
         let extension_fact =
             trees
-                .tables
-                .declarations
+                .declarations_mut()
                 .proof_facts
                 .append(domain::ProofFact::Membership(domain::ProofMembershipFact {
                     authored_domain_selection: Some(extension_occurrence),
@@ -1344,8 +1311,7 @@ mod tests {
             vec![shifted]
         );
         let statement::Statement::Call(call) = rebased
-            .tables
-            .declarations
+            .declarations()
             .state_statements
             .get(extension_tree_statement)
         else {
@@ -1353,8 +1319,7 @@ mod tests {
         };
         assert_eq!(call.authored_call_selection, Some(shifted));
         let statement::Statement::Transition(transition) = rebased
-            .tables
-            .declarations
+            .declarations()
             .state_statements
             .get(extension_tree_transition)
         else {
@@ -1377,7 +1342,7 @@ mod tests {
         };
         assert_eq!(call.authored_call_selection, Some(shifted));
         let domain::ProofFact::Membership(fact) =
-            rebased.tables.declarations.proof_facts.get(extension_fact)
+            rebased.declarations().proof_facts.get(extension_fact)
         else {
             panic!("extension proof membership")
         };
@@ -1403,8 +1368,7 @@ mod tests {
             )
             .expect("destination-only selection");
         trees
-            .tables
-            .declarations
+            .declarations_mut()
             .state_statements
             .append(tree_call(destination_only_occurrence));
         let expected = trees.clone();
@@ -1454,8 +1418,7 @@ mod tests {
                 .expression_table_mut()
                 .attach_authored_selection_occurrences(expression, [extension]);
             trees
-                .tables
-                .declarations
+                .declarations_mut()
                 .state_statements
                 .append(tree_call(extension));
             trees
@@ -1487,8 +1450,7 @@ mod tests {
                 },
             );
             trees
-                .tables
-                .declarations
+                .declarations_mut()
                 .proof_facts
                 .append(domain::ProofFact::Membership(domain::ProofMembershipFact {
                     authored_domain_selection: Some(
@@ -1524,8 +1486,7 @@ mod tests {
             .expression_table_mut()
             .attach_authored_selection_occurrences(appended_expression, [base_occurrence]);
         let appended_clone = trees
-            .tables
-            .declarations
+            .declarations_mut()
             .state_statements
             .append(tree_call(base_occurrence));
         let destination = trees.authored_declaration_selections().clone();
@@ -1533,11 +1494,8 @@ mod tests {
         let rebased = trees
             .rebase_authored_selection_extension(frontier, &destination)
             .expect("compiler-generated clone retains its authored base identity");
-        let statement::Statement::Call(call) = rebased
-            .tables
-            .declarations
-            .state_statements
-            .get(appended_clone)
+        let statement::Statement::Call(call) =
+            rebased.declarations().state_statements.get(appended_clone)
         else {
             panic!("appended call clone")
         };

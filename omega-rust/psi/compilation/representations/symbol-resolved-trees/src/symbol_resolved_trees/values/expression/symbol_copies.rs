@@ -65,13 +65,7 @@ impl SymbolCopy<'_, '_> {
             return source;
         }
         let source_span = self.program.proof_fact_source_span(source);
-        let fact = self
-            .program
-            .tables
-            .declarations
-            .proof_facts
-            .get(source)
-            .clone();
+        let fact = self.program.declarations().proof_facts.get(source).clone();
         let fact = match fact {
             ProofFact::Expression(expression) => ProofFact::Expression(self.expression(expression)),
             ProofFact::Membership(mut membership) => {
@@ -79,8 +73,7 @@ impl SymbolCopy<'_, '_> {
                 let names = self.program.domain_path_members(membership.domain).to_vec();
                 membership.domain = self
                     .program
-                    .tables
-                    .declarations
+                    .declarations_mut()
                     .domain_path_members
                     .insert_many(names);
                 membership.domain_symbol = self.symbol(membership.domain_symbol);
@@ -88,7 +81,7 @@ impl SymbolCopy<'_, '_> {
                 ProofFact::Membership(membership)
             }
         };
-        let copied = self.program.tables.declarations.proof_facts.insert(fact);
+        let copied = self.program.declarations_mut().proof_facts.insert(fact);
         if let Some(source_span) = source_span {
             self.program.set_proof_fact_source_span(copied, source_span);
         }
@@ -307,8 +300,7 @@ impl SymbolCopy<'_, '_> {
         }
         let reference = self
             .program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(source)
             .clone();
@@ -316,16 +308,14 @@ impl SymbolCopy<'_, '_> {
         // can lead back to the instance whose application they describe.
         let copied = self
             .program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert(TypeReference::Unit);
         self.types.push((source, copied));
         let reference = self.type_payload(reference);
         *self
             .program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .get_mut(copied) = reference;
         self.type_origins(source, copied);
@@ -357,15 +347,13 @@ impl SymbolCopy<'_, '_> {
     fn type_span(&mut self, source: HandleSpan<TypeReference>) -> HandleSpan<TypeReference> {
         let references = self
             .program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .span_or_empty(source)
             .to_vec();
         let copied = self
             .program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert_many(references.iter().map(|_| TypeReference::Unit));
         // Span rows need the same exact-handle associations as standalone
@@ -385,8 +373,7 @@ impl SymbolCopy<'_, '_> {
             let reference = self.type_payload(reference);
             *self
                 .program
-                .tables
-                .declarations
+                .declarations_mut()
                 .child_type_references
                 .get_mut(destination) = reference;
             self.type_origins(source.handle_at(position), destination);
@@ -487,17 +474,12 @@ mod tests {
         let mut program = SymbolResolvedTrees::default();
         let original = SymbolHandle::from_arena_index(3);
         let replacement = SymbolHandle::from_arena_index(4);
-        let domain = program
-            .tables
-            .declarations
-            .domain_path_members
-            .insert_many([
-                DiagnosticName::generated("contracts"),
-                DiagnosticName::generated("Resident"),
-            ]);
+        let domain = program.declarations_mut().domain_path_members.insert_many([
+            DiagnosticName::generated("contracts"),
+            DiagnosticName::generated("Resident"),
+        ]);
         let arguments = program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert_many([TypeReference::Named {
                 supplied_operand_owner: Default::default(),
@@ -505,8 +487,7 @@ mod tests {
                 name: DiagnosticName::generated("T"),
             }]);
         let fact = program
-            .tables
-            .declarations
+            .declarations_mut()
             .proof_facts
             .insert(ProofFact::Membership(crate::domain::ProofMembershipFact {
                 domain,
@@ -518,7 +499,7 @@ mod tests {
         program.set_proof_fact_source_span(fact, source_span);
         let copied = program.copy_proof_fact_with_symbols(fact, &[(original, replacement)]);
         assert_eq!(program.proof_fact_source_span(copied), Some(source_span));
-        let ProofFact::Membership(membership) = program.tables.declarations.proof_facts.get(copied)
+        let ProofFact::Membership(membership) = program.declarations().proof_facts.get(copied)
         else {
             panic!("copy remains membership");
         };
@@ -531,16 +512,14 @@ mod tests {
         assert_ne!(membership.domain_arguments, arguments);
         assert_eq!(membership.authored_domain_selection, None);
         let TypeReference::Named { symbol, .. } = program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(membership.domain_arguments.handle_at(0))
         else {
             panic!("domain argument remains named");
         };
         assert_eq!(*symbol, replacement);
-        let ProofFact::Membership(original_fact) =
-            program.tables.declarations.proof_facts.get(fact)
+        let ProofFact::Membership(original_fact) = program.declarations().proof_facts.get(fact)
         else {
             panic!("original remains membership");
         };
@@ -569,15 +548,13 @@ mod tests {
                 symbol: original,
             }));
         let arguments = program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert_many([TypeReference::ConstExpression(
                 crate::types::ConstExpressionTypeReference::new(name),
             )]);
         let application = program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert(generic(original, HandleSpan::empty()));
         program
@@ -589,8 +566,7 @@ mod tests {
                 application,
             });
         let carrier = program
-            .tables
-            .declarations
+            .declarations_mut()
             .child_type_references
             .insert(generic(original, arguments));
         let source = program
@@ -612,8 +588,7 @@ mod tests {
         };
         assert_ne!(copied_carrier, carrier);
         let TypeReference::Generic(copied_type) = program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(copied_carrier)
         else {
@@ -622,8 +597,7 @@ mod tests {
         assert_eq!(copied_type.base_symbol, replacement);
         let copied_argument = copied_type.arguments.handle_at(0);
         let TypeReference::ConstExpression(copied_name) = program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(copied_argument)
         else {
@@ -650,8 +624,7 @@ mod tests {
             .find_map(|(_, origin)| (origin.instance == copied_argument).then_some(origin))
             .expect("copied span origin");
         let TypeReference::Generic(origin_application) = program
-            .tables
-            .declarations
+            .declarations()
             .child_type_references
             .get(origin.application)
         else {
@@ -664,11 +637,8 @@ mod tests {
             panic!("original remains a name");
         };
         assert_eq!(original_path.symbol, original);
-        let TypeReference::Generic(original_type) = program
-            .tables
-            .declarations
-            .child_type_references
-            .get(carrier)
+        let TypeReference::Generic(original_type) =
+            program.declarations().child_type_references.get(carrier)
         else {
             panic!("original remains generic");
         };
