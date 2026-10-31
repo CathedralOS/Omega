@@ -11,6 +11,7 @@ use crate::expressions::parse_expression::{
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::tables::type_refs;
 use arena::HandleSpan;
+use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
@@ -398,9 +399,7 @@ fn apply_in_domain_suffix<'tokens, 'source>(
             }));
         } else {
             constraints.push(
-                match numerics::arithmetic::ArithmeticDomain::from_name(
-                    domain_name.as_str(syntax_trees),
-                ) {
+                match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
                     Some(domain) if arguments.is_empty() => {
                         TypeConstraintNode::ArithmeticDomain(domain)
                     }

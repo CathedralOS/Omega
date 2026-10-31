@@ -7,7 +7,7 @@ use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{ConformanceMember, Item, State};
+use syntax_trees::item::{ConformanceMember, Item, Machine, State};
 use tokens::{KeywordKind, PunctuationKind};
 
 /// `Name<binders> satisfies Trait<Args> { rows }`. The name identifies a
@@ -120,10 +120,7 @@ fn parse_conformance_members<'tokens, 'source>(
     Ok((members.finish(), input))
 }
 
-fn normalize_conformance_machine_entry(
-    syntax_trees: &mut SyntaxTrees,
-    machine: &mut syntax_trees::item::Machine,
-) {
+fn normalize_conformance_machine_entry(syntax_trees: &mut SyntaxTrees, machine: &mut Machine) {
     let requirement_name = machine.name.clone();
     let state_handles = syntax_trees.items.state_handles(machine.states).to_vec();
     if let Some(first) = state_handles.first().copied() {

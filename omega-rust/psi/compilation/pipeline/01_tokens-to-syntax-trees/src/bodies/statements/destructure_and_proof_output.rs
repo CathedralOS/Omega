@@ -215,14 +215,12 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
     rest = next
         .take_punctuation(PunctuationKind::Semicolon, ";")
         .ok()?;
-    let statement = stmts(syntax_trees).insert(
-        syntax_trees::statement::StatementNode::ProofOutputBindingStatement(
-            TableProofOutputBindingStatement {
-                bindings: bindings.into_boxed_slice(),
-                call,
-            },
-        ),
-    );
+    let statement = stmts(syntax_trees).insert(StatementNode::ProofOutputBindingStatement(
+        TableProofOutputBindingStatement {
+            bindings: bindings.into_boxed_slice(),
+            call,
+        },
+    ));
     let statement = items(syntax_trees).append_statement_handle(statement);
     Some((HandleSpan::from_parts(statement, 1), rest))
 }
