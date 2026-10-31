@@ -30,16 +30,14 @@ pub use terminal_installation::TerminalAccessViewEstablishment;
 
 use super::ArtifactLoweringError;
 use std::collections::BTreeSet;
+use terminal_installation::TerminalStructuralValue;
 use terminal_psi::{StructuralAccess, TerminalModule};
 
 const fn exclusive(access: StructuralAccess) -> bool {
     matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
 }
 
-fn referent_overlaps(
-    left: &terminal_installation::TerminalStructuralValue,
-    right: &terminal_installation::TerminalStructuralValue,
-) -> bool {
+fn referent_overlaps(left: &TerminalStructuralValue, right: &TerminalStructuralValue) -> bool {
     left.opaque_identity == right.opaque_identity
         && (left.path.starts_with(&right.path) || right.path.starts_with(&left.path))
 }
