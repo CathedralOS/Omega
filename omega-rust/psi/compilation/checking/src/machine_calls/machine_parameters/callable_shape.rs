@@ -83,19 +83,13 @@ pub(super) fn validate_selected_callable_shape(
                 "machine argument `{}` for `{generic_call}`",
                 actual_machine.name
             );
-            validate_callable_formation(
+            validate_applied_formation(
                 program,
                 &label,
                 parameter,
-                applied.required,
-                &CallableParts {
-                    lexical_owner: applied.lexical_owner,
-                    ..CallableParts::of_signature(program, applied.selected)
-                },
-                Some(&applied),
+                &applied,
                 generic_types,
                 bindings,
-                &mut CallableBinderScope::default(),
                 diagnostics,
             );
             return;
@@ -163,9 +157,62 @@ pub(super) fn validate_selected_callable_shape(
         return;
     }
 
+    // The applied view carries the complete supplied tuple over the original
+    // declaration. A retained constant recipe materializes no executable
+    // specialization, so the entry symbol of an applied callback such as
+    // `apply<witness<1>>` can name a state that no machine of the program holds.
+    // The view alone then decides formation, exactly as for a materialized
+    // entry.
+    if let Some(applied) = program.applied_machine_callable(
+        application,
+        ordinal,
+        selected_symbol,
+        parameter.symbol,
+        requirement,
+    ) {
+        let label = format!("machine argument `{selected_name}` for `{generic_call}`");
+        validate_applied_formation(
+            program,
+            &label,
+            parameter,
+            &applied,
+            generic_types,
+            bindings,
+            diagnostics,
+        );
+        return;
+    }
+
     diagnostics.push(Diagnostic::error(format!(
         "static machine argument `{selected_name}` does not name a callable machine entry or an in-scope machine parameter"
     )));
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_applied_formation(
+    program: &dyn crate::CheckingInput,
+    label: &str,
+    parameter: &TypeParameter,
+    applied: &AppliedMachineCallable<'_>,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_callable_formation(
+        program,
+        label,
+        parameter,
+        applied.required,
+        &CallableParts {
+            lexical_owner: applied.lexical_owner,
+            ..CallableParts::of_signature(program, applied.selected)
+        },
+        Some(applied),
+        generic_types,
+        bindings,
+        &mut CallableBinderScope::default(),
+        diagnostics,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
