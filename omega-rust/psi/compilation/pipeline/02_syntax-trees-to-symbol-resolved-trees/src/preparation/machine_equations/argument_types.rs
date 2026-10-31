@@ -19,7 +19,8 @@ use expression::ExpressionNode;
 use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
 use symbols::{SymbolHandle, SymbolKind};
-use syntax_trees::{SyntaxTrees, TypeReferenceHandle};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod projections;
 
@@ -211,7 +212,7 @@ fn expression_types<'trees>(
                 // nested declared structure and its custody; the new outer
                 // region is elided and ordinary loan checking admits access.
                 let referee = match syntax.type_references.type_reference(target) {
-                    syntax_trees::TypeReferenceNode::Reference { referee, .. } => *referee,
+                    TypeReferenceNode::Reference { referee, .. } => *referee,
                     _ => target,
                 };
                 let reference = syntax
