@@ -564,7 +564,7 @@ pub struct CheckingMemos {
                 symbols::SymbolHandle,
                 symbols::SymbolHandle,
                 u8,
-                Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>,
+                Vec<(symbols::SymbolHandle, crate::proof_contracts::arithmetic_domains::Interval)>,
             ),
             Option<(
                 crate::proof_contracts::arithmetic_domains::Interval,

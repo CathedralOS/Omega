@@ -48,6 +48,14 @@ impl IntegerSet {
         Some((self.ranges.first()?.0, self.ranges.last()?.1))
     }
 
+    /// The inclusive interval covering this set. A consequence may use this
+    /// hull, but it must recheck a predicate before treating the hull as that
+    /// predicate's complete envelope: gaps in the original set are filled.
+    pub(crate) fn interval_hull(&self) -> Option<Self> {
+        let (low, high) = self.bounds()?;
+        Some(Self::range(low, high))
+    }
+
     pub(crate) fn union(&self, other: &Self) -> Self {
         let mut ranges = self.ranges.clone();
         ranges.extend_from_slice(&other.ranges);
@@ -151,6 +159,10 @@ mod tests {
         // A hull is a consequence, not an equivalent predicate: it adds 1.
         assert!(!IntegerSet::range(0, 2).is_subset_of(&separated));
         assert!(separated.intersect(&IntegerSet::singleton(1)).is_empty());
+        let hull = separated.interval_hull().unwrap();
+        assert!(separated.is_subset_of(&hull));
+        assert!(IntegerSet::singleton(1).is_subset_of(&hull));
+        assert_eq!(IntegerSet::empty().interval_hull(), None);
         assert_eq!(
             IntegerSet::range(-1, 1).difference(&IntegerSet::singleton(0)),
             IntegerSet::singleton(-1).union(&IntegerSet::singleton(1))

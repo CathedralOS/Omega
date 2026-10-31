@@ -746,8 +746,8 @@ pub(crate) fn standing_field_elements(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ConsequenceShape {
     /// One inclusive interval per element of a fixed integer array.
-    Array(Vec<(i128, i128)>),
-    Integer((i128, i128)),
+    Array(Vec<IntegerSet>),
+    Integer(IntegerSet),
 }
 
 /// The consequence one data fact grants one of its argument fields.
@@ -807,29 +807,22 @@ pub(crate) fn data_fact_element_consequences(
     for (field, elements, is_array) in &consequences {
         let intervals = elements
             .iter()
-            .map(IntegerSet::bounds)
+            .map(IntegerSet::interval_hull)
             .collect::<Option<Vec<_>>>()?;
         rows.push(FieldConsequence {
             field: *field,
             elements: if *is_array {
                 ConsequenceShape::Array(intervals)
             } else {
-                ConsequenceShape::Integer(*intervals.first()?)
+                ConsequenceShape::Integer(intervals.first()?.clone())
             },
         });
     }
     let exact = data_fact_decided(program, definition, fact, &mut |field| {
         let row = rows.iter().find(|row| row.field == field.symbol)?;
         Some(match &row.elements {
-            ConsequenceShape::Array(intervals) => ArgumentKnowledge::Array(
-                intervals
-                    .iter()
-                    .map(|(low, high)| IntegerSet::range(*low, *high))
-                    .collect(),
-            ),
-            ConsequenceShape::Integer((low, high)) => {
-                ArgumentKnowledge::Integer(IntegerSet::range(*low, *high))
-            }
+            ConsequenceShape::Array(intervals) => ArgumentKnowledge::Array(intervals.clone()),
+            ConsequenceShape::Integer(interval) => ArgumentKnowledge::Integer(interval.clone()),
         })
     }) == Some(true);
     Some(FactConsequence {
