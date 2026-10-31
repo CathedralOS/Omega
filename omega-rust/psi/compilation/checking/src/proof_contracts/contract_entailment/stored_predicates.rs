@@ -11,6 +11,7 @@ use super::structural_judgment::StructuralJudgment;
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
 };
+use language_semantics::content::ContentPlaceVersion;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
@@ -105,10 +106,9 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
                 &mut place.segments,
                 field.symbol,
             );
-            if let Some(value) = judge.captured_place_projection(
-                &place,
-                language_semantics::content::ContentPlaceVersion::Current,
-            ) {
+            if let Some(value) =
+                judge.captured_place_projection(&place, ContentPlaceVersion::Current)
+            {
                 parameters.push(StateParameter {
                     symbol: field.symbol,
                     name: field.name.clone(),
@@ -159,10 +159,7 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
                         &mut place.segments,
                         field.symbol,
                     );
-                    judge.captured_place_projection(
-                        &place,
-                        language_semantics::content::ContentPlaceVersion::Current,
-                    )
+                    judge.captured_place_projection(&place, ContentPlaceVersion::Current)
                 },
             );
             let Some(subject) = subject else {

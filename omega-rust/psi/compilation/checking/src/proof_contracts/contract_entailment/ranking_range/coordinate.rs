@@ -12,6 +12,7 @@ use super::{
     BTreeMap, Comparison, Engine, ExpressionHandle, Machine, Polynomial, RankingRangeState, State,
     exact_integer_parameter, projections,
 };
+use crate::CheckingInput;
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
 use typed_trees::signature::StateParameter;
@@ -31,7 +32,7 @@ impl CoordinateKind {
     /// produced length requires an exact named record.
     fn step_owner<'program>(
         self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         field: &'program DataField,
     ) -> Option<SymbolHandle> {
         match self {
@@ -54,7 +55,7 @@ impl CoordinateKind {
     /// Declared natural field views and ordinary numeric observations share
     /// projection identity, but only the former requires an Exact unsigned
     /// carrier. A count field is a stored value, not a natural ranking view.
-    fn leaf_admits(self, program: &dyn crate::CheckingInput, field: &DataField) -> bool {
+    fn leaf_admits(self, program: &dyn CheckingInput, field: &DataField) -> bool {
         match self {
             Self::Field => matches!(
                 exact_integer_parameter(program, field.type_reference),
@@ -103,7 +104,7 @@ impl<'program> Coordinate<'program> {
     /// under `kind`'s step-owner/leaf spec, then require the spelled hops to
     /// name the resolved fields.
     pub(super) fn resolve_member(
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         state: &State,
         expression: ExpressionHandle,
         kind: CoordinateKind,
@@ -120,7 +121,7 @@ impl<'program> Coordinate<'program> {
     }
 
     pub(super) fn for_parameter(
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         parameter: &'program StateParameter,
         chain: &[SymbolHandle],
         kind: CoordinateKind,
@@ -159,7 +160,7 @@ impl<'program> Coordinate<'program> {
     /// coordinate unchanged.
     pub(super) fn arrive_unless_at_entry(
         self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         state: &State,
         entry_parameters: &super::RankStateBindings,
         at_entry: bool,
@@ -182,7 +183,7 @@ impl<'program> Coordinate<'program> {
     /// the coordinate unchanged.
     pub(super) fn at_entry_arrival(
         self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         state: &State,
         entry_parameters: Option<&super::RankStateBindings>,
     ) -> Option<Self> {
@@ -204,7 +205,7 @@ impl<'program> Coordinate<'program> {
     /// this selected path admits the same kind of produced value.
     pub(super) fn at_arrival(
         &self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         arrival: RankingRangeState<'_>,
         entry_symbol: SymbolHandle,
     ) -> Option<Self> {
@@ -214,10 +215,7 @@ impl<'program> Coordinate<'program> {
         Self::at_coordinate(program, arrival.state, &destination, self.kind)
     }
 
-    pub(super) fn location(
-        &self,
-        program: &dyn crate::CheckingInput,
-    ) -> super::RankSubjectCoordinate {
+    pub(super) fn location(&self, program: &dyn CheckingInput) -> super::RankSubjectCoordinate {
         let mut path = Vec::new();
         for field in self.steps.iter().chain([&self.field]) {
             crate::value_custody::places::push_field_place_segments(
@@ -233,7 +231,7 @@ impl<'program> Coordinate<'program> {
     }
 
     pub(super) fn at_coordinate(
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         state: &State,
         coordinate: &super::RankSubjectCoordinate,
         kind: CoordinateKind,
@@ -264,7 +262,7 @@ impl<'program> Coordinate<'program> {
     /// coordinate.
     pub(super) fn through_carrier(
         &self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         carrier: &'program StateParameter,
         prefix: &[(SymbolHandle, &typed_trees::name::Identifier)],
     ) -> Option<Self> {
@@ -278,7 +276,7 @@ impl<'program> Coordinate<'program> {
     /// a different carriage, not this coordinate.
     pub(super) fn through_carrier_at(
         &self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         carrier: &'program StateParameter,
         prefix: &[(SymbolHandle, &typed_trees::name::Identifier)],
         expected: SymbolHandle,
@@ -307,7 +305,7 @@ impl<'program> Coordinate<'program> {
 /// A current-state projection absent from the chosen witness serves its own
 /// guards only and contributes no template substitution.
 pub(super) fn arrived_entry_coordinate(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     entries: &super::RankStateBindings,
     coordinate: &Coordinate<'_>,
 ) -> Option<super::RankSubjectCoordinate> {
@@ -339,7 +337,7 @@ pub(super) struct CoordinateSet<'program, F: CoordinateFamily<'program>> {
 pub(super) trait CoordinateFamily<'program> {
     /// The coordinate one authored projection expression names inside `scope`.
     fn resolve(
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         machine: &Machine,
         scope: &State,
         expression: ExpressionHandle,
@@ -356,7 +354,7 @@ pub(super) trait CoordinateFamily<'program> {
     /// The value this family's coordinate holds on arrival.
     #[allow(clippy::too_many_arguments)]
     fn arrived_actual(
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         machine: &Machine,
         state: &State,
         destination_state: &State,
@@ -368,7 +366,7 @@ pub(super) trait CoordinateFamily<'program> {
 
     /// The hypotheses one installed coordinate contributes.
     fn comparisons(
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         coordinate: &Coordinate<'program>,
     ) -> Vec<Comparison>;
 }
@@ -412,7 +410,7 @@ impl<'program, F: CoordinateFamily<'program>> CoordinateSet<'program, F> {
         }
     }
 
-    pub(super) fn comparisons(&self, program: &dyn crate::CheckingInput) -> Vec<Comparison> {
+    pub(super) fn comparisons(&self, program: &dyn CheckingInput) -> Vec<Comparison> {
         self.coordinates()
             .flat_map(|coordinate| F::comparisons(program, coordinate))
             .collect()
@@ -425,7 +423,7 @@ impl<'program, F: CoordinateFamily<'program>> CoordinateSet<'program, F> {
     /// state's arrival; the engine then binds the exact atom it names.
     pub(super) fn install(
         &mut self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         machine: &Machine,
         state: &State,
         root: &State,
@@ -469,7 +467,7 @@ impl<'program, F: CoordinateFamily<'program>> CoordinateSet<'program, F> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn substitute(
         &self,
-        program: &'program dyn crate::CheckingInput,
+        program: &'program dyn CheckingInput,
         machine: &Machine,
         state: &State,
         entry_parameters: Option<&super::RankStateBindings>,
