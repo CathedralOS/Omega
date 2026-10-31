@@ -1006,3 +1006,42 @@ and 70 respectively; their unchanged success transcripts are 158, 153, 164 and
 oracles, fresh project acceptance, and the original owner endpoints are the
 qualification obligations. Other hosted targets and the parent migration remain
 open.
+
+## Audited remaining CLI owner fields
+
+Eight further CLI customers retain fifteen original field intervals from
+`7a9a7b8287e6` as propositions on their original data owners:
+
+| Customer | Complete original `Main` bounds |
+| --- | --- |
+| `print_number` | Signed `i` in 0..=5. |
+| `rpn_calculator` | Signed `sp` and `pc` in 0..=16. |
+| `stack_calculator` | Signed `sp` in 0..=8. |
+| `luhn_checksum` | Signed `r` in -1..=10. |
+| `rule_30` | Signed `g` in 0..=16 and `i` in 0..=31. |
+| `mandelbrot` | Signed `x` in 0..=64; `y` and `k` in 0..=28. |
+| `mandelbrot_zoom` | Signed `frame` in 0..=12, `x` in 0..=48, `y` in 0..=22, `k` in 0..=40. |
+| `descriptor_walk` | Unsigned `descriptor_size <= 16`; its carrier supplies zero. |
+
+The upper endpoints include legal completed counts and one-past-end sentinels;
+Luhn's final -1 is legal storage too. These owner domains do not grant indexed
+access at the endpoint. Existing capacity, underflow, strict-index, ASCII and
+recast-footprint guards remain, and descriptor progress still independently
+requires a positive stride. No originally bare field gains a restriction.
+
+All 147 added terminal `block` acknowledgements follow existing close-prompt
+paths. The exit-only descriptor walk remains nonblocking. UTF-8 domain identities,
+array extents, arithmetic policies, float operations, palette selection, twelve
+clock waits and the descriptor's runtime-stride operation stay intact. Rule 30's
+center seed and clipping modulus are spelled `0x8000` and `0x8000_0000`; ASCII
+and ANSI byte literals also use equal-valued hex spellings.
+
+The source-derived acceptance oracles retain exits 0/35/35/70/0/0/0/50 and
+exact stdout lengths 138/163/162/161/612/1931/13099/0 bytes in table order.
+The fractal oracles preserve binary64 primitive-operation rounding, every row
+and all twelve ANSI-prefixed frames. The current three-byte decimal output
+carrier prints `150` without a hidden terminator; this batch does not restore
+an obsolete four-byte carrier. Native/Terminal agreement in working and fresh
+projects, original owner endpoints and fact-sensitive rejects qualify this
+cohort. Other hosts, GUI customers and the whole historical migration audit
+remain open.
