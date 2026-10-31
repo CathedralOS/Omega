@@ -48,6 +48,45 @@ scoped change: retain the command, revision, and evidence, and report them witho
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.
 
+### Merge validation budget
+
+Before starting a build, record a short plan in the PR or claim: the behavior
+changed, the smallest checks that establish it, reusable observations, and the
+expected build plus execution time. Choose by affected behavior, not by a
+growing list of every test added during the session. Capability-wide acceptance
+does not automatically become the suite for every complete progress PR.
+
+Routine merge validation should take minutes. If a planned run exceeds about
+15 minutes, or another repair expands the plan, reassess its scope before
+launching more work. Include compilation cost: seven seconds of selected tests
+can still require a 25-minute build. Reuse a verified warm producer, select the
+affected crate/fixtures, or use an existing hosted check where it establishes
+the required behavior. A genuinely necessary slow check can run; state which
+changed obligation requires it. This checkpoint introduces no permission gate
+and never turns an unexecuted check into a pass.
+
+Full Product compilation, self-hosting, bootstrap reconstruction, broad runtime
+cohorts and release qualification are not routine progress-PR prerequisites.
+Run them for an explicitly assigned acceptance that needs them. Unfiltered
+workspace/corpus/full-baseline runs remain user-triggered only, as required by
+[AGENTS.md](../AGENTS.md#commands). Discovering a compiler performance problem
+during an additional run does not automatically attach that repair and another
+complete validation chain to an independently complete PR. Record its actual
+failure and remaining work separately; preserve affected-behavior failures as
+blockers and continue the parent capability after landing the completed step.
+
+Once the scoped checks and any required review pass, push, update the PR, and
+use the [normal merge queue](landing.md). Do not add more suites, rebuild an
+unchanged producer, or create nested reviews of scripts/manifests merely to
+increase confidence. Required semantic review examines the changed meaning and
+relevant controls; it does not restart every earlier review. Keep the actual
+revision, command and outcome in the existing PR/claim rather than building an
+ad hoc qualification framework. Report pending or failed extended validation
+honestly without describing the whole compiler or release as qualified.
+
+The [PR #730 retrospective](../wiki/drafts/measurements/merge_validation_2026_10_31/README.md)
+records the cost and failure pattern behind this rule.
+
 ### Exact fixtures on a hosted pilot
 
 The existing `Compiler queue pilot` manual dispatch accepts a comma-separated
@@ -202,7 +241,7 @@ reason to reuse or rerun. Keep raw outcomes with their actual observed revision.
 
 ### Main-change validation
 
-Qualify the outcome on a fixed recorded revision, with source/oracle hashes,
+Record scoped evidence on a fixed revision, with source/oracle hashes,
 compiler binary identity and producer revision, toolchain, target and relevant
 environment/resources. Keep frozen expected results and refusal controls intact.
 Keep the initial base fixed through publication. A changed main or queue SHA
@@ -210,14 +249,17 @@ alone does not trigger pull, rebase, rebuild, requalification or review. Only a
 demonstrated actual merge conflict, concrete prerequisite or changed affected
 source justifies targeted local work and reassessment against recorded inputs.
 
-Use the executable [pinned qualification runner](qualification.md) to capture
-reviewed dependency identities and measured checks on that revision. Keep the
-checkpoint fixed through publication; `assess`/`run-pending` uses that recorded
-base. After justified source integration, assess only the actual changed closure.
-Qualification records source evidence; GitHub owns integration admission, while
-the original observation SHA remains visible when evidence is reused. Immutable
-producer artifacts and complete reviewed closures are required; file replacement
-during capture invalidates evidence even when the validator exits successfully.
+When pinned qualification is explicitly requested, or the assigned release or
+trust-boundary outcome requires it, use the executable
+[pinned qualification runner](qualification.md) to capture dependency identities
+and measured checks. An ordinary progress PR needs its scoped evidence and
+normal queue CI; it does not need a new qualification plan or packet. For a
+qualification assignment, keep the checkpoint fixed through publication;
+`assess`/`run-pending` uses that recorded base. After justified source integration,
+assess only the changed closure. Preserve original observation identities when
+reusing evidence. Immutable producers and complete reviewed closures remain
+required within a qualification capture; file replacement during capture
+invalidates it even when the validator exits successfully.
 
 - Resolve ordinary Git text conflicts while preserving both outcomes' intent.
   Unrelated changes do not require repeating unaffected checks.
