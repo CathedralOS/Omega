@@ -264,7 +264,33 @@ pub(crate) fn recognize_structural_case_arms<'a>(
                 )
             })
             .unwrap_or_else(|| "none".to_owned());
-        eprintln!("[walk] case_arms machine={} site={}", machine.name, site);
+        static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let driver = format!("{:?}", std::backtrace::Backtrace::force_capture());
+        if COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 400 {
+            eprintln!("[bt]\n{}", driver);
+        }
+        let driver = driver
+            .split("fn: \"")
+            .skip(1)
+            .filter_map(|segment| {
+                let name = segment.split('"').next()?;
+                (name.starts_with("validation::")
+                    && !name.contains("structural_case_arms")
+                    && !name.contains("structural_prefix"))
+                .then(|| {
+                    name.trim_start_matches("validation::")
+                        .split("::")
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                })
+            })
+            .next()
+            .unwrap_or_else(|| "?".to_owned());
+        eprintln!(
+            "[walk] case_arms machine={} site={} via={}",
+            machine.name, site, driver
+        );
     }
     let states = program.machine_states(machine);
     let root = states.first()?;
@@ -321,9 +347,29 @@ pub(super) fn recognize_structural_state_prefix<'a>(
         )
         .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
         .unwrap_or_else(|| format!("{:?}", site.state));
+        let driver = format!("{:?}", std::backtrace::Backtrace::force_capture());
+        let driver = driver
+            .split("fn: \"")
+            .skip(1)
+            .filter_map(|segment| {
+                let name = segment.split('"').next()?;
+                (name.starts_with("validation::")
+                    && !name.contains("structural_case_arms")
+                    && !name.contains("structural_prefix"))
+                .then(|| {
+                    name.trim_start_matches("validation::")
+                        .split("::")
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                })
+            })
+            .next()
+            .unwrap_or_else(|| "?".to_owned());
         eprintln!(
-            "[walk] prefix machine={} site={}.{}.{}",
-            machine.name, state_name, site.statement_index, site.in_transition_target
+            "[walk] prefix machine={} site={}.{}.{} via={}",
+            machine.name, state_name, site.statement_index, site.in_transition_target,
+            driver
         );
     }
     let parameters = program.state_parameters(state);
@@ -2048,11 +2094,12 @@ fn recognize_structural_state_leaves_from<'a>(
                                 format!("{:?}", term.semantic_value()).hash(&mut env_hash);
                             }
                             eprintln!(
-                                "[envhash] depth={} state={:?} env={:016x} judge={:016x}",
+                                "[envhash] depth={} state={:?} env={:016x} judge={:016x} {}",
                                 path.len(),
                                 target_state.symbol,
                                 env_hash.finish(),
                                 captured.path_fingerprint(),
+                                captured.field_size_report(),
                             );
                         }
                         if let Some(observer) = requirement.as_deref_mut() {

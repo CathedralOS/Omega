@@ -685,6 +685,26 @@ impl<'program> StructuralJudge<'program> {
         hash.finish()
     }
 
+    /// Field sizes of the effect-bearing vectors, for the OMEGA_PATH_COUNT
+    /// memory investigation only.
+    pub(super) fn field_size_report(&self) -> String {
+        format!(
+            "results={} captures={} memberships={} stored={} guarantees={} diseq={} case={} subst={} equations={} invalidated={} bodies={} content={}",
+            self.normal_results.len(),
+            self.completed_nominal_captures.len(),
+            self.normal_memberships.len(),
+            self.stored_values.len(),
+            self.normal_guarantees.len(),
+            self.disequalities.len(),
+            self.case_facts.len(),
+            self.substitutions.len(),
+            self.captured_result_equations.len(),
+            self.invalidated_storage.len(),
+            self.body_invocations.len(),
+            self.normal_content_guarantees.len(),
+        )
+    }
+
     /// True when `self` has performed no storage writes and added no call
     /// guarantees, memberships, content equations, or case facts since `base`.
     pub(super) fn has_no_new_effects_or_guarantees_since(&self, base: &Self) -> bool {
