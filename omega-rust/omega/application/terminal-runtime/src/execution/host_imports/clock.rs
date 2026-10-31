@@ -349,11 +349,7 @@ impl TerminalEffectHandler for ClockImport {
         }
     }
 
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "clock imports require result-aware dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("clock imports require result-aware dispatch");
 
     fn handle_effect_result(
         &mut self,

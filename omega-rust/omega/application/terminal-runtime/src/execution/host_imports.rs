@@ -21,6 +21,20 @@ macro_rules! import_signature_via_clone {
     };
 }
 
+/// Every buffer-aware adapter refuses a bare effect the same way: its exact
+/// dispatch needs the result and storage the constructor admitted it for. One
+/// row per adapter names its own refusal, so each keeps its own vocabulary.
+macro_rules! handle_effect_requires_dispatch {
+    ($message:literal) => {
+        handle_effect_requires_dispatch!(TerminalEffectRejection::new($message));
+    };
+    ($rejection:expr) => {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Err($rejection)
+        }
+    };
+}
+
 mod absolute_value;
 mod affine_transform;
 mod allocation;

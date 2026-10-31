@@ -120,11 +120,7 @@ impl TerminalImportAdapter for NetworkAddressImport {
 }
 
 impl TerminalEffectHandler for NetworkAddressImport {
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "inet operation requires an authenticated typed result",
-        ))
-    }
+    handle_effect_requires_dispatch!("inet operation requires an authenticated typed result");
 
     fn handle_effect_result(
         &mut self,

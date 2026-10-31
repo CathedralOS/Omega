@@ -49,11 +49,7 @@ impl IntegerDivisionImport {
 import_signature_via_clone!(IntegerDivisionImport);
 
 impl TerminalEffectHandler for IntegerDivisionImport {
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "lldiv requires result-aware dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("lldiv requires result-aware dispatch");
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,

@@ -196,11 +196,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
             },
         }
     }
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "descriptor I/O requires authenticated buffer dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("descriptor I/O requires authenticated buffer dispatch");
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,

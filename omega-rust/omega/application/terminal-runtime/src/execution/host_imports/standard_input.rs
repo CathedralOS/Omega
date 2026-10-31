@@ -99,11 +99,7 @@ impl<'input> ReadByteImport<'input> {
 import_signature_via_clone!(ReadByteImport<'_>);
 
 impl TerminalEffectHandler for ReadByteImport<'_> {
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "stdin import requires result-aware dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("stdin import requires result-aware dispatch");
 
     fn handle_effect_result(
         &mut self,

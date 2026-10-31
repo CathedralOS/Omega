@@ -142,11 +142,7 @@ impl TerminalEffectHandler for AllocationImport {
         }
     }
 
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "allocation operation requires exact typed dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("allocation operation requires exact typed dispatch");
 
     fn handle_effect_with_buffers(
         &mut self,

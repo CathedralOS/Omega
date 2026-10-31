@@ -141,11 +141,7 @@ impl TerminalEffectHandler for AbsoluteValueImport {
         }
     }
 
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "abs requires exact typed result dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("abs requires exact typed result dispatch");
 
     fn handle_effect_with_buffers(
         &mut self,

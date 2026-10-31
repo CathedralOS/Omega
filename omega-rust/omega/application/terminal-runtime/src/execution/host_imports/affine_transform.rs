@@ -62,11 +62,7 @@ impl AffineTransformImport {
 import_signature_via_clone!(AffineTransformImport);
 
 impl TerminalEffectHandler for AffineTransformImport {
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "affine construction requires result-aware dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("affine construction requires result-aware dispatch");
 
     fn handle_effect_result(
         &mut self,

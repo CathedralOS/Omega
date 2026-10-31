@@ -105,11 +105,7 @@ impl TerminalImportAdapter for DescriptorModeImport {
 }
 
 impl TerminalEffectHandler for DescriptorModeImport {
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "descriptor mode requires authenticated scalar dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!("descriptor mode requires authenticated scalar dispatch");
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,

@@ -456,11 +456,9 @@ impl TerminalEffectHandler for NativeImport<'_> {
         self.references.capture(requests);
         Ok(backings)
     }
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(rejection(
-            "native import requires complete result and storage dispatch",
-        ))
-    }
+    handle_effect_requires_dispatch!(rejection(
+        "native import requires complete result and storage dispatch"
+    ));
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,

@@ -99,9 +99,7 @@ impl NumericImport {
 import_signature_via_clone!(NumericImport);
 
 impl TerminalEffectHandler for NumericImport {
-    fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(rejected("numeric import requires result-aware dispatch"))
-    }
+    handle_effect_requires_dispatch!(rejected("numeric import requires result-aware dispatch"));
 
     fn handle_effect_result(
         &mut self,

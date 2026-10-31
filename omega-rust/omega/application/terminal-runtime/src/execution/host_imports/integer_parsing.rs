@@ -197,11 +197,7 @@ impl TerminalEffectHandler for IntegerParsingImport {
         }
     }
 
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        Err(TerminalEffectRejection::new(
-            "strtol needs captured storage and typed completion",
-        ))
-    }
+    handle_effect_requires_dispatch!("strtol needs captured storage and typed completion");
 
     fn handle_effect_with_buffers(
         &mut self,
