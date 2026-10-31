@@ -5,7 +5,7 @@
 use super::{Engine, Polynomial};
 use crate::frozen_program::expression_table;
 use numerics::arithmetic::ArithmeticDomain;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::PrimitiveType;
 
 impl Engine<'_> {
@@ -74,6 +74,12 @@ fn formed_value(
     }
     match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => formed_value(engine, program, atomic.value, depth + 1),
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
+            let operand = formed_value(engine, program, unary.operand, depth + 1)?;
+            let reference = engine.source_result_type(expression)?;
+            let primitive = program.primitive_type_reference(reference)?;
+            engine.admit_integer_complement(primitive, &operand)
+        }
         ExpressionNode::Cast(cast)
             if !cast.form.is_recast()
                 && cast.domain == ArithmeticDomain::Exact

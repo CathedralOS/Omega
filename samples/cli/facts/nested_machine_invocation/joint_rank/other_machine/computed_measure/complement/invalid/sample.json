@@ -1,5 +1,6 @@
 {
-  "mode": "reject",
+  "role": "intended-invalid",
+  "entry": "main.omg",
   "rejection_contains": [
     "preserving cycle has no strict measure DECREASE"
   ]
