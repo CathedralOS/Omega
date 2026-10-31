@@ -13,6 +13,8 @@ use super::super::{
 use super::{
     OptimizationUnitValidationError, OptimizerCycleComponentSnapshot, PsiOptimizationUnit,
 };
+use optimization_unit::OptimizationBlock;
+use optimization_unit::OptimizationNode;
 mod invariant_constants;
 
 pub(super) fn derive(
@@ -203,17 +205,11 @@ fn derive_from_header(
     })
 }
 
-fn block(
-    function: &PsiOptimizationFunction,
-    id: BlockId,
-) -> Option<&optimization_unit::OptimizationBlock> {
+fn block(function: &PsiOptimizationFunction, id: BlockId) -> Option<&OptimizationBlock> {
     function.block(id)
 }
 
-fn scalar_node(
-    block: &optimization_unit::OptimizationBlock,
-    value: ValueId,
-) -> Option<&optimization_unit::OptimizationNode> {
+fn scalar_node(block: &OptimizationBlock, value: ValueId) -> Option<&OptimizationNode> {
     block.nodes.iter().find(|node| {
         node.definitions
             .iter()
