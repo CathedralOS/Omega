@@ -1,0 +1,55 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Remaining { canary: u64; count: u64; tail: u64; }
+data Token { seal: u64; }
+data Proof {}
+machine rank(value: u64) -> u64
+terminates
+requires value <= 7
+ensures result == value * 2
+{ value * 2 }
+measure Remaining::Doubled(value: u64) -> u64 {
+    match value < 4 { true -> rank(value) + 3 false -> rank(value) + 4 }
+}
+machine count(witness [erased]: Proof, counter: &mut u64, remaining: Remaining, token: Token, tag [erased]: u64) crashes Trap
+terminates
+terminates by remaining.count -> Remaining::Doubled in 3..=18
+requires remaining.count <= 7 && tag == 19
+{
+    transition remaining.count > 0 {
+        true -> forward(witness, remaining, token, counter, tag)
+        false -> finish(remaining.count, remaining.canary, remaining.tail, token.seal)
+    }
+    machine forward(witness [erased]: Proof, pending: Remaining, token: Token, counter: &mut u64, tag [erased]: u64) crashes Trap
+    terminates
+    terminates by pending.count -> Remaining::Doubled in 3..=18
+    requires pending.count > 0 && pending.count <= 7 && tag == 19
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        let next: Remaining = Remaining { canary: pending.canary, count: pending.count - 1, tail: pending.tail };
+        transition { _ -> count(witness, counter, next, token, tag) }
+    }
+    machine finish(value: u64, canary: u64, tail: u64, seal: u64) crashes Trap {
+        transition value == 0 && canary == 641 && tail == 967 && seal == 827 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine perform(counter: &mut u64, select: bool) crashes Trap {
+    let remaining: Remaining = match select {
+        true -> Remaining { canary: 641, count: 7, tail: 967 }
+        false -> Remaining { canary: 641, count: 0, tail: 967 }
+    };
+    count(Proof {}, counter, remaining, Token { seal: 827 }, 18);
+}
+machine main() crashes Trap {
+    let mut counted: u64 = 3;
+    perform(&mut counted, true);
+    let matched: bool = counted == 10;
+    perform(&mut counted, false);
+    transition matched && counted == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

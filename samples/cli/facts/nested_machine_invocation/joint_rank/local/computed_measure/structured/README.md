@@ -36,6 +36,9 @@ nonmonotone descent, a partial subject, and branch-local callee requirements.
 - Soundness: callee Requires forms before importing Ensures; invalid subject,
   branch-requirement and guarded-arithmetic controls retain their refusals.
   Shared proof-work exhaustion declines a query, never discards a feasible arm.
+  The supplementary owned-ingress program carries an unrelated owned token,
+  erased proof input and erased scalar requirement through the prelude; its
+  twin changes only the erased actual from 19 to 18 and fails the Requires.
 - Psi lowering: ordinary retained scalar control selects the arm and completes
   its calls. A one-shot invocation prelude observes the initial rank; every
   cyclic arrival passes its completed rank through an explicit private header
