@@ -24,6 +24,8 @@ fail/contracts/case_requirement_referent_selector_changed rejected 593ms expecte
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:80:package:3884cf29bbc499ae23326de981390bca3ecfd1be16754dcea9e4ae6adb248f3b::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @89d5d2d7655c
 	cannot prove requires contract for specification call `only_nonzero` in data `Gated` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
+fail/domains/case_payload_widened_call_result_rejected rejected 1637ms expected @34e2f4e01441+wt
+	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
 	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
@@ -2699,6 +2701,7 @@ pass/domains/carried_runtime_index_payload_qualification checked 2760ms check-ta
 pass/domains/case_payload_call_restore_exit checked 11230ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/case_payload_guarded_domain_exit checked 3726ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/case_payload_predicate_domain_member_exit checked 16634ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/case_payload_widened_call_result_exit checked 4937ms check-target:macos_arm64 @34e2f4e01441+wt
 pass/domains/chained_tagged_reference_moves_exit checked 4071ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/copied_array_domain_survives_original_mutation_exit checked 2252ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/dependent_coordinate_sum_rational_bound checked 2918ms @ccdb99ca2214

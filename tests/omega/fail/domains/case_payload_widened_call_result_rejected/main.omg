@@ -1,0 +1,41 @@
+// A completed u8 call result widened into an i32 case payload is bounded
+// only by the call's 0..=255 range.
+// The u8 range does not prove a 254 upper bound.
+use omega::language::core::numeric_conversion;
+
+data ByteRead
+    requires (self in ByteRead::Eof) || ((self in ByteRead::Byte) && (self.value >= 0 && self.value <= 254))
+{
+    case Eof;
+    case Byte(value: i32);
+}
+
+machine read(cell: i32) -> ByteRead {
+    transition cell >= 0 {
+        true -> byte(cell)
+        _ -> end()
+    }
+
+    machine byte(cell: i32) -> ByteRead {
+        let value: u8 = narrow_i32_to_u8_wrapping(cell);
+        ByteRead::Byte { value: value as i32 }
+    }
+
+    machine end() -> ByteRead { ByteRead::Eof }
+}
+
+machine payload(read: ByteRead) -> i32 {
+    transition read {
+        ByteRead::Byte { value } -> value
+        _ -> 1000
+    }
+}
+
+machine main() crashes Trap {
+    transition payload(read(300)) == 44 && payload(read(-1)) == 1000 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
