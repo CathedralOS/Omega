@@ -14,7 +14,7 @@ use crate::values::TerminalStructuralValue;
 use super::AggregateViewTip;
 use terminal_semantics::{
     observed_field_declaration, record_field_carrier, reference_storage_byte_width,
-    reference_storage_size, static_field_projection,
+    reference_storage_region, reference_storage_size, static_field_projection,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -79,8 +79,7 @@ pub(crate) fn translate_aggregate_view_path(
     if !view.fits(types, backing) {
         return None;
     }
-    let selected =
-        terminal_semantics::reference_storage_region(types.values(), view.structural_type, path)?;
+    let selected = reference_storage_region(types.values(), view.structural_type, path)?;
     if selected.byte_offset.checked_add(selected.byte_length)? > view.byte_length {
         return None;
     }
@@ -239,7 +238,7 @@ fn collect_scalar_fragments(
         }
         return Some(());
     }
-    let region = terminal_semantics::reference_storage_region(types.values(), root, path)?;
+    let region = reference_storage_region(types.values(), root, path)?;
     let region_start = region.byte_offset.checked_mul(8)?;
     let region_end = region
         .byte_offset
@@ -262,12 +261,12 @@ fn collect_scalar_fragments(
             length: terminal_psi::ArrayExtent::Literal(length),
         } if *length != 0 => {
             path.push(StructuralPathSegment::FixedIndex(0));
-            let first = terminal_semantics::reference_storage_region(types.values(), root, path)?;
+            let first = reference_storage_region(types.values(), root, path)?;
             let stride = if *length == 1 {
                 first.byte_length
             } else {
                 *path.last_mut()? = StructuralPathSegment::FixedIndex(1);
-                terminal_semantics::reference_storage_region(types.values(), root, path)?
+                reference_storage_region(types.values(), root, path)?
                     .byte_offset
                     .checked_sub(first.byte_offset)?
             };

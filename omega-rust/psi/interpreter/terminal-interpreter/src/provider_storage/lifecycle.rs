@@ -12,7 +12,7 @@
 
 use super::initialization::{InitializationRejection, PreparedProviderImage};
 use super::{ProviderStorageSlot, ResidentStorageSlot};
-use crate::custody::bind_result_claim;
+use crate::custody::{bind_result_claim, projected_ownership_claims};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{TerminalExecution, operation_kind};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -340,8 +340,7 @@ impl TerminalExecution<'_> {
             storage.stage(self, source, &child, &destination, transfers)?;
             child.append_memberships(&destination_path, &mut value.projected_qualifications);
 
-            let source_claims =
-                crate::custody::projected_ownership_claims(&self.live_claims, source)?;
+            let source_claims = projected_ownership_claims(&self.live_claims, source)?;
             for (identity, claim) in &source_claims {
                 let mut path = destination_path.clone();
                 path.extend_from_slice(&claim.path);

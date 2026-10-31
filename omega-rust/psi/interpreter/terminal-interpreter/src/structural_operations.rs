@@ -17,7 +17,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution, dispatched_operation, operation_kind};
 use crate::primitive_storage::PrimitiveStorageEndpoint;
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
-use crate::reference::AggregateViewTip;
+use crate::reference::{AggregateViewTip, translate_aggregate_view_field};
 use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
@@ -25,8 +25,8 @@ use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, ScalarType,
-    StructuralDomainId,
+    CanonicalStructuralPathSegment, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType,
+    IntegerValue, ScalarType, StructuralDomainId,
 };
 use terminal_psi::{
     ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
@@ -34,8 +34,8 @@ use terminal_psi::{
     StructuralTypeShape, find_structural_case, nonlinear_multiplicity_pair_pattern,
 };
 use terminal_semantics::{
-    byte_carrier_scalar_layout, is_copyable_carrier, observed_field_declaration,
-    record_field_carrier, scalar_array_leaf_shape,
+    ZeroedStructuralLeaf, byte_carrier_scalar_layout, is_copyable_carrier,
+    observed_field_declaration, record_field_carrier, scalar_array_leaf_shape,
 };
 
 impl TerminalExecution<'_> {
@@ -445,12 +445,8 @@ impl TerminalExecution<'_> {
                 }),
                 ScalarType::IeeeFloat(format) => {
                     Some(TerminalScalarValue::IeeeFloat(match format {
-                        semantic_vocabulary::IeeeFloatFormat::Binary32 => {
-                            semantic_vocabulary::IeeeFloatValue::Binary32(0)
-                        }
-                        semantic_vocabulary::IeeeFloatFormat::Binary64 => {
-                            semantic_vocabulary::IeeeFloatValue::Binary64(0)
-                        }
+                        IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
+                        IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
                     }))
                 }
             }
@@ -469,7 +465,7 @@ impl TerminalExecution<'_> {
                 path
             };
             match leaf {
-                terminal_semantics::ZeroedStructuralLeaf::RecordField {
+                ZeroedStructuralLeaf::RecordField {
                     path: _,
                     field,
                     scalar_type,
@@ -482,7 +478,7 @@ impl TerminalExecution<'_> {
                     self.structural_scalar_fields
                         .insert(cell, zero(*scalar_type).ok_or_else(malformed)?)?;
                 }
-                terminal_semantics::ZeroedStructuralLeaf::ByteSequenceField { field, .. } => {
+                ZeroedStructuralLeaf::ByteSequenceField { field, .. } => {
                     self.structural_byte_sequence_fields.insert(
                         StructuralByteSequenceRuntimeField {
                             parent: StructuralRuntimePlace {
@@ -497,7 +493,7 @@ impl TerminalExecution<'_> {
                         )),
                     )?;
                 }
-                terminal_semantics::ZeroedStructuralLeaf::CaseField {
+                ZeroedStructuralLeaf::CaseField {
                     path: _,
                     field,
                     scalar_type,
@@ -512,9 +508,8 @@ impl TerminalExecution<'_> {
                         zero(*scalar_type).ok_or_else(malformed)?,
                     )?;
                 }
-                terminal_semantics::ZeroedStructuralLeaf::EmptyScalarArray {
-                    structural_type,
-                    ..
+                ZeroedStructuralLeaf::EmptyScalarArray {
+                    structural_type, ..
                 } => {
                     self.empty_array_storage.establish(
                         &self.program.structural_types(),
@@ -525,7 +520,7 @@ impl TerminalExecution<'_> {
                         *structural_type,
                     )?;
                 }
-                terminal_semantics::ZeroedStructuralLeaf::ByteArray { length, .. } => {
+                ZeroedStructuralLeaf::ByteArray { length, .. } => {
                     // Byte views and scalar indexing must share one backing.
                     // Storing these bytes as separate scalar cells would make
                     // writes through a borrowed byte view invisible to the owner.
@@ -547,7 +542,7 @@ impl TerminalExecution<'_> {
                         )?;
                     }
                 }
-                terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. } => {
+                ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. } => {
                     self.structural_primitive_storage.insert(
                         StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,
@@ -556,7 +551,7 @@ impl TerminalExecution<'_> {
                         zero(*scalar_type).ok_or_else(malformed)?,
                     )?;
                 }
-                terminal_semantics::ZeroedStructuralLeaf::SumSelection {
+                ZeroedStructuralLeaf::SumSelection {
                     path: _,
                     structural_type,
                     case,
@@ -1952,15 +1947,14 @@ impl TerminalExecution<'_> {
             Some(AggregateViewTip::Aggregate { view, backing })
                 if backing == structural_value.structural_type =>
             {
-                let (backing_path, backing_field) =
-                    crate::reference::translate_aggregate_view_field(
-                        &self.structural_types(),
-                        view,
-                        backing,
-                        path,
-                        field,
-                    )
-                    .ok_or_else(malformed)?;
+                let (backing_path, backing_field) = translate_aggregate_view_field(
+                    &self.structural_types(),
+                    view,
+                    backing,
+                    path,
+                    field,
+                )
+                .ok_or_else(malformed)?;
                 translated = backing_path;
                 (translated.as_slice(), backing_field)
             }

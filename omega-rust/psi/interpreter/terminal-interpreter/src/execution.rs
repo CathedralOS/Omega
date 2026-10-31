@@ -16,10 +16,10 @@ use crate::effects::{
     AdmittedAssumedBinding, TerminalEffect, TerminalEffectHandler, TerminalRuntimeSupplies,
 };
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::instance::ComponentBindings;
+use crate::instance::{ComponentBindings, TerminalProcessExitAdmission};
 use crate::program::ProgramDeclarations;
 use crate::provider_storage::RuntimeProviderStorage;
-use crate::reference::AggregateBacking;
+use crate::reference::{AggregateBacking, ReferenceReferent};
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::runtime_rows::RuntimeRows;
@@ -122,8 +122,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) original_storage_roots:
         RuntimeRows<StructuralRuntimePlace, OriginalStorageAllocation>,
     pub(crate) original_byte_cells: RuntimeRows<(u64, usize), OriginalByteCell>,
-    pub(crate) reference_referents:
-        RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
+    pub(crate) reference_referents: RuntimeRows<StructuralRuntimePlace, ReferenceReferent>,
     /// Homes whose bindings have retired may still supply a live descriptor's
     /// backing. These candidates are global housekeeping, never retention roots
     /// or ownership evidence; revisit them after later descriptor releases.
@@ -202,8 +201,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) crash: Option<TerminalCrash>,
     pub(crate) external_completion: Option<crate::results::TerminalExternalCompletion>,
     pub(crate) external_demands: Vec<crate::capabilities::TerminalExternalCompletionDemand>,
-    pub(crate) external_bindings:
-        BTreeMap<BoundaryMachineId, crate::instance::TerminalProcessExitAdmission>,
+    pub(crate) external_bindings: BTreeMap<BoundaryMachineId, TerminalProcessExitAdmission>,
     pub(crate) process_domain: Option<std::sync::Arc<crate::instance::SimulatedProcessDomain>>,
     /// Host-established erased occurrence custody, separate from initialized
     /// data storage and retained through abandonment without discharge.

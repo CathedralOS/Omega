@@ -10,8 +10,8 @@ use semantic_vocabulary::{
 };
 use std::collections::BTreeMap;
 use terminal_psi::{
-    Operation, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, field_by_identity,
+    Operation, StructuralAccess, StructuralFieldDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, field_by_identity,
 };
 
 /// Runtime contents retain nominal type independently of the observing view.
@@ -51,13 +51,8 @@ impl TerminalExecution<'_> {
         parent_type: StructuralTypeId,
         parent: &StructuralRuntimePlace,
         case: Option<StructuralCaseId>,
-    ) -> Result<
-        (
-            &[terminal_psi::StructuralFieldDeclaration],
-            StructuralFieldNamespace,
-        ),
-        TerminalInterpretError,
-    > {
+    ) -> Result<(&[StructuralFieldDeclaration], StructuralFieldNamespace), TerminalInterpretError>
+    {
         let declaration = self.structural_declaration(parent_type)?;
         if let Some(case) = case {
             let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
