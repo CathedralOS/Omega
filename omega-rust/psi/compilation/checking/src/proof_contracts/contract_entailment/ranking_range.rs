@@ -1296,7 +1296,7 @@ fn prove_edge(
             parameter,
             body,
             ..
-        } => computed_rank(program, machine, &mut engine, subject, parameter, body)?,
+        } => computed_rank(program, &mut engine, subject, parameter, body)?,
         RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
         RankingRangeMeasure::SliceLength(subject) => match &slice_rank {
             // A slice reached through a member chain reads its projected
@@ -1668,21 +1668,29 @@ pub(super) fn hypothesis_landed_endpoints(
 
 pub(super) fn computed_rank(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     engine: &mut Engine<'_>,
     subject: ExpressionHandle,
     parameter: symbols::SymbolHandle,
     body: ExpressionHandle,
 ) -> Option<Polynomial> {
-    let subject = engine.normalize(subject)?;
-    let body = identity_views::computed_measure_polynomial(program, machine, parameter, body)?;
-    inductive_judgment::apply_argument_map(
-        &body,
-        &BTreeMap::from([(
-            identity_views::COMPUTATION_PARAMETER_ATOM.to_owned(),
-            subject,
-        )]),
-    )
+    let input = engine.normalize(subject)?;
+    let owner = program.symbols.get(parameter).parent;
+    let declaration = program
+        .measures()
+        .iter()
+        .find(|definition| definition.symbol == owner)?;
+    if declaration.parameter.as_ref()?.symbol != parameter
+        || program
+            .expression_table
+            .expression_handles(declaration.body)
+            != [body]
+    {
+        return None;
+    }
+    // Classification can normalize a polynomial to select an order. An actual
+    // application must additionally form every operation under these exact
+    // caller facts before its produced rank may participate in a proof.
+    engine.form_declared_integer_application(owner, &input)
 }
 
 /// The greatest value of an unsigned carrier, as the formation ceiling of a

@@ -3,6 +3,7 @@ use super::{
     SymbolHandle, proof_nat_cast,
 };
 use crate::proof_integer_expression;
+mod application_formation;
 #[cfg(test)]
 mod difference_constraint_tests;
 mod difference_matrix;

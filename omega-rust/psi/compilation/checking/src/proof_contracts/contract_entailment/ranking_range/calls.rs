@@ -343,7 +343,7 @@ pub(crate) fn prove_ranking_range_call(
             None => length_coordinate(program, entry, subject, &length_bindings)?,
         },
         RankingRangeMeasure::Field { .. } => field_ranks.as_ref()?.value()?,
-        _ => rank_coordinate(program, caller.machine, &mut engine, source_measure)?,
+        _ => rank_coordinate(program, &mut engine, source_measure)?,
     };
     let view_bound = match source_measure {
         RankingRangeMeasure::IncreasingTo { limit, .. }
@@ -581,7 +581,7 @@ pub(crate) fn prove_ranking_range_call(
     }
     let next_rank = match captured_destination_rank {
         Some(rank) => rank,
-        None => rank_coordinate(program, caller.machine, &mut engine, destination_measure)?,
+        None => rank_coordinate(program, &mut engine, destination_measure)?,
     };
     let pinned_view_bound = match (view_bound, destination_measure) {
         (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. })
@@ -989,7 +989,6 @@ fn forms_in_carrier(engine: &Engine<'_>, measure: RankingRangeMeasure, rank: &Po
 
 pub(super) fn rank_coordinate(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     engine: &mut Engine<'_>,
     measure: RankingRangeMeasure,
 ) -> Option<Polynomial> {
@@ -1000,7 +999,7 @@ pub(super) fn rank_coordinate(
             parameter,
             body,
             ..
-        } => super::computed_rank(program, machine, engine, subject, parameter, body),
+        } => super::computed_rank(program, engine, subject, parameter, body),
         // Keep the raw coordinate polynomial; the call-owned membership and
         // comparison predicates interpret its max(0,d) normalization.
         RankingRangeMeasure::IncreasingTo { subject, limit } => {

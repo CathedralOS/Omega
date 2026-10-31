@@ -157,8 +157,9 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    computed or nonscalar declared views or dependent distances without ambient
-    parent entry facts).
+    authored computed measures over indexed storage, non-polynomial or
+    non-monotone declared bodies, nonscalar orders, or dependent distances
+    without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
