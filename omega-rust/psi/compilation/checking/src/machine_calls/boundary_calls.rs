@@ -3,15 +3,14 @@
 //! This check uses declarations and checked flow only. Selected providers,
 //! target mechanisms and receiver permissions are separate Omega obligations.
 
+use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 /// Validate checked call coordinates and require every called boundary
 /// capability to name one exact authored declaration. This does not select a
 /// provider or grant native execution authority.
-pub fn validate_boundary_calls(
-    checked: &checked_trees::CheckedTrees,
-) -> Result<(), Vec<Diagnostic>> {
+pub fn validate_boundary_calls(checked: &CheckedTrees) -> Result<(), Vec<Diagnostic>> {
     let program = &checked.typed;
     let calls = checked_boundary_call_coordinates(checked)?;
     let approved = approved_boundary_traits(program);
@@ -89,7 +88,7 @@ struct BoundaryCallCoordinate {
 }
 
 fn checked_boundary_call_coordinates(
-    checked: &checked_trees::CheckedTrees,
+    checked: &CheckedTrees,
 ) -> Result<Vec<BoundaryCallCoordinate>, Vec<Diagnostic>> {
     let program = &checked.typed;
     let flow = &checked.facts.flow.control;

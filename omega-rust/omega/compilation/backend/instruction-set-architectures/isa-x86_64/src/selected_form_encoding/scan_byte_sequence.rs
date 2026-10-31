@@ -11,8 +11,8 @@
 //! compare rather than a table).
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect, RegisterViewId,
-    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::instruction_bytes::{
@@ -727,13 +727,8 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 5], X86_64SelectedFormEncodingError> {
-    let registers = byte_loop_registers::<5>(
-        physical,
-        alternative,
-        MachineAlternativeFamily::ScanByteSequence,
-        operands,
-        2,
-    )?;
+    let registers =
+        byte_loop_registers::<5>(physical, alternative, Family::ScanByteSequence, operands, 2)?;
     // `rsp` cannot encode the SIB index or the disp8 LEA base the loop uses,
     // so the cursor and byte scratch may never land there, and the form holds
     // one zero displacement.
@@ -745,16 +740,16 @@ fn request(
 
 #[cfg(test)]
 mod tests {
-    use super::super::SelectedInstructionKind;
+    use super::super::SelectedInstructionKind as Kind;
     use super::super::tests::{
         assert_byte_loop_catalog_contract,
         assert_loop_form_round_trips_and_rejects_every_changed_bit,
     };
-    use super::{MachineAlternativeFamily, MachineAlternativeKey, encode, validate};
+    use super::{Family, MachineAlternativeKey, encode, validate};
     use selected_instructions::ByteSequencePredicate;
 
-    fn kind(predicate: ByteSequencePredicate) -> SelectedInstructionKind {
-        SelectedInstructionKind::ScanByteSequence { predicate }
+    fn kind(predicate: ByteSequencePredicate) -> Kind {
+        Kind::ScanByteSequence { predicate }
     }
 
     #[test]
@@ -776,7 +771,7 @@ mod tests {
         )
         .unwrap();
         let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::ScanByteSequence,
+            family: Family::ScanByteSequence,
             variant: 0,
         };
         for predicate in ByteSequencePredicate::ALL {

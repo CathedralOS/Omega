@@ -3,10 +3,12 @@
 use crate::parser::parse_syntax_trees;
 use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::{
     MathematicalDefinitionBody, MathematicalTypeHandle, MathematicalTypeNode, TypeParameterKind,
 };
+use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 
 fn parse(source: &str) -> SyntaxTrees {
@@ -51,10 +53,7 @@ fn render_type(parsed: &SyntaxTrees, handle: MathematicalTypeHandle) -> String {
     }
 }
 
-fn render_expression(
-    parsed: &SyntaxTrees,
-    handle: syntax_trees::expression::ExpressionHandle,
-) -> String {
+fn render_expression(parsed: &SyntaxTrees, handle: ExpressionHandle) -> String {
     match parsed.expressions.expression(handle) {
         ExpressionNode::Name(path) => parsed
             .expressions
@@ -67,10 +66,7 @@ fn render_expression(
     }
 }
 
-fn render_type_reference(
-    parsed: &SyntaxTrees,
-    handle: syntax_trees::types::TypeReferenceHandle,
-) -> String {
+fn render_type_reference(parsed: &SyntaxTrees, handle: TypeReferenceHandle) -> String {
     match parsed.type_references.type_reference(handle) {
         TypeReferenceNode::Named(name) => name.as_str(parsed).to_owned(),
         TypeReferenceNode::Generic {

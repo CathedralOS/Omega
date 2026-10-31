@@ -5,6 +5,8 @@ use super::{
     CompletionOccurrence, Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation,
     allocate_dense, lookup_type_id, place_id, unsupported,
 };
+use crate::emission::operation_emission::view_subslice::ViewFamily;
+use crate::expression_preparation::bindings::StructuralLocalBinding;
 use crate::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use crate::unit::attached_unit::view_ranges;
@@ -32,12 +34,8 @@ impl Emission<'_, '_, '_> {
             match terminal_psi::find_structural_type(self.structural_types, self.structural_type)
                 .map(|declaration| &declaration.shape)
             {
-                Some(StructuralTypeShape::ByteSequence(_)) => {
-                    crate::emission::operation_emission::view_subslice::ViewFamily::Bytes
-                }
-                Some(StructuralTypeShape::ElementView { .. }) => {
-                    crate::emission::operation_emission::view_subslice::ViewFamily::Elements
-                }
+                Some(StructuralTypeShape::ByteSequence(_)) => ViewFamily::Bytes,
+                Some(StructuralTypeShape::ElementView { .. }) => ViewFamily::Elements,
                 _ => return unsupported("subslice value has no view descriptor carrier"),
             };
         // The shared child owner completes this exact source before endpoints,
@@ -50,14 +48,12 @@ impl Emission<'_, '_, '_> {
         };
         crate::expression_preparation::bindings::retain_completed_structural_homes(
             &mut self.evaluation.structural_locals,
-            &[
-                crate::expression_preparation::bindings::StructuralLocalBinding {
-                    result_binding_ordinal: None,
-                    root: facts::PlaceRoot::Expression(node.expression),
-                    argument: completed.argument.clone(),
-                    structural_type: source_type,
-                },
-            ],
+            &[StructuralLocalBinding {
+                result_binding_ordinal: None,
+                root: facts::PlaceRoot::Expression(node.expression),
+                argument: completed.argument.clone(),
+                structural_type: source_type,
+            }],
         )?;
         if !completed.claims.is_empty() {
             return unsupported("view descriptor unexpectedly carries an owned content claim");

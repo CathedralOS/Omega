@@ -390,7 +390,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
         context: &str,
     ) -> EvalResult<Vec<u8>> {
-        self.eval_byte_data_operand(expression, frame, context, context)
+        self.eval_byte_data_operand(expression, frame, context)
     }
 
     /// Update sealed-output custody from one completed filesystem attempt.

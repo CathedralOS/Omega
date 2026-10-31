@@ -5,6 +5,7 @@
 //! callee precondition assumption, or spelling-based predicate reconstruction
 //! can decide whether a post-mutation observation is current.
 use super::{ExpressionHandle, Machine, State, ValueEnvironment, ordered_values};
+use crate::CallFrameResolver;
 use crate::machine_calls::calls::CallSite;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
@@ -44,9 +45,7 @@ pub fn evaluated_call_requires_proven(
     let has_calls = arguments
         .iter()
         .any(|argument| crate::machine_calls::calls::expression_has_calls(program, *argument));
-    let frames = has_calls
-        .then(|| crate::CallFrameResolver::new(program))
-        .flatten();
+    let frames = has_calls.then(|| CallFrameResolver::new(program)).flatten();
     // Pure actuals preserve the exact occurrence environment prepared by the
     // shared arrival/effect walk. This transports predicate consequences and
     // saved values at ordinary calls as well as state edges; source entry

@@ -20,6 +20,7 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::name::Identifier;
 
 #[derive(Clone, Copy)]
@@ -181,11 +182,9 @@ fn project_type_parameters_inner(
     let mut projected = Vec::with_capacity(parameters.len());
     for parameter in parameters {
         let kind = match &parameter.kind {
-            typed_trees::data::TypeParameterKind::Type => PackageReviewTypeParameterKind::Type,
-            typed_trees::data::TypeParameterKind::Implementation => {
-                PackageReviewTypeParameterKind::Implementation
-            }
-            typed_trees::data::TypeParameterKind::Const { type_reference } => {
+            TypeParameterKind::Type => PackageReviewTypeParameterKind::Type,
+            TypeParameterKind::Implementation => PackageReviewTypeParameterKind::Implementation,
+            TypeParameterKind::Const { type_reference } => {
                 PackageReviewTypeParameterKind::Const(projection.value_type(
                     typed,
                     compilation,
@@ -194,7 +193,7 @@ fn project_type_parameters_inner(
                     lifetime_binders,
                 )?)
             }
-            typed_trees::data::TypeParameterKind::Value { type_reference } => {
+            TypeParameterKind::Value { type_reference } => {
                 PackageReviewTypeParameterKind::Value(projection.value_type(
                     typed,
                     compilation,
@@ -203,7 +202,7 @@ fn project_type_parameters_inner(
                     lifetime_binders,
                 )?)
             }
-            typed_trees::data::TypeParameterKind::Machine { contract } => {
+            TypeParameterKind::Machine { contract } => {
                 PackageReviewTypeParameterKind::Machine(project_machine_parameter_contract_inner(
                     typed,
                     compilation,
@@ -218,7 +217,7 @@ fn project_type_parameters_inner(
                     projection,
                 )?)
             }
-            typed_trees::data::TypeParameterKind::Proposition { contract } => {
+            TypeParameterKind::Proposition { contract } => {
                 let mut projected_parameters = Vec::new();
                 for value_parameter in typed.state_parameters.span_or_empty(contract.parameters) {
                     projected_parameters.push(PackageReviewPropositionParameterValue {

@@ -19,6 +19,7 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, SignatureContractKind};
 use typed_trees::state::State;
 use typed_trees::statement::{AssemblyControlFlow, AssemblyExit, AssemblyFactKind};
+use validation::expression_traversal::collect_expression_tree;
 
 /// An obligation the normalization pass derives carries the provider's own fact
 /// roster; no authored keyword span or clause binding exists for it.
@@ -88,11 +89,7 @@ pub(super) fn append(
             continue;
         };
         let mut expressions = Vec::new();
-        validation::expression_traversal::collect_expression_tree(
-            program,
-            *expression_root,
-            &mut expressions,
-        );
+        collect_expression_tree(program, *expression_root, &mut expressions);
         let mut observes_capture = false;
         let mut escapes_frame = false;
         for expression in expressions {

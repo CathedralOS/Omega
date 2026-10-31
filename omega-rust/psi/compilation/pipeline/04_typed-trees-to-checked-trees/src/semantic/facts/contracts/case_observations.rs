@@ -8,6 +8,10 @@
 //! contexts keep payload promises and whole-value snapshots from extending or
 //! shortening the discriminator lifetime; dynamic selectors remain dependencies.
 
+use super::places::contract_expression_place;
+use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::semantic::facts::append_observation_context;
+use crate::semantic::places::instantiate_call_contract_expression_place;
 use checked_trees::{
     ContractCallFact, ContractProofFact, ContractProofFactKind, ContractProofFactOwner,
 };
@@ -56,25 +60,20 @@ pub(super) fn append_result(
         {
             continue;
         }
-        let Some(place) = crate::semantic::places::instantiate_call_contract_expression_place(
-            program,
-            facts,
-            call,
-            subject_expression,
-        ) else {
+        let Some(place) =
+            instantiate_call_contract_expression_place(program, facts, call, subject_expression)
+        else {
             continue;
         };
         let dependencies: Vec<_> = selector_occurrences(program, subject_expression)
             .into_iter()
             .map(|expression| {
-                crate::semantic::places::instantiate_call_contract_expression_place(
-                    program, facts, call, expression,
-                )
-                .map(FactPlace::Place)
-                .unwrap_or(FactPlace::Unknown)
+                instantiate_call_contract_expression_place(program, facts, call, expression)
+                    .map(FactPlace::Place)
+                    .unwrap_or(FactPlace::Unknown)
             })
             .collect();
-        crate::semantic::facts::append_observation_context(
+        append_observation_context(
             facts,
             Fact {
                 place: FactPlace::Place(place),
@@ -137,22 +136,19 @@ pub(super) fn append_requirement(
         return;
     };
     for (expression, variant) in selected_cases(program, machine, state, contract) {
-        let Some(place) =
-            super::places::contract_expression_place(program, proof, facts, contract, expression)
+        let Some(place) = contract_expression_place(program, proof, facts, contract, expression)
         else {
             continue;
         };
         let dependencies: Vec<_> = selector_occurrences(program, expression)
             .into_iter()
             .map(|expression| {
-                super::places::contract_expression_place(
-                    program, proof, facts, contract, expression,
-                )
-                .map(FactPlace::Place)
-                .unwrap_or(FactPlace::Unknown)
+                contract_expression_place(program, proof, facts, contract, expression)
+                    .map(FactPlace::Place)
+                    .unwrap_or(FactPlace::Unknown)
             })
             .collect();
-        crate::semantic::facts::append_observation_context(
+        append_observation_context(
             facts,
             Fact {
                 place: FactPlace::Place(place),
@@ -220,11 +216,7 @@ fn selector_occurrences(
     subject: typed_trees::expression::ExpressionHandle,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        subject,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, subject, &mut occurrences);
     occurrences.retain(|occurrence| *occurrence != subject);
     occurrences
 }

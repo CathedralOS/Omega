@@ -3,6 +3,7 @@
 //! element contributes to the hull; a missing element contributes its carrier.
 //! These consequences do not grant initialization, index formation or access.
 
+use super::scalar::structural_fields::resolve_structural_path;
 use crate::facts::boolean_predicates::{self, BoundPredicate};
 use facts::{FactContextHandle, FactPlan, IntegerRange, PlaceSegment, ProgramPoint};
 use symbols::SymbolHandle;
@@ -78,13 +79,9 @@ impl<'a> CurrentIntegerBounds<'a> {
         *budget = budget.checked_sub(1)?;
         let Some((step, tail)) = steps.split_first() else {
             let (segments, selected, _) =
-                super::scalar::structural_fields::resolve_structural_path(
-                    self.program,
-                    reference,
-                    mutable,
-                    path,
-                    &mut |_, _| Some(()),
-                )?;
+                resolve_structural_path(self.program, reference, mutable, path, &mut |_, _| {
+                    Some(())
+                })?;
             if self.program.primitive_type_reference(selected) != Some(primitive) {
                 return None;
             }
@@ -105,7 +102,7 @@ impl<'a> CurrentIntegerBounds<'a> {
                 result
             }
             IntegerReadStep::Index(selector) => {
-                let (segments, _, _) = super::scalar::structural_fields::resolve_structural_path(
+                let (segments, _, _) = resolve_structural_path(
                     self.program,
                     reference,
                     mutable,

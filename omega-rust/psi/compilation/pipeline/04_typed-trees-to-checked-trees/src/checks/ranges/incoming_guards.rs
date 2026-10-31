@@ -14,7 +14,7 @@ use super::guards::{seed_guard_facts, seed_negated_guard_facts};
 /// Field-write survival and parameter place transport are separate from the
 /// immutable scalar transport required to reuse an integer ordering premise.
 #[derive(Clone)]
-pub(in crate::checks) struct IncomingGuard {
+pub(in super::super) struct IncomingGuard {
     state: SymbolHandle,
     evaluation_state: SymbolHandle,
     guard: ExpressionHandle,
@@ -79,7 +79,7 @@ impl IncomingGuardIndexCache {
 }
 
 impl IncomingGuardIndex {
-    pub(in crate::checks) fn build(
+    pub(in super::super) fn build(
         program: &dyn ::validation::CheckingInput,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Self {
@@ -101,7 +101,7 @@ impl IncomingGuardIndex {
         }
     }
 
-    pub(in crate::checks) fn for_machine(&self, machine: SymbolHandle) -> &[IncomingGuard] {
+    pub(in super::super) fn for_machine(&self, machine: SymbolHandle) -> &[IncomingGuard] {
         self.machines
             .iter()
             .find_map(|(symbol, guards)| (*symbol == machine).then_some(guards.as_slice()))
@@ -110,25 +110,25 @@ impl IncomingGuardIndex {
 }
 
 impl IncomingGuard {
-    pub(in crate::checks) fn applies_at(&self, state: SymbolHandle) -> bool {
+    pub(in super::super) fn applies_at(&self, state: SymbolHandle) -> bool {
         self.state == state
     }
 
-    pub(in crate::checks) fn holds_at(&self, state: SymbolHandle) -> bool {
+    pub(in super::super) fn holds_at(&self, state: SymbolHandle) -> bool {
         self.state == state && !self.negated
     }
 
-    pub(in crate::checks) fn guard(&self) -> ExpressionHandle {
+    pub(in super::super) fn guard(&self) -> ExpressionHandle {
         self.guard
     }
 
-    pub(in crate::checks) fn evaluation_state(&self) -> SymbolHandle {
+    pub(in super::super) fn evaluation_state(&self) -> SymbolHandle {
         self.evaluation_state
     }
 
     /// The source guard's scalar value corresponding to this entry parameter.
     /// Place identity alone cannot establish this relation after reassignment.
-    pub(in crate::checks) fn immutable_argument_symbol_for_parameter(
+    pub(in super::super) fn immutable_argument_symbol_for_parameter(
         &self,
         parameter: SymbolHandle,
     ) -> Option<SymbolHandle> {
@@ -137,17 +137,15 @@ impl IncomingGuard {
         symbol.is_valid().then_some(symbol)
     }
 
-    pub(in crate::checks) fn is_negated(&self) -> bool {
+    pub(in super::super) fn is_negated(&self) -> bool {
         self.negated
     }
 
-    pub(in crate::checks) fn direct_arguments(
-        &self,
-    ) -> Option<arena::HandleSpan<ExpressionHandle>> {
+    pub(in super::super) fn direct_arguments(&self) -> Option<arena::HandleSpan<ExpressionHandle>> {
         self.direct_arguments
     }
 
-    pub(in crate::checks) fn argument_place_for_parameter(
+    pub(in super::super) fn argument_place_for_parameter(
         &self,
         parameter: SymbolHandle,
     ) -> Option<&validation::CanonicalPlace> {
@@ -215,7 +213,7 @@ enum StateWrites {
 /// Building the shared call-frame resolver reconstructs the top-level symbol
 /// index, so batch consumers pass one in instead of paying that whole-program
 /// cost once per machine (or, in contract checking, once per call).
-pub(in crate::checks) fn collect_incoming_guard_facts(
+pub(in super::super) fn collect_incoming_guard_facts(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

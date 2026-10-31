@@ -50,6 +50,7 @@ use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::closed_name_identity;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
+use crate::preparation::generic_data::selected_data_item;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
     CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
@@ -59,13 +60,14 @@ use numerics::literals::{IntegerLiteral, IntegerRadix, LandedIntegerType};
 use source::SourceSpan;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ProofFact, TypeParameter, TypeParameterKind};
 use syntax_trees::types::{
     IntegerRangeNormalization, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use type_structure::collect_binder_mentions;
 
 mod type_structure;
 
@@ -76,7 +78,7 @@ pub(crate) fn type_reference_parameter_mentions(
 ) -> Vec<usize> {
     let mut mentions = Vec::new();
     if reference.is_valid() {
-        type_structure::collect_binder_mentions(syntax, reference, names, &mut mentions);
+        collect_binder_mentions(syntax, reference, names, &mut mentions);
     }
     mentions
 }
@@ -286,9 +288,7 @@ pub(crate) fn validate_materialized_type_equations(
     else {
         return Ok(());
     };
-    let Some(declaration) =
-        crate::preparation::generic_data::selected_data_item(syntax, selection, base_name)
-    else {
+    let Some(declaration) = selected_data_item(syntax, selection, base_name) else {
         return Ok(());
     };
     let Some(definition) = syntax.root_item(declaration).as_data() else {
@@ -377,12 +377,7 @@ impl Structure {
                 collect_expression_binder_mentions(syntax, *expression, parameters, &mut mentions);
             }
             Structure::TypeReference(reference) => {
-                type_structure::collect_binder_mentions(
-                    syntax,
-                    *reference,
-                    parameters,
-                    &mut mentions,
-                );
+                collect_binder_mentions(syntax, *reference, parameters, &mut mentions);
             }
             Structure::RangeShell {
                 carrier,
@@ -437,7 +432,7 @@ enum Side {
 }
 
 fn binder_index<'parameters>(
-    syntax_trees: &syntax_trees::SyntaxTrees,
+    syntax_trees: &SyntaxTrees,
     parameters: &'parameters [TypeParameter],
     name: &str,
 ) -> Option<(usize, &'parameters TypeParameterKind)> {
@@ -491,9 +486,7 @@ pub(crate) fn classify_type_equations(
                         vec![nested(binary.left)?, nested(binary.right)?],
                     ))
                 }
-                ExpressionNode::Unary(unary)
-                    if unary.operator == syntax_trees::expression::UnaryOperator::LogicalNot =>
-                {
+                ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                     Some((TypeBooleanOperator::Not, vec![nested(unary.operand)?]))
                 }
                 _ => None,
@@ -622,11 +615,7 @@ fn classify_side(
     }
 }
 
-fn describe_side(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    parameters: &[TypeParameter],
-    side: &Side,
-) -> String {
+fn describe_side(syntax_trees: &SyntaxTrees, parameters: &[TypeParameter], side: &Side) -> String {
     match side {
         Side::AmbiguousTypeOperand(_) => "a reference or slice operand".to_owned(),
         Side::TypeStructure(_) => "a type structure".to_owned(),
@@ -796,7 +785,7 @@ fn collect_expression_binder_mentions(
             }
         }
         ExpressionNode::TypeExpression(reference) => {
-            type_structure::collect_binder_mentions(syntax, *reference, parameters, mentions);
+            collect_binder_mentions(syntax, *reference, parameters, mentions);
         }
         ExpressionNode::Name(path) => {
             if let [member] = syntax.expressions.identifier_path_members(*path)
@@ -851,12 +840,7 @@ fn collect_static_argument_binder_mentions(
     mentions: &mut Vec<usize>,
 ) {
     if argument.type_reference.is_valid() {
-        type_structure::collect_binder_mentions(
-            syntax,
-            argument.type_reference,
-            parameters,
-            mentions,
-        );
+        collect_binder_mentions(syntax, argument.type_reference, parameters, mentions);
     }
     let name = match (&*argument.path, &argument.evidence_projection) {
         ([name], _) => Some(name),
@@ -941,7 +925,7 @@ pub(crate) fn complete_equation_arguments_with_types(
         );
         for &(formal, actual) in ordinary_types {
             let mut mentions = Vec::new();
-            type_structure::collect_binder_mentions(
+            collect_binder_mentions(
                 solver.syntax,
                 formal,
                 base_info.parameter_names,
@@ -1136,7 +1120,10 @@ impl<'a, 's> Solver<'a, 's> {
                     self.binder_name(owner)
                 )));
             }
-            if self.has_range_shell_equation(index) {
+            if self
+                .equations_defining(index)
+                .any(|structure| matches!(structure, Structure::RangeShell { .. }))
+            {
                 return Err(self.reject(format!(
                     "cannot construct type binder `{binder}` from its range-shell equation; supply the argument explicitly"
                 )));
@@ -1215,11 +1202,6 @@ impl<'a, 's> Solver<'a, 's> {
             })
     }
 
-    fn has_range_shell_equation(&self, binder: usize) -> bool {
-        self.equations_defining(binder)
-            .any(|structure| matches!(structure, Structure::RangeShell { .. }))
-    }
-
     /// Whether following `binder == structure` edges from `start` returns to
     /// `start`: the binder is defined through itself.
     fn defined_through_cycle(&self, start: usize) -> bool {
@@ -1288,7 +1270,8 @@ impl<'a, 's> Solver<'a, 's> {
                 span,
             } => {
                 if let Structure::Name { name, binder: None } = structure {
-                    self.require_closed_name_type(name, *span)?;
+                    validate_closed_name_type(self.syntax, self.selection, name)
+                        .map_err(|reason| self.reject(reason).with_source_span(*span))?;
                 }
                 if structure
                     .binder_mentions(self.syntax, self.base_info.parameter_names)
@@ -1412,15 +1395,6 @@ impl<'a, 's> Solver<'a, 's> {
             )
             .with_source_span(span)
         })
-    }
-
-    fn require_closed_name_type(
-        &self,
-        name: &Identifier,
-        span: SourceSpan,
-    ) -> Result<(), Diagnostic> {
-        validate_closed_name_type(self.syntax, self.selection, name)
-            .map_err(|reason| self.reject(reason).with_source_span(span))
     }
 
     /// The binder side is unbound: a closed name, an already bound type
@@ -1683,7 +1657,11 @@ impl<'a, 's> Solver<'a, 's> {
         for mention in mentions {
             match &self.bindings[mention] {
                 Some(Binding::Integer(value)) => {
-                    let Some(value) = integer_to_i128(value) else {
+                    let Some(value) = value
+                        .to_i64()
+                        .map(i128::from)
+                        .or_else(|| value.to_u64().map(i128::from))
+                    else {
                         return Err(self.reject(format!(
                             "where equation on `{binder_name}` cannot be decided: `{}` exceeds the endpoint evaluator's 64-bit envelope",
                             self.binder_name(mention)
@@ -2070,13 +2048,6 @@ impl<'a, 's> Solver<'a, 's> {
             }
         }
     }
-}
-
-fn integer_to_i128(value: &BigInt) -> Option<i128> {
-    value
-        .to_i64()
-        .map(i128::from)
-        .or_else(|| value.to_u64().map(i128::from))
 }
 
 /// Only already closed Boolean spelling or the shared canonical value atom.

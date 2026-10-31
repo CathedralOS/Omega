@@ -31,8 +31,7 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
-use typed_trees::types::PrimitiveType;
-use typed_trees::wire::WirePlacement;
+use typed_trees::wire::{WireEncodeOutputCapacityObligation, WirePlacement, WireScalarEncoding};
 
 mod policy_value;
 
@@ -43,15 +42,11 @@ const WIRE_GRAMMAR_POLICY: &str = "CompactBinary::plan";
 /// A schema field's shape fact, mirrored to the std `FieldKind` cases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FieldShape {
-    Scalar {
-        byte_size: u64,
-    },
+    Scalar { byte_size: u64 },
     Text,
     Nested,
     Repeated,
-    BorrowedScalarSlice {
-        element: typed_trees::wire::WireScalarEncoding,
-    },
+    BorrowedScalarSlice { element: WireScalarEncoding },
 }
 
 impl FieldShape {
@@ -63,10 +58,6 @@ impl FieldShape {
             Self::Repeated => "Repeated",
             Self::BorrowedScalarSlice { .. } => "Repeated",
         }
-    }
-
-    fn is_varint(self) -> bool {
-        matches!(self, Self::Scalar { .. })
     }
 }
 
@@ -104,7 +95,7 @@ pub(crate) fn compute_wire_plans_in(
             } else {
                 match typed.primitive_type_reference(field.type_reference) {
                     Some(primitive) => FieldShape::Scalar {
-                        byte_size: primitive_wire_size(primitive),
+                        byte_size: primitive.scalar_byte_size().unwrap_or(8) as u64,
                     },
                     // Not a scalar the codec can varint-encode: no plan for
                     // this schema (the selection's own blockers own the
@@ -140,7 +131,7 @@ pub(crate) fn compute_wire_plans_in(
             .iter()
             .map(|&(number, shape)| {
                 let tag = number;
-                if shape.is_varint() {
+                if matches!(shape, FieldShape::Scalar { .. }) {
                     WirePlacement::Varint { tag }
                 } else {
                     WirePlacement::LengthPrefixed { tag }
@@ -187,8 +178,7 @@ pub(crate) fn compute_wire_plans_in(
                     element,
                     length: typed_trees::wire::WireEncodeLengthObligation::RuntimeElementCount,
                     work: typed_trees::wire::WireEncodeWorkObligation::TwoPassesPerElement,
-                    output_capacity:
-                        typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
+                    output_capacity: WireEncodeOutputCapacityObligation::ExactPackedPayload,
                 })
             })
             .collect::<Vec<_>>();
@@ -199,12 +189,4 @@ pub(crate) fn compute_wire_plans_in(
         typed.record_wire_schema_plan(schema, placements, obligations, policy_verified);
     }
     Ok(())
-}
-
-/// The wire size fact for a scalar primitive (informational for the policy;
-/// varint encoding does not depend on it). Non-scalars report 8,
-/// preserving the prior `_ => 8` fallback. Sizes come from the single source of
-/// truth on `PrimitiveType`.
-fn primitive_wire_size(primitive: PrimitiveType) -> u64 {
-    primitive.scalar_byte_size().unwrap_or(8) as u64
 }

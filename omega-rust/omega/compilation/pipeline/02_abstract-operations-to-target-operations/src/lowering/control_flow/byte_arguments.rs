@@ -6,6 +6,9 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
+use crate::lowering::structural_layout::reference_projection_regions;
+use crate::lowering::structural_layout::runtime_storage_projection;
+use crate::lowering::structural_layout::structural_shape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
 use calling_conventions::ValueShape;
@@ -100,25 +103,15 @@ pub(super) fn shared_owner_view(
     // An element view crosses its backing pointer even without an explicit
     // Referent marker. This adapter stages a descriptor over contiguous owner
     // storage; crossing-aware call transport owns other address regions.
-    if !crate::lowering::structural_layout::reference_projection_regions(
-        root_type,
-        &argument.path,
-        types,
-    )
-    .ok_or(LoweringError::UnsupportedStructuralReference(root_type))?
-    .pointer_slots
-    .is_empty()
+    if !reference_projection_regions(root_type, &argument.path, types)
+        .ok_or(LoweringError::UnsupportedStructuralReference(root_type))?
+        .pointer_slots
+        .is_empty()
     {
         return Ok(None);
     }
     let (selected, _, offset, runs) =
-        crate::lowering::structural_layout::runtime_storage_projection(
-            root_type,
-            &argument.path,
-            types,
-            &mut shapes,
-            &mut active,
-        )?;
+        runtime_storage_projection(root_type, &argument.path, types, &mut shapes, &mut active)?;
     let Some(selected_shape) = selected.shape(types) else {
         return Ok(None);
     };
@@ -141,12 +134,7 @@ pub(super) fn shared_owner_view(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let root_shape = crate::lowering::structural_layout::structural_shape(
-        root_type,
-        types,
-        &mut shapes,
-        &mut active,
-    )?;
+    let root_shape = structural_shape(root_type, types, &mut shapes, &mut active)?;
     if !matches!(
         access,
         StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()

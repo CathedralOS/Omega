@@ -6,6 +6,9 @@
 //! happens to construct the referent must not supply an isolated callee's types.
 use super::*;
 use crate::checked_facts::value_facts;
+use crate::declarations::state_declaration;
+use crate::expression_preparation::computation_graph::reachable_nodes;
+use crate::expression_preparation::computation_graph::reachable_structural_values;
 use crate::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan as Source,
@@ -35,9 +38,7 @@ pub(super) fn collect<'plans>(
                 collect_scope(
                     checked,
                     plans,
-                    crate::declarations::state_declaration(checked, state.state)?
-                        .0
-                        .symbol,
+                    state_declaration(checked, state.state)?.0.symbol,
                     state.state,
                     &state.structural_parameters,
                     &state.operations,
@@ -128,20 +129,14 @@ fn collect_scope<'plans>(
     }
     let mut arguments = Vec::new();
     let values = &checked.facts.values.structural_values;
-    let value_roots =
-        crate::expression_preparation::computation_graph::reachable_structural_values(
-            checked, machine,
-        )?;
+    let value_roots = reachable_structural_values(checked, machine)?;
     let computations = &checked.facts.values.scalar_computations;
     for (_, root) in computations
         .roots
         .iter()
         .filter(|(_, root)| root.machine == machine && root.state == state)
     {
-        for handle in crate::expression_preparation::computation_graph::reachable_nodes(
-            checked,
-            &[root.root],
-        )? {
+        for handle in reachable_nodes(checked, &[root.root])? {
             use checked_trees::{
                 CheckedScalarComputationKind as Computation,
                 CheckedScalarComputationStructuralArgument as Argument,

@@ -5,7 +5,9 @@
 //! an opaque representation nor authorizes the resulting boundary crossing.
 
 mod opaque_representations;
+mod terminal_recipes;
 pub use opaque_representations::BoundaryOpaqueRepresentationUse;
+pub use terminal_recipes::TerminalBoundaryRecipes;
 #[cfg(test)]
 mod tests;
 

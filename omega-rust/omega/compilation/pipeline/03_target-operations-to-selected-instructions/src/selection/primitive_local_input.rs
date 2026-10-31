@@ -9,6 +9,12 @@
 use crate::selection::place_declaration::{
     arrivals, declares_block_parameter, declares_operation_result,
 };
+use crate::structural_inputs::structural_reference_input::{
+    PointerSlot, RuntimeElement, case_field_read, descriptor_source_geometry,
+    element_view_length_geometry, field_read, primitive_read_geometry, projected_byte_field,
+    projected_scalar_codec, projected_scalar_fragments, scalar_field_codec, scalar_field_fragments,
+    storage_address_geometry,
+};
 
 use calling_conventions::ValueShape;
 use legalized_operations::{
@@ -116,11 +122,7 @@ pub(super) fn read_storage_codec(
                 return runtime_abi::ScalarStorageCodec::from_scalar(scalar);
             }
             let root = projected_read_root(source, *place)?;
-            crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-                root,
-                path,
-                &signature.structural_types,
-            )
+            projected_scalar_codec(root, path, &signature.structural_types)
         }
         Instruction::StructuralScalarFieldRead {
             source: argument,
@@ -128,12 +130,7 @@ pub(super) fn read_storage_codec(
             case: None,
         } => {
             let root = projected_read_root(source, argument.place)?;
-            crate::structural_inputs::structural_reference_input::scalar_field_codec(
-                root,
-                &argument.path,
-                *field,
-                &signature.structural_types,
-            )
+            scalar_field_codec(root, &argument.path, *field, &signature.structural_types)
         }
         _ => runtime_abi::ScalarStorageCodec::from_scalar(scalar),
     }
@@ -153,11 +150,7 @@ pub(super) fn read_storage_fragments<'source>(
             ..
         } => {
             let root = projected_read_root(source, *place)?;
-            crate::structural_inputs::structural_reference_input::projected_scalar_fragments(
-                root,
-                path,
-                &signature.structural_types,
-            )
+            projected_scalar_fragments(root, path, &signature.structural_types)
         }
         Instruction::StructuralScalarFieldRead {
             source: argument,
@@ -165,12 +158,7 @@ pub(super) fn read_storage_fragments<'source>(
             case: None,
         } => {
             let root = projected_read_root(source, argument.place)?;
-            crate::structural_inputs::structural_reference_input::scalar_field_fragments(
-                root,
-                &argument.path,
-                *field,
-                &signature.structural_types,
-            )
+            scalar_field_fragments(root, &argument.path, *field, &signature.structural_types)
         }
         _ => None,
     }
@@ -181,7 +169,7 @@ pub(super) fn read_storage_fragments<'source>(
 fn length_count_matches(
     scalar: ScalarType,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
-    elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
+    elements: &[RuntimeElement],
 ) -> Option<()> {
     let count = ScalarType::Integer(
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -194,11 +182,7 @@ fn length_count_matches(
 pub(super) fn read_geometry(
     source: &LegalizedScalarFunction,
     row: &legalized_operations::LegalizedScalarInstruction,
-) -> Option<(
-    PlaceId,
-    u32,
-    Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
-)> {
+) -> Option<(PlaceId, u32, Vec<PointerSlot>)> {
     let scalar = row.result?.scalar_type;
     match &row.kind {
         Instruction::ByteSequenceLength {
@@ -209,11 +193,7 @@ pub(super) fn read_geometry(
             let signature = source.structural.as_ref()?;
             let root = super::reference_input::root_type(source, argument.place)?;
             let mut geometry =
-                crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
-                    root,
-                    &argument.path,
-                    &signature.structural_types,
-                )?;
+                descriptor_source_geometry(root, &argument.path, &signature.structural_types)?;
             let terminal_psi::StructuralTypeShape::ByteSequence(carrier) =
                 terminal_psi::find_structural_type(&signature.structural_types, geometry.selected)?
                     .shape
@@ -242,11 +222,7 @@ pub(super) fn read_geometry(
             let signature = source.structural.as_ref()?;
             let root = super::reference_input::root_type(source, argument.place)?;
             let geometry =
-                crate::structural_inputs::structural_reference_input::element_view_length_geometry(
-                    root,
-                    &argument.path,
-                    &signature.structural_types,
-                )?;
+                element_view_length_geometry(root, &argument.path, &signature.structural_types)?;
             length_count_matches(scalar, indices, &geometry.elements)?;
             Some((argument.place, geometry.byte_offset, geometry.pointer_slots))
         }
@@ -258,12 +234,7 @@ pub(super) fn read_geometry(
             let signature = source.structural.as_ref()?;
             let root = super::field_bytes::root_type(source, argument)?;
             let geometry =
-                crate::structural_inputs::structural_reference_input::projected_byte_field(
-                    root,
-                    &argument.path,
-                    *field,
-                    &signature.structural_types,
-                )?;
+                projected_byte_field(root, &argument.path, *field, &signature.structural_types)?;
             length_count_matches(scalar, indices, &geometry.elements)?;
             Some((
                 argument.place,
@@ -285,12 +256,7 @@ pub(super) fn read_geometry(
             }
             let signature = source.structural.as_ref()?;
             let root = super::reference_input::root_type(source, *place)?;
-            let geometry =
-                crate::structural_inputs::structural_reference_input::storage_address_geometry(
-                    root,
-                    path,
-                    &signature.structural_types,
-                )?;
+            let geometry = storage_address_geometry(root, path, &signature.structural_types)?;
             crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
                 .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
         }
@@ -325,13 +291,12 @@ pub(super) fn read_geometry(
                     }
                     parameter.structural_type
                 };
-            let geometry =
-                crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                    structural_type,
-                    path,
-                    scalar,
-                    &signature.structural_types,
-                )?;
+            let geometry = primitive_read_geometry(
+                structural_type,
+                path,
+                scalar,
+                &signature.structural_types,
+            )?;
             crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
                 .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
         }
@@ -393,7 +358,7 @@ pub(super) fn read_geometry(
             let (offset, _) = match &row.kind {
                 Instruction::StructuralScalarFieldRead {
                     case: Some(case), ..
-                } => crate::structural_inputs::structural_reference_input::case_field_read(
+                } => case_field_read(
                     structural_type,
                     path,
                     *case,
@@ -401,7 +366,7 @@ pub(super) fn read_geometry(
                     scalar,
                     &signature.structural_types,
                 )?,
-                _ => crate::structural_inputs::structural_reference_input::field_read(
+                _ => field_read(
                     structural_type,
                     path,
                     *field,

@@ -108,12 +108,7 @@ fn evaluated_row<'a>(
     requirement: SymbolHandle,
     realization: SymbolHandle,
 ) -> Result<Option<&'a EvaluatedViaBindingRow>, Vec<Diagnostic>> {
-    let machines = compilation
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == realization)
-        .collect::<Vec<_>>();
-    let [machine] = machines.as_slice() else {
+    let Some(machine) = compilation.exact_machine(realization) else {
         return Err(rejected("binding realization has no exact typed machine"));
     };
     let conformances = compilation
@@ -157,12 +152,7 @@ fn table_declaration(
     compilation: &PackageReviewInput<'_>,
     realization: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-    let machines = compilation
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == realization)
-        .collect::<Vec<_>>();
-    let [machine] = machines.as_slice() else {
+    let Some(machine) = compilation.exact_machine(realization) else {
         return Err(rejected("table binding has no exact realization machine"));
     };
     let tables = compilation

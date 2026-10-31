@@ -3,6 +3,7 @@
 //! Copying observes a value into new local storage, while a move retains the
 //! same backing. Target encodings and native pointers remain with the host.
 
+use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::{
     effects::TerminalEffectRejection,
     errors::{TerminalInterpretError, malformed},
@@ -87,9 +88,7 @@ impl ScalarCell {
                 let value = backing
                     .read()
                     .map_err(TerminalInterpretError::ResidentStorage)?;
-                if value.scalar_type() != *scalar_type
-                    || !crate::scalar_operations::terminal_scalar_belongs_to_type(value)
-                {
+                if value.scalar_type() != *scalar_type || !terminal_scalar_belongs_to_type(value) {
                     return Err(malformed());
                 }
                 Ok(value)
@@ -107,9 +106,7 @@ impl ScalarCell {
                 scalar_type,
                 backing,
             } => {
-                if value.scalar_type() != *scalar_type
-                    || !crate::scalar_operations::terminal_scalar_belongs_to_type(value)
-                {
+                if value.scalar_type() != *scalar_type || !terminal_scalar_belongs_to_type(value) {
                     return Err(malformed());
                 }
                 backing
@@ -287,6 +284,7 @@ impl<Key: Ord> ResidentReplacementWrites<Key> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use semantic_vocabulary::IntegerType;
     use std::cell::{Cell, RefCell};
 
     #[derive(Debug)]
@@ -311,11 +309,7 @@ mod tests {
     }
     fn word(value: u128) -> TerminalScalarValue {
         TerminalScalarValue::Integer {
-            scalar_type: semantic_vocabulary::IntegerType::new(
-                semantic_vocabulary::IntegerSign::Unsigned,
-                64,
-            )
-            .unwrap(),
+            scalar_type: IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).unwrap(),
             value: semantic_vocabulary::IntegerValue::Unsigned(value),
         }
     }

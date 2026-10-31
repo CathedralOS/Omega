@@ -7,12 +7,14 @@ use super::{
     machine_parameter_contract, machine_parameter_signature,
 };
 use crate::borrow_contracts::CallableBorrowContract;
+use crate::borrow_contracts::PreparedCallableBorrowRefinement;
 use crate::frozen_program::expression_table;
 use crate::machine_calls::effect_inference::full_parameter_invocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::machine::Machine;
+use typed_trees::signature::StateSignature;
 use typed_trees::signature::{SignatureContract, StateParameter};
 use typed_trees::state::State;
 use typed_trees::typed_trees::AppliedMachineCallable;
@@ -39,10 +41,7 @@ pub(super) struct CallableParts<'a> {
 impl<'a> CallableParts<'a> {
     /// The parts a state signature declares: a machine parameter's contract
     /// presents exactly what it authored.
-    fn of_signature(
-        program: &'a dyn crate::CheckingInput,
-        signature: &'a typed_trees::signature::StateSignature,
-    ) -> Self {
+    fn of_signature(program: &'a dyn crate::CheckingInput, signature: &'a StateSignature) -> Self {
         Self {
             lexical_owner: crate::borrow_contracts::lexical_region_owner(program, signature.symbol),
             contract_owner: signature.symbol,
@@ -62,7 +61,7 @@ pub(super) fn validate_selected_callable_shape(
     index: &MachineStateIndex,
     generic_call: &str,
     parameter: &TypeParameter,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &StateSignature,
     selected_symbol: SymbolHandle,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     ordinal: usize,
@@ -174,7 +173,7 @@ fn validate_callable_shape(
     program: &dyn crate::CheckingInput,
     generic_call: &str,
     parameter: &TypeParameter,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &StateSignature,
     actual_machine: &Machine,
     actual_state: &State,
     generic_types: &[&TypeParameter],
@@ -218,9 +217,9 @@ fn validate_callable_parts(
     program: &dyn crate::CheckingInput,
     label: &str,
     parameter: &TypeParameter,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &StateSignature,
     actual: &CallableParts<'_>,
-    actual_signature: &typed_trees::signature::StateSignature,
+    actual_signature: &StateSignature,
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
     binder_bindings: &mut CallableBinderScope,
@@ -259,7 +258,7 @@ fn validate_callable_formation(
     program: &dyn crate::CheckingInput,
     label: &str,
     parameter: &TypeParameter,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &StateSignature,
     actual: &CallableParts<'_>,
     applied: Option<&AppliedMachineCallable<'_>>,
     generic_types: &[&TypeParameter],
@@ -389,9 +388,7 @@ fn validate_callable_formation(
         &input_binders,
         &binder_bindings.lifetime_frames,
         |required, actual| {
-            let prepared = crate::borrow_contracts::PreparedCallableBorrowRefinement::prepare(
-                program, &required, &actual,
-            )?;
+            let prepared = PreparedCallableBorrowRefinement::prepare(program, &required, &actual)?;
             let frame = prepared.lifetime_frame(program, &required, &actual)?;
             Ok((prepared, frame))
         },
@@ -467,7 +464,7 @@ fn validate_callable_formation(
 
 fn with_callable_region_contracts<R>(
     program: &dyn crate::CheckingInput,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &StateSignature,
     actual: &CallableParts<'_>,
     applied: Option<&AppliedMachineCallable<'_>>,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -702,7 +699,7 @@ pub(super) fn validate_selected_callable_effects(
     invocations: &flow_effects::InvocationInferencePlan,
     label: &str,
     parameter: &TypeParameter,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &StateSignature,
     actual_machine: &Machine,
     actual_state: &State,
     diagnostics: &mut Vec<Diagnostic>,
@@ -748,7 +745,7 @@ fn validate_callable_effects(
     program: &dyn crate::CheckingInput,
     label: &str,
     parameter: &TypeParameter,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &StateSignature,
     actual_parameters: &[StateParameter],
     services: &[language_semantics::ServiceReachId],
     invocations: &[flow_effects::InvocationTarget],
@@ -886,7 +883,7 @@ fn validate_callable_type_parameters(
     program: &dyn crate::CheckingInput,
     label: &str,
     parameter: &TypeParameter,
-    requirement: &typed_trees::signature::StateSignature,
+    requirement: &StateSignature,
     actual_parameters: &[TypeParameter],
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,

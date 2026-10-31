@@ -6,7 +6,7 @@ use super::{
 use crate::execution::terminal_unit::types::{
     lent_storage_identity, state_flow, structural_access_for_type_reference,
 };
-use crate::flow::expressions;
+use crate::flow::{expressions, state_statements};
 use crate::places::place_at;
 
 use crate::execution::terminal_unit::calls;
@@ -151,10 +151,9 @@ pub(super) fn aliases(
         return Some(Vec::new());
     }
     let mut aliases = Vec::new();
-    for (statement_index, statement) in
-        crate::flow::state_statements(program, state.statement_nodes)
-            .iter()
-            .enumerate()
+    for (statement_index, statement) in state_statements(program, state.statement_nodes)
+        .iter()
+        .enumerate()
     {
         let Some(local) = statement.as_local_data() else {
             continue;

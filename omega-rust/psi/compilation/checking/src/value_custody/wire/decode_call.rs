@@ -1,6 +1,7 @@
 use super::value_fields::{
     CodecDirection, nested_schema_must_be_scalar_diagnostic, validate_value_argument_fields,
 };
+use crate::CheckingInput;
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -27,7 +28,7 @@ use typed_trees::wire::{WireField, WireSchema};
 /// re-resolves every place and an unresolved one surfaces as an
 /// emission-planning blocker.
 pub(super) fn validate_wire_decode_call(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     schema: &WireSchema,
     call: &typed_trees::statement::TableCall,
     current_machine: &typed_trees::machine::Machine,
@@ -219,10 +220,7 @@ pub(super) fn validate_wire_decode_call(
 /// The decode verdict contract: a data definition NAMED `WireVerdict` whose
 /// members are exactly the cases `Invalid` then `Sound` (declaration order is
 /// the tag order -- Invalid must be the ZII zero case).
-fn type_is_wire_verdict(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
+fn type_is_wire_verdict(program: &dyn CheckingInput, type_reference: TypeReferenceHandle) -> bool {
     let TypeReferenceNode::Named { name, .. } =
         program.type_reference_table.type_reference(type_reference)
     else {

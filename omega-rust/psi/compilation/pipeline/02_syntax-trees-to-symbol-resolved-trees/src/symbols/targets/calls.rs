@@ -26,6 +26,9 @@ pub(in crate::symbols) const SOURCE_CALL_KINDS: &[SymbolKind] = &[
 
 use crate::symbols::scope::MachineScope;
 use crate::symbols::type_references::call_target_for_type_reference;
+use symbol_resolved_trees::data::TypeParameterKind;
+use symbol_resolved_trees::expression::StaticMachineArgument;
+use symbol_resolved_trees::statement::Statement;
 
 pub(in crate::symbols) fn resolve_call_target_symbol(
     machine: &MachineScope<'_>,
@@ -45,9 +48,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                     .prior_statements
                     .iter()
                     .find_map(|statement| match statement {
-                        symbol_resolved_trees::statement::Statement::LocalData(local)
-                            if local.symbol == receiver_symbol =>
-                        {
+                        Statement::LocalData(local) if local.symbol == receiver_symbol => {
                             Some(&local.type_reference)
                         }
                         _ => None,
@@ -259,10 +260,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         .iter()
         .find(|parameter| {
             parameter.name.as_str() == target.as_str()
-                && matches!(
-                    parameter.kind,
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-                )
+                && matches!(parameter.kind, TypeParameterKind::Machine { .. })
         })
         .map(|parameter| parameter.symbol)
         .unwrap_or_else(|| {
@@ -456,7 +454,7 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
     symbols: &SymbolTable,
     scope_symbol: SymbolHandle,
     lexical_parameters: &[symbol_resolved_trees::data::TypeParameter],
-    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+    argument: &mut StaticMachineArgument,
     proof_static: bool,
 ) {
     if argument.type_reference.is_valid()
@@ -497,7 +495,7 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
 pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
     symbols: &SymbolTable,
     state_symbol: SymbolHandle,
-    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+    argument: &mut StaticMachineArgument,
 ) {
     if argument.type_reference.is_valid()
         || argument.symbol.is_valid()
@@ -547,7 +545,7 @@ pub(in crate::symbols) fn assign_call_machine_argument_symbols(
     state_symbol: SymbolHandle,
     target: &symbol_resolved_trees::name::DiagnosticName,
     target_symbol: SymbolHandle,
-    machine_arguments: &mut [symbol_resolved_trees::expression::StaticMachineArgument],
+    machine_arguments: &mut [StaticMachineArgument],
 ) {
     let operand_route = build_operand_route(target.as_str(), target_symbol);
     let proof_static = proof_static_call_target(symbols, target_symbol);
@@ -631,9 +629,7 @@ pub(in crate::symbols) fn build_operand_route(
 /// A bound selection argument (already carrying a type reference, evidence,
 /// const, or application payload) takes no symbol; unbound ones render their
 /// qualified path for name resolution.
-fn selection_argument_rendered_path(
-    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
-) -> Option<String> {
+fn selection_argument_rendered_path(argument: &mut StaticMachineArgument) -> Option<String> {
     if argument.type_reference.is_valid()
         || argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
@@ -649,7 +645,7 @@ fn selection_argument_rendered_path(
 /// source reference still gates visibility of the found descendant.
 fn descendant_selection_symbol(
     symbols: &SymbolTable,
-    argument: &symbol_resolved_trees::expression::StaticMachineArgument,
+    argument: &StaticMachineArgument,
     kinds: &[SymbolKind],
 ) -> SymbolHandle {
     let reference = argument.path.last().map(|name| name.source_span());
@@ -673,7 +669,7 @@ fn descendant_selection_symbol(
 /// Harvesting validates the resolved declaration after typed lowering.
 pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     symbols: &SymbolTable,
-    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+    argument: &mut StaticMachineArgument,
     allow_operator_family: bool,
 ) {
     let Some(rendered) = selection_argument_rendered_path(argument) else {
@@ -726,7 +722,7 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
 /// visibility still gates both paths; later typed admission rejects other states.
 pub(in crate::symbols) fn assign_assumed_binding_argument_symbol(
     symbols: &SymbolTable,
-    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+    argument: &mut StaticMachineArgument,
 ) {
     let Some(rendered) = selection_argument_rendered_path(argument) else {
         return;
@@ -749,7 +745,7 @@ pub(in crate::symbols) fn assign_assumed_binding_argument_symbol(
 /// not as executable static machines.
 pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
     symbols: &SymbolTable,
-    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+    argument: &mut StaticMachineArgument,
     opaque_argument: bool,
 ) {
     let Some(rendered) = selection_argument_rendered_path(argument) else {

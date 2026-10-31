@@ -12,6 +12,7 @@ use semantic_vocabulary::MachineId;
 use terminal_psi::{StructuralAccess, TerminalAccessViewInput};
 
 use crate::lowering_error::LoweringError;
+use crate::machine_lowering::declarations::nominal;
 
 pub(crate) fn lower_access_view_input(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -95,7 +96,7 @@ pub(crate) fn lower_access_view_input(
         position: input.position,
         runtime_position,
         carrier_identity,
-        source_machine_identity: crate::machine_lowering::declarations::nominal(
+        source_machine_identity: nominal(
             identities,
             checked,
             exact_toolchain_sources,
@@ -103,14 +104,9 @@ pub(crate) fn lower_access_view_input(
         )
         .map_err(LoweringError::Unsupported)?
         .identity(),
-        source_state_identity: crate::machine_lowering::declarations::nominal(
-            identities,
-            checked,
-            exact_toolchain_sources,
-            input.state,
-        )
-        .map_err(LoweringError::Unsupported)?
-        .identity(),
+        source_state_identity: nominal(identities, checked, exact_toolchain_sources, input.state)
+            .map_err(LoweringError::Unsupported)?
+            .identity(),
         source_parameter_identity: identities.intern(&identity(
             input.parameter,
             "access-view parameter has no hermetic declaration identity",

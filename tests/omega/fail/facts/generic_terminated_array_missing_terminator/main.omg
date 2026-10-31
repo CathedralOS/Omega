@@ -1,0 +1,21 @@
+// Expected exit: 0. Both C reads stay inside their complete terminated arrays.
+boundary trait CText {
+    machine length<const Count: u64>(text: &[u8; Count]) -> u64
+    requires Count > 0
+    requires text[Count - 1] == 0
+    reaches;
+}
+data Packet { prefix: u8; bytes: [u8; 14]; suffix: u8; }
+data ShortPacket { prefix: u8; bytes: [u8; 5]; suffix: u8; }
+machine entry_start() reaches CText crashes Trap {
+    let first: Packet = Packet { prefix: 0xa5, bytes: "NSApplication\0", suffix: 0x5a };
+    let second: ShortPacket = ShortPacket { prefix: 0xa5, bytes: "testX", suffix: 0x5a };
+    let first_length: u64 = CText::length<14>(&first.bytes);
+    let second_length: u64 = CText::length<5>(&second.bytes);
+    transition first_length == 13 && second_length == 4 && first.prefix == 0xa5 && first.suffix == 0x5a && second.prefix == 0xa5 && second.suffix == 0x5a {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

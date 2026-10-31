@@ -14,6 +14,7 @@ use super::{
 };
 use crate::frozen_program::expression_table;
 use crate::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
+use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
 /// The exact transition site inside the caller's machine. `state` is the state
 /// whose statements carry the call; `entry_parameters` is the source-admitted
@@ -84,7 +85,7 @@ pub(crate) fn prove_ranking_range_call(
     }
     let admit_source =
         |expression| meanings::admitted_carrier(program, caller.machine, source, expression, 0);
-    // Both selected scalar views already produce natural ranks. An absent
+    // Both selected scalar views produce ranks in their own finite domains. An absent
     // optional range adds no endpoint obligations or synthetic bound. Authored
     // subjects, endpoints, and limits name entry parameters, so their builtin
     // meaning is admitted at the entry state even when the call sits inside a
@@ -379,7 +380,7 @@ pub(crate) fn prove_ranking_range_call(
             floor,
             ceiling,
             *inclusive,
-        ));
+        )?);
     }
     if !engine.install_hypotheses(comparisons) {
         return None;
@@ -678,14 +679,18 @@ pub(crate) fn prove_ranking_range_call(
         return None;
     }
     // Optional intervals constrain each invocation's produced rank. They do
-    // not parameterize the shared nonnegative relation, so their endpoints
+    // not parameterize the shared fixed-integer relation, so their endpoints
     // may differ after exact actual substitution. View bounds above remain
     // part of the selected view and still owe their own equality proof.
     let clamped = matches!(source_measure, RankingRangeMeasure::IncreasingTo { .. });
     // Without an authored range, natural subtraction still cannot descend out
     // of the well-founded carrier. Do not count mathematical underflow as a
     // valid unsigned rank merely because its raw polynomial decreases.
-    if !clamped && (!prove(rank.clone(), 0) || !prove(next_rank.clone(), 0)) {
+    let source_minimum = super::rank_minimum(source_measure)?;
+    let destination_minimum = super::rank_minimum(destination_measure)?;
+    if !clamped
+        && (!prove(rank.sub(&source_minimum), 0) || !prove(next_rank.sub(&destination_minimum), 0))
+    {
         return None;
     }
     let descent = rank.sub(&next_rank);
@@ -743,12 +748,13 @@ pub(super) fn arrival_invariant(
     floor: &Polynomial,
     ceiling: &Polynomial,
     inclusive: bool,
-) -> Vec<Comparison> {
+) -> Option<Vec<Comparison>> {
     let below_ceiling = if inclusive {
         BinaryOperator::LessOrEqual
     } else {
         BinaryOperator::Less
     };
+    let minimum = super::rank_minimum(measure)?;
     let mut facts = Vec::new();
     match measure {
         RankingRangeMeasure::Single(_)
@@ -756,11 +762,7 @@ pub(super) fn arrival_invariant(
         | RankingRangeMeasure::Distance { .. }
         | RankingRangeMeasure::Field { .. }
         | RankingRangeMeasure::SliceLength(_) => {
-            facts.push((
-                BinaryOperator::GreaterOrEqual,
-                rank.clone(),
-                Polynomial::default(),
-            ));
+            facts.push((BinaryOperator::GreaterOrEqual, rank.clone(), minimum));
             facts.push((BinaryOperator::GreaterOrEqual, rank.clone(), floor.clone()));
             facts.push((below_ceiling, rank.clone(), ceiling.clone()));
         }
@@ -769,12 +771,11 @@ pub(super) fn arrival_invariant(
             facts.push((below_ceiling, rank.clone(), ceiling.clone()));
         }
     }
-    if let RankingRangeMeasure::Computed { carrier, .. } = measure
-        && let Some(maximum) = super::carrier_maximum(carrier)
-    {
+    if let RankingRangeMeasure::Computed { carrier, .. } = measure {
+        let maximum = super::carrier_maximum(carrier)?;
         facts.push((BinaryOperator::LessOrEqual, rank.clone(), maximum));
     }
-    facts
+    Some(facts)
 }
 
 pub(super) fn membership(
@@ -788,6 +789,9 @@ pub(super) fn membership(
     let prove = |polynomial: Polynomial, minimum: i64| {
         engine.prove_at_least(&engine.substituted(&polynomial), &BigInt::from_i64(minimum))
     };
+    let Some(minimum) = super::rank_minimum(measure) else {
+        return false;
+    };
     let slack = i64::from(!inclusive);
     match measure {
         // A slice length or a field projection is already the produced
@@ -797,7 +801,8 @@ pub(super) fn membership(
         | RankingRangeMeasure::Distance { .. }
         | RankingRangeMeasure::Field { .. }
         | RankingRangeMeasure::SliceLength(_) => {
-            prove(coordinate.clone(), 0)
+            prove(coordinate.sub(&minimum), 0)
+                && forms_in_carrier(engine, measure, coordinate)
                 && prove(coordinate.sub(floor), 0)
                 && prove(ceiling.sub(coordinate), slack)
         }
@@ -988,15 +993,17 @@ fn length_coordinate(
 
 /// A computed rank forms inside its carrier; every other measure already
 /// denotes a carrier value or a produced natural.
-fn forms_in_carrier(engine: &Engine<'_>, measure: RankingRangeMeasure, rank: &Polynomial) -> bool {
+pub(super) fn forms_in_carrier(
+    engine: &Engine<'_>,
+    measure: RankingRangeMeasure,
+    rank: &Polynomial,
+) -> bool {
     let RankingRangeMeasure::Computed { carrier, .. } = measure else {
         return true;
     };
-    super::carrier_maximum(carrier).is_some_and(|maximum| {
-        engine.prove_at_least(
-            &engine.substituted(&maximum.sub(rank)),
-            &BigInt::from_i64(0),
-        )
+    super::carrier_bounds(carrier).is_some_and(|(minimum, maximum)| {
+        engine.prove_at_least(&engine.substituted(&rank.sub(&minimum)), &BigInt::zero())
+            && engine.prove_at_least(&engine.substituted(&maximum.sub(rank)), &BigInt::zero())
     })
 }
 
@@ -1208,7 +1215,7 @@ fn scalar_entry<'program>(
         ));
     }
     let measure = match witness.ranking_view {
-        language_semantics::RankingViewId::NAT_DESCENDING
+        RankingViewId::NAT_DESCENDING
             if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
         {
             let [subject] = custody.subjects.as_slice() else {
@@ -1219,9 +1226,7 @@ fn scalar_entry<'program>(
             }
             RankingRangeMeasure::Single(member.subject)
         }
-        language_semantics::RankingViewId::NAT_INCREASING_TO
-            if witness.view_arguments.len() == 1 =>
-        {
+        RankingViewId::NAT_INCREASING_TO if witness.view_arguments.len() == 1 => {
             let [subject] = custody.subjects.as_slice() else {
                 return None;
             };
@@ -1239,7 +1244,7 @@ fn scalar_entry<'program>(
                 limit: *limit,
             }
         }
-        language_semantics::RankingViewId::NAT_BOUNDED_DISTANCE
+        RankingViewId::NAT_BOUNDED_DISTANCE
             if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
         {
             let [lower, upper] = custody.subjects.as_slice() else {
@@ -1253,7 +1258,7 @@ fn scalar_entry<'program>(
                 upper: member.paired_subject,
             }
         }
-        language_semantics::RankingViewId::SLICE_LENGTH
+        RankingViewId::SLICE_LENGTH
             if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
         {
             let [subject] = custody.subjects.as_slice() else {

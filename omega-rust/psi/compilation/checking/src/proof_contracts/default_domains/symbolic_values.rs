@@ -1,8 +1,11 @@
 //! Conservative symbolic evaluation for default-domain invariant checks.
 
 use crate::frozen_program::expression_table;
+use language_semantics::const_value::CanonicalConstValue;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::types::PrimitiveType;
 
 /// The transported value is its landed representation, not host arithmetic
 /// and not an integer encoding of a float interval. Bitwise equality gives
@@ -22,16 +25,13 @@ impl LiteralValue {
         }
     }
 
-    fn float(
-        self,
-        primitive: typed_trees::types::PrimitiveType,
-    ) -> Option<numerics::float_semantics::FloatMeaning> {
+    fn float(self, primitive: PrimitiveType) -> Option<numerics::float_semantics::FloatMeaning> {
         use numerics::float_semantics::FloatMeaning;
         match (self, primitive) {
-            (Self::Float32(bits), typed_trees::types::PrimitiveType::F32) => {
+            (Self::Float32(bits), PrimitiveType::F32) => {
                 Some(FloatMeaning::from_f32(f32::from_bits(bits)))
             }
-            (Self::Float64(bits), typed_trees::types::PrimitiveType::F64) => {
+            (Self::Float64(bits), PrimitiveType::F64) => {
                 Some(FloatMeaning::from_f64(f64::from_bits(bits)))
             }
             _ => None,
@@ -144,10 +144,7 @@ pub(super) fn mentions_float(
                     && field.symbol == path.symbol
                     && matches!(
                         program.primitive_type_reference(field.type_reference),
-                        Some(
-                            typed_trees::types::PrimitiveType::F32
-                                | typed_trees::types::PrimitiveType::F64
-                        )
+                        Some(PrimitiveType::F32 | PrimitiveType::F64)
                     )
             };
             program
@@ -430,7 +427,7 @@ pub(crate) fn applied_const_integer(
     program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     binder: symbols::SymbolHandle,
-) -> Option<(typed_trees::types::PrimitiveType, i128)> {
+) -> Option<(PrimitiveType, i128)> {
     let (primitive, actual) = applied_const_argument(program, definition, binder)?;
     let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(actual)
@@ -440,13 +437,9 @@ pub(crate) fn applied_const_integer(
     if symbol.is_valid() {
         return None;
     }
-    if let Some(value) =
-        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-    {
+    if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
         return match value.decode_encoding()? {
-            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                value, ..
-            } => Some((primitive, value)),
+            DecodedCanonicalConstValue::Integer { value, .. } => Some((primitive, value)),
             _ => None,
         };
     }
@@ -460,10 +453,7 @@ pub(super) fn applied_const_argument(
     program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     binder: symbols::SymbolHandle,
-) -> Option<(
-    typed_trees::types::PrimitiveType,
-    typed_trees::types::TypeReferenceHandle,
-)> {
+) -> Option<(PrimitiveType, typed_trees::types::TypeReferenceHandle)> {
     let typed_trees::types::TypeReferenceNode::Generic {
         base_symbol,
         arguments,

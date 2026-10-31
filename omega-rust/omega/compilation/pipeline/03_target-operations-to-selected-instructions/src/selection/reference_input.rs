@@ -4,6 +4,10 @@
 //! live loans and result origins remain independently replayed by legalization;
 //! this owner reconstructs which address operation selection must realize.
 
+use crate::structural_inputs::structural_reference_input::{
+    PointerSlot, projected_scalar_codec, reference_formation_geometry, reference_projection,
+    runtime_projection, scalar_storage_type,
+};
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -12,6 +16,7 @@ use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
+use terminal_semantics::descriptor_results::{descriptor_value_access, is_descriptor};
 
 #[cfg(test)]
 mod tests;
@@ -26,8 +31,7 @@ pub(super) struct ReferenceAddress {
     pub(super) load_codec: bool,
     pub(super) codec: Option<runtime_abi::ScalarStorageCodec>,
     pub(super) storage: Option<terminal_psi::ReferenceStorageView>,
-    pub(super) pointer_slots:
-        Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+    pub(super) pointer_slots: Vec<PointerSlot>,
     pub(super) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
 }
 
@@ -47,11 +51,9 @@ pub(super) fn source_access(
     let signature = function.structural.as_ref()?;
     if let Some(parameter) = super::arrival_parameter_input::parameter(function, place) {
         let access = if parameter.access == StructuralAccess::Owned
-            && terminal_semantics::descriptor_results::is_descriptor(
-                signature.structural_types.iter(),
-                parameter.structural_type,
-            ) {
-            terminal_semantics::descriptor_results::descriptor_value_access(
+            && is_descriptor(signature.structural_types.iter(), parameter.structural_type)
+        {
+            descriptor_value_access(
                 signature.structural_types.iter(),
                 parameter.structural_type,
                 parameter.multiplicity,
@@ -66,10 +68,7 @@ pub(super) fn source_access(
         });
     }
     if let Some((_, result)) = super::aggregate_result_input::operation_result(function, place) {
-        let access = if terminal_semantics::descriptor_results::is_descriptor(
-            signature.structural_types.iter(),
-            result.structural_type,
-        ) {
+        let access = if is_descriptor(signature.structural_types.iter(), result.structural_type) {
             super::established_view_input::view_access(function, place)?
         } else {
             StructuralAccess::Owned
@@ -109,10 +108,7 @@ pub(in crate::selection) fn borrowed_scalar_source(
                 .find(|parameter| parameter.place == place)
         })?;
     (parameter.access != StructuralAccess::Owned).then_some(())?;
-    crate::structural_inputs::structural_reference_input::scalar_storage_type(
-        parameter.structural_type,
-        &signature.structural_types,
-    )
+    scalar_storage_type(parameter.structural_type, &signature.structural_types)
 }
 
 /// Thin foreign transport omits the descriptor codec. Require its footprint
@@ -199,22 +195,14 @@ pub(super) fn establishment(
         None => source.clone(),
     };
     let source = &address_source;
-    let semantic_scalar = crate::structural_inputs::structural_reference_input::scalar_storage_type(
-        referent,
-        declarations,
-    );
+    let semantic_scalar = scalar_storage_type(referent, declarations);
     let (path, through_referent) = match source.path.split_last() {
         Some((StructuralPathSegment::Referent, prefix)) => (prefix, true),
         _ => (source.path.as_slice(), false),
     };
     let mut projection_root = root;
     let mut segment_start = 0;
-    let geometry =
-        crate::structural_inputs::structural_reference_input::reference_formation_geometry(
-            root,
-            path,
-            declarations,
-        )?;
+    let geometry = reference_formation_geometry(root, path, declarations)?;
     if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
         return None;
     }
@@ -222,12 +210,11 @@ pub(super) fn establishment(
         if *segment != StructuralPathSegment::Referent {
             continue;
         }
-        let (carrier, _, _) =
-            crate::structural_inputs::structural_reference_input::runtime_projection(
-                projection_root,
-                &path[segment_start..position],
-                declarations,
-            )?;
+        let (carrier, _, _) = runtime_projection(
+            projection_root,
+            &path[segment_start..position],
+            declarations,
+        )?;
         let StructuralTypeShape::Reference { referent, .. } =
             terminal_psi::find_structural_type(declarations, carrier)?.shape
         else {
@@ -281,11 +268,7 @@ pub(super) fn establishment(
             .stored_scalar
             .and_then(runtime_abi::ScalarStorageCodec::from_scalar),
         None if !load_codec && semantic_scalar.is_some() => {
-            crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-                projection_root,
-                projection_path,
-                declarations,
-            )
+            projected_scalar_codec(projection_root, projection_path, declarations)
         }
         None => None,
     };
@@ -428,7 +411,7 @@ pub(super) fn referent_projection<'path>(
     {
         return None;
     }
-    let projection = crate::structural_inputs::structural_reference_input::reference_projection(
+    let projection = reference_projection(
         structural_type,
         &path[..=crossing],
         required_access,
@@ -508,7 +491,7 @@ pub(super) fn borrowed_argument(
         }
         _ => return None,
     }
-    let projection = crate::structural_inputs::structural_reference_input::reference_projection(
+    let projection = reference_projection(
         root,
         &argument.path,
         argument.access,
@@ -526,11 +509,7 @@ pub(super) fn borrowed_argument(
         && target.structural_type == selected
         && target.source_byte_offset == offset
         && target.shape
-            == if crate::structural_inputs::structural_reference_input::scalar_storage_type(
-                selected,
-                declarations,
-            )
-            .is_some()
+            == if scalar_storage_type(selected, declarations).is_some()
                 && target.destination.shape.class
                     == calling_conventions::ValueClass::BorrowedScalarReference
             {
@@ -550,8 +529,7 @@ pub(super) fn borrowed_argument(
 }
 
 pub(super) struct BorrowedReferenceAddress {
-    pub(super) pointer_slots:
-        Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+    pub(super) pointer_slots: Vec<PointerSlot>,
     pub(super) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
     pub(super) referent_offset: u32,
     pub(super) scalar_descriptor: bool,

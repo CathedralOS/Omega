@@ -5,6 +5,7 @@
 //! so later lowering consumes the decision without inventing a lossy cast.
 
 use super::{Analysis, BOOLEAN_INTERVAL, ExpressionWalk, NEUTRAL};
+use crate::ExactIntegerCastFact;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, integer_interval_fits_primitive, literal_interval, primitive_name,
     primitive_range, validate_anonymous_integer_primitive_range,
@@ -128,15 +129,13 @@ pub(super) fn analyze(
         && let Some((minimum, maximum)) =
             checked_cast_bounds(source_interval, source_type, target_type)
     {
-        decisions
-            .exact_integer_casts
-            .push(crate::ExactIntegerCastFact {
-                expression,
-                source_type,
-                target_type,
-                minimum,
-                maximum,
-            });
+        decisions.exact_integer_casts.push(ExactIntegerCastFact {
+            expression,
+            source_type,
+            target_type,
+            minimum,
+            maximum,
+        });
     }
     Analysis {
         domain: Some(cast.domain),

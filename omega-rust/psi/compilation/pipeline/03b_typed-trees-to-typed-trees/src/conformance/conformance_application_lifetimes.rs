@@ -11,6 +11,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementHandle, StatementNode};
+use typed_trees::static_applications::StaticMachineLifetimeBinding;
 use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -325,11 +326,9 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             let binding_declaration = program.lifetime_declaration_owner(callee_owner);
             let lifetimes = call_lifetimes
                 .iter()
-                .map(|(parameter, argument)| {
-                    typed_trees::static_applications::StaticMachineLifetimeBinding {
-                        parameter: Identifier::generated(parameter),
-                        argument: Identifier::generated(argument),
-                    }
+                .map(|(parameter, argument)| StaticMachineLifetimeBinding {
+                    parameter: Identifier::generated(parameter),
+                    argument: Identifier::generated(argument),
                 })
                 .collect::<Vec<_>>();
             // Region-only ordinary calls have no type-specialization step to
@@ -407,6 +406,11 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                     }
                     StatementNode::AssemblyFact(fact) => {
                         for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                            walk.visit(expression, &mut calls);
+                        }
+                    }
+                    statement @ StatementNode::Transition(_) => {
+                        for (_, expression) in program.tables.expression_roots(statement) {
                             walk.visit(expression, &mut calls);
                         }
                     }

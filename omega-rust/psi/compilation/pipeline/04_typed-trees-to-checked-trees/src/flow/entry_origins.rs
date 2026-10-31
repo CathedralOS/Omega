@@ -6,11 +6,19 @@
 use crate::flow::FlowBuildContext;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
-use checked_trees::FlowSemanticContextRef;
+use checked_trees::{FlowExitParameterOrigin, FlowSemanticContextRef};
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::StateParameter;
+use typed_trees::state::state_position;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
 
-use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
+use facts::{FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint};
 use symbols::SymbolHandle;
-use validation::{CallFrameResolver, LocalWriteSource};
+use validation::{
+    CallFrameResolver, LocalWriteSource, activation_target_state_index, internal_state_index,
+    state_reference_parameter_binding_is_stable,
+};
 
 use typed_trees::statement::TransitionExit;
 
@@ -22,21 +30,16 @@ pub(super) use invocation_referents::{
 
 fn reference_type(
     program: &dyn ::validation::CheckingInput,
-    reference: typed_trees::types::TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
-        typed_trees::types::TypeReferenceNode::Reference { .. } => true,
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            reference_type(program, *base_type)
-        }
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => reference_type(program, *base_type),
         _ => false,
     }
 }
 
-fn immutable_value(
-    program: &dyn ::validation::CheckingInput,
-    parameter: &typed_trees::signature::StateParameter,
-) -> bool {
+fn immutable_value(program: &dyn ::validation::CheckingInput, parameter: &StateParameter) -> bool {
     (!parameter.is_mutable)
         && !parameter.is_const
         && !reference_type(program, parameter.type_reference)
@@ -44,7 +47,7 @@ fn immutable_value(
 
 fn tracked_parameter(
     program: &dyn ::validation::CheckingInput,
-    parameter: &typed_trees::signature::StateParameter,
+    parameter: &StateParameter,
 ) -> bool {
     reference_type(program, parameter.type_reference) || immutable_value(program, parameter)
 }
@@ -59,9 +62,7 @@ fn stable_parameter(
         .state_parameter_by_symbol(state, symbol)
         .is_some_and(|parameter| {
             immutable_value(program, parameter)
-                || validation::state_reference_parameter_binding_is_stable(
-                    program, machine, state, symbol,
-                )
+                || state_reference_parameter_binding_is_stable(program, machine, state, symbol)
         })
 }
 
@@ -91,13 +92,10 @@ struct ParameterEdge {
 fn tracked_source_parameter<'a>(
     program: &'a dyn ::validation::CheckingInput,
     source: &'a typed_trees::state::State,
-    locals: &[(
-        SymbolHandle,
-        Option<typed_trees::expression::ExpressionHandle>,
-    )],
-    argument: typed_trees::expression::ExpressionHandle,
-    target: &typed_trees::signature::StateParameter,
-) -> Option<&'a typed_trees::signature::StateParameter> {
+    locals: &[(SymbolHandle, Option<ExpressionHandle>)],
+    argument: ExpressionHandle,
+    target: &StateParameter,
+) -> Option<&'a StateParameter> {
     let mut expression = argument;
     let mut visible = locals.len();
     loop {
@@ -141,10 +139,7 @@ fn parameter_edges<'program>(
     let states = program.machine_states(machine);
     let mut edges = Vec::new();
     for (source_index, source) in states.iter().enumerate() {
-        let mut locals: Vec<(
-            SymbolHandle,
-            Option<typed_trees::expression::ExpressionHandle>,
-        )> = Vec::new();
+        let mut locals: Vec<(SymbolHandle, Option<ExpressionHandle>)> = Vec::new();
         for statement in program.statement_table.statements(source.statement_nodes) {
             if let Some(local) = statement.as_local_data() {
                 locals.push((
@@ -244,7 +239,7 @@ pub(crate) fn machine_parameter_origins(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
-    solve_parameter_origins(program, machine, None, validation::internal_state_index)
+    solve_parameter_origins(program, machine, None, internal_state_index)
 }
 
 /// Whole-activation invariants keep the initial invocation's values distinct
@@ -254,12 +249,7 @@ pub(crate) fn activation_parameter_origins(
     program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
-    solve_parameter_origins(
-        program,
-        machine,
-        None,
-        validation::activation_target_state_index,
-    )
+    solve_parameter_origins(program, machine, None, activation_target_state_index)
 }
 
 /// Prepare once for all writes/calls in this machine. Values and addresses
@@ -270,12 +260,7 @@ pub(crate) fn machine_storage_origins<'program>(
     frames: &CallFrameResolver<'program>,
     machine: &'program typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
-    solve_parameter_origins(
-        program,
-        machine,
-        Some(frames),
-        validation::internal_state_index,
-    )
+    solve_parameter_origins(program, machine, Some(frames), internal_state_index)
 }
 
 fn solve_parameter_origins<'program>(
@@ -468,7 +453,7 @@ pub(crate) fn entry_storage_origins(
     if !solved.storage_available {
         return None;
     }
-    let index = typed_trees::state::state_position(program.machine_states(machine), state.symbol)?;
+    let index = state_position(program.machine_states(machine), state.symbol)?;
     transport_storage(program, machine, solved.rows.get(index)?, source)
         .into_iter()
         .collect()
@@ -482,9 +467,7 @@ pub(crate) fn state_origins(
     state: &typed_trees::state::State,
     solved: &MachineParameterOrigins,
 ) -> Vec<(SymbolHandle, SymbolHandle)> {
-    let Some(state_index) =
-        typed_trees::state::state_position(program.machine_states(machine), state.symbol)
-    else {
+    let Some(state_index) = state_position(program.machine_states(machine), state.symbol) else {
         return Vec::new();
     };
     solved.rows[state_index]
@@ -510,7 +493,7 @@ pub(super) fn rebase_contexts(
     assumptions: bool,
 ) -> (
     HandleSpan<FlowSemanticContextRef>,
-    HandleSpan<checked_trees::FlowExitParameterOrigin>,
+    HandleSpan<FlowExitParameterOrigin>,
 ) {
     let Some(entry) = program.machine_states(machine).first() else {
         return (contexts, HandleSpan::empty());
@@ -532,7 +515,7 @@ pub(super) fn rebase_contexts(
             .iter()
             .filter(|parameter| {
                 !reference_type(program, parameter.type_reference)
-                    || validation::state_reference_parameter_binding_is_stable(
+                    || state_reference_parameter_binding_is_stable(
                         program,
                         machine,
                         state,
@@ -627,7 +610,7 @@ pub(super) fn rebase_contexts(
                 if let Some(root) = place.root.as_symbol() {
                     required_roots.push(root);
                     if let Some((_, target)) = origins.iter().find(|(entry, _)| *entry == root) {
-                        place.root = facts::PlaceRoot::Symbol(*target);
+                        place.root = PlaceRoot::Symbol(*target);
                         fact.place = FactPlace::Place(semantic.places.append(place));
                     } else if !assumptions
                         && let Some(subject) = invocation_referent(program, machine, root)
@@ -657,11 +640,11 @@ pub(super) fn rebase_contexts(
                     .as_place()
                     .map(|place| semantic.places.get(place).root)
                 {
-                    Some(facts::PlaceRoot::InvocationReferent {
+                    Some(PlaceRoot::InvocationReferent {
                         parameter,
                         type_reference,
                     }) if parameter == root => type_reference,
-                    _ => typed_trees::types::TypeReferenceHandle::invalid(),
+                    _ => TypeReferenceHandle::invalid(),
                 };
                 // Entry assumptions do not establish arrival invariants after
                 // arbitrary predecessor writes. Only explicit state requires
@@ -671,7 +654,7 @@ pub(super) fn rebase_contexts(
                 if !assumptions && let Some(contract) = contract {
                     build.control.exit_parameter_origins.append_to_span(
                         &mut parameter_origins,
-                        checked_trees::FlowExitParameterOrigin {
+                        FlowExitParameterOrigin {
                             contract,
                             entry_parameter: root,
                             state_parameter: target,
@@ -723,7 +706,7 @@ pub(super) fn rebase_contexts(
                     }
                     build.control.exit_parameter_origins.append_to_span(
                         &mut parameter_origins,
-                        checked_trees::FlowExitParameterOrigin {
+                        FlowExitParameterOrigin {
                             contract,
                             entry_parameter: *original,
                             state_parameter: *current,

@@ -6,6 +6,7 @@
 //! storage representations project their semantic value for payload encoding.
 
 use language_core::constant_value::EvaluatedConstant;
+use language_semantics::DataSupplyMode;
 use language_semantics::const_value::{
     CanonicalConstIdentity, DecodedCanonicalConstValue as Value,
 };
@@ -16,7 +17,7 @@ use symbol_resolved_trees::expression::{
     ExpressionHandle, ExpressionNode, TableStructLiteralField,
 };
 use symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
-use symbols::{BuiltinTypeAtom, SymbolHandle};
+use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 
 #[derive(Clone, Copy)]
 struct Operand<'program> {
@@ -211,7 +212,7 @@ impl<'program> Encoder<'program> {
         let actual_type = match program.tables.bodies.expressions.expression(expression) {
             ExpressionNode::StructLiteral(literal) => literal.type_symbol,
             ExpressionNode::Name(path)
-                if program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant =>
+                if program.symbols.get(path.symbol).kind == SymbolKind::Variant =>
             {
                 program.symbols.get(path.symbol).parent
             }
@@ -232,9 +233,7 @@ impl<'program> Encoder<'program> {
         } else {
             return Err("materialized initializer selects a different nominal carrier".into());
         };
-        if definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-            || definition.quotient.is_some()
-        {
+        if definition.supply_mode != DataSupplyMode::CheckedShape || definition.quotient.is_some() {
             return Err("materialized initializer has no ordinary source-owned constructor".into());
         }
         let start = self.bindings.len();
@@ -272,7 +271,7 @@ impl<'program> Encoder<'program> {
                     table.struct_fields(literal.fields),
                 ),
                 ExpressionNode::Name(path)
-                    if program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant =>
+                    if program.symbols.get(path.symbol).kind == SymbolKind::Variant =>
                 {
                     (
                         program.symbols.get(path.symbol).parent,
@@ -413,7 +412,8 @@ impl<'program> Encoder<'program> {
                 };
             return Ok(Value::Float { format, bits });
         }
-        let carrier = integer_carrier(atom)
+        let carrier = (atom.is_fixed_integer() || atom == BuiltinTypeAtom::Address)
+            .then_some(atom.symbol_name())
             .ok_or("materialized initializer has an unsupported builtin carrier")?;
         let ExpressionNode::Integer(literal) = node else {
             return Err("materialized initializer conflicts with integer carrier".into());
@@ -447,8 +447,7 @@ impl<'program> Encoder<'program> {
         match length {
             FixedArrayLength::Literal(length) => Ok(*length),
             FixedArrayLength::ConstParameter { symbol, .. } => {
-                if symbol.is_valid()
-                    && self.program.symbols.get(*symbol).kind == symbols::SymbolKind::Const
+                if symbol.is_valid() && self.program.symbols.get(*symbol).kind == SymbolKind::Const
                 {
                     let (_, value) = self.declaration_integer(*symbol)?;
                     return usize::try_from(value).map_err(|_| {
@@ -464,8 +463,7 @@ impl<'program> Encoder<'program> {
                 let TypeReference::Named { symbol, name, .. } = argument.reference else {
                     return Err("materialized array extent is not a completed integer".into());
                 };
-                if symbol.is_valid()
-                    && self.program.symbols.get(*symbol).kind == symbols::SymbolKind::Const
+                if symbol.is_valid() && self.program.symbols.get(*symbol).kind == SymbolKind::Const
                 {
                     let (_, value) = self.declaration_integer(*symbol)?;
                     return usize::try_from(value).map_err(|_| {
@@ -528,7 +526,7 @@ impl<'program> Encoder<'program> {
             let table = &self.program.tables.bodies.expressions;
             if let ExpressionNode::Name(path) = table.expression(declaration.initializer)
                 && path.symbol.is_valid()
-                && self.program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+                && self.program.symbols.get(path.symbol).kind == SymbolKind::Const
             {
                 symbol = path.symbol;
                 continue;
@@ -612,8 +610,4 @@ fn float_format(atom: Option<BuiltinTypeAtom>) -> Option<FloatFormat> {
         Some(BuiltinTypeAtom::F64) => Some(FloatFormat::F64),
         _ => None,
     }
-}
-
-fn integer_carrier(atom: BuiltinTypeAtom) -> Option<&'static str> {
-    (atom.is_fixed_integer() || atom == BuiltinTypeAtom::Address).then_some(atom.symbol_name())
 }

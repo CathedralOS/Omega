@@ -3,6 +3,9 @@
 //! result is established by its call's completion. One source evaluation
 //! inventory supplies named/anonymous permission production and the exact loan
 //! continuation; executable admission consumes that published roster.
+use super::super::borrowed_windows::StorageWalk;
+use super::super::borrowed_windows::authored_route_exclusive;
+use super::super::projected_affine::has_reference_prefix;
 use super::CheckFacts;
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::type_carries_linear_obligation;
@@ -80,23 +83,11 @@ fn owned_value_type(
     let place = place_at(program, state_symbol, statement_index, argument)?;
     let anonymous_value =
         place.root == facts::PlaceRoot::Expression(argument) && place.segments.is_empty();
-    let borrowed_value =
-        super::super::projected_affine::has_reference_prefix(
-            program,
-            state_symbol,
-            statement_index,
-            &place,
-        ) && validation::find_state(program, state_symbol).is_some_and(|(machine, state)| {
+    let borrowed_value = has_reference_prefix(program, state_symbol, statement_index, &place)
+        && validation::find_state(program, state_symbol).is_some_and(|(machine, state)| {
             let statements = program.statement_table.statements(state.statement_nodes);
-            let walk = super::super::borrowed_windows::StorageWalk::new(
-                program, machine, state, statements,
-            );
-            super::super::borrowed_windows::authored_route_exclusive(
-                &walk,
-                statement_index,
-                place.root,
-                &place.segments,
-            )
+            let walk = StorageWalk::new(program, machine, state, statements);
+            authored_route_exclusive(&walk, statement_index, place.root, &place.segments)
         });
     if !anonymous_value && !borrowed_value {
         return None;
@@ -803,12 +794,7 @@ fn owned_projection(
     )?;
     if program.type_multiplicity(endpoint) == language_semantics::Multiplicity::Unrestricted
         || type_reference_is_reference(program, endpoint)
-        || super::super::projected_affine::has_reference_prefix(
-            program,
-            state,
-            consumer.statement_index,
-            &place,
-        )
+        || has_reference_prefix(program, state, consumer.statement_index, &place)
     {
         return None;
     }

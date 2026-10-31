@@ -6,6 +6,11 @@
 mod captured_operand;
 mod reference_places;
 mod result_memberships;
+use super::LiteralValueSource;
+use super::operand_contexts::operand_binds_live_view;
+use super::operand_contexts::operand_binds_stable_copy;
+use super::stored_values::StoredObservation;
+use super::stored_values::at_snapshot;
 pub(crate) use captured_operand::CapturedOperand;
 pub(crate) use reference_places::{
     captured_operand_reference_places_with_formation, captured_reference_places_with_formation,
@@ -203,7 +208,7 @@ pub(super) fn captured_places(
                 })
                 .collect();
         }
-        if super::operand_contexts::operand_binds_live_view(program, type_reference) {
+        if operand_binds_live_view(program, type_reference) {
             return None;
         }
         let storage = validation::CanonicalPlace {
@@ -220,9 +225,7 @@ pub(super) fn captured_places(
         }]);
     }
     let referents = control.operand_referents.span_or_empty(operand.referents);
-    if !super::operand_contexts::operand_binds_live_view(program, type_reference)
-        || referents.is_empty()
-    {
+    if !operand_binds_live_view(program, type_reference) || referents.is_empty() {
         let mut place = place_at(
             program,
             operand.state_symbol,
@@ -381,14 +384,12 @@ pub(crate) fn captured_operand_values<'capture>(
         // Keep that actual completion and project its inline storage; never
         // invent an expression operand for a field the source did not write.
         let projection = match projection.source {
-            super::LiteralValueSource::Expression(expression) => {
-                super::LiteralExpressionProjection {
-                    expression,
-                    remaining: projection.remaining,
-                    destination: projection.destination,
-                }
-            }
-            super::LiteralValueSource::OmittedZero {
+            LiteralValueSource::Expression(expression) => super::LiteralExpressionProjection {
+                expression,
+                remaining: projection.remaining,
+                destination: projection.destination,
+            },
+            LiteralValueSource::OmittedZero {
                 constructor,
                 constructor_path_length,
                 ..
@@ -474,18 +475,14 @@ pub(crate) fn captured_operand_values<'capture>(
                 value.type_reference,
                 &value.projection.remaining,
             )?;
-            let detached =
-                !super::operand_contexts::operand_binds_live_view(program, observed_type);
+            let detached = !operand_binds_live_view(program, observed_type);
             for origin in &mut stored {
                 // Crossing from a live descriptor into a detached value freezes
                 // the referent read here. Outer copies must not move that read
                 // to a later consumer's invocation.
                 if detached
                     && origin.producer_epoch.is_none()
-                    && super::operand_contexts::operand_binds_live_view(
-                        program,
-                        origin.type_reference,
-                    )
+                    && operand_binds_live_view(program, origin.type_reference)
                 {
                     origin.producer_epoch = Some(value.observation);
                 }
@@ -535,7 +532,7 @@ pub(crate) fn observe_captured_values<'capture>(
     let mut observed = Vec::new();
     for value in values {
         if value.producer_epoch.is_none()
-            && super::operand_contexts::operand_binds_live_view(program, value.type_reference)
+            && operand_binds_live_view(program, value.type_reference)
             && let Some(mut stored) =
                 reaching_store_values(program, flow, semantic, state, &value, Some(epoch))
         {
@@ -577,12 +574,10 @@ fn reaching_store_values<'capture>(
     // it still observe invocation storage and cannot freeze pointee predicates.
     // Stable scalar fields likewise follow their exact reaching contents;
     // the containing owner's unrelated custody does not decide their identity.
-    let descriptor = super::operand_contexts::operand_binds_live_view(program, observed_type);
-    if (observation.is_none()
-        && super::operand_contexts::operand_binds_live_view(program, value.type_reference))
+    let descriptor = operand_binds_live_view(program, observed_type);
+    if (observation.is_none() && operand_binds_live_view(program, value.type_reference))
         || operand.state_symbol != state.state_symbol
-        || (!descriptor
-            && !super::operand_contexts::operand_binds_stable_copy(program, observed_type))
+        || (!descriptor && !operand_binds_stable_copy(program, observed_type))
     {
         return None;
     }
@@ -595,15 +590,15 @@ fn reaching_store_values<'capture>(
         return None;
     }
     program.state_by_symbol(state.state_symbol)?;
-    let captures = super::stored_values::at_snapshot(
+    let captures = at_snapshot(
         program,
         &flow.control,
         operand.storage_snapshot,
         source,
         if descriptor {
-            super::stored_values::StoredObservation::Binding
+            StoredObservation::Binding
         } else {
-            super::stored_values::StoredObservation::Contents
+            StoredObservation::Contents
         },
     )?
     .captures()?;
@@ -621,12 +616,11 @@ fn reaching_store_values<'capture>(
                 &selected.projection,
             )
             .is_some_and(|projected| {
-                let selected_descriptor =
-                    super::operand_contexts::operand_binds_live_view(program, projected);
+                let selected_descriptor = operand_binds_live_view(program, projected);
                 if descriptor {
                     selected_descriptor
                 } else {
-                    super::operand_contexts::operand_binds_stable_copy(program, projected)
+                    operand_binds_stable_copy(program, projected)
                         // An admitted value read can dereference a resident view.
                         // Retain its actual producer and freeze the referent at
                         // this read; provenance supplies no permission to copy.

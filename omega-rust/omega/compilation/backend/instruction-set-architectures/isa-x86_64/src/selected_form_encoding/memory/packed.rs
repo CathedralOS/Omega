@@ -1,8 +1,8 @@
 //! Exact byte accesses with an explicit early-clobber scratch register.
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind,
+    MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind as Kind,
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint, modrm, resolve_registers, rex,
 };
@@ -12,7 +12,7 @@ type Request = (bool, u8, [u8; 3], X86_64SelectedFormFootprint);
 
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: u32,
@@ -20,24 +20,20 @@ fn request(
     super::super::request_validation::guard_canonical(physical)?;
     let invalid = X86_64SelectedFormEncodingError::EncodedFormMismatch;
     let (load, width, offset) = match kind {
-        SelectedInstructionKind::LoadPacked { byte_offset, width } => {
-            (true, width.byte_size(), byte_offset)
-        }
-        SelectedInstructionKind::StorePacked { byte_offset, width } => {
-            (false, width.byte_size(), byte_offset)
-        }
+        Kind::LoadPacked { byte_offset, width } => (true, width.byte_size(), byte_offset),
+        Kind::StorePacked { byte_offset, width } => (false, width.byte_size(), byte_offset),
         _ => return Err(invalid),
     };
     let family = if load {
         match width {
-            3 => MachineAlternativeFamily::LoadPacked3,
-            5 => MachineAlternativeFamily::LoadPacked5,
-            6 => MachineAlternativeFamily::LoadPacked6,
-            7 => MachineAlternativeFamily::LoadPacked7,
+            3 => Family::LoadPacked3,
+            5 => Family::LoadPacked5,
+            6 => Family::LoadPacked6,
+            7 => Family::LoadPacked7,
             _ => return Err(invalid),
         }
     } else {
-        MachineAlternativeFamily::StorePacked
+        Family::StorePacked
     };
     if alternative != (MachineAlternativeKey { family, variant: 0 }) {
         return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);
@@ -98,7 +94,7 @@ fn request(
 
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: i64,
@@ -152,7 +148,7 @@ pub(super) fn encode(
 
 pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: i64,

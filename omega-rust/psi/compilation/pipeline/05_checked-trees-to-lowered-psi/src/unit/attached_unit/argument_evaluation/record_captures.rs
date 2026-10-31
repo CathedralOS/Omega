@@ -5,6 +5,7 @@ use super::{Evaluation, LoweringError, StructuralTypeDeclaration, ValueDeclarati
 use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
+use crate::expression_preparation::computation_graph::borrowed_arguments_from_roots;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
 use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeShape};
 
@@ -51,10 +52,7 @@ impl Evaluation {
             .iter()
             .filter_map(|(ordinal, root)| (*ordinal == statement).then_some(*root))
             .collect::<Vec<_>>();
-        let borrowed =
-            crate::expression_preparation::computation_graph::borrowed_arguments_from_roots(
-                checked, &roots,
-            )?;
+        let borrowed = borrowed_arguments_from_roots(checked, &roots)?;
         for argument in borrowed {
             self.prepare_borrowed_argument(
                 identities,

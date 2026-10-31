@@ -1,5 +1,6 @@
 //! Element observation and view operations for common graph lowering.
 use super::descriptor_operands::observes_measured_length;
+use super::descriptor_operands::refusal;
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
@@ -7,6 +8,7 @@ use crate::lowering::structural_layout::{
     direct_scalar_field_geometry, runtime_projection, runtime_storage_projection,
 };
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::control_flow::address_joins::is_address_join;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
@@ -20,6 +22,8 @@ use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
+use terminal_semantics::descriptor_results::result_access;
+use terminal_semantics::{borrowed_storage_parameter, descriptor_parameter_access};
 
 mod establishment;
 
@@ -86,10 +90,9 @@ impl<'a> ElementViewBackings<'a> {
                 .map(|parameter| (entry, parameter))
         })?;
         if entry.block == function.entry
-            || !abstract_operations::control_flow::address_joins::is_address_join(
-                parameter,
-                |identity| structural_types.get(&identity).copied(),
-            )
+            || !is_address_join(parameter, |identity| {
+                structural_types.get(&identity).copied()
+            })
             || (source.access == StructuralAccess::MutableBorrow
                 && parameter.access != StructuralAccess::MutableBorrow)
         {
@@ -127,10 +130,7 @@ impl<'a> ElementViewBackings<'a> {
             structural_types.values().copied(),
         )?;
         if entry.block == function.entry
-            || terminal_semantics::borrowed_storage_parameter(
-                parameter,
-                structural_types.values().copied(),
-            )
+            || borrowed_storage_parameter(parameter, structural_types.values().copied())
             || !source.access.admits_referent(descriptor_access)
             || !parameter.projected_qualifications.is_empty()
         {
@@ -460,7 +460,7 @@ pub(in crate::lowering) fn resolve_element_view(
     active: &mut Vec<PlaceId>,
 ) -> Result<(TargetElementView, StructuralTypeId, StructuralAccess), LoweringError> {
     let invalid = || {
-        super::descriptor_operands::refusal(
+        refusal(
             function,
             &(place, backings.homes.get(&place), values, lengths),
         )
@@ -492,11 +492,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 structural_type: result.structural_type,
             },
             result.structural_type,
-            terminal_semantics::descriptor_results::result_access(
-                structural_types.values().copied(),
-                result,
-            )
-            .ok_or_else(invalid)?,
+            result_access(structural_types.values().copied(), result).ok_or_else(invalid)?,
         ));
     }
     if let Some(AbstractOperation::EstablishElementView {
@@ -606,11 +602,8 @@ pub(in crate::lowering) fn resolve_element_view(
             .structural_parameter(place)
             .map(|parameter| (entry, parameter))
     }) {
-        let access = terminal_semantics::descriptor_parameter_access(
-            parameter,
-            structural_types.values().copied(),
-        )
-        .ok_or_else(invalid)?;
+        let access = descriptor_parameter_access(parameter, structural_types.values().copied())
+            .ok_or_else(invalid)?;
         if entry.block == function.entry
             || !structural_types
                 .get(&parameter.structural_type)
@@ -633,11 +626,8 @@ pub(in crate::lowering) fn resolve_element_view(
             .iter()
             .find(|parameter| parameter.place == place)
             .ok_or_else(invalid)?;
-        let access = terminal_semantics::descriptor_parameter_access(
-            semantic,
-            structural_types.values().copied(),
-        )
-        .ok_or_else(invalid)?;
+        let access = descriptor_parameter_access(semantic, structural_types.values().copied())
+            .ok_or_else(invalid)?;
         let referent = crate::lowering::structural_layout::structural_shape(
             semantic.structural_type,
             structural_types,

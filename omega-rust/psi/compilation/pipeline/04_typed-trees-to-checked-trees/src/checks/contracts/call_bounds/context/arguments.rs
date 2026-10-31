@@ -6,10 +6,14 @@ use super::{
     CheckFacts, ExpressionHandle, ExpressionNode, PrimitiveType, StateParameter, SymbolHandle,
     TypeReferenceHandle,
 };
+use crate::checks::arithmetic_spelling;
 use crate::checks::contracts::call_bounds::context::comparison_is_admitted;
 use crate::checks::contracts::call_bounds::context::direct_parameter;
 use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
-use crate::flow::expressions;
+use crate::checks::contracts::prover::has_builtin_operators;
+use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::flow::{expressions, frame_storage_writes};
+use crate::values::scalar_expression_type;
 use numerics::arithmetic::ArithmeticDomain;
 
 pub(super) fn primitive_type(
@@ -36,11 +40,7 @@ pub(super) fn capture_is_current<'program>(
 ) -> bool {
     let parameters = program.state_parameters(state);
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        argument,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, argument, &mut occurrences);
     let captured = occurrences
         .iter()
         .filter_map(|expression| {
@@ -60,7 +60,7 @@ pub(super) fn capture_is_current<'program>(
             return false;
         }
         let frame = frames.expression_write_frame(machine, *expression);
-        crate::flow::frame_storage_writes(
+        frame_storage_writes(
             program,
             machine.symbol,
             state.symbol,
@@ -169,11 +169,10 @@ fn meaning(
             })
         }
         ExpressionNode::Integer(literal) => {
-            let primitive = crate::values::scalar_expression_type(
-                &checked_trees::CheckedScalarExpression::IntegerLiteral {
+            let primitive =
+                scalar_expression_type(&checked_trees::CheckedScalarExpression::IntegerLiteral {
                     literal: literal.clone(),
-                },
-            )?;
+                })?;
             primitive.is_fixed_integer().then_some(Meaning {
                 primitive,
                 domain: literal.landing()?.domain,
@@ -196,7 +195,7 @@ fn meaning(
             })
         }
         ExpressionNode::Binary(binary) => {
-            let spelling = crate::checks::arithmetic_spelling(binary.operator)?;
+            let spelling = arithmetic_spelling(binary.operator)?;
             let left = meaning(program, facts, owner, parameters, binary.left);
             let right = meaning(program, facts, owner, parameters, binary.right);
             // Anonymous integer literals take the other operand's carrier;
@@ -227,7 +226,7 @@ fn meaning(
                 // that reading when they selected anything non-builtin.
                 // A compound operand has a plain builtin result, not a retained
                 // source parameter's constrained/custom type reference.
-                || !crate::checks::contracts::prover::has_builtin_operators(
+                || !has_builtin_operators(
                     program,
                     &facts.operators,
                     expression,

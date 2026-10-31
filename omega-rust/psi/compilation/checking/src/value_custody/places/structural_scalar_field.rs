@@ -23,8 +23,12 @@
 //! type. This read establishes no membership and discharges no owner claim.
 
 use crate::frozen_program::expression_table;
+use checked_trees::CheckedMemberIdentity;
+use checked_trees::CheckedUnitStructuralPathSegment;
+use language_semantics::ReferenceAccess;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
+use symbols::SymbolKind;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
@@ -53,11 +57,11 @@ pub struct StructuralScalarField {
     /// selections and stored-reference crossings in authored order, excluding
     /// the final scalar field. A final literal element is the path's last
     /// `FixedIndex` instead.
-    pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
     /// The final scalar field. Zero when the path itself ends at a scalar
     /// element of a fixed array; the identity is then the default.
     pub field: SymbolHandle,
-    pub field_identity: checked_trees::CheckedMemberIdentity,
+    pub field_identity: CheckedMemberIdentity,
     pub primitive_type: PrimitiveType,
     /// Governs subsequent arithmetic; observing storage does not erase policy.
     pub domain: ArithmeticDomain,
@@ -305,9 +309,7 @@ fn structural_field_observation(
                 if usize::try_from(index).ok()? >= *length {
                     return None;
                 }
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                    index,
-                ));
+                path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 carrier = *element_type;
                 continue;
             }
@@ -315,8 +317,8 @@ fn structural_field_observation(
         let declaration_carrier = crate::peel_declared_constraints(program, carrier);
         let record = program.closed_data_definition(declaration_carrier)?;
         let field = selected_member_field(program, declaration_carrier, record, member, &mut path)?;
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+        path.push(CheckedUnitStructuralPathSegment::Field(
+            CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
         ));
         carrier = field.type_reference;
     }
@@ -348,9 +350,7 @@ fn structural_field_observation(
             }
             let primitive_type =
                 observable_scalar(realized_scalar_carrier(program, *element_type)?)?;
-            path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                index,
-            ));
+            path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
             return Some(StructuralScalarField {
                 root: local.root,
                 receiver_value: local.receiver_value,
@@ -360,7 +360,7 @@ fn structural_field_observation(
                 result_type_reference: *element_type,
                 path,
                 field: SymbolHandle::invalid(),
-                field_identity: checked_trees::CheckedMemberIdentity::default(),
+                field_identity: CheckedMemberIdentity::default(),
                 primitive_type,
                 domain: program.arithmetic_domain_for_type_reference(
                     program
@@ -404,10 +404,7 @@ fn structural_field_observation(
         result_type_reference: field.type_reference,
         path,
         field: field.symbol,
-        field_identity: checked_trees::CheckedMemberIdentity::of_member(
-            field.identity,
-            field.name.clone(),
-        ),
+        field_identity: CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
         primitive_type,
         domain: program.arithmetic_domain_for_type_reference(
             program
@@ -448,7 +445,7 @@ fn observable_scalar(primitive_type: PrimitiveType) -> Option<PrimitiveType> {
 fn readable_projection_carrier(
     program: &dyn crate::CheckingInput,
     mut carrier: TypeReferenceHandle,
-    path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    path: &mut Vec<CheckedUnitStructuralPathSegment>,
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..program.type_reference_table.type_reference_count() {
         // Qualifications do not authorize a descriptor crossing. Keep the
@@ -460,13 +457,11 @@ fn readable_projection_carrier(
         {
             TypeReferenceNode::Reference {
                 referee,
-                access:
-                    language_semantics::ReferenceAccess::Shared
-                    | language_semantics::ReferenceAccess::Mutable,
+                access: ReferenceAccess::Shared | ReferenceAccess::Mutable,
                 ..
             } => {
                 if crate::stores_reference_shape(program, carrier, &[]) {
-                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                    path.push(CheckedUnitStructuralPathSegment::Referent);
                 }
                 carrier = *referee;
             }
@@ -485,12 +480,10 @@ fn selected_member_field<'program>(
     carrier: TypeReferenceHandle,
     record: &'program typed_trees::data::DataDefinition,
     member: &typed_trees::expression::TableMemberExpression,
-    path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    path: &mut Vec<CheckedUnitStructuralPathSegment>,
 ) -> Option<&'program typed_trees::data::DataField> {
     let field = super::projected_members::applied_data_member_field(program, carrier, member)?;
-    if field.relevance.is_erased()
-        || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
-    {
+    if field.relevance.is_erased() || program.symbols.get(field.symbol).kind != SymbolKind::Field {
         return None;
     }
     // An unqualified payload selection still belongs to its exact case.
@@ -523,7 +516,7 @@ fn selected_member_field<'program>(
         let variant = variants.next()?;
         if variants.next().is_some()
             || !variant.symbol.is_valid()
-            || program.symbols.get(variant.symbol).kind != symbols::SymbolKind::Variant
+            || program.symbols.get(variant.symbol).kind != SymbolKind::Variant
             || program.symbols.get(variant.symbol).parent != record.symbol
             || program
                 .data_payload_fields(variant)
@@ -534,8 +527,8 @@ fn selected_member_field<'program>(
         {
             return None;
         }
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
-            checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
+        path.push(CheckedUnitStructuralPathSegment::Case(
+            CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
         ));
         variant.symbol
     } else {
@@ -966,9 +959,7 @@ pub fn structural_source(
     {
         TypeReferenceNode::Reference {
             referee,
-            access:
-                language_semantics::ReferenceAccess::Shared
-                | language_semantics::ReferenceAccess::Mutable,
+            access: ReferenceAccess::Shared | ReferenceAccess::Mutable,
             ..
         } if matches!(root, facts::PlaceRoot::Symbol(_)) => *referee,
         _ => source_type,
@@ -1005,9 +996,7 @@ fn realized_scalar_carrier(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference {
                 referee,
-                access:
-                    language_semantics::ReferenceAccess::Shared
-                    | language_semantics::ReferenceAccess::Mutable,
+                access: ReferenceAccess::Shared | ReferenceAccess::Mutable,
                 ..
             } => reference = *referee,
             TypeReferenceNode::Reference { .. } => return None,

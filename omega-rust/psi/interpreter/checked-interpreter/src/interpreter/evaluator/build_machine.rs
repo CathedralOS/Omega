@@ -143,13 +143,12 @@ impl Evaluator<'_> {
 
     /// Byte-data operand decoding shared by the build-machine operand
     /// evaluators: a `Str`, or an integer array of bytes — anything else is a
-    /// trap under the caller's operand names.
+    /// trap under the caller's operand name.
     pub(in crate::interpreter::evaluator) fn eval_byte_data_operand(
         &mut self,
         expression: ExpressionHandle,
         frame: &mut Frame,
-        operand: &str,
-        operands: &str,
+        subject: &str,
     ) -> EvalResult<Vec<u8>> {
         match self.eval_expression(expression, frame)? {
             Value::Str(bytes) => Ok(bytes.borrow().to_vec()),
@@ -159,11 +158,11 @@ impl Evaluator<'_> {
                     cell.borrow()
                         .as_int()
                         .and_then(|byte| u8::try_from(byte).ok())
-                        .ok_or_else(|| Halt::Trap(format!("{operand} contains a non-byte element")))
+                        .ok_or_else(|| Halt::Trap(format!("{subject} contains a non-byte element")))
                 })
                 .collect(),
             other => Err(Halt::Trap(format!(
-                "{operands} must be byte data, got {other:?}"
+                "{subject} must be byte data, got {other:?}"
             ))),
         }
     }

@@ -8,6 +8,7 @@ use checked_trees::{
 
 use crate::lowering_error::LoweringError;
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::attached_unit::lower_unit_effect_closure;
 use crate::unit::lower_unit_plan_machine;
 
@@ -112,12 +113,7 @@ pub(crate) fn lower_selected_machine(
     // the checked debug map. Any other ordinary body takes the Unit closure,
     // which publishes none. A free Unit-effect signature reaches the Unit
     // closure even without a plan, so the closure reports the missing body.
-    let scalar_entry =
-        crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
-            checked,
-            selection.machine,
-        )
-        .is_ok();
+    let scalar_entry = CheckedScalarCallee::find_for_unit_call(checked, selection.machine).is_ok();
     let unit_plan = flow_facts(checked)
         .terminal_unit_effects
         .for_machine(selection.machine)

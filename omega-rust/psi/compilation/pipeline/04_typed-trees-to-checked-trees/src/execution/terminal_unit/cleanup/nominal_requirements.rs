@@ -3,7 +3,7 @@
 
 use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedUnitNominalAffineCallerRequirementPlan,
+    CheckFacts, CheckedUnitNominalAffineCallerRequirementPlan as RequirementPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, ContractProofFactKind, ContractProofFactOwner,
     DataMember, Diagnostic, ExpressionNode, PrimitiveType, StateParameter, SymbolHandle,
 };
@@ -38,7 +38,7 @@ pub(crate) fn nominal_cleanup_caller_boolean_requirements(
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
     source_parameters: &[StateParameter],
-) -> Option<Vec<CheckedUnitNominalAffineCallerRequirementPlan>> {
+) -> Option<Vec<RequirementPlan>> {
     // The caller preserves its checked entry requirements unchanged, and this
     // plan admits only direct Boolean root facts. Any other requirement
     // refuses the plan: wider bodies must instead consult path-specific exit
@@ -56,13 +56,11 @@ pub(crate) fn nominal_cleanup_caller_boolean_requirements(
                     source_parameter,
                     expression,
                 )
-                .map(
-                    |requirement| CheckedUnitNominalAffineCallerRequirementPlan {
-                        source_parameter_index,
-                        field_identity: requirement.field_identity,
-                        expected: requirement.expected,
-                    },
-                )
+                .map(|requirement| RequirementPlan {
+                    source_parameter_index,
+                    field_identity: requirement.field_identity,
+                    expected: requirement.expected,
+                })
             },
         ) {
             structural_requirements.push(requirement);
@@ -89,7 +87,7 @@ pub(crate) fn nominal_cleanup_caller_boolean_requirements(
         else {
             return None;
         };
-        structural_requirements.push(CheckedUnitNominalAffineCallerRequirementPlan {
+        structural_requirements.push(RequirementPlan {
             source_parameter_index: parameter_position,
             field_identity: field_identity.clone(),
             expected,
@@ -107,7 +105,7 @@ pub(crate) fn nominal_cleanup_caller_boolean_requirements(
 
 pub(crate) fn nominal_cleanup_missing_requirement(
     source_parameter_index: u32,
-    caller_requirements: &[CheckedUnitNominalAffineCallerRequirementPlan],
+    caller_requirements: &[RequirementPlan],
     required: &[CheckedUnitNominalAffineCleanupRequirementPlan],
 ) -> Option<CheckedUnitNominalAffineCleanupRequirementPlan> {
     required

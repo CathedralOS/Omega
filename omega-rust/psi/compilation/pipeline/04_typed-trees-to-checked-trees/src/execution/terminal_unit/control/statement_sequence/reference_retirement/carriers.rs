@@ -4,6 +4,19 @@
 //! spans must not make an anonymous carrier disappear from that order.
 
 use super::*;
+use checked_trees::CheckedNormalCleanupAction;
+use checked_trees::CheckedStructuralAccess;
+use checked_trees::CheckedUnitCallPlan;
+use checked_trees::CheckedUnitCleanupBoundary;
+use checked_trees::CheckedUnitLocalBindingPlan;
+use facts::PlaceRoot;
+use validation::CanonicalPlace;
+use validation::borrow_contracts::substituted_result_is_view_free;
+use validation::canonical_place_type_reference;
+use validation::reference_result_custody::StoredCarrierSource;
+use validation::reference_result_custody::named_place_loans;
+use validation::reference_result_custody::record_carrier_sources;
+use validation::reference_result_custody::stored_carrier_sources;
 
 impl Retirement<'_> {
     /// A temporary has no authored use after its enclosing statement, but its
@@ -19,7 +32,7 @@ impl Retirement<'_> {
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls);
         operations.all(|operation| {
             if let CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                CheckedUnitLocalBindingPlan::StructuralValue {
                     result,
                     value,
                     calls,
@@ -34,7 +47,7 @@ impl Retirement<'_> {
                 }
                 let values = &self.facts.values.structural_values;
                 let reference = values.nodes.get(*value).type_reference;
-                let Some(leaves) = validation::reference_result_custody::record_carrier_sources(
+                let Some(leaves) = record_carrier_sources(
                     self.program,
                     reference,
                     CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -45,24 +58,15 @@ impl Retirement<'_> {
                 };
                 return leaves.iter().all(|leaf| {
                     let Some(sources) =
-                        validation::reference_result_custody::stored_carrier_sources(
-                            self.program,
-                            self.facts,
-                            *value,
-                            &leaf.path,
-                        )
+                        stored_carrier_sources(self.program, self.facts, *value, &leaf.path)
                     else {
                         return false;
                     };
                     sources.iter().all(|source| match source {
-                        validation::reference_result_custody::StoredCarrierSource::Borrow {
-                            source,
-                            ..
-                        } => !self.source_retains_carrier(source, parent),
-                        validation::reference_result_custody::StoredCarrierSource::Call {
-                            value,
-                            ..
-                        } => calls
+                        StoredCarrierSource::Borrow { source, .. } => {
+                            !self.source_retains_carrier(source, parent)
+                        }
+                        StoredCarrierSource::Call { value, .. } => calls
                             .iter()
                             .find(|call| call.value == *value)
                             .and_then(|call| call.operation())
@@ -70,10 +74,7 @@ impl Retirement<'_> {
                             .is_some_and(|call| !self.call_retains_carrier(call, parent)),
                         // Copying a resident descriptor retains its original
                         // backing, not the bytes of the supplying carrier home.
-                        validation::reference_result_custody::StoredCarrierSource::Place(_)
-                        | validation::reference_result_custody::StoredCarrierSource::Image {
-                            ..
-                        } => true,
+                        StoredCarrierSource::Place(_) | StoredCarrierSource::Image { .. } => true,
                     })
                 });
             }
@@ -108,7 +109,7 @@ impl Retirement<'_> {
 
     fn call_retains_carrier(
         &self,
-        call: &checked_trees::CheckedUnitCallPlan,
+        call: &CheckedUnitCallPlan,
         parent: &CheckedUnitStructuralResultBindingPlan,
     ) -> bool {
         call.structural_custody().is_some_and(|custody| {
@@ -165,7 +166,7 @@ impl Retirement<'_> {
                 super::returned_reference_binding(self.order, returned, result)
             })
         {
-            return self.uncommitted_owner == facts::PlaceRoot::Symbol(Default::default());
+            return self.uncommitted_owner == PlaceRoot::Symbol(Default::default());
         }
         let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
@@ -196,12 +197,9 @@ impl Retirement<'_> {
                     ..
                 } => {
                     let statement = match boundary {
-                        checked_trees::CheckedUnitCleanupBoundary::StatementEntry {
-                            statement_index,
-                        }
-                        | checked_trees::CheckedUnitCleanupBoundary::Replacement {
-                            statement_index,
-                            ..
+                        CheckedUnitCleanupBoundary::StatementEntry { statement_index }
+                        | CheckedUnitCleanupBoundary::Replacement {
+                            statement_index, ..
                         } => *statement_index,
                         _ => return false,
                     };
@@ -209,7 +207,7 @@ impl Retirement<'_> {
                         && statement > result.statement_index
                         && cleanup_actions.iter().any(|action| {
                             matches!(action,
-                            checked_trees::CheckedNormalCleanupAction::Discard(discard)
+                            CheckedNormalCleanupAction::Discard(discard)
                                 if discard.source == source && discard.path.is_empty())
                         })
                 }
@@ -274,7 +272,7 @@ impl Retirement<'_> {
                         ) else {
                             return false;
                         };
-                        let Some(groups) = validation::reference_result_custody::named_place_loans(
+                        let Some(groups) = named_place_loans(
                             self.program,
                             self.facts,
                             self.machine,
@@ -350,7 +348,7 @@ impl Retirement<'_> {
                             .filter(|call| call.coordinate.statement_index == *statement_index)
                             .filter(|call| {
                                 call.structural_arguments.iter().any(|argument| {
-                                    argument.access == checked_trees::CheckedStructuralAccess::Owned
+                                    argument.access == CheckedStructuralAccess::Owned
                                         && (argument.source_structural_result_binding_ordinal()
                                             == Some(result.binding_ordinal)
                                             || argument.structural_storage_root().is_some_and(
@@ -373,7 +371,7 @@ impl Retirement<'_> {
                                 else {
                                     return false;
                                 };
-                                if validation::borrow_contracts::substituted_result_is_view_free(
+                                if substituted_result_is_view_free(
                                     self.program,
                                     target.return_type,
                                     &[],
@@ -408,16 +406,16 @@ impl Retirement<'_> {
             if owners.next().is_some() {
                 return None;
             }
-            let reference = validation::canonical_place_type_reference(
+            let reference = canonical_place_type_reference(
                 self.program,
                 self.state.symbol,
                 result.statement_index as usize,
-                &validation::CanonicalPlace {
+                &CanonicalPlace {
                     root: *root,
                     segments: Vec::new(),
                 },
             )?;
-            let leaves = validation::reference_result_custody::record_carrier_sources(
+            let leaves = record_carrier_sources(
                 self.program,
                 reference,
                 CheckedUnitStructuralArgumentSourcePlan::StructuralResult {

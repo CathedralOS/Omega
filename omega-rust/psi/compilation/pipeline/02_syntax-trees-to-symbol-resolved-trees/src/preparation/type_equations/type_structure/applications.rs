@@ -27,6 +27,7 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::bignum::BigInt;
 use source::SourceSpan;
+use symbols::BuiltinTypeAtom;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ItemHandle, TypeParameter, TypeParameterKind};
 use syntax_trees::types::{
@@ -624,9 +625,7 @@ impl Solver<'_, '_> {
             return false;
         };
         closed_name_identity(self.syntax, self.selection, name)
-            == Some(ClosedArgumentIdentity::Builtin(
-                symbols::BuiltinTypeAtom::Bool,
-            ))
+            == Some(ClosedArgumentIdentity::Builtin(BuiltinTypeAtom::Bool))
     }
 
     fn application_boolean(

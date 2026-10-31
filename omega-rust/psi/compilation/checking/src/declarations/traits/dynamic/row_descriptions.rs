@@ -4,6 +4,10 @@
 //! projection. Its descriptions do not grant a program judgment or runtime
 //! dispatch authority; the complete source checker remains mandatory.
 
+use typed_trees::finite_family::FamilyProbe;
+use typed_trees::trait_definition::ConformanceRow;
+use typed_trees::type_identity::CallableIdentityId;
+
 pub fn describe_dynamic_conformances(
     program: &dyn crate::CheckingInput,
 ) -> Result<checked_trees::DynamicConformanceFacts, Vec<diagnostics::Diagnostic>> {
@@ -134,10 +138,7 @@ enum FamilyRows {
 /// requirement signature enumerates a finite family. Reads the prepared
 /// applied signature (the same view the specialization demand collector used)
 /// so an inherited family's carriers match the checked roster.
-fn family_roster(
-    program: &dyn crate::CheckingInput,
-    row: &typed_trees::trait_definition::ConformanceRow,
-) -> FamilyRows {
+fn family_roster(program: &dyn crate::CheckingInput, row: &ConformanceRow) -> FamilyRows {
     let Some(definition) = program.trait_definition_by_symbol(row.declaring_trait) else {
         return FamilyRows::Exact;
     };
@@ -146,10 +147,8 @@ fn family_roster(
         return FamilyRows::Exact;
     };
     match program.finite_signature_family(signature) {
-        typed_trees::finite_family::FamilyProbe::Finite { tuples, .. } => {
-            FamilyRows::Finite(tuples)
-        }
-        typed_trees::finite_family::FamilyProbe::NotFinite(_) => FamilyRows::Exact,
+        FamilyProbe::Finite { tuples, .. } => FamilyRows::Finite(tuples),
+        FamilyProbe::NotFinite(_) => FamilyRows::Exact,
     }
 }
 
@@ -192,14 +191,8 @@ fn family_realization_state(
 
 pub fn normalized_dynamic_row_identities(
     program: &dyn crate::CheckingInput,
-    row: &typed_trees::trait_definition::ConformanceRow,
-) -> Result<
-    (
-        typed_trees::type_identity::CallableIdentityId,
-        typed_trees::type_identity::CallableIdentityId,
-    ),
-    diagnostics::Diagnostic,
-> {
+    row: &ConformanceRow,
+) -> Result<(CallableIdentityId, CallableIdentityId), diagnostics::Diagnostic> {
     let mut declaring_traits = program
         .traits()
         .iter()

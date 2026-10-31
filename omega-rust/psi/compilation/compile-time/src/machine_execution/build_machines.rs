@@ -4,6 +4,9 @@
 //! through Terminal Psi. This module retains source/entry custody; it does not
 //! offer a second argument-mutating Build interpreter.
 
+use crate::build_time_evaluation::EvaluationDomain;
+use crate::const_evaluation::const_applications::defer_pending_const_applications;
+use checked_interpreter::BuildMachineProgram;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -113,15 +116,12 @@ impl PreparedBuildMachineProgram {
     }
 
     pub fn prepare(program: &TypedTrees) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        Self::prepare_in(
-            program,
-            &crate::build_time_evaluation::EvaluationDomain::all(),
-        )
+        Self::prepare_in(program, &EvaluationDomain::all())
     }
 
     pub(crate) fn prepare_in(
         program: &TypedTrees,
-        domain: &crate::build_time_evaluation::EvaluationDomain,
+        domain: &EvaluationDomain,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         let mut typed = domain.execution_program(program);
         // Preparation may precede endpoint evaluation. Preserve those exact
@@ -129,10 +129,7 @@ impl PreparedBuildMachineProgram {
         // pending type bounds unreplaced, so it cannot execute before a later
         // preparation validates its fully evaluated arguments.
         crate::const_evaluation::range_endpoints::defer_pending_endpoint_calls(&mut typed)?;
-        crate::const_evaluation::const_applications::defer_pending_const_applications(
-            &mut typed,
-            &crate::build_time_evaluation::EvaluationDomain::all(),
-        )?;
+        defer_pending_const_applications(&mut typed, &EvaluationDomain::all())?;
         let typed = typed_trees_to_typed_trees::prepare_constant_execution(typed)?;
         Ok(Self {
             program: PreparedBuildMachineBody::Typed(Box::new(typed)),
@@ -239,17 +236,13 @@ impl PreparedBuildMachineProgram {
         )
     }
 
-    fn interpreter_program(&self) -> checked_interpreter::BuildMachineProgram<'_> {
+    fn interpreter_program(&self) -> BuildMachineProgram<'_> {
         match &self.program {
-            PreparedBuildMachineBody::Typed(typed) => {
-                checked_interpreter::BuildMachineProgram::Typed(typed)
-            }
-            PreparedBuildMachineBody::Checked(program) => {
-                checked_interpreter::BuildMachineProgram::CheckedClosure {
-                    execution: &program.checked,
-                    product_declarations: &program.product_declarations,
-                }
-            }
+            PreparedBuildMachineBody::Typed(typed) => BuildMachineProgram::Typed(typed),
+            PreparedBuildMachineBody::Checked(program) => BuildMachineProgram::CheckedClosure {
+                execution: &program.checked,
+                product_declarations: &program.product_declarations,
+            },
         }
     }
 

@@ -6,6 +6,7 @@
 //! expression, and an absent checked entry cannot become an executable recipe.
 
 use crate::checked_facts::flow_facts;
+use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::LoweringError;
 use checked_trees::{CheckedScalarComputationKind, CheckedTrees};
 use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
@@ -285,7 +286,7 @@ impl SourceScalarApplications {
             .ok_or(LoweringError::Unsupported(
                 "pending array extent invocation has no scalar result",
             ))?;
-        let scalar_type = crate::emission::scalar_types::terminal_scalar_type(primitive)?;
+        let scalar_type = terminal_scalar_type(primitive)?;
         if scalar_type.as_integer().is_none() {
             return Err(LoweringError::Unsupported(
                 "pending array extent result is not an integer",
@@ -349,9 +350,7 @@ impl SourceScalarApplications {
                         }
                     },
                 },
-                crate::emission::scalar_types::terminal_scalar_type(
-                    typed_trees::types::PrimitiveType::U64,
-                )?,
+                terminal_scalar_type(typed_trees::types::PrimitiveType::U64)?,
             )
         } else {
             let contexts = checked
@@ -401,7 +400,7 @@ impl SourceScalarApplications {
             ))?;
         self.insert(
             Definition::Evaluation { entry: entry.entry },
-            crate::emission::scalar_types::terminal_scalar_type(primitive)?,
+            terminal_scalar_type(primitive)?,
         )
     }
 

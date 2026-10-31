@@ -4,12 +4,19 @@
 //! a builtin view. Diagnostic type spellings are not identity-view application evidence.
 
 use crate::flow::expressions;
-use language_semantics::RankingViewId;
 use language_semantics::declaration_selection::CollectionMeasure;
-use symbols::JoinedPath;
-use typed_trees::data::DataMember;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use language_semantics::{RankingViewId, RankingWitness};
+use symbols::{BuiltinTypeAtom, JoinedPath, SymbolHandle};
+use typed_trees::data::{DataMember, TypeParameterKind};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
+use typed_trees::name::Identifier;
+use typed_trees::ranking::witness_expression_text;
+use typed_trees::state::State;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
+use typed_trees::unsigned_integer_primitive_pattern;
+use validation::mathematical_applications::operand_type_reference;
 
 use validation::{
     MeasureBodyShape, ProjectionStep, declared_scalar_view, find_declared_measure,
@@ -40,17 +47,17 @@ pub(super) enum RankingOrder {
     /// upper)`.
     IncreasingTo(ExpressionHandle),
     /// A declared `measure` whose body forwards the (already numeric) parameter.
-    CustomNatDescending { measure: symbols::SymbolHandle },
+    CustomNatDescending { measure: SymbolHandle },
     /// A declared scalar computation over the exact captured input. Its
     /// input carrier authenticates the source coordinate; independent body
     /// formation establishes a value in the result carrier. Comparisons use
     /// produced values, never an assumed monotonicity of the input.
     CustomScalarView {
-        measure: symbols::SymbolHandle,
-        parameter: symbols::SymbolHandle,
+        measure: SymbolHandle,
+        parameter: SymbolHandle,
         body: ExpressionHandle,
-        input_carrier: symbols::BuiltinTypeAtom,
-        result_carrier: symbols::BuiltinTypeAtom,
+        input_carrier: BuiltinTypeAtom,
+        result_carrier: BuiltinTypeAtom,
     },
     /// A declared `measure` whose body projects a field of a struct parameter,
     /// e.g. `measure Card::PowerOrder(card: Card) -> u64 { card.power }`, or a
@@ -61,16 +68,17 @@ pub(super) enum RankingOrder {
     /// `measure` is the declaration itself, which the relational range route
     /// hands to validation to re-resolve the projection independently.
     CustomStructView {
-        measure: symbols::SymbolHandle,
+        measure: SymbolHandle,
         path: Vec<ProjectionStep>,
-        field: typed_trees::name::Identifier,
-        field_type: typed_trees::types::TypeReferenceHandle,
-        field_symbol: symbols::SymbolHandle,
-        owner: symbols::SymbolHandle,
+        field: Identifier,
+        field_type: TypeReferenceHandle,
+        field_symbol: SymbolHandle,
+        owner: SymbolHandle,
     },
-    /// A declared lexicographic `measure`; the stored field names are the ordered
-    /// projection components compared left-to-right.
-    Lexicographic(Vec<typed_trees::name::Identifier>),
+    /// A declared lexicographic view. The complete invocation-component owner
+    /// resolves and retains its ordered field identities; classification grants
+    /// no source-shape-based comparison proof.
+    Lexicographic,
 }
 
 /// The result of resolving the ordering for a `terminates by` clause: either a
@@ -133,7 +141,7 @@ impl RankingOrder {
     /// only builtin two-subject ranking.
     fn resolve(
         program: &dyn ::validation::CheckingInput,
-        state: &typed_trees::state::State,
+        state: &State,
         subjects: &[ExpressionHandle],
         order: &[&str],
         view_arguments: &[ExpressionHandle],
@@ -214,8 +222,8 @@ impl RankingOrder {
     /// through this one site.
     pub(super) fn resolve_witness(
         program: &dyn ::validation::CheckingInput,
-        root_state: &typed_trees::state::State,
-        witness: &language_semantics::RankingWitness,
+        root_state: &State,
+        witness: &RankingWitness,
         subjects: &[ExpressionHandle],
         view_arguments: &[ExpressionHandle],
     ) -> OrderResolution {
@@ -229,7 +237,7 @@ impl RankingOrder {
 
     fn from_path(
         program: &dyn ::validation::CheckingInput,
-        state: &typed_trees::state::State,
+        state: &State,
         decreases: ExpressionHandle,
         order: &[&str],
     ) -> Option<Self> {
@@ -254,8 +262,8 @@ impl RankingOrder {
         let measure = find_declared_measure(program, order)?;
 
         if measure.lexicographic {
-            let components = lexicographic_component_fields(program, measure)?;
-            return Some(Self::Lexicographic(components));
+            return lexicographic_components_are_named(program, measure)
+                .then_some(Self::Lexicographic);
         }
 
         let Some(shape) = measure_body_shape(program, measure) else {
@@ -308,7 +316,7 @@ impl RankingOrder {
                 let mut reference = program
                     .type_reference_table
                     .unconstrained_type_reference(subject.type_reference);
-                if let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
+                if let TypeReferenceNode::Reference { referee, .. } =
                     program.type_reference_table.type_reference(reference)
                 {
                     reference = program
@@ -316,7 +324,7 @@ impl RankingOrder {
                         .unconstrained_type_reference(*referee);
                 }
                 if !matches!(program.type_reference_table.type_reference(reference),
-                    typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == root)
+                    TypeReferenceNode::Named { symbol, .. } if *symbol == root)
                 {
                     return None;
                 }
@@ -352,7 +360,7 @@ impl RankingOrder {
 /// along as suggestions for the diagnostic.
 fn infer_default_order(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     decreases: ExpressionHandle,
 ) -> OrderResolution {
     match decreasing_value_kind(program, state, decreases) {
@@ -367,7 +375,7 @@ fn infer_default_order(
 /// user could select explicitly.
 fn describe_ambiguity(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     decreases: ExpressionHandle,
 ) -> AmbiguousDefault {
     let clause = decreasing_value_text(program, decreases);
@@ -396,7 +404,7 @@ pub(super) fn decreasing_value_text(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> String {
-    typed_trees::ranking::witness_expression_text(program, expression)
+    witness_expression_text(program, expression)
 }
 
 /// A type whose `value - 1` step is not well-founded without a positivity
@@ -445,7 +453,7 @@ enum DecreasingValueKind {
 
 fn decreasing_value_kind(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     decreases: ExpressionHandle,
 ) -> Option<DecreasingValueKind> {
     // `value.len` (or any member spelled `len`) is a nat-like scalar.
@@ -456,12 +464,7 @@ fn decreasing_value_kind(
     let reference = ranking_subject_type_reference(program, state, decreases)?;
     if program
         .primitive_type_reference(reference)
-        .is_some_and(|primitive| {
-            matches!(
-                primitive,
-                typed_trees::unsigned_integer_primitive_pattern!()
-            )
-        })
+        .is_some_and(|primitive| matches!(primitive, unsigned_integer_primitive_pattern!()))
     {
         return Some(DecreasingValueKind::Nat);
     }
@@ -470,8 +473,7 @@ fn decreasing_value_kind(
         .unconstrained_type_reference(reference);
     if matches!(
         program.type_reference_table.type_reference(base),
-        typed_trees::types::TypeReferenceNode::Slice { .. }
-            | typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. }
     ) {
         return Some(DecreasingValueKind::Slice);
     }
@@ -484,9 +486,9 @@ fn decreasing_value_kind(
 /// carrier merely because it prints the same number.
 fn ranking_subject_type_reference(
     program: &dyn validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     expression: ExpressionHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<TypeReferenceHandle> {
     if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
         && path.symbol.is_valid()
         && path.head_symbol == path.symbol
@@ -500,45 +502,37 @@ fn ranking_subject_type_reference(
         }
         if let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol) {
             match parameter.kind {
-                typed_trees::data::TypeParameterKind::Value { type_reference }
-                | typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                TypeParameterKind::Value { type_reference }
+                | TypeParameterKind::Const { type_reference } => {
                     return Some(type_reference);
                 }
                 _ => return None,
             }
         }
     }
-    validation::mathematical_applications::operand_type_reference(program, expression)
+    operand_type_reference(program, expression)
 }
 
-fn lexicographic_component_fields(
+fn lexicographic_components_are_named(
     program: &dyn ::validation::CheckingInput,
     measure: &MeasureDefinition,
-) -> Option<Vec<typed_trees::name::Identifier>> {
+) -> bool {
     let body = program.expression_table.expression_handles(measure.body);
-    if body.is_empty() {
-        return None;
-    }
-    let mut fields = Vec::with_capacity(body.len());
-    for component in body {
-        match program.expression_table.expression(*component) {
-            ExpressionNode::Name(path) => {
-                let member = expressions(program)
+    !body.is_empty()
+        && body.iter().all(
+            |component| match program.expression_table.expression(*component) {
+                ExpressionNode::Name(path) => !expressions(program)
                     .name_path_members(path.members)
-                    .last()
-                    .cloned()?;
-                fields.push(member);
-            }
-            ExpressionNode::Member(member) => fields.push(member.member.clone()),
-            _ => return None,
-        }
-    }
-    Some(fields)
+                    .is_empty(),
+                ExpressionNode::Member(_) => true,
+                _ => false,
+            },
+        )
 }
 
 fn expression_type_name(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     expression: ExpressionHandle,
 ) -> Option<String> {
     if let Some(reference) = ranking_subject_type_reference(program, state, expression) {
@@ -583,12 +577,7 @@ fn expression_type_name(
                 }
                 _ => None,
             }),
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                typed_trees::expression::BinaryOperator::Subtract
-            ) =>
-        {
+        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
             Some("u64".to_string())
         }
         _ => None,
@@ -597,8 +586,8 @@ fn expression_type_name(
 
 fn state_parameter_type_name(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    symbol: symbols::SymbolHandle,
+    state: &State,
+    symbol: SymbolHandle,
     fallback_name: Option<&str>,
 ) -> Option<String> {
     program
@@ -632,7 +621,7 @@ fn catalog_declaration_is_authentic(
     let Some(row) = view.catalog_declaration() else {
         return true;
     };
-    let sealed = |symbol: symbols::SymbolHandle| {
+    let sealed = |symbol: SymbolHandle| {
         program
             .normalized_hermetic_symbol_identity(symbol)
             .ok()

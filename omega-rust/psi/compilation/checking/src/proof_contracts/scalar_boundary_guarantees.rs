@@ -10,6 +10,7 @@ use checked_trees::{
     CheckedIeeeFloatComparisonKind as Compare, CheckedScalarExpression as Scalar,
     ClosedScalarContractValue,
 };
+use numerics::float_semantics_catalog::FloatSemanticOperation;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 use typed_trees::{machine::Machine, types::PrimitiveType};
 
@@ -85,9 +86,7 @@ fn meaning_consequence(
     if !source_equation_matches(program, facts, machine, expression, application) {
         return None;
     }
-    let row = numerics::float_semantics_catalog::FloatSemanticOperation::for_contract_identity(
-        &application.contract,
-    )?;
+    let row = FloatSemanticOperation::for_contract_identity(&application.contract)?;
     // These are names in the sealed mathematical catalog after complete
     // identity replay, not the runtime callee's namespace or spelling.
     let division = match row.name {

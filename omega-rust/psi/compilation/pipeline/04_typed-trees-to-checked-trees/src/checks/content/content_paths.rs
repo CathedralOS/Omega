@@ -1,8 +1,12 @@
 //! Content segments, contract places and projection plans as fact paths.
 
 use crate::flow::expressions;
-use checked_trees::CheckFacts;
+use arena::Handle;
+use arena::HandleSpan;
 use checked_trees::facts::ContentBodyClaimBinding;
+use checked_trees::{CheckFacts, FlowOperandFact, FlowPermissionEventFact, FlowStateFact};
+use facts::PlaceRoot;
+use facts::PlaceSegment;
 use language_semantics::content::{
     ContentCaseSegment, ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
@@ -13,26 +17,27 @@ use language_semantics::{
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::state::State;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use validation::CanonicalPlace;
 
 pub(crate) fn content_segments_to_fact_path(
     segments: &[ContentPlaceSegment],
-) -> Option<Vec<facts::PlaceSegment>> {
+) -> Option<Vec<PlaceSegment>> {
     segments
         .iter()
         .map(|segment| match segment {
-            ContentPlaceSegment::Case(case) if case.symbol.is_valid() => {
-                Some(facts::PlaceSegment::Case {
-                    variant: case.symbol,
-                })
-            }
+            ContentPlaceSegment::Case(case) if case.symbol.is_valid() => Some(PlaceSegment::Case {
+                variant: case.symbol,
+            }),
             ContentPlaceSegment::Field(field) if field.symbol.is_valid() => {
-                Some(facts::PlaceSegment::Field {
+                Some(PlaceSegment::Field {
                     symbol: field.symbol,
                 })
             }
-            ContentPlaceSegment::FixedIndex(index) => Some(facts::PlaceSegment::FixedIndex {
+            ContentPlaceSegment::FixedIndex(index) => Some(PlaceSegment::FixedIndex {
                 index: usize::try_from(*index).ok()?,
             }),
             ContentPlaceSegment::Case(_) | ContentPlaceSegment::Field(_) => None,
@@ -51,7 +56,7 @@ pub(super) struct ClaimBindings {
 
 struct PendingBinding {
     binding: ContentBodyClaimBinding,
-    path: Vec<facts::PlaceSegment>,
+    path: Vec<PlaceSegment>,
 }
 
 impl ClaimBindings {
@@ -63,9 +68,9 @@ impl ClaimBindings {
         semantic_domain: SemanticDomainId,
         machine: SymbolHandle,
         subject: &ContentStructuralPlace,
-        path: Vec<facts::PlaceSegment>,
+        path: Vec<PlaceSegment>,
         claim_identity: PermissionClaimIdentity,
-        observation: arena::Handle<checked_trees::FlowOperandFact>,
+        observation: Handle<FlowOperandFact>,
     ) -> Option<()> {
         if claim_identity == PermissionClaimIdentity::Unknown
             || self
@@ -121,7 +126,7 @@ impl ClaimBindings {
                         subject,
                         content_segments_to_fact_path(&subject.segments)?,
                         claim_identity,
-                        arena::Handle::invalid(),
+                        Handle::invalid(),
                     )?;
                 }
                 ContentConservationTerm::Separate(children) => {
@@ -137,19 +142,14 @@ impl ClaimBindings {
     }
 
     /// The recorded rows, still holding their uninterred subject segments.
-    pub(super) fn rows(
-        &self,
-    ) -> impl Iterator<Item = (&ContentBodyClaimBinding, &[facts::PlaceSegment])> {
+    pub(super) fn rows(&self) -> impl Iterator<Item = (&ContentBodyClaimBinding, &[PlaceSegment])> {
         self.rows
             .iter()
             .map(|pending| (&pending.binding, pending.path.as_slice()))
     }
 
     /// Publish the recorded rows, interning each subject's segments once.
-    pub(super) fn publish(
-        self,
-        facts: &mut CheckFacts,
-    ) -> arena::HandleSpan<ContentBodyClaimBinding> {
+    pub(super) fn publish(self, facts: &mut CheckFacts) -> HandleSpan<ContentBodyClaimBinding> {
         let rows = self
             .rows
             .into_iter()
@@ -183,7 +183,7 @@ pub(crate) fn unique_entry_claim_identity(
     facts: &CheckFacts,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
-    input_path: &[facts::PlaceSegment],
+    input_path: &[PlaceSegment],
 ) -> Option<PermissionClaimIdentity> {
     entry_claim_identity(
         facts,
@@ -206,8 +206,8 @@ pub(super) fn entry_claim_identity<'event>(
     facts: &CheckFacts,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
-    input_path: &[facts::PlaceSegment],
-    events: impl Iterator<Item = &'event checked_trees::FlowPermissionEventFact>,
+    input_path: &[PlaceSegment],
+    events: impl Iterator<Item = &'event FlowPermissionEventFact>,
 ) -> Option<PermissionClaimIdentity> {
     let identities = crate::collections::unique_in_order(
         events
@@ -217,7 +217,7 @@ pub(super) fn entry_claim_identity<'event>(
                     && event.kind == PermissionEventKind::Establish
                     && event.access == PermissionAccess::Owned
                     && event.obligation_live
-                    && event.root == facts::PlaceRoot::Symbol(parameter_symbol)
+                    && event.root == PlaceRoot::Symbol(parameter_symbol)
                     && facts.flow.ownership.segments.span_or_empty(event.segments) == input_path
                     && event.claim_identity != PermissionClaimIdentity::Unknown
             })
@@ -232,8 +232,8 @@ pub(super) fn entry_claim_identity<'event>(
 pub(crate) fn applicable_projection_plans<'facts>(
     program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     type_reference: TypeReferenceHandle,
     subject: &ContentStructuralPlace,
 ) -> Vec<&'facts ContentProjectionPlan> {
@@ -292,8 +292,8 @@ fn type_has_domain(
 
 fn contracts_establish_domain(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     subject: &ContentStructuralPlace,
     domain: SymbolHandle,
     semantic_domain: SemanticDomainId,
@@ -437,29 +437,27 @@ fn content_paths_match(left: &[ContentPlaceSegment], right: &[ContentPlaceSegmen
 
 pub(crate) fn content_path(
     program: &dyn ::validation::CheckingInput,
-    path: &[facts::PlaceSegment],
+    path: &[PlaceSegment],
 ) -> Option<Vec<ContentPlaceSegment>> {
     path.iter()
         .map(|segment| match segment {
-            facts::PlaceSegment::Case { variant } => {
-                Some(ContentPlaceSegment::Case(ContentCaseSegment {
-                    symbol: *variant,
-                    name: ::validation::data_variant_name(program, *variant)?.to_owned(),
-                }))
-            }
-            facts::PlaceSegment::Field { symbol } => {
+            PlaceSegment::Case { variant } => Some(ContentPlaceSegment::Case(ContentCaseSegment {
+                symbol: *variant,
+                name: ::validation::data_variant_name(program, *variant)?.to_owned(),
+            })),
+            PlaceSegment::Field { symbol } => {
                 Some(ContentPlaceSegment::Field(ContentFieldSegment {
                     symbol: *symbol,
                     name: crate::checks::multiplicity::data_field_name(program, *symbol)?
                         .to_owned(),
                 }))
             }
-            facts::PlaceSegment::FixedIndex { index } => Some(ContentPlaceSegment::FixedIndex(
+            PlaceSegment::FixedIndex { index } => Some(ContentPlaceSegment::FixedIndex(
                 u64::try_from(*index).expect("fixed index fits u64"),
             )),
-            facts::PlaceSegment::FixedRange { .. }
-            | facts::PlaceSegment::OpaqueRange
-            | facts::PlaceSegment::Index { .. } => None,
+            PlaceSegment::FixedRange { .. }
+            | PlaceSegment::OpaqueRange
+            | PlaceSegment::Index { .. } => None,
         })
         .collect()
 }
@@ -469,11 +467,11 @@ pub(crate) fn content_path(
 /// the enclosing owner. Constants have no storage dependency.
 pub(crate) fn projection_observations(
     expression: &language_semantics::content::ContentProjectionExpression,
-) -> Option<Vec<Vec<facts::PlaceSegment>>> {
+) -> Option<Vec<Vec<PlaceSegment>>> {
     use language_semantics::content::{ContentProjectionExpression, ContentScalarExpression};
     fn scalar(
         expression: &ContentScalarExpression,
-        paths: &mut Vec<Vec<facts::PlaceSegment>>,
+        paths: &mut Vec<Vec<PlaceSegment>>,
     ) -> Option<()> {
         match expression {
             ContentScalarExpression::SubjectField(fields)
@@ -481,12 +479,9 @@ pub(crate) fn projection_observations(
                 let path = fields
                     .iter()
                     .map(|field| {
-                        field
-                            .symbol
-                            .is_valid()
-                            .then_some(facts::PlaceSegment::Field {
-                                symbol: field.symbol,
-                            })
+                        field.symbol.is_valid().then_some(PlaceSegment::Field {
+                            symbol: field.symbol,
+                        })
                     })
                     .collect::<Option<Vec<_>>>()?;
                 crate::collections::push_unique(&mut *paths, path);
@@ -521,11 +516,11 @@ pub(crate) fn projection_observations(
 pub(crate) fn preserves_entry_observation(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &checked_trees::FlowStateFact,
-    operand: &checked_trees::FlowOperandFact,
-    observed: validation::CanonicalPlace,
-    expected: &validation::CanonicalPlace,
+    machine: &Machine,
+    state: &FlowStateFact,
+    operand: &FlowOperandFact,
+    observed: CanonicalPlace,
+    expected: &CanonicalPlace,
 ) -> bool {
     crate::flow::operand_entry_origin_is_stable(program, &facts.flow, operand, &observed)
         && crate::flow::value_origin_before_statement(

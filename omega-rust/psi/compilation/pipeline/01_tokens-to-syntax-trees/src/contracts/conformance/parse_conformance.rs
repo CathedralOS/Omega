@@ -1,9 +1,13 @@
+use crate::diagnostics::parse_error::ParseError;
+use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::tables::{items, type_refs};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::item::SatisfiesClause;
+use syntax_trees::types::TypeReferenceHandle;
 use tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
@@ -65,11 +69,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
                 via = Some(binding);
                 rest = next;
             } else {
-                let (expression, next) =
-                    crate::expressions::parse_expression::parse_expression_handle(
-                        syntax_trees,
-                        next,
-                    )?;
+                let (expression, next) = parse_expression_handle(syntax_trees, next)?;
                 via_expression = expression;
                 rest = next;
             }
@@ -99,13 +99,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
 pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> Result<
-    (
-        HandleSpan<syntax_trees::types::TypeReferenceHandle>,
-        Input<'tokens, 'source>,
-    ),
-    crate::diagnostics::parse_error::ParseError,
-> {
+) -> Result<(HandleSpan<TypeReferenceHandle>, Input<'tokens, 'source>), ParseError> {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((HandleSpan::empty(), input));
     }
@@ -133,7 +127,7 @@ pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
 pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, syntax_trees::types::TypeReferenceHandle> {
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     if input
         .tokens
         .first()
@@ -157,15 +151,7 @@ pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
 pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<
-    'tokens,
-    'source,
-    (
-        syntax_trees::identifier::Identifier,
-        Vec<syntax_trees::identifier::Identifier>,
-        HandleSpan<syntax_trees::types::TypeReferenceHandle>,
-    ),
-> {
+) -> ParseResult<'tokens, 'source, (Identifier, Vec<Identifier>, HandleSpan<TypeReferenceHandle>)> {
     let (trait_name, mut rest) = input.take_identifier()?;
     let mut lifetime_arguments = Vec::new();
     let trait_arguments = if rest.at_punctuation(PunctuationKind::Less) {

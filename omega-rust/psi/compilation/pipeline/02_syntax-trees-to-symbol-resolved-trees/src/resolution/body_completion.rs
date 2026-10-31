@@ -12,14 +12,19 @@ use crate::constant::initializer_dependencies::{
 use crate::lowering::machine::{PendingMachineBody, complete_machine_body};
 use crate::preparation::declaration_selection::ConstantSelection;
 use crate::preparation::machine_equations::{self, SourceLinks};
+use crate::symbols::assign_constant_expression_symbols;
 use diagnostics::Diagnostic;
+use std::mem::take;
 use std::sync::Arc;
+use symbol_resolved_trees::types::OperandLifetimeOwnerHandle;
 use symbol_resolved_trees::{
     AuthoredDeclarationSelections, AuthoredSelectionExtensionFrontier,
     AuthoredSelectionExtensionRebaseError, SymbolResolvedTrees, expression::ExpressionHandle,
 };
 use symbols::SymbolHandle;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::item::ItemHandle;
+use syntax_trees::types::TypeReferenceHandle;
 
 /// Receipt replay needs the original helper closure before a resolved frontier
 /// can publish. Complete that demand on its current owner: constructing a
@@ -37,10 +42,7 @@ pub(super) fn complete_initializer_receipt_dependencies(
     if roots.is_empty() {
         return Ok(());
     }
-    crate::symbols::assign_constant_expression_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        roots.iter().copied(),
-    );
+    assign_constant_expression_symbols(&mut lowerer.symbol_resolved_trees, roots.iter().copied());
     loop {
         let demand = collect_machine_body_demand(&lowerer.symbol_resolved_trees, &[], &roots)
             .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -76,14 +78,11 @@ pub struct DeferredResolvedFrontier {
     pub(super) syntax: Arc<SyntaxTrees>,
     pub(super) trees: Arc<SymbolResolvedTrees>,
     pub(super) pending: Vec<PendingMachineBody>,
-    pub(super) pending_type_inputs: Vec<(SymbolHandle, syntax_trees::types::TypeReferenceHandle)>,
+    pub(super) pending_type_inputs: Vec<(SymbolHandle, TypeReferenceHandle)>,
     // Body demand resumes this exact declaration allocation. Reconstructing
     // these associations from spelling would capture fresh invocation binders.
-    pub(super) supplied_operand_owners: Vec<(
-        syntax_trees::item::ItemHandle,
-        symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
-    )>,
-    pub(super) conformance_inputs: Vec<(syntax_trees::item::ItemHandle, usize)>,
+    pub(super) supplied_operand_owners: Vec<(ItemHandle, OperandLifetimeOwnerHandle)>,
+    pub(super) conformance_inputs: Vec<(ItemHandle, usize)>,
     pub(super) selection: ConstantSelection<'static>,
     pub(super) sources: Option<Arc<source::SourceMap>>,
     pub(super) bindings: Vec<symbols::SourceScopedTopLevelBinding>,
@@ -157,9 +156,7 @@ impl DeferredResolvedFrontier {
 
     /// Transfer probe-only input custody on this exact completed declaration
     /// roster. Symbol handles remain those consumed by its seeded typed base.
-    pub fn into_pending_type_inputs(
-        self,
-    ) -> Vec<(SymbolHandle, syntax_trees::types::TypeReferenceHandle)> {
+    pub fn into_pending_type_inputs(self) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
         self.pending_type_inputs
     }
 
@@ -325,8 +322,8 @@ impl DeferredResolvedFrontier {
         lower_selected_bodies(&mut lowerer, &self.syntax, &pending, selected)?;
         super::finish_resolution(&mut lowerer, &self.syntax, &[], selected)?;
         let hoist_counter = lowerer.hoist_counter;
-        self.supplied_operand_owners = std::mem::take(&mut lowerer.supplied_operand_owners);
-        self.conformance_inputs = std::mem::take(&mut lowerer.conformance_inputs);
+        self.supplied_operand_owners = take(&mut lowerer.supplied_operand_owners);
+        self.conformance_inputs = take(&mut lowerer.conformance_inputs);
         self.pending.append(&mut lowerer.pending_machine_bodies);
         self.equation_sources = lowerer.equation_sources.take().map(|mut links| {
             links.expressions.clear();

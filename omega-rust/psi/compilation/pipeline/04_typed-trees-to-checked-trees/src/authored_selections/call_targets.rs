@@ -1,5 +1,6 @@
 //! Checked call, conformance and name-path targets.
 
+use super::member_targets::for_each_statement_containing;
 use crate::authored_selections::contract_resolution;
 use crate::flow::expressions;
 use crate::flow::state_statements;
@@ -185,31 +186,27 @@ pub(crate) fn checked_name_path_segment_target(
 
     let mut contextual_root = None;
     let mut conflicting = false;
-    super::member_targets::for_each_statement_containing(
-        program,
-        expression,
-        |machine, state, statement_index, _| {
-            let root = if direct.is_valid() {
-                direct
-            } else {
-                let Some(validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(root),
-                    ..
-                }) = place_at(program, state.symbol, statement_index, expression)
-                else {
-                    return Some(());
-                };
-                root
+    for_each_statement_containing(program, expression, |machine, state, statement_index, _| {
+        let root = if direct.is_valid() {
+            direct
+        } else {
+            let Some(validation::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(root),
+                ..
+            }) = place_at(program, state.symbol, statement_index, expression)
+            else {
+                return Some(());
             };
-            let root = authored_contextual_root(program, machine, state, statement_index, root);
-            if contextual_root.is_some_and(|candidate| candidate != root) {
-                conflicting = true;
-                return None;
-            }
-            contextual_root = Some(root);
-            Some(())
-        },
-    );
+            root
+        };
+        let root = authored_contextual_root(program, machine, state, statement_index, root);
+        if contextual_root.is_some_and(|candidate| candidate != root) {
+            conflicting = true;
+            return None;
+        }
+        contextual_root = Some(root);
+        Some(())
+    });
     if conflicting {
         return SymbolHandle::invalid();
     }

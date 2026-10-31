@@ -5,10 +5,9 @@ use super::{
     TypeReferenceNode, TypedTrees, resolve_spelling,
 };
 use crate::data::TypeParameter;
-use crate::typed_trees::declarations::operator::spellings::{
-    OperandType, operator_matches_operands_with_indexed_collection,
-};
-use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
+use crate::typed_trees::declarations::operator;
+use operator::spellings::{OperandType, operator_matches_operands_with_indexed_collection};
+use operator::type_matching::type_reference_matches;
 use symbols::SymbolHandle;
 
 /// Authenticate builtin `[]` meaning under the complete declared operands.

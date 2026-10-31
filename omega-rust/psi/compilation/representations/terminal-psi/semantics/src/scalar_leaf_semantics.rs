@@ -64,6 +64,15 @@ pub fn constant_goal_free_scalar_leaf(
             integer_literal(right)?,
         ))
     };
+    /// One two-operand integer literal: the row names the integer operation and
+    /// both operands are read as literals in the result type.
+    macro_rules! integer_binary {
+        ($op:ident, $left:ident, $right:ident) => {
+            ScalarLeafLiteral::Integer(
+                result_integer_type()?.$op(integer_literal($left)?, integer_literal($right)?)?,
+            )
+        };
+    }
     Some(match (schema.denotation, inputs) {
         (ScalarLeafDenotation::BooleanNot, ScalarLeafInputs::Unary(operand)) => {
             ScalarLeafLiteral::Boolean(!boolean_literal(operand)?)
@@ -101,22 +110,13 @@ pub fn constant_goal_free_scalar_leaf(
             )
         }
         (ScalarLeafDenotation::IntegerBitwiseAnd, ScalarLeafInputs::Binary(left, right)) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?
-                    .bitwise_and(integer_literal(left)?, integer_literal(right)?)?,
-            )
+            integer_binary!(bitwise_and, left, right)
         }
         (ScalarLeafDenotation::IntegerBitwiseOr, ScalarLeafInputs::Binary(left, right)) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?
-                    .bitwise_or(integer_literal(left)?, integer_literal(right)?)?,
-            )
+            integer_binary!(bitwise_or, left, right)
         }
         (ScalarLeafDenotation::IntegerBitwiseXor, ScalarLeafInputs::Binary(left, right)) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?
-                    .bitwise_xor(integer_literal(left)?, integer_literal(right)?)?,
-            )
+            integer_binary!(bitwise_xor, left, right)
         }
         (
             ScalarLeafDenotation::WrappingIntegerShiftLeft,
@@ -135,43 +135,25 @@ pub fn constant_goal_free_scalar_leaf(
             integer_literal(count)?,
         )?),
         (ScalarLeafDenotation::WrappingIntegerAdd, ScalarLeafInputs::Binary(left, right)) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?
-                    .wrapping_add(integer_literal(left)?, integer_literal(right)?)?,
-            )
+            integer_binary!(wrapping_add, left, right)
         }
         (ScalarLeafDenotation::SaturatingIntegerAdd, ScalarLeafInputs::Binary(left, right)) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?
-                    .saturating_add(integer_literal(left)?, integer_literal(right)?)?,
-            )
+            integer_binary!(saturating_add, left, right)
         }
         (ScalarLeafDenotation::WrappingIntegerSubtract, ScalarLeafInputs::Binary(left, right)) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?
-                    .wrapping_sub(integer_literal(left)?, integer_literal(right)?)?,
-            )
+            integer_binary!(wrapping_sub, left, right)
         }
         (
             ScalarLeafDenotation::SaturatingIntegerSubtract,
             ScalarLeafInputs::Binary(left, right),
-        ) => ScalarLeafLiteral::Integer(
-            result_integer_type()?
-                .saturating_sub(integer_literal(left)?, integer_literal(right)?)?,
-        ),
+        ) => integer_binary!(saturating_sub, left, right),
         (ScalarLeafDenotation::WrappingIntegerMultiply, ScalarLeafInputs::Binary(left, right)) => {
-            ScalarLeafLiteral::Integer(
-                result_integer_type()?
-                    .wrapping_mul(integer_literal(left)?, integer_literal(right)?)?,
-            )
+            integer_binary!(wrapping_mul, left, right)
         }
         (
             ScalarLeafDenotation::SaturatingIntegerMultiply,
             ScalarLeafInputs::Binary(left, right),
-        ) => ScalarLeafLiteral::Integer(
-            result_integer_type()?
-                .saturating_mul(integer_literal(left)?, integer_literal(right)?)?,
-        ),
+        ) => integer_binary!(saturating_mul, left, right),
         _ => return None,
     })
 }

@@ -6,10 +6,10 @@ use super::{
     x86_64_system_v_register_unit_call_keys,
 };
 use register_model::{
-    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterConstraintKey as Key, RegisterInstructionConstraint, RegisterOperandAccess,
     ValidatedPhysicalRegisterModel, find_register_constraint,
 };
-pub fn x86_64_float_scalar_call_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
+pub fn x86_64_float_scalar_call_keys(microsoft: bool) -> Vec<Key> {
     let count = input_keys(microsoft).len()
         + (if microsoft {
             x86_64_microsoft_mixed_unit_call_keys()
@@ -18,21 +18,15 @@ pub fn x86_64_float_scalar_call_keys(microsoft: bool) -> Vec<RegisterConstraintK
         })
         .len();
     (0..count)
-        .map(|ordinal| {
-            RegisterConstraintKey::call((if microsoft { 1800 } else { 1600 }) + ordinal as u32)
-        })
+        .map(|ordinal| Key::call((if microsoft { 1800 } else { 1600 }) + ordinal as u32))
         .collect()
 }
 
-pub fn x86_64_float_scalar_return_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
-    vec![RegisterConstraintKey::ret(if microsoft {
-        1601
-    } else {
-        1600
-    })]
+pub fn x86_64_float_scalar_return_keys(microsoft: bool) -> Vec<Key> {
+    vec![Key::ret(if microsoft { 1601 } else { 1600 })]
 }
 
-fn input_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
+fn input_keys(microsoft: bool) -> Vec<Key> {
     (if microsoft {
         x86_64_microsoft_register_unit_call_keys()
     } else {

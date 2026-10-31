@@ -76,7 +76,10 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     for state in program.machine_state_handles(machine.states) {
         if let Some(state_symbol) = machine_children.next() {
             let state = program.machine_state(*state);
-            insert_state_symbol_children(builder, program, state_symbol, state, has_sources);
+            builder.insert_children(
+                state_symbol,
+                parameter_seeds(program.state_parameters(state.parameters), has_sources),
+            );
         }
     }
 }
@@ -155,17 +158,4 @@ fn select_visible_trait_definition<'program>(
             })
         })
         .or_else(|| candidates.first().copied())
-}
-
-fn insert_state_symbol_children(
-    builder: &mut impl SymbolTableAppender,
-    program: &SymbolResolvedTrees,
-    state_symbol: SymbolHandle,
-    state: &symbol_resolved_trees::state::State,
-    has_sources: bool,
-) {
-    builder.insert_children(
-        state_symbol,
-        parameter_seeds(program.state_parameters(state.parameters), has_sources),
-    );
 }

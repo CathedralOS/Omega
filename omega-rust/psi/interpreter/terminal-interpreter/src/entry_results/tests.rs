@@ -5,7 +5,7 @@ use crate::calls::frames::tests::empty_program;
 use crate::execution::SuspendedCallResult;
 use crate::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::{TerminalExecutionResult, TerminalExecutionStatus};
-use semantic_vocabulary::{EdgeId, OperationId};
+use semantic_vocabulary::{EdgeId, IntegerSign, IntegerType, OperationId};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, TerminalMachineResult, Terminator, ValueDeclaration,
@@ -196,13 +196,7 @@ fn entry_results_require_exact_root_operation_carrier_and_unique_request() {
             MachineId::new(1).unwrap(),
             vec![(
                 ValueId::new(1).unwrap(),
-                ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        64,
-                    )
-                    .unwrap(),
-                ),
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
             )],
         ),
         (

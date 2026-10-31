@@ -10,6 +10,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{TypedTrees, name::Identifier};
+use validation::expression_traversal::collect_statement_expression_trees;
 
 pub(super) struct RegisterVersion {
     pub source: SymbolHandle,
@@ -61,15 +62,9 @@ pub(super) fn statement(
     // Each changed reference must name its new declaration as well as carry
     // its identity. An old parameter spelling must not denote a fresh value.
     let mut expressions = Vec::new();
-    validation::expression_traversal::collect_statement_expression_trees(
-        program,
-        &statement,
-        &mut expressions,
-    );
+    collect_statement_expression_trees(program, &statement, &mut expressions);
     for expression in expressions {
-        let typed_trees::expression::ExpressionNode::Name(path) =
-            expressions_of(program).expression(expression)
-        else {
+        let ExpressionNode::Name(path) = expressions_of(program).expression(expression) else {
             continue;
         };
         if !registers
@@ -81,8 +76,7 @@ pub(super) fn statement(
         let mut members = HandleSpan::empty();
         let identifier = Identifier::generated(program.symbols.name(path.symbol));
         expressions_of_mut(program).push_name_path_member(&mut members, identifier);
-        let typed_trees::expression::ExpressionNode::Name(path) =
-            expressions_of_mut(program).expression_mut(expression)
+        let ExpressionNode::Name(path) = expressions_of_mut(program).expression_mut(expression)
         else {
             unreachable!()
         };

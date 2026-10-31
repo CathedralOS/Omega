@@ -7,8 +7,7 @@ use crate::frame_protocol::{
 use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragment,
     FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
-    FunctionFragmentFrameApplication, FunctionFragmentInternalMachineFixup,
-    FunctionFragmentNormalizedForeignCallFixup,
+    FunctionFragmentFrameApplication,
 };
 use optimization_core::FunctionFragmentEmissionManifestIdentity;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -201,15 +200,17 @@ fn validate_function(
                 .offset
                 .checked_sub(source_row.offset)
                 .ok_or(FrameApplicationError::ArtifactMismatch)?;
-            validate_fixup(
+            validate_shifted_fixup(
                 source_row.internal_machine_fixup,
                 candidate_row.internal_machine_fixup,
                 shift,
+                compute::shift_fixup,
             )?;
-            validate_foreign_fixup(
+            validate_shifted_fixup(
                 source_row.normalized_foreign_call_fixup.clone(),
                 candidate_row.normalized_foreign_call_fixup.clone(),
                 shift,
+                compute::shift_foreign_fixup,
             )?;
             let expected_address = source_row
                 .image_address_fixup
@@ -260,22 +261,6 @@ where
         return Err(FrameApplicationError::ArtifactMismatch);
     }
     Ok(())
-}
-
-fn validate_fixup(
-    source: Option<FunctionFragmentInternalMachineFixup>,
-    candidate: Option<FunctionFragmentInternalMachineFixup>,
-    shift: u64,
-) -> Result<(), FrameApplicationError> {
-    validate_shifted_fixup(source, candidate, shift, compute::shift_fixup)
-}
-
-fn validate_foreign_fixup(
-    source: Option<FunctionFragmentNormalizedForeignCallFixup>,
-    candidate: Option<FunctionFragmentNormalizedForeignCallFixup>,
-    shift: u64,
-) -> Result<(), FrameApplicationError> {
-    validate_shifted_fixup(source, candidate, shift, compute::shift_foreign_fixup)
 }
 
 fn check_bytes(bytes: &[u8], offset: u64, expected: &[u8]) -> Result<(), FrameApplicationError> {

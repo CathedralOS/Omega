@@ -1,6 +1,19 @@
 //! windows slice of borrowed_windows.
 
-use validation::CanonicalPlace;
+use super::super::linear_obligations::type_reference_is_reference;
+use checked_trees::CapturedPlaceContainment;
+use checked_trees::ContextualCleanupFacts;
+use facts::Place;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use language_semantics::Multiplicity;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::statement::TableAssignment;
+use validation::{
+    CanonicalPlace, assignment_stored_value_type, canonical_place_type_reference,
+    expression_result_type_reference,
+};
 
 use super::{StorageWalk, place_spelling};
 
@@ -19,8 +32,8 @@ use typed_trees::types::TypeReferenceHandle;
 /// resolved storage place (a `&mut`-local route is already rebased onto the
 /// referent root); `spelling` is the authored-facing name used in diagnostics.
 pub(super) struct OpenWindow {
-    root: facts::PlaceRoot,
-    path: Vec<facts::PlaceSegment>,
+    root: PlaceRoot,
+    path: Vec<PlaceSegment>,
     spelling: String,
     required_type: TypeReferenceHandle,
     opened_statement: usize,
@@ -54,12 +67,8 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         &self,
         walk: &StorageWalk<'_>,
         statement_index: usize,
-        assignment: &typed_trees::statement::TableAssignment,
-    ) -> Option<(
-        CanonicalPlace,
-        TypeReferenceHandle,
-        Vec<Vec<facts::PlaceSegment>>,
-    )> {
+        assignment: &TableAssignment,
+    ) -> Option<(CanonicalPlace, TypeReferenceHandle, Vec<Vec<PlaceSegment>>)> {
         let program = walk.program;
         let machine = walk.machine;
         let state = walk.state;
@@ -69,15 +78,8 @@ impl<'facts> BorrowedStorageWindows<'facts> {
                 root: target.root,
                 segments: target.segments[..length].to_vec(),
             };
-            validation::canonical_place_type_reference(
-                program,
-                state.symbol,
-                statement_index,
-                &prefix,
-            )
-            .is_some_and(|reference| {
-                super::super::linear_obligations::type_reference_is_reference(program, reference)
-            })
+            canonical_place_type_reference(program, state.symbol, statement_index, &prefix)
+                .is_some_and(|reference| type_reference_is_reference(program, reference))
         });
         if !borrowed
             || !walk.exclusive_storage_chain(statement_index, target.root, &target.segments)
@@ -90,9 +92,8 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         // Rebinding retires the descriptor, whereas a write through it retires
         // its old contents. Peeling every reference would manufacture owned
         // disposal of a surviving pointee from a descriptor replacement.
-        let value_type =
-            validation::assignment_stored_value_type(program, machine, state, assignment)?;
-        if program.type_multiplicity(value_type) != language_semantics::Multiplicity::Affine {
+        let value_type = assignment_stored_value_type(program, machine, state, assignment)?;
+        if program.type_multiplicity(value_type) != Multiplicity::Affine {
             return None;
         }
         let symbol = target.root.as_symbol()?;
@@ -132,7 +133,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         walk: &StorageWalk<'_>,
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
-        path: &[facts::PlaceSegment],
+        path: &[PlaceSegment],
     ) -> Option<Diagnostic> {
         let program = walk.program;
         let machine = walk.machine;
@@ -183,12 +184,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
             .is_valid()
             .then_some(event.value_type)
             .or_else(|| {
-                validation::canonical_place_type_reference(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    &event_place,
-                )
+                canonical_place_type_reference(program, state.symbol, statement_index, &event_place)
             })
             .unwrap_or_default();
         self.open.push(OpenWindow {
@@ -211,7 +207,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         walk: &StorageWalk<'_>,
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
-        path: &[facts::PlaceSegment],
+        path: &[PlaceSegment],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if self.open.is_empty() {
@@ -245,7 +241,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         state: SymbolHandle,
         statement: usize,
         expression: ExpressionHandle,
-        cleanup: &mut checked_trees::ContextualCleanupFacts,
+        cleanup: &mut ContextualCleanupFacts,
     ) {
         for absent in &self.open {
             let segments = cleanup.segments.insert_many(absent.path.iter().copied());
@@ -254,7 +250,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
                 state,
                 statement,
                 expression,
-                absent: facts::Place {
+                absent: Place {
                     root: absent.root,
                     segments,
                 },
@@ -300,7 +296,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         &mut self,
         walk: &StorageWalk<'_>,
         statement_index: usize,
-        assignment: &typed_trees::statement::TableAssignment,
+        assignment: &TableAssignment,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if self.open.is_empty() {
@@ -344,12 +340,8 @@ impl<'facts> BorrowedStorageWindows<'facts> {
                 // stored value's type to the owner's.
                 continue;
             }
-            let value_type = validation::expression_result_type_reference(
-                program,
-                machine,
-                state,
-                assignment.value,
-            );
+            let value_type =
+                expression_result_type_reference(program, machine, state, assignment.value);
             let exact = value_type.is_some_and(|value_type| {
                 absent.required_type.is_valid()
                     && program.normalized_type_identity(value_type)
@@ -371,8 +363,8 @@ impl<'facts> BorrowedStorageWindows<'facts> {
     /// reports once: additional arms leaving the same region add no noise.
     pub(in crate::checks::multiplicity) fn refuse_open_at_exit(
         &mut self,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
+        machine: &Machine,
+        state: &State,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for absent in &mut self.open {
@@ -399,12 +391,11 @@ impl<'facts> BorrowedStorageWindows<'facts> {
 fn storage_path_contains(
     program: &dyn ::validation::CheckingInput,
     captures: StorageSelectorFacts<'_>,
-    container: &[facts::PlaceSegment],
-    contained: &[facts::PlaceSegment],
+    container: &[PlaceSegment],
+    contained: &[PlaceSegment],
 ) -> bool {
     matches!(
         storage_path_compatibility(program, captures, container, contained).1,
-        checked_trees::CapturedPlaceContainment::Same
-            | checked_trees::CapturedPlaceContainment::LeftContainsRight
+        CapturedPlaceContainment::Same | CapturedPlaceContainment::LeftContainsRight
     )
 }

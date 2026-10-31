@@ -10,6 +10,12 @@ use crate::build_time_evaluation::{expression_table, type_reference_table};
 use crate::unique::push_unique;
 use std::sync::Arc;
 
+use crate::const_evaluation::const_generic_expressions::value::ConstantCalls;
+use crate::const_evaluation::const_generic_expressions::{
+    initializer_contains_call, scalar_probe_destination, validate_retained_initializer_call_custody,
+};
+use crate::machine_execution::selected_operators::prepare_selected_execution;
+use crate::syntax_probes::PreparedEvaluationInputs;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalConstValue};
 use typed_trees::{
@@ -18,6 +24,7 @@ use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
     types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
+use validation::has_builtin_binary_expression_meaning;
 
 struct Leaf {
     owner: symbols::SymbolHandle,
@@ -111,11 +118,8 @@ pub(crate) fn validate(
                 == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call;
         }
         let authored_call = if declaration.authored_initializer.is_valid() {
-            crate::const_evaluation::const_generic_expressions::initializer_contains_call(
-                typed,
-                declaration.authored_initializer,
-            )
-            .map_err(|reason| super::failure(reference, reason))?
+            initializer_contains_call(typed, declaration.authored_initializer)
+                .map_err(|reason| super::failure(reference, reason))?
         } else {
             false
         };
@@ -285,18 +289,11 @@ pub(crate) fn validate(
     }
     // Rejoin supplied execution only after authenticating authored custody.
     // Selected providers then enter the same actual call closure as settlement.
-    let probe = crate::machine_execution::selected_operators::prepare_selected_execution(
-        &probe,
-        selected.provider_bodies,
-        selected.operators,
-    )
-    .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
-    .unwrap_or(probe);
-    let replay_execution = crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
-        &probe,
-        &probe_symbols,
-        &[],
-    );
+    let probe = prepare_selected_execution(&probe, selected.provider_bodies, selected.operators)
+        .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
+        .unwrap_or(probe);
+    let replay_execution =
+        PreparedEvaluationInputs::domain_for_program(&probe, &probe_symbols, &[]);
     let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &replay_execution)?;
     let checked = super::invocations::CheckedInitializers::prepare(
         &prepared,
@@ -345,7 +342,7 @@ pub(crate) fn validate(
             let has_calls = program.expression_table.authored_selection_occurrences(owner.materialized_initializer)
                 .any(|occurrence| program.authored_declaration_selections().get(occurrence)
                     .is_some_and(|selection| selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call))
-                || crate::const_evaluation::const_generic_expressions::initializer_contains_call(program, owner.authored_initializer)
+                || initializer_contains_call(program, owner.authored_initializer)
                     .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
             if has_calls
                 && !replay_declarations
@@ -391,12 +388,7 @@ pub(crate) fn validate(
         let result = (|| {
             let calls = checked.calls_for_symbol(original_owner)?;
             let materialized_calls = checked.calls_for_symbol(materialized_owner)?;
-            if let Some(destination) =
-                crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
-                    program,
-                    leaf.destination,
-                )
-            {
+            if let Some(destination) = scalar_probe_destination(program, leaf.destination) {
                 let original = decode_scalar(calls.evaluate_probe_scalar(destination)?.0)?;
                 let materialized =
                     decode_scalar(materialized_calls.evaluate_probe_scalar(destination)?.0)?;
@@ -588,9 +580,8 @@ fn validate_anonymous_float(
     let [state] = probe.machine_states(machine) else {
         return Err("floating constant lost its receiving expression state".into());
     };
-    let dependencies = crate::const_evaluation::const_generic_expressions::validate_retained_initializer_call_custody(
-        &probe, machine, state, original, materialized,
-    )?;
+    let dependencies =
+        validate_retained_initializer_call_custody(&probe, machine, state, original, materialized)?;
     validate_float_value(
         &probe,
         declaration,
@@ -611,9 +602,7 @@ fn validate_float_value(
     destination: PrimitiveType,
     owner: symbols::SymbolHandle,
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
-    scalar_calls: Option<
-        &dyn crate::const_evaluation::const_generic_expressions::value::ConstantCalls,
-    >,
+    scalar_calls: Option<&dyn ConstantCalls>,
     dependencies: &[crate::const_evaluation::const_generic_expressions::DependencyValue],
 ) -> Result<(), String> {
     use crate::const_evaluation::const_generic_expressions::value::{ScalarValue, evaluate_scalar};
@@ -651,12 +640,7 @@ fn validate_float_value(
     pending.extend(dependency_roots);
     while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         if let Some(binary) = probe.expression_table.binary_node(expression) {
-            if !validation::has_builtin_binary_expression_meaning(
-                probe,
-                machine,
-                Some(state),
-                expression,
-            ) {
+            if !has_builtin_binary_expression_meaning(probe, machine, Some(state), expression) {
                 return Err("floating constant replay lost selected builtin meaning".into());
             }
             let reference = probe.expression_table.source_span(expression);
@@ -833,10 +817,7 @@ fn validate_dependency_values(
         // both the authored computation and substituted use at the declared
         // format; no declaration receipt alone establishes its semantic result.
         if let Some(destination @ (PrimitiveType::F32 | PrimitiveType::F64)) =
-            crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
-                program,
-                declaration.declared_type,
-            )
+            scalar_probe_destination(program, declaration.declared_type)
         {
             if !expression_table(program).expression_is_valid(declaration.authored_initializer)
                 || expression_table(program).source_span(declaration.authored_initializer)
@@ -875,12 +856,7 @@ fn validate_dependency_values(
         }
         .decode_declaration_encoding()
         .ok_or("constant dependency has an invalid canonical value")?;
-        if let Some(destination) =
-            crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
-                program,
-                declaration.declared_type,
-            )
-        {
+        if let Some(destination) = scalar_probe_destination(program, declaration.declared_type) {
             if !expression_table(program).expression_is_valid(declaration.authored_initializer)
                 || expression_table(program).source_span(declaration.authored_initializer)
                     != declaration.initializer_source_span
@@ -916,11 +892,7 @@ fn validate_dependency_values(
             let actual = if leaf.structured {
                 dependency_leaf_value(program, leaf.materialized)?
             } else {
-                let destination =
-                    crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
-                        program,
-                        leaf.destination,
-                    )
+                let destination = scalar_probe_destination(program, leaf.destination)
                     .ok_or("constant dependency lost its exact scalar destination")?;
                 decode_scalar(evaluate(leaf.materialized, destination)?)?
             };
@@ -1004,12 +976,7 @@ fn pair(
     {
         return Err("retained initializer lost its exact authored/materialized roots".into());
     }
-    if let Some(destination) =
-        crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
-            program,
-            leaf.destination,
-        )
-    {
+    if let Some(destination) = scalar_probe_destination(program, leaf.destination) {
         match (&leaf.expected, destination) {
             (DecodedCanonicalConstValue::Boolean(_), PrimitiveType::Bool) => {}
             (

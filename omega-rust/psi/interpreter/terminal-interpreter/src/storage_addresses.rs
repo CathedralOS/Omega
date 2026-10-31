@@ -17,6 +17,7 @@ use crate::structural_inputs::byte_arrays::storage::ArrayStorageHome;
 use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use terminal_psi::{Operation, StructuralArgument, StructuralPathSegment};
+use terminal_semantics::reference_storage_size;
 
 fn exhausted() -> TerminalInterpretError {
     TerminalInterpretError::StructuralIdentityExhausted
@@ -95,10 +96,8 @@ impl TerminalExecution<'_> {
             )?;
             if let Some(crate::reference::AggregateViewTip::Aggregate { view, backing }) = view
                 && (view.byte_offset != 0
-                    || terminal_semantics::reference_storage_size(
-                        self.structural_types().values(),
-                        backing,
-                    ) != Some(view.byte_length))
+                    || reference_storage_size(self.structural_types().values(), backing)
+                        != Some(view.byte_length))
             {
                 return Err(TerminalInterpretError::StructuralArgumentPreparation {
                     stage: "storage address",

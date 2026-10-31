@@ -168,9 +168,9 @@ pub use termination::{
     CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
     CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
     CheckedRankLocalCapture, CheckedRankObservation, CheckedRankPremiseRegime,
-    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRuntimeNaturalState,
-    CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
-    CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
+    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRuntimeIntegerRank,
+    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
+    CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
     CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence, MachineTerminationFact,
     TerminationFacts,
 };

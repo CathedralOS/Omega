@@ -21,6 +21,9 @@ use semantic_vocabulary::PackageKeyIdentity;
 use crate::Hex;
 use crate::lock::{PackageCheckedContext, PackageLockTarget};
 use crate::resolution::graph::DependencyRequestPath;
+use package_compilation::build_execution::RestrictedBuildGrants;
+use package_compilation::build_execution::RestrictedBuildRequest;
+use package_evidence::encoding::restricted_build_request_acceptance_text;
 
 /// One normalized restricted build request a checked package occurrence
 /// projected without identical retained accepted-request meaning. Its
@@ -47,14 +50,11 @@ impl UngrantedRestrictedBuildRequest {
         package: PackageKeyIdentity,
         context: PackageCheckedContext,
         request_path: Option<DependencyRequestPath>,
-        request: &package_compilation::build_execution::RestrictedBuildRequest,
+        request: &RestrictedBuildRequest,
     ) -> Result<Self, package_evidence::encoding::PackageReviewEncodingError> {
         let request = request.clone().for_target(Some(context.target()));
-        let request_meaning = package_evidence::encoding::restricted_build_request_acceptance_text(
-            package,
-            context.target(),
-            &request,
-        )?;
+        let request_meaning =
+            restricted_build_request_acceptance_text(package, context.target(), &request)?;
         Ok(Self {
             package,
             context,
@@ -189,13 +189,8 @@ pub(crate) struct CheckpointRestrictedBuildGrants {
     granted: BTreeSet<String>,
 }
 
-impl package_compilation::build_execution::RestrictedBuildGrants
-    for CheckpointRestrictedBuildGrants
-{
-    fn admit(
-        &mut self,
-        request: &package_compilation::build_execution::RestrictedBuildRequest,
-    ) -> Result<(), Vec<Diagnostic>> {
+impl RestrictedBuildGrants for CheckpointRestrictedBuildGrants {
+    fn admit(&mut self, request: &RestrictedBuildRequest) -> Result<(), Vec<Diagnostic>> {
         // The Build evaluates without a realized target; this checkpoint's
         // checked context names the target whose acceptance rows apply.
         let pending = UngrantedRestrictedBuildRequest::project(

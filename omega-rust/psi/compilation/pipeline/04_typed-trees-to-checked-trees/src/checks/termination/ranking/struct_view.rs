@@ -1,11 +1,14 @@
-use crate::flow::expressions;
+use crate::flow::{expressions, shared_call_frames_or};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
-use validation::{CallFrameResolver, ProjectionStep};
+use validation::{
+    CallFrameResolver, ProjectionStep, has_builtin_bound_expression_meaning,
+    immutable_integer_expression_bounds, unique_literal_field,
+};
 
 use super::patterns;
 use super::write_preservation::prefix_preserves_path;
@@ -38,8 +41,7 @@ pub(super) fn state_has_proven_self_loop(
         return false;
     };
     let mut owned_frames = None;
-    let Some(frames) = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
-    else {
+    let Some(frames) = shared_call_frames_or(call_frames, program, &mut owned_frames) else {
         return false;
     };
     let mut rank_path = parameter.name.as_str().to_owned();
@@ -67,7 +69,7 @@ pub(super) fn state_has_proven_self_loop(
             let mut literal_owner = path.first().map_or(owner, |step| step.owner);
             let mut current = argument;
             for step in path {
-                let Some(value) = validation::unique_literal_field(
+                let Some(value) = unique_literal_field(
                     program,
                     current,
                     literal_owner,
@@ -83,8 +85,7 @@ pub(super) fn state_has_proven_self_loop(
                     .nth(1)
                     .map_or(owner, |next| next.owner);
             }
-            let Some(value) =
-                validation::unique_literal_field(program, current, owner, field_symbol, field)
+            let Some(value) = unique_literal_field(program, current, owner, field_symbol, field)
             else {
                 return false;
             };
@@ -100,12 +101,7 @@ pub(super) fn state_has_proven_self_loop(
                     field_symbol,
                     field,
                 )
-                || !validation::has_builtin_bound_expression_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    value,
-                )
+                || !has_builtin_bound_expression_meaning(program, machine, Some(state), value)
             {
                 return false;
             }
@@ -119,7 +115,7 @@ pub(super) fn state_has_proven_self_loop(
                 return false;
             }
             edge.guards.iter().any(|guard| {
-                if !validation::has_builtin_bound_expression_meaning(
+                if !has_builtin_bound_expression_meaning(
                     program,
                     machine,
                     Some(state),
@@ -225,8 +221,7 @@ fn preserved_bounds(
     frames: &CallFrameResolver<'_>,
     prefix: &[StatementNode],
 ) -> Option<(i64, i64)> {
-    let bounds =
-        validation::immutable_integer_expression_bounds(program, machine, state, expression)?;
+    let bounds = immutable_integer_expression_bounds(program, machine, state, expression)?;
     let mut pending = vec![expression];
     while let Some(expression) = pending.pop() {
         match program.expression_table.expression(expression) {

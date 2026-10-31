@@ -7,6 +7,8 @@ use crate::declarations::{
     plan_dependency_replacement_from_source,
 };
 use crate::lock::PackageLock;
+use crate::operations::PackageSourceRequest;
+use crate::operations::SourceAdapter;
 use crate::resolution::graph::{CanonicalDependencySourceRequest, CanonicalSourceClosureSubject};
 use package_source::GitSourceRequest;
 use std::path::Path;
@@ -169,13 +171,9 @@ fn source_request(
                 "--package is only valid for a Git source; use the local package directory directly",
             ));
         }
-        let request = crate::operations::PackageSourceRequest::parse(
-            crate::operations::SourceAdapter::Local,
-            source,
-            revision,
-        )
-        .map_err(|error| failure(format!("invalid local package source: {error:?}")))?;
-        let crate::operations::PackageSourceRequest::LocalPath(path) = request else {
+        let request = PackageSourceRequest::parse(SourceAdapter::Local, source, revision)
+            .map_err(|error| failure(format!("invalid local package source: {error:?}")))?;
+        let PackageSourceRequest::LocalPath(path) = request else {
             unreachable!()
         };
         let location = path

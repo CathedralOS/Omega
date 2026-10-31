@@ -1,10 +1,26 @@
 //! The declaration tables of the typed trees: constants, data, domains,
 //! proof facts, propositions, measures and operators.
 
+use super::ClosedConformanceApplicationSite::Occurrence;
+use super::{ClosedConformanceApplication, ClosedConformanceApplicationSite};
+use crate::machine::Machine;
+use crate::mathematical::MathematicalDefinition;
+use crate::name::Identifier;
+use crate::static_applications::StaticMachineApplicationHandle;
+use crate::static_applications::StaticMachineBindingValue;
 use crate::typed_trees::{TypedTrees, proof_fact_source_span_index};
+use crate::types::TypeReferenceHandle;
 use crate::{data, domain, measure, proposition, signature};
 use arena::{Handle, HandleSpan};
 use symbols::JoinedPath;
+
+/// One live conformance application site, its supplying owner and its receipt.
+pub type ConformanceSite<'a> = (
+    ClosedConformanceApplicationSite,
+    symbols::SymbolHandle,
+    StaticMachineApplicationHandle,
+    &'a ClosedConformanceApplication,
+);
 
 impl TypedTrees {
     /// Semantic containment is not necessarily symbol allocation containment.
@@ -83,9 +99,7 @@ impl TypedTrees {
     /// Authored applications still joined to retained source calls. Arena rows
     /// survive projection and therefore cannot define checking obligations.
     /// Uncalled authored bodies remain in the full Source machine roster.
-    pub fn live_conformance_occurrence_applications(
-        &self,
-    ) -> Vec<crate::static_applications::StaticMachineApplicationHandle> {
+    pub fn live_conformance_occurrence_applications(&self) -> Vec<StaticMachineApplicationHandle> {
         crate::references::collect_program_conformance_occurrences(self)
     }
 
@@ -134,14 +148,7 @@ impl TypedTrees {
     }
 
     /// Census of occurrence/evidence selections, preserving each source anchor.
-    pub fn closed_conformance_application_sites(
-        &self,
-    ) -> Vec<(
-        super::ClosedConformanceApplicationSite,
-        symbols::SymbolHandle,
-        crate::static_applications::StaticMachineApplicationHandle,
-        &super::ClosedConformanceApplication,
-    )> {
+    pub fn closed_conformance_application_sites(&self) -> Vec<ConformanceSite<'_>> {
         self.closed_conformance_application_sites_matching(|_| true, None)
     }
 
@@ -151,12 +158,7 @@ impl TypedTrees {
     pub fn closed_conformance_application_sites_for_owners(
         &self,
         owners: &[symbols::SymbolHandle],
-    ) -> Vec<(
-        super::ClosedConformanceApplicationSite,
-        symbols::SymbolHandle,
-        crate::static_applications::StaticMachineApplicationHandle,
-        &super::ClosedConformanceApplication,
-    )> {
+    ) -> Vec<ConformanceSite<'_>> {
         self.closed_conformance_application_sites_matching(|owner| owners.contains(&owner), None)
     }
 
@@ -164,26 +166,16 @@ impl TypedTrees {
     /// Reuse it rather than walking the same source roots again.
     pub(crate) fn closed_conformance_application_sites_from_occurrences(
         &self,
-        occurrences: &[crate::static_applications::StaticMachineApplicationHandle],
-    ) -> Vec<(
-        super::ClosedConformanceApplicationSite,
-        symbols::SymbolHandle,
-        crate::static_applications::StaticMachineApplicationHandle,
-        &super::ClosedConformanceApplication,
-    )> {
+        occurrences: &[StaticMachineApplicationHandle],
+    ) -> Vec<ConformanceSite<'_>> {
         self.closed_conformance_application_sites_matching(|_| true, Some(occurrences))
     }
 
     fn closed_conformance_application_sites_matching(
         &self,
         includes_owner: impl Fn(symbols::SymbolHandle) -> bool,
-        known_live: Option<&[crate::static_applications::StaticMachineApplicationHandle]>,
-    ) -> Vec<(
-        super::ClosedConformanceApplicationSite,
-        symbols::SymbolHandle,
-        crate::static_applications::StaticMachineApplicationHandle,
-        &super::ClosedConformanceApplication,
-    )> {
+        known_live: Option<&[StaticMachineApplicationHandle]>,
+    ) -> Vec<ConformanceSite<'_>> {
         let mut sites = Vec::new();
         for (s, receipt) in self.machine_specializations.iter().enumerate() {
             if !includes_owner(receipt.instance) {
@@ -232,12 +224,7 @@ impl TypedTrees {
                     .binary_search_by_key(&handle.arena_index(), |live| live.arena_index())
                     .is_ok_and(|position| live[position] == handle)
                 {
-                    sites.push((
-                        super::ClosedConformanceApplicationSite::Occurrence(handle),
-                        owner,
-                        handle,
-                        application,
-                    ));
+                    sites.push((Occurrence(handle), owner, handle, application));
                 }
             }
         }
@@ -312,7 +299,7 @@ impl TypedTrees {
                 .get_mut(specialization)?
                 .conformance_applications
                 .get_mut(application),
-            super::ClosedConformanceApplicationSite::Occurrence(handle) => self
+            Occurrence(handle) => self
                 .expression_table
                 .static_machine_application_mut(handle)
                 .conformance_selection
@@ -418,7 +405,7 @@ impl TypedTrees {
         &self,
         specialization: &super::MachineSpecialization,
         parameter: symbols::SymbolHandle,
-    ) -> Option<&crate::static_applications::StaticMachineBindingValue> {
+    ) -> Option<&StaticMachineBindingValue> {
         let mut bindings = self
             .static_machine_application_bindings(specialization.binding_application)
             .iter()
@@ -432,7 +419,7 @@ impl TypedTrees {
     pub fn selected_conformance_applications<'a>(
         &'a self,
         owner: symbols::SymbolHandle,
-        selection_application: crate::static_applications::StaticMachineApplicationHandle,
+        selection_application: StaticMachineApplicationHandle,
         evidence_parameter: symbols::SymbolHandle,
         requirement: symbols::SymbolHandle,
         report_fingerprint: u64,
@@ -495,10 +482,7 @@ impl TypedTrees {
                     .static_machine_application_bindings(specialization.binding_application)
                     .iter()
                     .filter(|binding| {
-                        matches!(
-                            binding.value,
-                            crate::static_applications::StaticMachineBindingValue::Conformance(_)
-                        )
+                        matches!(binding.value, StaticMachineBindingValue::Conformance(_))
                     });
                 if bindings.clone().count() != specialization.conformance_applications.len() {
                     return Vec::new();
@@ -528,7 +512,7 @@ impl TypedTrees {
     /// An authored member may be open because its selecting map owns captures,
     /// even when the member's independent invocation telescope is empty.
     /// Closed executable copies are not authored rows in that map.
-    pub fn callable_body_has_open_parameters(&self, machine: &crate::machine::Machine) -> bool {
+    pub fn callable_body_has_open_parameters(&self, machine: &Machine) -> bool {
         machine.has_specialization_parameters()
             || self.conformances().iter().any(|conformance| {
                 (!self.conformance_type_parameters(conformance).is_empty()
@@ -624,8 +608,63 @@ impl TypedTrees {
     /// these same frames; equal names or carriers do not establish identity.
     pub fn realization_entry_lineage(
         &self,
-        mut entry: symbols::SymbolHandle,
+        entry: symbols::SymbolHandle,
         application: &super::ClosedConformanceApplication,
+    ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
+        self.entry_lineage_with(entry, None, |capture| {
+            self.closed_conformance_applications_match(
+                &capture.conformance_application,
+                application,
+            ) && self
+                .conformance_by_symbol(application.declaration)
+                .is_some_and(|selecting| {
+                    selecting.rows.iter().any(|row| {
+                        row.source.owns_realization() && row.realization_machine == capture.template
+                    })
+                })
+        })
+    }
+
+    /// Entry frames of one exact requirement realization. This is derivation
+    /// correspondence, not provider admission. The caller still authenticates
+    /// the selecting map's complete regional application and checks the body.
+    pub fn requirement_realization_entry_lineage(
+        &self,
+        entry: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+        selecting: symbols::SymbolHandle,
+        realization: symbols::SymbolHandle,
+    ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
+        let provider = self.machine_holding_state(entry)?;
+        if !self.requirement_realization_matches(requirement, realization, provider.symbol) {
+            return None;
+        }
+        let lineage = self.entry_lineage_with(entry, Some(realization), |capture| {
+            capture.conformance_application.declaration == selecting
+                && self
+                    .conformance_by_symbol(selecting)
+                    .is_some_and(|declaration| {
+                        declaration.rows.iter().any(|row| {
+                            row.source.owns_realization()
+                                && row.realization_machine == capture.template
+                        })
+                    })
+                && capture
+                    .conformance_application
+                    .trait_scope
+                    .scope(self)
+                    .is_some_and(|scope| {
+                        self.requirement_application_matches_scope(requirement, &scope)
+                    })
+        })?;
+        (lineage.last()?.0 == realization).then_some(lineage)
+    }
+
+    fn entry_lineage_with(
+        &self,
+        mut entry: symbols::SymbolHandle,
+        stop: Option<symbols::SymbolHandle>,
+        capture_matches: impl Fn(&super::CapturedMachineApplication) -> bool,
     ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
         let mut visited = Vec::new();
         loop {
@@ -638,6 +677,9 @@ impl TypedTrees {
                 return None;
             }
             visited.push((machine.symbol, entry));
+            if stop == Some(machine.symbol) {
+                return Some(visited);
+            }
             let invocations = self
                 .machine_specializations
                 .iter()
@@ -662,16 +704,7 @@ impl TypedTrees {
                 continue;
             }
             if let [capture] = captures.as_slice() {
-                if !self.closed_conformance_applications_match(
-                    &capture.conformance_application,
-                    application,
-                ) {
-                    return None;
-                }
-                let selecting = self.conformance_by_symbol(application.declaration)?;
-                if !selecting.rows.iter().any(|row| {
-                    row.source.owns_realization() && row.realization_machine == capture.template
-                }) {
+                if !capture_matches(capture) {
                     return None;
                 }
                 let states = self.captured_machine_states.span_or_empty(capture.states);
@@ -738,7 +771,7 @@ impl TypedTrees {
         data_definitions => data_definitions(data::DataDefinition) [push_data_definition], inline;
         domain_definitions => domain_definitions(domain::DomainDefinition) [push_domain_definition];
         propositions => propositions(proposition::PropositionDefinition) [push_proposition];
-        mathematical_definitions => mathematical_definitions(crate::mathematical::MathematicalDefinition);
+        mathematical_definitions => mathematical_definitions(MathematicalDefinition);
         measures => measures(measure::MeasureDefinition) [push_measure];
         operators => operators(crate::operator::OperatorDefinition) [push_operator];
     }
@@ -866,7 +899,7 @@ impl TypedTrees {
     /// keep the template's exact member symbols and source-selection custody.
     pub fn retain_data_application_definition(
         &mut self,
-        application: crate::types::TypeReferenceHandle,
+        application: TypeReferenceHandle,
         definition: data::DataDefinition,
         is_closed: bool,
     ) {
@@ -888,7 +921,7 @@ impl TypedTrees {
     /// Read only a producer-retained view for this exact application occurrence.
     pub fn data_application_definition(
         &self,
-        application: crate::types::TypeReferenceHandle,
+        application: TypeReferenceHandle,
     ) -> Option<&data::DataDefinition> {
         if !self.contains_type_reference(application) {
             return None;
@@ -903,19 +936,13 @@ impl TypedTrees {
 
     /// Field substitution is not closure: open arguments remain universally
     /// checked, and cannot supply a concrete storage declaration.
-    pub(crate) fn data_application_is_closed(
-        &self,
-        application: crate::types::TypeReferenceHandle,
-    ) -> bool {
+    pub(crate) fn data_application_is_closed(&self, application: TypeReferenceHandle) -> bool {
         let row = Handle::from_parts(application.arena_index(), application.generation());
         self.tables.data_application_definitions.get(row).is_closed
     }
 
     /// The first data declaration `name` spells, if any.
-    pub fn data_definition_by_name(
-        &self,
-        name: &crate::name::Identifier,
-    ) -> Option<&data::DataDefinition> {
+    pub fn data_definition_by_name(&self, name: &Identifier) -> Option<&data::DataDefinition> {
         self.data_definitions()
             .iter()
             .find(|definition| definition.name == *name)
@@ -935,10 +962,7 @@ impl TypedTrees {
     /// synthesized, or a focused test program -- falls back to the one
     /// declaration of its attachment spelling; two such declarations resolve
     /// to none rather than to whichever loaded first.
-    pub fn attached_data_definition(
-        &self,
-        machine: &crate::machine::Machine,
-    ) -> Option<&data::DataDefinition> {
+    pub fn attached_data_definition(&self, machine: &Machine) -> Option<&data::DataDefinition> {
         if machine.attached_data_symbol.is_valid() {
             return self.data_definition_by_symbol(machine.attached_data_symbol);
         }
@@ -991,16 +1015,16 @@ impl TypedTrees {
     // append has a declaration node to name.
     super::declaration_columns! {
         append push_mathematical_parameter(
-            definition: crate::mathematical::MathematicalDefinition,
+            definition: MathematicalDefinition,
             crate::mathematical::MathematicalParameter
         ) = mathematical_parameters.parameters;
         append push_measure_path_member(
             measure: measure::MeasureDefinition,
-            crate::name::Identifier
+            Identifier
         ) = measure_path_members.name;
         append push_operator_path_member(
             operator: crate::operator::OperatorDefinition,
-            crate::name::Identifier
+            Identifier
         ) = operator_path_members.name;
     }
 
@@ -1031,12 +1055,8 @@ impl TypedTrees {
     /// name search or an unrelated instantiation of the same template.
     pub fn data_application_value_fields(
         &self,
-        reference: crate::types::TypeReferenceHandle,
-    ) -> Vec<(
-        &data::TypeParameter,
-        &data::DataField,
-        crate::types::TypeReferenceHandle,
-    )> {
+        reference: TypeReferenceHandle,
+    ) -> Vec<(&data::TypeParameter, &data::DataField, TypeReferenceHandle)> {
         use crate::types::TypeReferenceNode;
         let table = &self.type_reference_table;
         let reference = table.peeled_type_reference(reference);
@@ -1137,7 +1157,7 @@ impl TypedTrees {
     pub fn exact_named_data_definition(
         &self,
         field_label: &str,
-        type_reference: crate::types::TypeReferenceHandle,
+        type_reference: TypeReferenceHandle,
     ) -> Result<Option<&data::DataDefinition>, String> {
         if self.primitive_type_reference(type_reference).is_some() {
             return Ok(None);
@@ -1331,10 +1351,7 @@ impl TypedTrees {
             .find(|definition| definition.symbol == symbol)
     }
 
-    pub fn push_mathematical_definition(
-        &mut self,
-        definition: crate::mathematical::MathematicalDefinition,
-    ) {
+    pub fn push_mathematical_definition(&mut self, definition: MathematicalDefinition) {
         self.tables
             .mathematical_definitions
             .append_to_span(&mut self.roots.mathematical_definitions, definition);
@@ -1361,17 +1378,11 @@ impl TypedTrees {
         self.tables.mathematical_types.get(handle)
     }
 
-    pub fn domain_path_members(
-        &self,
-        span: HandleSpan<crate::name::Identifier>,
-    ) -> &[crate::name::Identifier] {
+    pub fn domain_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.domain_path_members.span_or_empty(span)
     }
 
-    pub fn measure_path_members(
-        &self,
-        span: HandleSpan<crate::name::Identifier>,
-    ) -> &[crate::name::Identifier] {
+    pub fn measure_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.measure_path_members.span_or_empty(span)
     }
 
@@ -1423,15 +1434,12 @@ impl TypedTrees {
         )
     }
 
-    pub fn operator_path_members(
-        &self,
-        span: HandleSpan<crate::name::Identifier>,
-    ) -> &[crate::name::Identifier] {
+    pub fn operator_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.operator_path_members.span_or_empty(span)
     }
 
     /// The operator's `::`-joined path string for diagnostics and lookups.
-    pub fn operator_path_string(&self, span: HandleSpan<crate::name::Identifier>) -> String {
+    pub fn operator_path_string(&self, span: HandleSpan<Identifier>) -> String {
         self.operator_path_members(span).joined_path()
     }
 }
@@ -1440,7 +1448,7 @@ impl TypedTrees {
     pub fn retain_designated_static_type_argument(
         &mut self,
         owner: symbols::SymbolHandle,
-        reference: crate::types::TypeReferenceHandle,
+        reference: TypeReferenceHandle,
         source_span: source::SourceSpan,
     ) {
         let row = super::DesignatedStaticTypeArgument {

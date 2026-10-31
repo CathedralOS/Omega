@@ -5,6 +5,7 @@
 
 mod fixed_core_vocabulary;
 pub use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
+use typed_trees::type_identity::TypeIdentityRequest;
 mod static_arguments;
 pub use static_arguments::{
     MathematicalBinderKind, MathematicalCarrierHead, mathematical_binder_kind,
@@ -181,12 +182,10 @@ fn applied_result_reference(
     if projected != reference || substitutions.is_empty() {
         return Some(projected);
     }
-    let identity = program.type_identity_with_simultaneous_substitutions(
-        typed_trees::type_identity::TypeIdentityRequest {
-            substitutions: &substitutions,
-            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
-        },
-    );
+    let identity = program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+        substitutions: &substitutions,
+        ..TypeIdentityRequest::ordinary(reference)
+    });
     identity.is_valid().then_some(())?;
     if program.normalized_type_identity(reference) == identity {
         return Some(reference);

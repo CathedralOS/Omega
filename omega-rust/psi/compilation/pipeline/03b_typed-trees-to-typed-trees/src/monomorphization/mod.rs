@@ -21,6 +21,7 @@
 //! the live generic span. Template commitments protect its stable contract axes;
 //! application commitments also protect each exact retained-call binding.
 
+use accessor_primitives::select_calls;
 pub(crate) use body_rewriting::normalize_const_arguments;
 pub(crate) use result_locals::require_complete_dispatch_subjects;
 
@@ -29,13 +30,18 @@ use crate::monomorphization::body_rewriting::rewrite_selected_call;
 use crate::tables::{expressions_of, expressions_of_mut};
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use selection::collect_call_selections;
+use selection::collect_contract_call_selections;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::domain::ProofFact;
+use typed_trees::domain::indexed_domain_instance_name;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use typed_trees::references::DeclarationSelection;
 use typed_trees::signature::StateSignature;
 use typed_trees::statement::{StatementHandle, StatementNode};
+use typed_trees::static_applications::StaticMachineApplicationHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
@@ -98,7 +104,7 @@ struct CandidateTemplate {
 #[derive(Clone)]
 struct Candidate<'template> {
     template: std::borrow::Cow<'template, CandidateTemplate>,
-    binding_application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    binding_application: StaticMachineApplicationHandle,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
     const_bindings: Vec<Option<TypeReferenceHandle>>,
     /// A runtime Value slot binds its carrier here, while the exact call-site
@@ -158,7 +164,7 @@ impl CallSite {
     pub(crate) fn authored_machine_application(
         self,
         program: &TypedTrees,
-    ) -> Option<typed_trees::static_applications::StaticMachineApplicationHandle> {
+    ) -> Option<StaticMachineApplicationHandle> {
         Some(match self {
             CallSite::Expression(handle) => {
                 expressions_of(program)
@@ -246,7 +252,7 @@ struct SpecializationKey {
 pub(crate) fn monomorphize_generic_machine_value_calls(
     program: &mut TypedTrees,
     enforce_complete_concrete_selections: bool,
-) -> Result<typed_trees::references::DeclarationSelection, Vec<Diagnostic>> {
+) -> Result<DeclarationSelection, Vec<Diagnostic>> {
     let mut changed_owners = Vec::new();
     loop {
         // Typed operands select the ordinary callable before result inference
@@ -317,19 +323,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             if captures_changed || contextual_changed || named_changed || inferred_changed {
                 continue;
             }
-            return Ok(typed_trees::references::DeclarationSelection::from_symbols(
-                changed_owners,
-            ));
+            return Ok(DeclarationSelection::from_symbols(changed_owners));
         }
         let (contract_expressions, logical_selections) = {
             let scopes = selection::contract_expression_scopes(program);
             let expressions = selection::contract_expression_handles(program);
-            let selections = selection::collect_contract_call_selections(
-                program,
-                &scopes,
-                &candidates,
-                &callee_states,
-            );
+            let selections =
+                collect_contract_call_selections(program, &scopes, &candidates, &callee_states);
             (expressions, selections)
         };
         for selection in &logical_selections {
@@ -337,12 +337,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 candidate_for_selection(program, &candidates[selection.candidate_index], selection);
             applications::retain_call(program, &candidate, selection);
         }
-        let mut selections = selection::collect_call_selections(
-            program,
-            &candidates,
-            &callee_states,
-            &contract_expressions,
-        );
+        let mut selections =
+            collect_call_selections(program, &candidates, &callee_states, &contract_expressions);
         // An overflowing proposal cannot form an executable tuple. Preserve
         // its authored call for source admission instead of masking its binder
         // kind with a derivative grouping error.
@@ -367,16 +363,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         // A catalog operation selects an installed entry, not a body clone.
         // Its closed tuple may be independent of an enclosing generic API.
         // Ordinary checked-body specialization keeps its own staging below.
-        let mut applied_any = accessor_primitives::select_calls(
-            program,
-            &candidates,
-            &mut selections,
-            &mut changed_owners,
-        )? || captures_changed
-            || contextual_changed
-            || named_changed
-            || inferred_changed
-            || generic_changed;
+        let mut applied_any =
+            select_calls(program, &candidates, &mut selections, &mut changed_owners)?
+                || captures_changed
+                || contextual_changed
+                || named_changed
+                || inferred_changed
+                || generic_changed;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
             // Open tuples stay symbolic. A closed tuple is independent of
             // the enclosing header and can realize this exact occurrence;
@@ -474,9 +467,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                     return Err(diagnostics);
                 }
             }
-            return Ok(typed_trees::references::DeclarationSelection::from_symbols(
-                changed_owners,
-            ));
+            return Ok(DeclarationSelection::from_symbols(changed_owners));
         }
     }
 }
@@ -892,9 +883,7 @@ fn candidate_for_selection<'template>(
         binding_application: selection
             .site
             .authored_machine_application(program)
-            .unwrap_or_else(
-                typed_trees::static_applications::StaticMachineApplicationHandle::invalid,
-            ),
+            .unwrap_or_else(StaticMachineApplicationHandle::invalid),
         type_bindings: selection.type_bindings.clone(),
         const_bindings: selection.const_bindings.clone(),
         runtime_value_bindings: selection.runtime_value_bindings.clone(),
@@ -952,7 +941,7 @@ pub(crate) fn finalize_type_domain_instance_identities(
                 continue;
             };
             let index_parameters = typed_trees::domain::index_parameters(program, &domain);
-            let identity = typed_trees::domain::indexed_domain_instance_name(
+            let identity = indexed_domain_instance_name(
                 program,
                 &domain,
                 index_parameters,
@@ -983,7 +972,7 @@ pub(crate) fn finalize_type_domain_instance_identities(
 /// the unchanged authored graph.
 pub(crate) fn finalize_domain_instance_identities(
     program: &mut TypedTrees,
-    declarations: &typed_trees::references::DeclarationSelection,
+    declarations: &DeclarationSelection,
 ) -> Result<(), Diagnostic> {
     if program
         .domain_definitions()
@@ -1035,12 +1024,7 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
         let arguments = program
             .type_reference_table
             .type_reference_handles(arguments);
-        let identity = typed_trees::domain::indexed_domain_instance_name(
-            program,
-            &domain,
-            index_parameters,
-            arguments,
-        )?;
+        let identity = indexed_domain_instance_name(program, &domain, index_parameters, arguments)?;
         cast_updates.push((handle, identity));
     }
     for (handle, identity) in cast_updates {
@@ -1081,16 +1065,12 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
                 "membership instance has missing or invalid domain arguments",
             ));
         }
-        let identity = typed_trees::domain::indexed_domain_instance_name(
-            program, domain, parameters, arguments,
-        )?;
+        let identity = indexed_domain_instance_name(program, domain, parameters, arguments)?;
         membership_updates.push((handle, identity));
     }
     for (handle, identity) in membership_updates {
         let semantic_domain = program.semantic_domains.intern(&identity);
-        if let typed_trees::domain::ProofFact::Membership(membership) =
-            program.proof_facts.get_mut(handle)
-        {
+        if let ProofFact::Membership(membership) = program.proof_facts.get_mut(handle) {
             membership.semantic_domain = semantic_domain;
         }
     }

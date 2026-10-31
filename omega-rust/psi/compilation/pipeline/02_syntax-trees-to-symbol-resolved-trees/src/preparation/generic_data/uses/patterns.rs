@@ -12,6 +12,8 @@ use crate::tables::syntax_expressions;
 use crate::preparation::generic_data::Instantiation;
 
 use crate::preparation::declaration_selection;
+use syntax_trees::expression::TableMembershipExpression;
+use syntax_trees::item::ItemHandle;
 
 /// Destructure syntax lowers to `subject in Base::Case` before this pass. When
 /// the subject is a state parameter or local with an exact synthesized type,
@@ -21,7 +23,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
     syntax: &mut SyntaxTrees,
     instances: &[Instantiation],
     selection: Option<&declaration_selection::ConstantSelection>,
-    declarations: &[syntax_trees::item::ItemHandle],
+    declarations: &[ItemHandle],
 ) {
     for (_state, local_types, statements) in concrete_state_local_types(syntax, declarations) {
         let mut reachable = HashSet::new();
@@ -85,10 +87,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
             let domain = closed_sum_path(syntax, closed, carrier_span, case);
             syntax.expressions.replace_expression(
                 handle,
-                ExpressionNode::Membership(syntax_trees::expression::TableMembershipExpression {
-                    value,
-                    domain,
-                }),
+                ExpressionNode::Membership(TableMembershipExpression { value, domain }),
             );
         }
     }

@@ -1,15 +1,16 @@
 //! Fact domains, subjects and their labels.
 
-use facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
-use language_semantics::ProgressSubject;
+use facts::{FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment, domain_membership_pattern};
+use language_semantics::{ProgressSubject, SemanticDomainId};
 use symbols::SymbolHandle;
+use typed_trees::domain::index_parameters;
 
 pub(crate) fn fact_domain(
     program: &dyn ::validation::CheckingInput,
     payload: FactPayload,
 ) -> Option<SymbolHandle> {
     let (domain_symbol, semantic_domain) = match payload {
-        facts::domain_membership_pattern!(domain_symbol, semantic_domain) => {
+        domain_membership_pattern!(domain_symbol, semantic_domain) => {
             (domain_symbol, semantic_domain)
         }
         _ => return None,
@@ -18,16 +19,13 @@ pub(crate) fn fact_domain(
     program
         .domain_definition(domain_symbol)
         .filter(|domain| {
-            typed_trees::domain::index_parameters(program, domain).is_empty()
+            index_parameters(program, domain).is_empty()
                 && (!semantic_domain.is_valid() || semantic_domain == domain.semantic_id)
         })
         .map(|domain| domain.symbol)
 }
 
-pub(crate) fn fact_subject(
-    semantic: &facts::FactPlan,
-    place: FactPlace,
-) -> Option<ProgressSubject> {
+pub(crate) fn fact_subject(semantic: &FactPlan, place: FactPlace) -> Option<ProgressSubject> {
     match place {
         FactPlace::Place(handle) => {
             let place = *semantic.places.get(handle);
@@ -67,7 +65,7 @@ pub(crate) fn subject_from_place(
 
 pub(crate) fn profile_label(
     program: &dyn ::validation::CheckingInput,
-    profile: language_semantics::SemanticDomainId,
+    profile: SemanticDomainId,
 ) -> String {
     program
         .semantic_domains

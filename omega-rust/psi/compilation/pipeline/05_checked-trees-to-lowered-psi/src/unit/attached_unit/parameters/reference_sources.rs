@@ -9,6 +9,8 @@ use super::{
     StructuralTypeDeclaration, lower_structural_arguments, unsupported,
 };
 use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment,
 };
@@ -193,12 +195,7 @@ pub(crate) fn lower_reference_result_sources(
             return unsupported("returned origin cannot transfer owned storage");
         }
         let result_path =
-            crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                identities,
-                &reference.path,
-                result_type,
-                structural_types,
-            )?;
+            lower_static_argument_path(identities, &reference.path, result_type, structural_types)?;
         let field_carrier = terminal_semantics::runtime_structural_field(
             structural_types.iter(),
             result_type,
@@ -271,14 +268,10 @@ pub(crate) fn lower_reference_result_sources(
                 checked,
                 &reference.source.path,
                 root_coordinate,
-                crate::expression_preparation::bindings::structural_paths::terminal_access(
-                    reference.source.access,
-                ),
+                terminal_access(reference.source.access),
                 structural_types,
             )?;
-        let access = crate::expression_preparation::bindings::structural_paths::terminal_access(
-            reference.source.access,
-        );
+        let access = terminal_access(reference.source.access);
         let source = match place {
             Some(place) => terminal_psi::StructuralReferenceOrigin::Parameter(
                 terminal_psi::ReferenceOriginSource {

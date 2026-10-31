@@ -8,6 +8,7 @@ use super::proposals::{BindingContext, StaticProposals};
 use crate::monomorphization::{
     HandleSpan, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, range_arguments,
 };
+use typed_trees::types::DomainConstraint;
 
 /// A concrete caller has no type binders in scope. An operand whose result
 /// still names one reports another declaration's universal schema, such as an
@@ -335,10 +336,7 @@ pub(crate) fn infer_domain_argument_bindings(
     }
 }
 
-pub(crate) fn same_domain_family(
-    left: &typed_trees::types::DomainConstraint,
-    right: &typed_trees::types::DomainConstraint,
-) -> bool {
+pub(crate) fn same_domain_family(left: &DomainConstraint, right: &DomainConstraint) -> bool {
     if left.symbol.is_valid() && right.symbol.is_valid() {
         return left.symbol == right.symbol;
     }

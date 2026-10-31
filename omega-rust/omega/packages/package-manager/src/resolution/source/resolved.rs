@@ -5,6 +5,7 @@ use crate::resolution::source::PackageSourceCustody;
 use crate::resolution::source::PackageSourceMaterialization;
 use crate::resolution::source::PackageSourceNavigation;
 use crate::resolution::source::PackageSourceSelectionEvidence;
+use crate::resolution::source::ResolvePackageSourceError;
 use package_source::ImmutableSourceResolution;
 use package_source::LocalSourceLimits;
 use std::path::PathBuf;
@@ -90,10 +91,8 @@ pub(super) fn resolve_local_snapshot_source(
     lineage: package_source::SourceLineage,
     resolution: ImmutableSourceResolution,
     limits: LocalSourceLimits,
-) -> Result<
-    ResolvedPackageSource<package_source::ResolvedLocalSnapshot>,
-    crate::resolution::source::ResolvePackageSourceError,
-> {
+) -> Result<ResolvedPackageSource<package_source::ResolvedLocalSnapshot>, ResolvePackageSourceError>
+{
     let materialization = PackageSourceMaterialization::from_local(source.normalized());
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),

@@ -8,6 +8,7 @@ use super::metadata::SelectedFilesystemMetadata;
 use super::sponsor::checked_written_count;
 use super::{EBADF, io_errno};
 use crate::FilesystemMetadataObservationKind;
+use crate::interpreter::evaluator::filesystem::real::RealFs;
 use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall, synthetic_handle_fd};
 use std::io::{Read, Seek, SeekFrom, Write};
 
@@ -102,10 +103,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         -1
                     }
                 },
-                None => {
-                    real.errno = EBADF;
-                    -1
-                }
+                None => missing_descriptor(real),
             }
         })
     }
@@ -243,10 +241,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         -1
                     }
                 },
-                None => {
-                    real.errno = EBADF;
-                    -1
-                }
+                None => missing_descriptor(real),
             }
         })
     }
@@ -530,10 +525,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         -1
                     }
                 }
-                None => {
-                    real.errno = EBADF;
-                    -1
-                }
+                None => missing_descriptor(real),
             }
         })
     }
@@ -573,10 +565,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         }
                     }
                 }
-                None => {
-                    real.errno = EBADF;
-                    -1
-                }
+                None => missing_descriptor(real),
             }
         })
     }
@@ -597,10 +586,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             let real = self.real_fs_mut();
             match real.files.get(&fd) {
                 Some(entry) => real_lock(&entry.file, operation, &mut real.errno),
-                None => {
-                    real.errno = EBADF;
-                    -1
-                }
+                None => missing_descriptor(real),
             }
         })
     }
@@ -701,11 +687,15 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         -1
                     }
                 }
-                None => {
-                    real.errno = EBADF;
-                    -1
-                }
+                None => missing_descriptor(real),
             }
         })
     }
+}
+
+/// Report a descriptor the real filesystem's table does not hold: `EBADF` on
+/// the bound filesystem and the C failure code.
+fn missing_descriptor(real: &mut RealFs) -> i64 {
+    real.errno = EBADF;
+    -1
 }

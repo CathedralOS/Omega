@@ -163,8 +163,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    other declared body forms and signed cross-carrier bodies, nonscalar orders,
-    or dependent distances
+    other declared body forms, remaining nonscalar orders beyond fixed-integer
+    lexicographic products, or dependent distances
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -179,9 +179,8 @@ retired-syntax deletions to completion.
   twins. Reject inaccessible descendants, accidental capture, stale parent
   facts, mismatched results, missing exact call markers, unclosed restoration,
   invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Demonstrate bounded physical stack on a long cycle, including
-  live borrowed backing and completion cleanup, and finish the full affected
-  sample/corpus migration and both compiler implementations before closure.
+  `state` syntax. Finish the full affected sample/corpus migration and both
+  compiler implementations before closure.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
@@ -190,7 +189,7 @@ retired-syntax deletions to completion.
   customers migrate.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    nonliteral and indexed writes, remaining record-field and owned-array
+    remaining case/aggregate writes, record-field and owned-array
     predicate handback with current storage versions,
     reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
@@ -395,10 +394,8 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
-    plus 70 test files to boundary traits with explicit reach clauses, lift stage
-    04's template-dependent result borrow-elision fence for `core/task.omg`'s
-    generic `request_cancel` and `finish`, and preserve source-selected trait
+  - Migrate the remaining 65 std raw platform rows and 70 test files to boundary
+    traits with explicit reach clauses, and preserve source-selected trait
     tokens (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
     checking, Terminal codec, provider planning, and both compilers, keeping one
@@ -1545,14 +1542,14 @@ defines the complete product bar.
   lending, subordinate placed-input reborrowing, and retirement end to end (`Psi
   04–07` and `Omega 00–09`) under
   [placed access](wiki/spec/resources/access.md#establishment-and-retirement).
-  - Reuse `add_placed_accessor_attachment` in
+  - Reuse `add_accessor_attachment` in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/establishment.rs`,
-    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/placed_views.rs`.
+    and `omega-rust/psi/interpreter/terminal-interpreter/src/structural_inputs/access_views.rs`.
   - Extend native publication in
     `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/{fragment_object_publication,entry_receiver}.rs`
     and target-operation lowering in
-    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/placed_view_inputs.rs`
+    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/access_view_inputs.rs`
     so direct-entry and subordinate placed-view loans establish, access, and
     retire with exact original backing and qualifications across Terminal Psi
     and native execution.

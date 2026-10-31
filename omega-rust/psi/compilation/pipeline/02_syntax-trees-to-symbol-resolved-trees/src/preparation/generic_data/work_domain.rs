@@ -11,6 +11,10 @@
 //! default domains, not a requirement that every named application be inhabited.
 //! Typed elaboration owns the later field views of identity-only applications.
 
+use super::const_evaluation::collect_selected_type_reference_positions;
+use super::const_evaluation::collect_stored_type_reference_positions;
+use syntax_trees::expression::ExpressionFrontier;
+use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::{SyntaxTrees, item::ItemHandle, types::TypeReferenceHandle};
 
 #[derive(Clone, Copy)]
@@ -33,7 +37,7 @@ pub(super) enum TypePositionPurpose {
 pub(super) struct SynthesisWork<'input> {
     domain: GenericDataWorkDomain<'input>,
     declaration_frontier: usize,
-    expression_frontier: syntax_trees::expression::ExpressionFrontier,
+    expression_frontier: ExpressionFrontier,
 }
 
 impl<'input> SynthesisWork<'input> {
@@ -52,10 +56,7 @@ impl<'input> SynthesisWork<'input> {
     /// Synthesis also copies data facts and other declaration-side expressions,
     /// not just machine bodies. Their new arena suffix belongs to this work
     /// even when no executable machine inventory reaches them.
-    pub(super) fn owns_new_expression(
-        &self,
-        expression: syntax_trees::expression::ExpressionHandle,
-    ) -> bool {
+    pub(super) fn owns_new_expression(&self, expression: ExpressionHandle) -> bool {
         expression.is_valid() && self.expression_frontier.contains(expression)
     }
 
@@ -90,17 +91,12 @@ impl<'input> SynthesisWork<'input> {
                 GenericDataWorkDomain::Selected { declarations, .. } => declarations.to_vec(),
             }
         };
-        let mut positions = super::const_evaluation::collect_selected_type_reference_positions(
-            syntax,
-            &declarations,
-        );
+        let mut positions = collect_selected_type_reference_positions(syntax, &declarations);
         if purpose == TypePositionPurpose::Materialization {
-            positions.extend(
-                super::const_evaluation::collect_stored_type_reference_positions(
-                    syntax,
-                    &syntax.root_item_handles()[self.declaration_frontier..],
-                ),
-            );
+            positions.extend(collect_stored_type_reference_positions(
+                syntax,
+                &syntax.root_item_handles()[self.declaration_frontier..],
+            ));
         }
         let roots = match self.domain {
             GenericDataWorkDomain::All {

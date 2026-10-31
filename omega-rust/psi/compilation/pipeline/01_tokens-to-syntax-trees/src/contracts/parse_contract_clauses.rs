@@ -1,11 +1,17 @@
+use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals,
     parse_expression_handle_without_struct_literals_or_membership,
+    parse_proof_fact_expression_handle,
 };
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::parameters::parse_parameters::parse_optional_return_type;
 use crate::tables::{exprs, items};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::expression::TableRangeExpression;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
 use tokens::{KeywordKind, PunctuationKind};
@@ -81,11 +87,8 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 .take_contextual("requires")?
                 .at_keyword(KeywordKind::Machine)
         {
-            let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
-                syntax_trees,
-                type_parameters,
-                input,
-            )?;
+            let ((), rest) =
+                parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
             input = rest;
             continue;
         }
@@ -320,10 +323,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         // fallback, so the machine silently parsed as VOID -- the declared
         // `-> usize` never reached any state.
         if input.at_punctuation(PunctuationKind::Arrow) {
-            let (parsed, rest) = crate::parameters::parse_parameters::parse_optional_return_type(
-                syntax_trees,
-                input,
-            )?;
+            let (parsed, rest) = parse_optional_return_type(syntax_trees, input)?;
             return_type = parsed;
             input = rest;
             continue;
@@ -348,11 +348,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                         input.error_here(retired_where_conformance(subject.as_str(syntax_trees)))
                     );
                 }
-                let (expression, rest) =
-                    crate::expressions::parse_expression::parse_proof_fact_expression_handle(
-                        syntax_trees,
-                        input,
-                    )?;
+                let (expression, rest) = parse_proof_fact_expression_handle(syntax_trees, input)?;
                 where_facts.push(syntax_trees::item::ProofFact::Expression(expression));
                 input = rest;
                 if !input.at_punctuation(PunctuationKind::Comma) {
@@ -429,9 +425,7 @@ fn machine_contract_fact_boundary(input: Input<'_, '_>) -> bool {
         || input.tokens.is_empty()
 }
 
-fn outcome_case_path_followed_by_arrow(
-    input: Input<'_, '_>,
-) -> Result<bool, crate::diagnostics::parse_error::ParseError> {
+fn outcome_case_path_followed_by_arrow(input: Input<'_, '_>) -> Result<bool, ParseError> {
     if !input.at_name_like() {
         return Ok(false);
     }
@@ -446,9 +440,7 @@ fn outcome_case_path_followed_by_arrow(
     Ok(member_count >= 2 && rest.at_punctuation(PunctuationKind::Arrow))
 }
 
-fn reject_ambiguous_outcome_specific_ensures(
-    input: Input<'_, '_>,
-) -> Result<(), crate::diagnostics::parse_error::ParseError> {
+fn reject_ambiguous_outcome_specific_ensures(input: Input<'_, '_>) -> Result<(), ParseError> {
     let Ok((guard, arrow)) = input.split_at_top_level_punctuation(
         PunctuationKind::Arrow,
         "outcome-specific ensures requires an arrow",
@@ -677,14 +669,11 @@ fn parse_ranked_subjects<'tokens, 'source>(
             syntax_trees,
             after_separator,
         )?;
-        ranking_range =
-            exprs(syntax_trees).insert(syntax_trees::expression::ExpressionNode::Range(
-                syntax_trees::expression::TableRangeExpression {
-                    start,
-                    end,
-                    end_inclusive,
-                },
-            ));
+        ranking_range = exprs(syntax_trees).insert(ExpressionNode::Range(TableRangeExpression {
+            start,
+            end,
+            end_inclusive,
+        }));
         rest = next;
     }
 

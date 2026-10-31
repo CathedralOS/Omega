@@ -6,9 +6,19 @@
 use super::Execution;
 use crate::flow::expressions;
 use arena::{Handle, HandleSpan};
-use checked_trees::{FlowOperandFact, FlowOperandReferent, FlowOperandRetention};
+use checked_trees::{FlowCallFact, FlowOperandFact, FlowOperandReferent, FlowOperandRetention};
 use facts::PlaceSegment;
+use language_semantics::MachineSupplyMode;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use validation::CanonicalPlace;
+use validation::ReferenceFormationInterpretation;
+use validation::call_target_state;
+use validation::completed_storage::direct_referent_places;
+use validation::completed_storage::projectable_reference_places;
+use validation::owned_projection_type_reference;
+use validation::reference_formation_source;
+use validation::reference_shell;
+use validation::storage_origin_types_match;
 
 impl Execution<'_, '_, '_> {
     /// Owned projections preserve every possible backing without claiming an
@@ -81,11 +91,10 @@ impl Execution<'_, '_, '_> {
         inputs: &[(ExpressionHandle, FlowOperandFact)],
         retention: &mut Option<Handle<FlowOperandRetention>>,
     ) {
-        let Some(formation) = validation::reference_formation_source(self.program, expression)
-        else {
+        let Some(formation) = reference_formation_source(self.program, expression) else {
             return;
         };
-        if formation.interpretation != validation::ReferenceFormationInterpretation::Access {
+        if formation.interpretation != ReferenceFormationInterpretation::Access {
             return;
         }
         // The formation owner authenticated this single ordinary-source factory.
@@ -102,7 +111,7 @@ impl Execution<'_, '_, '_> {
     pub(super) fn retain_possible_storage(
         &mut self,
         value: &mut FlowOperandFact,
-        places: &[validation::CanonicalPlace],
+        places: &[CanonicalPlace],
     ) {
         if places.is_empty()
             || !self
@@ -128,7 +137,7 @@ impl Execution<'_, '_, '_> {
     pub(super) fn completed_backing_places(
         &mut self,
         value: &FlowOperandFact,
-    ) -> Option<Vec<validation::CanonicalPlace>> {
+    ) -> Option<Vec<CanonicalPlace>> {
         let profile = self
             .context
             .control
@@ -143,23 +152,15 @@ impl Execution<'_, '_, '_> {
             return None;
         }
         let places = if !value.referents.is_empty() {
-            validation::completed_storage::direct_referent_places(
-                &self.context.control,
-                value.referents,
-            )?
+            direct_referent_places(&self.context.control, value.referents)?
         } else {
             let operand = self.context.control.operands.insert(*value);
-            validation::completed_storage::projectable_reference_places(
-                self.program,
-                &self.context.control,
-                operand,
-                &[],
-            )?
+            projectable_reference_places(self.program, &self.context.control, operand, &[])?
         };
         Some(
             places
                 .into_iter()
-                .map(|place| validation::CanonicalPlace {
+                .map(|place| CanonicalPlace {
                     root: place.root,
                     segments: place.segments,
                 })
@@ -169,9 +170,9 @@ impl Execution<'_, '_, '_> {
 
     pub(super) fn capture_invocation_backing(
         &mut self,
-        invocation: Handle<checked_trees::FlowCallFact>,
+        invocation: Handle<FlowCallFact>,
         value: &FlowOperandFact,
-    ) -> Option<Vec<validation::CanonicalPlace>> {
+    ) -> Option<Vec<CanonicalPlace>> {
         if !self.context.control.calls.is_valid(invocation) {
             return None;
         }
@@ -185,11 +186,11 @@ impl Execution<'_, '_, '_> {
         if !source.carries_only_positional_arguments() || !source.selects_only_nominal_route() {
             return None;
         }
-        let output = validation::reference_shell(self.program, value.type_reference)?;
-        let state = validation::call_target_state(self.program, call.target_symbol)?;
+        let output = reference_shell(self.program, value.type_reference)?;
+        let state = call_target_state(self.program, call.target_symbol)?;
         let machine = self.program.machine_holding_state(state.symbol)?;
         if !machine.body_is_present
-            || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            || machine.supply_mode != MachineSupplyMode::CheckedBody
             || machine.attached_data.is_some()
         {
             return None;
@@ -223,7 +224,7 @@ impl Execution<'_, '_, '_> {
                 .iter()
                 .position(|parameter| parameter.symbol == source.root)?;
             let actual = actuals.get(argument_index)?;
-            let input = validation::reference_shell(self.program, actual.type_reference)?;
+            let input = reference_shell(self.program, actual.type_reference)?;
             let mut segments = source
                 .segments
                 .into_iter()
@@ -237,12 +238,8 @@ impl Execution<'_, '_, '_> {
             // A field below an unobserved stored pointer belongs to another
             // namespace. Refuse that crossing instead of treating its home as
             // the referee. Lifetime correspondence supplies no missing origin.
-            let selected = validation::owned_projection_type_reference(
-                self.program,
-                input.referee,
-                &segments,
-            )?;
-            if !validation::storage_origin_types_match(self.program, selected, output.referee) {
+            let selected = owned_projection_type_reference(self.program, input.referee, &segments)?;
+            if !storage_origin_types_match(self.program, selected, output.referee) {
                 return None;
             }
             let addresses = self.completed_backing_places(actual)?;

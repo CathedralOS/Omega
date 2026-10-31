@@ -97,8 +97,8 @@ pub fn computation_body_shape(
     {
         return None;
     }
-    let (carrier, _) = unsigned_carrier(program, parameter.type_reference)?;
-    let (result, _) = unsigned_carrier(program, measure.return_type)?;
+    let (carrier, _) = integer_carrier(program, parameter.type_reference)?;
+    let (result, _) = integer_carrier(program, measure.return_type)?;
     Some(ComputationBodyShape {
         input_carrier: carrier,
         result_carrier: result,
@@ -421,7 +421,25 @@ fn owning_machine<'program>(
 /// constraint kinds change what the view may assume and cannot be discharged
 /// here. Returns the carrier and the collected `(minimum, maximum,
 /// end_inclusive)` constraints for the caller to prove against the subject.
+// Identity forwarding may reuse the existing unsigned natural-coordinate
+// proof tier. Other fixed-integer declarations use complete application
+// formation, retaining the result domain even when their body is a forward.
 fn unsigned_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<(
+    BuiltinTypeAtom,
+    Vec<(ExpressionHandle, ExpressionHandle, bool)>,
+)> {
+    let (carrier, constraints) = integer_carrier(program, reference)?;
+    matches!(
+        carrier,
+        BuiltinTypeAtom::U8 | BuiltinTypeAtom::U16 | BuiltinTypeAtom::U32 | BuiltinTypeAtom::U64
+    )
+    .then_some((carrier, constraints))
+}
+
+fn integer_carrier(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(
@@ -455,7 +473,14 @@ fn unsigned_carrier(
     let carrier = program.symbols.builtin_type_atom(*symbol)?;
     matches!(
         carrier,
-        BuiltinTypeAtom::U8 | BuiltinTypeAtom::U16 | BuiltinTypeAtom::U32 | BuiltinTypeAtom::U64
+        BuiltinTypeAtom::U8
+            | BuiltinTypeAtom::U16
+            | BuiltinTypeAtom::U32
+            | BuiltinTypeAtom::U64
+            | BuiltinTypeAtom::I8
+            | BuiltinTypeAtom::I16
+            | BuiltinTypeAtom::I32
+            | BuiltinTypeAtom::I64
     )
     .then_some((carrier, constraints))
 }

@@ -1,6 +1,24 @@
 //! Qualification facts and service reach facts.
 
 use crate::flow::indexed_statements;
+use arena::Handle;
+use arena::HandleSpan;
+use checked_trees::CallServiceReachRows;
+use checked_trees::ContentProjectionFacts;
+use checked_trees::MachineQualifications;
+use checked_trees::MachineServiceReachRows;
+use checked_trees::QualificationFacts;
+use checked_trees::ServiceReachFacts;
+use checked_trees::StateServiceReachRows;
+use language_semantics::SemanticDomainId;
+use numerics::arithmetic::ArithmeticDomain;
+use symbols::BuildSymbolHasher;
+use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::statement::TransitionGuardNode;
+use typed_trees::statement::TransitionTargetNode;
+use validation::build_content_projection_plans;
+use validation::content_conservation_plans;
 
 /// Declaration-only content plans are available before the ownership walk.
 /// A normalized equation is an obligation, not a successful body theorem or
@@ -8,10 +26,10 @@ use crate::flow::indexed_statements;
 /// qualification construction so completion-owned evidence retains its indices.
 pub(crate) fn build_content_facts(
     program: &dyn ::validation::CheckingInput,
-) -> checked_trees::ContentProjectionFacts {
-    checked_trees::ContentProjectionFacts {
-        plans: validation::build_content_projection_plans(program),
-        conservation_plans: validation::content_conservation_plans(program)
+) -> ContentProjectionFacts {
+    ContentProjectionFacts {
+        plans: build_content_projection_plans(program),
+        conservation_plans: content_conservation_plans(program)
             .iter()
             .map(|source| source.plan.clone())
             .collect(),
@@ -26,16 +44,16 @@ pub(crate) fn build_content_facts(
 /// step names only the expression it descends into.
 struct CastWalk<'a, 'b> {
     program: &'a dyn ::validation::CheckingInput,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
+    machine: SymbolHandle,
+    state: SymbolHandle,
     statement_index: u32,
-    committed: &'b mut Vec<language_semantics::SemanticDomainId>,
+    committed: &'b mut Vec<SemanticDomainId>,
     vacuous_uses: &'b mut Vec<checked_trees::VacuousQualificationUse>,
-    visited: &'b mut std::collections::HashSet<u32, symbols::BuildSymbolHasher>,
+    visited: &'b mut std::collections::HashSet<u32, BuildSymbolHasher>,
 }
 
 impl CastWalk<'_, '_> {
-    fn scan(&mut self, expression: typed_trees::expression::ExpressionHandle) {
+    fn scan(&mut self, expression: ExpressionHandle) {
         use checked_trees::VacuousQualificationUse;
         use language_semantics::SemanticDomainTable;
         use typed_trees::expression::ExpressionNode;
@@ -59,16 +77,10 @@ impl CastWalk<'_, '_> {
             }
             ExpressionNode::Cast(cast) => {
                 let policy = match cast.domain {
-                    numerics::arithmetic::ArithmeticDomain::Exact => None,
-                    numerics::arithmetic::ArithmeticDomain::Wrapping => {
-                        Some(SemanticDomainTable::WRAPPING)
-                    }
-                    numerics::arithmetic::ArithmeticDomain::Saturating => {
-                        Some(SemanticDomainTable::SATURATING)
-                    }
-                    numerics::arithmetic::ArithmeticDomain::Trapping => {
-                        Some(SemanticDomainTable::TRAPPING)
-                    }
+                    ArithmeticDomain::Exact => None,
+                    ArithmeticDomain::Wrapping => Some(SemanticDomainTable::WRAPPING),
+                    ArithmeticDomain::Saturating => Some(SemanticDomainTable::SATURATING),
+                    ArithmeticDomain::Trapping => Some(SemanticDomainTable::TRAPPING),
                 };
                 if let Some(policy) = policy {
                     self.committed.push(policy);
@@ -139,10 +151,10 @@ impl CastWalk<'_, '_> {
 
 pub(crate) fn build_qualification_facts(
     program: &dyn ::validation::CheckingInput,
-    content: checked_trees::ContentProjectionFacts,
-) -> checked_trees::QualificationFacts {
+    content: ContentProjectionFacts,
+) -> QualificationFacts {
     /// Membership sets take the integer hasher; none is iterated for output order.
-    type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
+    type HashSet<T> = std::collections::HashSet<T, BuildSymbolHasher>;
 
     let mut machines = Vec::new();
     let mut vacuous_uses = Vec::new();
@@ -181,20 +193,13 @@ pub(crate) fn build_qualification_facts(
                         }
                     }
                     StatementNode::Transition(transition) => {
-                        if let typed_trees::statement::TransitionGuardNode::When(guard) =
-                            &transition.guard
-                        {
+                        if let TransitionGuardNode::When(guard) = &transition.guard {
                             walk.scan(*guard);
                         }
                         for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
-                                typed_trees::statement::TransitionTargetNode::Value(value) => {
-                                    walk.scan(*value)
-                                }
-                                typed_trees::statement::TransitionTargetNode::Named {
-                                    arguments,
-                                    ..
-                                } => {
+                                TransitionTargetNode::Value(value) => walk.scan(*value),
+                                TransitionTargetNode::Named { arguments, .. } => {
                                     for argument in
                                         program.statement_table.expression_handles(*arguments)
                                     {
@@ -211,13 +216,13 @@ pub(crate) fn build_qualification_facts(
         committed.sort_by_key(|id| id.0);
         committed.dedup();
         if !committed.is_empty() {
-            machines.push(checked_trees::MachineQualifications {
+            machines.push(MachineQualifications {
                 machine: machine.symbol,
                 body_committed: committed,
             });
         }
     }
-    checked_trees::QualificationFacts {
+    QualificationFacts {
         scalar_returns: Vec::new(),
         value_formations: Default::default(),
         machines,
@@ -235,59 +240,53 @@ pub(crate) fn build_qualification_facts(
 pub(crate) fn build_service_reach_facts(
     program: &dyn ::validation::CheckingInput,
     inferred: flow_effects::ServiceReachInferencePlan,
-) -> checked_trees::ServiceReachFacts {
-    checked_trees::ServiceReachFacts {
+) -> ServiceReachFacts {
+    ServiceReachFacts {
         services: program.service_reaches.clone(),
         rows: inferred.rows,
         dependency_parameters: inferred.dependency_parameters,
         root_machines: remap_service_reach_span(inferred.root_machines),
-        machines: inferred
-            .machines
-            .map(|machine| checked_trees::MachineServiceReachRows {
-                machine: machine.machine,
-                dependency: machine.dependency,
-                cleanup_contribution: machine.cleanup_contribution,
-                interface: machine.interface,
-                published_ceiling: machine.published,
-                inferred_direct: machine.inferred_direct,
-                inferred_transitive: machine.inferred_transitive,
-                concrete_transitive: machine.concrete_transitive,
-                effective: machine.effective,
-                concrete_effective: machine.concrete_effective,
-                unresolved_installation_reaches: machine.unresolved_installation_reaches,
-                states: remap_service_reach_span(machine.states),
-            }),
-        states: inferred
-            .states
-            .map(|state| checked_trees::StateServiceReachRows {
-                state: state.state,
-                inferred_direct: state.inferred_direct,
-                inferred_transitive: state.inferred_transitive,
-                concrete_direct: state.concrete_direct,
-                concrete_transitive: state.concrete_transitive,
-                unresolved_installation_reaches: state.unresolved_installation_reaches,
-                calls: remap_service_reach_span(state.calls),
-            }),
-        calls: inferred
-            .calls
-            .map(|call| checked_trees::CallServiceReachRows {
-                statement_index: call.statement_index,
-                call_ordinal: call.call_ordinal,
-                target_state: call.target_state,
-                target_machine: call.target_machine,
-                inferred_direct: call.inferred_direct,
-                inferred_transitive: call.inferred_transitive,
-                concrete_direct: call.concrete_direct,
-                concrete_transitive: call.concrete_transitive,
-                unresolved_installation_reaches: call.unresolved_installation_reaches,
-            }),
+        machines: inferred.machines.map(|machine| MachineServiceReachRows {
+            machine: machine.machine,
+            dependency: machine.dependency,
+            cleanup_contribution: machine.cleanup_contribution,
+            interface: machine.interface,
+            published_ceiling: machine.published,
+            inferred_direct: machine.inferred_direct,
+            inferred_transitive: machine.inferred_transitive,
+            concrete_transitive: machine.concrete_transitive,
+            effective: machine.effective,
+            concrete_effective: machine.concrete_effective,
+            unresolved_installation_reaches: machine.unresolved_installation_reaches,
+            states: remap_service_reach_span(machine.states),
+        }),
+        states: inferred.states.map(|state| StateServiceReachRows {
+            state: state.state,
+            inferred_direct: state.inferred_direct,
+            inferred_transitive: state.inferred_transitive,
+            concrete_direct: state.concrete_direct,
+            concrete_transitive: state.concrete_transitive,
+            unresolved_installation_reaches: state.unresolved_installation_reaches,
+            calls: remap_service_reach_span(state.calls),
+        }),
+        calls: inferred.calls.map(|call| CallServiceReachRows {
+            statement_index: call.statement_index,
+            call_ordinal: call.call_ordinal,
+            target_state: call.target_state,
+            target_machine: call.target_machine,
+            inferred_direct: call.inferred_direct,
+            inferred_transitive: call.inferred_transitive,
+            concrete_direct: call.concrete_direct,
+            concrete_transitive: call.concrete_transitive,
+            unresolved_installation_reaches: call.unresolved_installation_reaches,
+        }),
     }
 }
 
-fn remap_service_reach_span<From, To>(span: arena::HandleSpan<From>) -> arena::HandleSpan<To> {
+fn remap_service_reach_span<From, To>(span: HandleSpan<From>) -> HandleSpan<To> {
     let start = span.start();
-    arena::HandleSpan::from_parts(
-        arena::Handle::from_parts(start.arena_index(), start.generation()),
+    HandleSpan::from_parts(
+        Handle::from_parts(start.arena_index(), start.generation()),
         span.count(),
     )
 }

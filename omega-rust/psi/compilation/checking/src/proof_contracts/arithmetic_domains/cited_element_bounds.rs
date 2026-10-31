@@ -27,13 +27,19 @@
 use super::guard_narrowing::projected_facts::{ProjectedOperand, contribute_projected_comparison};
 use super::ordered_values::{self, Operand};
 use super::{BinaryOperator, ExpressionHandle, Machine, State, ValueEnvironment, place_path};
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
+use language_semantics::const_value::CanonicalConstValue;
+use language_semantics::const_value::DecodedCanonicalConstValue;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::StaticMachineArgument;
 
 /// `collection[index]` with a literal, non-negative `index` over a place
 /// collection, spelled as the value environment keys it.
 pub(crate) fn element_place_path(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
     let indexed = expression_table(program).indexed_node(expression)?;
@@ -53,7 +59,7 @@ pub(crate) fn element_place_path(
 /// (`text[index] < 48 || text[index] > 57 -> ..` refuted gives the later
 /// `text[index] - 48` its range).
 pub(crate) fn stable_element_place_path(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
@@ -113,7 +119,7 @@ pub(crate) fn stable_element_place_path(
 /// Import the element bounds of a checked callee's `ensures` after a
 /// statement call returns.
 pub(crate) fn seed_cited_element_bounds(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     call: &typed_trees::statement::TableCall,
@@ -171,10 +177,7 @@ pub(crate) fn seed_cited_element_bounds(
 }
 
 /// A free machine whose checked body proves its own `ensures`.
-fn checked_callee(
-    program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> Option<&Machine> {
+fn checked_callee(program: &dyn CheckingInput, symbol: symbols::SymbolHandle) -> Option<&Machine> {
     if !symbol.is_valid() {
         return None;
     }
@@ -191,13 +194,13 @@ fn checked_callee(
 }
 
 struct Substitution<'program> {
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     machine: &'program Machine,
     state: Option<&'program State>,
     parameters: &'program [typed_trees::signature::StateParameter],
     arguments: &'program [ExpressionHandle],
     written: Option<&'program [String]>,
-    static_arguments: &'program [typed_trees::expression::StaticMachineArgument],
+    static_arguments: &'program [StaticMachineArgument],
 }
 
 impl Substitution<'_> {
@@ -264,8 +267,7 @@ impl Substitution<'_> {
         for (parameter, argument) in parameters.iter().zip(self.static_arguments) {
             if !matches!(
                 parameter.kind,
-                typed_trees::data::TypeParameterKind::Value { .. }
-                    | typed_trees::data::TypeParameterKind::Const { .. }
+                TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
             ) {
                 continue;
             }
@@ -317,10 +319,7 @@ impl Substitution<'_> {
         })
     }
 
-    fn static_operand(
-        &self,
-        argument: &typed_trees::expression::StaticMachineArgument,
-    ) -> Option<Operand> {
+    fn static_operand(&self, argument: &StaticMachineArgument) -> Option<Operand> {
         if let Some(literal) = &argument.const_literal {
             return Some(Operand::Integer(literal.clone(), literal.landing()));
         }
@@ -353,8 +352,7 @@ impl Substitution<'_> {
                     parameter.symbol == argument.symbol
                         && matches!(
                             parameter.kind,
-                            typed_trees::data::TypeParameterKind::Value { .. }
-                                | typed_trees::data::TypeParameterKind::Const { .. }
+                            TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
                         )
                 });
             if parameter.is_none() && local.is_none() && !static_parameter {
@@ -380,14 +378,9 @@ impl Substitution<'_> {
             self.program.typed_program(),
             argument,
         )?;
-        let value = if let Some(canonical) =
-            language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
-        {
+        let value = if let Some(canonical) = CanonicalConstValue::from_atom(&spelling) {
             match canonical.decode_encoding()? {
-                language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                    value,
-                    ..
-                } => value,
+                DecodedCanonicalConstValue::Integer { value, .. } => value,
                 _ => return None,
             }
         } else {
@@ -484,7 +477,7 @@ impl Substitution<'_> {
 }
 
 fn seed_conjunct(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     callee: &Machine,
     entry: &State,
     substitution: &Substitution<'_>,
@@ -525,9 +518,7 @@ fn seed_conjunct(
         return;
     }
     let side = |expression| {
-        if let typed_trees::expression::ExpressionNode::Integer(literal) =
-            expression_table(program).expression(expression)
-        {
+        if let ExpressionNode::Integer(literal) = expression_table(program).expression(expression) {
             Some(ProjectedOperand::literal(literal))
         } else {
             substitution

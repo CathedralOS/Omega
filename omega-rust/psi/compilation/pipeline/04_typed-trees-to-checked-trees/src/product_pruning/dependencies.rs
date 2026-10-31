@@ -1,8 +1,15 @@
 //! Exact machine dependency extraction and conservative interface retention.
 
 use std::collections::{HashMap, HashSet};
+use typed_trees::references::TypedReferences;
+use typed_trees::references::visit_closed_conformance;
+use typed_trees::references::visit_declarations;
+use typed_trees::references::visit_machine;
+use typed_trees::references::visit_static_argument;
+use typed_trees::typed_trees::AccessLifecyclePlan;
+use typed_trees::typed_trees::ClosedConformanceApplication;
 
-use checked_trees::CheckFacts;
+use checked_trees::{CheckFacts, ContractProofFactOwner, ProofFacts};
 use symbols::SymbolHandle;
 use typed_trees::{expression::StaticMachineArgument, statement::StatementHandle};
 
@@ -124,9 +131,7 @@ pub(super) fn interface_retention_set(
         retain_symbol(&mut retained, index, plan.policy_plan_machine_symbol);
     }
     for (_, plan) in program.access_lifecycle_plans.iter() {
-        if let typed_trees::typed_trees::AccessLifecyclePlan::Evaluated { policy_machine, .. } =
-            plan
-        {
+        if let AccessLifecyclePlan::Evaluated { policy_machine, .. } = plan {
             retain_symbol(&mut retained, index, *policy_machine);
         }
     }
@@ -272,17 +277,14 @@ impl<Output: Extend<SymbolHandle>> Extend<SymbolHandle> for MachineReferences<'_
         );
     }
 }
-impl<Output: Extend<SymbolHandle>> typed_trees::references::TypedReferences
-    for MachineReferences<'_, '_, Output>
-{
-}
+impl<Output: Extend<SymbolHandle>> TypedReferences for MachineReferences<'_, '_, Output> {}
 
 fn retain_declaration_surface_machines(
     program: &dyn ::validation::CheckingInput,
     index: &MachineIndex,
     output: &mut impl Extend<SymbolHandle>,
 ) {
-    typed_trees::references::visit_declarations(program, &mut MachineReferences { index, output });
+    visit_declarations(program, &mut MachineReferences { index, output });
 }
 fn retain_machine_references(
     program: &dyn ::validation::CheckingInput,
@@ -290,11 +292,7 @@ fn retain_machine_references(
     output: &mut impl Extend<SymbolHandle>,
     machine: &typed_trees::machine::Machine,
 ) {
-    typed_trees::references::visit_machine(
-        program,
-        &mut MachineReferences { index, output },
-        machine,
-    );
+    visit_machine(program, &mut MachineReferences { index, output }, machine);
 }
 fn retain_static_machine_argument(
     program: &dyn ::validation::CheckingInput,
@@ -302,19 +300,15 @@ fn retain_static_machine_argument(
     index: &MachineIndex,
     argument: &StaticMachineArgument,
 ) {
-    typed_trees::references::visit_static_argument(
-        program,
-        &mut MachineReferences { index, output },
-        argument,
-    );
+    visit_static_argument(program, &mut MachineReferences { index, output }, argument);
 }
 fn retain_machine_argument(
     program: &dyn ::validation::CheckingInput,
     index: &MachineIndex,
     output: &mut impl Extend<SymbolHandle>,
-    application: &typed_trees::typed_trees::ClosedConformanceApplication,
+    application: &ClosedConformanceApplication,
 ) {
-    typed_trees::references::visit_closed_conformance(
+    visit_closed_conformance(
         program,
         &mut MachineReferences { index, output },
         application,
@@ -331,16 +325,11 @@ fn retain_symbol(
     }
 }
 
-fn contract_caller(
-    proof: &checked_trees::ProofFacts,
-    owner: checked_trees::ContractProofFactOwner,
-) -> Option<SymbolHandle> {
+fn contract_caller(proof: &ProofFacts, owner: ContractProofFactOwner) -> Option<SymbolHandle> {
     match owner {
-        checked_trees::ContractProofFactOwner::Machine { machine_symbol }
-        | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } => {
-            Some(machine_symbol)
-        }
-        checked_trees::ContractProofFactOwner::CallSignature { application, .. } => {
+        ContractProofFactOwner::Machine { machine_symbol }
+        | ContractProofFactOwner::MachineState { machine_symbol, .. } => Some(machine_symbol),
+        ContractProofFactOwner::CallSignature { application, .. } => {
             (crate::proof::contracts::call_signatures::owner(
                 &proof.call_contract_signatures,
                 application,

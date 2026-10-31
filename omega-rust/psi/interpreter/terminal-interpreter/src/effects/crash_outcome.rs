@@ -4,6 +4,7 @@ use super::boundary_predicates::closed_guard;
 use proof_admission::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 use terminal_psi::{BoundaryMachineDeclaration, CrashCause, CrashRouteGuard};
+use terminal_semantics::substitution::substitute_proposition_values;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundaryCrashOutcomeError {
@@ -70,10 +71,7 @@ pub fn validate_boundary_crash_outcome(
         let value = match guard {
             CrashRouteGuard::Truth => Ok(Some(true)),
             CrashRouteGuard::Predicate(predicate) => closed_guard(
-                &terminal_semantics::substitution::substitute_proposition_values(
-                    predicate.proposition(),
-                    &substitutions,
-                ),
+                &substitute_proposition_values(predicate.proposition(), &substitutions),
                 &mut integers,
             ),
         };

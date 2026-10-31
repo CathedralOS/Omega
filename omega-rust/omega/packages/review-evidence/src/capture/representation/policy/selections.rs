@@ -18,12 +18,7 @@ pub(crate) fn rederive_selections(
 ) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
     let selected = compilation.custody.build().selected_build_machine_symbol;
     if let Some(symbol) = selected {
-        let machines = compilation
-            .machines()
-            .iter()
-            .filter(|machine| machine.symbol == symbol)
-            .collect::<Vec<_>>();
-        let [machine] = machines.as_slice() else {
+        let Some(machine) = compilation.exact_machine(symbol) else {
             return Err(rejected(
                 "selection lacks its unique authoritative build machine",
             ));

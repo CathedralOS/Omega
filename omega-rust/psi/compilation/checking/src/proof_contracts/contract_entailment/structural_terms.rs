@@ -80,6 +80,43 @@ pub(crate) fn denotation_preserving_conversion(
                     == program.arithmetic_domain_for_type_reference(cast.target_type)))
 }
 
+/// An exact integer conversion denotes its operand, and that operand keeps
+/// the bounds of the carrier it was read from: a `u8` widened into `i32`
+/// still lies in `0..=255`. A symbolic operand carries no type of its own,
+/// so the conversion records the source carrier as an embedding, which the
+/// integer owner bounds by that carrier. A literal already denotes itself, a
+/// same-carrier conversion changes no bounds, and an embedding already names
+/// its carrier. This conveys no new value and no storage authority.
+pub(in crate::proof_contracts::contract_entailment) fn exact_conversion_term(
+    program: &dyn crate::CheckingInput,
+    cast: &typed_trees::expression::TableCastExpression,
+    source: typed_trees::types::TypeReferenceHandle,
+    value: StructuralTerm,
+) -> StructuralTerm {
+    let fixed_integer = |reference| {
+        program
+            .primitive_type_reference(reference)
+            .filter(|primitive| primitive.is_fixed_integer())
+    };
+    let (Some(source_primitive), Some(target_primitive)) =
+        (fixed_integer(source), fixed_integer(cast.target_type))
+    else {
+        return value;
+    };
+    if source_primitive == target_primitive
+        || matches!(
+            value.semantic_value(),
+            StructuralTerm::Integer(_) | StructuralTerm::IntegerEmbedding { .. }
+        )
+    {
+        return value;
+    }
+    StructuralTerm::IntegerEmbedding {
+        reference: source,
+        value: Box::new(value),
+    }
+}
+
 /// The builtin embedding observes the authenticated payload, not the source
 /// expression at a later proof query. Shared and owned views retain their
 /// original observation authority through the raw argument reference.
@@ -627,7 +664,7 @@ pub(super) fn structural_term(
             }?;
             let value = structural_term(program, scope, frame, cast.value, bindings)?;
             if denotation_preserving_conversion(program, cast, source) {
-                Some(value)
+                Some(exact_conversion_term(program, cast, source, value))
             } else {
                 scalar_representation_term(program, cast, source, value)
             }

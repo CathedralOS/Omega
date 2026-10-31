@@ -1,9 +1,9 @@
 //! Ordinary-machine control-flow and terminal-edge projection.
 use super::LoweringError;
 use abstract_operations::{AbstractOperation, AbstractSuccessor, ValueBinding};
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::BTreeMap;
-use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator};
+use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator, ValueDeclaration};
 
 fn structural_bindings(
     parameters: &[terminal_psi::StructuralParameterDeclaration],
@@ -21,10 +21,7 @@ fn structural_bindings(
         .collect()
 }
 
-fn value_bindings(
-    parameters: &[terminal_psi::ValueDeclaration],
-    arguments: &[semantic_vocabulary::ValueId],
-) -> Vec<ValueBinding> {
+fn value_bindings(parameters: &[ValueDeclaration], arguments: &[ValueId]) -> Vec<ValueBinding> {
     parameters
         .iter()
         .zip(arguments)
@@ -42,7 +39,7 @@ pub(super) fn lower_terminator(
     block: &terminal_psi::Block,
     machine: &TerminalMachine,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
-    result: Option<terminal_psi::ValueDeclaration>,
+    result: Option<ValueDeclaration>,
     operations: &mut Vec<AbstractOperation>,
 ) -> Result<(), LoweringError> {
     match &block.terminator {

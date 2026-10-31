@@ -8,6 +8,7 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use typed_trees::machine::Machine;
 use typed_trees::operator::{
     ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
@@ -121,10 +122,8 @@ fn retains_application_tuple(
                 })
             }
             ClosedOperatorApplicationArgument::Const { value, .. } => {
-                let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                    value,
-                    ..
-                }) = value.decode_encoding()
+                let Some(DecodedCanonicalConstValue::Integer { value, .. }) =
+                    value.decode_encoding()
                 else {
                     return false;
                 };

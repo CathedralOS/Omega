@@ -53,7 +53,11 @@ impl PsiOptimizationExecutionRecord {
         if selections.is_empty() && input_semantic != output_semantic {
             return Err(PsiOptimizationExecutionRecordError::IdentityStageChangedProduct);
         }
-        let identity = execution_identity(selections.identity(), input_semantic, output_semantic);
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(IDENTITY_DOMAIN);
+        digest.raw(&selections.identity().bytes());
+        append_identity_to_digest(&mut digest, input_semantic);
+        append_identity_to_digest(&mut digest, output_semantic);
+        let identity = PsiOptimizationExecutionIdentity(digest.finish());
         Ok(Self {
             selections,
             input_semantic,
@@ -152,18 +156,6 @@ pub fn decode_psi_optimization_execution_record(
         return Err(PsiOptimizationExecutionRecordDecodeError::NonCanonicalEncoding);
     }
     Ok(record)
-}
-
-fn execution_identity(
-    selection: PsiOptimizationSelectionIdentity,
-    input_semantic: TerminalPsiIdentity,
-    output_semantic: TerminalPsiIdentity,
-) -> PsiOptimizationExecutionIdentity {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(IDENTITY_DOMAIN);
-    digest.raw(&selection.bytes());
-    append_identity_to_digest(&mut digest, input_semantic);
-    append_identity_to_digest(&mut digest, output_semantic);
-    PsiOptimizationExecutionIdentity(digest.finish())
 }
 
 fn append_identity_to_digest(

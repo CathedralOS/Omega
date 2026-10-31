@@ -1,5 +1,6 @@
 //! Crash causes, interfaces, predicate expressions and route guards.
 
+use super::contract_identity::ContractHasher;
 use std::cmp::Ordering;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -154,8 +155,7 @@ impl CrashPredicateExpression {
         mut left: Self,
         mut right: Self,
     ) -> Option<Self> {
-        let mut identity =
-            super::contract_identity::ContractHasher::new(b"omega.crash-data-identity-type.v1\0");
+        let mut identity = ContractHasher::new(b"omega.crash-data-identity-type.v1\0");
         types.text(type_identity)?.hash(&mut identity);
         if left > right {
             std::mem::swap(&mut left, &mut right);
@@ -593,8 +593,7 @@ impl CrashPredicateIdentity {
         fact: &super::DeclaredContractFact,
         type_identities: &typed_trees::type_identity::TypeIdentityTable,
     ) -> Self {
-        let mut identity =
-            super::contract_identity::ContractHasher::new(b"omega.declared-crash-fact.v2\0");
+        let mut identity = ContractHasher::new(b"omega.declared-crash-fact.v2\0");
         super::contract_identity::hash_declared_fact(fact, type_identities, &mut identity);
         let mut bytes = vec![2]; // non-expression declared fact namespace
         bytes.extend(identity.complete().commitment.as_bytes());

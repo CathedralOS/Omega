@@ -14,6 +14,8 @@ use crate::provider_admission::{
 use crate::{ArtifactLoweringError, VerifiedNativeArtifactInput};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
+use semantic_vocabulary::BoundaryMachineId;
+use std::collections::BTreeSet;
 use terminal_codec::CanonicalTerminalArtifact;
 
 /// Independent native custody beside one canonical Terminal product.
@@ -80,21 +82,19 @@ pub fn admit_prepared_native_realization<'execution>(
 ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
     // Invocation-scoped supplies must answer the same executable occurrences
     // as the plan. Complete declarations stay retained in canonical Terminal.
-    let executed_boundaries: std::collections::BTreeSet<semantic_vocabulary::BoundaryMachineId> =
-        input
-            .plan()
-            .boundary_machines
-            .iter()
-            .map(|boundary| boundary.id)
-            .collect();
-    let module_boundaries: std::collections::BTreeSet<semantic_vocabulary::BoundaryMachineId> =
-        input
-            .context()
-            .module()
-            .boundary_machines
-            .iter()
-            .map(|boundary| boundary.id)
-            .collect();
+    let executed_boundaries: BTreeSet<BoundaryMachineId> = input
+        .plan()
+        .boundary_machines
+        .iter()
+        .map(|boundary| boundary.id)
+        .collect();
+    let module_boundaries: BTreeSet<BoundaryMachineId> = input
+        .context()
+        .module()
+        .boundary_machines
+        .iter()
+        .map(|boundary| boundary.id)
+        .collect();
     let settlements = request
         .providers
         .settlements
@@ -143,32 +143,30 @@ pub fn admit_prepared_native_realization<'execution>(
     let native_callbacks = if request.providers.native_callbacks.is_empty() {
         Vec::new()
     } else {
-        let plan_boundary_call_ops: std::collections::BTreeSet<semantic_vocabulary::OperationId> =
-            input
-                .plan()
-                .operations()
-                .filter_map(|operation| match operation {
-                    abstract_operations::AbstractOperation::BoundaryCall {
-                        psi_operation, ..
-                    } => Some(*psi_operation),
-                    _ => None,
-                })
-                .collect();
-        let module_boundary_call_ops: std::collections::BTreeSet<semantic_vocabulary::OperationId> =
-            input
-                .context()
-                .module()
-                .machines
-                .iter()
-                .flat_map(|machine| machine.operations())
-                .filter_map(|operation| {
-                    matches!(
-                        operation.kind,
-                        terminal_psi::OperationKind::BoundaryCall { .. }
-                    )
-                    .then_some(operation.id)
-                })
-                .collect();
+        let plan_boundary_call_ops: BTreeSet<semantic_vocabulary::OperationId> = input
+            .plan()
+            .operations()
+            .filter_map(|operation| match operation {
+                abstract_operations::AbstractOperation::BoundaryCall { psi_operation, .. } => {
+                    Some(*psi_operation)
+                }
+                _ => None,
+            })
+            .collect();
+        let module_boundary_call_ops: BTreeSet<semantic_vocabulary::OperationId> = input
+            .context()
+            .module()
+            .machines
+            .iter()
+            .flat_map(|machine| machine.operations())
+            .filter_map(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::BoundaryCall { .. }
+                )
+                .then_some(operation.id)
+            })
+            .collect();
         request
             .providers
             .native_callbacks

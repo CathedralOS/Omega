@@ -9,10 +9,20 @@
 //! leaves on every write, without assigning them a referent. An exact-origin
 //! query must not discard unknown alternatives.
 
-use validation::CanonicalPlace;
+use super::summary::WriteDestination;
+use crate::collections::push_unique;
+use crate::flow;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use typed_trees::state::State;
 use validation::push_field_place_segments;
 use validation::resolve_member_symbol_from_type_symbol;
 use validation::symbol_type_symbol;
+use validation::{
+    AssignmentWriteTarget, CallFrameResolver, CanonicalPlace, LocalWriteOrigin,
+    assignment_stored_value_type, canonical_place_type_reference, declared_reference_access,
+    find_state, place_has_builtin_coordinates, reference_shell,
+};
 
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::canonical_place_segments_equal;
@@ -35,7 +45,7 @@ pub(crate) fn close_storage_places_over_aliases(
     state_symbol: SymbolHandle,
     statement_index: usize,
     places: Vec<CanonicalPlace>,
-    resolver: Option<&validation::CallFrameResolver<'_>>,
+    resolver: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     if places.is_empty() {
         return Some(places);
@@ -55,10 +65,10 @@ pub(crate) fn close_storage_places_over_aliases(
 /// without preservation evidence is an unknown alias, never a disjoint one.
 pub(crate) fn close_storage_places_over_origins(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: usize,
     mut places: Vec<CanonicalPlace>,
-    origins: &[validation::LocalWriteOrigin],
+    origins: &[LocalWriteOrigin],
 ) -> Option<Vec<CanonicalPlace>> {
     let storage = places.clone();
     let mut seen: std::collections::HashSet<CanonicalPlace> = storage.iter().cloned().collect();
@@ -136,7 +146,7 @@ pub(super) fn assignment_storage_places(
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     StorageRegion::declared_places(assignment_storage_regions(
         program,
@@ -154,7 +164,7 @@ pub(super) fn assignment_storage_regions(
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     let assignment = statement.as_assignment()?;
     let machine = program.machine_by_symbol(machine_symbol)?;
@@ -173,12 +183,7 @@ pub(super) fn assignment_storage_regions(
                 indexed.collection
             }
             ExpressionNode::Indexed(_)
-                if !validation::place_has_builtin_coordinates(
-                    program,
-                    machine,
-                    Some(state),
-                    projection,
-                ) =>
+                if !place_has_builtin_coordinates(program, machine, Some(state), projection) =>
             {
                 return None;
             }
@@ -199,16 +204,16 @@ pub(super) fn assignment_storage_regions(
         }
     }
     let mut owned_frames = None;
-    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    let resolver = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let target = resolver.assignment_write_target(machine, statement);
     if matches!(
         target,
-        Some(validation::AssignmentWriteTarget::LocalBindingReplacement { .. })
+        Some(AssignmentWriteTarget::LocalBindingReplacement { .. })
     ) {
         return direct.map(|place| vec![StorageRegion::Declared(place)]);
     }
-    if validation::assignment_stored_value_type(program, machine, state, assignment)
-        .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+    if assignment_stored_value_type(program, machine, state, assignment)
+        .is_some_and(|reference| reference_shell(program, reference).is_some())
     {
         let captured = resolver.assignment_storage_origins(machine, statement)?;
         let mut regions = Vec::new();
@@ -218,13 +223,9 @@ pub(super) fn assignment_storage_regions(
             else {
                 return None;
             };
-            let reference = validation::canonical_place_type_reference(
-                program,
-                state_symbol,
-                statement_index,
-                &place,
-            )?;
-            validation::reference_shell(program, reference)?;
+            let reference =
+                canonical_place_type_reference(program, state_symbol, statement_index, &place)?;
+            reference_shell(program, reference)?;
             for region in rebase_descriptor_slot_regions(
                 program,
                 state_symbol,
@@ -232,7 +233,7 @@ pub(super) fn assignment_storage_regions(
                 place,
                 call_frames,
             )? {
-                crate::collections::push_unique(&mut regions, region);
+                push_unique(&mut regions, region);
             }
         }
         return Some(regions);
@@ -251,10 +252,10 @@ pub(super) fn assignment_storage_regions(
         );
     };
     match target {
-        validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
+        AssignmentWriteTarget::LocalBindingReplacement { .. } => {
             direct.map(|place| vec![StorageRegion::Declared(place)])
         }
-        validation::AssignmentWriteTarget::Storage { paths } => {
+        AssignmentWriteTarget::Storage { paths } => {
             if let Some(place) = direct {
                 rebase_local_write_regions(
                     program,
@@ -281,7 +282,7 @@ fn place_requires_local_write_origin(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> bool {
     let Some(root) = place.root.as_symbol() else {
         return false;
@@ -296,7 +297,7 @@ fn place_requires_local_write_origin(
         return false;
     };
     let mut owned_frames = None;
-    crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+    flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
         .is_none_or(|resolver| resolver.local_requires_write_origin(local.type_reference))
 }
 
@@ -307,7 +308,7 @@ pub(crate) fn rebase_exact_local_place(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<CanonicalPlace> {
     if !place_requires_local_write_origin(
         program,
@@ -319,12 +320,12 @@ pub(crate) fn rebase_exact_local_place(
         return Some(place);
     }
     let root = place.root.as_symbol()?;
-    let (machine, state) = validation::find_state(program, state_symbol)?;
+    let (machine, state) = find_state(program, state_symbol)?;
     let statement = program
         .statement_table
         .statement_at(state, statement_index)?;
     let mut owned_frames = None;
-    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    let resolver = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;
     let mut candidates = origins.iter().filter(|origin| {
         origin.local_symbol == root
@@ -350,10 +351,7 @@ pub(crate) fn rebase_exact_local_place(
     // uses that window's coordinates, while subsequent array dimensions
     // belong to the selected value. Share the captured-operand address join
     // so returned-reference candidates and call handback name actual storage.
-    crate::flow::project_captured_view_place(
-        canonical,
-        &place.segments[origin.local_segments.len()..],
-    )
+    flow::project_captured_view_place(canonical, &place.segments[origin.local_segments.len()..])
 }
 
 pub(super) fn rebase_local_write_places(
@@ -361,7 +359,7 @@ pub(super) fn rebase_local_write_places(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     StorageRegion::declared_places(rebase_local_write_regions(
         program,
@@ -377,7 +375,7 @@ pub(super) fn rebase_storage_region(
     state_symbol: SymbolHandle,
     statement_index: usize,
     region: StorageRegion,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     rebase_region_owner(region, |owner| {
         rebase_local_write_regions(program, state_symbol, statement_index, owner, call_frames)
@@ -392,21 +390,18 @@ pub(super) fn rebase_captured_storage_region(
     state_symbol: SymbolHandle,
     statement_index: usize,
     region: StorageRegion,
-    references: Option<&[validation::LocalWriteOrigin]>,
-    destination: super::summary::WriteDestination,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    references: Option<&[LocalWriteOrigin]>,
+    destination: WriteDestination,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
-    let descriptor_slot = matches!(
-        destination,
-        super::summary::WriteDestination::DescriptorSlot
-    );
+    let descriptor_slot = matches!(destination, WriteDestination::DescriptorSlot);
     rebase_region_owner(region, |place| {
         if descriptor_slot
             && descriptor_slot_is_inline(program, state_symbol, statement_index, &place)?
         {
             return Some(vec![StorageRegion::Declared(place)]);
         }
-        if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
+        if !matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
             return None;
         }
         if !place_requires_local_write_origin(
@@ -473,7 +468,7 @@ pub(super) fn rebase_descriptor_slot_regions(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     if descriptor_slot_is_inline(program, state_symbol, statement_index, &place)? {
         return Some(vec![StorageRegion::Declared(place)]);
@@ -500,13 +495,9 @@ fn descriptor_slot_is_inline(
             root: place.root,
             segments: place.segments[..length].to_vec(),
         };
-        let reference = validation::canonical_place_type_reference(
-            program,
-            state_symbol,
-            statement_index,
-            &prefix,
-        )?;
-        if validation::reference_shell(program, reference).is_some() {
+        let reference =
+            canonical_place_type_reference(program, state_symbol, statement_index, &prefix)?;
+        if reference_shell(program, reference).is_some() {
             inline = false;
             break;
         }
@@ -519,7 +510,7 @@ pub(super) fn rebase_local_write_regions(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     rebase_write_regions(
         program,
@@ -536,7 +527,7 @@ fn rebase_write_regions(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
     descriptor_slot: bool,
 ) -> Option<Vec<StorageRegion>> {
     // Evaluation identity is not backing identity. In particular, an inline
@@ -544,7 +535,7 @@ fn rebase_write_regions(
     // If its captured referent could not be projected, keeping the expression
     // root here would turn an unknown write into a disjoint temporary write.
     // The caller must retain its opaque footprint until an origin is known.
-    if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
+    if !matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
         return None;
     }
     if !place_requires_local_write_origin(
@@ -557,10 +548,10 @@ fn rebase_write_regions(
         return Some(vec![StorageRegion::Declared(place)]);
     }
     let root = place.root.as_symbol()?;
-    let (machine, state) = validation::find_state(program, state_symbol)?;
+    let (machine, state) = find_state(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut owned_frames = None;
-    let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    let resolver = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let Some(origins) =
         resolver.local_write_origins_before_statement(machine, statements.get(statement_index)?)
     else {
@@ -590,11 +581,11 @@ fn rebase_reachable_storage(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
     descriptor_slot: bool,
-    origins: &[validation::LocalWriteOrigin],
+    origins: &[LocalWriteOrigin],
 ) -> Option<Vec<StorageRegion>> {
-    let (_, state) = validation::find_state(program, state_symbol)?;
+    let (_, state) = find_state(program, state_symbol)?;
     // An origin identifies the captured referent of one descriptor, not the
     // transitive storage footprint of that referent. Walk the same immutable
     // inventory through every writable descriptor before deciding a local
@@ -622,13 +613,13 @@ fn rebase_reachable_storage(
                 root: place.root,
                 segments: origin.local_segments.clone(),
             };
-            let reference = validation::canonical_place_type_reference(
+            let reference = canonical_place_type_reference(
                 program,
                 state_symbol,
                 statement_index,
                 &descriptor,
             )?;
-            if validation::declared_reference_access(program, reference)
+            if declared_reference_access(program, reference)
                 .is_some_and(|access| !access.is_exclusive())
                 || origin
                     .source
@@ -666,7 +657,7 @@ fn rebase_reachable_storage(
                             origins,
                         )
                     })? {
-                        crate::collections::push_unique(&mut projected, rebased);
+                        push_unique(&mut projected, rebased);
                     }
                     continue;
                 }
@@ -679,7 +670,7 @@ fn rebase_reachable_storage(
                 // Another possible origin may fully cover this descriptor.
                 // Its replacement cannot erase the retained incoming target.
                 let region = StorageRegion::Declared(place.clone());
-                crate::collections::push_unique(&mut projected, region);
+                push_unique(&mut projected, region);
                 continue;
             }
             if crossed.contains(&origin_index) {
@@ -709,9 +700,9 @@ fn reference_result_candidate_places(
     statement_index: usize,
     root: SymbolHandle,
     place: &CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let candidates = crate::flow::reference_result_candidates_before_statement(
+    let candidates = flow::reference_result_candidates_before_statement(
         program,
         state_symbol,
         statement_index,
@@ -735,7 +726,7 @@ fn reference_result_candidate_places(
 /// Value/descriptor readers keep the exact dotted-path query below.
 pub(super) fn frame_write_place(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: usize,
     path: &str,
 ) -> Option<CanonicalPlace> {
@@ -749,7 +740,7 @@ pub(super) fn frame_write_place(
 
 pub(crate) fn place_from_origin_path(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: usize,
     path: &str,
 ) -> Option<CanonicalPlace> {
@@ -766,7 +757,7 @@ pub(crate) fn place_from_origin_path(
         .iter()
         .find_map(|parameter| (parameter.name.as_str() == root_name).then_some(parameter.symbol))
         .or_else(|| {
-            crate::flow::state_statements(program, state.statement_nodes)
+            flow::state_statements(program, state.statement_nodes)
                 .iter()
                 .take(statement_index)
                 .find_map(|statement| {
@@ -782,7 +773,7 @@ pub(crate) fn place_from_origin_path(
         push_field_place_segments(program, &mut place.segments, symbol);
     }
     if collection_contents {
-        place.segments.push(facts::PlaceSegment::FixedRange {
+        place.segments.push(PlaceSegment::FixedRange {
             start: 0,
             end: usize::MAX,
         });

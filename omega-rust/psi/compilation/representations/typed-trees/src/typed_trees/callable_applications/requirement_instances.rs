@@ -10,18 +10,20 @@
 //! requirement or permission to capture a region in a specialization operand.
 
 use super::{AppliedCallableOwner, AppliedCallableSignature, CallableApplication};
+use crate::type_identity;
 use crate::{TypedTrees, data, signature, static_applications, types};
 use arena::HandleSpan;
 use symbols::SymbolHandle;
+use type_identity::applied_type_identity;
 
 #[derive(Clone, Copy)]
 pub struct ClosedRequirementApplication<'program> {
     pub declaring_trait: SymbolHandle,
     pub template: SymbolHandle,
     /// Complete declaring application, independent of the executable signature.
-    pub trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
-    pub portable_trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
-    pub portable_local_arguments: &'program [crate::type_identity::NormalizedTypeIdentity],
+    pub trait_application_identity: type_identity::NormalizedTypeIdentity,
+    pub portable_trait_application_identity: type_identity::NormalizedTypeIdentity,
+    pub portable_local_arguments: &'program [type_identity::NormalizedTypeIdentity],
     pub trait_scope: crate::trait_definition::RetainedTraitScope,
     pub trait_arguments: &'program [types::TypeReferenceHandle],
     pub local_arguments: &'program [types::TypeReferenceHandle],
@@ -322,13 +324,8 @@ impl TypedTrees {
         let portable_local_arguments = local_arguments
             .iter()
             .map(|argument| {
-                crate::type_identity::portable_applied_type_identity(
-                    self,
-                    *argument,
-                    lexical_owner,
-                    &[],
-                )
-                .ok_or("closed requirement has no complete portable local operand")
+                type_identity::portable_applied_type_identity(self, *argument, lexical_owner, &[])
+                    .ok_or("closed requirement has no complete portable local operand")
             })
             .collect::<Result<Vec<_>, _>>()?;
         // Signature and ABI equality are insufficient cache coordinates. The
@@ -379,19 +376,14 @@ impl TypedTrees {
                                     let existing_owner = self
                                         .static_machine_application(existing.application)
                                         .lexical_owner;
-                                    crate::type_identity::applied_type_identity(
-                                        self,
-                                        *left,
-                                        existing_owner,
-                                        &[],
-                                    )
-                                    .zip(crate::type_identity::applied_type_identity(
-                                        self,
-                                        *right,
-                                        lexical_owner,
-                                        &[],
-                                    ))
-                                    .is_some_and(|(left, right)| left == right)
+                                    applied_type_identity(self, *left, existing_owner, &[])
+                                        .zip(applied_type_identity(
+                                            self,
+                                            *right,
+                                            lexical_owner,
+                                            &[],
+                                        ))
+                                        .is_some_and(|(left, right)| left == right)
                                 }
                                 (left, right) => left == right,
                             }

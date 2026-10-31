@@ -8,6 +8,7 @@ pub use primitive_selection::AccessorPrimitive;
 pub use sealed_accessors::{ScalarAccessorDeclaration, ScalarAccessorOperation};
 
 use crate::typed_trees::ClosedConformanceApplication;
+use crate::types::TypeReferenceHandle;
 
 /// Evaluated geometry for an exact closed lifecycle callable. This is not
 /// a view, a provider receipt or evidence that initialization has executed.
@@ -146,7 +147,7 @@ pub struct AccessFieldPlan {
     pub accessor_name: String,
     /// Exact synthesized accessor type reference. Shell-aware typed lookup
     /// rejoins through this handle rather than `accessor_name`.
-    pub accessor_type: crate::types::TypeReferenceHandle,
+    pub accessor_type: TypeReferenceHandle,
     /// Exact generated accessor data definition. `accessor_name` is retained
     /// for diagnostics and source-oriented artifact presentation only.
     pub accessor_data_symbol: symbols::SymbolHandle,
@@ -154,7 +155,7 @@ pub struct AccessFieldPlan {
     /// Atomic operations retain their separate typed carrier and therefore
     /// have no cloned `AccessField` operation target rows here.
     pub accessor_targets: Vec<AccessorTarget>,
-    pub value_type: crate::types::TypeReferenceHandle,
+    pub value_type: TypeReferenceHandle,
     pub access: access_plans::FieldAccess,
     /// Checked, non-authorizing resident/result-shape evidence retained only
     /// when an Atomic access field admits an observing compare-exchange axis.
@@ -174,13 +175,7 @@ impl AccessFieldPlan {
     pub fn scalar_projection_leaf(
         &self,
         program: &crate::TypedTrees,
-    ) -> Result<
-        (
-            crate::types::TypeReferenceHandle,
-            crate::types::TypeReferenceHandle,
-        ),
-        diagnostics::Diagnostic,
-    > {
+    ) -> Result<(TypeReferenceHandle, TypeReferenceHandle), diagnostics::Diagnostic> {
         let mut value = self.value_type;
         let mut accessor = self.accessor_type;
         loop {
@@ -224,7 +219,7 @@ pub struct AccessAtomicResidentContract {
     /// Exact source field whose resident type is described.
     pub field_symbol: symbols::SymbolHandle,
     /// Exact semantic resident type retained by the source schema field.
-    pub resident_type: crate::types::TypeReferenceHandle,
+    pub resident_type: TypeReferenceHandle,
     /// Normalized source multiplicity used to admit observing failure arms.
     pub multiplicity: language_semantics::Multiplicity,
     /// Exact normalized Atomic transfer width.
@@ -251,8 +246,8 @@ pub struct AccessorTarget {
 
 pub(crate) fn named_type_reference_through_shells(
     table: &crate::types::TypeReferenceTable,
-    handle: crate::types::TypeReferenceHandle,
-) -> Option<crate::types::TypeReferenceHandle> {
+    handle: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
     match table.type_reference(handle) {
         crate::types::TypeReferenceNode::Named { .. } => Some(handle),
         crate::types::TypeReferenceNode::Reference { referee, .. } => {
@@ -270,8 +265,8 @@ pub(crate) fn named_type_reference_through_shells(
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidLayout {
     /// Complete core constructor application; semantic T remains independently named.
-    pub application: crate::types::TypeReferenceHandle,
-    pub semantic_type: crate::types::TypeReferenceHandle,
+    pub application: TypeReferenceHandle,
+    pub semantic_type: TypeReferenceHandle,
     pub policy_application: crate::typed_trees::ClosedConformanceApplication,
     pub target_inputs: Vec<layout_plans::LayoutTargetFacts>,
     /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).

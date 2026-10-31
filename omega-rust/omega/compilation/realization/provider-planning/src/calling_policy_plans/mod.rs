@@ -21,8 +21,11 @@ mod native_parameters;
 mod opaque_representations;
 mod plan_computation;
 mod selected_application;
+mod terminal_execution;
+mod terminal_values;
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_source_calling_application;
+pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};
 
 pub use boundary_signatures::{
     BoundaryCallbackBinder, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,

@@ -2,6 +2,7 @@
 //! common completion retains it across every nominal hook and installs it once.
 use super::*;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::custody::verified_structural_place;
 use crate::errors::malformed;
 use crate::scalar_array::TerminalScalarArrayResult;
 
@@ -107,9 +108,7 @@ impl TerminalExecution<'_> {
                 TerminalScalarArrayResult { value },
             ))
         } else {
-            let mut value =
-                crate::custody::verified_structural_place(&self.structural_values, *source)
-                    .cloned()?;
+            let mut value = verified_structural_place(&self.structural_values, *source).cloned()?;
             let byte_sequence = self.byte_sequence_values.get(source).cloned();
             let element_view = self.element_view_values.get(source).cloned();
             if matches!(&byte_sequence, Some(ByteSequenceBinding::Immutable(view)) if !view.matches_descriptor_home(&value))

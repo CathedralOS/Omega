@@ -5,6 +5,8 @@
 //! InvocationContexts selects its captured value's facts before this query:
 //! current storage facts must never replace a detached operand's snapshot.
 
+use crate::checks::operators::InvocationContexts;
+use crate::facts::contract_occurrences::append_expression_occurrences;
 use validation::{CanonicalPlace, canonical_place_from_expression};
 
 use crate::checks::operators::closed_operators_are_builtin;
@@ -32,7 +34,7 @@ pub(crate) fn contexts_prove_comparison(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
-    invocation_contexts: &crate::checks::operators::InvocationContexts<'_>,
+    invocation_contexts: &InvocationContexts<'_>,
     contexts: &[facts::FactContextHandle],
     parameters: &[StateParameter],
     operands: &[ExpressionHandle],
@@ -106,7 +108,7 @@ fn contexts_prove_required(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     operators: &CheckedOperatorFacts,
-    invocation_contexts: &crate::checks::operators::InvocationContexts<'_>,
+    invocation_contexts: &InvocationContexts<'_>,
     contexts: &[facts::FactContextHandle],
     required: &RequiredComparison,
 ) -> bool {
@@ -436,11 +438,7 @@ fn place_selectors_agree(
     let mut reads = Vec::new();
     for segment in segments {
         if let facts::PlaceSegment::Index { expression } = segment {
-            crate::facts::contract_occurrences::append_expression_occurrences(
-                program,
-                *expression,
-                &mut reads,
-            );
+            append_expression_occurrences(program, *expression, &mut reads);
         }
     }
     reads.into_iter().all(|read| {

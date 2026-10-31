@@ -480,6 +480,20 @@ pub fn retain_machine_roster(
     program
         .machine_specializations
         .retain(|row| !pruned.contains(&row.instance));
+    // A designated static type argument is validated against its owner
+    // machine. Rows whose owner left this executable roster belong to the
+    // owner's own checking context, not to a private projection that never
+    // lowers that body.
+    let designated = program
+        .tables
+        .designated_static_type_arguments
+        .iter()
+        .filter(|(_, row)| !pruned.contains(&row.owner))
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    let mut arguments = arena::Arena::default();
+    arguments.insert_many(designated);
+    program.tables.designated_static_type_arguments = arguments;
     // Capture records are keyed by their executable owner, just as invocation
     // records are. They have no inbound arena handles; backing state mappings
     // retain their handles. An unrelated private checking projection must not

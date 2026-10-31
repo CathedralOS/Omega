@@ -1,13 +1,17 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
+use crate::capture::callables::conformances::callable_conformance;
 use crate::capture::{
     api::operators::project_operator_coordinate,
     semantics::declarations::top_level_requirement_identity,
 };
 use crate::record::{PackagePolicyExternalRequirement, PackageReviewExternalBinding};
 use diagnostics::Diagnostic;
+use provider_planning::IntrinsicRequirement;
 use symbols::SymbolHandle;
-use typed_trees::machine::{Machine, SatisfiedDeclaration, TraitConformance};
+use typed_trees::machine::{
+    Machine, SatisfiedDeclaration, TraitConformance, resolve_satisfied_declaration,
+};
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -17,12 +21,9 @@ pub(super) fn project(
     lifetime_parameters: &[typed_trees::name::Identifier],
     binding: &PackageReviewExternalBinding,
 ) -> Result<PackagePolicyExternalRequirement, Vec<Diagnostic>> {
-    let declaration = typed_trees::machine::resolve_satisfied_declaration(
-        compilation.checking_input,
-        machine,
-        conformance,
-    )
-    .ok_or_else(|| rejected("external realization has no unique exact requirement"))?;
+    let declaration =
+        resolve_satisfied_declaration(compilation.checking_input, machine, conformance)
+            .ok_or_else(|| rejected("external realization has no unique exact requirement"))?;
     if declaration.symbol() != conformance.requirement_symbol {
         return Err(rejected(
             "external realization changed its retained requirement",
@@ -49,17 +50,15 @@ pub(super) fn project(
                     "external trait application has incomplete lifetime or declaring owner coordinates",
                 ));
             }
-            PackagePolicyExternalRequirement::Trait(
-                crate::capture::callables::conformances::callable_conformance(
-                    compilation,
-                    definition,
-                    requirement,
-                    conformance,
-                    binders,
-                    lifetime_parameters,
-                    alias,
-                )?,
-            )
+            PackagePolicyExternalRequirement::Trait(callable_conformance(
+                compilation,
+                definition,
+                requirement,
+                conformance,
+                binders,
+                lifetime_parameters,
+                alias,
+            )?)
         }
         SatisfiedDeclaration::TopLevelRequirement(requirement) => {
             if conformance.symbol != requirement.symbol {
@@ -107,14 +106,11 @@ pub(super) fn project(
             // here. See `IntrinsicRequirement::closed_float_execution`.
             if operator.spelling.is_some()
                 && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
-                    || provider_planning::IntrinsicRequirement::from_operator(
-                        compilation.checking_input,
-                        operator,
-                    )
-                    .and_then(|requirement| {
-                        requirement.closed_float_execution(compilation.checking_input)
-                    })
-                    .is_none())
+                    || IntrinsicRequirement::from_operator(compilation.checking_input, operator)
+                        .and_then(|requirement| {
+                            requirement.closed_float_execution(compilation.checking_input)
+                        })
+                        .is_none())
             {
                 return Err(rejected(
                     "fixed-token external operator has no closed intrinsic execution",

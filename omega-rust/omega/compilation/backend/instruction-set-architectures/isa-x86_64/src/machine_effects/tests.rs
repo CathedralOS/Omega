@@ -4,7 +4,7 @@ use super::{
     Architecture, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, NativeTarget, ObjectFormat,
+    MachineTrapBehavior, NativeTarget, ObjectFormat, Semantic, Size,
     ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
     X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, X86_64MachineEffectCatalogValidationError,
@@ -56,7 +56,7 @@ fn raw_bit_classification_catalog_admits_real_flag_clobbers() {
             IeeeFloatArithmeticOperation::Classify,
         ] {
             let row = catalog
-                .declaration_by_semantic(MachineSemanticKind::NearestIeeeFloatArithmetic(
+                .declaration_by_semantic(Semantic::NearestIeeeFloatArithmetic(
                     IeeeFloatArithmeticForm { operation, format },
                 ))
                 .unwrap();
@@ -86,11 +86,11 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
         for operation in [Add, Subtract, Divide, Remainder, Multiply] {
             for carrier in SaturatingCarrier::ALL {
                 let semantic = match operation {
-                    Add => MachineSemanticKind::SaturatingAdd(carrier),
-                    Subtract => MachineSemanticKind::SaturatingSubtract(carrier),
-                    Divide => MachineSemanticKind::SaturatingDivide(carrier),
-                    Remainder => MachineSemanticKind::SaturatingRemainder(carrier),
-                    Multiply => MachineSemanticKind::SaturatingMultiply(carrier),
+                    Add => Semantic::SaturatingAdd(carrier),
+                    Subtract => Semantic::SaturatingSubtract(carrier),
+                    Divide => Semantic::SaturatingDivide(carrier),
+                    Remainder => Semantic::SaturatingRemainder(carrier),
+                    Multiply => Semantic::SaturatingMultiply(carrier),
                 };
                 // The constraint row follows the operand shape and the size
                 // follows the realization: u64 add 19, unsigned subtract 13,
@@ -165,11 +165,7 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
                     alternative.key.family,
                     selected_instructions::MachineAlternativeFamily::from(semantic)
                 );
-                assert_eq!(
-                    alternative.size,
-                    MachineSizeKnowledge::ExactBytes(size),
-                    "{semantic:?}"
-                );
+                assert_eq!(alternative.size, Size::ExactBytes(size), "{semantic:?}");
                 eq!(alternative.applicability => MachineAlternativeApplicability::Always);
                 assert_eq!(
                     alternative.encoded.external_operand_reads, reads,
@@ -213,7 +209,7 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
                         }
                         0 => alternative.encoded.external_operand_writes.truncate(1),
                         1 => alternative.encoded.implicit_unit_clobbers.clear(),
-                        2 => alternative.size = MachineSizeKnowledge::ExactBytes(size + 1),
+                        2 => alternative.size = Size::ExactBytes(size + 1),
                         // A sibling carrier's family on this semantic's row.
                         _ => {
                             let sibling = SaturatingCarrier::ALL[(usize::from(carrier.ordinal())
@@ -279,7 +275,7 @@ fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
         validate_x86_64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
         for form in TrappingForm::ALL {
-            let semantic = MachineSemanticKind::TrappingInteger(form);
+            let semantic = Semantic::TrappingInteger(form);
             // Division and the u64 product take the fixed RAX:RDX row,
             // shifts the RCX count row, and conversions the one-input row.
             let (key, reads, writes): (_, Vec<u16>, Vec<u16>) = match (form.operation, form.carrier)
@@ -311,11 +307,7 @@ fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
             eq!(alternative.key.family => MachineAlternativeFamily::TrappingInteger(form));
             assert_eq!(alternative.key.variant, 0);
             eq!(alternative.applicability => MachineAlternativeApplicability::Always);
-            assert_eq!(
-                alternative.size,
-                MachineSizeKnowledge::ExactBytes(size),
-                "{form:?}"
-            );
+            assert_eq!(alternative.size, Size::ExactBytes(size), "{form:?}");
             assert_eq!(
                 alternative.encoded,
                 MachineEncodedEffects {
@@ -346,7 +338,7 @@ fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
                 // Drop the scratch (or RDX) definition the row contracts.
                 0 => alternative.encoded.external_operand_writes.truncate(1),
                 1 => alternative.encoded.implicit_unit_clobbers.clear(),
-                2 => alternative.size = MachineSizeKnowledge::ExactBytes(size + 1),
+                2 => alternative.size = Size::ExactBytes(size + 1),
                 // A trap-free surface understates the inline UD2.
                 3 => alternative.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
                 4 => alternative.encoded.control = MachineEncodedControlEffect::FallThroughV1,
@@ -373,11 +365,11 @@ fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
     for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
         let declaration = catalog
-            .declaration_by_semantic(MachineSemanticKind::WrappingRemainderI64)
+            .declaration_by_semantic(Semantic::WrappingRemainderI64)
             .unwrap();
         eq!(declaration.constraint => crate::register_model::X86_64_REMAINDER_I64);
         let alternative = &declaration.alternatives[0];
-        assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(17));
+        assert_eq!(alternative.size, Size::ExactBytes(17));
         assert_eq!(alternative.encoded.external_operand_reads, [0, 1]);
         assert_eq!(alternative.encoded.external_operand_writes, [2, 3]);
         assert_eq!(
@@ -390,13 +382,13 @@ fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
         for corruption in 0..3 {
             let mut changed = catalog.clone();
             let alternative = &mut changed
-                .declaration_by_semantic_mut(MachineSemanticKind::WrappingRemainderI64)
+                .declaration_by_semantic_mut(Semantic::WrappingRemainderI64)
                 .unwrap()
                 .alternatives[0];
             match corruption {
                 0 => alternative.encoded.external_operand_writes.truncate(1),
                 1 => alternative.encoded.implicit_unit_clobbers.clear(),
-                _ => alternative.size = MachineSizeKnowledge::ExactBytes(3),
+                _ => alternative.size = Size::ExactBytes(3),
             }
             assert!(validate_x86_64_machine_effect_catalog(target, &constraints, changed).is_err());
         }
@@ -410,10 +402,10 @@ fn integer_normalization_catalog_binds_identity_size_and_effects() {
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
         validate_x86_64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
         for semantic in [
-            MachineSemanticKind::ZeroExtendU16,
-            MachineSemanticKind::SignExtendI8,
-            MachineSemanticKind::SignExtendI16,
-            MachineSemanticKind::SignExtendI32,
+            Semantic::ZeroExtendU16,
+            Semantic::SignExtendI8,
+            Semantic::SignExtendI16,
+            Semantic::SignExtendI32,
         ] {
             let declaration = catalog.declaration_by_semantic(semantic).unwrap();
             assert_eq!(declaration.constraint, X86_64_COPY_I64);
@@ -422,21 +414,19 @@ fn integer_normalization_catalog_binds_identity_size_and_effects() {
             assert_eq!(alternative.key.family, semantic.into());
             assert_eq!(
                 alternative.size,
-                MachineSizeKnowledge::ExactBytes(
-                    if semantic == MachineSemanticKind::SignExtendI32 {
-                        3
-                    } else {
-                        4
-                    }
-                )
+                Size::ExactBytes(if semantic == Semantic::SignExtendI32 {
+                    3
+                } else {
+                    4
+                })
             );
             eq!(alternative.encoded => MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]));
             for corruption in 0..3 {
                 let mut changed = catalog.clone();
                 let row = changed.declaration_by_semantic_mut(semantic).unwrap();
                 match corruption {
-                    0 => row.alternatives[0].key.family = MachineSemanticKind::CopyI64.into(),
-                    1 => row.alternatives[0].size = MachineSizeKnowledge::ExactBytes(1),
+                    0 => row.alternatives[0].key.family = Semantic::CopyI64.into(),
+                    1 => row.alternatives[0].size = Size::ExactBytes(1),
                     _ => row.alternatives[0].encoded.external_operand_reads.clear(),
                 }
                 assert!(
@@ -453,20 +443,20 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
         let constraints = constraints();
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
         let subtract = catalog
-            .declaration_by_semantic(MachineSemanticKind::ExactSubtractI64)
+            .declaration_by_semantic(Semantic::ExactSubtractI64)
             .unwrap();
         let add = catalog
-            .declaration_by_semantic(MachineSemanticKind::ExactAddI64)
+            .declaration_by_semantic(Semantic::ExactAddI64)
             .unwrap();
         let less_than_branch = catalog
-            .declaration_by_semantic(MachineSemanticKind::ConditionalBranchU64LessThan)
+            .declaration_by_semantic(Semantic::ConditionalBranchU64LessThan)
             .unwrap();
         let signed_less_than_branch = catalog
-            .declaration_by_semantic(MachineSemanticKind::ConditionalBranchI64LessThan)
+            .declaration_by_semantic(Semantic::ConditionalBranchI64LessThan)
             .unwrap();
         assert_eq!(less_than_branch.constraint, X86_64_CONDITIONAL_BRANCH);
         assert_eq!(less_than_branch.alternatives.len(), 1);
-        eq!(less_than_branch.alternatives[0].size => MachineSizeKnowledge::ExactBytes(6));
+        eq!(less_than_branch.alternatives[0].size => Size::ExactBytes(6));
         assert_eq!(
             less_than_branch.alternatives[0].encoded.control,
             MachineEncodedControlEffect::ConditionalRelativeBranchV1
@@ -477,7 +467,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             signed_less_than_branch.alternatives[0].key.family,
             selected_instructions::MachineAlternativeFamily::ConditionalBranchI64LessThan
         );
-        eq!(signed_less_than_branch.alternatives[0].size => MachineSizeKnowledge::ExactBytes(6));
+        eq!(signed_less_than_branch.alternatives[0].size => Size::ExactBytes(6));
         eq!(add.alternatives[0].applicability => MachineAlternativeApplicability::Always);
         assert_eq!(subtract.constraint, X86_64_SUBTRACT_I64);
         let register_effects = constraints
@@ -520,43 +510,43 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                 right: 1,
             }
         );
-        let expected_barrier = |semantic: MachineSemanticKind| match semantic {
-            MachineSemanticKind::ConditionalBranchNonZero
-            | MachineSemanticKind::ConditionalBranchU64LessThan
-            | MachineSemanticKind::ConditionalBranchI64LessThan
-            | MachineSemanticKind::ReturnScalar
-            | MachineSemanticKind::ReturnAggregate
-            | MachineSemanticKind::Jump
-            | MachineSemanticKind::ReturnUnit
-            | MachineSemanticKind::Crash => MachineBarrier::ControlFlow,
-            MachineSemanticKind::CallScalar
-            | MachineSemanticKind::CallUnit
-            | MachineSemanticKind::CallAggregate
-            | MachineSemanticKind::NormalizedForeignCall => MachineBarrier::Call,
-            MachineSemanticKind::HostedReadByte
-            | MachineSemanticKind::SaveFloatingControl
-            | MachineSemanticKind::RestoreFloatingControl
-            | MachineSemanticKind::HostedWriteByteI32
-            | MachineSemanticKind::HostedExitProcessI32
-            | MachineSemanticKind::TrappingInteger(_)
-            | MachineSemanticKind::PortWrite
-            | MachineSemanticKind::SystemRegisterRead
-            | MachineSemanticKind::SystemRegisterWrite
-            | MachineSemanticKind::ControlRegisterRead
-            | MachineSemanticKind::ControlRegisterWrite
-            | MachineSemanticKind::PortRegisterRead
-            | MachineSemanticKind::PortRegisterWrite
-            | MachineSemanticKind::ModelSpecificRead
-            | MachineSemanticKind::ModelSpecificWrite
-            | MachineSemanticKind::ProcessorHalt
-            | MachineSemanticKind::InterruptControl
-            | MachineSemanticKind::AtomicFence
-            | MachineSemanticKind::AtomicAccess(_)
-            | MachineSemanticKind::AccessorScalarAccess(_) => MachineBarrier::ExternalEffect,
+        let expected_barrier = |semantic: Semantic| match semantic {
+            Semantic::ConditionalBranchNonZero
+            | Semantic::ConditionalBranchU64LessThan
+            | Semantic::ConditionalBranchI64LessThan
+            | Semantic::ReturnScalar
+            | Semantic::ReturnAggregate
+            | Semantic::Jump
+            | Semantic::ReturnUnit
+            | Semantic::Crash => MachineBarrier::ControlFlow,
+            Semantic::CallScalar
+            | Semantic::CallUnit
+            | Semantic::CallAggregate
+            | Semantic::NormalizedForeignCall => MachineBarrier::Call,
+            Semantic::HostedReadByte
+            | Semantic::SaveFloatingControl
+            | Semantic::RestoreFloatingControl
+            | Semantic::HostedWriteByteI32
+            | Semantic::HostedExitProcessI32
+            | Semantic::TrappingInteger(_)
+            | Semantic::PortWrite
+            | Semantic::SystemRegisterRead
+            | Semantic::SystemRegisterWrite
+            | Semantic::ControlRegisterRead
+            | Semantic::ControlRegisterWrite
+            | Semantic::PortRegisterRead
+            | Semantic::PortRegisterWrite
+            | Semantic::ModelSpecificRead
+            | Semantic::ModelSpecificWrite
+            | Semantic::ProcessorHalt
+            | Semantic::InterruptControl
+            | Semantic::AtomicFence
+            | Semantic::AtomicAccess(_)
+            | Semantic::AccessorScalarAccess(_) => MachineBarrier::ExternalEffect,
             // A checked float-to-integer conversion and a float result policy
             // that can trap are ordered like a trapping integer; saturating
             // and exact forms only compute their result.
-            MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+            Semantic::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
                 operation:
                     IeeeFloatArithmeticOperation::TruncateToInteger {
                         domain: IeeeFloatToIntegerDomain::Trapping,
@@ -564,9 +554,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                     },
                 ..
             }) => MachineBarrier::ExternalEffect,
-            MachineSemanticKind::FloatResultPolicy(form) if form.can_trap() => {
-                MachineBarrier::ExternalEffect
-            }
+            Semantic::FloatResultPolicy(form) if form.can_trap() => MachineBarrier::ExternalEffect,
             _ => MachineBarrier::None,
         };
         for row in &catalog.declarations {
@@ -579,7 +567,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
         }
         assert!(catalog.declarations.iter().any(|row| matches!(
             row.semantic,
-            MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+            Semantic::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
                 operation: IeeeFloatArithmeticOperation::TruncateToInteger {
                     domain: IeeeFloatToIntegerDomain::Trapping,
                     ..
@@ -589,13 +577,13 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
         )));
         assert!(catalog.declarations.iter().any(|row| matches!(
             row.semantic,
-            MachineSemanticKind::FloatResultPolicy(form) if form.can_trap()
+            Semantic::FloatResultPolicy(form) if form.can_trap()
         )));
         assert!(catalog.declarations.iter().any(|row| matches!(
             row.semantic,
-            MachineSemanticKind::FloatResultPolicy(form) if !form.can_trap()
+            Semantic::FloatResultPolicy(form) if !form.can_trap()
         )));
-        let scalar_call = catalog.declaration_by_semantic(MachineSemanticKind::CallScalar);
+        let scalar_call = catalog.declaration_by_semantic(Semantic::CallScalar);
         {
             let scalar_call = scalar_call.expect("supported target declares scalar call");
             assert_eq!(
@@ -604,7 +592,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                     pre_call_stack_alignment: 16,
                 }
             );
-            eq!(scalar_call.alternatives[0].size => MachineSizeKnowledge::ExactBytes(5));
+            eq!(scalar_call.alternatives[0].size => Size::ExactBytes(5));
             assert!(matches!(
                 scalar_call.alternatives[0].encoded.memory,
                 MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
@@ -621,7 +609,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             ));
         }
         let return_unit = catalog
-            .declaration_by_semantic(MachineSemanticKind::ReturnUnit)
+            .declaration_by_semantic(Semantic::ReturnUnit)
             .unwrap();
         assert!(
             constraints
@@ -634,10 +622,10 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
         assert!(validate_x86_64_machine_effect_catalog(target, &constraints, catalog).is_ok());
         let ordinary = x86_64_machine_effect_catalog(target, &constraints).unwrap();
         for semantic in [
-            MachineSemanticKind::Load64,
-            MachineSemanticKind::Store64,
-            MachineSemanticKind::FrameAddress,
-            MachineSemanticKind::CallUnit,
+            Semantic::Load64,
+            Semantic::Store64,
+            Semantic::FrameAddress,
+            Semantic::CallUnit,
         ] {
             assert!(
                 ordinary
@@ -646,9 +634,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                     .any(|row| row.semantic == semantic)
             );
         }
-        let load = ordinary
-            .declaration_by_semantic(MachineSemanticKind::Load64)
-            .unwrap();
+        let load = ordinary.declaration_by_semantic(Semantic::Load64).unwrap();
         assert_eq!(load.memory, MachineMemoryEffect::ReadPointerV1);
         assert_eq!(
             load.alternatives[0].encoded.memory,
@@ -679,10 +665,10 @@ fn semantic_validator_rejects_structural_and_target_specific_corruption() {
 
     let mut wrong_size = x86_64_machine_effect_catalog(target, &constraints).unwrap();
     wrong_size
-        .declaration_by_semantic_mut(MachineSemanticKind::ExactSubtractI64)
+        .declaration_by_semantic_mut(Semantic::ExactSubtractI64)
         .unwrap()
         .alternatives[0]
-        .size = MachineSizeKnowledge::ExactBytes(4);
+        .size = Size::ExactBytes(4);
     assert_eq!(
         validate_x86_64_machine_effect_catalog(target, &constraints, wrong_size),
         Err(X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch)
@@ -690,7 +676,7 @@ fn semantic_validator_rejects_structural_and_target_specific_corruption() {
 
     let mut bad_alias = x86_64_machine_effect_catalog(target, &constraints).unwrap();
     bad_alias
-        .declaration_by_semantic_mut(MachineSemanticKind::ExactSubtractI64)
+        .declaration_by_semantic_mut(Semantic::ExactSubtractI64)
         .unwrap()
         .alternatives[0]
         .applicability = MachineAlternativeApplicability::ResultAliasesOperand {
@@ -701,7 +687,7 @@ fn semantic_validator_rejects_structural_and_target_specific_corruption() {
         validate_x86_64_machine_effect_catalog(target, &constraints, bad_alias),
         Err(X86_64MachineEffectCatalogValidationError::Structural(
             MachineEffectCatalogValidationError::InvalidAlternativeApplicability(
-                MachineSemanticKind::ExactSubtractI64
+                Semantic::ExactSubtractI64
             )
         ))
     ));
@@ -709,7 +695,7 @@ fn semantic_validator_rejects_structural_and_target_specific_corruption() {
     let target = NativeTarget::windows_x64();
     let mut wrong_memory = x86_64_machine_effect_catalog(target, &constraints).unwrap();
     wrong_memory
-        .declaration_by_semantic_mut(MachineSemanticKind::Store64)
+        .declaration_by_semantic_mut(Semantic::Store64)
         .unwrap()
         .alternatives[0]
         .encoded

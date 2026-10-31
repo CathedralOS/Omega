@@ -3,6 +3,7 @@
 //! immediate parents and complete formation alternatives converge; a missing or
 //! unrelated surviving leaf never disappears through an availability intersection.
 
+use super::super::structural_case::source_result;
 use super::{
     Custody, Leaf, LegalizationError, OperationId, PlaceId, PsiOptimizationFunction, Root,
     StructuralAccess, StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
@@ -110,11 +111,9 @@ impl CarrierContract {
                                     structural_type: result.structural_type,
                                 }
                     })
-                    && super::super::structural_case::source_result(function, place).is_ok_and(
-                        |(actual_operation, actual)| {
-                            actual_operation == *operation && actual == result
-                        },
-                    )
+                    && source_result(function, place).is_ok_and(|(actual_operation, actual)| {
+                        actual_operation == *operation && actual == result
+                    })
             }
             Self::Parameter(parameter) => {
                 parameter.place == place
@@ -160,7 +159,7 @@ pub(super) fn resident_type(
         })
         .map(|parameter| parameter.structural_type)
         .or_else(|| {
-            super::super::structural_case::source_result(function, place)
+            source_result(function, place)
                 .ok()
                 .map(|(_, result)| result.structural_type)
         })

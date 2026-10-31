@@ -1,8 +1,11 @@
 //! Lowering call arguments into scalar plans: retained arguments, boundary
 //! calls, direct call bindings and qualified call expressions.
 
+use crate::execution::terminal_unit::strips_erased_parameter;
 use crate::flow::expressions;
+use crate::values::mutable_scalar_parameter_type;
 use crate::values::scalar::expression_facts::is_integer;
+use crate::values::scalar::expression_facts::parameter_position;
 use crate::values::scalar::expression_plans::{ScalarLocal, located_binding_symbols};
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use checked_trees::{
@@ -161,7 +164,7 @@ pub(crate) fn lower_call_arguments(
         // An erased position consumes its authored argument but owns neither a
         // scalar nor a structural ordinal. Its lowered expression stays under
         // an erased role so a Unit call can rebuild the proof-only actuals.
-        if crate::execution::terminal_unit::strips_erased_parameter(target)? {
+        if strips_erased_parameter(target)? {
             // Erased formals split into two dense lanes: scalar carriers keep
             // the scalar lane while proof-only carriers reach the contract
             // term lane, each indexed by its own lane's ordinal.
@@ -236,8 +239,7 @@ pub(crate) fn lower_call_arguments(
             continue;
         };
         if (target.is_const)
-            || (target.is_mutable
-                && crate::values::mutable_scalar_parameter_type(program, target).is_none())
+            || (target.is_mutable && mutable_scalar_parameter_type(program, target).is_none())
         {
             return None;
         }
@@ -678,11 +680,7 @@ pub(crate) fn lower_proof_term(
             })
         }
         ExpressionNode::Name(path) => {
-            let position = crate::values::scalar::expression_facts::parameter_position(
-                program,
-                path,
-                authored_parameters,
-            )?;
+            let position = parameter_position(program, path, authored_parameters)?;
             let parameter = authored_parameters.get(position)?;
             (parameter.relevance.is_erased()
                 && (proof_only.contract_term_carrier(program, parameter.type_reference)
@@ -720,8 +718,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
     let target_parameters = validation::call_target_parameters(program, call.target_symbol)?;
     if target_parameters.iter().any(|parameter| {
         (parameter.is_const)
-            || (parameter.is_mutable
-                && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
+            || (parameter.is_mutable && mutable_scalar_parameter_type(program, parameter).is_none())
     }) {
         return None;
     }
@@ -731,9 +728,10 @@ pub(crate) fn lower_direct_call_binding_arguments(
     }
     // Erased positions own no `CallArgument` ordinal; the retained ones are
     // numbered densely to match the callee's stripped scalar signature.
-    if target_parameters.iter().any(|target_parameter| {
-        crate::execution::terminal_unit::strips_erased_parameter(target_parameter).is_none()
-    }) {
+    if target_parameters
+        .iter()
+        .any(|target_parameter| strips_erased_parameter(target_parameter).is_none())
+    {
         return None;
     }
     let mut argument_ordinal = 0u32;

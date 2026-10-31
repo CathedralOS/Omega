@@ -5,7 +5,10 @@
 //! annotation or a compatible content algebra cannot substitute for that join.
 
 use super::content_paths::content_segments_to_fact_path;
+use crate::checks::multiplicity::linear_claim_frontier;
+use crate::facts::qualification_evidence::unwrapped_type_references_match;
 use crate::flow::expressions;
+use crate::labels::symbol_name;
 use crate::places::place_at;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
@@ -463,7 +466,7 @@ pub(super) fn check_call_result_qualifications(
             }
             let mut inputs = Vec::new();
             for (position, parameter) in parameters.iter().enumerate() {
-                for claim in crate::checks::multiplicity::linear_claim_frontier(
+                for claim in linear_claim_frontier(
                     program,
                     parameter.type_reference,
                 ) {
@@ -498,8 +501,8 @@ pub(super) fn check_call_result_qualifications(
                     call_ordinal,
                 } => format!(
                     " in `{}`, state `{}` (statement {statement_index}, call {call_ordinal})",
-                    crate::labels::symbol_name(program, machine_symbol),
-                    crate::labels::symbol_name(program, state_symbol),
+                    symbol_name(program, machine_symbol),
+                    symbol_name(program, state_symbol),
                 ),
                 _ => String::new(),
             };
@@ -562,12 +565,9 @@ fn private_access_result_contract(
         .iter()
         .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
         && qualified_leaf_carrier(program, result_type, path).is_some_and(|carrier| {
-            crate::facts::qualification_evidence::unwrapped_type_references_match(
-                program,
-                carrier,
-                domain.target_type,
-            ) && validation::field_domains::domain_constraint_identities(program, carrier)
-                .contains(&(domain.symbol, semantic_domain))
+            unwrapped_type_references_match(program, carrier, domain.target_type)
+                && validation::field_domains::domain_constraint_identities(program, carrier)
+                    .contains(&(domain.symbol, semantic_domain))
         });
     if !matches {
         return Err(Diagnostic::error(
@@ -740,7 +740,7 @@ fn result_type_issuance_route(
     let Some(signature) = boundary_requirement_signature(program, target_symbol, domain) else {
         return false;
     };
-    crate::facts::qualification_evidence::unwrapped_type_references_match(
+    unwrapped_type_references_match(
         program,
         selected.unwrap_or(signature).return_type,
         domain.target_type,
@@ -765,13 +765,7 @@ fn case_payload_issuance_route(
         return false;
     };
     qualified_leaf_carrier(program, selected.unwrap_or(signature).return_type, path).is_some_and(
-        |carrier| {
-            crate::facts::qualification_evidence::unwrapped_type_references_match(
-                program,
-                carrier,
-                domain.target_type,
-            )
-        },
+        |carrier| unwrapped_type_references_match(program, carrier, domain.target_type),
     )
 }
 
@@ -904,7 +898,7 @@ fn consumes_qualified_input(
     projection: &ContentProjectionPlan,
 ) -> bool {
     parameters.iter().enumerate().any(|(position, parameter)| {
-        crate::checks::multiplicity::linear_claim_frontier(program, parameter.type_reference)
+        linear_claim_frontier(program, parameter.type_reference)
             .iter()
             .any(|claim| {
                 input_claim(

@@ -6,6 +6,7 @@
 
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
+use typed_trees::data::DataDefinition;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::proposition::ProofSubstitutions;
@@ -143,11 +144,7 @@ pub(super) fn quotient_equality_names(
 fn quotient_equality_goal(
     program: &dyn crate::CheckingInput,
     fact: ExpressionHandle,
-) -> Option<(
-    &typed_trees::data::DataDefinition,
-    ExpressionHandle,
-    ExpressionHandle,
-)> {
+) -> Option<(&DataDefinition, ExpressionHandle, ExpressionHandle)> {
     let Some(binary) = program.expression_table.binary_node(fact) else {
         return None;
     };

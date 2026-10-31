@@ -4,6 +4,7 @@
 //! realization consume these judgments outside Psi.
 
 use diagnostics::Diagnostic;
+use semantic_vocabulary::ProgramEntryVisibleParameters;
 use typed_trees::TypedTrees;
 use typed_trees::product_operand::ProductEntryDeclaration;
 
@@ -73,7 +74,7 @@ pub fn validate_source_compatibility(
     // supplied; a mutable reference is an ordinary required argument.
     let visible = visible_entry_parameters(typed, parameters);
     match slot.visible_parameters {
-        semantic_vocabulary::ProgramEntryVisibleParameters::None if !visible.is_empty() => {
+        ProgramEntryVisibleParameters::None if !visible.is_empty() => {
             diagnostics.push(Diagnostic::error(format!(
                 "hosted `ProgramEntry` exposes no arrival parameters, but `{machine_name}` declares `{}`",
                 visible
@@ -83,9 +84,7 @@ pub fn validate_source_compatibility(
                     .join("`, `")
             )));
         }
-        semantic_vocabulary::ProgramEntryVisibleParameters::ImageAndInitialStorage
-            if visible.len() != 2 =>
-        {
+        ProgramEntryVisibleParameters::ImageAndInitialStorage if visible.len() != 2 => {
             diagnostics.push(Diagnostic::error(format!(
                 "target schema `{:?}` exposes exactly image and initial-storage roots, but `{machine_name}` declares {} visible parameter{}",
                 slot.schema,
@@ -96,8 +95,7 @@ pub fn validate_source_compatibility(
         _ => {}
     }
 
-    if slot.visible_parameters
-        == semantic_vocabulary::ProgramEntryVisibleParameters::ImageAndInitialStorage
+    if slot.visible_parameters == ProgramEntryVisibleParameters::ImageAndInitialStorage
         && visible.len() == 2
     {
         match core_arrival_requirement_contract(typed, slot.semantic_arrival_requirement) {

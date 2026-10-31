@@ -13,6 +13,7 @@ use crate::checked_trees::flow::terminal::{
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{CheckedScalarExpression, ClosedScalarContractValue};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
+use semantic_vocabulary::BoundaryCompletion::External;
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
@@ -28,6 +29,9 @@ pub struct CheckedComposedUnitControlMachinePlan {
     /// Exact cyclic-state subjects and natural-valued measures selected by the
     /// checked witness. Empty means this shared plan retains no witness.
     pub natural_ranks: Vec<CheckedStateNaturalRank>,
+    /// Every natural_ranks span belongs to this executable plan, not the
+    /// admission prototype arena. Scalar computations have already been bound.
+    pub rank_components: arena::Arena<CheckedIntegerRankObservation>,
     /// Successor edges the rank judgment proves only non-increasing: the weak
     /// edges of a cycle through several machines, such as the hop into a
     /// sibling that keeps the measured value. Every other edge into a ranked
@@ -117,14 +121,29 @@ pub struct CheckedRankEdgeCoordinate {
     pub statement_ordinal: u32,
 }
 
-/// One cyclic state's rank, stated over that state's own parameters. Emission
-/// evaluates the same measure on the state's entry and, from the actual
-/// arguments, on every arriving successor edge; the verifier substitutes one
-/// into the other and proves each edge's comparison. `parameter` is the
-/// measured subject — for a distance, its climbing lower subject.
+/// One cyclic state's complete ordered rank. Each component has its own
+/// parameter-relative scalar computation and carrier; the enclosing span fixes
+/// arity and order. Emission observes entry and arriving actuals through the
+/// same scalar scheduler, never a guessed scalar encoding of the tuple.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStateNaturalRank {
     pub state: SymbolHandle,
+    pub components: arena::HandleSpan<CheckedIntegerRankObservation>,
+}
+
+impl Default for CheckedStateNaturalRank {
+    fn default() -> Self {
+        Self {
+            state: SymbolHandle::invalid(),
+            components: Default::default(),
+        }
+    }
+}
+
+/// One ordinary scalar computation in an ordered integer rank. The enclosing
+/// state owns the complete component span, so dropping a suffix is detectable.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedIntegerRankObservation {
     pub parameter: SymbolHandle,
     pub parameter_position: u32,
     pub measure: CheckedNaturalRankMeasure,
@@ -134,12 +153,11 @@ pub struct CheckedStateNaturalRank {
     pub observation: crate::CheckedScalarComputationHandle,
 }
 
-impl Default for CheckedStateNaturalRank {
+impl Default for CheckedIntegerRankObservation {
     /// Arena's ZII dummy has no declaration, subject or executable observation.
     /// It is excluded from the live roster and cannot denote an admitted rank.
     fn default() -> Self {
         Self {
-            state: SymbolHandle::invalid(),
             parameter: SymbolHandle::invalid(),
             parameter_position: 0,
             measure: CheckedNaturalRankMeasure::SequenceLength {
@@ -858,12 +876,7 @@ fn has_external_completion<'operation>(
     operations
         .into_iter()
         .filter_map(CheckedUnitEffectOperationPlan::call)
-        .any(|call| {
-            matches!(
-                call.completion(),
-                semantic_vocabulary::BoundaryCompletion::External(_)
-            )
-        })
+        .any(|call| matches!(call.completion(), External(_)))
 }
 
 /// One guarded arm of an ordered transition chain: the exact checked scalar

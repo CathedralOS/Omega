@@ -15,6 +15,7 @@
 //! exact range reader. This supplies neither domain issuance nor an invocation
 //! proof for a computed initializer, whose admission remains independent.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
@@ -23,10 +24,7 @@ use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn validate_constants(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+pub(crate) fn validate_constants(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     for declaration in program.const_declarations() {
         if !eligible(program, declaration.declared_type, &mut Vec::new()) {
             diagnostics.push(Diagnostic::error(
@@ -40,7 +38,7 @@ pub(crate) fn validate_constants(
 /// The evaluation owner selects ready declarations; a private placeholder is
 /// neither a value to validate here nor evidence exported to a consumer.
 pub fn validate_constant_literal_integer_ranges(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     destination: TypeReferenceHandle,
     initializer: ExpressionHandle,
 ) -> Result<(), &'static str> {
@@ -116,7 +114,7 @@ pub fn validate_constant_literal_integer_ranges(
 }
 
 fn eligible(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
     active: &mut Vec<TypeReferenceHandle>,
 ) -> bool {
@@ -134,7 +132,7 @@ fn eligible(
 }
 
 fn eligible_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
     active: &mut Vec<TypeReferenceHandle>,
 ) -> bool {

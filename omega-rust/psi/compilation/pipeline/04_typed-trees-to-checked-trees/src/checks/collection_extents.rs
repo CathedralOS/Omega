@@ -5,6 +5,11 @@
 //! The caller supplies the occurrence's live loan constraints; an
 //! expired or replaced descriptor therefore cannot resurrect old geometry.
 
+use crate::borrow::owner_path_overlaps_place_segments;
+use crate::flow::CapturedValue;
+use crate::flow::captured_value_places;
+use crate::flow::operand_binds_live_view;
+use crate::flow::project_captured_view_place;
 use checked_trees::{BorrowFacts, FlowConstraintKind, FlowConstraintRef};
 use validation::CanonicalPlace;
 
@@ -14,11 +19,11 @@ pub(crate) fn from_captured_value(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     flow: &checked_trees::FlowFacts,
-    value: &crate::flow::CapturedValue<'_>,
+    value: &CapturedValue<'_>,
     invocation: &[FlowConstraintRef],
 ) -> Option<usize> {
     let mut extent = None;
-    for captured in crate::flow::captured_value_places(program, flow, value)? {
+    for captured in captured_value_places(program, flow, value)? {
         let current = from_live_loans(
             program,
             value.operand.state_symbol,
@@ -96,11 +101,7 @@ pub(crate) fn from_live_loans(
                     facts::PlaceSegment::FixedIndex { index: right }) if left == right)
             })
         {
-            if crate::borrow::owner_path_overlaps_place_segments(
-                program,
-                owner_path,
-                &place.segments,
-            ) {
+            if owner_path_overlaps_place_segments(program, owner_path, &place.segments) {
                 // A possible descriptor cannot disappear merely because
                 // another origin has a statically selectable extent.
                 return None;
@@ -118,7 +119,7 @@ pub(crate) fn from_live_loans(
                     .is_valid(activation.formation_value)
                     .then(|| flow.control.operands.get(activation.formation_value))
             })
-            .filter(|value| crate::flow::operand_binds_live_view(program, value.type_reference));
+            .filter(|value| operand_binds_live_view(program, value.type_reference));
         let sources = if let Some(captured) = captured {
             let rows = flow
                 .control
@@ -144,10 +145,8 @@ pub(crate) fn from_live_loans(
         };
         let mut loan_extent = None;
         for source in sources {
-            let referent = crate::flow::project_captured_view_place(
-                source,
-                &place.segments[owner_path.len()..],
-            )?;
+            let referent =
+                project_captured_view_place(source, &place.segments[owner_path.len()..])?;
             let current = at_formed_place(program, state, statement_index, &referent)?;
             if loan_extent.is_some_and(|prior| prior != current) {
                 return None;

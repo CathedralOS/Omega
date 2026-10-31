@@ -12,7 +12,8 @@ use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 use terminal_semantics::{
-    ElementRepresentationLeaf, ElementRepresentationRelation, ScalarViewValue,
+    ElementRepresentationLeaf, ElementRepresentationRelation, ScalarRepresentationViewPair,
+    ScalarViewValue, scalar_reference_view_value,
 };
 
 pub(super) struct TypedElementView {
@@ -70,16 +71,11 @@ fn reinterpret(
     target: ScalarType,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
     let input = crate::values::scalar_view_value(&value);
-    let output =
-        terminal_semantics::scalar_reference_view_value(value.scalar_type(), target, input)
-            .or_else(|| {
-                terminal_semantics::ScalarRepresentationViewPair::classify(
-                    value.scalar_type(),
-                    target,
-                )?
-                .view(input)
-            })
-            .ok_or_else(malformed)?;
+    let output = scalar_reference_view_value(value.scalar_type(), target, input)
+        .or_else(|| {
+            ScalarRepresentationViewPair::classify(value.scalar_type(), target)?.view(input)
+        })
+        .ok_or_else(malformed)?;
     match (target, output) {
         (ScalarType::Boolean, ScalarViewValue::Boolean(value)) => {
             Ok(TerminalScalarValue::Boolean(value))

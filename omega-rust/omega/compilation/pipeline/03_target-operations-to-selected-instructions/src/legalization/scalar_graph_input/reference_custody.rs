@@ -26,6 +26,7 @@
 //! both returned and stored outputs before retiring untransferred occurrences.
 //! Return completion closes local ancestry; an unchanged original borrowed
 //! entry anchor remains in the caller's scope rather than needing local disposal.
+use super::structural_case::source_result;
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
 };
@@ -33,6 +34,7 @@ use crate::LegalizationError;
 use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::call_source;
 use optimization_unit_semantics::CallRegion;
+use optimization_unit_semantics::access_references::{borrowed_view_formation, validate_backing};
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use terminal_psi::{
@@ -849,7 +851,7 @@ fn source_contract(
     {
         return Some(parameter.structural_type);
     }
-    if let Ok((_, result)) = super::structural_case::source_result(function, place) {
+    if let Ok((_, result)) = source_result(function, place) {
         return Some(result.structural_type);
     }
     custody
@@ -900,7 +902,7 @@ fn reference_source_accessible(
     };
     let (multiplicity, access) = if let Some(parameter) = function.arrival_parameter(source.place) {
         (parameter.multiplicity, parameter.access)
-    } else if let Ok((_, result)) = super::structural_case::source_result(function, source.place) {
+    } else if let Ok((_, result)) = source_result(function, source.place) {
         (result.multiplicity, StructuralAccess::Owned)
     } else {
         return false;
@@ -1302,7 +1304,7 @@ fn backing_intersects_storage(
     // flattening intentionally marks incoming pointees as indirect and would
     // otherwise make a reference conflict with disposal of its own carrier.
     let activation_local = function.arrival_parameter(place).map_or_else(
-        || super::structural_case::source_result(function, place).is_ok(),
+        || source_result(function, place).is_ok(),
         |parameter| parameter.access == StructuralAccess::Owned,
     ) && source_contract(function, custody, place).is_some_and(|root| {
         terminal_semantics::projection_stays_in_inline_storage(types.iter(), root, path)
@@ -2131,9 +2133,9 @@ fn relocate_subtree_leaves<'a>(
         let copies_storage = matches!(operand_use, OwnedOperandUse::CopyUnrestricted)
             && parameter.map_or_else(
                 || {
-                    super::structural_case::source_result(function, argument.place).is_ok_and(
-                        |(_, result)| result.multiplicity == StructuralMultiplicity::Unrestricted,
-                    )
+                    source_result(function, argument.place).is_ok_and(|(_, result)| {
+                        result.multiplicity == StructuralMultiplicity::Unrestricted
+                    })
                 },
                 |parameter| {
                     parameter.access == StructuralAccess::Owned
@@ -2186,9 +2188,7 @@ fn relocate_subtree_leaves<'a>(
                 )?;
                 leaf.identity =
                     OccurrenceIdentity::operation(&(destination, target_path.clone()), operation);
-                if let Ok((declaration_operation, result)) =
-                    super::structural_case::source_result(function, destination)
-                {
+                if let Ok((declaration_operation, result)) = source_result(function, destination) {
                     leaf.contract = CarrierContract::Operation {
                         operation: declaration_operation,
                         result: result.clone(),
@@ -2273,12 +2273,8 @@ pub(in crate::legalization) fn apply(
                 .find(|row| row.id == *boundary)
                 .ok_or_else(|| invalid())?;
             let (path, interpretation) =
-                optimization_unit_semantics::access_references::borrowed_view_formation(
-                    &plan.structural_types,
-                    declaration,
-                    result,
-                )
-                .ok_or_else(|| invalid())?;
+                borrowed_view_formation(&plan.structural_types, declaration, result)
+                    .ok_or_else(|| invalid())?;
             let [source, _profile] = structural_arguments.as_slice() else {
                 return Err(invalid());
             };
@@ -2412,7 +2408,7 @@ pub(in crate::legalization) fn apply(
             };
             let actual =
                 reference_source_type(function, custody, types, source).ok_or_else(|| invalid())?;
-            let matches_backing = optimization_unit_semantics::access_references::validate_backing(
+            let matches_backing = validate_backing(
                 types,
                 plan.structural_types.access_views(),
                 selected,
@@ -3687,7 +3683,7 @@ pub(in crate::legalization) fn referent_argument(
             place: argument.place,
         }
     } else {
-        let (producer, result) = super::structural_case::source_result(caller, argument.place)?;
+        let (producer, result) = source_result(caller, argument.place)?;
         if result.structural_type != root_type
             || result.multiplicity == StructuralMultiplicity::Linear
             || !result.qualification_establishments.is_empty()
@@ -3786,7 +3782,7 @@ pub(in crate::legalization) fn access_call_custody(
                         return Err(invalid());
                     }
                 }
-                optimization_unit_semantics::access_references::validate_backing(
+                validate_backing(
                     types,
                     catalog.access_views(),
                     plan,

@@ -1,6 +1,9 @@
 use crate::parser::parse_syntax_trees;
 use source_files_to_tokens::Lexer;
+use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::ProofFact;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
@@ -66,18 +69,13 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
             let syntax_trees::item::Item::Data(data) = item else {
                 panic!("expected data");
             };
-            let [syntax_trees::item::ProofFact::Expression(fact)] =
-                trees.items.proof_facts(data.where_facts)
-            else {
+            let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.where_facts) else {
                 panic!("expected one equation");
             };
             let ExpressionNode::Binary(equation) = trees.expressions.expression(*fact) else {
                 panic!("expected equality");
             };
-            assert_eq!(
-                equation.operator,
-                syntax_trees::expression::BinaryOperator::Equal
-            );
+            assert_eq!(equation.operator, BinaryOperator::Equal);
             let operand = [equation.left, equation.right]
                 .into_iter()
                 .find_map(|operand| match trees.expressions.expression(operand) {
@@ -158,9 +156,7 @@ fn reference_operands_retain_access_and_element_type_role_through_copy() {
             let syntax_trees::item::Item::Data(data) = item else {
                 panic!("data");
             };
-            let [syntax_trees::item::ProofFact::Expression(fact)] =
-                trees.items.proof_facts(data.where_facts)
-            else {
+            let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.where_facts) else {
                 panic!("equation");
             };
             let ExpressionNode::Binary(equation) = trees.expressions.expression(*fact) else {
@@ -304,9 +300,7 @@ fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
                 let syntax_trees::item::Item::Data(data) = item else {
                     panic!("expected data");
                 };
-                let [syntax_trees::item::DataMember::Field(field)] =
-                    trees.items.data_members(data.members)
-                else {
+                let [DataMember::Field(field)] = trees.items.data_members(data.members) else {
                     panic!("expected one field");
                 };
                 let TypeReferenceNode::Constrained { constraints, .. } =

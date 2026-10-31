@@ -10,6 +10,7 @@ use crate::values::StructuralRuntimePlace;
 use std::collections::BTreeSet;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+use terminal_semantics::scalar_field_requires_evidence;
 
 pub(crate) fn validate(
     machine: &TerminalMachine,
@@ -61,9 +62,7 @@ fn validate_type(
                     continue;
                 }
                 match &field.field_type {
-                    field_type
-                        if terminal_semantics::scalar_field_requires_evidence(field_type) =>
-                    {
+                    field_type if scalar_field_requires_evidence(field_type) => {
                         let key = StructuralScalarRuntimeField::member(parent.clone(), field.id);
                         if !values
                             .get(&key)

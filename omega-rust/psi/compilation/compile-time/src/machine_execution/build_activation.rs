@@ -7,6 +7,7 @@ use crate::build_time_evaluation::type_reference_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::data::DataMember;
 
 /// Admit the compiler-issued Build before any build effects execute.
 ///
@@ -22,20 +23,32 @@ pub fn admit_toolchain_build_activation(typed: &TypedTrees) -> Result<bool, Vec<
     Ok(true)
 }
 
-fn type_reference_names_exact_data(
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BuildStorage {
+    Owned,
+    Borrowed,
+}
+
+// Storing a loan delegates the original activation's access; it does not store
+// the activation itself. Whole-value writes below query the value installed
+// by the assignment: rebinding a descriptor does not replace its referent.
+// Ordinary carried-loan checking owns exclusivity, lifetime and projection.
+fn build_storage(
     typed: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
     expected: SymbolHandle,
-) -> bool {
+) -> Option<BuildStorage> {
     match typed.type_reference_table.type_reference(type_reference) {
         typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_names_exact_data(typed, *referee, expected)
+            build_storage(typed, *referee, expected).map(|_| BuildStorage::Borrowed)
         }
         typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_names_exact_data(typed, *base_type, expected)
+            build_storage(typed, *base_type, expected)
         }
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol == expected,
-        _ => false,
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == expected => {
+            Some(BuildStorage::Owned)
+        }
+        _ => None,
     }
 }
 
@@ -62,9 +75,7 @@ fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, V
         .data_members(build)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == "x86_deployment_features" =>
-            {
+            DataMember::Field(field) if field.name.as_str() == "x86_deployment_features" => {
                 Some(field)
             }
             _ => None,
@@ -91,45 +102,27 @@ fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, V
     Ok(Some(build.symbol))
 }
 
-fn expression_denotes_exact_build(
-    typed: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    build_symbols: &[SymbolHandle],
-) -> bool {
-    use typed_trees::expression::ExpressionNode;
-    match typed.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => {
-            expression_denotes_exact_build(typed, borrow.target, build_symbols)
-        }
-        ExpressionNode::Name(path) => {
-            build_symbols.contains(&path.head_symbol) || build_symbols.contains(&path.symbol)
-        }
-        _ => false,
-    }
-}
-
-/// Prove source cannot transiently overwrite, replace, or lend exclusive
-/// access to the compiler-issued Build occurrence. Final-value equality is
-/// retained as corruption defense, but is not used as the immutability proof.
+/// Prove source cannot construct, copy or replace the compiler-issued Build
+/// occurrence. Borrowing it preserves the original activation; final-value
+/// equality is corruption defense rather than the immutability proof.
 fn validate_build_activation_integrity(
     typed: &TypedTrees,
     build_symbol: SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
-    let mut build_value_symbols = Vec::new();
     let mut diagnostics = Vec::new();
     for definition in typed.data_definitions() {
         for member in typed.data_members(definition) {
             let Some(field) = member.as_field() else {
                 continue;
             };
-            if type_reference_names_exact_data(typed, field.type_reference, build_symbol) {
+            if build_storage(typed, field.type_reference, build_symbol) == Some(BuildStorage::Owned)
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "the compiler-owned Build activation cannot be stored in field `{}`",
                     field.name.as_str()
                 )));
-                build_value_symbols.push(field.symbol);
             }
         }
     }
@@ -137,7 +130,7 @@ fn validate_build_activation_integrity(
         if !machine.body_is_present
             && typed.machine_states(machine).iter().any(|state| {
                 typed.state_parameters(state).iter().any(|parameter| {
-                    type_reference_names_exact_data(typed, parameter.type_reference, build_symbol)
+                    build_storage(typed, parameter.type_reference, build_symbol).is_some()
                 })
             })
         {
@@ -147,50 +140,38 @@ fn validate_build_activation_integrity(
             )));
         }
         for owned in typed.machine_owned_data(machine) {
-            if type_reference_names_exact_data(typed, owned.type_reference, build_symbol) {
+            if build_storage(typed, owned.type_reference, build_symbol) == Some(BuildStorage::Owned)
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "the compiler-owned Build activation cannot be stored in machine field `{}`",
                     owned.name.as_str()
                 )));
-                build_value_symbols.push(owned.symbol);
             }
         }
         for state in typed.machine_states(machine) {
-            for parameter in typed.state_parameters(state) {
-                if type_reference_names_exact_data(typed, parameter.type_reference, build_symbol) {
-                    build_value_symbols.push(parameter.symbol);
-                }
-            }
             for statement in typed.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assignment(assignment) => {
-                        if expression_denotes_exact_build(
-                            typed,
-                            assignment.target,
-                            &build_value_symbols,
-                        ) {
+                        if validation::assignment_stored_value_type(
+                            typed, machine, state, assignment,
+                        )
+                        .is_some_and(|reference| {
+                            build_storage(typed, reference, build_symbol)
+                                == Some(BuildStorage::Owned)
+                        }) {
                             diagnostics.push(Diagnostic::error(
                                 "the compiler-owned Build activation cannot be replaced as a whole value",
                             ));
                         }
                     }
                     StatementNode::LocalData(local)
-                        if type_reference_names_exact_data(
-                            typed,
-                            local.type_reference,
-                            build_symbol,
-                        ) =>
+                        if build_storage(typed, local.type_reference, build_symbol)
+                            == Some(BuildStorage::Owned) =>
                     {
-                        if !matches!(
-                            type_reference_table(typed).type_reference(local.type_reference),
-                            typed_trees::types::TypeReferenceNode::Reference { .. }
-                        ) {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "the compiler-owned Build activation cannot be copied into local `{}`",
-                                local.name.as_str()
-                            )));
-                        }
-                        build_value_symbols.push(local.symbol);
+                        diagnostics.push(Diagnostic::error(format!(
+                            "the compiler-owned Build activation cannot be copied into local `{}`",
+                            local.name.as_str()
+                        )));
                     }
                     _ => {}
                 }
@@ -205,7 +186,7 @@ fn validate_build_activation_integrity(
                 ));
             }
             ExpressionNode::ZeroValue(type_reference)
-                if type_reference_names_exact_data(typed, *type_reference, build_symbol) =>
+                if build_storage(typed, *type_reference, build_symbol).is_some() =>
             {
                 diagnostics.push(Diagnostic::error(
                     "source cannot construct a zero value of the compiler-owned Build activation",

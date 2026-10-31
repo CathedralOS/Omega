@@ -8,7 +8,7 @@
 //! emit a program header, or mutate an image.
 
 use super::super::checked::{self, CandidateValidationError};
-use crate::dynamic_executable::checked::require;
+use crate::dynamic_executable::checked::{checked_sum_u64, require};
 use crate::dynamic_executable::dynamic_table::dynamic_table_descriptor::ValidatedElfDynamicTableSectionDescriptorPlan;
 use crate::dynamic_executable::section_headers::section_payload_roster::ValidatedElfIndexedSectionPayloadPlan;
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
@@ -200,12 +200,7 @@ fn derive_contents(
             let cursor = region_spans.cursor_mut(region);
             let offset =
                 checked_align(*cursor, descriptor.alignment, "relative ELF payload offset")?;
-            *cursor = crate::dynamic_executable::checked::checked_sum_u64(
-                offset,
-                byte_size,
-                "relative ELF payload end",
-                "Elf64_Off",
-            )?;
+            *cursor = checked_sum_u64(offset, byte_size, "relative ELF payload end", "Elf64_Off")?;
             (Some(region), offset)
         };
         rows.push(ElfRelativeSectionPayloadPlacement {
@@ -268,7 +263,7 @@ fn validate_contents(
                 descriptor.alignment,
                 "replayed relative ELF offset",
             )?;
-            *cursor = crate::dynamic_executable::checked::checked_sum_u64(
+            *cursor = checked_sum_u64(
                 offset,
                 byte_size,
                 "replayed relative ELF payload end",
@@ -317,12 +312,7 @@ fn checked_align(value: u64, alignment: u64, context: &'static str) -> Result<u6
     if remainder == 0 {
         Ok(value)
     } else {
-        crate::dynamic_executable::checked::checked_sum_u64(
-            value,
-            alignment - remainder,
-            context,
-            "Elf64_Off",
-        )
+        checked_sum_u64(value, alignment - remainder, context, "Elf64_Off")
     }
 }
 
@@ -354,8 +344,8 @@ mod tests {
     use super::{
         Candidate, ElfDynamicRosterSectionKind, ElfRelativeSectionPayloadRegion,
         ElfRelativeSectionPayloadRegionSpans, SECTION_COUNT, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE,
-        ValidatedElfIndexedSectionPayloadPlan, checked_align, classify_region, derive_contents,
-        non_authoritative_layout_compatibility_fingerprint,
+        ValidatedElfIndexedSectionPayloadPlan, checked_align, checked_sum_u64, classify_region,
+        derive_contents, non_authoritative_layout_compatibility_fingerprint,
         plan_elf_relative_section_payload_layout, validate_candidate, validate_contents,
     };
 
@@ -526,10 +516,7 @@ mod tests {
 
     #[test]
     fn arithmetic_overflow_rejects_without_panicking() {
-        assert!(
-            crate::dynamic_executable::checked::checked_sum_u64(u64::MAX, 1, "sum", "Elf64_Off")
-                .is_err()
-        );
+        assert!(checked_sum_u64(u64::MAX, 1, "sum", "Elf64_Off").is_err());
         assert!(checked_align(u64::MAX, 8, "alignment").is_err());
         assert_eq!(checked_align(7, 0, "zero alignment").unwrap(), 7);
         assert!(classify_region(SHF_WRITE).is_err());
