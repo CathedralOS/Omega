@@ -692,6 +692,8 @@ def windows_runner_job(process):
 
 
 def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[dict]:
+    # Supplied paths belong to the caller, before a historical run changes cwd.
+    binary = binary.resolve()
     try:
         require_optimized(binary)
     except CompilerProfileError as error:
