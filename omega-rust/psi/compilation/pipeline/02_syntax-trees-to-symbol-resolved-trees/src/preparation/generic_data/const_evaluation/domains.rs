@@ -3,6 +3,7 @@ use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier,
     IntegerLiteral, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
@@ -95,10 +96,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         let Some(definition) = item.as_domain() else {
             continue;
         };
-        let parameters = syntax
-            .tables
-            .items
-            .type_parameters(definition.type_parameters);
+        let parameters = syntax_items(&syntax).type_parameters(definition.type_parameters);
         let header_arguments =
             syntax_type_references(&syntax).type_reference_handles(definition.index_arguments);
 

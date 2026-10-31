@@ -6,6 +6,7 @@ use crate::preparation::generic_data::EvaluatedConst;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use crate::preparation::generic_data::selected_data_item;
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use arena::Handle;
 use arena::HandleSpan;
@@ -87,9 +88,7 @@ pub(crate) fn substitute_member(
             warnings,
         )),
         DataMember::Variant(mut variant) => {
-            let payload = syntax
-                .tables
-                .items
+            let payload = syntax_items(&syntax)
                 .data_payload_fields(variant.payload)
                 .to_vec();
             let mut first = Handle::invalid();

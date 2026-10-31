@@ -13,6 +13,7 @@ use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::GenericDataShape;
 use crate::preparation::generic_data::selected_generic_data;
 use crate::preparation::generic_data::type_reference_mentions_parameter;
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -48,9 +49,7 @@ pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
     let Some(shape) = generic_data_shape(syntax, base_info) else {
         return false;
     };
-    syntax
-        .tables
-        .items
+    syntax_items(&syntax)
         .data_members(base_info.members)
         .iter()
         .all(|member| match member {
@@ -72,9 +71,7 @@ pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
                     GenericDataShape::PureSum | GenericDataShape::MixedSum
                 ) =>
             {
-                syntax
-                    .tables
-                    .items
+                syntax_items(&syntax)
                     .data_payload_fields(variant.payload)
                     .iter()
                     .all(|field| {

@@ -13,6 +13,7 @@ use crate::preparation::generic_data::uses::{
     relabel_closed_data_uses_in_exact_calls_and_returns,
     relabel_closed_sum_memberships_from_local_types,
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 
 use super::substitution::substitute_copied_type_names;
@@ -158,10 +159,8 @@ pub(crate) fn desugar_generic_data_instances_in(
         {
             continue;
         }
-        let definition_parameters = syntax
-            .tables
-            .items
-            .type_parameters(definition.type_parameters);
+        let definition_parameters =
+            syntax_items(&syntax).type_parameters(definition.type_parameters);
         // Value indices retain descriptor fields installed from their binder
         // telescope during lowering. This type/const synthesis erases that
         // telescope and cannot represent those descriptors; preserve their
@@ -186,9 +185,7 @@ pub(crate) fn desugar_generic_data_instances_in(
             // a CONCRETE machine and the T-typed value call materializes
             // (was the runtime silent-0). An uncovered method leaves the
             // whole container for the type-check-only path, as before.
-            let data_parameters: Vec<(String, bool)> = syntax
-                .tables
-                .items
+            let data_parameters: Vec<(String, bool)> = syntax_items(&syntax)
                 .type_parameters(definition.type_parameters)
                 .iter()
                 .map(|parameter| {
@@ -206,9 +203,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                 // no-op Unit cleanup hook. Source admission owns missing-body
                 // and return obligations; body length cannot decide whether
                 // the carrier or its attached machines may specialize.
-                syntax
-                    .tables
-                    .items
+                syntax_items(&syntax)
                     .type_parameters(machine.type_parameters)
                     .iter()
                     .all(|parameter| {
@@ -660,9 +655,7 @@ fn synthesize_instance(
         let Some(template) = snapshot.root_item(instance.template).as_data() else {
             unreachable!("a discovered template is a data item");
         };
-        snapshot
-            .tables
-            .items
+        syntax_items(&snapshot)
             .type_parameters(template.type_parameters)
             .iter()
             .zip(instance.argument_identity.iter())
@@ -685,9 +678,7 @@ fn synthesize_instance(
     // equalities fold; a refuted variant gets the literal `0` witness that
     // marks an impossible case for coverage, construction, and zero gating --
     // the same witness the case `where` copy already writes.
-    let template_variant_names: Vec<String> = snapshot
-        .tables
-        .items
+    let template_variant_names: Vec<String> = syntax_items(&snapshot)
         .data_members(base_info.members)
         .iter()
         .filter_map(|member| match member {
@@ -699,9 +690,7 @@ fn synthesize_instance(
     let mut copied_fact_roots: Vec<ExpressionHandle> = Vec::new();
     let mut first_fact = Handle::invalid();
     let mut fact_count = 0u32;
-    for (offset, fact) in snapshot
-        .tables
-        .items
+    for (offset, fact) in syntax_items(&snapshot)
         .proof_facts(base_info.where_facts)
         .iter()
         .enumerate()

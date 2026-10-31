@@ -22,6 +22,7 @@ use super::super::{
     ExpressionNode, FixedArrayLength, HandleSpan, HashSet, Identifier, Item, SyntaxTrees,
     TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
@@ -1683,9 +1684,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                 }
             }
             if let Some(case_name) = &case_name {
-                let variant = syntax
-                    .tables
-                    .items
+                let variant = syntax_items(&syntax)
                     .data_members(definition.members)
                     .iter()
                     .find_map(|member| match member {
@@ -1699,9 +1698,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     .ok_or_else(|| {
                         format!("`{type_name}` has no case `{}`", case_name.as_str(syntax))
                     })?;
-                let declared_fields = syntax
-                    .tables
-                    .items
+                let declared_fields = syntax_items(&syntax)
                     .data_payload_fields(variant.payload)
                     .iter()
                     .collect::<Vec<_>>();
@@ -1719,9 +1716,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     fields,
                 })
             } else {
-                if syntax
-                    .tables
-                    .items
+                if syntax_items(&syntax)
                     .data_members(definition.members)
                     .iter()
                     .any(|member| matches!(member, DataMember::Variant(_)))
@@ -1730,9 +1725,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                         "`{type_name}` is case data; its const value must name one case"
                     ));
                 }
-                let declared_fields = syntax
-                    .tables
-                    .items
+                let declared_fields = syntax_items(&syntax)
                     .data_members(definition.members)
                     .iter()
                     .filter_map(|member| match member {
@@ -1783,9 +1776,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     head.as_str(syntax)
                 ));
             }
-            let variant = syntax
-                .tables
-                .items
+            let variant = syntax_items(&syntax)
                 .data_members(definition.members)
                 .iter()
                 .find_map(|member| match member {

@@ -5,6 +5,7 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::eligibility::base_is_fully_monomorphizable;
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
@@ -574,9 +575,7 @@ pub(in crate::preparation::generic_data) fn generic_const_integer_types(
         .find_map(|item| {
             let definition = item.as_data()?;
             (definition.name.as_str(syntax) == generic_name).then(|| {
-                syntax
-                    .tables
-                    .items
+                syntax_items(&syntax)
                     .type_parameters(definition.type_parameters)
                     .iter()
                     .map(|parameter| match parameter.kind {

@@ -18,6 +18,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionTable;
 use symbol_resolved_trees::statement::StatementTable;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::item::ItemTable;
 use syntax_trees::types::TypeReferenceTable;
 
 /// The expressions of every resolved body.
@@ -33,4 +34,9 @@ pub(crate) fn body_statements(program: &SymbolResolvedTrees) -> &StatementTable 
 /// The type references a syntax forest parses.
 pub(crate) fn syntax_type_references(syntax: &SyntaxTrees) -> &TypeReferenceTable {
     &syntax.tables.type_references
+}
+
+/// The items a syntax forest parses.
+pub(crate) fn syntax_items(syntax: &SyntaxTrees) -> &ItemTable {
+    &syntax.tables.items
 }

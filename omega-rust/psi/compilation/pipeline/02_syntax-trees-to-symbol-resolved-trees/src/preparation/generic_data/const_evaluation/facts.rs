@@ -12,6 +12,7 @@ use super::super::{
     ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle,
     TypeReferenceNode,
 };
+use crate::tables::syntax_items;
 use arena::HandleSpan;
 use syntax_trees::expression::UnaryOperator;
 use syntax_trees::identifier::Identifier;
@@ -1620,9 +1621,7 @@ pub(crate) fn const_type_requires_declaration_proof(
                         ),
                         DataMember::Variant(variant) => {
                             !variant.where_facts.is_empty()
-                                || syntax
-                                    .tables
-                                    .items
+                                || syntax_items(&syntax)
                                     .data_payload_fields(variant.payload)
                                     .iter()
                                     .any(|field| {

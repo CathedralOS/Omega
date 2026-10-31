@@ -7,6 +7,7 @@ use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
     visit_expression_type_inputs, visit_static_argument_type_inputs,
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 
 use crate::preparation::generic_data::EvaluatedConst;
@@ -376,17 +377,13 @@ pub(in crate::preparation::generic_data) fn normalize_generic_template_const_exp
             if definition.type_parameters.is_empty() {
                 return None;
             }
-            let symbolic_parameters = syntax
-                .tables
-                .items
+            let symbolic_parameters = syntax_items(&syntax)
                 .type_parameters(definition.type_parameters)
                 .iter()
                 .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
                 .map(|parameter| parameter.name.as_str(syntax).to_string())
                 .collect();
-            let fields = syntax
-                .tables
-                .items
+            let fields = syntax_items(&syntax)
                 .data_members(definition.members)
                 .iter()
                 .filter_map(|member| match member {
