@@ -106,14 +106,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 ranking_range = clause_range;
                 continue;
             }
-            if starts_termination_clause_block(input) {
-                return Err(input.error_here(
-                    "the `terminates { decreases ...; }` block form is retired \
-                     (decision 23): spell the ranking witness as `terminates by \
-                     <subjects> [-> View] [in <range>]`, or bare `terminates` \
-                     for the guarantee alone",
-                ));
-            }
             terminates_guarantee = true;
             continue;
         }
@@ -588,18 +580,6 @@ fn parse_crash_header<'tokens, 'source>(
     let (cause, after_cause) = input.take_identifier()?;
     let cause = crate::contracts::parse_crash_cause(&cause, after_cause)?;
     Ok(((cause, 2), after_cause))
-}
-
-fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {
-    if !input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty() {
-        return false;
-    }
-
-    let rest = input.restarted(&input.tokens[1..]);
-    rest.tokens.first().is_some_and(|token| {
-        matches!(token.punctuation(), Some(PunctuationKind::RightBrace))
-            || matches!(input.text(token).as_str(), "decreases" | "increases")
-    })
 }
 
 /// Decision 23's ranking-witness body: `<subject>` or `(<s1>, <s2>, ..)`
