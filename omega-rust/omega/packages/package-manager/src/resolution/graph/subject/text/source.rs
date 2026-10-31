@@ -1,5 +1,6 @@
 //! Readable source-qualified keys and immutable resolutions.
 
+use super::super::hex_length;
 use super::framing::{Reader, Writer};
 use super::{Error, Limits};
 use crate::declarations::PackageKey;
@@ -22,11 +23,9 @@ pub(super) fn write_source(
             tree,
             content,
         } => {
-            writer.budget.charge(
-                super::super::hex_length(commit.algorithm())
-                    + super::super::hex_length(tree.algorithm())
-                    + 64,
-            )?;
+            writer
+                .budget
+                .charge(hex_length(commit.algorithm()) + hex_length(tree.algorithm()) + 64)?;
             writer.row(
                 "resolution git",
                 &[
