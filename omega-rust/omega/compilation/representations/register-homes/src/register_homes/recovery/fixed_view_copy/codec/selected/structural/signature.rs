@@ -1,5 +1,7 @@
 //! Ordinary structural signature data; no separate executable function payload.
+use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::FixedViewCopyDecodeError;
+use crate::codec_bytes::push_encoded;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, decode_ids, decode_list, encode_ids, length,
 };
@@ -8,11 +10,16 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
     decode_place, decode_reference_origin_path, decode_type, encode_access, encode_entry_claim,
     encode_multiplicity, encode_parameter, encode_place, encode_type,
 };
+use abstract_operations::StructuralTypeCatalog;
 use legalized_operations::LegalizedStructuralContract;
 use selected_instructions::effects::program::identity::{
     encode_path, encode_reference_origin_path,
 };
+use semantic_vocabulary::ReferenceOriginExtent;
 use semantic_vocabulary::{PlaceId, ServiceId, StructuralDomainId, StructuralTypeId};
+use terminal_codec::encode_access_lifecycle_catalog;
+use terminal_codec::encode_access_view_input_catalog;
+use terminal_psi::StructuralReferenceOrigin;
 pub(super) fn encode_signature(
     bytes: &mut Vec<u8>,
     value: &LegalizedStructuralContract,
@@ -23,8 +30,8 @@ pub(super) fn encode_signature(
     }
     length(bytes, value.structural_types.referents().len());
     for referent in value.structural_types.referents() {
-        crate::codec_bytes::push_encoded(bytes, referent.id.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, referent.identity.0.to_le_bytes());
+        push_encoded(bytes, referent.id.get().to_le_bytes());
+        push_encoded(bytes, referent.identity.0.to_le_bytes());
     }
     let quotients = terminal_codec::encode_quotient_catalog(value.structural_types.quotients())?;
     length(bytes, quotients.len());
@@ -33,12 +40,8 @@ pub(super) fn encode_signature(
     // Storage declarations alone cannot reconstruct demands or lifecycle plans.
     for catalog in [
         terminal_codec::encode_access_view_catalog(value.structural_types.access_views())?,
-        terminal_codec::encode_access_view_input_catalog(
-            value.structural_types.access_view_inputs(),
-        )?,
-        terminal_codec::encode_access_lifecycle_catalog(
-            value.structural_types.access_lifecycles(),
-        )?,
+        encode_access_view_input_catalog(value.structural_types.access_view_inputs())?,
+        encode_access_lifecycle_catalog(value.structural_types.access_lifecycles())?,
     ] {
         length(bytes, catalog.len());
         bytes.extend_from_slice(&catalog);
@@ -51,47 +54,34 @@ pub(super) fn encode_signature(
         None => bytes.push(0),
         Some(result) => {
             bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, result.place.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, result.structural_type.get().to_le_bytes());
+            push_encoded(bytes, result.place.get().to_le_bytes());
+            push_encoded(bytes, result.structural_type.get().to_le_bytes());
             encode_multiplicity(bytes, result.multiplicity);
             encode_ids(
                 bytes,
                 result.qualifications.iter().map(|domain| domain.get()),
             );
-            super::projected_qualifications::encode_projected(
-                bytes,
-                &result.projected_qualifications,
-                true,
-            );
+            encode_projected(bytes, &result.projected_qualifications, true);
             length(bytes, result.reference_sources.len());
             for reference in &result.reference_sources {
                 encode_path(bytes, &reference.path);
                 length(bytes, reference.sources.len());
                 for source in &reference.sources {
                     match source {
-                        terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
+                        StructuralReferenceOrigin::Parameter(source) => {
                             bytes.push(1);
-                            crate::codec_bytes::push_encoded(
-                                bytes,
-                                source.place.get().to_le_bytes(),
-                            );
+                            push_encoded(bytes, source.place.get().to_le_bytes());
                         }
-                        terminal_psi::StructuralReferenceOrigin::Invocation {
-                            carrier_type,
-                            ..
-                        } => {
+                        StructuralReferenceOrigin::Invocation { carrier_type, .. } => {
                             bytes.push(2);
-                            crate::codec_bytes::push_encoded(
-                                bytes,
-                                carrier_type.get().to_le_bytes(),
-                            );
+                            push_encoded(bytes, carrier_type.get().to_le_bytes());
                         }
                     }
                     encode_reference_origin_path(bytes, source.path());
                     encode_access(bytes, source.access());
                     bytes.push(match source.extent() {
-                        semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
-                        semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
+                        ReferenceOriginExtent::Projected => 1,
+                        ReferenceOriginExtent::WithinRegion => 2,
                     });
                 }
             }
@@ -159,9 +149,7 @@ pub(super) fn decode_signature(
                 structural_type: decode_id(c, StructuralTypeId::new)?,
                 multiplicity: decode_multiplicity(c)?,
                 qualifications: decode_ids(c, StructuralDomainId::new)?,
-                projected_qualifications: super::projected_qualifications::decode_projected(
-                    c, true,
-                )?,
+                projected_qualifications: decode_projected(c, true)?,
                 reference_sources: {
                     let count = c.length()?;
                     let mut sources = Vec::new();
@@ -184,10 +172,8 @@ pub(super) fn decode_signature(
                                     let path = decode_reference_origin_path(c)?;
                                     let access = decode_access(c)?;
                                     let extent = match c.byte()? {
-                                        1 => semantic_vocabulary::ReferenceOriginExtent::Projected,
-                                        2 => {
-                                            semantic_vocabulary::ReferenceOriginExtent::WithinRegion
-                                        }
+                                        1 => ReferenceOriginExtent::Projected,
+                                        2 => ReferenceOriginExtent::WithinRegion,
                                         tag => return Err(
                                             FixedViewCopyDecodeError::UnknownReferenceOriginExtent(
                                                 tag,
@@ -196,7 +182,7 @@ pub(super) fn decode_signature(
                                     };
                                     candidates.push(match (place, carrier_type) {
                                         (Some(place), None) => {
-                                            terminal_psi::StructuralReferenceOrigin::Parameter(
+                                            StructuralReferenceOrigin::Parameter(
                                                 terminal_psi::ReferenceOriginSource {
                                                     place,
                                                     path,
@@ -206,7 +192,7 @@ pub(super) fn decode_signature(
                                             )
                                         }
                                         (None, Some(carrier_type)) => {
-                                            terminal_psi::StructuralReferenceOrigin::Invocation {
+                                            StructuralReferenceOrigin::Invocation {
                                                 carrier_type,
                                                 path,
                                                 access,
@@ -231,21 +217,18 @@ pub(super) fn decode_signature(
     let structural_places = decode_list(cursor, decode_place)?;
     let entry_claims = decode_list(cursor, decode_entry_claim)?;
     Ok(LegalizedStructuralContract {
-        structural_types: abstract_operations::StructuralTypeCatalog::new(
-            structural_types,
-            referents,
-        )
-        .with_access_views(access_views)
-        .with_access_view_inputs(access_inputs)
-        .with_access_lifecycles(lifecycles)
-        .map_err(
-            |cause| FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
-                catalog: "access lifecycles",
-                cause,
-            },
-        )?
-        .with_quotients(quotients)
-        .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?,
+        structural_types: StructuralTypeCatalog::new(structural_types, referents)
+            .with_access_views(access_views)
+            .with_access_view_inputs(access_inputs)
+            .with_access_lifecycles(lifecycles)
+            .map_err(
+                |cause| FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
+                    catalog: "access lifecycles",
+                    cause,
+                },
+            )?
+            .with_quotients(quotients)
+            .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?,
         parameters,
         result,
         structural_places,

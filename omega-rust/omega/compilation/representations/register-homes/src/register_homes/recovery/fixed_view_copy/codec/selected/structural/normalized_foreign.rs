@@ -45,10 +45,16 @@ use super::{
 };
 use legalized_operations::{encode_integer, encode_native_callback_argument};
 
+use super::read_result::{decode_layout, decode_result, encode_layout, encode_result};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_list, length},
     values::{decode_bool, decode_integer, decode_scalar, encode_scalar},
 };
+use calling_conventions::validate_boundary_entry_plan;
+use target::NormalizedComponentLocator;
+use target_operations::TargetStructuralHomeLayout;
+use target_operations::TargetStructuralHomeOrigin;
+use terminal_psi::SemanticFingerprint;
 
 /// Machine-state bit positions beyond the closed `MachineState` vocabulary
 /// are rejected rather than silently dropped.
@@ -87,31 +93,25 @@ pub(super) fn encode_normalized_foreign_call(
         target_operations::TargetBoundaryResult::Structural(home) => {
             bytes.push(2);
             match &home.origin {
-                target_operations::TargetStructuralHomeOrigin::OperationResult {
-                    operation,
-                    result,
-                } => {
+                TargetStructuralHomeOrigin::OperationResult { operation, result } => {
                     bytes.push(0);
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
-                    super::read_result::encode_result(bytes, result);
+                    encode_result(bytes, result);
                 }
-                target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                    block,
-                    declaration,
-                } => {
+                TargetStructuralHomeOrigin::BlockParameter { block, declaration } => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
                     super::declarations::encode_semantic_parameter(bytes, declaration, true);
                 }
             }
             match &home.layout {
-                target_operations::TargetStructuralHomeLayout::Aggregate(shape) => {
+                TargetStructuralHomeLayout::Aggregate(shape) => {
                     bytes.push(0);
                     encode_shape(bytes, *shape);
                 }
-                target_operations::TargetStructuralHomeLayout::Sum(layout) => {
+                TargetStructuralHomeLayout::Sum(layout) => {
                     bytes.push(1);
-                    super::read_result::encode_layout(bytes, layout);
+                    encode_layout(bytes, layout);
                 }
             }
         }
@@ -146,23 +146,19 @@ pub(super) fn decode_normalized_foreign_call(
         1 => target_operations::TargetBoundaryResult::Scalar(decode_scalar_home(cursor)?),
         2 => {
             let origin = match cursor.byte()? {
-                0 => target_operations::TargetStructuralHomeOrigin::OperationResult {
+                0 => TargetStructuralHomeOrigin::OperationResult {
                     operation: decode_id(cursor, OperationId::new)?,
-                    result: super::read_result::decode_result(cursor)?,
+                    result: decode_result(cursor)?,
                 },
-                1 => target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                1 => TargetStructuralHomeOrigin::BlockParameter {
                     block: decode_id(cursor, semantic_vocabulary::BlockId::new)?,
                     declaration: super::declarations::decode_semantic_parameter(cursor, true)?,
                 },
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             };
             let layout = match cursor.byte()? {
-                0 => {
-                    target_operations::TargetStructuralHomeLayout::Aggregate(decode_shape(cursor)?)
-                }
-                1 => target_operations::TargetStructuralHomeLayout::Sum(
-                    super::read_result::decode_layout(cursor)?,
-                ),
+                0 => TargetStructuralHomeLayout::Aggregate(decode_shape(cursor)?),
+                1 => TargetStructuralHomeLayout::Sum(decode_layout(cursor)?),
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             };
             target_operations::TargetBoundaryResult::Structural(
@@ -283,11 +279,8 @@ fn decode_call_binding(
             ),
         };
         if !binding.has_valid_entry_mechanism()
-            || calling_conventions::validate_boundary_entry_plan(
-                binding.boundary_entry_plan.clone(),
-                &signature,
-            )
-            .is_err()
+            || validate_boundary_entry_plan(binding.boundary_entry_plan.clone(), &signature)
+                .is_err()
         {
             return Err(FixedViewCopyDecodeError::InvalidSystemCallBinding);
         }
@@ -307,18 +300,13 @@ fn decode_call_binding(
             .ok_or(FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
         let provider = terminal_psi::TerminalPsiIdentity {
             vocabulary_marker,
-            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes(
-                cursor.array::<32>()?,
-            ),
+            program_fingerprint: SemanticFingerprint::from_bytes(cursor.array::<32>()?),
         };
         let candidate = decode_id(cursor, semantic_vocabulary::MachineId::new)?;
         let application_commitment = cursor.array::<32>()?;
-        let locator = target::NormalizedComponentLocator::new(
-            target,
-            cursor.array::<32>()?,
-            cursor.array::<32>()?,
-        )
-        .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
+        let locator =
+            NormalizedComponentLocator::new(target, cursor.array::<32>()?, cursor.array::<32>()?)
+                .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
         component = Some((locator, provider, candidate, application_commitment));
         (None, None)
     } else {

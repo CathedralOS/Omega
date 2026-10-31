@@ -4,82 +4,79 @@ use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_accepted_fact, decode_id, decode_list, decode_option_u64, length,
 };
+use selected_instructions::LocalStorageSlotId;
+use selected_instructions::SelectedMemoryAccessOrigin;
 use selected_instructions::{
     OutgoingArgumentSlotId, SelectedBlockId, SelectedBoundarySettlement, SelectedFunction,
     SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessRole,
     SelectedOutgoingArgumentSlot,
 };
+use semantic_vocabulary::BlockId;
+use semantic_vocabulary::EdgeId;
+use semantic_vocabulary::InvocationSite;
 use semantic_vocabulary::{OperationId, PlaceId};
 pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn decode_local_slot(
     cursor: &mut Cursor<'_>,
-) -> Result<selected_instructions::LocalStorageSlotId, FixedViewCopyDecodeError> {
+) -> Result<LocalStorageSlotId, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
     if tag == 8 || tag == 9 {
-        let edge = decode_id(cursor, semantic_vocabulary::EdgeId::new)?;
+        let edge = decode_id(cursor, EdgeId::new)?;
         return Ok(if tag == 8 {
-            selected_instructions::LocalStorageSlotId::InvocationResult { edge }
+            LocalStorageSlotId::InvocationResult { edge }
         } else {
-            selected_instructions::LocalStorageSlotId::InvocationArgument {
+            LocalStorageSlotId::InvocationArgument {
                 edge,
                 argument_index: cursor.u32()?,
             }
         });
     }
     if tag == 6 {
-        return Ok(selected_instructions::LocalStorageSlotId::EdgeSnapshot {
-            edge: decode_id(cursor, semantic_vocabulary::EdgeId::new)?,
+        return Ok(LocalStorageSlotId::EdgeSnapshot {
+            edge: decode_id(cursor, EdgeId::new)?,
             binding_index: cursor.u32()?,
         });
     }
     if tag == 4 {
-        return Ok(
-            selected_instructions::LocalStorageSlotId::StructuralParameter {
-                place: decode_id(cursor, PlaceId::new)?,
-            },
-        );
+        return Ok(LocalStorageSlotId::StructuralParameter {
+            place: decode_id(cursor, PlaceId::new)?,
+        });
     }
     if tag == 3 {
-        return Ok(
-            selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
-                block: decode_id(cursor, semantic_vocabulary::BlockId::new)?,
-                place: decode_id(cursor, PlaceId::new)?,
-            },
-        );
+        return Ok(LocalStorageSlotId::StructuralBlockParameter {
+            block: decode_id(cursor, BlockId::new)?,
+            place: decode_id(cursor, PlaceId::new)?,
+        });
     }
     if tag == 2 {
-        return Ok(selected_instructions::LocalStorageSlotId::Spill {
+        return Ok(LocalStorageSlotId::Spill {
             register: selected_instructions::VirtualRegisterId(cursor.u32()?),
         });
     }
     let operation = decode_id(cursor, OperationId::new)?;
     match tag {
-        0 => Ok(selected_instructions::LocalStorageSlotId::Structural {
+        0 => Ok(LocalStorageSlotId::Structural {
             operation,
             place: decode_id(cursor, PlaceId::new)?,
         }),
-        1 => Ok(selected_instructions::LocalStorageSlotId::Boundary { operation }),
-        7 => Ok(selected_instructions::LocalStorageSlotId::BoundaryResult { operation }),
-        5 => Ok(
-            selected_instructions::LocalStorageSlotId::StructuralCallArgument {
-                operation,
-                argument_index: cursor.u32()?,
-            },
-        ),
+        1 => Ok(LocalStorageSlotId::Boundary { operation }),
+        7 => Ok(LocalStorageSlotId::BoundaryResult { operation }),
+        5 => Ok(LocalStorageSlotId::StructuralCallArgument {
+            operation,
+            argument_index: cursor.u32()?,
+        }),
         tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     }
 }
 
 pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn decode_invocation_site(
     cursor: &mut Cursor<'_>,
-) -> Result<semantic_vocabulary::InvocationSite, FixedViewCopyDecodeError> {
+) -> Result<InvocationSite, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
-    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or_else(
-        || match tag {
-            0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
-            _ => FixedViewCopyDecodeError::UnknownOption(tag),
-        },
-    )
+    InvocationSite::from_tagged_identity(tag, identity).ok_or_else(|| match tag {
+        0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
+        _ => FixedViewCopyDecodeError::UnknownOption(tag),
+    })
 }
 
 fn encode_slot(bytes: &mut Vec<u8>, slot: OutgoingArgumentSlotId) {
@@ -172,18 +169,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
     for _ in 0..count {
         let instruction = SelectedInstructionId(cursor.u32()?);
         let origin = match cursor.byte()? {
-            0 => selected_instructions::SelectedMemoryAccessOrigin::Operation(decode_id(
-                cursor,
-                OperationId::new,
-            )?),
-            1 => selected_instructions::SelectedMemoryAccessOrigin::Edge(decode_id(
-                cursor,
-                semantic_vocabulary::EdgeId::new,
-            )?),
-            2 => selected_instructions::SelectedMemoryAccessOrigin::Block(decode_id(
-                cursor,
-                semantic_vocabulary::BlockId::new,
-            )?),
+            0 => SelectedMemoryAccessOrigin::Operation(decode_id(cursor, OperationId::new)?),
+            1 => SelectedMemoryAccessOrigin::Edge(decode_id(cursor, EdgeId::new)?),
+            2 => SelectedMemoryAccessOrigin::Block(decode_id(cursor, BlockId::new)?),
             tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
         };
         let place = decode_id(cursor, PlaceId::new)?;

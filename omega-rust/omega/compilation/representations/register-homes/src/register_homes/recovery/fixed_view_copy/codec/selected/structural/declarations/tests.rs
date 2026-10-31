@@ -9,6 +9,8 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::encode_place;
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::encode_type;
 use selected_instructions::effects::program::identity::encode_path;
+use terminal_codec::canonical_proposition_order_key;
+use terminal_psi::ByteSequenceCarrier;
 
 #[test]
 fn logical_copy_permission_changes_encoded_identity() {
@@ -134,12 +136,10 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
     let mut cursor = Cursor::new(&bytes);
     assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
     assert_eq!(cursor.remaining(), 0);
-    let predicate_length = terminal_codec::canonical_proposition_order_key(&predicate)
-        .unwrap()
-        .len();
+    let predicate_length = canonical_proposition_order_key(&predicate).unwrap().len();
     let mut foreign = predicate;
     foreign.remap_value_ids(|_| ValueId::new(2).unwrap());
-    let foreign = terminal_codec::canonical_proposition_order_key(&foreign).unwrap();
+    let foreign = canonical_proposition_order_key(&foreign).unwrap();
     bytes.truncate(bytes.len() - predicate_length - 8);
     bytes.extend_from_slice(&u64::try_from(foreign.len()).unwrap().to_le_bytes());
     bytes.extend_from_slice(&foreign);
@@ -313,9 +313,7 @@ fn byte_view_type_round_trip_retains_its_access() {
             scalar_restriction: None,
             id: StructuralTypeId::new(7).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(5),
-            shape: StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { access },
-            ),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }),
         };
         let mut bytes = Vec::new();
         encode_type(&mut bytes, &declaration).unwrap();
