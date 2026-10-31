@@ -43,9 +43,7 @@ pub(super) fn packages(
         .ok_or(PackagePolicyChangeError::AllocationFailed)?;
     budget.package_slots(count)?;
     let mut packages = Vec::new();
-    packages
-        .try_reserve_exact(count)
-        .map_err(|_| PackagePolicyChangeError::AllocationFailed)?;
+    super::limits::reserve(&mut packages, count)?;
     let (mut old_index, mut new_index) = (0, 0);
     let (mut old_occurrence_index, mut new_occurrence_index) = (0, 0);
     while old_index < old_sources.len() || new_index < new_sources.len() {
@@ -77,14 +75,10 @@ pub(super) fn packages(
         new_occurrence_index += new_count;
         budget.slots::<crate::lock::PackageCheckedContext>(old_count + new_count)?;
         let mut baseline_occurrence_contexts = Vec::new();
-        baseline_occurrence_contexts
-            .try_reserve_exact(old_count)
-            .map_err(|_| PackagePolicyChangeError::AllocationFailed)?;
+        super::limits::reserve(&mut baseline_occurrence_contexts, old_count)?;
         baseline_occurrence_contexts.extend(baselines.iter().map(|value| value.context()));
         let mut candidate_occurrence_contexts = Vec::new();
-        candidate_occurrence_contexts
-            .try_reserve_exact(new_count)
-            .map_err(|_| PackagePolicyChangeError::AllocationFailed)?;
+        super::limits::reserve(&mut candidate_occurrence_contexts, new_count)?;
         candidate_occurrence_contexts.extend(
             candidate_reviews
                 .iter()

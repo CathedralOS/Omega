@@ -27,14 +27,10 @@ impl<'a> Paths<'a> {
         budget.slots::<Option<usize>>(packages.len())?;
         budget.slots::<usize>(packages.len())?;
         let mut parents = Vec::new();
-        parents
-            .try_reserve_exact(packages.len())
-            .map_err(|_| Error::AllocationFailed)?;
+        super::limits::reserve(&mut parents, packages.len())?;
         parents.resize(packages.len(), None);
         let mut queue = Vec::new();
-        queue
-            .try_reserve_exact(packages.len())
-            .map_err(|_| Error::AllocationFailed)?;
+        super::limits::reserve(&mut queue, packages.len())?;
         queue.push(root);
         let mut position = 0;
         let edges = subject.dependency_requests();
@@ -102,9 +98,7 @@ impl<'a> Paths<'a> {
         }
         budget.slots::<PackagePolicyDependencyPathStep>(count)?;
         let mut steps = Vec::new();
-        steps
-            .try_reserve_exact(count)
-            .map_err(|_| Error::AllocationFailed)?;
+        super::limits::reserve(&mut steps, count)?;
         current = start;
         while current != self.root {
             let edge = self.edge(current, key)?;
