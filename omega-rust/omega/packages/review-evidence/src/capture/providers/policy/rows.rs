@@ -132,12 +132,7 @@ fn validate_lifetime_partition(
             Err(rejected("non-trait row retains a trait lifetime partition"))
         };
     };
-    let machines = compilation
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == realization)
-        .collect::<Vec<_>>();
-    let [machine] = machines.as_slice() else {
+    let Some(machine) = compilation.exact_machine(realization) else {
         return Err(rejected(
             "lifetime partition has no exact realization machine",
         ));

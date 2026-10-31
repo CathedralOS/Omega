@@ -20,6 +20,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::operator;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use validation::expression_traversal::collect_expression_tree;
 
 struct Capture {
     symbol: SymbolHandle,
@@ -72,11 +73,7 @@ pub(super) fn adapt(program: &TypedTrees, updates: &mut [InferredUpdate]) {
             for statement in statements {
                 for (_, root) in program.tables.expression_roots(statement) {
                     if root.is_valid() {
-                        validation::expression_traversal::collect_expression_tree(
-                            program,
-                            root,
-                            &mut expressions,
-                        );
+                        collect_expression_tree(program, root, &mut expressions);
                     }
                 }
             }

@@ -910,23 +910,6 @@ impl BuildTimeAdmissionPlan {
             .map_err(String::from)
     }
 
-    /// Return the exact checked-machine closure admitted for one compiler
-    /// invocation. The root is included. Consumers may commit this set beside
-    /// a decoded result, but must still derive stable symbol and source
-    /// identities rather than persisting arena handles.
-    pub fn admitted_machine_closure_symbols(
-        &self,
-        program: &TypedTrees,
-        machine_symbol: SymbolHandle,
-        custody: BuildTimeInvocationCustody,
-    ) -> Result<Vec<SymbolHandle>, String> {
-        self.admitted_program_machine_closure_symbols(
-            BuildTimeProgram::Typed(program),
-            machine_symbol,
-            custody,
-        )
-    }
-
     pub fn admitted_program_machine_closure_symbols(
         &self,
         input: BuildTimeProgram<'_>,

@@ -42,10 +42,7 @@ pub fn lower_float_meaning_projection(
     let source = match checked.source {
         CheckedFloatProjectionSource::TransitionalInput(input) => {
             let format = projection_format(input.primitive)?;
-            FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                id: FloatProjectionInputId(input.id.0),
-                format,
-            })
+            transitional_input(input.id.0, format)
         }
         CheckedFloatProjectionSource::DirectMachineParameter(parameter) => {
             let format = projection_format(parameter.fallback.primitive)?;
@@ -58,10 +55,7 @@ pub fn lower_float_meaning_projection(
                 Some(_) => {
                     return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier);
                 }
-                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                    id: FloatProjectionInputId(parameter.fallback.id.0),
-                    format,
-                }),
+                None => transitional_input(parameter.fallback.id.0, format),
             }
         }
         CheckedFloatProjectionSource::DirectMachineResult(result) => {
@@ -73,10 +67,7 @@ pub fn lower_float_meaning_projection(
                     FloatMeaningSource::DirectMachineResult(result)
                 }
                 Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                    id: FloatProjectionInputId(result.fallback.id.0),
-                    format,
-                }),
+                None => transitional_input(result.fallback.id.0, format),
             }
         }
         CheckedFloatProjectionSource::DirectBlockParameter(parameter) => {
@@ -88,10 +79,7 @@ pub fn lower_float_meaning_projection(
                     FloatMeaningSource::DirectBlockParameter(parameter)
                 }
                 Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                    id: FloatProjectionInputId(parameter.fallback.id.0),
-                    format,
-                }),
+                None => transitional_input(parameter.fallback.id.0, format),
             }
         }
         CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => {
@@ -103,10 +91,7 @@ pub fn lower_float_meaning_projection(
                     FloatMeaningSource::DirectStructuralLeaf(direct)
                 }
                 Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                    id: FloatProjectionInputId(leaf.fallback.id.0),
-                    format,
-                }),
+                None => transitional_input(leaf.fallback.id.0, format),
             }
         }
         CheckedFloatProjectionSource::DirectCallResult(result) => {
@@ -116,10 +101,7 @@ pub fn lower_float_meaning_projection(
                     FloatMeaningSource::DirectCallResult(direct)
                 }
                 Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                    id: FloatProjectionInputId(result.fallback.id.0),
-                    format,
-                }),
+                None => transitional_input(result.fallback.id.0, format),
             }
         }
         CheckedFloatProjectionSource::DirectOperationResult(result) => {
@@ -131,10 +113,7 @@ pub fn lower_float_meaning_projection(
                     FloatMeaningSource::DirectOperationResult(direct)
                 }
                 Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-                    id: FloatProjectionInputId(result.fallback.id.0),
-                    format,
-                }),
+                None => transitional_input(result.fallback.id.0, format),
             }
         }
         CheckedFloatProjectionSource::ExactBinary32Literal(bits) => {
@@ -606,6 +585,13 @@ pub(crate) fn rejoin_float_semantic_applications(
 
 /// The IEEE format a float projection's carrier primitive fixes, or the
 /// invalid-source rejection a non-float carrier reports.
+fn transitional_input(id: u32, format: IeeeFloatFormat) -> FloatMeaningSource {
+    FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+        id: FloatProjectionInputId(id),
+        format,
+    })
+}
+
 fn projection_format(
     primitive: PrimitiveType,
 ) -> Result<IeeeFloatFormat, FloatMeaningProjectionLoweringError> {

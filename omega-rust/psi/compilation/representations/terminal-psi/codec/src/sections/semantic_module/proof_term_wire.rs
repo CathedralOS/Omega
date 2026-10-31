@@ -107,7 +107,8 @@ fn encode_proof_term(
             }
             writer.len("proof term fields", fields.len())?;
             for field in fields {
-                encode_proof_term_field(writer, field, depth + 1)?;
+                writer.string("proof term field identity", &field.field_identity)?;
+                encode_proof_term(writer, &field.term, depth + 1)?;
             }
         }
         ProofTerm::Array {
@@ -135,15 +136,6 @@ fn encode_proof_term(
         }
     }
     Ok(())
-}
-
-fn encode_proof_term_field(
-    writer: &mut Writer,
-    field: &ProofTermField,
-    depth: usize,
-) -> Result<(), CodecError> {
-    writer.string("proof term field identity", &field.field_identity)?;
-    encode_proof_term(writer, &field.term, depth)
 }
 
 pub(crate) fn decode_proof_terms(reader: &mut Reader<'_>) -> Result<Vec<ProofTerm>, CodecError> {

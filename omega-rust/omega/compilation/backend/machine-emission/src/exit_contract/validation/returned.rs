@@ -1,8 +1,9 @@
 //! Check one claimed return directly against its selected, physical, and byte facts.
 
 use super::super::{
-    WholeFunctionExitContractError, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence,
+    WholeFunctionExitContractError,
+    WholeFunctionExitContractError::{ArtifactMismatch, OffsetOverflow, ReturnEncodingMismatch},
+    WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 use super::{context::Context, require};
 use machine_code::ResolvedSelectedFormRow;
@@ -40,23 +41,16 @@ pub(super) fn check(
             && layout.branch.is_none(),
     )?;
     if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
-        return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
-            selected.id,
-        ));
+        return Err(ReturnEncodingMismatch(selected.id));
     }
     let Some((bytes, footprint)) = encoded.encoded(encoding) else {
-        return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
-            selected.id,
-        ));
+        return Err(ReturnEncodingMismatch(selected.id));
     };
     require(bytes == claimed.bytes && footprint.encoded == machine.alternative.encoded)?;
     let actual_end = claimed
         .offset
-        .checked_add(
-            u64::try_from(claimed.bytes.len())
-                .map_err(|_| WholeFunctionExitContractError::OffsetOverflow)?,
-        )
-        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+        .checked_add(u64::try_from(claimed.bytes.len()).map_err(|_| OffsetOverflow)?)
+        .ok_or(OffsetOverflow)?;
     require(actual_end == end)?;
     match (&claimed.value, selected.kind) {
         (
@@ -118,7 +112,7 @@ pub(super) fn check(
                     && units == &operand.storage_units,
             )?;
         }
-        _ => return Err(WholeFunctionExitContractError::ArtifactMismatch),
+        _ => return Err(ArtifactMismatch),
     }
     let effects = &footprint.encoded;
     require(
@@ -171,7 +165,7 @@ pub(super) fn check(
                         },
             )?;
         }
-        _ => return Err(WholeFunctionExitContractError::ArtifactMismatch),
+        _ => return Err(ArtifactMismatch),
     }
     Ok(())
 }

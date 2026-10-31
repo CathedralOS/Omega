@@ -122,41 +122,6 @@ pub(crate) fn first_occurrence_normalized(ordinals: &[u32]) -> Vec<u32> {
         .collect()
 }
 
-impl SelectionRequirement {
-    /// The contract family each member selection must refine, canonicalized
-    /// from the resolved trait declaration. `requirement` optionally pins one
-    /// exact requirement signature of the trait.
-    pub fn for_trait(
-        typed: &TypedTrees,
-        trait_symbol: SymbolHandle,
-        requirement: Option<SymbolHandle>,
-    ) -> Result<Self, String> {
-        let definition = typed
-            .trait_definition_by_symbol(trait_symbol)
-            .ok_or_else(|| "a selection requirement names an exact trait declaration".to_owned())?;
-        let requirement_identity = match requirement {
-            Some(symbol) => {
-                if !typed
-                    .trait_machine_signature_by_symbol(definition, symbol)
-                    .is_some()
-                {
-                    return Err(
-                        "a selection requirement pins an exact requirement signature of its trait"
-                            .to_owned(),
-                    );
-                }
-                Some(exact_symbol_identity(typed, symbol)?.0)
-            }
-            None => None,
-        };
-        Ok(Self {
-            trait_identity: exact_symbol_identity(typed, trait_symbol)?.0,
-            requirement_identity,
-            trait_application: None,
-        })
-    }
-}
-
 /// One recorded choice for a member: an exact static declaration or an
 /// explicit exclusion.
 #[derive(Debug, Clone, PartialEq, Eq)]

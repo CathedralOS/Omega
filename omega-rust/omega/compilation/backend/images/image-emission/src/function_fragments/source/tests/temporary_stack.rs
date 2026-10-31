@@ -56,13 +56,6 @@ fn function(machine: u64) -> SelectedFunction {
     }
 }
 
-fn alternative() -> MachineAlternativeKey {
-    MachineAlternativeKey {
-        family: MachineAlternativeFamily::CopyI64,
-        variant: 0,
-    }
-}
-
 fn encoding(peaks: &[u16]) -> (Vec<SelectedFormEncodingRow>, SelectedFormEncodedRowStore) {
     let mut store = SelectedFormEncodedRowStore::new();
     let mut rows = Vec::new();
@@ -89,7 +82,10 @@ fn encoding(peaks: &[u16]) -> (Vec<SelectedFormEncodingRow>, SelectedFormEncoded
             );
             rows.push(SelectedFormEncodingRow {
                 instruction: SelectedInstructionId(id),
-                alternative: alternative(),
+                alternative: MachineAlternativeKey {
+                    family: MachineAlternativeFamily::CopyI64,
+                    variant: 0,
+                },
                 machine_disposition: SelectedFormMachineDisposition::RetainedV1,
                 state: SelectedFormEncodingState::Encoded,
                 address: None,

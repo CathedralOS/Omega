@@ -31,7 +31,6 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
-use typed_trees::types::PrimitiveType;
 use typed_trees::wire::WirePlacement;
 
 mod policy_value;
@@ -63,10 +62,6 @@ impl FieldShape {
             Self::Repeated => "Repeated",
             Self::BorrowedScalarSlice { .. } => "Repeated",
         }
-    }
-
-    fn is_varint(self) -> bool {
-        matches!(self, Self::Scalar { .. })
     }
 }
 
@@ -104,7 +99,7 @@ pub(crate) fn compute_wire_plans_in(
             } else {
                 match typed.primitive_type_reference(field.type_reference) {
                     Some(primitive) => FieldShape::Scalar {
-                        byte_size: primitive_wire_size(primitive),
+                        byte_size: primitive.scalar_byte_size().unwrap_or(8) as u64,
                     },
                     // Not a scalar the codec can varint-encode: no plan for
                     // this schema (the selection's own blockers own the
@@ -140,7 +135,7 @@ pub(crate) fn compute_wire_plans_in(
             .iter()
             .map(|&(number, shape)| {
                 let tag = number;
-                if shape.is_varint() {
+                if matches!(shape, FieldShape::Scalar { .. }) {
                     WirePlacement::Varint { tag }
                 } else {
                     WirePlacement::LengthPrefixed { tag }
@@ -199,12 +194,4 @@ pub(crate) fn compute_wire_plans_in(
         typed.record_wire_schema_plan(schema, placements, obligations, policy_verified);
     }
     Ok(())
-}
-
-/// The wire size fact for a scalar primitive (informational for the policy;
-/// varint encoding does not depend on it). Non-scalars report 8,
-/// preserving the prior `_ => 8` fallback. Sizes come from the single source of
-/// truth on `PrimitiveType`.
-fn primitive_wire_size(primitive: PrimitiveType) -> u64 {
-    primitive.scalar_byte_size().unwrap_or(8) as u64
 }

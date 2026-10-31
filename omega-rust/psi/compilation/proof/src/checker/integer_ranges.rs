@@ -98,7 +98,14 @@ pub(crate) fn guarded_integer_range_for_transition_argument(
     // place, and through the `place +- K` refold.
     for refuted in &obligation.refuted_exit_guards {
         range = apply_handle_condition_complement(proof_plan, range, obligation.argument, *refuted);
-        range = complement_refined_binary_range(proof_plan, range, obligation.argument, *refuted);
+        range = place_refined_binary_range(
+            proof_plan,
+            range,
+            obligation.argument,
+            |plan, place_range, place| {
+                apply_handle_condition_complement(plan, place_range, place, *refuted)
+            },
+        );
     }
     range
 }
@@ -215,17 +222,6 @@ fn place_refined_binary_range(
         minimum: range.minimum.max(refolded.minimum),
         maximum: range.maximum.min(refolded.maximum),
     }
-}
-
-fn complement_refined_binary_range(
-    proof_plan: &ProofPlan,
-    range: IntegerRange,
-    value: ExpressionHandle,
-    refuted: ExpressionHandle,
-) -> IntegerRange {
-    place_refined_binary_range(proof_plan, range, value, |plan, place_range, place| {
-        apply_handle_condition_complement(plan, place_range, place, refuted)
-    })
 }
 
 argument_obligation_range!(

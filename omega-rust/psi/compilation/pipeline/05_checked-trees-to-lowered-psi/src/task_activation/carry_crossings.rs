@@ -175,7 +175,12 @@ fn live_carry_demand(
     }
     Ok(LiveCarryDemand {
         place: live_place_identity(typed, crossing, live),
-        value_type: live_type_identity(typed, live),
+        value_type: {
+            let mut hash = semantic_vocabulary::Fnv1a::new();
+            hash.byte(0x54);
+            hash.string_terminated(&typed.normalized_type_identity_text(live.type_reference));
+            hash.finish_or(1)
+        },
         storage: match live.storage {
             checked_trees::SuspensionCrossingStorage::Parameter => LiveCarryStorage::Parameter,
             checked_trees::SuspensionCrossingStorage::Local => LiveCarryStorage::Local,
@@ -224,18 +229,6 @@ fn live_place_identity(
             hash.usize(position);
         }
     }
-    hash.finish_or(1)
-}
-
-/// Stable identity of a live value's checked type: the canonical type
-/// identity string is already the normalized semantic coordinate.
-fn live_type_identity(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    live: &checked_trees::SuspensionCrossingLiveValueFact,
-) -> u64 {
-    let mut hash = semantic_vocabulary::Fnv1a::new();
-    hash.byte(0x54);
-    hash.string_terminated(&typed.normalized_type_identity_text(live.type_reference));
     hash.finish_or(1)
 }
 

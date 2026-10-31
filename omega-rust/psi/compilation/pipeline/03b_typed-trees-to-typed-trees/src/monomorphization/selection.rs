@@ -9,6 +9,7 @@
 use crate::tables::expressions_of;
 use validation::collect_expression_tree;
 use validation::collect_statement_expression_trees;
+use validation::expression_result_type_reference;
 
 mod callee_proposals;
 mod proposals;
@@ -105,12 +106,9 @@ pub(super) fn collect_call_proposals(
         // Place lookup strips a borrow to its referent and can infer T instead
         // of &T. The shared value query also covers declaration-backed leaves;
         // unresolved values supply no proposal, never an underlying-place guess.
-        let Some(actual) = validation::expression_result_type_reference(
-            program,
-            caller_machine,
-            caller_state,
-            *argument,
-        ) else {
+        let Some(actual) =
+            expression_result_type_reference(program, caller_machine, caller_state, *argument)
+        else {
             continue;
         };
         if !program

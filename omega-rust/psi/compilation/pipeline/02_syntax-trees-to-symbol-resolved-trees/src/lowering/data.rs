@@ -615,12 +615,6 @@ impl GenericCaseFactGate {
             || self.consts.contains(name)
             || self.values.contains(name)
     }
-
-    /// An expression `Name` leaf: only binders without a substitution refuse;
-    /// `const` binders arrive on the instance as their literal argument.
-    fn expression_mentions(&self, name: &str, const_mentions_allowed: bool) -> bool {
-        self.unsubstituted.contains(name) || (!const_mentions_allowed && self.consts.contains(name))
-    }
 }
 
 /// Whether any of a case's `where` facts names a parameter the synthesis copy
@@ -770,7 +764,9 @@ fn case_fact_expression_mentions(
             .identifier_path_members(*path)
             .iter()
             .any(|member| {
-                gate.expression_mentions(member.as_str(syntax_trees), const_mentions_allowed)
+                gate.unsubstituted.contains(member.as_str(syntax_trees))
+                    || (!const_mentions_allowed
+                        && gate.consts.contains(member.as_str(syntax_trees)))
             }),
         ExpressionNode::Binary(binary) => {
             mention_child!(binary.left) || mention_child!(binary.right)

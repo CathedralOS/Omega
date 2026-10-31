@@ -144,11 +144,14 @@ fn prove(
         });
     };
     let Some(range) = authored_range else {
-        let membership_and_pinning = matches!(
-            measure,
-            RankingRangeMeasure::Distance { .. } | RankingRangeMeasure::IncreasingTo { .. }
-        ) || engine
-            .prove_at_least(&engine.substituted(&rank.value), &BigInt::zero());
+        let membership_and_pinning =
+            matches!(
+                measure,
+                RankingRangeMeasure::Distance { .. } | RankingRangeMeasure::IncreasingTo { .. }
+            ) || (engine.prove_at_least(
+                &engine.substituted(&rank.value.sub(&super::rank_minimum(measure)?)),
+                &BigInt::zero(),
+            ) && super::calls::forms_in_carrier(&engine, measure, &rank.value));
         return Some(super::RankingRangeEntryProof {
             membership_and_pinning,
             application: application.filter(|_| membership_and_pinning),

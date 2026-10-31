@@ -18,15 +18,11 @@ impl FunctionFragmentReplayInputs {
     pub(crate) fn fixed_frame(&self) -> &StagedFixedFrameFunctionRelativeRealization {
         &self.realization
     }
-}
 
-impl FunctionFragmentReplayInputs {
     fn allocation(&self) -> &selected_instructions_to_register_homes::RetainedAllocation {
         self.realization.allocation()
     }
-}
 
-impl FunctionFragmentReplayInputs {
     pub fn machine(
         &self,
     ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
@@ -67,9 +63,7 @@ impl FunctionFragmentReplayInputs {
     ) -> &selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest {
         self.allocation().current().post_allocation_manifest()
     }
-}
 
-impl FunctionFragmentReplayInputs {
     pub fn shared_selected_plan(
         &self,
     ) -> std::sync::Arc<selected_instructions::SelectedInstructionPlan> {

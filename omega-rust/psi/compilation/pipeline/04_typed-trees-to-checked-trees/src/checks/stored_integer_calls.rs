@@ -491,7 +491,7 @@ impl<'a> Admission<'a> {
                     .state_local_declaration(state, root)
                     .map(|(_, local)| local.type_reference)
             })?;
-        if is_reference(self.program, reference)
+        if crate::checks::type_reference_is_reference(self.program, reference)
             || !validation::has_contents(
                 self.program,
                 reference,
@@ -571,7 +571,7 @@ impl<'a> Admission<'a> {
             let parameter = &parameters[position];
             let actuals = actual_origins(parameters, position, &invocation.origins)
                 .ok_or("callee destination actual has unknown storage origins")?;
-            if !is_reference(self.program, parameter.type_reference) {
+            if !crate::checks::type_reference_is_reference(self.program, parameter.type_reference) {
                 if actuals.is_empty() {
                     continue;
                 }
@@ -845,21 +845,6 @@ fn actual_origins<'a>(
 ) -> Option<&'a [LocalWriteSource]> {
     parameters.get(position)?;
     origins.arguments.get(position)?.as_deref()
-}
-
-fn is_reference(
-    program: &dyn ::validation::CheckingInput,
-    mut reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type
-            }
-            typed_trees::types::TypeReferenceNode::Reference { .. } => return true,
-            _ => return false,
-        }
-    }
 }
 
 fn same_source(left: &LocalWriteSource, right: &LocalWriteSource) -> bool {

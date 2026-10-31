@@ -25,7 +25,7 @@ pub(super) fn project_named_const_static_argument(
     else {
         return Err(rejected("without an admitted canonical public value"));
     };
-    let Some(decoded) = decode_canonical_const_value(encoding) else {
+    let Some(decoded) = CanonicalConstValue::new("", encoding, "").decode_encoding() else {
         return Err(rejected("with a malformed canonical value encoding"));
     };
     validation::validate_exact_const_value_encoding(
@@ -74,10 +74,6 @@ pub(super) fn project_named_const_static_argument(
         )?,
         canonical_value_encoding: encoding.to_owned(),
     })
-}
-
-fn decode_canonical_const_value(encoding: &str) -> Option<DecodedCanonicalConstValue> {
-    CanonicalConstValue::new("", encoding, "").decode_encoding()
 }
 
 fn canonical_integer_type_name(type_name: &str) -> bool {

@@ -870,14 +870,19 @@ fn carrier_satisfies_declared_bounds(
     carrier: &str,
     bounds: &syntax_trees::item::DataProperties,
 ) -> bool {
-    let properties = primitive_scalar_properties(carrier).or_else(|| {
-        syntax.root_items().find_map(|item| match item {
-            Item::Data(definition) if definition.name.as_str(syntax) == carrier => {
-                Some(definition.properties)
-            }
-            _ => None,
+    let properties = crate::constant::is_builtin_scalar_carrier(carrier)
+        .then_some(syntax_trees::item::DataProperties {
+            multiplicity: language_core::Multiplicity::Unrestricted,
+            carry: Some(language_core::CarryPolicy::PERMISSIVE),
         })
-    });
+        .or_else(|| {
+            syntax.root_items().find_map(|item| match item {
+                Item::Data(definition) if definition.name.as_str(syntax) == carrier => {
+                    Some(definition.properties)
+                }
+                _ => None,
+            })
+        });
     let Some(properties) = properties else {
         return false;
     };
@@ -903,15 +908,6 @@ fn carrier_satisfies_declared_bounds(
         }
     }
     true
-}
-
-/// The declared properties every builtin scalar spelling answers: primitives
-/// copy freely and carry every axis permissively.
-fn primitive_scalar_properties(name: &str) -> Option<syntax_trees::item::DataProperties> {
-    crate::constant::is_builtin_scalar_carrier(name).then_some(syntax_trees::item::DataProperties {
-        multiplicity: language_core::Multiplicity::Unrestricted,
-        carry: Some(language_core::CarryPolicy::PERMISSIVE),
-    })
 }
 
 /// Replay one already-selected domain declaration's facts against `value`

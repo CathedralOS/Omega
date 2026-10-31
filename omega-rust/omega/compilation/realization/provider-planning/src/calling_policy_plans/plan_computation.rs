@@ -330,6 +330,11 @@ fn evaluate_selected_materialized_calling_policy_plan(
         .map_err(CallingPolicyRejection::from)
 }
 
+/// The zero-valued case an absent optional boundary field decodes to.
+fn zero_case(variant: &str, field: &str) -> BuildTimeValue {
+    case(variant, vec![(field.to_owned(), BuildTimeValue::Int(0))])
+}
+
 pub(crate) fn build_boundary_signature(
     signature: &MaterializedBoundarySignature,
 ) -> BuildTimeValue {
@@ -402,12 +407,7 @@ pub(crate) fn build_boundary_signature(
                 (
                     "origin".to_owned(),
                     parameter.map_or_else(
-                        || {
-                            case(
-                                "NativeParameterOrigin::SemanticFormal",
-                                vec![("formal_ordinal".to_owned(), BuildTimeValue::Int(0))],
-                            )
-                        },
+                        || zero_case("NativeParameterOrigin::SemanticFormal", "formal_ordinal"),
                         |row| match row.origin {
                             BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => {
                                 case(
@@ -440,12 +440,7 @@ pub(crate) fn build_boundary_signature(
                 (
                     "shape".to_owned(),
                     parameter.map_or_else(
-                        || {
-                            case(
-                                "NativeParameterShape::Semantic",
-                                vec![("root".to_owned(), BuildTimeValue::Int(0))],
-                            )
-                        },
+                        || zero_case("NativeParameterShape::Semantic", "root"),
                         |row| match row.shape {
                             BoundaryNativeParameterShape::Semantic(root) => case(
                                 "NativeParameterShape::Semantic",
@@ -482,12 +477,7 @@ pub(crate) fn build_boundary_signature(
                 (
                     "destination".to_owned(),
                     demand.map_or_else(
-                        || {
-                            case(
-                                "NativePlace::Parameter",
-                                vec![("parameter".to_owned(), BuildTimeValue::Int(0))],
-                            )
-                        },
+                        || zero_case("NativePlace::Parameter", "parameter"),
                         |row| build_native_place(&row.destination),
                     ),
                 ),

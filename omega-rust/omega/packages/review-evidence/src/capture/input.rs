@@ -60,6 +60,21 @@ impl<'a> PackageReviewInput<'a> {
         }
     }
 
+    /// The one checked machine a retained symbol names. Machine symbols form a
+    /// source-graph set, so a duplicate is not a choice: a caller that needs one
+    /// machine states its own refusal, both for absence and for ambiguity.
+    pub(crate) fn exact_machine(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&typed_trees::machine::Machine> {
+        let mut machines = self
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == symbol);
+        let only = machines.next()?;
+        machines.next().is_none().then_some(only)
+    }
+
     /// Prepare one independent candidate projection at review ingress. Custody
     /// already owns its projection from checked-provider binding.
     pub(super) fn project_external_providers(

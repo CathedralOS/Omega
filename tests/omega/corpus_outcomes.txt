@@ -185,7 +185,7 @@ fail/facts/nested_machine_joint_rank_authored_indexed_hidden_intermediate_overfl
 	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_authored_indexed_missing_selector_bound rejected 477ms expected @be61262f3842
 	cannot form specification index in machine `count` requires contract: independent collection bounds are not established by preceding formed facts
-fail/facts/nested_machine_joint_rank_authored_indexed_reset_before_decrease rejected 1177ms expected @be61262f3842
+fail/facts/nested_machine_joint_rank_authored_indexed_reset_before_decrease rejected 5199ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_authored_indexed_wrong_field_write rejected 1210ms expected @be61262f3842
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -237,7 +237,7 @@ fail/facts/nested_machine_joint_rank_complement_other_state_rejected rejected 11
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_complement_parameter_rejected rejected 1137ms expected @248d6dbf7291
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_complement_reverse_descent_rejected rejected 1125ms expected @248d6dbf7291
+fail/facts/nested_machine_joint_rank_complement_reverse_descent_rejected rejected 3573ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_complement_target_body_rejected rejected 1108ms expected @248d6dbf7291
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -450,7 +450,7 @@ fail/facts/nested_machine_joint_rank_remainder_proof_acyclic_overflow rejected 1
 	terminating machine erased: cannot prove rank range `0..=1` for the rank produced by the selected view
 fail/facts/nested_machine_joint_rank_remainder_proof_flat rejected 738ms expected @30a668a64c1c+wt
 	`erased(..)` cannot prove the measure `remaining` structurally decreases at this self-call: the call does not prove a strict predecessor of ranking subject `remaining`. Pass a case-payload subterm (`Nat::Succ { prev } -> .. erased(prev)`) or, for an integer measure, `n - 1` in the taken value of its dominating `n > 0` arm; a slice-length measure admits `items[1..]` under its own nonempty guard
-fail/facts/nested_machine_joint_rank_remainder_rollover rejected 1222ms expected @30a668a64c1c+wt
+fail/facts/nested_machine_joint_rank_remainder_rollover rejected 3158ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_remainder_target_body_rejected rejected 1200ms expected @30a668a64c1c+wt
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -470,7 +470,7 @@ fail/facts/nested_machine_joint_rank_structured_local_rejected rejected 2676ms e
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structured_match_join_rejected rejected 3668ms expected @d4217dd821a4+wt
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_structured_nonmonotone_rejected rejected 3137ms expected @d4217dd821a4+wt
+fail/facts/nested_machine_joint_rank_structured_nonmonotone_rejected rejected 2949ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structured_other_machine_rejected rejected 4376ms expected @d4217dd821a4+wt
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -488,6 +488,34 @@ fail/facts/nested_machine_joint_rank_structured_target_body_rejected rejected 28
 fail/facts/nested_machine_joint_rank_structured_wrong_guard_rejected rejected 1960ms expected @d4217dd821a4+wt
 	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
 	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_call_result_rejected rejected 3345ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_const_name_rejected rejected 4490ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_excluded_negative_arrival_rejected rejected 4963ms expected @db757705d687
+	terminating machine count: cannot prove rank range `0..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_field_rejected rejected 4394ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_implicit_conversion_rejected rejected 2920ms expected @db757705d687
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_local_rejected rejected 2446ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_match_join_rejected rejected 2297ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_other_machine_rejected rejected 3472ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_other_state_rejected rejected 2603ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_parameter_rejected rejected 2225ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_preserving_below_zero_rejected rejected 2552ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_target_body_rejected rejected 1677ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_unsafe_below_minimum_rejected rejected 844ms expected @db757705d687
+	Exact integer cast in machine `rank` state `entry` from `i64` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/projection_receiver_call_through_call_result_rejected rejected 1669ms expected @73c70115c79e+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/projection_receiver_call_through_const_name_rejected rejected 2261ms expected @73c70115c79e+wt
@@ -7130,6 +7158,20 @@ pass/facts/nested_machine_private_cyclic_target_body_exit checked 4276ms check-t
 pass/facts/nested_machine_private_cyclic_unrelated_builtin_exit checked 3678ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_reference_payload_common_reference checked 1052ms check-target:macos_arm64 @e6e03afc61d6
 pass/facts/nested_machine_reference_payload_reseated_payload_reference checked 1043ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_signed_rank_call_result_exit checked 5351ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_const_name_exit checked 5321ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_field_exit checked 3796ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_local_exit checked 4348ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_lower_endpoint_exit checked 3638ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_match_join_exit checked 5706ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_no_authored_range_exit checked 3914ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_other_machine_exit checked 6236ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_other_state_exit checked 3735ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_parameter_exit checked 6841ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_probe_exit checked 2583ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_signed_forward_exit checked 4013ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_signed_input_exit checked 6829ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_target_body_exit checked 3891ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_statement_completion_call_result_exit checked 12025ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_statement_completion_const_name_exit checked 12499ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_statement_completion_field_exit checked 12224ms check-target:macos_arm64 @ccdb99ca2214
@@ -38702,7 +38744,7 @@ fail/termination/computed_measure_non_monotone_body rejected 845ms expected @30a
 fail/termination/computed_measure_rank_range_overflow rejected 2144ms expected @ccdb99ca2214
 	terminating machine walk: cannot prove rank range `0..=400` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/computed_rank_guard_write rejected 1574ms expected @be61262f3842
+fail/termination/computed_rank_guard_write rejected 1952ms expected @db757705d687
 	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 	machine call cycle: `retain_counted$specialized$a095a17ef6fb648a$0` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/computed_rank_no_decrease rejected 3000ms expected @ccdb99ca2214

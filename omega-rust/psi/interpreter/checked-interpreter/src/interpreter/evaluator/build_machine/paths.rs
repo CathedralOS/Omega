@@ -234,7 +234,7 @@ impl<'program> Evaluator<'program> {
         expression: ExpressionHandle,
         frame: &mut Frame,
     ) -> EvalResult<Vec<u8>> {
-        self.eval_byte_data_operand(expression, frame, "build-root path", "build-root path")
+        self.eval_byte_data_operand(expression, frame, "build-root path")
     }
 
     fn include_build_source(

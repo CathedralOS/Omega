@@ -58,16 +58,6 @@ impl<'request> PreparationRequest<'request> {
         }
     }
 
-    /// Exact applications whose physical judgments belong to the retained
-    /// target-value continuation. All other source checks remain settled.
-    pub fn with_deferred_layout_applications(
-        mut self,
-        applications: &'request [typed_trees::types::TypeReferenceHandle],
-    ) -> Self {
-        self.deferred_layout_applications = applications;
-        self
-    }
-
     /// Admit privileged instructions against this invocation's evaluated Build.
     pub const fn with_asm_authority(
         mut self,
@@ -137,19 +127,6 @@ impl PreparationRequest<'_> {
 }
 
 impl PreparationAdmission {
-    /// Require validated geometry while preserving the source continuation's
-    /// pending constants. Their predicates discharge per target afterwards.
-    pub fn layout_settled_request(&self) -> PreparationRequest<'_> {
-        PreparationRequest {
-            admits_pending_inputs: self.admits_pending_inputs,
-            deferred_layout_applications: &[],
-            asm_authority: self.asm_authority,
-            opaque_property_receipts: &self.opaque_property_receipts,
-            opaque_representation_selections: &self.opaque_representation_selections,
-            wire_compatibility_demands: &self.wire_compatibility_demands,
-        }
-    }
-
     pub fn deferred_layout_applications(&self) -> &[typed_trees::types::TypeReferenceHandle] {
         &self.deferred_layout_applications
     }

@@ -3,6 +3,7 @@
 use super::{Diagnostic, TypedTrees};
 use crate::tables::expressions_of_mut;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+use validation::conformance_applications::close_conformance_application;
 
 pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let occurrences = typed_trees::references::collect_authored_program_type_occurrences(program);
@@ -55,9 +56,7 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         {
             continue;
         }
-        let application = match validation::conformance_applications::close_conformance_application(
-            program, &operand,
-        ) {
+        let application = match close_conformance_application(program, &operand) {
             Ok(application) => application,
             // Ordinary source formation diagnoses a wrong or open selection;
             // no executable demand may be manufactured for it here.

@@ -10,6 +10,7 @@
 //! that binder's own requirement call, `Order::compare(left, right)`, which
 //! specialization binds.
 
+use crate::monomorphization::insert_subject_name;
 use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
@@ -244,16 +245,11 @@ pub(crate) fn route_explicit_requirement_calls(
     for rewrite in rewrites {
         match rewrite.call.site {
             RequirementCallSite::Expression(handle) => {
-                let receiver = rewrite.implementation_receiver.map_or_else(
-                    ExpressionHandle::invalid,
-                    |(name, binder)| {
-                        crate::monomorphization::insert_subject_name(
-                            expressions_of_mut(program),
-                            name,
-                            binder,
-                        )
-                    },
-                );
+                let receiver = rewrite
+                    .implementation_receiver
+                    .map_or_else(ExpressionHandle::invalid, |(name, binder)| {
+                        insert_subject_name(expressions_of_mut(program), name, binder)
+                    });
                 let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
                 else {
                     continue;

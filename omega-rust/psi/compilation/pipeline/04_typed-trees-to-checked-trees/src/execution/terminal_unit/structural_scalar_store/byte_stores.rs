@@ -5,7 +5,6 @@
 //! the same owners as every other store.
 use super::super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, ExpressionNode, Multiplicity,
-    TypeReferenceNode,
 };
 use super::destination::Root;
 use super::value::{self, AssignmentSource};
@@ -529,19 +528,10 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
 /// while the Reference node still exists.
 pub(super) fn field_view_is_mutable(
     program: &dyn ::validation::CheckingInput,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                type_reference = *base_type;
-            }
-            TypeReferenceNode::Reference { access, .. } => {
-                return *access == language_semantics::ReferenceAccess::Mutable;
-            }
-            _ => return false,
-        }
-    }
+    crate::checks::reference_access(program, type_reference)
+        .is_some_and(|access| access == language_semantics::ReferenceAccess::Mutable)
 }
 
 /// The index, value and decisions an indexed byte store evaluates against one

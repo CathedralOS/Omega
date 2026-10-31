@@ -401,7 +401,7 @@ pub(super) fn stage_realization(
 ) -> Result<(), Vec<Diagnostic>> {
     if let Some(existing) = staged
         .iter_mut()
-        .find(|existing| same_application_key(&existing.row, &row))
+        .find(|existing| application_key(&existing.row) == application_key(&row))
     {
         if existing.row != row {
             return Err(vec![Diagnostic::error(format!(
@@ -538,13 +538,6 @@ pub(super) fn token_authored_use_kind(
         })
         .and_then(|operator| operator.spelling)
         .map(selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken)
-}
-
-fn same_application_key(
-    left: &CheckedPackageBoundaryApplicationRealizationReview,
-    right: &CheckedPackageBoundaryApplicationRealizationReview,
-) -> bool {
-    application_key(left) == application_key(right)
 }
 
 fn application_key(
