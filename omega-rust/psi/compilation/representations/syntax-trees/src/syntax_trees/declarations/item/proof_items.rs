@@ -25,13 +25,9 @@ pub enum PropositionBody {
     /// Owner-declared fact with no recoverable witness interface.
     Primitive,
     /// Exactly one owner-authorized carrierless evidence interface.
-    Witness {
-        evidence: crate::types::TypeReferenceHandle,
-    },
+    Witness { evidence: TypeReferenceHandle },
     /// Source/debug alias expanded before normalized semantic identity.
-    Transparent {
-        proposition: crate::expression::ExpressionHandle,
-    },
+    Transparent { proposition: ExpressionHandle },
 }
 
 /// A top-level mathematical declaration: `let` (a transparent checked term
@@ -83,7 +79,7 @@ pub enum MathematicalDefinitionBody {
     /// `= term;` — a transparent checked term definition. Substitution of a
     /// use site with this exact term is the declaration's meaning; nothing
     /// executable is implied by it.
-    Definition(crate::expression::ExpressionHandle),
+    Definition(ExpressionHandle),
     /// `boundary let ...;` — the bodyless named-assumption form. Its term and
     /// transitive dependencies require the receiver's admission, keyed on
     /// this declaration's exact identity; it is never an
@@ -95,7 +91,7 @@ impl Default for MathematicalDefinitionBody {
     fn default() -> Self {
         // A definition with an invalid term — an unusable placeholder, never
         // mistaken for a real assumption's authority.
-        Self::Definition(crate::expression::ExpressionHandle::invalid())
+        Self::Definition(ExpressionHandle::invalid())
     }
 }
 
@@ -123,7 +119,7 @@ pub struct MathematicalParameterNode {
 pub enum MathematicalTypeNode {
     /// An ordinary type reference — `i32`, `A`, `core::Type<u>`,
     /// `core::Squash<A>`.
-    Ordinary(crate::types::TypeReferenceHandle),
+    Ordinary(TypeReferenceHandle),
     /// `A -> B` or `(value: A) -> F(value)` — a dependent function type
     /// (mathematical_bindings.md: arrow types are dependent Π-types). `->`
     /// associates right, and `binder` scopes over the codomain only.
@@ -140,13 +136,13 @@ pub enum MathematicalTypeNode {
     /// here for the resolution leg to elaborate.
     Application {
         callee: MathematicalTypeHandle,
-        arguments: HandleSpan<crate::expression::ExpressionHandle>,
+        arguments: HandleSpan<ExpressionHandle>,
     },
 }
 
 impl Default for MathematicalTypeNode {
     fn default() -> Self {
-        Self::Ordinary(crate::types::TypeReferenceHandle::invalid())
+        Self::Ordinary(TypeReferenceHandle::invalid())
     }
 }
 
@@ -165,12 +161,12 @@ pub struct MeasureDefinition {
     /// The single parameter being measured (e.g. `card: Card`).
     pub parameter: StateParameterHandle,
     /// Well-founded domain type, always `usize` for now.
-    pub return_type: crate::types::TypeReferenceHandle,
+    pub return_type: TypeReferenceHandle,
     /// `true` when declared with the `lexicographic { .. }` body form.
     pub lexicographic: bool,
     /// Body component expressions: exactly one for the simple form, or the
     /// ordered tuple of components for the lexicographic form.
-    pub body: HandleSpan<crate::expression::ExpressionHandle>,
+    pub body: HandleSpan<ExpressionHandle>,
     pub token_count: usize,
 }
 
@@ -183,24 +179,24 @@ pub struct MeasureDefinition {
     compiler_storage::Record,
 )]
 pub enum ProofFact {
-    Expression(crate::expression::ExpressionHandle),
+    Expression(ExpressionHandle),
     Membership(ProofMembershipFact),
 }
 
 impl Default for ProofFact {
     fn default() -> Self {
-        Self::Expression(crate::expression::ExpressionHandle::invalid())
+        Self::Expression(ExpressionHandle::invalid())
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct ProofMembershipFact {
-    pub value: crate::expression::ExpressionHandle,
+    pub value: ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
     /// Indexed domain application after the path (`value in Resident<P, T>`),
     /// read with the same type-position grammar a domain constraint uses.
     /// Empty for an unindexed membership.
-    pub domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+    pub domain_arguments: HandleSpan<TypeReferenceHandle>,
 }
 
 /// One `satisfies` binding on a machine (rearrange settle 2026-07-18):
@@ -218,7 +214,7 @@ pub struct SatisfiesClause {
     /// order. These remain source names until the realizing machine telescope
     /// is available during typed lowering.
     pub lifetime_arguments: Vec<Identifier>,
-    pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+    pub arguments: HandleSpan<TypeReferenceHandle>,
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
     /// Transitional bootstrap spelling parsed as the old compiler-known
@@ -230,7 +226,7 @@ pub struct SatisfiesClause {
     /// admits one exact zero-argument direct machine call whose closed
     /// compiler-owned `Binding` result is evaluated hermetically. Invalid
     /// means this clause used no ordinary expression (or used `via`).
-    pub via_expression: crate::expression::ExpressionHandle,
+    pub via_expression: ExpressionHandle,
     /// Exact authored `via` keyword occurrence. This is explanatory custody
     /// for package review, independent from the interned binding identity.
     pub via_keyword_source_span: Option<source::SourceSpan>,
@@ -247,5 +243,5 @@ pub struct SatisfiesClause {
 pub struct GenericConformanceBound {
     pub binder: Identifier,
     pub trait_name: Identifier,
-    pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+    pub arguments: HandleSpan<TypeReferenceHandle>,
 }
