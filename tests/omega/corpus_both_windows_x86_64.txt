@@ -2138,6 +2138,15 @@ pass/facts/atomic_compare_exchange_once_through_other_state_exit built 2740ms ex
 pass/facts/atomic_compare_exchange_once_through_parameter_exit built 2739ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/atomic_compare_exchange_once_through_target_body_exit built 2756ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/atomic_compare_exchange_once_wide_exit built 2463ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/atomic_operand_carrier_once_call_result_exit built 7171ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
+pass/facts/atomic_operand_carrier_once_const_name_exit built 12000ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
+pass/facts/atomic_operand_carrier_once_field_exit built 9597ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
+pass/facts/atomic_operand_carrier_once_local_exit built 8350ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
+pass/facts/atomic_operand_carrier_once_match_join_exit built 11942ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
+pass/facts/atomic_operand_carrier_once_other_machine_exit built 13061ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
+pass/facts/atomic_operand_carrier_once_other_state_exit built 7125ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
+pass/facts/atomic_operand_carrier_once_parameter_exit built 17281ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
+pass/facts/atomic_operand_carrier_once_target_body_exit built 11882ms exit:0 interpreter-exit:0 interpreter:agrees @89c92b530e12
 pass/facts/body_bearing_comparison_case_fields_exit built 26898ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @5f668826adf3+wt
 pass/facts/body_bearing_comparison_default_fields_exit built 30700ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @5f668826adf3+wt
 pass/facts/body_bearing_comparison_ordered_field_calls_exit built 29311ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @5f668826adf3+wt

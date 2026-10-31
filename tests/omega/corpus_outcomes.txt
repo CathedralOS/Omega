@@ -94,6 +94,37 @@ fail/facts/array_element_default_domain/writeback rejected 909ms expected @89d5d
 	data `Tallies`'s default domain is still FALSE at state exit: the invariant window opened on `tallies` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/array_element_default_domain/zero_owner rejected 1211ms expected @89d5d2d7655c
 	machine `main` state `entry` statement 1: reading `tallies.<whole value>` crosses an open default-domain invariant window before data `Tallies` is established: the zeroed representation is not yet a `Tallies` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/facts/atomic_operand_carrier_once_both_operands_rejected rejected 5465ms expected @89c92b530e12
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_call_result_rejected rejected 5605ms expected @89c92b530e12
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_const_name_rejected rejected 4587ms unexpected @89c92b530e12
+	literal `7` is suffixed `u64` but lands in a `u32` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+fail/facts/atomic_operand_carrier_once_expected_operand_rejected rejected 8654ms expected @89c92b530e12
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_fetch_operand_rejected rejected 5263ms expected @89c92b530e12
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_field_rejected rejected 3361ms expected @89c92b530e12
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_literal_out_of_range_rejected rejected 3691ms expected @89c92b530e12
+	anonymous integer value `4294967296` does not fit destination `u32` in machine `perform` state `entry` assignment
+fail/facts/atomic_operand_carrier_once_local_rejected rejected 3717ms expected @89c92b530e12
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_match_join_rejected rejected 2572ms expected @89c92b530e12
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_other_machine_rejected rejected 3853ms expected @89c92b530e12
+	store in machine `exchange` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_other_state_rejected rejected 3604ms expected @89c92b530e12
+	store in machine `exchange` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_parameter_rejected rejected 3342ms expected @89c92b530e12
+	store in machine `exchange` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_store_operand_rejected rejected 3119ms expected @89c92b530e12
+	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_operand_carrier_once_suffixed_literal_rejected rejected 2798ms expected @89c92b530e12
+	literal `7` is suffixed `u64` but lands in a `u32` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+fail/facts/atomic_operand_carrier_once_target_body_rejected rejected 3840ms expected @89c92b530e12
+	store in machine `HostedExchangeBody::perform` state `perform` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 fail/facts/build_activation_borrow/call_result rejected 2029ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
 fail/facts/build_activation_borrow/const_name rejected 338ms expected @3a020eca642a
@@ -3447,6 +3478,15 @@ pass/facts/atomic_compare_exchange_once_through_other_state_exit checked 4132ms 
 pass/facts/atomic_compare_exchange_once_through_parameter_exit checked 3394ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_compare_exchange_once_through_target_body_exit checked 3026ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_compare_exchange_once_wide_exit checked 3547ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/atomic_operand_carrier_once_call_result_exit checked 11445ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_operand_carrier_once_const_name_exit checked 17696ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_operand_carrier_once_field_exit checked 15429ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_operand_carrier_once_local_exit checked 18380ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_operand_carrier_once_match_join_exit checked 13723ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_operand_carrier_once_other_machine_exit checked 11605ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_operand_carrier_once_other_state_exit checked 14591ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_operand_carrier_once_parameter_exit checked 14856ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_operand_carrier_once_target_body_exit checked 18160ms check-target:macos_arm64 @89c92b530e12
 pass/facts/body_bearing_comparison_case_fields_exit checked 11592ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_default_fields_exit checked 12954ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_ordered_field_calls_exit checked 14845ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
@@ -14635,8 +14675,7 @@ fail/atomics/atomic_operand_boolean_arithmetic rejected 639ms expected @ccdb99ca
 	machine `replace` state `entry` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 fail/atomics/atomic_operand_call_argument rejected 717ms expected @ccdb99ca2214
 	argument `value` for state `entry` expects `bool`, got `integer literal`
-fail/atomics/atomic_operand_implicit_narrowing rejected 1079ms expected @ccdb99ca2214
-	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/atomics/atomic_operand_implicit_narrowing rejected 10042ms expected @89c92b530e12
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `replace` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 fail/atomics/atomic_record_shared_replacement rejected 700ms expected @ccdb99ca2214
