@@ -4,8 +4,14 @@ use super::{
     term_contains,
 };
 use crate::frozen_program::expression_table;
+use crate::machine_calls::calls::CallFrameResolver;
 use std::sync::Arc;
 use symbols::JoinedPath;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::StaticMachineArgument;
+use typed_trees::signature::StateParameter;
+use typed_trees::state::State;
+use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
@@ -42,7 +48,7 @@ pub(super) fn specification_application_candidate(
     program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
     target: SymbolHandle,
-    selections: &[typed_trees::expression::StaticMachineArgument],
+    selections: &[StaticMachineArgument],
     frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Result<(), &'static str> {
     if !crate::machine_calls::contract_dependencies::independent_application(
@@ -135,8 +141,8 @@ pub(crate) enum StructuralTerm {
     /// Construction retains checked shared-read custody; reversing the view
     /// recovers the original value without quieting or canonicalizing NaNs.
     ScalarRepresentation {
-        source: typed_trees::types::PrimitiveType,
-        target: typed_trees::types::PrimitiveType,
+        source: PrimitiveType,
+        target: PrimitiveType,
         value: Box<StructuralTerm>,
     },
     /// Exact literal value, independent of radix or authored spelling.
@@ -189,7 +195,7 @@ pub(crate) enum StructuralTerm {
         /// this term lacks typed authority for selected contract expansion.
         result_type: TypeReferenceHandle,
         target: SymbolHandle,
-        selections: Vec<typed_trees::expression::StaticMachineArgument>,
+        selections: Vec<StaticMachineArgument>,
         machine: String,
         arguments: Vec<StructuralTerm>,
     },
@@ -198,7 +204,7 @@ pub(crate) enum StructuralTerm {
     /// collapsing; `machine` retains the complete static application for
     /// diagnostics and canonical display.
     CallProjection {
-        selections: Vec<typed_trees::expression::StaticMachineArgument>,
+        selections: Vec<StaticMachineArgument>,
         target: SymbolHandle,
         machine: String,
         result_type: TypeReferenceHandle,
@@ -235,10 +241,7 @@ pub(crate) enum StructuralTerm {
         /// selected meaning and value operands own scalar congruence.
         references: [TypeReferenceHandle; 2],
         operator: BinaryOperator,
-        meaning: [(
-            typed_trees::types::PrimitiveType,
-            numerics::arithmetic::ArithmeticDomain,
-        ); 2],
+        meaning: [(PrimitiveType, numerics::arithmetic::ArithmeticDomain); 2],
         left: Box<StructuralTerm>,
         right: Box<StructuralTerm>,
     },
@@ -468,11 +471,7 @@ impl StructuralTerm {
 /// that exact context, while unfolding another application starts a new one.
 #[derive(Clone, Copy)]
 struct StaticObservations<'scope> {
-    machine_bindings: &'scope [(
-        SymbolHandle,
-        String,
-        typed_trees::expression::StaticMachineArgument,
-    )],
+    machine_bindings: &'scope [(SymbolHandle, String, StaticMachineArgument)],
     body_parameters: &'scope [typed_trees::data::TypeParameter],
 }
 
@@ -519,7 +518,7 @@ pub(super) struct StructuralJudge<'program> {
     // declaration frame separate from the machine's dependency identity.
     declaration_state: SymbolHandle,
     // Abstract owners supply their actual telescope, without a synthetic machine.
-    declaration_parameters: Arc<Vec<typed_trees::signature::StateParameter>>,
+    declaration_parameters: Arc<Vec<StateParameter>>,
     // This body's declared telescope supplies symbolic value observations,
     // never a missing selected callee argument or an assumed constant value.
     body_type_parameters: &'program [typed_trees::data::TypeParameter],
@@ -591,8 +590,7 @@ pub(super) struct StructuralJudge<'program> {
     /// Frame resolution is program-pure for every judge on one program: the
     /// shared cell builds it once per judge tree instead of once per probe
     /// site (per-leaf clones all share the same cell).
-    frame_resolver:
-        Arc<std::sync::OnceLock<Option<crate::machine_calls::calls::CallFrameResolver<'program>>>>,
+    frame_resolver: Arc<std::sync::OnceLock<Option<CallFrameResolver<'program>>>>,
     prepared_integer_premises_cache:
         Arc<std::sync::Mutex<integer_predicates::PreparedIntegerPremisesCache<'program>>>,
 }
@@ -654,6 +652,57 @@ impl<'program> StructuralJudge<'program> {
 
     pub(super) fn has_exact_case_subjects(&self) -> bool {
         !self.resolve_applications
+    }
+
+    /// Fingerprint of the effect-bearing term vectors, for the
+    /// OMEGA_PATH_COUNT re-traversal investigation only.
+    pub(super) fn path_fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        self.capture_sequence.hash(&mut hash);
+        self.storage_write_sequence.hash(&mut hash);
+        for value in self.stored_values.iter() {
+            if let Some(term) = &value.current {
+                format!("{:?}", term.semantic_value()).hash(&mut hash);
+            }
+        }
+        for (_, term) in self.normal_results.iter() {
+            format!("{:?}", term.semantic_value()).hash(&mut hash);
+        }
+        for (left, right) in self.normal_guarantees.iter() {
+            format!("{:?}", left.semantic_value()).hash(&mut hash);
+            format!("{:?}", right.semantic_value()).hash(&mut hash);
+        }
+        for (name, term) in self.substitutions.iter() {
+            name.hash(&mut hash);
+            format!("{:?}", term.semantic_value()).hash(&mut hash);
+        }
+        for (left, right) in self.disequalities.iter() {
+            format!("{:?}", left.semantic_value()).hash(&mut hash);
+            format!("{:?}", right.semantic_value()).hash(&mut hash);
+        }
+        self.captured_result_equations.len().hash(&mut hash);
+        hash.finish()
+    }
+
+    /// Field sizes of the effect-bearing vectors, for the OMEGA_PATH_COUNT
+    /// memory investigation only.
+    pub(super) fn field_size_report(&self) -> String {
+        format!(
+            "results={} captures={} memberships={} stored={} guarantees={} diseq={} case={} subst={} equations={} invalidated={} bodies={} content={}",
+            self.normal_results.len(),
+            self.completed_nominal_captures.len(),
+            self.normal_memberships.len(),
+            self.stored_values.len(),
+            self.normal_guarantees.len(),
+            self.disequalities.len(),
+            self.case_facts.len(),
+            self.substitutions.len(),
+            self.captured_result_equations.len(),
+            self.invalidated_storage.len(),
+            self.body_invocations.len(),
+            self.normal_content_guarantees.len(),
+        )
     }
 
     /// True when `self` has performed no storage writes and added no call
@@ -945,7 +994,7 @@ impl<'program> StructuralJudge<'program> {
     pub(super) fn from_runtime_state_requires(
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,
-        state: &typed_trees::state::State,
+        state: &State,
         requires: &[ExpressionHandle],
     ) -> Self {
         Self::from_runtime_declaration_requires(program, machine, Some(state), requires)
@@ -954,7 +1003,7 @@ impl<'program> StructuralJudge<'program> {
     fn from_runtime_declaration_requires(
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,
-        state: Option<&typed_trees::state::State>,
+        state: Option<&State>,
         requires: &[ExpressionHandle],
     ) -> Self {
         // Install premises under the runtime value resolver. Installing them
@@ -1000,11 +1049,9 @@ impl<'program> StructuralJudge<'program> {
 
     /// Frame writes are program-pure; every probe on a judge tree resolves
     /// the same tables, so the resolver is built once behind the shared cell.
-    pub(super) fn frame_resolver(
-        &self,
-    ) -> Option<&crate::machine_calls::calls::CallFrameResolver<'program>> {
+    pub(super) fn frame_resolver(&self) -> Option<&CallFrameResolver<'program>> {
         self.frame_resolver
-            .get_or_init(|| crate::machine_calls::calls::CallFrameResolver::new(self.program))
+            .get_or_init(|| CallFrameResolver::new(self.program))
             .as_ref()
     }
 
@@ -1040,7 +1087,7 @@ impl<'program> StructuralJudge<'program> {
     pub(super) fn from_declaration_requires(
         program: &'program dyn crate::CheckingInput,
         owner: SymbolHandle,
-        parameters: &[typed_trees::signature::StateParameter],
+        parameters: &[StateParameter],
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
@@ -1115,9 +1162,7 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
-    fn runtime_declaration_scope(
-        &self,
-    ) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
+    fn runtime_declaration_scope(&self) -> Option<(&'program Machine, &'program State)> {
         if self.declaration_state.is_valid() {
             crate::machine_calls::calls::machine_state_by_symbol(
                 self.program,
@@ -1129,9 +1174,7 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
-    fn declaration_scope(
-        &self,
-    ) -> Option<(SymbolHandle, &[typed_trees::signature::StateParameter])> {
+    fn declaration_scope(&self) -> Option<(SymbolHandle, &[StateParameter])> {
         // Declaration formation supplies its complete telescope. It can be a
         // non-entry state or a data/trait owner; substituting machine entry
         // parameters here would change the identity of its exact binders.
@@ -1190,7 +1233,7 @@ impl<'program> StructuralJudge<'program> {
     /// judge's admitted premises and captured storage epochs remain intact.
     pub(super) fn predicate_term_in_scope(
         &self,
-        scope: (&Machine, &typed_trees::state::State, TypeReferenceHandle),
+        scope: (&Machine, &State, TypeReferenceHandle),
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         depth: usize,
@@ -1205,7 +1248,7 @@ impl<'program> StructuralJudge<'program> {
     /// no part of that question is installed as a premise for another leaf.
     pub(super) fn judge_predicate_in_scope(
         &self,
-        scope: (&Machine, &typed_trees::state::State, TypeReferenceHandle),
+        scope: (&Machine, &State, TypeReferenceHandle),
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         depth: usize,
@@ -1398,7 +1441,7 @@ impl<'program> StructuralJudge<'program> {
         if self
             .declaration_expression_type(fact)
             .and_then(|reference| self.program.primitive_type_reference(reference))
-            != Some(typed_trees::types::PrimitiveType::Bool)
+            != Some(PrimitiveType::Bool)
         {
             return;
         }
@@ -1438,7 +1481,7 @@ impl<'program> StructuralJudge<'program> {
                 StructuralTerm::ScalarBinary { .. } | StructuralTerm::Application { .. } => {
                     self.declaration_expression_type(fact)
                         .and_then(|reference| program.primitive_type_reference(reference))
-                        == Some(typed_trees::types::PrimitiveType::Bool)
+                        == Some(PrimitiveType::Bool)
                 }
                 StructuralTerm::Variable(_) => {
                     program.static_type_predicate_operands(fact).is_some()
@@ -2015,7 +2058,7 @@ impl<'program> StructuralJudge<'program> {
     fn unfold_exact_call_projection(
         &self,
         target: SymbolHandle,
-        selections: &[typed_trees::expression::StaticMachineArgument],
+        selections: &[StaticMachineArgument],
         result_type: TypeReferenceHandle,
         field: SymbolHandle,
         arguments: &[StructuralTerm],
@@ -2140,7 +2183,7 @@ impl<'program> StructuralJudge<'program> {
         program: &'program dyn crate::CheckingInput,
         result_type: TypeReferenceHandle,
         target: SymbolHandle,
-        selections: &[typed_trees::expression::StaticMachineArgument],
+        selections: &[StaticMachineArgument],
         arguments: &[StructuralTerm],
         projection: Option<SymbolHandle>,
     ) -> Option<StructuralTerm> {
@@ -2268,9 +2311,9 @@ impl<'program> StructuralJudge<'program> {
         let mut static_environment = Vec::new();
         for (parameter, selected) in static_parameters.iter().zip(selections) {
             match parameter.kind {
-                typed_trees::data::TypeParameterKind::Machine { .. }
-                | typed_trees::data::TypeParameterKind::Const { .. }
-                | typed_trees::data::TypeParameterKind::Value { .. } => {
+                TypeParameterKind::Machine { .. }
+                | TypeParameterKind::Const { .. }
+                | TypeParameterKind::Value { .. } => {
                     static_environment.push((
                         parameter.symbol,
                         parameter.name.as_str().to_owned(),
@@ -2280,7 +2323,7 @@ impl<'program> StructuralJudge<'program> {
                 // The type actual is already the selected reference. It does
                 // not become a value binder; the body is read under that
                 // exact operand, and a missing or applied type stays closed.
-                typed_trees::data::TypeParameterKind::Type
+                TypeParameterKind::Type
                     if super::specification_calls::exact_type_selection(program, selected) => {}
                 _ => return None,
             }
@@ -2568,7 +2611,7 @@ impl<'program> StructuralJudge<'program> {
     /// contract telescopes use `structural_term` instead.
     pub(super) fn callee_term_in_scope(
         &self,
-        scope: Option<(&Machine, &typed_trees::state::State, TypeReferenceHandle)>,
+        scope: Option<(&Machine, &State, TypeReferenceHandle)>,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         depth: usize,
@@ -2626,7 +2669,7 @@ impl<'program> StructuralJudge<'program> {
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         static_observations: StaticObservations<'_>,
-        scope: Option<(&Machine, &typed_trees::state::State, TypeReferenceHandle)>,
+        scope: Option<(&Machine, &State, TypeReferenceHandle)>,
         depth: usize,
     ) -> Option<StructuralTerm> {
         if depth >= 32 {
@@ -2768,9 +2811,8 @@ impl<'program> StructuralJudge<'program> {
                     .iter()
                     .find(|(symbol, _, _)| *symbol == path.symbol)
                     && let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol)
-                    && let typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference } =
-                        parameter.kind
+                    && let TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } = parameter.kind
                 {
                     return match super::static_applications::constant_value(program, selected) {
                         Some(super::static_applications::ConstantValue::Integer(value))
@@ -2782,7 +2824,7 @@ impl<'program> StructuralJudge<'program> {
                         }
                         Some(super::static_applications::ConstantValue::Boolean(value))
                             if program.primitive_type_reference(type_reference)
-                                == Some(typed_trees::types::PrimitiveType::Bool) =>
+                                == Some(PrimitiveType::Bool) =>
                         {
                             Some(value_predicates::boolean_term(value))
                         }
@@ -2805,10 +2847,7 @@ impl<'program> StructuralJudge<'program> {
                 if path.symbol.is_valid()
                     && static_observations.body_parameters.iter().any(|parameter| {
                         parameter.symbol == path.symbol
-                            && matches!(
-                                parameter.kind,
-                                typed_trees::data::TypeParameterKind::Const { .. }
-                            )
+                            && matches!(parameter.kind, TypeParameterKind::Const { .. })
                     })
                 {
                     return Some(StructuralTerm::BoundValue(path.symbol));
@@ -2834,8 +2873,8 @@ impl<'program> StructuralJudge<'program> {
                                 && parameter.symbol == path.symbol
                                 && matches!(
                                     parameter.kind,
-                                    typed_trees::data::TypeParameterKind::Value { .. }
-                                        | typed_trees::data::TypeParameterKind::Const { .. }
+                                    TypeParameterKind::Value { .. }
+                                        | TypeParameterKind::Const { .. }
                                 )
                         })
                 }) {
@@ -3120,11 +3159,7 @@ impl<'program> StructuralJudge<'program> {
     pub(super) fn substitute_call_term(
         term: &StructuralTerm,
         map: &[(String, StructuralTerm)],
-        machine_map: &[(
-            SymbolHandle,
-            TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )],
+        machine_map: &[(SymbolHandle, TypeReferenceHandle, StaticMachineArgument)],
     ) -> StructuralTerm {
         let substitute =
             |value: StructuralTerm| Self::substitute_call_term(&value, map, machine_map);

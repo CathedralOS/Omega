@@ -141,7 +141,7 @@ impl Evaluation {
                 operations,
                 environment.next_place,
             )?
-            .with_declaration_observation(observation_scope);
+            .with_declaration_observation(self.current, observation_scope);
         let entry =
             expansion.retained_root(identities, root, bindings, &source_types, result_type, 0)?;
         let states = expansion.finish();

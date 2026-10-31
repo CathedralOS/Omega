@@ -330,6 +330,15 @@ fn literal_scalar_term(
             literal_scalar_term(right, literals),
         )
     };
+    /// One exact-arithmetic binary arm: substitute both operands through the
+    /// literal environment, then re-project through the kernel and keep the
+    /// original term when the rebuilt operands are rejected.
+    macro_rules! rebuilt_binary {
+        ($constructor:ident, $scalar_type:ident, $left:ident, $right:ident) => {{
+            let (left, right) = rebuild($left, $right);
+            ScalarTerm::$constructor(*$scalar_type, left, right).unwrap_or_else(|_| term.clone())
+        }};
+    }
     match term {
         ScalarTerm::IntegerExactCast {
             source_type,
@@ -369,83 +378,47 @@ fn literal_scalar_term(
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::exact_integer_add(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(exact_integer_add, scalar_type, left, right),
         ScalarTerm::ExactIntegerSubtract {
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::exact_integer_subtract(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(exact_integer_subtract, scalar_type, left, right),
         ScalarTerm::ExactIntegerMultiply {
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::exact_integer_multiply(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(exact_integer_multiply, scalar_type, left, right),
         ScalarTerm::ExactIntegerDivide {
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::exact_integer_divide(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(exact_integer_divide, scalar_type, left, right),
         ScalarTerm::ExactIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::exact_integer_remainder(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(exact_integer_remainder, scalar_type, left, right),
         ScalarTerm::WrappingIntegerDivide {
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::wrapping_integer_divide(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(wrapping_integer_divide, scalar_type, left, right),
         ScalarTerm::WrappingIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::wrapping_integer_remainder(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(wrapping_integer_remainder, scalar_type, left, right),
         ScalarTerm::SaturatingIntegerDivide {
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::saturating_integer_divide(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(saturating_integer_divide, scalar_type, left, right),
         ScalarTerm::SaturatingIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => {
-            let (left, right) = rebuild(left, right);
-            ScalarTerm::saturating_integer_remainder(*scalar_type, left, right)
-                .unwrap_or_else(|_| term.clone())
-        }
+        } => rebuilt_binary!(saturating_integer_remainder, scalar_type, left, right),
         _ => term.clone(),
     }
 }

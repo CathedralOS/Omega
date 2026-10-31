@@ -7,7 +7,8 @@ use crate::record::{
     PackageReviewDataProperties, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
     PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
-    PackageReviewSignatureParameter, PackageReviewTraitParent, PackageReviewTypeIdentity,
+    PackageReviewParameterQualification, PackageReviewSignatureParameter, PackageReviewTraitParent,
+    PackageReviewTypeIdentity,
 };
 
 impl PackagePolicyTraitShape {
@@ -33,9 +34,7 @@ impl PackagePolicyTraitRequirement {
         &self.returned_borrow_origins
     }
 
-    pub fn parameter_qualification_preconditions(
-        &self,
-    ) -> &[crate::record::PackageReviewParameterQualification] {
+    pub fn parameter_qualification_preconditions(&self) -> &[PackageReviewParameterQualification] {
         &self.parameter_qualification_preconditions
     }
 }

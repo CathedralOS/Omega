@@ -6,6 +6,9 @@
 //! declaration-source resolution; initializer implementation exposure never
 //! becomes public index exposure just because its constant is public.
 
+use super::initializer_dependencies::DependencyPurpose;
+use crate::lowering::expression::lower_expression_into_table;
+use crate::selection::call_identity::call_declaration_source;
 use crate::tables::body_expressions;
 use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
@@ -19,6 +22,7 @@ use source::SourceSpan;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
 use symbols::SymbolKind;
 use syntax_trees::identifier::JoinedSyntaxPath;
+use syntax_trees::item::ConstInitializerCustody;
 use syntax_trees::{SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigin};
 
 mod resolved_payload;
@@ -38,7 +42,7 @@ pub(crate) fn retained_constant_custody(
     program: &SymbolResolvedTrees,
     owner: &symbol_resolved_trees::constant::ConstDeclaration,
     purpose: InitializerCustodyPurpose,
-) -> Result<syntax_trees::item::ConstInitializerCustody, Diagnostic> {
+) -> Result<ConstInitializerCustody, Diagnostic> {
     use super::initializer_dependencies::{DependencyPurpose, collect_declaration};
     let source = program
         .symbols
@@ -49,7 +53,7 @@ pub(crate) fn retained_constant_custody(
                 "retained constant lost its declaration source",
             )
         })?;
-    let mut custody = syntax_trees::item::ConstInitializerCustody::default();
+    let mut custody = ConstInitializerCustody::default();
     if matches!(purpose, InitializerCustodyPurpose::Value) {
         append_retained_custody(
             program,
@@ -60,7 +64,7 @@ pub(crate) fn retained_constant_custody(
         )?;
         return Ok(custody);
     }
-    let mut retained = syntax_trees::item::ConstInitializerCustody::default();
+    let mut retained = ConstInitializerCustody::default();
     append_retained_custody(
         program,
         owner,
@@ -298,13 +302,9 @@ pub(crate) fn retain(
             }
         }
     }
-    let original =
-        lowerer.with_authored_expression_exposure(Exposure::PrivateImplementation, |lowerer| {
-            crate::lowering::expression::lower_expression_into_table(
-                lowerer,
-                syntax,
-                receipt.authored_expression,
-            )
+    let original = lowerer
+        .with_authored_expression_exposure(Exposure::PrivateImplementation, |lowerer| {
+            lower_expression_into_table(lowerer, syntax, receipt.authored_expression)
         })?;
     lowerer.pending_const_values.push(original);
     lowerer.pending_const_initializers.push(PendingInitializer {
@@ -325,7 +325,7 @@ pub(crate) fn retain(
 fn declaration_custody(
     program: &SymbolResolvedTrees,
     record: &PendingInitializer,
-    purpose: super::initializer_dependencies::DependencyPurpose,
+    purpose: DependencyPurpose,
 ) -> Result<super::initializer_dependencies::ConstInitializerDependencies, Diagnostic> {
     let mut owners = program.const_declarations.iter().filter(|declaration| {
         program.symbols.symbol_source_span(declaration.symbol) == Some(record.declaration)
@@ -349,13 +349,11 @@ fn declaration_custody(
         &owner.declared_type,
         purpose,
         None,
-        Some(
-            if purpose == super::initializer_dependencies::DependencyPurpose::Authored {
-                &record.receipt.authored_custody.call_selections
-            } else {
-                &record.receipt.declaration_custody.call_selections
-            },
-        ),
+        Some(if purpose == DependencyPurpose::Authored {
+            &record.receipt.authored_custody.call_selections
+        } else {
+            &record.receipt.declaration_custody.call_selections
+        }),
     )
     .map_err(|reason| error(record.declaration, &reason))?;
     if !dependencies.pending_calls.is_empty() {
@@ -371,7 +369,7 @@ fn reconstruct(
     program: &SymbolResolvedTrees,
     records: &[PendingInitializer],
     root: usize,
-    purpose: super::initializer_dependencies::DependencyPurpose,
+    purpose: DependencyPurpose,
 ) -> Result<(Vec<ConstArgumentOrigin>, Vec<SourceSpan>), Diagnostic> {
     let mut origins = Vec::new();
     let mut operators = Vec::new();
@@ -456,7 +454,7 @@ fn reconstruct(
                 }
                 pending.push(dependency);
             } else {
-                let mut retained = syntax_trees::item::ConstInitializerCustody::default();
+                let mut retained = ConstInitializerCustody::default();
                 append_retained_custody(
                     program,
                     declaration,
@@ -487,14 +485,12 @@ fn append_retained_custody(
     program: &SymbolResolvedTrees,
     owner: &symbol_resolved_trees::constant::ConstDeclaration,
     root: SourceSpan,
-    custody: &mut syntax_trees::item::ConstInitializerCustody,
-    purpose: super::initializer_dependencies::DependencyPurpose,
+    custody: &mut ConstInitializerCustody,
+    purpose: DependencyPurpose,
 ) -> Result<(), Diagnostic> {
     let owner_source = program.symbols.symbol_source_span(owner.symbol);
     for occurrence in body_expressions(&program).authored_selection_occurrences(
-        if purpose == super::initializer_dependencies::DependencyPurpose::Authored
-            && owner.authored_initializer.is_valid()
-        {
+        if purpose == DependencyPurpose::Authored && owner.authored_initializer.is_valid() {
             owner.authored_initializer
         } else {
             owner.initializer
@@ -515,11 +511,8 @@ fn append_retained_custody(
                 // The detached original rederives call custody. A copied call
                 // selection is neither a constant origin nor a builtin premise;
                 // a named boundary operator keeps that same custody-only role.
-                let declaration = crate::selection::call_identity::call_declaration_source(
-                    program,
-                    selected.selected_symbol(),
-                )
-                .map_err(|reason| error(reference, &reason))?;
+                let declaration = call_declaration_source(program, selected.selected_symbol())
+                    .map_err(|reason| error(reference, &reason))?;
                 if !custody.call_selections.contains(&(reference, declaration)) {
                     custody.call_selections.push((reference, declaration));
                 }
@@ -650,7 +643,7 @@ pub(crate) fn finalize_operator_obligations(
 fn attach_custody(
     program: &mut SymbolResolvedTrees,
     root: ExpressionHandle,
-    custody: &syntax_trees::item::ConstInitializerCustody,
+    custody: &ConstInitializerCustody,
     available: &super::initializer_dependencies::ConstInitializerDependencies,
     declaration: SourceSpan,
 ) -> Result<InitializerRootCustody, Diagnostic> {
@@ -830,10 +823,7 @@ fn replace_initializer_lanes(
     Ok(())
 }
 
-fn same_custody(
-    expected: &syntax_trees::item::ConstInitializerCustody,
-    actual: &syntax_trees::item::ConstInitializerCustody,
-) -> bool {
+fn same_custody(expected: &ConstInitializerCustody, actual: &ConstInitializerCustody) -> bool {
     expected.selections.len() == actual.selections.len()
         && expected
             .selections

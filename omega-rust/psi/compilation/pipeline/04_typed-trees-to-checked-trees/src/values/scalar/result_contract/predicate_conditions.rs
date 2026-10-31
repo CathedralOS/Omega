@@ -1,6 +1,8 @@
 //! Complete predicate conditions use the ordinary typed scalar read owner.
 //! The proof query owns equivalence and guard-before-read formation; this
 //! adapter owns exact actual storage, declared types and selector substitution.
+use super::super::scalar_lowering::scalar_storage_read_projection;
+use super::super::scalar_lowering::storage_projection;
 use super::*;
 use checked_trees::{CheckedScalarReadProjection, CheckedStorageRoot};
 
@@ -125,7 +127,7 @@ impl ContractPredicates<'_, '_> {
                     .then_some(actual)
             })
             .collect::<Option<Vec<_>>>()?;
-        let mut projection = super::super::scalar_lowering::storage_projection(
+        let mut projection = storage_projection(
             self.program,
             self.operators,
             read.expression,
@@ -152,12 +154,7 @@ impl ContractPredicates<'_, '_> {
             .collect::<Vec<_>>();
         path.extend(projection.path);
         projection.path = path;
-        super::super::scalar_lowering::scalar_storage_read_projection(
-            self.program,
-            read.expression,
-            self.parameters,
-            projection,
-        )
-        .map(|value| value.0)
+        scalar_storage_read_projection(self.program, read.expression, self.parameters, projection)
+            .map(|value| value.0)
     }
 }

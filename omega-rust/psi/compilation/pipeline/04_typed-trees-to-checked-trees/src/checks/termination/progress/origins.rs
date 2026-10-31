@@ -1,5 +1,6 @@
 //! Adapt exact value origins to the field-only progress subject surface.
 
+use crate::checks::termination::progress::fact_subjects::subject_from_place;
 use validation::CanonicalPlace;
 
 use super::{FlowCallFact, FlowFacts, FlowStateFact, ProgressSubject};
@@ -107,9 +108,5 @@ fn direct_at_place(
             )
         },
     )?;
-    crate::checks::termination::progress::fact_subjects::subject_from_place(
-        place.root,
-        &place.segments,
-    )
-    .map(|subject| vec![subject])
+    subject_from_place(place.root, &place.segments).map(|subject| vec![subject])
 }

@@ -788,7 +788,7 @@ fn capture_graph(
     source_path: &[terminal_psi::StructuralPathSegment],
     referent: &TerminalStructuralValue,
     aggregate: Option<&crate::reference::AggregateBacking>,
-    captured_scalars: Option<&[super::contents::PinnedScalar]>,
+    captured_scalars: Option<&[crate::structural_storage::contents::PinnedScalar]>,
     identity_cursor: &mut Option<u64>,
     argument_index: usize,
     access: StructuralAccess,
@@ -797,7 +797,7 @@ fn capture_graph(
     active: &mut Vec<semantic_vocabulary::StructuralTypeId>,
     captures: &mut Vec<CapturedOriginal>,
 ) -> Result<TerminalOriginalStorageLoan, TerminalInterpretError> {
-    use super::contents::{self, StorageLeafKind};
+    use crate::structural_storage::contents::{self, StorageLeafKind};
     use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
     if active.contains(&referent.structural_type) {
         return Err(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -806,7 +806,7 @@ fn capture_graph(
     }
     active.push(referent.structural_type);
     let backing = aggregate.map_or(referent, |backing| &backing.value);
-    let leaves = contents::describe(execution, referent, access, None)?;
+    let leaves = contents::describe(execution, referent, access, None)?.leaves;
     let observed_scalars;
     let scalars = match captured_scalars {
         Some(scalars) => scalars,

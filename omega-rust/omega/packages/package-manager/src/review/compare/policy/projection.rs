@@ -1,7 +1,9 @@
 use super::{PackagePolicyChangeError as Error, limits::Budget};
 use crate::declarations::PackageKey;
+use crate::lock::PackagePolicyAcceptance;
 use crate::lock::{PackageAcceptanceRow, PackageOccurrenceRoster};
 use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
+use crate::resolution::source::PackageSourceCustody;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use package_evidence::record::PackagePolicyBaseline;
 
@@ -25,9 +27,7 @@ pub(super) fn candidate<'a>(
         });
     }
     budget.slots::<&CompilerIssuedPackageReview>(count)?;
-    budget.slots::<&crate::resolution::source::PackageSourceCustody>(
-        sources.source_closure().custodies().len(),
-    )?;
+    budget.slots::<&PackageSourceCustody>(sources.source_closure().custodies().len())?;
     let mut reviews = Vec::new();
     super::limits::reserve(&mut reviews, count)?;
     reviews.extend(candidate.reviews());
@@ -122,13 +122,11 @@ pub(super) fn rows(
     policy: &PackagePolicyBaseline,
     budget: &mut Budget,
 ) -> Result<Vec<PackageAcceptanceRow>, Error> {
-    let (acceptance, usage) =
-        crate::lock::PackagePolicyAcceptance::project(policy, budget.row_limits()).map_err(
-            |error| Error::Projection {
-                package: Box::new(package.clone()),
-                error,
-            },
-        )?;
+    let (acceptance, usage) = PackagePolicyAcceptance::project(policy, budget.row_limits())
+        .map_err(|error| Error::Projection {
+            package: Box::new(package.clone()),
+            error,
+        })?;
     budget.projected(usage)?;
     Ok(acceptance.into_rows())
 }

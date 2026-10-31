@@ -11,6 +11,11 @@
 
 use diagnostics::Diagnostic;
 use image::{FinalImage, FinalImageSymbolHandle};
+use optimization_core::digest_encoder::DomainDigestEncoder;
+
+use crate::dyld_linking::load_commands::MachoDylib;
+use crate::emit_macho_container_contents;
+use crate::isa::MachoIsa;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachoComponentExport {
@@ -121,19 +126,14 @@ pub fn emit_macho_shared_component(
             return Err(invalid("no selected callable exports"));
         }
         selected_addresses(&image, &exports, 0)?;
-        let isa = crate::isa::MachoIsa::from_format(
-            image.target.object_format,
-            image.target.architecture,
-        )
-        .ok_or_else(|| invalid("image requires an exact macOS ARM64 or x86-64 target"))?;
+        let isa = MachoIsa::from_format(image.target.object_format, image.target.architecture)
+            .ok_or_else(|| invalid("image requires an exact macOS ARM64 or x86-64 target"))?;
         if image.target != isa.native_target() {
             return Err(invalid("image target differs from its Mach-O ABI"));
         }
         let mut ordered: Vec<_> = exports.iter().collect();
         ordered.sort_unstable_by(|first, second| first.name.cmp(&second.name));
-        let mut identity = optimization_core::digest_encoder::DomainDigestEncoder::new(
-            b"omega.macho-component-install-name.v1",
-        );
+        let mut identity = DomainDigestEncoder::new(b"omega.macho-component-install-name.v1");
         identity.bytes(isa.target_profile().target_name().as_bytes());
         for export in ordered {
             identity.bytes(&export.name);
@@ -147,17 +147,10 @@ pub fn emit_macho_shared_component(
         // An install ID names the version-qualified export subject, while the
         // receiver loads the content-addressed filename. Putting that filename
         // inside its own hashed bytes would create a circular image digest.
-        let install_name = crate::dyld_linking::load_commands::MachoDylib::from_install_name(
-            format!("@rpath/lib{label}.dylib").into_bytes(),
-        );
-        crate::emit_macho_container_contents(
-            image.clone(),
-            &label,
-            isa,
-            Some(&install_name),
-            &exports,
-        )
-        .map(|emitted| emitted.bytes)
+        let install_name =
+            MachoDylib::from_install_name(format!("@rpath/lib{label}.dylib").into_bytes());
+        emit_macho_container_contents(image.clone(), &label, isa, Some(&install_name), &exports)
+            .map(|emitted| emitted.bytes)
     })();
     match result {
         Ok(contents) => Ok(MachoSharedComponentImage {

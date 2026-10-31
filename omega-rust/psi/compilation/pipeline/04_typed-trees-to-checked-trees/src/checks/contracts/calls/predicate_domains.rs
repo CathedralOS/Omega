@@ -1,7 +1,19 @@
 //! Predicate-only domain vocabulary: predicates, labels, intervals, and
 //! the requirement subject a fact constrains.
 
+use super::super::labels::instantiate_domain_expression_label;
 use checked_trees::CheckFacts;
+use facts::Fact;
+use language_semantics::SemanticDomainId;
+use numerics::bignum::BigInt;
+use symbols::SymbolHandle;
+use typed_trees::domain::DomainDefinition;
+use typed_trees::domain::ProofFact;
+use typed_trees::domain::domain_subject_reference;
+use typed_trees::domain::index_parameters;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::types::DomainConstraint;
+use validation::exact_declared_domain_interval;
 
 /// The proof-fact expressions of a PREDICATE-ONLY domain, or `None` when the
 /// domain is not predicate-only.
@@ -15,23 +27,13 @@ use checked_trees::CheckFacts;
 /// established, never a subset.
 pub(super) fn predicate_only_domain_predicates<'program>(
     program: &'program dyn ::validation::CheckingInput,
-    domain: &'program typed_trees::domain::DomainDefinition,
-) -> Option<
-    Vec<(
-        &'program typed_trees::domain::DomainDefinition,
-        typed_trees::expression::ExpressionHandle,
-    )>,
-> {
+    domain: &'program DomainDefinition,
+) -> Option<Vec<(&'program DomainDefinition, ExpressionHandle)>> {
     fn visit<'program>(
         program: &'program dyn ::validation::CheckingInput,
-        domain: &'program typed_trees::domain::DomainDefinition,
-        active: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
-    ) -> Option<
-        Vec<(
-            &'program typed_trees::domain::DomainDefinition,
-            typed_trees::expression::ExpressionHandle,
-        )>,
-    > {
+        domain: &'program DomainDefinition,
+        active: &mut Vec<(SymbolHandle, SemanticDomainId)>,
+    ) -> Option<Vec<(&'program DomainDefinition, ExpressionHandle)>> {
         // The same list `domain_byte_predicate` enforces, so one definition governs
         // both grants: an alias expands to constituent requirements, index binders
         // carry an identity this substitution cannot supply, and `established by`
@@ -41,7 +43,7 @@ pub(super) fn predicate_only_domain_predicates<'program>(
             || domain.alias.is_some()
             || !domain.index_arguments.is_empty()
             || !domain.establishment_routes.is_empty()
-            || !typed_trees::domain::index_parameters(program, domain).is_empty()
+            || !index_parameters(program, domain).is_empty()
         {
             return None;
         }
@@ -55,15 +57,11 @@ pub(super) fn predicate_only_domain_predicates<'program>(
         let mut predicates = Vec::new();
         for fact in declared {
             match fact {
-                typed_trees::domain::ProofFact::Expression(expression) => {
+                ProofFact::Expression(expression) => {
                     predicates.push((domain, *expression));
                 }
-                typed_trees::domain::ProofFact::Membership(membership)
-                    if typed_trees::domain::domain_subject_reference(
-                        program,
-                        domain,
-                        membership.value,
-                    ) =>
+                ProofFact::Membership(membership)
+                    if domain_subject_reference(program, domain, membership.value) =>
                 {
                     // Inheritance is a conjunction on this exact subject. Every
                     // inherited theory must be closed and predicate-only too;
@@ -94,7 +92,7 @@ pub(super) fn predicate_only_domain_predicates<'program>(
 pub(super) fn predicate_only_domain_labels(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    fact: &facts::Fact,
+    fact: &Fact,
 ) -> Option<Vec<String>> {
     let Some((_, _, domain_symbol, identity)) = fact.payload.domain_membership() else {
         return None;
@@ -106,12 +104,7 @@ pub(super) fn predicate_only_domain_labels(
         predicate_only_domain_predicates(program, domain)?
             .iter()
             .map(|(owner, expression)| {
-                super::super::labels::instantiate_domain_expression_label(
-                    program,
-                    owner,
-                    *expression,
-                    &subject_label,
-                )
+                instantiate_domain_expression_label(program, owner, *expression, &subject_label)
             })
             .collect(),
     )
@@ -127,8 +120,8 @@ pub(super) fn predicate_only_domain_labels(
 pub(super) fn predicate_only_domain_interval(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    fact: &facts::Fact,
-) -> Option<(String, numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    fact: &Fact,
+) -> Option<(String, BigInt, BigInt)> {
     let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership() else {
         return None;
     };
@@ -137,19 +130,19 @@ pub(super) fn predicate_only_domain_interval(
     if domain.alias.is_some()
         || !domain.index_arguments.is_empty()
         || !domain.establishment_routes.is_empty()
-        || !typed_trees::domain::index_parameters(program, domain).is_empty()
+        || !index_parameters(program, domain).is_empty()
     {
         return None;
     }
-    let constraint = typed_trees::types::DomainConstraint {
+    let constraint = DomainConstraint {
         symbol: domain_symbol,
         semantic_id: semantic_domain,
         ..Default::default()
     };
-    let (minimum, maximum) = validation::exact_declared_domain_interval(program, &constraint)?;
+    let (minimum, maximum) = exact_declared_domain_interval(program, &constraint)?;
     Some((
         facts.semantic.place_label(program, place_handle),
-        minimum.unwrap_or_else(|| numerics::bignum::BigInt::from_i64(i64::MIN)),
-        maximum.unwrap_or_else(|| numerics::bignum::BigInt::from_i64(i64::MAX)),
+        minimum.unwrap_or_else(|| BigInt::from_i64(i64::MIN)),
+        maximum.unwrap_or_else(|| BigInt::from_i64(i64::MAX)),
     ))
 }

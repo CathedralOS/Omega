@@ -25,7 +25,7 @@
 use super::{DecreaseMeasure, RankArrivalAdmission, nat, patterns};
 use crate::checks::current_scalar_values::CurrentScalarValues;
 use crate::checks::termination::order::RankingOrder;
-use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
+use checked_trees::{CheckedIntegerRankObservation, CheckedNaturalRankMeasure as RankMeasure};
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::machine::Machine;
@@ -73,7 +73,7 @@ fn scalar_rank(
     program: &dyn ::validation::CheckingInput,
     state: &State,
     measure: DecreaseMeasure,
-) -> Option<CheckedStateNaturalRank> {
+) -> Option<CheckedIntegerRankObservation> {
     let rank = nat::state_rank(program, state, measure)?;
     let exact = |position: u32| {
         program
@@ -85,12 +85,12 @@ fn scalar_rank(
             })
     };
     let scalar = match rank.measure {
-        CheckedNaturalRankMeasure::IntegerValue { .. }
-        | CheckedNaturalRankMeasure::BoundedDistance { .. } => exact(rank.parameter_position),
+        RankMeasure::IntegerValue { .. } | RankMeasure::BoundedDistance { .. } => {
+            exact(rank.parameter_position)
+        }
         // Declared views retain their body's formation and descent authority;
         // the primitive-formal judgment cannot stand in for that application.
-        CheckedNaturalRankMeasure::DeclaredMeasure { .. }
-        | CheckedNaturalRankMeasure::SequenceLength { .. } => false,
+        RankMeasure::DeclaredMeasure { .. } | RankMeasure::SequenceLength { .. } => false,
     };
     scalar.then_some(rank)
 }
@@ -100,8 +100,8 @@ fn prove_edge(
     machine: &Machine,
     source: &State,
     order: &RankingOrder,
-    source_rank: &CheckedStateNaturalRank,
-    target_rank: &CheckedStateNaturalRank,
+    source_rank: &CheckedIntegerRankObservation,
+    target_rank: &CheckedIntegerRankObservation,
     edge: &patterns::GuardedEdge<'_>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
@@ -155,11 +155,11 @@ fn prove_edge(
     // value at the target.
     let bound = match (source_rank.measure, target_rank.measure) {
         (
-            CheckedNaturalRankMeasure::BoundedDistance {
+            RankMeasure::BoundedDistance {
                 upper: source_upper,
                 ..
             },
-            CheckedNaturalRankMeasure::BoundedDistance {
+            RankMeasure::BoundedDistance {
                 upper: target_upper,
                 ..
             },
@@ -187,10 +187,7 @@ fn prove_edge(
                     || relation(BinaryOperator::LessOrEqual, &next, &arriving_bound)),
         );
     }
-    if !matches!(
-        source_rank.measure,
-        CheckedNaturalRankMeasure::IntegerValue { .. }
-    ) {
+    if !matches!(source_rank.measure, RankMeasure::IntegerValue { .. }) {
         return None;
     }
     let zero = constant(0);

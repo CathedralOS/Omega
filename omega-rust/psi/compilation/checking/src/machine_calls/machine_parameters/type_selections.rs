@@ -5,6 +5,7 @@
 //! permission to resolve by spelling or manufacture a replacement type.
 
 use symbols::SymbolKind;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -21,9 +22,7 @@ pub(super) fn selected_types<'arguments>(
                 SymbolKind::BuiltinType | SymbolKind::Data => true,
                 SymbolKind::TypeParameter => program
                     .data_type_parameter_by_symbol(argument.symbol)
-                    .is_some_and(|parameter| {
-                        matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                    }),
+                    .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type)),
                 _ => false,
             };
         if is_type {

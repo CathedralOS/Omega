@@ -1,4 +1,5 @@
 //! Place-backed ABI transport in the ordinary instruction stream.
+use super::call_arguments::{invocation_memory_origin, invocation_provenance};
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType,
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
@@ -192,12 +193,7 @@ pub(super) fn place_pointer(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    place_pointer_at_site(
-        builder,
-        super::call_arguments::invocation_provenance(row),
-        place,
-        byte_offset,
-    )
+    place_pointer_at_site(builder, invocation_provenance(row), place, byte_offset)
 }
 
 pub(super) fn place_pointer_at_site(
@@ -279,7 +275,7 @@ pub(super) fn view_element_pointer(
         input,
         output,
         byte_offset,
-        super::call_arguments::invocation_provenance(row),
+        invocation_provenance(row),
     )
 }
 
@@ -494,7 +490,7 @@ pub(super) fn operation(
 pub(super) fn provenance(
     row: &impl super::call_arguments::InvocationArgumentSource,
 ) -> SelectedInstructionProvenance {
-    super::call_arguments::invocation_provenance(row)
+    invocation_provenance(row)
 }
 
 /// Provenance for an instruction emitted from one legalized row that names the
@@ -582,7 +578,7 @@ fn memory(
 ) -> Result<(), SelectedInstructionError> {
     memory_at_origin(
         builder,
-        super::call_arguments::invocation_memory_origin(row),
+        invocation_memory_origin(row),
         place,
         byte_offset,
         byte_count,

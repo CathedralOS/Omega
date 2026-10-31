@@ -17,15 +17,23 @@
 //! remain separate because selecting an existing descriptor requires its exact
 //! owner identity, not a possible backing region.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::type_applications::DeclarationScopes;
+use crate::value_custody::storage_contents::ContentsRequirement;
+use checked_trees::BorrowLoanOwnerSegment;
+use checked_trees::CheckedMemberIdentity;
+use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 use checked_trees::{
     CheckFacts, CheckedReferenceResultSourcePlan, CheckedStructuralAccess,
     CheckedUnitStructuralResultBindingPlan, ReferenceCustodyFacts, ReferenceCustodyRow,
 };
+use facts::PlaceSegment;
 use language_semantics::Multiplicity;
+use language_semantics::ReferenceAccess;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -55,7 +63,7 @@ const MAX_REFERENCE_ORIGIN_DEPTH: usize = 128;
 /// const, and not a primitive type (primitives carry scalar, not structural,
 /// state).
 pub(crate) fn is_mutable_structural_parameter(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     !parameter.is_const
@@ -65,11 +73,11 @@ pub(crate) fn is_mutable_structural_parameter(
 }
 
 fn reference_origin_expansion_is_bounded(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     fn visit(
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         reference: TypeReferenceHandle,
         depth: usize,
         visits: &mut usize,
@@ -181,15 +189,12 @@ fn reference_origin_expansion_is_bounded(
 /// Linear settlement and nominal cleanup belong to the carrier's owned custody,
 /// not its stored descriptors. Excluding those carriers here loses their input
 /// referent identities and makes descriptor copies appear to borrow the home.
-pub fn is_reference_record(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> bool {
+pub fn is_reference_record(program: &dyn CheckingInput, reference: TypeReferenceHandle) -> bool {
     if !reference_origin_expansion_is_bounded(program, reference) {
         return false;
     }
     fn visit(
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         reference: TypeReferenceHandle,
         seen: &mut Vec<TypeReferenceHandle>,
         scopes: &mut DeclarationScopes,
@@ -199,12 +204,7 @@ pub fn is_reference_record(
         if crate::reference_shell(program, reference).is_some() {
             return Some(true);
         }
-        if crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        ) {
+        if crate::has_contents(program, reference, &[], ContentsRequirement::NumericOwned) {
             return Some(false);
         }
         if let TypeReferenceNode::FixedArray { element_type, .. } =
@@ -258,8 +258,8 @@ pub fn is_reference_record(
 /// executable arguments must join the storage catalog, whose predicate-only
 /// domains contribute no representation.
 pub fn initializer_source(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    state: &State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
@@ -289,7 +289,7 @@ pub fn initializer_source(
         }
         return Some(checked_trees::CheckedUnitStructuralArgumentPlan {
             projection_evaluations: Default::default(),
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(position).ok()?,
             },
             path: Vec::new(),
@@ -316,8 +316,8 @@ pub fn initializer_source(
 /// state parameter named `symbol` — the structural-parameter lane both
 /// borrowed-carrier walks index by.
 fn structural_parameter_position<'program>(
-    program: &'program dyn crate::CheckingInput,
-    state: &'program typed_trees::state::State,
+    program: &'program dyn CheckingInput,
+    state: &'program State,
     symbol: SymbolHandle,
 ) -> Option<(usize, &'program typed_trees::signature::StateParameter)> {
     program
@@ -333,7 +333,7 @@ fn structural_parameter_position<'program>(
 /// retains the exact referent (including qualifications). An outer constraint
 /// shell is not silently dropped to make an access conversion succeed.
 fn reference_parameter_can_supply(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     source: TypeReferenceHandle,
     result: TypeReferenceHandle,
 ) -> bool {
@@ -368,8 +368,8 @@ fn reference_parameter_can_supply(
 /// borrowed. Indexes bound to locals stay opaque: folding them would need the
 /// constant-binding evidence the producer resolves elsewhere.
 pub fn borrowed_initializer_source(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    state: &State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
@@ -419,7 +419,7 @@ pub fn borrowed_initializer_source(
                 parameter.type_reference
             };
             (
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(position).ok()?,
                 },
                 owner_type,
@@ -450,11 +450,11 @@ pub fn borrowed_initializer_source(
                     .primitive_type_reference(local.type_reference)
                     .is_some()
             {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
                     symbol: local.symbol,
                 }
             } else {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol: local.symbol,
                 }
             };
@@ -480,10 +480,7 @@ pub fn borrowed_initializer_source(
                     return None;
                 }
                 segments.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 owner_type = field.type_reference;
             }
@@ -529,7 +526,7 @@ pub fn borrowed_initializer_source(
 /// Peel constraint shells and reference wrappers to the nominal owner one
 /// carrier's members live under.
 fn nominal_member_owner_type<'p>(
-    program: &'p dyn crate::CheckingInput,
+    program: &'p dyn CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<&'p typed_trees::data::DataDefinition> {
     loop {
@@ -554,8 +551,8 @@ struct AggregateProjection {
 /// Each field identity and fixed index is checked against its declared carrier;
 /// a stored reference remains an explicit crossing after this selection.
 fn aggregate_projection(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    state: &State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<AggregateProjection> {
     use checked_trees::CheckedUnitStructuralPathSegment as Segment;
@@ -622,19 +619,15 @@ fn aggregate_projection(
                         .iter()
                         .filter_map(|member| member.as_variant())
                         .find(|case| case.symbol == variant)?;
-                    path.push(Segment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            case.identity,
-                            case.name.clone(),
-                        ),
-                    ));
+                    path.push(Segment::Case(CheckedMemberIdentity::of_member(
+                        case.identity,
+                        case.name.clone(),
+                    )));
                 }
-                path.push(Segment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
-                ));
+                path.push(Segment::Field(CheckedMemberIdentity::of_member(
+                    field.identity,
+                    field.name.clone(),
+                )));
                 selected = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
@@ -699,8 +692,8 @@ fn reference_access_can_supply(
 /// publication. Decline them here rather than expanding an array's capacity.
 /// Each exact path still checks its reference crossings and returned access.
 fn whole_reference_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    state: &State,
     call_frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let (referent, access) = stored_loan_parts(program, state.return_type)?;
@@ -753,7 +746,7 @@ fn whole_reference_sources(
                 borrowed = true;
             }
             match segment {
-                facts::PlaceSegment::Field { symbol } => {
+                PlaceSegment::Field { symbol } => {
                     // The nominal lookup also peels reference shells. Every
                     // crossing here must instead be admitted explicitly above
                     // so an unsupported nested carrier cannot lose its access
@@ -775,14 +768,11 @@ fn whole_reference_sources(
                                 _ => None,
                             })?;
                     path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
+                        CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ));
                     selected = field.type_reference;
                 }
-                facts::PlaceSegment::FixedIndex { index } => {
+                PlaceSegment::FixedIndex { index } => {
                     selected = loop {
                         match program.type_reference_table.type_reference(selected) {
                             TypeReferenceNode::Constrained { base_type, .. } => {
@@ -817,7 +807,7 @@ fn whole_reference_sources(
         }
         let source = checked_trees::CheckedUnitStructuralArgumentPlan {
             projection_evaluations: Default::default(),
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
             path,
@@ -842,9 +832,9 @@ fn whole_reference_sources(
 /// Its exact flow occurrence has no expression/local holder; the ingress roster
 /// is therefore the custody, rather than a fabricated local loan handle.
 pub fn terminal_call_reference_sources(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     call: &checked_trees::FlowCallFact,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<Vec<checked_trees::CheckedReturnedReferencePlan>> {
@@ -893,9 +883,9 @@ pub fn terminal_call_reference_sources(
 /// crossing. Neither source form authorizes creating a fresh loan or moving
 /// the backing storage.
 pub fn record_carrier_sources(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
-    carrier: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+    carrier: CheckedUnitStructuralArgumentSourcePlan,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     declared_carrier_references(program, reference)?
         .into_iter()
@@ -940,12 +930,12 @@ pub struct DeclaredCarrierReference {
 }
 
 pub fn declared_carrier_references(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<DeclaredCarrierReference>> {
     use checked_trees::CheckedReferenceOriginProjection::{Element, Exact};
     fn visit(
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         reference: TypeReferenceHandle,
         path: &mut Vec<checked_trees::CheckedReferenceOriginProjection>,
         output: &mut Vec<DeclaredCarrierReference>,
@@ -982,12 +972,7 @@ pub fn declared_carrier_references(
             });
             return Some(());
         }
-        if crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        ) {
+        if crate::has_contents(program, reference, &[], ContentsRequirement::NumericOwned) {
             return Some(());
         }
         if let TypeReferenceNode::FixedArray {
@@ -1059,10 +1044,7 @@ pub fn declared_carrier_references(
                 typed_trees::data::DataMember::Variant(case) => {
                     path.push(Exact(
                         checked_trees::CheckedUnitStructuralPathSegment::Case(
-                            checked_trees::CheckedMemberIdentity::of_member(
-                                case.identity,
-                                case.name.clone(),
-                            ),
+                            CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                         ),
                     ));
                     program.data_payload_fields(case)
@@ -1074,10 +1056,7 @@ pub fn declared_carrier_references(
                 }
                 path.push(Exact(
                     checked_trees::CheckedUnitStructuralPathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
+                        CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ),
                 ));
                 visit(program, field.type_reference, path, output, scopes, scope)?;
@@ -1113,7 +1092,7 @@ pub fn declared_carrier_references(
 /// arrivals use the same roster as invocation entry; ordinary edge formation
 /// still proves the actual descriptor's access and backing lifetime.
 pub fn stored_carrier_ingress_is_complete(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -1126,9 +1105,7 @@ pub fn stored_carrier_ingress_is_complete(
     let Some(sources) = record_carrier_sources(
         program,
         carrier,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-            symbol: parameter,
-        },
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: parameter },
     ) else {
         return false;
     };
@@ -1166,7 +1143,7 @@ pub fn stored_carrier_ingress_is_complete(
 /// of that carrier. Root-reference permission and contained permissions are
 /// different resources; projection and window admission account for the first.
 pub fn input_carrier_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let reference = crate::peel_declared_constraints(program, reference);
@@ -1185,7 +1162,7 @@ pub fn input_carrier_type(
 /// custody, so this local-construction gate excludes it explicitly. The
 /// checked producer and the lowering replay both ask this one question.
 pub fn local_owes_record_loans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     is_reference_record(program, reference)
@@ -1206,10 +1183,10 @@ pub type RecordLeafLoans = (
 /// identity and the checked activation distinguish this establishment from a
 /// later replacement; similar lifetime spelling alone grants no authority.
 pub fn local_record_loans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: u32,
 ) -> Option<Vec<RecordLeafLoans>> {
     let local = program
@@ -1236,8 +1213,8 @@ pub fn local_record_loans(
 /// ordinary operand lookup deliberately exposes only earlier declarations.
 /// Keep that visibility rule unchanged and obtain storage geometry directly.
 pub fn storage_owner_type_reference(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    state: &State,
     owner: SymbolHandle,
     statement_index: u32,
 ) -> Option<TypeReferenceHandle> {
@@ -1259,10 +1236,10 @@ pub fn storage_owner_type_reference(
 /// The declared leaf roster and exact activation are independent of the
 /// producer. A subtree replacement captures only leaves beneath its destination.
 pub fn named_place_loans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     owner: SymbolHandle,
     statement_index: u32,
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
@@ -1283,10 +1260,10 @@ pub fn named_place_loans(
 /// Join descriptors to the home that actually stores them. A named local and
 /// computed backing differ in identity, not leaf geometry or formation proof.
 pub fn storage_place_loans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     owner: facts::PlaceRoot,
     reference: TypeReferenceHandle,
     statement_index: u32,
@@ -1346,10 +1323,10 @@ pub fn storage_place_loans(
 /// statement activation and prove that no earlier stored occurrence existed;
 /// incoming permissions never become synthetic statement-zero loans.
 pub fn initial_parameter_reference_establishment(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     owner: SymbolHandle,
     statement_index: u32,
 ) -> Option<Vec<RecordLeafLoans>> {
@@ -1359,7 +1336,7 @@ pub fn initial_parameter_reference_establishment(
         .find(|parameter| parameter.symbol == owner)?;
     if !parameter.is_mutable
         || crate::reference_shell(program, parameter.type_reference)?.access
-            != language_semantics::ReferenceAccess::Shared
+            != ReferenceAccess::Shared
         || !crate::stores_reference_shape(program, parameter.type_reference, &[])
     {
         return None;
@@ -1388,10 +1365,10 @@ pub fn initial_parameter_reference_establishment(
 /// input and local slots instead use the post-RHS contextual storage death;
 /// reconstructing an entry loan here would revive a displaced descriptor.
 pub fn replaced_reference_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     owner: facts::PlaceRoot,
     statement_index: u32,
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
@@ -1411,10 +1388,10 @@ pub fn replaced_reference_carrier(
 /// Installed descriptors owe their complete historical formation group and
 /// exact weakening occurrence, including every possible supplying origin.
 fn replaced_stored_reference_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     owner: facts::PlaceRoot,
     statement_index: u32,
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
@@ -1512,7 +1489,7 @@ fn replaced_stored_reference_carrier(
 /// inactive cases. Every captured row must join one declared slot exactly once;
 /// enumerating all declared slots must never manufacture extra permissions.
 fn record_leaf_loan_groups(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     reference: TypeReferenceHandle,
     owner: facts::PlaceRoot,
@@ -1522,12 +1499,10 @@ fn record_leaf_loan_groups(
 ) -> Option<Vec<RecordLeafLoans>> {
     let source = match owner {
         facts::PlaceRoot::Symbol(symbol) => {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
         }
         facts::PlaceRoot::Expression(expression) => {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                expression,
-            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
         }
         _ => return None,
     };
@@ -1579,10 +1554,10 @@ fn record_leaf_loan_groups(
 /// they are not a claim that inactive payload storage is live. Runtime-indexed
 /// and referent hops use captured loans instead of direct backing geometry.
 pub fn loan_place_segments(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
-) -> Option<Vec<facts::PlaceSegment>> {
+) -> Option<Vec<PlaceSegment>> {
     origin_place_segments(
         program,
         root,
@@ -1595,10 +1570,10 @@ pub fn loan_place_segments(
 /// Translate a declaration frontier into semantic owner coordinates. Element
 /// families remain unknown selectors; they never become executable indices.
 pub fn origin_place_segments(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: TypeReferenceHandle,
     path: impl IntoIterator<Item = checked_trees::CheckedReferenceOriginProjection>,
-) -> Option<Vec<facts::PlaceSegment>> {
+) -> Option<Vec<PlaceSegment>> {
     let mut selected = root;
     let mut payload = None;
     let mut segments = Vec::new();
@@ -1624,7 +1599,7 @@ pub fn origin_place_segments(
                 return None;
             };
             selected = *element_type;
-            segments.push(facts::PlaceSegment::Index {
+            segments.push(PlaceSegment::Index {
                 expression: ExpressionHandle::invalid(),
             });
             continue;
@@ -1642,7 +1617,7 @@ pub fn origin_place_segments(
                     .iter()
                     .find_map(|member| match member {
                         typed_trees::data::DataMember::Variant(case)
-                            if checked_trees::CheckedMemberIdentity::of_member(
+                            if CheckedMemberIdentity::of_member(
                                 case.identity,
                                 case.name.clone(),
                             ) == *identity =>
@@ -1651,7 +1626,7 @@ pub fn origin_place_segments(
                         }
                         _ => None,
                     })?;
-                segments.push(facts::PlaceSegment::Case {
+                segments.push(PlaceSegment::Case {
                     variant: case.symbol,
                 });
                 payload = Some(case);
@@ -1659,10 +1634,8 @@ pub fn origin_place_segments(
             checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                 let field = if let Some(case) = payload.take() {
                     program.data_payload_fields(case).iter().find(|field| {
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ) == *identity
+                        CheckedMemberIdentity::of_member(field.identity, field.name.clone())
+                            == *identity
                     })?
                 } else {
                     let (data, nested_scope) = scopes.definition(program, selected, scope)?;
@@ -1672,7 +1645,7 @@ pub fn origin_place_segments(
                         .iter()
                         .find_map(|member| match member {
                             typed_trees::data::DataMember::Field(field)
-                                if checked_trees::CheckedMemberIdentity::of_member(
+                                if CheckedMemberIdentity::of_member(
                                     field.identity,
                                     field.name.clone(),
                                 ) == *identity =>
@@ -1682,7 +1655,7 @@ pub fn origin_place_segments(
                             _ => None,
                         })?
                 };
-                segments.push(facts::PlaceSegment::Field {
+                segments.push(PlaceSegment::Field {
                     symbol: field.symbol,
                 });
                 selected = field.type_reference;
@@ -1703,7 +1676,7 @@ pub fn origin_place_segments(
                         _ => return None,
                     }
                 }
-                segments.push(facts::PlaceSegment::FixedIndex {
+                segments.push(PlaceSegment::FixedIndex {
                     index: usize::try_from(*index).ok()?,
                 });
             }
@@ -1714,10 +1687,10 @@ pub fn origin_place_segments(
 }
 
 pub fn loan_owner_path(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
-) -> Option<Vec<checked_trees::BorrowLoanOwnerSegment>> {
+) -> Option<Vec<BorrowLoanOwnerSegment>> {
     origin_owner_path(
         program,
         root,
@@ -1728,24 +1701,18 @@ pub fn loan_owner_path(
 }
 
 pub fn origin_owner_path(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: TypeReferenceHandle,
     path: impl IntoIterator<Item = checked_trees::CheckedReferenceOriginProjection>,
-) -> Option<Vec<checked_trees::BorrowLoanOwnerSegment>> {
+) -> Option<Vec<BorrowLoanOwnerSegment>> {
     origin_place_segments(program, root, path)?
         .into_iter()
         .map(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => {
-                Some(checked_trees::BorrowLoanOwnerSegment::Field(symbol))
-            }
-            facts::PlaceSegment::FixedIndex { index } => {
-                Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
-            }
-            facts::PlaceSegment::Case { variant } => {
-                Some(checked_trees::BorrowLoanOwnerSegment::Case(variant))
-            }
-            facts::PlaceSegment::Index { expression } if !expression.is_valid() => {
-                Some(checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
+            PlaceSegment::Field { symbol } => Some(BorrowLoanOwnerSegment::Field(symbol)),
+            PlaceSegment::FixedIndex { index } => Some(BorrowLoanOwnerSegment::FixedIndex(index)),
+            PlaceSegment::Case { variant } => Some(BorrowLoanOwnerSegment::Case(variant)),
+            PlaceSegment::Index { expression } if !expression.is_valid() => {
+                Some(BorrowLoanOwnerSegment::DynamicIndex)
             }
             _ => None,
         })
@@ -1780,10 +1747,10 @@ fn statement_entry_constraints(
 /// replacement can install a new occurrence in that same home. Operand custody
 /// reads the checked prefix once instead of replaying an overwritten initializer.
 fn active_record_loans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: u32,
     declaration_statement: u32,
 ) -> Option<Vec<RecordLeafLoans>> {
@@ -1844,7 +1811,7 @@ fn active_record_loans(
 /// sources — `None` when the call does not return a reference record.
 /// Callers then require each source's complete active leaf group, filtered per site.
 fn reference_record_call_sources<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     facts: &CheckFacts,
     target: SymbolHandle,
 ) -> Option<(
@@ -1865,10 +1832,10 @@ fn reference_record_call_sources<'program>(
 /// operand authority; owned descriptor inputs retain their complete active
 /// leaf groups. Neither case extends a loan past the temporary's disposal.
 pub fn transient_call_record_loans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     call: &checked_trees::FlowCallFact,
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     residual_paths: &[Vec<checked_trees::CheckedUnitStructuralPathSegment>],
@@ -1946,9 +1913,9 @@ pub fn transient_call_record_loans(
 /// that leaf when the consuming argument projects it. A named local stays on
 /// the construction path below; this does not invent a loan for a shared view.
 fn call_result_field_argument(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     result: &CheckedUnitStructuralResultBindingPlan,
     expression: ExpressionHandle,
     destination: TypeReferenceHandle,
@@ -1987,7 +1954,7 @@ fn call_result_field_argument(
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         projection_evaluations: Default::default(),
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
         path,
@@ -1999,10 +1966,10 @@ fn call_result_field_argument(
 /// A projected argument crosses the stored carrier only after its exact local
 /// construction and active leaf loan have been reconstructed.
 pub fn record_argument(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
@@ -2079,7 +2046,7 @@ pub fn record_argument(
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         projection_evaluations: Default::default(),
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
         path,
@@ -2103,15 +2070,13 @@ pub fn record_argument(
 /// index 0 — the invalid handle — carries the classification every handle
 /// the table does not name reads. The table is append-only, so an index is
 /// never reused and a recorded row cannot go stale under a later handle.
-pub fn classify_program_reference_custody(
-    program: &dyn crate::CheckingInput,
-) -> ReferenceCustodyFacts {
+pub fn classify_program_reference_custody(program: &dyn CheckingInput) -> ReferenceCustodyFacts {
     crate::classify_type_references(program, reference_custody, ReferenceCustodyFacts::with_rows)
 }
 
 /// One type reference's custody row.
 fn reference_custody(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> ReferenceCustodyRow {
     let stored = stored_loan_parts(program, reference);
@@ -2142,7 +2107,7 @@ fn reference_custody(
 /// access. The pointer is transported without reading its referee; operations
 /// through it still owe that access and the captured loan's own authority.
 pub fn parts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     let TypeReferenceNode::Reference {
@@ -2172,7 +2137,7 @@ pub fn parts(
 /// rosters and formal forwarding — asks this one question so the admitted
 /// shape never drifts between them.
 pub fn stored_loan_parts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     crate::reference_shell(program, reference)
@@ -2186,11 +2151,11 @@ pub fn stored_loan_parts(
 /// does. Callers that need the primitive-only reference-result shape keep
 /// using `parts`.
 pub fn mutable_borrowed_parts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     crate::reference_shell(program, reference)
-        .filter(|shell| shell.access == language_semantics::ReferenceAccess::Mutable)
+        .filter(|shell| shell.access == ReferenceAccess::Mutable)
         .map(|shell| (shell.referee, CheckedStructuralAccess::MutableBorrow))
 }
 
@@ -2198,7 +2163,7 @@ pub fn mutable_borrowed_parts(
 /// referent stays in its owner's frame, regardless of its source type family;
 /// registering the pointer never demands transitive pointee storage.
 pub fn shared_borrowed_parts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     stored_loan_parts(program, reference)
@@ -2209,10 +2174,7 @@ pub fn shared_borrowed_parts(
 /// shared, mutable or write-only access; mutable slice descriptors retain their
 /// distinct carrier. Result-custody consumers ask this common question instead
 /// of reconstructing an access whitelist. This grants no executable shape.
-pub fn has_borrowed_parts(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> bool {
+pub fn has_borrowed_parts(program: &dyn CheckingInput, reference: TypeReferenceHandle) -> bool {
     stored_loan_parts(program, reference).is_some()
         || mutable_borrowed_parts(program, reference).is_some()
 }
@@ -2224,11 +2186,11 @@ pub fn has_borrowed_parts(
 /// exclusive side. Callers that need the shared reference-result shape keep
 /// using `shared_borrowed_parts`.
 pub fn shared_place_borrowed_parts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
     crate::reference_shell(program, reference)
-        .filter(|shell| shell.access == language_semantics::ReferenceAccess::Shared)
+        .filter(|shell| shell.access == ReferenceAccess::Shared)
         .map(|shell| (shell.referee, CheckedStructuralAccess::SharedBorrow))
 }
 
@@ -2236,9 +2198,9 @@ pub fn shared_place_borrowed_parts(
 /// contained descriptor's observations cannot independently dismantle that
 /// receiver. Unknown projected types conservatively retain this obligation.
 pub fn path_has_nominal_receiver(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: TypeReferenceHandle,
-    path: &[facts::PlaceSegment],
+    path: &[PlaceSegment],
 ) -> bool {
     (0..path.len()).any(|length| {
         crate::project_type_reference_from_segments(program, root, &path[..length]).is_none_or(
@@ -2250,7 +2212,7 @@ pub fn path_has_nominal_receiver(
 /// A stored value read can duplicate descriptor bytes without acquiring the
 /// referee. Owning/copying that value remains separate from result disposal.
 pub fn is_copyable_stored_value(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
     reference.is_valid()
@@ -2270,10 +2232,7 @@ pub fn is_copyable_stored_value(
 
 /// Reusable Source copies do not consume the source's custody. A materialized
 /// result can still have affine descriptor cleanup via result_multiplicity.
-pub fn source_value_is_copied(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> bool {
+pub fn source_value_is_copied(program: &dyn CheckingInput, reference: TypeReferenceHandle) -> bool {
     is_copyable_stored_value(program, reference)
         && program.type_multiplicity(reference) == Multiplicity::Unrestricted
 }
@@ -2284,13 +2243,11 @@ pub fn source_value_is_copied(
 /// `result_multiplicity`: its descriptor is an owned lifetime resource even
 /// when its referent is shared. Aggregate bindings own their stored elements.
 pub fn binding_multiplicity(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Multiplicity {
     match crate::reference_shell(program, reference) {
-        Some(shell) if shell.access == language_semantics::ReferenceAccess::Shared => {
-            Multiplicity::Unrestricted
-        }
+        Some(shell) if shell.access == ReferenceAccess::Shared => Multiplicity::Unrestricted,
         Some(_) => Multiplicity::Affine,
         None => result_multiplicity(program, reference),
     }
@@ -2299,7 +2256,7 @@ pub fn binding_multiplicity(
 /// Source reference use multiplicity does not encode the lifetime obligation
 /// of a materialized carrier. Reference carrier custody must end exactly once.
 pub fn result_multiplicity(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Multiplicity {
     // Aggregate custody follows the stored element, not source use
@@ -2334,10 +2291,7 @@ pub fn result_multiplicity(
 /// the body spells a name, reborrow, local alias or internal transition. The
 /// complete origin relation proves correspondence; an empty source path keeps
 /// this query distinct from a projected referent or an owned reference leaf.
-pub fn source_parameter(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<usize> {
+pub fn source_parameter(program: &dyn CheckingInput, state: &State) -> Option<usize> {
     let sources = whole_reference_sources(program, state, None)?;
     if sources.iter().any(|source| !source.source.path.is_empty()) {
         return None;
@@ -2353,15 +2307,15 @@ pub fn source_parameter(
 /// result relation, not the final expression's spelling. This correspondence
 /// does not create a loan or discharge the carrier's residual cleanup.
 pub fn source_leaf(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    state: &State,
 ) -> Option<(usize, checked_trees::CheckedUnitStructuralArgumentPlan)> {
     parts(program, state.return_type)?;
     let sources = whole_reference_sources(program, state, None)?;
     let [source] = sources.as_slice() else {
         return None;
     };
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
         source.source.source
     else {
         return None;
@@ -2392,8 +2346,8 @@ pub fn source_leaf(
 /// result access. The complete relation owns internal jumps and captured alias
 /// substitution; distinct projected paths remain alternatives, not permissions.
 fn reference_sources_parameter(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    state: &State,
     sources: &[checked_trees::CheckedReferenceResultSourcePlan],
 ) -> Option<usize> {
     let (_, access) = stored_loan_parts(program, state.return_type)?;
@@ -2402,7 +2356,7 @@ fn reference_sources_parameter(
         if !source.path.is_empty() || source.source.access != access {
             return None;
         }
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             source.source.source
         else {
             return None;
@@ -2439,10 +2393,10 @@ fn reference_sources_parameter(
 /// without a second allocation; interleaved groups fail rather than silently
 /// dropping a source or including a different call's loans.
 pub fn result_loans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     call: &checked_trees::FlowCallFact,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<arena::HandleSpan<checked_trees::BorrowLoanFact>> {
@@ -2526,10 +2480,10 @@ pub fn result_loans(
 /// The execution scheduler must also retire holders borrowing this local's
 /// storage before using this boundary to dispose of its whole value.
 pub fn whole_local_release_boundary(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     statement_index: u32,
 ) -> Option<u32> {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -2631,7 +2585,7 @@ pub fn loan_weakening(
 }
 
 pub fn release_statement(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -2665,7 +2619,7 @@ pub fn release_statement(
 /// operations, their custody accounting and the lowered validation see one
 /// boundary.
 pub fn release_boundary(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,

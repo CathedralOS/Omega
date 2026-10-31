@@ -4,6 +4,7 @@
 //! scalar store summary. Authored children keep their earlier operand epochs.
 use super::{StoredCapture, StoredObservation, StoredOperand};
 use arena::Handle;
+use checked_trees::FlowOperandCompletion;
 use checked_trees::{FlowControlFacts, FlowOperandFact, FlowStorageSnapshot};
 use facts::PlaceSegment;
 
@@ -156,7 +157,7 @@ impl Resolver<'_> {
         if !capture.type_reference.is_valid() {
             return Selection::Unavailable;
         }
-        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+        if let FlowOperandCompletion::Selected(alternatives) = capture.completion {
             let Some(rows) = self.control.operand_alternatives.span(alternatives) else {
                 return Selection::Unavailable;
             };
@@ -172,9 +173,7 @@ impl Resolver<'_> {
             );
         }
         let view = crate::reference_shell(self.program, capture.type_reference).is_some();
-        if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } =
-            capture.completion
-        {
+        if let FlowOperandCompletion::Copied { copy, path: prefix } = capture.completion {
             if !self.control.copied_values.is_valid(copy) {
                 return Selection::Unavailable;
             }
@@ -597,15 +596,6 @@ impl Resolver<'_> {
         }
     }
 
-    fn program_owned_descriptor(
-        &self,
-        reference: typed_trees::types::TypeReferenceHandle,
-        projection: &[PlaceSegment],
-    ) -> bool {
-        crate::owned_projection_type_reference(self.program, reference, projection)
-            .is_some_and(|selected| crate::reference_shell(self.program, selected).is_some())
-    }
-
     fn stored(&mut self, stored: StoredOperand, suffix: &[PlaceSegment]) -> Selection {
         match stored {
             StoredOperand::Unavailable => Selection::Unavailable,
@@ -632,7 +622,11 @@ impl Resolver<'_> {
                 // A pointer crossing is different: its stored leaves belong
                 // to the consumer's current cut and keep the selected sources.
                 let reference = self.control.operands.get(capture).type_reference;
-                if self.program_owned_descriptor(reference, &projection) {
+                if crate::owned_projection_type_reference(self.program, reference, &projection)
+                    .is_some_and(|selected| {
+                        crate::reference_shell(self.program, selected).is_some()
+                    })
+                {
                     Selection::Sources {
                         incoming: Vec::new(),
                         values: vec![StoredCapture {

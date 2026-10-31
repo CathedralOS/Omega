@@ -18,6 +18,10 @@
 //! There is no separate scalar graph: Unit bodies are the one lowering route
 //! for scalar machines, and these facts are what they read.
 
+use crate::execution::guard_complement::complementary;
+use crate::execution::selected_transitions::selected_transition;
+use crate::execution::successor_completion::classify;
+use crate::execution::terminal_unit::state_graph::natural_rank_plans;
 use checked_trees::{
     CheckedScalarBranchDestination, CheckedScalarStateTerminator,
     CheckedStructuralControlSuccessorPlan, CheckedTerminalMachineSelection,
@@ -41,7 +45,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 signature: if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()
                     || (machine.termination_plan.implementation_witness.is_some()
-                        && crate::execution::terminal_unit::state_graph::natural_rank_plans(
+                        && natural_rank_plans(
                             program, machine, rank_arrivals,
                         ).is_none())
                     // Operational ceilings do not change the value ABI.
@@ -128,7 +132,7 @@ fn checked_successor(
     Some(CheckedStructuralControlSuccessorPlan::new(
         statement_ordinal,
         target,
-        crate::execution::successor_completion::classify(program, machine, path.symbol),
+        classify(program, machine, path.symbol),
         is_continuation,
         Vec::new(),
         Vec::new(),
@@ -151,11 +155,7 @@ pub(super) fn checked_terminator(
     // Checking forms every canonical arm. Execution retains only the selected
     // edge when its guard is a closed static proposition, keeping the original
     // statement coordinate and its checked value/custody records.
-    if let Some(selected) = crate::execution::selected_transitions::selected_transition(
-        program,
-        statements,
-        binding_count,
-    ) {
+    if let Some(selected) = selected_transition(program, statements, binding_count) {
         let ordinal = selected.statement_ordinal;
         let transition = selected.transition;
         return match checked_branch_destination(program, machine, ordinal, transition, false)? {
@@ -213,12 +213,7 @@ pub(super) fn checked_terminator(
             rest @ ..,
         ] if matches!(when_true.guard, TransitionGuardNode::When(_))
             && (when_false.guard == TransitionGuardNode::Always
-                || crate::execution::guard_complement::complementary(
-                    program,
-                    expressions,
-                    state,
-                    terminator_ordinal,
-                ))
+                || complementary(program, expressions, state, terminator_ordinal))
             && !when_true.continuation.is_valid()
             && !when_false.continuation.is_valid()
             && rest.iter().all(|statement| {

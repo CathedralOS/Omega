@@ -22,6 +22,107 @@ class CompilerPilotTests(unittest.TestCase):
             directory.mkdir(parents=True, exist_ok=True)
             (directory / "main.omg").write_text("machine main() {}", encoding="utf-8")
 
+    def sample_root(self, root, *samples):
+        for sample in samples:
+            directory = root / sample
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / "main.omg").write_text("// Expected exit: 0\nmachine main() {}")
+            (directory / "build.omg").write_text("ProgramEntry")
+
+    def test_fact_selection_includes_nested_control_but_refuses_filter_collision(self):
+        sample = "samples/cli/facts/layout/local"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample, sample + "/invalid")
+            with patch.object(pilot, "ROOT", root):
+                self.assertEqual(pilot.select_samples(sample), (sample, sample + "/invalid"))
+                self.sample_root(root, sample + "_extra")
+                with self.assertRaisesRegex(ValueError, "unrequested"):
+                    pilot.select_samples(sample)
+
+    def test_invalid_fact_selection_never_builds_or_runs_smoke(self):
+        sample = "samples/cli/facts/layout/local"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            (root / "samples/cli/facts/layout/no_entry").mkdir()
+            (root / "samples/cli/facts/layout/no_entry/build.omg").write_text("ProgramEntry")
+            if os.name != "nt":
+                (root / "samples/cli/facts/escape").symlink_to(root.parent, target_is_directory=True)
+            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute, \
+                    patch.object(pilot, "prepare_producer") as build:
+                for request in (17, "", " ", sample + ",", sample + "," + sample, "/" + sample,
+                                "samples/cli/other", "samples/cli/facts/layout/../local",
+                                "samples/cli/facts//layout/local", "samples/cli/facts/./layout/local",
+                                "samples\\cli\\facts\\layout\\local", "samples/cli/facts/missing",
+                                "samples/cli/facts/layout/no_entry", "samples/cli/facts/escape"):
+                    with self.subTest(request=request):
+                        self.assertEqual(pilot.run_suite("refused", pilot.POSITIVES, pilot.NEGATIVES,
+                                                        samples=request), 1)
+                execute.assert_not_called()
+                build.assert_not_called()
+
+    def test_sample_only_replaces_defaults_and_explicit_fixtures_can_share_it(self):
+        sample = "samples/cli/facts/layout/local"
+        fixture = "pass/layout/local"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            self.fixture_root(root, fixture)
+            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.run_suite("samples", pilot.POSITIVES, pilot.NEGATIVES,
+                                                samples=sample), 0)
+                self.assertEqual(execute.call_args.kwargs["positives"], ())
+                self.assertEqual(execute.call_args.kwargs["negatives"], ())
+                self.assertEqual(execute.call_args.kwargs["samples"], (sample,))
+                self.assertEqual(pilot.run_suite("both", pilot.POSITIVES, pilot.NEGATIVES,
+                                                fixtures=fixture, samples=sample), 0)
+                self.assertEqual(execute.call_args.kwargs["positives"], (fixture,))
+        with patch.dict(os.environ, {pilot.SAMPLE_ENVIRONMENT: sample}), \
+                patch.object(pilot, "run_suite", return_value=0) as suite:
+            pilot.main([])
+            self.assertEqual(suite.call_args.kwargs["samples"], sample)
+            pilot.main(["--samples", ""])
+            self.assertEqual(suite.call_args.kwargs["samples"], "")
+
+    def test_sample_consumer_uses_existing_cli_and_refuses_vacuous_or_unscored_evidence(self):
+        sample = "samples/cli/facts/layout/local"
+        accepted = [dict(sample=sample, state="pass"),
+                    dict(sample=sample + "/invalid", state="rejected", role="intended-invalid")]
+        producer = Mock(revision="a" * 40, target="linux_x86_64", cli=Path("/retained/omega"),
+                        runner_profile={"sha256": "b" * 64})
+        for rows, code in ((accepted, 0), ([], 0), (accepted[:1], 0),
+                           ([accepted[0], accepted[0]], 0), (accepted, 1),
+                           ([dict(sample=sample, state="no-oracle"), accepted[1]], 0),
+                           ([dict(sample=sample, state="checked"), accepted[1]], 0),
+                           ([dict(sample=sample, state="pass"), dict(accepted[1], state="rejection-failed")], 0)):
+            with self.subTest(rows=rows, code=code), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                def consume(arguments, **kwargs):
+                    self.assertEqual(arguments[1:4], ["tools/sample_native_gate.py", "--cli", "/retained/omega"])
+                    self.assertIn("--facts", arguments)
+                    self.assertEqual(arguments[arguments.index("--jobs") + 1], "2")
+                    self.assertEqual(arguments[arguments.index("--target") + 1], producer.target)
+                    self.assertEqual(arguments[arguments.index("--filter") + 1], sample + "," + sample + "/invalid")
+                    Path(arguments[arguments.index("--write-results") + 1]).write_text(json.dumps(rows))
+                    return Mock(returncode=code)
+                with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                        patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                        patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                        patch.object(pilot.subprocess, "run", side_effect=consume) as run, \
+                        patch.object(pilot, "prepare_producer") as build:
+                    arguments = dict(positives=(), negatives=(), producer=producer,
+                                     samples=(sample, sample + "/invalid"))
+                    if rows == accepted and code == 0:
+                        summary = {}
+                        pilot.execute(output, summary, **arguments)
+                        self.assertEqual(summary["sample_observations"], accepted)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "runtime/oracle/rejection"):
+                            pilot.execute(output, {}, **arguments)
+                    run.assert_called_once()
+                    build.assert_not_called()
+
     def test_exact_fixture_ids_split_runtime_and_rejection_rosters(self):
         positive = "pass/float/named_conversion"
         negative = "fail/float/unproved_conversion"
@@ -31,6 +132,28 @@ class CompilerPilotTests(unittest.TestCase):
             with patch.object(pilot, "ROOT", root):
                 self.assertEqual(pilot.select_fixtures(f" {negative}, {positive} "),
                                  ((positive,), (negative,)))
+
+    def test_nested_fact_ids_keep_exact_selection_and_refusals(self):
+        positive = "pass/facts/invocation_lifetime/local"
+        negative = "fail/facts/invocation_lifetime/local"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, positive, negative)
+            with patch.object(pilot, "ROOT", root), \
+                    patch.object(pilot, "prepare_producer") as build:
+                self.assertEqual(pilot.select_fixtures(positive + "," + negative),
+                                 ((positive,), (negative,)))
+                for invalid in ("pass/facts/invocation_lifetime/../local",
+                                "pass/facts//invocation_lifetime/local",
+                                "pass/facts/invocation_lifetime/missing"):
+                    with self.subTest(request=invalid), self.assertRaises(ValueError):
+                        pilot.select_fixtures(invalid)
+                self.fixture_root(root, positive + "_extra")
+                with self.assertRaisesRegex(ValueError, "unrequested fixtures"):
+                    pilot.select_fixtures(positive)
+                self.assertEqual(pilot.select_fixtures(positive + "," + positive + "_extra"),
+                                 ((positive, positive + "_extra"), ()))
+                build.assert_not_called()
 
     def test_malformed_or_missing_exact_id_never_builds_or_runs_defaults(self):
         fixture = "pass/float/named_conversion"

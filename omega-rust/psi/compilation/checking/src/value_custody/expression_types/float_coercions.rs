@@ -22,6 +22,7 @@
 //! the exact rounded meaning, not an already-rounded host float.
 
 use diagnostics::Diagnostic;
+use numerics::bignum::BigRational;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -144,9 +145,7 @@ pub(crate) fn float_coercion_preserves_denotation(
             } else if minimum == maximum {
                 let integer = numerics::bignum::BigInt::from_i128(minimum);
                 FloatSemantics::from_integer(format, &integer)
-                    == FloatMeaning::FiniteNonZero(numerics::bignum::BigRational::from_integer(
-                        integer,
-                    ))
+                    == FloatMeaning::FiniteNonZero(BigRational::from_integer(integer))
             } else {
                 false
             }

@@ -3,6 +3,7 @@ use super::super::{
     HistoricalPackagePolicyLimits, PackageLock, PackageLockError as Error,
     PackageLockRecoveryLimits,
 };
+use super::compilation::read;
 use super::{HEADER, budget::Budget, framing::Writer};
 use crate::lock::PackagePolicyOccurrence;
 
@@ -74,12 +75,7 @@ impl PackageLock {
                     .compilation()
                     .ok_or(Error::MissingCompilationInputs)?;
                 let text = super::compilation::write(compilation, policy.package(), context)?;
-                drop(super::compilation::read(
-                    &text,
-                    policy.package(),
-                    context,
-                    &mut budget,
-                )?);
+                drop(read(&text, policy.package(), context, &mut budget)?);
                 writer.section("compilation", &text)?;
             }
             let decisions = target

@@ -4,6 +4,7 @@
 //! owns the sponsored session borrowed by every target, candidate and review pass;
 //! `occurrences` admits dependency work and joins compiler evidence to policy.
 
+use crate::resolution::graph::CanonicalSourceClosureSubject;
 mod occurrences;
 mod policy;
 
@@ -172,11 +173,8 @@ fn review_pass(
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let execution_profile = target::TargetProfile::host_if_supported();
-    let source = crate::resolution::graph::CanonicalSourceClosureSubject::from_resolved(
-        target_closure,
-        Default::default(),
-    )
-    .map_err(|error| CompileResolvedPackageReviewsError::Projection {
+    let source = CanonicalSourceClosureSubject::from_resolved(target_closure, Default::default())
+        .map_err(|error| CompileResolvedPackageReviewsError::Projection {
         package: closure.graph().root().clone(),
         diagnostics: vec![diagnostics::Diagnostic::error(error.to_string())],
     })?;

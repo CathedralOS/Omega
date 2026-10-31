@@ -4,19 +4,19 @@
 //! [`TerminalStructuralInputs`] is the record the entries in
 //! `terminal_interpreter` accept. `scalar_fields` binds host field contents
 //! by runtime referent and validates entry restrictions, `byte_arrays` the
-//! explicit initialized fixed-array contents, `case_membership` the selected
-//! case of a bounded sum, and `access_views` the established access-view
+//! explicit initialized fixed-array contents, `contents` complete scalar/tag
+//! payloads, and `access_views` the established access-view
 //! referents; each is bound only when it is given.
 
 pub(crate) mod access_views;
 pub(crate) mod byte_arrays;
 pub(crate) mod case_membership;
+pub(crate) mod contents;
+pub(crate) mod initialization;
 pub(crate) mod scalar_fields;
-pub(crate) mod zero_initialized;
 
 use crate::structural_inputs::access_views::TerminalAccessViewEstablishment;
 use crate::structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
-use crate::structural_inputs::case_membership::TerminalStructuralCaseValue;
 use crate::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 use crate::values::{
     TerminalStructuralBooleanFieldValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
@@ -39,6 +39,9 @@ pub struct TerminalEstablishedErasedField {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TerminalStructuralInputs<'input> {
     pub arguments: &'input [TerminalStructuralValue],
+    /// Complete scalar/case contents of existing argument carriers. This lane
+    /// initializes backing, never claims, qualifications or reference custody.
+    pub contents: &'input [contents::TerminalStructuralContents],
     /// Dense positions whose supplied backing the host actually established
     /// with zero contents. A type declaration alone never initializes backing.
     /// Identities and qualifications still come from the supplied carriers;
@@ -50,7 +53,6 @@ pub struct TerminalStructuralInputs<'input> {
     /// reported as a boolean-field argument error.
     pub boolean_fields: &'input [TerminalStructuralBooleanFieldValue],
     pub primitive_values: &'input [TerminalStructuralPrimitiveValue],
-    pub cases: &'input [TerminalStructuralCaseValue],
     pub byte_arrays: &'input [TerminalStructuralByteArrayValue],
     /// Established access-view inputs: one exact establishment per direct
     /// entry roster row lends its qualified referent backing for the

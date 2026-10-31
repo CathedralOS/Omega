@@ -5,6 +5,7 @@
 //! correlation such as `amount <= limit - used` supplies the tighter result.
 //! Operand formation precedes admission; the requested range is never a premise.
 
+use crate::CheckingInput;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use diagnostics::Diagnostic;
@@ -12,6 +13,7 @@ use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::types::PrimitiveType;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// An already-formed integer value under the receiving validator's live facts.
@@ -31,7 +33,7 @@ pub(crate) struct IntegerValueObservation<'a> {
 }
 
 impl IntegerValueObservation<'_> {
-    fn fits(self, program: &dyn crate::CheckingInput, stated: Interval) -> bool {
+    fn fits(self, program: &dyn CheckingInput, stated: Interval) -> bool {
         if stated
             .low
             .zip(stated.high)
@@ -99,7 +101,7 @@ impl IntegerValueObservation<'_> {
 /// obligations enforce it) or keep the domain (defined overflow, full type
 /// range), never both.
 pub(crate) fn check_range_under_non_exact_domain(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     handle: typed_trees::types::TypeReferenceHandle,
     owner: crate::value_custody::type_references::TypeReferenceOwner<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -108,13 +110,7 @@ pub(crate) fn check_range_under_non_exact_domain(
     // in Wrapping` may parse as Constrained(Constrained(u8, [Range]),
     // [Domain]), where the shallow per-node accessors see only one
     // constraint set each.
-    fn has_range_constraint(
-        program: &dyn crate::CheckingInput,
-        handle: typed_trees::types::TypeReferenceHandle,
-    ) -> bool {
-        declares_bracketed_range(program, handle)
-    }
-    if !has_range_constraint(program, handle) {
+    if !declares_bracketed_range(program, handle) {
         return;
     }
     let domain = program.type_reference_table.arithmetic_domain(handle);
@@ -127,7 +123,7 @@ pub(crate) fn check_range_under_non_exact_domain(
 }
 
 pub(crate) fn range_constraint_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
     // Integral-looking IEEE endpoints are still floating bounds. Applying an
@@ -194,7 +190,7 @@ pub(crate) fn range_constraint_interval(
 }
 
 fn closed_range_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     minimum: ExpressionHandle,
     maximum: ExpressionHandle,
     end_inclusive: bool,
@@ -225,7 +221,7 @@ fn closed_range_interval(
 /// (this helper has no machine context; the declaration gate has already
 /// verified the binding machine's own field is ranged).
 fn dependent_maximum_substituted(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     maximum: typed_trees::expression::ExpressionHandle,
     end_inclusive: bool,
 ) -> Option<i64> {
@@ -260,7 +256,7 @@ fn dependent_maximum_substituted(
 /// range as an invariant, so an unknown store cannot establish it. Non-Exact
 /// shells and unranged targets remain deliberately permissive.
 pub(crate) fn check_range_containment(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target_type: TypeReferenceHandle,
     value: IntegerValueObservation<'_>,
     owner: &str,
@@ -283,7 +279,7 @@ pub(crate) fn check_range_containment(
 /// that field's interval as a bracketed field owes its range. An unstated end
 /// constrains nothing; a stated end needs the matching proven end.
 pub(crate) fn check_where_interval_containment(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     stated: Interval,
     value: IntegerValueObservation<'_>,
     owner: &str,
@@ -303,7 +299,7 @@ pub(crate) fn check_where_interval_containment(
 /// The declared literal `[a..=b]` of a type reference, ONLY under all-Exact
 /// Constrained shells (non-Exact ranges are deliberately permissive).
 pub(crate) fn enforced_declared_range_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
     if floating_range_carrier(program, handle) {
@@ -326,18 +322,10 @@ pub(crate) fn enforced_declared_range_interval(
         .reduce(Interval::intersect)
 }
 
-fn floating_range_carrier(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> bool {
+fn floating_range_carrier(program: &dyn CheckingInput, reference: TypeReferenceHandle) -> bool {
     crate::unwrapped_type_reference(program, reference)
         .and_then(|carrier| program.primitive_type_reference(carrier))
-        .is_some_and(|primitive| {
-            matches!(
-                primitive,
-                typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
-            )
-        })
+        .is_some_and(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))
 }
 
 /// Whether the type spells a BRACKETED range constraint anywhere in its
@@ -345,7 +333,7 @@ fn floating_range_carrier(
 /// now yield an interval, so a check that owns only the bracketed spelling
 /// must ask this before speaking.
 pub(crate) fn declares_bracketed_range(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(handle) {

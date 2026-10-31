@@ -37,7 +37,10 @@ pub(super) fn deduplicate(
     // components: it is proof and termination custody, not a use list the
     // substitution can rewrite. Covered member blocks keep their exact
     // contents; duplicates outside them still collapse.
-    let coverage = crate::retained_identities::ranked_coverage::ranked_coverage(machine);
+    let Some(coverage) = crate::retained_identities::ranked_coverage::ranked_coverage(machine)
+    else {
+        return;
+    };
     let mut retained_values = retained_values.clone();
     retained_values.extend(coverage.values.iter().copied());
     retain_contract_values(&machine.contract, &mut retained_values);

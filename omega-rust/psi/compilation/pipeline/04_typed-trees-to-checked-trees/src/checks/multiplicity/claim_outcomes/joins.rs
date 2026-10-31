@@ -4,14 +4,22 @@
 //! Input forwarding keeps the caller's held identity; differing exit sources
 //! retain every alternative rather than manufacturing an unconditional lineage.
 
+use super::super::selected_evaluation::place_bindings::claim_origin;
 use super::{
     bind_claim_outcome_source_at_arguments, claim_paths_are_case_alternatives,
     derive_checked_claim_outcome_maps,
 };
+use crate::checks::multiplicity::ClaimConsumption;
+use crate::checks::multiplicity::ReturnedClaimSource;
+use crate::checks::multiplicity::ReturnedClaimSource::Live;
+use crate::checks::multiplicity::consumed_operand_claims;
+use crate::checks::multiplicity::current_returned_claims;
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
 };
 use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
+use crate::collections::push_unique;
+use crate::collections::unique_in_order;
 use checked_trees::{
     CheckFacts, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeSource, FlowOwnershipFacts,
@@ -305,7 +313,7 @@ impl CallJoinPreparation {
             event.provenance = binding.provenance;
         }
         // Failed lookups matter too: a new receipt must trigger preparation.
-        crate::collections::push_unique(&mut self.dependencies, receiver);
+        push_unique(&mut self.dependencies, receiver);
     }
 }
 
@@ -439,12 +447,7 @@ fn state_frontiers(
             // This query checks the whole actual return frontier, including
             // every retained alternative and cross-path resource uniqueness,
             // before projecting the one result path this receipt requests.
-            let claims = match crate::checks::multiplicity::current_returned_claims(
-                program,
-                facts,
-                outgoing,
-                &mut conditions,
-            ) {
+            let claims = match current_returned_claims(program, facts, outgoing, &mut conditions) {
                 Ok(claims) => claims,
                 Err(reason) => {
                     diagnostics.record(edge, reason);
@@ -455,12 +458,12 @@ fn state_frontiers(
             for claim in claims.iter().filter(|claim| claim.path == path) {
                 found = true;
                 let (entries, inactive_paths, identity) = match claim.source {
-                    crate::checks::multiplicity::ReturnedClaimSource::Inactive => (
+                    ReturnedClaimSource::Inactive => (
                         Vec::new(),
                         vec![path.to_vec()],
                         PermissionClaimIdentity::Unknown,
                     ),
-                    crate::checks::multiplicity::ReturnedClaimSource::Live(identity) => {
+                    Live(identity) => {
                         let Some(source) =
                             returned_identity_source(state, identity, ownership, events)
                         else {
@@ -676,7 +679,7 @@ fn bound_sources_at_call(
     if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
         return Err("caller argument binding has no exact permission evaluation");
     }
-    let consumer = crate::checks::multiplicity::ClaimConsumption {
+    let consumer = ClaimConsumption {
         machine,
         state: state.symbol,
         statement_index: statement,
@@ -688,17 +691,11 @@ fn bound_sources_at_call(
         },
     };
     let mut conditions = crate::flow::SelectionConditions::new();
-    let claims = crate::checks::multiplicity::consumed_operand_claims(
-        program,
-        facts,
-        consumer,
-        operand,
-        &mut conditions,
-    )?;
+    let claims = consumed_operand_claims(program, facts, consumer, operand, &mut conditions)?;
     let mut sources = Vec::new();
     for claim in claims.iter().filter(|claim| claim.path == *path) {
         let (source, identity) = match claim.source {
-            crate::checks::multiplicity::ReturnedClaimSource::Live(identity) => (
+            Live(identity) => (
                 Some(
                     returned_identity_source(state, identity, &facts.flow.ownership, events)
                         .ok_or(
@@ -707,9 +704,7 @@ fn bound_sources_at_call(
                 ),
                 identity,
             ),
-            crate::checks::multiplicity::ReturnedClaimSource::Inactive => {
-                (None, PermissionClaimIdentity::Unknown)
-            }
+            ReturnedClaimSource::Inactive => (None, PermissionClaimIdentity::Unknown),
         };
         let excluded_input = source.is_none().then(|| ExcludedInput {
             source: CheckedClaimOutcomeSource::Input {
@@ -728,7 +723,7 @@ fn bound_sources_at_call(
                 identity,
             }],
         };
-        crate::collections::push_unique(&mut sources, bound);
+        push_unique(&mut sources, bound);
     }
     if sources.is_empty() {
         Err("completed caller argument omits the exact returned input-source path")
@@ -868,7 +863,7 @@ fn expand_joined_frontier(
     // A completed child can establish the same claim at successive
     // receiving homes. Those rows still name one call occurrence and
     // result path; distinct result paths remain ambiguous.
-    let origins = crate::collections::unique_in_order(
+    let origins = unique_in_order(
         events
             .iter()
             .filter(|event| {
@@ -1543,7 +1538,7 @@ pub(crate) fn publish_call_claim_joins(
                         provenance,
                         receipt.identity,
                     );
-                    crate::collections::push_unique(&mut rewrites, rewrite);
+                    push_unique(&mut rewrites, rewrite);
                 }
             }
         }
@@ -1766,11 +1761,7 @@ pub(crate) fn validate_call_claim_joins(
                 ..
             }
         ) {
-            super::super::selected_evaluation::place_bindings::claim_origin(
-                ownership,
-                event.claim_identity,
-                event.provenance,
-            )
+            claim_origin(ownership, event.claim_identity, event.provenance)
         } else if matches!(event.provenance, PermissionProvenance::Joined { .. }) {
             expected.iter().any(|receipt| {
                 receipt.identity == event.claim_identity

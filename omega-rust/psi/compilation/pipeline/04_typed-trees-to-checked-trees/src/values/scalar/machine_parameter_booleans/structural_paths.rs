@@ -3,20 +3,20 @@
 
 use crate::values::scalar::structural_fields;
 use crate::values::scalar::structural_fields::structural_data;
-use checked_trees::CheckedStructuralPredicatePathSegment;
+use checked_trees::{CheckedMemberIdentity, CheckedStructuralPredicatePathSegment};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 fn field_type(
     program: &dyn ::validation::CheckingInput,
     receiver: TypeReferenceHandle,
-    identity: &checked_trees::CheckedMemberIdentity,
+    identity: &CheckedMemberIdentity,
 ) -> Option<TypeReferenceHandle> {
     let declaration = structural_data(program, receiver)?;
     program.data_members(declaration).iter().find_map(|member| {
         let field = member.as_field()?;
-        let matches_identity = *identity
-            == checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
+        let matches_identity =
+            *identity == CheckedMemberIdentity::of_member(field.identity, field.name.clone());
         matches_identity.then_some(field.type_reference)
     })
 }
@@ -40,12 +40,12 @@ pub(crate) fn path_type_reference(
                     return None;
                 }
                 let mut selected = receiver;
-                while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+                while let TypeReferenceNode::Constrained { base_type, .. } =
                     program.type_reference_table.type_reference(selected)
                 {
                     selected = *base_type;
                 }
-                let typed_trees::types::TypeReferenceNode::Reference {
+                let TypeReferenceNode::Reference {
                     referee, access, ..
                 } = program.type_reference_table.type_reference(selected)
                 else {
@@ -76,10 +76,8 @@ pub(crate) fn path_type_reference(
                 let data = structural_data(program, receiver)?;
                 let variant = program.data_members(data).iter().find_map(|member| {
                     let variant = member.as_variant()?;
-                    let identity = checked_trees::CheckedMemberIdentity::of_member(
-                        variant.identity,
-                        variant.name.clone(),
-                    );
+                    let identity =
+                        CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
                     (identity == *case).then_some(variant)
                 })?;
                 selected_case = Some(variant);
@@ -90,7 +88,7 @@ pub(crate) fn path_type_reference(
                         .data_payload_fields(variant)
                         .iter()
                         .find_map(|candidate| {
-                            let identity = checked_trees::CheckedMemberIdentity::of_member(
+                            let identity = CheckedMemberIdentity::of_member(
                                 candidate.identity,
                                 candidate.name.clone(),
                             );

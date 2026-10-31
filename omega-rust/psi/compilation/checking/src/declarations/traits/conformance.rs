@@ -63,6 +63,8 @@ pub(crate) use signature_matching::{
     authored_conformance_machine, validate_applied_trait_signature,
 };
 pub(crate) use trait_applications::validate_trait_application_obligations;
+use typed_trees::data::TypeParameter;
+use typed_trees::data::TypeParameterKind;
 
 /// The payload-erased family of a declaration-site type parameter kind.
 /// Pair predicates compare families first, then apply their own admission.
@@ -76,28 +78,22 @@ enum TypeParameterKindFamily {
     Proposition,
 }
 
-fn type_parameter_kind_family(
-    kind: &typed_trees::data::TypeParameterKind,
-) -> TypeParameterKindFamily {
+fn type_parameter_kind_family(kind: &TypeParameterKind) -> TypeParameterKindFamily {
     match kind {
-        typed_trees::data::TypeParameterKind::Implementation => {
-            TypeParameterKindFamily::Implementation
-        }
-        typed_trees::data::TypeParameterKind::Type => TypeParameterKindFamily::Type,
-        typed_trees::data::TypeParameterKind::Const { .. } => TypeParameterKindFamily::Const,
-        typed_trees::data::TypeParameterKind::Value { .. } => TypeParameterKindFamily::Value,
-        typed_trees::data::TypeParameterKind::Machine { .. } => TypeParameterKindFamily::Machine,
-        typed_trees::data::TypeParameterKind::Proposition { .. } => {
-            TypeParameterKindFamily::Proposition
-        }
+        TypeParameterKind::Implementation => TypeParameterKindFamily::Implementation,
+        TypeParameterKind::Type => TypeParameterKindFamily::Type,
+        TypeParameterKind::Const { .. } => TypeParameterKindFamily::Const,
+        TypeParameterKind::Value { .. } => TypeParameterKindFamily::Value,
+        TypeParameterKind::Machine { .. } => TypeParameterKindFamily::Machine,
+        TypeParameterKind::Proposition { .. } => TypeParameterKindFamily::Proposition,
     }
 }
 
 /// Two declaration-site type parameters pair on the same declared kind,
 /// including static `Machine` and `Proposition` parameters.
 pub(super) fn type_parameter_kinds_identical(
-    required: &typed_trees::data::TypeParameterKind,
-    actual: &typed_trees::data::TypeParameterKind,
+    required: &TypeParameterKind,
+    actual: &TypeParameterKind,
 ) -> bool {
     type_parameter_kind_family(required) == type_parameter_kind_family(actual)
 }
@@ -105,8 +101,8 @@ pub(super) fn type_parameter_kinds_identical(
 /// The kind pairs a callable's generic parameters accept: `Proposition`
 /// parameters do not take part in machine-callable matching.
 pub(super) fn type_parameter_kinds_callable(
-    required: &typed_trees::data::TypeParameterKind,
-    actual: &typed_trees::data::TypeParameterKind,
+    required: &TypeParameterKind,
+    actual: &TypeParameterKind,
 ) -> bool {
     let family = type_parameter_kind_family(required);
     family == type_parameter_kind_family(actual) && family != TypeParameterKindFamily::Proposition
@@ -115,8 +111,8 @@ pub(super) fn type_parameter_kinds_callable(
 /// The kind pairs that form a trait type binding: `Type`, `Const`, and
 /// `Value` parameters only.
 pub(super) fn type_parameter_kinds_bindable(
-    required: &typed_trees::data::TypeParameterKind,
-    actual: &typed_trees::data::TypeParameterKind,
+    required: &TypeParameterKind,
+    actual: &TypeParameterKind,
 ) -> bool {
     let family = type_parameter_kind_family(required);
     family == type_parameter_kind_family(actual)
@@ -131,14 +127,9 @@ pub(super) fn type_parameter_kinds_bindable(
 /// The (required, actual) parameter pairs that may form trait type
 /// bindings: zipped positionally, then filtered to bindable kinds.
 pub(super) fn type_parameter_binding_pairs<'p>(
-    required: &'p [typed_trees::data::TypeParameter],
-    actual: &'p [typed_trees::data::TypeParameter],
-) -> impl Iterator<
-    Item = (
-        &'p typed_trees::data::TypeParameter,
-        &'p typed_trees::data::TypeParameter,
-    ),
-> {
+    required: &'p [TypeParameter],
+    actual: &'p [TypeParameter],
+) -> impl Iterator<Item = (&'p TypeParameter, &'p TypeParameter)> {
     required
         .iter()
         .zip(actual)

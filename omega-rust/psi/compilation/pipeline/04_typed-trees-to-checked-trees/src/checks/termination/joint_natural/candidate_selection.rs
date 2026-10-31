@@ -5,6 +5,7 @@ use super::{
     ranges,
     views::Order,
 };
+use crate::checks::current_scalar_values::parameter_projection_paths;
 use typed_trees::expression::BinaryOperator;
 use validation::ScopedArithmeticValue;
 
@@ -35,9 +36,7 @@ pub(super) fn prepare(
     let mut field_paths = Vec::new();
     for machine in machines {
         for state in program.machine_states(machine) {
-            for path in crate::checks::current_scalar_values::parameter_projection_paths(
-                program, machine, state,
-            ) {
+            for path in parameter_projection_paths(program, machine, state) {
                 if !field_paths.contains(&path) {
                     field_paths.push(path);
                 }
@@ -80,7 +79,12 @@ pub(super) fn prepare(
                     && coordinate.observation == view.observation
             })?
             .clone();
-        let carrier = selected.primitive;
+        // Coordinate identity belongs to the input; the component order belongs
+        // to the completed application result. They coincide only for a
+        // coordinate-only view. Never truncate an input to match its rank.
+        let carrier = view.application.map_or(selected.primitive, |application| {
+            application.result_primitive
+        });
         if selected_order.is_some_and(|previous| previous != (order, carrier, view.declaration)) {
             return None;
         }
@@ -114,9 +118,9 @@ pub(super) fn prepare(
             None
         };
         let (entry_value, formation) = if let Some(application) = view.application {
-            if application.primitive != carrier {
+            if application.input_primitive != selected.primitive {
                 return Some(Err(
-                    "a computed natural rank has incompatible input and result carriers",
+                    "a computed natural rank has an incompatible input coordinate carrier",
                 ));
             }
             let Some(value) = application.observe(values, machine, selected.entry_value.clone())
@@ -139,6 +143,7 @@ pub(super) fn prepare(
     }
     let (order, primitive, _) = selected_order?;
     let application = authored.iter().flatten().find_map(|view| view.application);
+    let input_primitive = application.map_or(primitive, |application| application.input_primitive);
     let closed_bounds = candidates
         .iter()
         .flatten()
@@ -159,7 +164,7 @@ pub(super) fn prepare(
         }
         for coordinate in available[position]
             .iter()
-            .filter(|coordinate| coordinate.primitive == primitive)
+            .filter(|coordinate| coordinate.primitive == input_primitive)
         {
             if order == Order::Descending {
                 let (entry_value, formation) = if let Some(application) = application {

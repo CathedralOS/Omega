@@ -18,7 +18,7 @@ pub(super) fn state_rank(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
-) -> Option<checked_trees::CheckedStateNaturalRank> {
+) -> Option<checked_trees::CheckedIntegerRankObservation> {
     use checked_trees::CheckedNaturalRankMeasure;
     use typed_trees::types::PrimitiveType;
     let plain = |subject: ExpressionHandle| {
@@ -44,10 +44,9 @@ pub(super) fn state_rank(
             ) {
                 return None;
             }
-            Some(checked_trees::CheckedStateNaturalRank {
+            Some(checked_trees::CheckedIntegerRankObservation {
                 function: checked_trees::CheckedNaturalRankFunction::Identity,
                 observation: Default::default(),
-                state: state.symbol,
                 parameter: parameter.symbol,
                 parameter_position: position,
                 // This query is comparison scratch only, never inserted as
@@ -68,10 +67,9 @@ pub(super) fn state_rank(
             ) {
                 return None;
             }
-            Some(checked_trees::CheckedStateNaturalRank {
+            Some(checked_trees::CheckedIntegerRankObservation {
                 function: checked_trees::CheckedNaturalRankFunction::Identity,
                 observation: Default::default(),
-                state: state.symbol,
                 parameter: lower.symbol,
                 parameter_position: lower_position,
                 measure: CheckedNaturalRankMeasure::BoundedDistance {

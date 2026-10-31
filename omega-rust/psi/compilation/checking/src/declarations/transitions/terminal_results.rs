@@ -15,9 +15,11 @@
 //! traits, arrays and references keep their own type checks, so this rule
 //! never reports a pairing it cannot name.
 
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::types::PrimitiveType;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The result one terminal call's callee completes with, in the shapes the
@@ -25,17 +27,14 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ResultShape {
     Unit,
-    Primitive(
-        typed_trees::types::PrimitiveType,
-        numerics::arithmetic::ArithmeticDomain,
-    ),
+    Primitive(PrimitiveType, numerics::arithmetic::ArithmeticDomain),
     Data(symbols::SymbolHandle),
 }
 
 /// Report a terminal call whose callee's declared result differs from the
 /// result of the state that tail-calls it.
 pub(super) fn validate(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     caller_machine: &Machine,
     caller_state: &State,
     callee_machine: &Machine,
@@ -77,10 +76,7 @@ pub(super) fn validate(
     )));
 }
 
-fn shape(
-    program: &dyn crate::CheckingInput,
-    mut handle: TypeReferenceHandle,
-) -> Option<ResultShape> {
+fn shape(program: &dyn CheckingInput, mut handle: TypeReferenceHandle) -> Option<ResultShape> {
     if !handle.is_valid() {
         return Some(ResultShape::Unit);
     }
@@ -108,7 +104,7 @@ fn shape(
     }
 }
 
-fn spelling(program: &dyn crate::CheckingInput, handle: TypeReferenceHandle) -> String {
+fn spelling(program: &dyn CheckingInput, handle: TypeReferenceHandle) -> String {
     if matches!(shape(program, handle), Some(ResultShape::Unit)) {
         "Unit".to_owned()
     } else {

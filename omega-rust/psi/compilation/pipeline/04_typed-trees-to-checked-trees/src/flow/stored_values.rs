@@ -5,41 +5,43 @@
 //! and unknown writes never fall back to a historical initializer.
 
 use arena::{Handle, HandleSpan};
-use checked_trees::{FlowControlFacts, FlowOperandFact, FlowOperandReferent};
-use validation::CanonicalPlace;
+use checked_trees::{
+    FlowControlFacts, FlowOperandFact, FlowOperandReferent, FlowStorageOperation,
+    FlowStorageSnapshot,
+};
+use facts::PlaceSegment;
+use validation::{CanonicalPlace, CheckingInput};
 
 pub(crate) use validation::completed_storage::{StoredObservation, StoredOperand, at_snapshot};
 
 pub(crate) fn append_writes(
     control: &mut FlowControlFacts,
-    previous: Handle<checked_trees::FlowStorageSnapshot>,
+    previous: Handle<FlowStorageSnapshot>,
     bindings: HandleSpan<FlowOperandReferent>,
     contents: HandleSpan<FlowOperandReferent>,
     bindings_complete: bool,
     contents_complete: bool,
-) -> Handle<checked_trees::FlowStorageSnapshot> {
+) -> Handle<FlowStorageSnapshot> {
     if bindings.is_empty() && contents.is_empty() && bindings_complete && contents_complete {
         return previous;
     }
-    control
-        .storage_snapshots
-        .insert(checked_trees::FlowStorageSnapshot {
-            previous,
-            operation: checked_trees::FlowStorageOperation::Writes {
-                bindings,
-                contents,
-                bindings_complete,
-                contents_complete,
-            },
-        })
+    control.storage_snapshots.insert(FlowStorageSnapshot {
+        previous,
+        operation: FlowStorageOperation::Writes {
+            bindings,
+            contents,
+            bindings_complete,
+            contents_complete,
+        },
+    })
 }
 
 pub(crate) fn append_place_writes(
     control: &mut FlowControlFacts,
-    previous: Handle<checked_trees::FlowStorageSnapshot>,
+    previous: Handle<FlowStorageSnapshot>,
     bindings: Option<&[CanonicalPlace]>,
     contents: Option<&[CanonicalPlace]>,
-) -> Handle<checked_trees::FlowStorageSnapshot> {
+) -> Handle<FlowStorageSnapshot> {
     fn rows(
         control: &mut FlowControlFacts,
         places: Option<&[CanonicalPlace]>,
@@ -74,11 +76,11 @@ pub(crate) fn append_place_writes(
 
 pub(crate) fn append_store(
     control: &mut FlowControlFacts,
-    previous: Handle<checked_trees::FlowStorageSnapshot>,
+    previous: Handle<FlowStorageSnapshot>,
     destination: &CanonicalPlace,
     value: Handle<FlowOperandFact>,
-    projection: &[facts::PlaceSegment],
-) -> Handle<checked_trees::FlowStorageSnapshot> {
+    projection: &[PlaceSegment],
+) -> Handle<FlowStorageSnapshot> {
     if !destination
         .segments
         .iter()
@@ -94,30 +96,28 @@ pub(crate) fn append_store(
     let projection = control
         .operand_retained_paths
         .insert_many(projection.iter().copied());
-    control
-        .storage_snapshots
-        .insert(checked_trees::FlowStorageSnapshot {
-            previous,
-            operation: checked_trees::FlowStorageOperation::Store {
-                destination: FlowOperandReferent {
-                    formation: Handle::invalid(),
-                    root: destination.root,
-                    segments,
-                },
-                value,
-                projection,
+    control.storage_snapshots.insert(FlowStorageSnapshot {
+        previous,
+        operation: FlowStorageOperation::Store {
+            destination: FlowOperandReferent {
+                formation: Handle::invalid(),
+                root: destination.root,
+                segments,
             },
-        })
+            value,
+            projection,
+        },
+    })
 }
 
 /// Reinstall only the exact descriptor's entry association. A surviving
 /// incoming value is a predecessor query, never a newly invented capture.
 pub(crate) fn append_preserved_binding(
     control: &mut FlowControlFacts,
-    previous: Handle<checked_trees::FlowStorageSnapshot>,
+    previous: Handle<FlowStorageSnapshot>,
     destination: &CanonicalPlace,
-    source: Handle<checked_trees::FlowStorageSnapshot>,
-) -> Handle<checked_trees::FlowStorageSnapshot> {
+    source: Handle<FlowStorageSnapshot>,
+) -> Handle<FlowStorageSnapshot> {
     if !destination
         .segments
         .iter()
@@ -128,25 +128,23 @@ pub(crate) fn append_preserved_binding(
     let segments = control
         .operand_referent_segments
         .insert_many(destination.segments.iter().copied());
-    control
-        .storage_snapshots
-        .insert(checked_trees::FlowStorageSnapshot {
-            previous,
-            operation: checked_trees::FlowStorageOperation::PreserveBinding {
-                destination: FlowOperandReferent {
-                    formation: Handle::invalid(),
-                    root: destination.root,
-                    segments,
-                },
-                source,
+    control.storage_snapshots.insert(FlowStorageSnapshot {
+        previous,
+        operation: FlowStorageOperation::PreserveBinding {
+            destination: FlowOperandReferent {
+                formation: Handle::invalid(),
+                root: destination.root,
+                segments,
             },
-        })
+            source,
+        },
+    })
 }
 
 pub(crate) fn join(
     control: &mut FlowControlFacts,
-    predecessors: &[Handle<checked_trees::FlowStorageSnapshot>],
-) -> Handle<checked_trees::FlowStorageSnapshot> {
+    predecessors: &[Handle<FlowStorageSnapshot>],
+) -> Handle<FlowStorageSnapshot> {
     if let Some(first) = predecessors.first()
         && predecessors.iter().all(|value| value == first)
     {
@@ -155,16 +153,14 @@ pub(crate) fn join(
     let predecessors = control
         .storage_predecessors
         .insert_many(predecessors.iter().copied());
-    control
-        .storage_snapshots
-        .insert(checked_trees::FlowStorageSnapshot {
-            previous: Handle::invalid(),
-            operation: checked_trees::FlowStorageOperation::Join { predecessors },
-        })
+    control.storage_snapshots.insert(FlowStorageSnapshot {
+        previous: Handle::invalid(),
+        operation: FlowStorageOperation::Join { predecessors },
+    })
 }
 
 pub(in crate::flow) fn invalidates_destination(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     writes: Option<&[CanonicalPlace]>,
     destination: &CanonicalPlace,
 ) -> bool {

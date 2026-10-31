@@ -6,6 +6,7 @@ use super::{
     LoweringError, PlaceId, ScalarType, StructuralAccess, StructuralLocalBinding,
     StructuralTypeDeclaration, primitive_storage_place, unsupported,
 };
+use crate::expression_preparation::representation_view::replay;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(crate) fn primitive_storage_read(
@@ -208,10 +209,7 @@ pub(crate) fn captured_observation(
         if observation.scalar_type == observation.viewed_type {
             read
         } else {
-            crate::expression_preparation::representation_view::replay(
-                read,
-                observation.viewed_type,
-            )?
+            replay(read, observation.viewed_type)?
         },
     ))
 }

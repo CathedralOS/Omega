@@ -3,6 +3,9 @@
 use crate::checks::content::content_paths::{
     content_path, content_segments_to_fact_path, projection_observations,
 };
+use crate::checks::multiplicity::ReturnedClaim;
+use crate::checks::multiplicity::ReturnedClaimSource::Live;
+use crate::checks::multiplicity::current_returned_claims;
 use crate::flow::{SelectionCondition, SelectionConditions};
 use crate::places::place_at;
 use checked_trees::{
@@ -46,7 +49,7 @@ pub(crate) struct ReturnedPartitionInvocation {
 enum InvocationResult {
     Captured {
         expression: ExpressionHandle,
-        claims: Vec<crate::checks::multiplicity::ReturnedClaim>,
+        claims: Vec<ReturnedClaim>,
     },
     TailTransfer,
 }
@@ -161,9 +164,7 @@ pub(super) fn returned_partition_invocations(
         state,
     ) {
         let outgoing = facts.flow.control.outgoing.get(returned_at);
-        let claims = crate::checks::multiplicity::current_returned_claims(
-            program, facts, outgoing, conditions,
-        );
+        let claims = current_returned_claims(program, facts, outgoing, conditions);
         let returned_operand = facts.flow.control.operands.get(outgoing.returned_value);
         let alternatives = match returned_operand.completion {
             checked_trees::FlowOperandCompletion::Selected(alternatives) => facts
@@ -806,9 +807,7 @@ fn instantiate_partition_result_subject(
     };
     let outputs = claims
         .iter()
-        .filter(|claim| {
-            claim.source == crate::checks::multiplicity::ReturnedClaimSource::Live(*claim_identity)
-        })
+        .filter(|claim| claim.source == Live(*claim_identity))
         .collect::<Vec<_>>();
     let returned = *outputs.first()?;
     if outputs.iter().any(|claim| claim.path != returned.path) {

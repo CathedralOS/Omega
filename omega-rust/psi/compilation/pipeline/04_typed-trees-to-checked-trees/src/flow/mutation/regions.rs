@@ -7,6 +7,8 @@
 //! Formation provenance comes from the captured, checked view operation; its
 //! type and numeric address cannot manufacture a content region.
 
+use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::domain::qualification_is_content_independent;
 use validation::CanonicalPlace;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,8 +42,7 @@ impl StorageRegion {
     pub(crate) fn anchor(&self) -> &CanonicalPlace {
         match self {
             Self::Declared(place) => place,
-            Self::ResidentContent { owner, .. } => owner,
-            Self::NonresidentContent { owner, .. } => owner,
+            Self::ResidentContent { owner, .. } | Self::NonresidentContent { owner, .. } => owner,
             Self::UnresolvedContent { carrier } => carrier,
         }
     }
@@ -116,16 +117,13 @@ impl StorageRegion {
             } if domain == *granted || domain == *resident => owner,
             Self::NonresidentContent { owner, .. }
                 if domain.is_valid()
-                    && crate::flow::domain::qualification_is_content_independent(
-                        program,
-                        domain_symbol,
-                    ) =>
+                    && qualification_is_content_independent(program, domain_symbol) =>
             {
                 owner
             }
             _ => return false,
         };
-        crate::flow::canonical_place_from_semantic_place(
+        canonical_place_from_semantic_place(
             program,
             semantic,
             semantic.places.get(place),

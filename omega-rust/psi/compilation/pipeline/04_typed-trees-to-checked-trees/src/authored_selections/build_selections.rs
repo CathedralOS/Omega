@@ -6,12 +6,20 @@
 //! access. An integer ticket or a declared description type never proves issuance.
 
 use diagnostics::Diagnostic;
+use language_semantics::ReferenceAccess;
 use language_semantics::declaration_selection::{BuildSelectionRequest, RootBindingOperand};
 use typed_trees::expression::ExpressionNode;
+use typed_trees::statement::StatementNode;
+use typed_trees::types::TypeReferenceNode;
+use validation::CheckingInput;
+use validation::compiler_operations::exact_build_prelude_data;
+use validation::compiler_operations::type_reference_names_exact_prelude_data;
+use validation::expression_owners::OwnerEnvironmentIndex;
+use validation::expression_type_reference_in_state;
 
 pub(super) fn validate(
-    program: &dyn validation::CheckingInput,
-    owners: &validation::expression_owners::OwnerEnvironmentIndex,
+    program: &dyn CheckingInput,
+    owners: &OwnerEnvironmentIndex,
 ) -> Result<(), Diagnostic> {
     let expressions = &program.expression_table;
     let operations: Vec<_> = program
@@ -44,7 +52,7 @@ pub(super) fn validate(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let typed_trees::statement::StatementNode::Call(call) = statement
+                if let StatementNode::Call(call) = statement
                     && operations
                         .iter()
                         .any(|(symbol, _)| *symbol == template(call.target_symbol))
@@ -165,18 +173,13 @@ pub(super) fn validate(
             let machine = &program.machines()[machine];
             let state = &program.machine_states(machine)[state];
             let argument_type = |argument| {
-                validation::expression_type_reference_in_state(
-                    program,
-                    state.symbol,
-                    statement,
-                    argument,
-                )
+                expression_type_reference_in_state(program, state.symbol, statement, argument)
             };
             if operation == "prepare" {
                 let mut receiver = arguments[0];
                 let mut explicit_mutable_borrow = false;
                 while let ExpressionNode::Borrow(borrow) = expressions.expression(receiver) {
-                    if borrow.access != language_semantics::ReferenceAccess::Mutable {
+                    if borrow.access != ReferenceAccess::Mutable {
                         return Err(Diagnostic::error(
                             "root binding requires a compiler-issued &mut Build place",
                         )
@@ -187,15 +190,13 @@ pub(super) fn validate(
                 }
                 let has_authority = argument_type(receiver).is_some_and(|reference| {
                     let referee = match program.type_reference_table.type_reference(reference) {
-                        typed_trees::types::TypeReferenceNode::Reference {
-                            access,
-                            referee,
-                            ..
-                        } if *access == language_semantics::ReferenceAccess::Mutable => *referee,
+                        TypeReferenceNode::Reference {
+                            access, referee, ..
+                        } if *access == ReferenceAccess::Mutable => *referee,
                         _ if explicit_mutable_borrow => reference,
                         _ => return false,
                     };
-                    validation::compiler_operations::exact_build_prelude_data(
+                    exact_build_prelude_data(
                         program,
                         program.type_reference_table.type_symbol(referee),
                         "Build",
@@ -209,11 +210,7 @@ pub(super) fn validate(
                 }
             } else if operation == "bind_description"
                 && !argument_type(arguments[1]).is_some_and(|reference| {
-                    validation::compiler_operations::type_reference_names_exact_prelude_data(
-                        program,
-                        reference,
-                        "ProductEntryRef",
-                    )
+                    type_reference_names_exact_prelude_data(program, reference, "ProductEntryRef")
                 })
             {
                 return Err(Diagnostic::error("delegated root binding requires an operand of the compiler-owned ProductEntryRef description type").with_source_span(span));

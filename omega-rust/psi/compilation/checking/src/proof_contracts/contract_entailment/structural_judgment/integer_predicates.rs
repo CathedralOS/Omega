@@ -1930,9 +1930,17 @@ impl<'program> StructuralJudge<'program> {
         } else {
             value
         };
-        let call = self
-            .completed_integer_call(value)
-            .filter(|(_, _, observed)| *observed == primitive);
+        let call = self.completed_integer_call(value);
+        if let Some((_, _, observed)) = call.as_ref()
+            && *observed != primitive
+        {
+            // A denotation-preserving conversion keeps the completed source
+            // observation. Project it in its own carrier first so both its
+            // bounds and canonical occurrence survive in the receiving one.
+            // The receiving carrier still owes its own conversion formation;
+            // its interval cannot be donated to the original source atom.
+            return self.integer_value(value, *observed, observations, depth + 1);
+        }
         let value = call.as_ref().map_or(value, |(captured, _, _)| captured);
         let completed = completed_before_resolution
             .or_else(|| self.completed_scalar_observation(value, primitive));
@@ -2063,7 +2071,18 @@ impl<'program> StructuralJudge<'program> {
         }
         // Only an opaque completed leaf receives intrinsic carrier bounds;
         // an unadmitted recipe has neither a carrier assumption nor an interval.
-        observations.observed_atom(canonical_atom(value), primitive)
+        let atom = observations.observed_atom(canonical_atom(value), primitive)?;
+        // A capture read through a wider carrier is still its call's result:
+        // a u8 call widened into an i32 payload keeps 0..=255. The opaque
+        // completed-call leaf no longer unfolds the body that implied it.
+        if let StructuralTerm::CapturedValue { result_type, .. } = value
+            && let Some(own) = self.program.primitive_type_reference(*result_type)
+            && own != primitive
+            && own.accepts_integer_literal()
+        {
+            observations.install_observed_carrier_bounds(own, &atom)?;
+        }
+        Some(atom)
     }
 
     fn mathematical_value(

@@ -4,8 +4,13 @@
 //! closes every actual holder and transport before attaching that disposition.
 
 use super::{Results, Retirement};
+use crate::collections::push_unique;
+use crate::execution::terminal_unit::calls::resolve_call_target;
+use crate::execution::terminal_unit::cleanup::retained_owners::dependency_dispositions;
+use crate::execution::terminal_unit::structural_value_calls::PreparedCalls;
+use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
-    CheckFacts, CheckedReferenceOwnerCleanup, CheckedUnitEffectOperationPlan,
+    CheckFacts, CheckedReferenceOwnerCleanup, CheckedUnitEffectOperationPlan as OperationPlan,
     CheckedUnitLocalBindingPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan,
 };
@@ -50,14 +55,7 @@ impl OwnerCandidates {
             .collect::<Vec<_>>();
         let mut owners: Vec<OwnerCandidate> = Vec::new();
         for value_root in roots.into_iter().rev() {
-            for handle in
-                crate::execution::terminal_unit::cleanup::retained_owners::dependency_dispositions(
-                    facts,
-                    machine,
-                    state,
-                    value_root.root,
-                )?
-            {
+            for handle in dependency_dispositions(facts, machine, state, value_root.root)? {
                 let row = facts.contextual_cleanup.dispositions.get(handle);
                 let language_semantics::PermissionEventSource::Call {
                     statement_index,
@@ -112,16 +110,12 @@ impl OwnerCandidates {
                     let existing = facts.contextual_cleanup.dispositions.get(owner.disposition);
                     existing.root == row.root && existing.source == row.source
                 }) {
-                    crate::collections::push_unique(&mut owner.values, value_root.root);
+                    push_unique(&mut owner.values, value_root.root);
                 } else {
                     owners.push(OwnerCandidate {
                         disposition: handle,
                         source_call,
-                        target_identity:
-                            crate::execution::terminal_unit::calls::resolve_call_target(
-                                program,
-                                source.target_symbol,
-                            )?
+                        target_identity: resolve_call_target(program, source.target_symbol)?
                             .identity(),
                         values: vec![value_root.root],
                     });
@@ -143,17 +137,17 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
     candidates: &OwnerCandidates,
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
-    prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
-    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    prepared_calls: &PreparedCalls,
+    shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: u32,
     returned: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
     at_exit: bool,
     results: &Results,
-    operations: &[CheckedUnitEffectOperationPlan],
+    operations: &[OperationPlan],
     completed_operations: usize,
-    pending: &mut [CheckedUnitEffectOperationPlan],
+    pending: &mut [OperationPlan],
 ) -> Option<()> {
     let mut owners = Vec::new();
     for candidate in &candidates.owners {
@@ -164,8 +158,8 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
         let source_call = facts.flow.control.calls.get(candidate.source_call);
         let calls = operations
             .iter()
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-            .filter_map(CheckedUnitEffectOperationPlan::call)
+            .flat_map(OperationPlan::with_value_calls)
+            .filter_map(OperationPlan::call)
             .filter(|call| {
                 call.coordinate.statement_index as usize == source_call.statement_index
                     && call.coordinate.call_ordinal as usize == source_call.call_ordinal
@@ -176,28 +170,29 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
         let [completed_call] = calls.as_slice() else {
             continue;
         };
-        let mut carriers = operations
-            .iter()
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishLocal(
-                    CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
-                ) if candidate.values.contains(value) => Some(result),
-                CheckedUnitEffectOperationPlan::EstablishReference {
-                    formation_expression,
-                    result,
-                    ..
-                } if candidate.values.iter().any(|value| {
-                    let value = facts.values.structural_values.nodes.get(*value);
-                    value.expression == *formation_expression
-                        && value.statement_index == result.statement_index
-                }) =>
-                {
-                    Some(result)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        let mut carriers =
+            operations
+                .iter()
+                .flat_map(OperationPlan::with_value_calls)
+                .filter_map(|operation| match operation {
+                    OperationPlan::EstablishLocal(
+                        CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
+                    ) if candidate.values.contains(value) => Some(result),
+                    OperationPlan::EstablishReference {
+                        formation_expression,
+                        result,
+                        ..
+                    } if candidate.values.iter().any(|value| {
+                        let value = facts.values.structural_values.nodes.get(*value);
+                        value.expression == *formation_expression
+                            && value.statement_index == result.statement_index
+                    }) =>
+                    {
+                        Some(result)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
         // The checked source occurrence lends through this exact materialized
         // descriptor. A receiving call result or a later stored copy is a
         // separate holder and participates through the retirement relation.
@@ -231,10 +226,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
     let transported_loans =
         super::transport::collect(program, facts, machine, state, results, operations)?;
     for index in 0..pending.len() {
-        if !matches!(
-            pending[index],
-            CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-        ) {
+        if !matches!(pending[index], OperationPlan::ReleaseReference { .. }) {
             continue;
         }
         let mut completed = Vec::new();
@@ -242,7 +234,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
             // A disposition is selected once at its actual physical boundary.
             // Other selected branches keep their distinct source dispositions.
             if operations.iter().chain(&pending[..=index]).any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. }
+                matches!(operation, OperationPlan::ReleaseReference { owner_cleanups, .. }
                     if shapes.cleanup_control.reference_owner_cleanups.span_or_empty(*owner_cleanups)
                         .iter().any(|selected| selected.disposition == owner.disposition))
             }) {
@@ -311,9 +303,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
                 actions: arena::HandleSpan::empty(),
             });
         }
-        if let CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } =
-            &mut pending[index]
-        {
+        if let OperationPlan::ReleaseReference { owner_cleanups, .. } = &mut pending[index] {
             *owner_cleanups = shapes
                 .cleanup_control
                 .reference_owner_cleanups

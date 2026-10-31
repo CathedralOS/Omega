@@ -191,18 +191,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         .into_iter()
         .flatten()
     {
-        let segments = build
-            .control
-            .operand_referent_segments
-            .insert_many(place.segments.iter().copied());
-        build.control.operand_origin_writes.append_to_span(
-            &mut normal_return_writes,
-            checked_trees::FlowOperandReferent {
-                formation: arena::Handle::invalid(),
-                root: place.root,
-                segments,
-            },
-        );
+        build.append_origin_write(&mut normal_return_writes, place);
     }
     FlowCallFact {
         statement_index: borrow_call.statement_index,

@@ -41,6 +41,21 @@ Its `TerminalInstantiation` request carries scalar/structural inputs, optional
 admitted installation and optional Terminal invocation account; there is no
 separate installed-instantiation route. The account is selected before entry
 backing allocation and follows nested component instances.
+
+`TerminalStructuralInputs::contents` initializes complete scalar/case contents
+of supplied argument carriers. Exact declaration paths retain nested records,
+active case payloads, fixed arrays, booleans and primitive storage widths.
+Missing, duplicate, inactive or extra leaves refuse before execution. Fixed
+byte arrays use ordinary compact backing, including initialized empty arrays;
+borrowed descriptors and opaque contents are not synthesized. Erased fields
+remain explicit establishment obligations even though they have no runtime
+cell. Contents provide no claims, qualifications or reference authority.
+The shared [storage contents](src/structural_storage/contents.rs) walker and constructor transaction own this
+operation, including sponsored reservations and failure teardown. Complete
+initializers cannot overlap one another or a partial input lane.
+The former payloadless-only case input and its separate binder are removed;
+payloadless and payload-bearing cases use the same complete-content route.
+
 `TerminalInstance::bind_import` establishes each demanded import slot against a
 checked adapter before `invoke` runs any guest operation — a missing, unknown,
 provider-realized, duplicate, or signature-mismatched supply rejects without

@@ -23,8 +23,8 @@ pub use operations::{
     StructuralStoreDisposition,
 };
 pub use ranking::{
-    TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge, TerminalRankedScc,
+    TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalNaturalCycle,
+    TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc,
 };
 pub use record_field::{RecordFieldInitializer, RecordFieldValue};
 pub use register_access::RegisterAccessEvent;

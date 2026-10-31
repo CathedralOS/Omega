@@ -980,7 +980,7 @@ fn validate_statement<'p>(
                     roots,
                     diagnostics,
                 );
-            } else if expression_mentions_write_only_root(program, assignment.target, roots) {
+            } else if mentioned_write_only_root(program, assignment.target, roots).is_some() {
                 diagnose_unsupported_write_only_assignment_target(
                     program,
                     machine,
@@ -2105,14 +2105,6 @@ fn mentioned_write_only_root<'a>(
     roots
         .iter()
         .find(|root| expression_mentions_root(program, expression, root))
-}
-
-fn expression_mentions_write_only_root(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    roots: &[WriteOnlyRoot],
-) -> bool {
-    mentioned_write_only_root(program, expression, roots).is_some()
 }
 
 fn expression_mentions_root(

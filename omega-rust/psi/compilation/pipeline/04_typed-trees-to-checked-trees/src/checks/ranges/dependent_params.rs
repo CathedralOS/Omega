@@ -13,8 +13,13 @@
 
 use super::facts::RangeFacts;
 use language_core::place_label;
+use typed_trees::dependent_ranges::DependentBoundClass;
+use typed_trees::dependent_ranges::SiblingLenBound;
+use typed_trees::dependent_ranges::dependent_range_maximum;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::types::TypeReferenceHandle;
+use validation::exact_shells_symbolic_range_maximum;
 
 pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
     program: &dyn ::validation::CheckingInput,
@@ -41,7 +46,7 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
             continue;
         }
         let Some((field, offset)) =
-            dependent_maximum_of_type_reference(program, parameter.type_reference)
+            exact_shells_symbolic_range_maximum(program, parameter.type_reference)
         else {
             continue;
         };
@@ -68,22 +73,12 @@ pub(in crate::checks::ranges) fn seed_dependent_param_orderings(
     }
 }
 
-/// The dependent maximum (field, offset) of a declared type's Range
-/// constraint under Exact shells (the recognizer class; mirrors the
-/// substitution gates in types.rs).
-fn dependent_maximum_of_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    handle: typed_trees::types::TypeReferenceHandle,
-) -> Option<(typed_trees::name::Identifier, i64)> {
-    validation::exact_shells_symbolic_range_maximum(program, handle)
-}
-
 /// The sibling-length bound of a declared type's Range constraint under
 /// Exact shells (the recognizer class).
 fn sibling_len_of_type_reference(
     program: &dyn ::validation::CheckingInput,
-    handle: typed_trees::types::TypeReferenceHandle,
-) -> Option<typed_trees::dependent_ranges::SiblingLenBound> {
+    handle: TypeReferenceHandle,
+) -> Option<SiblingLenBound> {
     use typed_trees::types::TypeConstraintNode;
     let mut found = None;
     super::types::exact_domain_shell_constraints(program, handle, |constraints| {
@@ -92,14 +87,8 @@ fn sibling_len_of_type_reference(
                 maximum,
                 end_inclusive,
                 ..
-            } => match typed_trees::dependent_ranges::dependent_range_maximum(
-                program,
-                *maximum,
-                *end_inclusive,
-            ) {
-                Some(typed_trees::dependent_ranges::DependentBoundClass::SiblingLen(sibling)) => {
-                    Some(sibling)
-                }
+            } => match dependent_range_maximum(program, *maximum, *end_inclusive) {
+                Some(DependentBoundClass::SiblingLen(sibling)) => Some(sibling),
                 _ => None,
             },
             _ => None,

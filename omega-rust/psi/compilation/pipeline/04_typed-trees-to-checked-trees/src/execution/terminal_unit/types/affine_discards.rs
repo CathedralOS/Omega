@@ -2,6 +2,11 @@
 //! the residual complement of a partially moved owned parameter.
 
 use super::*;
+use checked_trees::CheckedByteSequenceCarrier;
+use facts::PlaceRoot;
+use language_semantics::PermissionProvenance;
+use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::FixedArrayLength;
 
 /// Whole-root discards plus the residual complement of a partially moved
 /// owned parameter. Only owned transfers consume that custody. Establishing a
@@ -17,10 +22,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     source_parameters: &[StateParameter],
     operations: &[CheckedUnitEffectOperationPlan],
     admitted_local_symbols: &[SymbolHandle],
-    structural_types: &BTreeMap<
-        typed_trees::type_identity::TypeIdentityId,
-        CheckedUnitStructuralTypePlan,
-    >,
+    structural_types: &BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
 ) -> Option<(Vec<u32>, Vec<CheckedUnitPartialAffineDiscardPlan>, bool)> {
     // A checked selection owns the complete conditional disposition of each
     // source, including parameter roots. normal_edges publishes its selected
@@ -50,13 +52,8 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
                 .collect::<Vec<_>>()
         });
     let mut transferred_parameters = BTreeSet::new();
-    let mut moved_parameter_paths = BTreeMap::<
-        u32,
-        Vec<(
-            Vec<CheckedUnitStructuralPathSegment>,
-            typed_trees::type_identity::TypeIdentityId,
-        )>,
-    >::new();
+    let mut moved_parameter_paths =
+        BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, TypeIdentityId)>>::new();
     for (parameter_index, parameter) in structural_parameters.iter().enumerate() {
         if parameter.access != CheckedStructuralAccess::Owned {
             continue;
@@ -186,7 +183,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             event.access == PermissionAccess::Owned
                 && event.multiplicity == Multiplicity::Affine
                 && event.claim_identity == PermissionClaimIdentity::Unknown
-                && event.provenance == language_semantics::PermissionProvenance::Unknown
+                && event.provenance == PermissionProvenance::Unknown
                 && !event.obligation_live
                 && facts
                     .flow
@@ -201,7 +198,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         let parameter_index = structural_parameters.iter().position(|parameter| {
             source_parameters
                 .get(parameter.position as usize)
-                .is_some_and(|source| event.root == facts::PlaceRoot::Symbol((source).symbol))
+                .is_some_and(|source| event.root == PlaceRoot::Symbol((source).symbol))
         });
         if parameter_index.is_none() {
             let root = event.root.as_symbol()?;
@@ -267,7 +264,7 @@ pub(super) fn partial_affine_source_contents_are_owned(
         == Some(CheckedStructuralAccess::Owned)
         && matches!(
             byte_sequence_carrier(program, reference, &[]),
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+            Some(CheckedByteSequenceCarrier::BoundedOwned { .. })
         )
     {
         return true;
@@ -293,7 +290,7 @@ pub(super) fn partial_affine_source_contents_are_owned(
         }
         TypeReferenceNode::FixedArray {
             element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(1..),
+            length: FixedArrayLength::Literal(1..),
         } => return partial_affine_source_contents_are_owned(program, *element_type, visited),
         _ => return false,
     };
@@ -323,10 +320,10 @@ pub(super) fn partial_affine_source_contents_are_owned(
 /// reconstruct its residual. Case identities select payload namespaces; a
 /// bare Case is not a value. No reference or runtime-index inference occurs.
 fn projected_type(
-    types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
-    mut current: typed_trees::type_identity::TypeIdentityId,
+    types: &BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    mut current: TypeIdentityId,
     mut path: &[CheckedUnitStructuralPathSegment],
-) -> Option<typed_trees::type_identity::TypeIdentityId> {
+) -> Option<TypeIdentityId> {
     while let Some((segment, remaining)) = path.split_first() {
         let shape = &types.get(&current)?.shape;
         match (shape, segment) {

@@ -556,8 +556,7 @@ where
                         && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && is_partial_affine_path(types, source.structural_type, &argument.path))
             }
-            StructuralProjectionPolicy::Projected => true,
-            StructuralProjectionPolicy::Boundary => true,
+            StructuralProjectionPolicy::Projected | StructuralProjectionPolicy::Boundary => true,
         };
         // Borrowing lends completed storage without transferring carried permissions.
         let completed_result = source.operation_result.is_some_and(|result| {

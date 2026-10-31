@@ -102,17 +102,8 @@ pub(super) fn evaluate(
         .into_iter()
         .map(|position| position as usize)
         .collect::<Vec<_>>();
-    let scalar_positions = signature
-        .parameters
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| {
-            checked
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        })
-        .map(|(position, _)| position)
-        .collect::<Vec<_>>();
+    let scalar_positions =
+        super::super::call_parameters::scalar_positions(checked, call, &signature)?;
     if positions.len() != arguments.len()
         || scalar_positions.len() != scalar_count
         || positions.iter().any(|position| {

@@ -1,0 +1,1 @@
+public method inference has conflicting structural operands for `Count`

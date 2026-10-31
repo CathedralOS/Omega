@@ -11,8 +11,11 @@ use crate::machine_calls::calls::write_frames::{
 };
 use facts::PlaceSegment;
 use symbols::JoinedPath;
+use symbols::SymbolHandle;
+use symbols::SymbolKind;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::TableAssignment;
+use typed_trees::typed_trees::ScalarAccessorDeclaration;
 
 pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_binding(
     program: &dyn crate::CheckingInput,
@@ -401,15 +404,13 @@ pub(in crate::machine_calls::calls::write_frames) fn writes_may_replace_binding(
 fn call_binding_write_paths(
     program: &dyn crate::CheckingInput,
     caller: &typed_trees::machine::Machine,
-    target: symbols::SymbolHandle,
+    target: SymbolHandle,
     receiver: Option<&FramePlaceOrigin>,
     arguments: &[ExpressionHandle],
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
-    if let Some(declaration) =
-        typed_trees::typed_trees::ScalarAccessorDeclaration::authenticate(program, target).ok()?
-    {
+    if let Some(declaration) = ScalarAccessorDeclaration::authenticate(program, target).ok()? {
         let state = program.state_by_symbol(declaration.state())?;
         let value = match declaration.operation() {
             typed_trees::typed_trees::ScalarAccessorOperation::Write => {
@@ -456,10 +457,7 @@ fn call_binding_write_paths(
     Some(paths)
 }
 
-fn receiver_target_is_unresolved(
-    program: &dyn crate::CheckingInput,
-    target: symbols::SymbolHandle,
-) -> bool {
+fn receiver_target_is_unresolved(program: &dyn crate::CheckingInput, target: SymbolHandle) -> bool {
     crate::machine_calls::calls::write_frames::machine_state_by_symbol(program, target).is_none()
 }
 
@@ -524,10 +522,7 @@ fn statement_receiver_exposes_binding(
             }
             let declaration = program.symbols.get(local.local_symbol);
             declaration.parent == state.symbol
-                && matches!(
-                    declaration.kind,
-                    symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
-                )
+                && matches!(declaration.kind, SymbolKind::Local | SymbolKind::Parameter)
                 && program.symbols.name(local.local_symbol) == root_name.as_str()
         })
         .any(|local| {

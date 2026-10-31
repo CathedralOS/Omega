@@ -1,4 +1,4 @@
-use crate::flow::expressions;
+use crate::flow::{expressions, state_statements};
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -28,7 +28,7 @@ pub(super) fn guarded_self_loop<'program>(
     else {
         return None;
     };
-    if !target_symbol_matches_state(program, state, path.symbol) {
+    if !target_symbol_matches_state_symbol(program, state.symbol, path.symbol) {
         return None;
     }
 
@@ -64,10 +64,9 @@ pub(super) fn edges_to_state<'program>(
 ) -> Vec<GuardedEdge<'program>> {
     let mut edges = Vec::new();
     let mut previous = Vec::new();
-    for (statement_ordinal, statement) in
-        crate::flow::state_statements(program, source.statement_nodes)
-            .iter()
-            .enumerate()
+    for (statement_ordinal, statement) in state_statements(program, source.statement_nodes)
+        .iter()
+        .enumerate()
     {
         let Some(transition) = statement.as_transition() else {
             previous.clear();
@@ -153,14 +152,6 @@ fn stable_guard(
         }
         _ => false,
     }
-}
-
-fn target_symbol_matches_state(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    target_symbol: symbols::SymbolHandle,
-) -> bool {
-    target_symbol_matches_state_symbol(program, state.symbol, target_symbol)
 }
 
 fn target_symbol_matches_state_symbol(

@@ -3,13 +3,14 @@
 /// These membership sets are never iterated for authored output order.
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 use crate::frozen_program::expression_table;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 
 /// Whether the containment walk from `root` reaches `target`.
 pub fn expression_contains(
     program: &dyn crate::CheckingInput,
-    root: typed_trees::expression::ExpressionHandle,
-    target: typed_trees::expression::ExpressionHandle,
+    root: ExpressionHandle,
+    target: ExpressionHandle,
 ) -> bool {
     // Exact identity and leaf membership need no traversal inventory. Keep
     // the shared walk unchanged for callers collecting the complete DAG.
@@ -38,17 +39,12 @@ pub fn expression_contains(
 /// of rewalking `root` per target.
 pub fn reachable_expressions(
     program: &dyn crate::CheckingInput,
-    root: typed_trees::expression::ExpressionHandle,
-) -> HashSet<typed_trees::expression::ExpressionHandle> {
+    root: ExpressionHandle,
+) -> HashSet<ExpressionHandle> {
     let mut reached = HashSet::default();
     // Arena index zero is the invalid address; `is_valid` rejects it below,
     // so no recorded expression can equal it.
-    reaches(
-        program,
-        root,
-        typed_trees::expression::ExpressionHandle::invalid(),
-        &mut reached,
-    );
+    reaches(program, root, ExpressionHandle::invalid(), &mut reached);
     reached
 }
 
@@ -56,9 +52,9 @@ pub fn reachable_expressions(
 /// expression reached twice through different parents is entered once.
 fn reaches(
     program: &dyn crate::CheckingInput,
-    root: typed_trees::expression::ExpressionHandle,
-    target: typed_trees::expression::ExpressionHandle,
-    visited: &mut HashSet<typed_trees::expression::ExpressionHandle>,
+    root: ExpressionHandle,
+    target: ExpressionHandle,
+    visited: &mut HashSet<ExpressionHandle>,
 ) -> bool {
     if !root.is_valid() || !visited.insert(root) {
         return false;

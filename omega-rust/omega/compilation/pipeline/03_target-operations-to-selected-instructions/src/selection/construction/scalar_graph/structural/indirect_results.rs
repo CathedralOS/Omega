@@ -4,6 +4,7 @@ use super::{
     SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
+use crate::selection::aggregate_result_input::{call_completion, indirect_result};
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::transport_register;
@@ -17,10 +18,7 @@ pub(in crate::selection) fn entry(
     let Some(placement) = source.call_plan.result.as_ref() else {
         return Ok(());
     };
-    let Some(register) = crate::selection::aggregate_result_input::indirect_result(
-        placement,
-        source.call_plan.policy,
-    ) else {
+    let Some(register) = indirect_result(placement, source.call_plan.policy) else {
         return Ok(());
     };
     if source.call_plan.policy
@@ -56,12 +54,10 @@ pub(in crate::selection) fn prepare_call(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-    let Some((result, placement, policy)) =
-        crate::selection::aggregate_result_input::call_completion(source, row)
-    else {
+    let Some((result, placement, policy)) = call_completion(source, row) else {
         return Ok(None);
     };
-    if crate::selection::aggregate_result_input::indirect_result(placement, policy).is_none() {
+    if indirect_result(placement, policy).is_none() {
         return Ok(None);
     }
     let slot = LocalStorageSlotId::Structural {
@@ -94,9 +90,7 @@ pub(in crate::selection) fn finish_call(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let (result, placement, _) =
-        crate::selection::aggregate_result_input::call_completion(source, row)
-            .ok_or_else(|| invalid())?;
+    let (result, placement, _) = call_completion(source, row).ok_or_else(|| invalid())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,

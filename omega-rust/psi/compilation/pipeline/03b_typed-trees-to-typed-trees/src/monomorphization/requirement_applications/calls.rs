@@ -9,6 +9,8 @@ use typed_trees::{
     TypedTrees, expression::StaticMachineArgument, references::StaticArgumentCall,
     trait_definition::AppliedTraitScope, types::TypeReferenceHandle,
 };
+use validation::expression_traversal::collect_expression_tree;
+use validation::expression_type_reference_in_state;
 
 use super::super::failed;
 use super::selected_applications;
@@ -18,6 +20,7 @@ mod invocation_binding_views;
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct InvocationTuple {
     pub owner: SymbolHandle,
+    pub lifetime_declaration: SymbolHandle,
     pub arguments: Vec<StaticMachineArgument>,
     pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
 }
@@ -46,6 +49,10 @@ fn occurrence(
             owner: expressions_of(program)
                 .static_machine_application(application)
                 .lexical_owner,
+            lifetime_declaration: program
+                .expression_table
+                .static_machine_application(application)
+                .lifetime_binding_declaration,
             arguments,
             lifetimes: expressions_of(program)
                 .static_machine_application_lifetimes(application)
@@ -54,6 +61,7 @@ fn occurrence(
     } else {
         InvocationTuple {
             owner,
+            lifetime_declaration: SymbolHandle::invalid(),
             arguments,
             lifetimes: Vec::new(),
         }
@@ -199,12 +207,7 @@ fn receiver_scope<'p>(
             expressions_of(program)
                 .name_path_node(call.receiver)
                 .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-            validation::expression_type_reference_in_state(
-                program,
-                state.symbol,
-                position,
-                call.receiver,
-            ),
+            expression_type_reference_in_state(program, state.symbol, position, call.receiver),
         ),
     };
     validation::qualified_trait_scope(program, machine.symbol, symbol, reference)
@@ -317,7 +320,12 @@ fn instance_in_scope(
                     || expressions_of(program)
                         .static_machine_application(application.application)
                         .lexical_owner
-                        == invocation.owner)
+                        == invocation.owner
+                        && program
+                            .expression_table
+                            .static_machine_application(application.application)
+                            .lifetime_binding_declaration
+                            == invocation.lifetime_declaration)
                 && parameters
                     .iter()
                     .zip(arguments)
@@ -355,7 +363,7 @@ fn instance_in_scope(
 /// invocation. Its complete logical selection must be prepared and retargeted
 /// alongside the ordinary statement; the binding's later statement position is
 /// not a second invocation. Erased-only packages keep their own source point.
-fn source_expression_roster(
+pub(super) fn source_expression_roster(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -372,11 +380,7 @@ fn source_expression_roster(
                 .unwrap_or(package.statement_index)
                 == position
         {
-            validation::expression_traversal::collect_expression_tree(
-                program,
-                package.call,
-                &mut expressions,
-            );
+            collect_expression_tree(program, package.call, &mut expressions);
         }
     }
     expressions
@@ -543,7 +547,7 @@ pub(super) fn invocation_tuples<'p>(
                                         expressions_of(program)
                                             .name_path_node(call.receiver)
                                             .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                        validation::expression_type_reference_in_state(
+                                        expression_type_reference_in_state(
                                             program,
                                             state.symbol,
                                             position,
@@ -696,7 +700,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                                     expressions_of(program)
                                         .name_path_node(call.receiver)
                                         .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                    validation::expression_type_reference_in_state(
+                                    expression_type_reference_in_state(
                                         program,
                                         state.symbol,
                                         position,
@@ -784,7 +788,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             &mut arguments,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
-        let bindings = super::invocation_bindings(program, &parameters, &arguments)?;
+        let bindings = super::invocation_bindings(program, lexical_owner, &parameters, &arguments)?;
         expressions_of_mut(program)
             .static_machine_application_mut(application)
             .binding_declaration = template;

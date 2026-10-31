@@ -100,23 +100,29 @@ fn search(
         .map(|(position, machine)| {
             let coordinate = &candidates[position][chosen[position]].coordinate;
             Some(validation::ValidatedRuntimeNaturalState {
-                measure: candidates[position][chosen[position]]
-                    .application
-                    .map_or(symbols::SymbolHandle::invalid(), |application| {
-                        application.measure
-                    }),
                 state: program.machine_states(machine)[0].symbol,
-                parameter: coordinate.parameter,
-                coordinate: validation::RankSubjectCoordinate {
+                values: vec![validation::ValidatedRuntimeIntegerRank {
+                    measure: candidates[position][chosen[position]]
+                        .application
+                        .map_or(symbols::SymbolHandle::invalid(), |application| {
+                            application.measure
+                        }),
                     parameter: coordinate.parameter,
-                    path: coordinate.path.clone(),
-                },
-                entry_indexes: coordinate.entry_indexes.clone(),
-                parameter_position: u32::try_from(coordinate.position).ok()?,
-                primitive_type: coordinate.primitive,
-                observation: coordinate.observation,
-                function: order.function(),
-                application: candidates[position][chosen[position]].formation.clone(),
+                    coordinate: validation::RankSubjectCoordinate {
+                        parameter: coordinate.parameter,
+                        path: coordinate.path.clone(),
+                    },
+                    entry_indexes: coordinate.entry_indexes.clone(),
+                    parameter_position: u32::try_from(coordinate.position).ok()?,
+                    primitive_type: candidates[position][chosen[position]]
+                        .application
+                        .map_or(coordinate.primitive, |application| {
+                            application.result_primitive
+                        }),
+                    observation: coordinate.observation,
+                    function: order.function(),
+                    application: candidates[position][chosen[position]].formation.clone(),
+                }],
             })
         })
         .collect::<Option<Vec<_>>>();

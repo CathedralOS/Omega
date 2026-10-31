@@ -11,13 +11,35 @@
 //! after the graph is built, before it can enter the published call closure.
 //! That owner admits residual and nominal actions and refuses missing plans.
 use super::{
-    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan,
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan as TerminatorPlan, CheckedGuardedJumpPlan,
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls, FusedStates,
-    ScalarCalleeClosure, ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard,
-    TransitionExit, TransitionGuardNode, TransitionTargetNode, closed_sum, control,
+    CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls,
+    FusedStates, ScalarCalleeClosure, ShapeCollector, Signature, StatementNode, SuccessorEdge,
+    SuccessorGuard, TransitionExit, TransitionGuardNode, TransitionTargetNode, closed_sum, control,
     guard_is_boolean, retained_guard, returns, successor, terminal_calls,
 };
+use crate::execution::guard_complement::complementary;
+use crate::execution::selected_transitions::selected_transition;
+use checked_trees::CheckedControlResultPlan;
+use checked_trees::CheckedGuardedJumpArmPlan;
+use checked_trees::CheckedGuardedJumpFallbackPlan;
+use checked_trees::CheckedGuardedJumpReturnPlan;
+use checked_trees::CheckedScalarBranchDestination;
+use checked_trees::CheckedScalarStateTerminator;
+use checked_trees::CheckedUnitEntryClaimPlan;
+use checked_trees::CheckedUnitScalarControlPlan;
+use checked_trees::CheckedUnitScalarResultBindingPlan;
+use checked_trees::CheckedUnitStructuralResultBindingPlan;
+use checked_trees::FlowClaimJoinExit;
+use checked_trees::FlowClaimJoinExitKind;
+use checked_trees::FlowPermissionEvaluation;
+use facts::PlaceRoot;
+use symbols::SymbolHandle;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::statement::TableTransition;
+use typed_trees::statement::reachable_transition_prefix;
+use validation::completing_transition_transfer;
 
 /// The terminator one state's authored tail plans, after its operations.
 /// `fused` carries the whole roster this graph spans: a successor naming a
@@ -33,31 +55,25 @@ pub(super) fn build(
     shapes: &mut ShapeCollector<'_>,
     fused: &FusedStates<'_>,
     state_index: usize,
-    state: &typed_trees::state::State,
-    result: &checked_trees::CheckedControlResultPlan,
+    state: &State,
+    result: &CheckedControlResultPlan,
     signatures: &[Signature],
-    entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
-    local_results: &[(
-        checked_trees::CheckedUnitStructuralResultBindingPlan,
-        facts::PlaceRoot,
-    )],
-    scalar_result: Option<&checked_trees::CheckedUnitScalarResultBindingPlan>,
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+    local_results: &[(CheckedUnitStructuralResultBindingPlan, PlaceRoot)],
+    scalar_result: Option<&CheckedUnitScalarResultBindingPlan>,
     structural_result: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
     next_scalar_binding: usize,
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    operations: &mut Vec<OperationPlan>,
     terminator_index: usize,
     trace: &control::LocalConstructionTrace,
-) -> Option<(
-    CheckedComposedUnitControlTerminatorPlan,
-    Option<checked_trees::FlowClaimJoinExit>,
-)> {
+) -> Option<(TerminatorPlan, Option<FlowClaimJoinExit>)> {
     if let Some(call) = operations
         .iter()
-        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .filter_map(OperationPlan::call)
         .find(|call| *call.result() == checked_trees::CheckedUnitCallResult::NoNormal)
     {
         return Some((
-            CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
+            TerminatorPlan::InvokeNoNormal {
                 coordinate: call.coordinate,
             },
             None,
@@ -70,10 +86,7 @@ pub(super) fn build(
         .iter()
         .any(|operation| !operation.has_normal_continuation())
     {
-        return Some((
-            CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal,
-            None,
-        ));
+        return Some((TerminatorPlan::EvaluateNoNormal, None));
     }
     let result = result.clone();
     // The state's own owner answers its machine-scoped facts; the dispatch
@@ -88,7 +101,7 @@ pub(super) fn build(
         entry_claims,
         local_results,
     };
-    let edge = |operations: &[CheckedUnitEffectOperationPlan],
+    let edge = |operations: &[OperationPlan],
                 transition,
                 edge_ordinal,
                 kind,
@@ -114,14 +127,12 @@ pub(super) fn build(
     // Keep one producer/operand schedule instead of making the bare spelling
     // admit only literals and case constructors while transitions admit loans.
     let complete_expression =
-        |expression,
-         shapes: &mut ShapeCollector<'_>,
-         operations: &mut Vec<CheckedUnitEffectOperationPlan>| {
+        |expression, shapes: &mut ShapeCollector<'_>, operations: &mut Vec<OperationPlan>| {
             trace.phase("state graph: terminator: return expression");
             let evaluation = match statements.get(terminator_index)? {
-                StatementNode::Expression(_) => checked_trees::FlowPermissionEvaluation::Statement,
+                StatementNode::Expression(_) => FlowPermissionEvaluation::Statement,
                 StatementNode::Transition(transition) => {
-                    checked_trees::FlowPermissionEvaluation::TransitionTarget(transition.target)
+                    FlowPermissionEvaluation::TransitionTarget(transition.target)
                 }
                 _ => return None,
             };
@@ -132,7 +143,7 @@ pub(super) fn build(
             };
             if let Some(mut result) = structural_result.cloned() {
                 result.completion = completion;
-                return Some(CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result });
+                return Some(TerminatorPlan::ReturnStructural { result });
             }
             let mut count = returns::next_result_ordinal(operations)?;
             let (operation, operand_calls) = returns::return_value_operation(
@@ -153,7 +164,7 @@ pub(super) fn build(
             if !operation.has_normal_continuation() {
                 operations.extend(operand_calls);
                 operations.push(operation);
-                return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+                return Some(TerminatorPlan::EvaluateNoNormal);
             }
             let result = checked_trees::CheckedUnitStructuralReturnPlan::from_binding(
                 operation.structural_result_binding()?.clone(),
@@ -161,7 +172,7 @@ pub(super) fn build(
             );
             operations.extend(operand_calls);
             operations.push(operation);
-            Some(CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result })
+            Some(TerminatorPlan::ReturnStructural { result })
         };
     // Static dispatch is selected before building any destination's operands.
     // Unlike an ordinary unconditional tail, these calls have not been planned
@@ -169,24 +180,21 @@ pub(super) fn build(
     if statements.get(terminator_index).is_some_and(|statement| {
         matches!(statement, StatementNode::Transition(transition)
             if matches!(transition.guard, TransitionGuardNode::When(_)))
-    }) && let Some(selected) = crate::execution::selected_transitions::selected_transition(
-        program,
-        statements,
-        terminator_index,
-    ) {
+    }) && let Some(selected) = selected_transition(program, statements, terminator_index)
+    {
         trace.phase("state graph: terminator: selected static destination");
         let transition = selected.transition;
         let selected_ordinal = selected.statement_ordinal;
-        let selected_exit = checked_trees::FlowClaimJoinExit {
+        let selected_exit = FlowClaimJoinExit {
             state_symbol: state.symbol,
             statement_index: selected_ordinal as usize,
-            kind: checked_trees::FlowClaimJoinExitKind::TransitionTarget,
+            kind: FlowClaimJoinExitKind::TransitionTarget,
         };
-        if validation::completing_transition_transfer(program, transition.target).is_some_and(
-            |transfer| super::fused::fused_target_index(program, fused, transfer.target).is_some(),
-        ) {
+        if completing_transition_transfer(program, transition.target).is_some_and(|transfer| {
+            super::fused::fused_target_index(program, fused, transfer.target).is_some()
+        }) {
             return Some((
-                CheckedComposedUnitControlTerminatorPlan::Jump {
+                TerminatorPlan::Jump {
                     successor: edge(
                         operations,
                         transition,
@@ -244,7 +252,7 @@ pub(super) fn build(
         (closed_sum.is_none() && trace.mark() != before_closed_sum).then(|| trace.mark());
     let terminator = if let Some(terminator) = closed_sum {
         terminator
-    } else if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result
+    } else if let CheckedControlResultPlan::Scalar { primitive_type } = result
         && let Some(completion) = returns::scalar_completion(
             program,
             fused,
@@ -258,7 +266,7 @@ pub(super) fn build(
         )
     {
         trace.phase("state graph: terminator: scalar return cleanup");
-        CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }
+        TerminatorPlan::ReturnScalar { completion }
     } else if let Some((terminator, operand_calls)) = returns::guarded(
         program,
         fused,
@@ -276,21 +284,19 @@ pub(super) fn build(
         operations.extend(operand_calls);
         terminator
     } else {
-        match typed_trees::statement::reachable_transition_prefix(&statements[terminator_index..]) {
-            [] if result == checked_trees::CheckedControlResultPlan::Unit => {
+        match reachable_transition_prefix(&statements[terminator_index..]) {
+            [] if result == CheckedControlResultPlan::Unit => {
                 trace.phase("state graph: terminator: unit tail cleanup");
-                CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                TerminatorPlan::ReturnUnit
             }
-            [StatementNode::Expression(expression)]
-                if result != checked_trees::CheckedControlResultPlan::Unit =>
-            {
+            [StatementNode::Expression(expression)] if result != CheckedControlResultPlan::Unit => {
                 complete_expression(*expression, shapes, operations)?
             }
             [StatementNode::Transition(transition)]
                 if matches!(transition.exit, TransitionExit::Crash(_)) =>
             {
                 trace.phase("state graph: terminator: crash exit");
-                CheckedComposedUnitControlTerminatorPlan::Crash {
+                TerminatorPlan::Crash {
                     statement_ordinal: ordinal,
                 }
             }
@@ -305,27 +311,24 @@ pub(super) fn build(
                     // normal-edge cleanup owner still retains its exact exit
                     // disposition before this graph can be published.
                     TransitionTargetNode::Terminal
-                        if result == checked_trees::CheckedControlResultPlan::Unit
+                        if result == CheckedControlResultPlan::Unit
                             && transition.exit == TransitionExit::Ordinary
                             && !transition.continuation.is_valid() =>
                     {
                         trace.phase("state graph: terminator: explicit unit completion");
-                        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                        TerminatorPlan::ReturnUnit
                     }
                     // An unconditional `(expression)` arm closes the state
                     // with its value: the same establishment a bare tail
                     // expression plans, produced at the transition's ordinal.
                     TransitionTargetNode::Value(_)
-                        if validation::completing_transition_transfer(
-                            program,
-                            transition.target,
-                        )
-                        .is_some_and(|transfer| {
-                            super::fused::fused_target_index(program, fused, transfer.target)
-                                .is_some()
-                        }) =>
+                        if completing_transition_transfer(program, transition.target)
+                            .is_some_and(|transfer| {
+                                super::fused::fused_target_index(program, fused, transfer.target)
+                                    .is_some()
+                            }) =>
                     {
-                        CheckedComposedUnitControlTerminatorPlan::Jump {
+                        TerminatorPlan::Jump {
                             successor: edge(
                                 operations,
                                 transition,
@@ -363,7 +366,7 @@ pub(super) fn build(
                         )?
                     }
                     TransitionTargetNode::Value(expression)
-                        if result != checked_trees::CheckedControlResultPlan::Unit
+                        if result != CheckedControlResultPlan::Unit
                             && transition.exit == TransitionExit::Ordinary
                             && !transition.continuation.is_valid() =>
                     {
@@ -371,7 +374,7 @@ pub(super) fn build(
                     }
                     _ => {
                         trace.phase("state graph: terminator: jump successor");
-                        CheckedComposedUnitControlTerminatorPlan::Jump {
+                        TerminatorPlan::Jump {
                             successor: edge(
                                 operations,
                                 transition,
@@ -388,7 +391,7 @@ pub(super) fn build(
                 StatementNode::Transition(when_false),
             ] if matches!(when_true.guard, TransitionGuardNode::When(_))
                 && (when_false.guard == TransitionGuardNode::Always
-                    || crate::execution::guard_complement::complementary(
+                    || complementary(
                         program,
                         &facts.values.scalar_expressions,
                         state,
@@ -405,14 +408,14 @@ pub(super) fn build(
                 // A return arm completes with Unit or an established value;
                 // a named arm keeps the ordinary successor custody plan.
                 let mut return_count = returns::next_result_ordinal(operations)?;
-                let mut branch = |transition: &typed_trees::statement::TableTransition,
+                let mut branch = |transition: &TableTransition,
                                   edge_ordinal: u32|
                  -> Option<
                     Result<
                         CheckedStructuralControlSuccessorPlan,
                         (
                             checked_trees::CheckedConditionalReturnArm,
-                            Vec<CheckedUnitEffectOperationPlan>,
+                            Vec<OperationPlan>,
                         ),
                     >,
                 > {
@@ -426,7 +429,7 @@ pub(super) fn build(
                     if matches!(
                         program.statement_table.transition_target(transition.target),
                         TransitionTargetNode::Terminal
-                    ) && result == checked_trees::CheckedControlResultPlan::Unit
+                    ) && result == CheckedControlResultPlan::Unit
                         && transition.exit == TransitionExit::Ordinary
                         && !transition.continuation.is_valid()
                     {
@@ -437,12 +440,12 @@ pub(super) fn build(
                             Vec::new(),
                         )));
                     }
-                    if validation::completing_transition_transfer(program, transition.target)
-                        .is_some_and(|transfer| {
+                    if completing_transition_transfer(program, transition.target).is_some_and(
+                        |transfer| {
                             super::fused::fused_target_index(program, fused, transfer.target)
                                 .is_some()
-                        })
-                    {
+                        },
+                    ) {
                         return successor(
                             program,
                             facts,
@@ -503,9 +506,7 @@ pub(super) fn build(
                         // A scalar result is the value checking retained
                         // under the arm's `Return` role; the arm alone
                         // evaluates it.
-                        if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } =
-                            result
-                        {
+                        if let CheckedControlResultPlan::Scalar { primitive_type } = result {
                             let role = CheckedScalarExpressionRole::Return;
                             let retained = facts
                                 .values
@@ -569,16 +570,14 @@ pub(super) fn build(
                     branch(when_true, ordinal)?,
                     branch(when_false, ordinal.checked_add(1)?)?,
                 ) {
-                    (Ok(when_true), Ok(when_false)) => {
-                        CheckedComposedUnitControlTerminatorPlan::Conditional {
-                            guard,
-                            when_true,
-                            when_false,
-                        }
-                    }
+                    (Ok(when_true), Ok(when_false)) => TerminatorPlan::Conditional {
+                        guard,
+                        when_true,
+                        when_false,
+                    },
                     (Ok(jump), Err((return_arm, operand_calls))) => {
                         operations.extend(operand_calls);
-                        CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                        TerminatorPlan::ConditionalReturn {
                             guard,
                             jump,
                             return_arm,
@@ -587,7 +586,7 @@ pub(super) fn build(
                     }
                     (Err((return_arm, operand_calls)), Ok(jump)) => {
                         operations.extend(operand_calls);
-                        CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                        TerminatorPlan::ConditionalReturn {
                             guard,
                             jump,
                             return_arm,
@@ -600,7 +599,7 @@ pub(super) fn build(
                     (Err((when_true, true_operands)), Err((when_false, false_operands))) => {
                         operations.extend(true_operands);
                         operations.extend(false_operands);
-                        CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                        TerminatorPlan::ConditionalCompletion {
                             guard,
                             when_true,
                             when_false,
@@ -697,10 +696,7 @@ pub(super) fn build(
                             trace.statement(Some(arm_ordinal));
                             return None;
                         }
-                        checked_trees::CheckedGuardedJumpArmPlan::Jump(CheckedGuardedJumpPlan {
-                            guard,
-                            successor,
-                        })
+                        CheckedGuardedJumpArmPlan::Jump(CheckedGuardedJumpPlan { guard, successor })
                     } else {
                         let return_arm = guarded_return_arm(
                             program,
@@ -719,13 +715,11 @@ pub(super) fn build(
                             transition,
                             trace,
                         )?;
-                        checked_trees::CheckedGuardedJumpArmPlan::Return(
-                            checked_trees::CheckedGuardedJumpReturnPlan {
-                                guard,
-                                statement_ordinal: arm_ordinal,
-                                return_arm,
-                            },
-                        )
+                        CheckedGuardedJumpArmPlan::Return(CheckedGuardedJumpReturnPlan {
+                            guard,
+                            statement_ordinal: arm_ordinal,
+                            return_arm,
+                        })
                     };
                     arms.push(arm);
                 }
@@ -771,14 +765,14 @@ pub(super) fn build(
                             trace.statement(Some(fallback_ordinal));
                             return None;
                         }
-                        checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback)
+                        CheckedGuardedJumpFallbackPlan::Successor(fallback)
                     }
                     _ => {
                         trace.phase(
                             "state graph: terminator: guarded jump successors: return completion",
                         );
                         trace.statement(Some(fallback_ordinal));
-                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(guarded_return_arm(
+                        CheckedGuardedJumpFallbackPlan::Return(guarded_return_arm(
                             program,
                             facts,
                             scalar_callees,
@@ -797,7 +791,7 @@ pub(super) fn build(
                         )?)
                     }
                 };
-                CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback }
+                TerminatorPlan::GuardedJumps { arms, fallback }
             }
             _ => {
                 // Name the tail shape the general route lacks: the arms
@@ -860,44 +854,43 @@ pub(super) fn build(
 /// entry an internal edge; the scalar branch roster alone cannot do so.
 fn internal_destination(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
     fused: &FusedStates<'_>,
-    transition: &typed_trees::statement::TableTransition,
-    destination: &checked_trees::CheckedScalarBranchDestination,
+    transition: &TableTransition,
+    destination: &CheckedScalarBranchDestination,
     ordinal: u32,
-) -> Option<symbols::SymbolHandle> {
-    if let checked_trees::CheckedScalarBranchDestination::Crash { statement_ordinal } = destination
-    {
+) -> Option<SymbolHandle> {
+    if let CheckedScalarBranchDestination::Crash { statement_ordinal } = destination {
         crash_arm(program, transition, ordinal)?;
-        return (*statement_ordinal == ordinal).then_some(symbols::SymbolHandle::default());
+        return (*statement_ordinal == ordinal).then_some(SymbolHandle::default());
     }
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
     }
-    if let Some(transfer) = validation::completing_transition_transfer(program, transition.target)
+    if let Some(transfer) = completing_transition_transfer(program, transition.target)
         && super::fused::fused_target_index(program, fused, transfer.target).is_some()
     {
         return Some(transfer.state.symbol);
     }
     match destination {
-        checked_trees::CheckedScalarBranchDestination::Jump(selected)
+        CheckedScalarBranchDestination::Jump(selected)
             if selected.statement_ordinal == ordinal && !selected.is_continuation =>
         {
             match terminal_calls::external_callable(program, machine, fused, transition) {
                 Some(target) => {
-                    (target == selected.target_state).then_some(symbols::SymbolHandle::default())
+                    (target == selected.target_state).then_some(SymbolHandle::default())
                 }
                 None => Some(selected.target_state),
             }
         }
-        checked_trees::CheckedScalarBranchDestination::Return {
+        CheckedScalarBranchDestination::Return {
             statement_ordinal,
             is_continuation: false,
         }
-        | checked_trees::CheckedScalarBranchDestination::InvokeNoNormal {
+        | CheckedScalarBranchDestination::InvokeNoNormal {
             statement_ordinal,
             is_continuation: false,
-        } if *statement_ordinal == ordinal => Some(symbols::SymbolHandle::default()),
+        } if *statement_ordinal == ordinal => Some(SymbolHandle::default()),
         _ => None,
     }
 }
@@ -915,19 +908,16 @@ fn guarded_return_arm(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     structural: &[CheckedUnitStructuralParameterPlan],
-    entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
-    local_results: &[(
-        checked_trees::CheckedUnitStructuralResultBindingPlan,
-        facts::PlaceRoot,
-    )],
-    result: &checked_trees::CheckedControlResultPlan,
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+    local_results: &[(CheckedUnitStructuralResultBindingPlan, PlaceRoot)],
+    result: &CheckedControlResultPlan,
     next_scalar_binding: usize,
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    operations: &mut Vec<OperationPlan>,
     statement_ordinal: u32,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &TableTransition,
     trace: &control::LocalConstructionTrace,
 ) -> Option<checked_trees::CheckedConditionalReturnArm> {
     if matches!(transition.exit, TransitionExit::Crash(_)) {
@@ -956,15 +946,13 @@ fn guarded_return_arm(
         );
     }
     let expression = match program.statement_table.transition_target(transition.target) {
-        TransitionTargetNode::Terminal
-            if *result == checked_trees::CheckedControlResultPlan::Unit =>
-        {
+        TransitionTargetNode::Terminal if *result == CheckedControlResultPlan::Unit => {
             return Some(checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal });
         }
         TransitionTargetNode::Value(expression) => *expression,
         _ => return None,
     };
-    if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result {
+    if let CheckedControlResultPlan::Scalar { primitive_type } = result {
         let role = CheckedScalarExpressionRole::Return;
         let retained = facts
             .values
@@ -1011,7 +999,7 @@ fn guarded_return_arm(
 /// tail at `ordinal`: a retained pair records only when its guards provably
 /// close the dispatch (an exact complement or complete case coverage of one
 /// subject), so the second guard is the vacuous else the terminator admits.
-fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32) -> Option<()> {
+fn covering_pair(facts: &CheckFacts, state: SymbolHandle, ordinal: u32) -> Option<()> {
     let retained = facts
         .flow
         .guarded_exits
@@ -1034,7 +1022,7 @@ fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32)
 /// value, successor, or ordinary return-cleanup obligation.
 fn crash_arm(
     program: &dyn ::validation::CheckingInput,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &TableTransition,
     statement_ordinal: u32,
 ) -> Option<checked_trees::CheckedConditionalReturnArm> {
     (matches!(transition.exit, TransitionExit::Crash(_))
@@ -1051,10 +1039,10 @@ fn crash_arm(
 /// transaction; normal-edge cleanup still runs on the resulting terminator.
 fn complete_selected_return(
     program: &dyn validation::CheckingInput,
-    transition: &typed_trees::statement::TableTransition,
+    transition: &TableTransition,
     arm: checked_trees::CheckedConditionalReturnArm,
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
-) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    operations: &mut Vec<OperationPlan>,
+) -> Option<TerminatorPlan> {
     use checked_trees::{
         CheckedConditionalReturnArm as Arm, CheckedScalarReturnPlan,
         CheckedStructuralReturnCompletion, CheckedUnitCallResult, CheckedUnitStructuralReturnPlan,
@@ -1064,29 +1052,23 @@ fn complete_selected_return(
             operations: prefix, ..
         } => {
             operations.extend(prefix.iter().cloned());
-            CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal
+            TerminatorPlan::EvaluateNoNormal
         }
-        Arm::Crash { statement_ordinal } => {
-            CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal }
-        }
-        Arm::Unit { .. } => CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
+        Arm::Crash { statement_ordinal } => TerminatorPlan::Crash { statement_ordinal },
+        Arm::Unit { .. } => TerminatorPlan::ReturnUnit,
         Arm::Scalar {
             statement_ordinal,
             primitive_type,
-        } => CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-            completion: CheckedScalarReturnPlan::Exits(
-                checked_trees::CheckedUnitScalarControlPlan {
-                    primitive_type,
-                    terminator: checked_trees::CheckedScalarStateTerminator::Return {
-                        statement_ordinal,
-                    },
-                },
-            ),
+        } => TerminatorPlan::ReturnScalar {
+            completion: CheckedScalarReturnPlan::Exits(CheckedUnitScalarControlPlan {
+                primitive_type,
+                terminator: CheckedScalarStateTerminator::Return { statement_ordinal },
+            }),
         },
         Arm::Structural(operation) => {
             if !operation.has_normal_continuation() {
                 operations.push(operation);
-                return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+                return Some(TerminatorPlan::EvaluateNoNormal);
             }
             let binding = operation.structural_result_binding()?.clone();
             let TransitionTargetNode::Value(expression) =
@@ -1097,13 +1079,11 @@ fn complete_selected_return(
             let completion = CheckedStructuralReturnCompletion::Value {
                 statement_index: binding.statement_index,
                 expression: *expression,
-                evaluation: checked_trees::FlowPermissionEvaluation::TransitionTarget(
-                    transition.target,
-                ),
+                evaluation: FlowPermissionEvaluation::TransitionTarget(transition.target),
             };
             let result = CheckedUnitStructuralReturnPlan::from_binding(binding, completion);
             operations.push(operation);
-            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
+            TerminatorPlan::ReturnStructural { result }
         }
         Arm::Call {
             operands,
@@ -1113,17 +1093,13 @@ fn complete_selected_return(
             let call = operation.call()?;
             let coordinate = call.coordinate;
             let completion = match call.result() {
-                CheckedUnitCallResult::NoNormal => {
-                    CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { coordinate }
-                }
-                CheckedUnitCallResult::Unit => CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
-                CheckedUnitCallResult::Scalar(binding) => {
-                    CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                        completion: CheckedScalarReturnPlan::Binding(*binding),
-                    }
-                }
+                CheckedUnitCallResult::NoNormal => TerminatorPlan::InvokeNoNormal { coordinate },
+                CheckedUnitCallResult::Unit => TerminatorPlan::ReturnUnit,
+                CheckedUnitCallResult::Scalar(binding) => TerminatorPlan::ReturnScalar {
+                    completion: CheckedScalarReturnPlan::Binding(*binding),
+                },
                 CheckedUnitCallResult::Structural { binding, .. } => {
-                    CheckedComposedUnitControlTerminatorPlan::ReturnStructural {
+                    TerminatorPlan::ReturnStructural {
                         result: CheckedUnitStructuralReturnPlan::from_binding(
                             binding.clone(),
                             CheckedStructuralReturnCompletion::Call { coordinate },

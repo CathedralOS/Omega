@@ -65,8 +65,13 @@ where
         .collect::<Vec<_>>();
     // Each cached frontier replaces every non-anchor owner with all of its
     // incoming owners. Every trial starts from the original query state;
-    // failed overapproximations cannot publish a negative judgment.
-    for indices in &arrivals.caller_frontiers {
+    // failed overapproximations cannot publish a negative judgment, so a
+    // skipped trial never changes the verdict - it only gives up a cheap
+    // early proof. Trial the most-expanded cut once: frontiers nearer the
+    // anchors retain the most caller-chain premises, giving context-dependent
+    // obligations their best single shot instead of an O(depth) sequence of
+    // progressively weaker approximations.
+    for indices in arrivals.caller_frontiers.iter().rev().take(1) {
         let Some(caller_roots) = indices
             .iter()
             .map(|&index| program.machines().get(index))
@@ -74,14 +79,14 @@ where
         else {
             continue;
         };
-        if same_frontier(&caller_roots, &roots)
+        if caller_roots.len() == roots.len() && caller_roots.iter().all(|root| roots.iter().any(|other| root.symbol == other.symbol))
             // Ranked mathematical induction retains its original owner.
             || caller_roots.iter().any(|caller| classification.is_proof_machine(program, caller))
         {
             continue;
         }
         let mut trial = requirement.clone();
-        if observe_frontier(
+        let outcome = observe_frontier(
             program,
             machine,
             entry.symbol,
@@ -89,8 +94,17 @@ where
             &mut trial,
             case_facts_only,
             &arrivals,
-        ) && trial.has_positive_proof()
-        {
+        );
+        if std::env::var_os("OMEGA_PATH_COUNT").is_some() {
+            eprintln!(
+                "[trial] machine={} roots={} outcome={} positive={}",
+                machine.name,
+                caller_roots.len(),
+                outcome,
+                trial.has_positive_proof()
+            );
+        }
+        if outcome && trial.has_positive_proof() {
             *requirement = trial;
             return Some(true);
         }
@@ -104,13 +118,6 @@ where
         case_facts_only,
         &arrivals,
     ))
-}
-
-fn same_frontier(left: &[&Machine], right: &[&Machine]) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .all(|root| right.iter().any(|other| root.symbol == other.symbol))
 }
 
 fn observe_frontier(
@@ -142,7 +149,21 @@ fn observe_frontier(
         let Some(root_entry) = program.machine_states(arrival_root).first() else {
             return false;
         };
-        if !super::super::structural_case_arms::prefix_site_is_reachable(
+        if std::env::var_os("OMEGA_PATH_COUNT").is_some() {
+            let reachable = super::super::structural_case_arms::prefix_site_is_reachable(
+                program, root_entry, &observer,
+            );
+            eprintln!(
+                "[frontier] machine={} root={} roots={} reachable={}",
+                machine.name,
+                arrival_root.name,
+                roots.len(),
+                reachable
+            );
+            if !reachable {
+                continue;
+            }
+        } else if !super::super::structural_case_arms::prefix_site_is_reachable(
             program, root_entry, &observer,
         ) {
             continue;

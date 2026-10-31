@@ -4,12 +4,16 @@
 //! membership. Both checked production and receiving replay use this owner.
 
 use crate::frozen_program::expression_table;
+use checked_trees::CheckedIeeeFloatComparisonKind;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedIntegerBinaryKind,
     CheckedIntegerComparisonKind as Comparison, CheckedScalarExpression as Scalar,
 };
+use semantic_vocabulary::IeeeFloatValue;
 use typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
+use typed_trees::expression::TableCallExpression;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::statement::TransitionGuardNode;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// The exact declared carrier of a membership whose complete meaning fits this
@@ -413,11 +417,7 @@ impl Predicate<'_> {
     /// receives the subject. A declaration namespace is not a runtime receiver.
     /// Static arguments, evidence, and value receivers stay outside this
     /// scalar predicate.
-    fn declaration_call(
-        &self,
-        call: &typed_trees::expression::TableCallExpression,
-        depth: usize,
-    ) -> Option<Boolean> {
+    fn declaration_call(&self, call: &TableCallExpression, depth: usize) -> Option<Boolean> {
         let (body, formal) = self.declaration_body(call)?;
         self.clone_with_formal(formal).boolean(body, depth + 1)
     }
@@ -483,7 +483,7 @@ impl Predicate<'_> {
     /// The selected body's value and the formal that stands for the subject.
     fn declaration_body(
         &self,
-        call: &typed_trees::expression::TableCallExpression,
+        call: &TableCallExpression,
     ) -> Option<(ExpressionHandle, symbols::SymbolHandle)> {
         if !self.call_receiver_is_declaration(call)
             || !call.machine_arguments.is_empty()
@@ -540,10 +540,7 @@ impl Predicate<'_> {
             *expression
         } else if let Some(transition) = statement.as_transition() {
             if transition.continuation.is_valid()
-                || !matches!(
-                    transition.guard,
-                    typed_trees::statement::TransitionGuardNode::Always
-                )
+                || !matches!(transition.guard, TransitionGuardNode::Always)
             {
                 return None;
             }
@@ -563,10 +560,7 @@ impl Predicate<'_> {
 
     /// Module, trait, and implementation qualifiers name the declaration.
     /// A value, borrow, or projection is a runtime receiver and stays out.
-    fn call_receiver_is_declaration(
-        &self,
-        call: &typed_trees::expression::TableCallExpression,
-    ) -> bool {
+    fn call_receiver_is_declaration(&self, call: &TableCallExpression) -> bool {
         if !call.receiver.is_valid() {
             return true;
         }
@@ -614,36 +608,16 @@ impl Predicate<'_> {
         }
         let (operator, left, right) = self.float_comparison(expression)?;
         let (kind, left, right) = match operator {
-            BinaryOperator::Equal => (
-                checked_trees::CheckedIeeeFloatComparisonKind::Equal,
-                left,
-                right,
-            ),
-            BinaryOperator::NotEqual => (
-                checked_trees::CheckedIeeeFloatComparisonKind::NotEqual,
-                left,
-                right,
-            ),
-            BinaryOperator::Less => (
-                checked_trees::CheckedIeeeFloatComparisonKind::LessThan,
-                left,
-                right,
-            ),
-            BinaryOperator::LessOrEqual => (
-                checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual,
-                left,
-                right,
-            ),
-            BinaryOperator::Greater => (
-                checked_trees::CheckedIeeeFloatComparisonKind::LessThan,
-                right,
-                left,
-            ),
-            BinaryOperator::GreaterOrEqual => (
-                checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual,
-                right,
-                left,
-            ),
+            BinaryOperator::Equal => (CheckedIeeeFloatComparisonKind::Equal, left, right),
+            BinaryOperator::NotEqual => (CheckedIeeeFloatComparisonKind::NotEqual, left, right),
+            BinaryOperator::Less => (CheckedIeeeFloatComparisonKind::LessThan, left, right),
+            BinaryOperator::LessOrEqual => {
+                (CheckedIeeeFloatComparisonKind::LessOrEqual, left, right)
+            }
+            BinaryOperator::Greater => (CheckedIeeeFloatComparisonKind::LessThan, right, left),
+            BinaryOperator::GreaterOrEqual => {
+                (CheckedIeeeFloatComparisonKind::LessOrEqual, right, left)
+            }
             _ => return None,
         };
         Some(Boolean::ScalarIeeeFloatComparison {
@@ -699,12 +673,8 @@ impl Predicate<'_> {
         let literal = expression_table(self.program).expression(expression);
         let bits = match literal {
             ExpressionNode::Float(literal) => match self.primitive {
-                PrimitiveType::F32 => {
-                    semantic_vocabulary::IeeeFloatValue::Binary32(literal.value_f32().to_bits())
-                }
-                PrimitiveType::F64 => {
-                    semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
-                }
+                PrimitiveType::F32 => IeeeFloatValue::Binary32(literal.value_f32().to_bits()),
+                PrimitiveType::F64 => IeeeFloatValue::Binary64(literal.value_f64().to_bits()),
                 _ => return None,
             },
             _ => return None,

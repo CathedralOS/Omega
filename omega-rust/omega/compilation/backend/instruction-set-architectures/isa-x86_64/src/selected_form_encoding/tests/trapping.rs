@@ -208,12 +208,12 @@ const CLANG_TRAPPING_HIGH: [&str; 72] = [
     "4d89c2",                       // U64
 ];
 
-fn trapping_kind(form: TrappingForm) -> SelectedInstructionKind {
-    SelectedInstructionKind::TrappingInteger { form }
+fn trapping_kind(form: TrappingForm) -> Kind {
+    Kind::TrappingInteger { form }
 }
 
 fn trapping_key(form: TrappingForm) -> MachineAlternativeKey {
-    alternative(MachineAlternativeFamily::TrappingInteger(form), 0)
+    alternative(Family::TrappingInteger(form), 0)
 }
 
 /// The register assignment the clang tables were assembled for: the low one
@@ -388,7 +388,7 @@ fn trapping_forms_reject_every_mutation_substitution_and_wrong_request() {
             .to_vec();
         let sibling = TrappingForm::ALL[(usize::from(form.ordinal()) + 1) % TrappingForm::COUNT];
         for wrong in [
-            alternative(MachineAlternativeFamily::TrappingInteger(form), 1),
+            alternative(Family::TrappingInteger(form), 1),
             trapping_key(sibling),
             saturating_key(SaturatingOperation::Add, form.carrier),
         ] {

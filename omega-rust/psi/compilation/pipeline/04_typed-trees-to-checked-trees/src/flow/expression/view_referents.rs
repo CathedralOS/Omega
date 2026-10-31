@@ -4,7 +4,24 @@
 //! independently of later writes to their backing contents.
 
 use super::super::CapturedReferencePlace;
+use super::super::observations::completed_copy_read_place;
+use super::super::observations::descriptor_observation_namespace;
+use super::super::operand_values::captured_operand_reference_places_with_formation;
+use super::super::operand_values::finite_projection_paths;
+use super::super::project_captured_view_place;
+use super::super::reference_places::ReferenceResultSourceKind;
+use super::super::reference_places::call_result_captured_sources;
+use super::super::reference_places::call_result_leaf_sources;
+use super::super::stored_values::StoredOperand;
+use super::super::stored_views::capture_at_snapshot;
+use super::super::stored_views::reference_places_at_snapshot;
+use super::reference_projection::ReferenceProjection;
 use crate::places::place_at;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::TypeReferenceHandle;
+use validation::borrow_contracts::borrow_carrying_owner_paths;
+use validation::completed_storage::captured_retention_profiles_at_path;
+use validation::reference_result_custody::loan_place_segments;
 /// Ephemeral results of the shared immutable completed-storage query.
 /// This is neither a second store inventory nor permission to load a pointer.
 pub(super) enum StoredReferenceContents {
@@ -15,11 +32,23 @@ pub(super) enum StoredReferenceContents {
     },
 }
 use super::Execution;
-use arena::HandleSpan;
-use checked_trees::{FlowConstraintKind, FlowOperandFact, FlowOperandReferent};
-use facts::{PlaceRoot, PlaceSegment, ScalarValue};
-use typed_trees::expression::ExpressionHandle;
-use validation::CanonicalPlace;
+use arena::{Handle, HandleSpan};
+use checked_trees::{
+    FlowCallFact, FlowCapturedReferenceLeaf as ReferenceLeaf, FlowCaseAccessFact,
+    FlowConstraintKind, FlowConstraintRef, FlowOperandCompletion, FlowOperandFact,
+    FlowOperandReferent, FlowOperandRetainedSupplier, FlowReferentFormation,
+    FlowReferentFormationEvidence as FormationEvidence,
+};
+use facts::{
+    PlaceRoot, PlaceSegment, ScalarValue, payload_variant_for_field, project_captured_view_segments,
+};
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use validation::{
+    CanonicalPlace, canonical_place_type_reference, captured_integer_value,
+    declared_place_type_raw, effective_member_symbol, find_state,
+    has_builtin_bound_expression_meaning, indexed_operation_has_builtin_meaning,
+    owned_projection_type_reference, reference_shell,
+};
 
 impl Execution<'_, '_, '_> {
     /// Observe the stored descriptors carried by one completed owned value.
@@ -27,24 +56,19 @@ impl Execution<'_, '_, '_> {
     /// addresses are supplied by the evaluator, not recovered from an initializer.
     pub(super) fn capture_owned_reference_leaves(
         &mut self,
-        owner: arena::Handle<FlowOperandFact>,
+        owner: Handle<FlowOperandFact>,
         places: &[CapturedReferencePlace],
-    ) -> HandleSpan<checked_trees::FlowCapturedReferenceLeaf> {
+    ) -> HandleSpan<ReferenceLeaf> {
         let capture = *self.context.control.operands.get(owner);
-        let Some(paths) = validation::borrow_contracts::borrow_carrying_owner_paths(
-            self.program,
-            capture.type_reference,
-        ) else {
+        let Some(paths) = borrow_carrying_owner_paths(self.program, capture.type_reference) else {
             return HandleSpan::empty();
         };
         let mut leaves = Vec::new();
         for path in paths {
             let path = crate::borrow::owner_place_segments(&path);
-            let Some(reference) = validation::owned_projection_type_reference(
-                self.program,
-                capture.type_reference,
-                &path,
-            ) else {
+            let Some(reference) =
+                owned_projection_type_reference(self.program, capture.type_reference, &path)
+            else {
                 return HandleSpan::empty();
             };
             if !self.is_view_type(reference) {
@@ -57,7 +81,7 @@ impl Execution<'_, '_, '_> {
                 .iter()
                 .map(|place| {
                     let place = place.clone().projected(&path)?;
-                    let stored = super::super::stored_views::capture_at_snapshot(
+                    let stored = capture_at_snapshot(
                         self.program,
                         &self.context.control,
                         self.state,
@@ -72,13 +96,12 @@ impl Execution<'_, '_, '_> {
             if let Some(suppliers) = &suppliers {
                 for selected in suppliers.iter().flatten() {
                     let value = self.context.control.operands.get(selected.capture);
-                    let profiles =
-                        validation::completed_storage::captured_retention_profiles_at_path(
-                            self.program,
-                            &self.context.control,
-                            value,
-                            &selected.projection,
-                        );
+                    let profiles = captured_retention_profiles_at_path(
+                        self.program,
+                        &self.context.control,
+                        value,
+                        &selected.projection,
+                    );
                     immutable_image &= profiles.is_some_and(|profiles| {
                         !profiles.is_empty()
                             && profiles.iter().all(|profile| {
@@ -157,11 +180,9 @@ impl Execution<'_, '_, '_> {
                                 .operand_child_paths
                                 .insert_many(path.iter().copied());
                             let formation = self.context.control.referent_formations.append(
-                                checked_trees::FlowReferentFormation {
+                                FlowReferentFormation {
                                     source,
-                                    evidence: checked_trees::FlowReferentFormationEvidence::Access(
-                                        capture.case_access,
-                                    ),
+                                    evidence: FormationEvidence::Access(capture.case_access),
                                     owner,
                                     path,
                                     root: place.place.root,
@@ -191,7 +212,7 @@ impl Execution<'_, '_, '_> {
             let retention = if lifetime_known && !places.is_empty() {
                 self.append_retention(&retained_roots)
             } else {
-                arena::Handle::invalid()
+                Handle::invalid()
             };
             if self.context.control.operand_retentions.is_valid(retention) {
                 let suppliers = suppliers
@@ -199,7 +220,7 @@ impl Execution<'_, '_, '_> {
                         let rows = rows
                             .into_iter()
                             .flatten()
-                            .map(|selected| checked_trees::FlowOperandRetainedSupplier {
+                            .map(|selected| FlowOperandRetainedSupplier {
                                 contract: None,
                                 operand: selected.capture,
                                 projection: self
@@ -220,7 +241,7 @@ impl Execution<'_, '_, '_> {
                 profile.immutable_image = immutable_image;
             }
             let path = self.context.control.operand_child_paths.insert_many(path);
-            leaves.push(checked_trees::FlowCapturedReferenceLeaf {
+            leaves.push(ReferenceLeaf {
                 path,
                 type_reference: reference,
                 referents,
@@ -240,24 +261,22 @@ impl Execution<'_, '_, '_> {
     pub(super) fn capture_call_reference_leaves(
         &mut self,
         expression: ExpressionHandle,
-        destination: typed_trees::types::TypeReferenceHandle,
-        call: &typed_trees::expression::TableCallExpression,
+        destination: TypeReferenceHandle,
+        call: &TableCallExpression,
         inputs: &[(ExpressionHandle, FlowOperandFact)],
-        constraints: HandleSpan<checked_trees::FlowConstraintRef>,
-    ) -> Option<HandleSpan<checked_trees::FlowCapturedReferenceLeaf>> {
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> Option<HandleSpan<ReferenceLeaf>> {
         let returned = self.constructed_value_type(expression, destination)?;
         if self.is_view_type(returned) {
             return None;
         }
-        let Some(paths) =
-            validation::borrow_contracts::borrow_carrying_owner_paths(self.program, returned)
-        else {
+        let Some(paths) = borrow_carrying_owner_paths(self.program, returned) else {
             return Some(HandleSpan::empty());
         };
         if paths.is_empty() {
             return None;
         }
-        let Some((_, state)) = validation::find_state(self.program, call.target_symbol) else {
+        let Some((_, state)) = find_state(self.program, call.target_symbol) else {
             return Some(HandleSpan::empty());
         };
         let Some(indices) = self.captured_argument_indices(
@@ -269,19 +288,15 @@ impl Execution<'_, '_, '_> {
         ) else {
             return Some(HandleSpan::empty());
         };
-        let Some(sources) = super::super::reference_places::call_result_captured_sources(
-            self.program,
-            call,
-            self.context.call_frames,
-            &indices,
-        ) else {
+        let Some(sources) =
+            call_result_captured_sources(self.program, call, self.context.call_frames, &indices)
+        else {
             return Some(HandleSpan::empty());
         };
         let mut leaves = Vec::new();
         for path in &paths {
             let path = crate::borrow::owner_place_segments(path);
-            let Some(reference) =
-                validation::owned_projection_type_reference(self.program, returned, &path)
+            let Some(reference) = owned_projection_type_reference(self.program, returned, &path)
             else {
                 return Some(HandleSpan::empty());
             };
@@ -292,23 +307,18 @@ impl Execution<'_, '_, '_> {
             let mut complete = true;
             let mut matched = false;
             for source in &sources {
-                let Some(output) = validation::reference_result_custody::loan_place_segments(
-                    self.program,
-                    returned,
-                    &source.result_path,
-                ) else {
+                let Some(output) = loan_place_segments(self.program, returned, &source.result_path)
+                else {
                     return Some(HandleSpan::empty());
                 };
                 let suffix = match source.kind {
-                    super::super::reference_places::ReferenceResultSourceKind::Reference => {
+                    ReferenceResultSourceKind::Reference => {
                         if output != path {
                             continue;
                         }
                         Vec::new()
                     }
-                    super::super::reference_places::ReferenceResultSourceKind::Value {
-                        type_reference,
-                    } => {
+                    ReferenceResultSourceKind::Value { type_reference } => {
                         let Some(suffix) = path.strip_prefix(output.as_slice()) else {
                             continue;
                         };
@@ -321,18 +331,10 @@ impl Execution<'_, '_, '_> {
                         ) else {
                             return Some(HandleSpan::empty());
                         };
-                        let projected = validation::reference_result_custody::loan_place_segments(
-                            self.program,
-                            type_reference,
-                            &suffix,
-                        )
-                        .and_then(|path| {
-                            validation::owned_projection_type_reference(
-                                self.program,
-                                type_reference,
-                                &path,
-                            )
-                        });
+                        let projected = loan_place_segments(self.program, type_reference, &suffix)
+                            .and_then(|path| {
+                                owned_projection_type_reference(self.program, type_reference, &path)
+                            });
                         if projected.is_none_or(|reference| !self.is_view_type(reference)) {
                             return Some(HandleSpan::empty());
                         }
@@ -353,11 +355,7 @@ impl Execution<'_, '_, '_> {
                 )
                 .and_then(|mut path| {
                     path.extend_from_slice(&suffix);
-                    validation::reference_result_custody::loan_place_segments(
-                        self.program,
-                        actual.type_reference,
-                        &path,
-                    )
+                    loan_place_segments(self.program, actual.type_reference, &path)
                 });
                 let Some(selected) = selected else {
                     complete = false;
@@ -366,7 +364,7 @@ impl Execution<'_, '_, '_> {
                 let Some(projected) = self.capture_reference_projection(
                     actual,
                     &selected,
-                    super::reference_projection::ReferenceProjection::Value,
+                    ReferenceProjection::Value,
                 ) else {
                     complete = false;
                     break;
@@ -385,11 +383,11 @@ impl Execution<'_, '_, '_> {
                 HandleSpan::empty()
             };
             let path = self.context.control.operand_child_paths.insert_many(path);
-            leaves.push(checked_trees::FlowCapturedReferenceLeaf {
+            leaves.push(ReferenceLeaf {
                 path,
                 type_reference: reference,
                 referents,
-                retention: arena::Handle::invalid(),
+                retention: Handle::invalid(),
                 constraints,
             });
         }
@@ -406,8 +404,8 @@ impl Execution<'_, '_, '_> {
     pub(super) fn publish_returned_reference_leaves(
         &mut self,
         capture: &FlowOperandFact,
-        references: HandleSpan<checked_trees::FlowCapturedReferenceLeaf>,
-    ) -> HandleSpan<checked_trees::FlowCapturedReferenceLeaf> {
+        references: HandleSpan<ReferenceLeaf>,
+    ) -> HandleSpan<ReferenceLeaf> {
         let mut leaves = self
             .context
             .control
@@ -485,8 +483,8 @@ impl Execution<'_, '_, '_> {
         &mut self,
         expression: ExpressionHandle,
         receiver: &FlowOperandFact,
-        constraints: HandleSpan<checked_trees::FlowConstraintRef>,
-        case_access: &mut arena::Handle<checked_trees::FlowCaseAccessFact>,
+        constraints: HandleSpan<FlowConstraintRef>,
+        case_access: &mut Handle<FlowCaseAccessFact>,
         possible_storage: &mut Option<HandleSpan<FlowOperandReferent>>,
     ) -> HandleSpan<FlowOperandReferent> {
         let is_view = expression != self.reference_slot_target
@@ -497,20 +495,18 @@ impl Execution<'_, '_, '_> {
         let Some(member) = self.program.expression_table.member_node(expression) else {
             return HandleSpan::empty();
         };
-        let symbol = validation::effective_member_symbol(self.program, member.receiver, member);
+        let symbol = effective_member_symbol(self.program, member.receiver, member);
         if !symbol.is_valid() {
             return HandleSpan::empty();
         }
         let mut path = Vec::new();
-        if let Some(variant) = facts::payload_variant_for_field(self.program, symbol) {
+        if let Some(variant) = payload_variant_for_field(self.program, symbol) {
             path.push(PlaceSegment::Case { variant });
         }
         path.push(PlaceSegment::Field { symbol });
-        let carrier = validation::reference_shell(self.program, receiver.type_reference)
+        let carrier = reference_shell(self.program, receiver.type_reference)
             .map_or(receiver.type_reference, |shell| shell.referee);
-        if !is_view
-            && validation::owned_projection_type_reference(self.program, carrier, &path).is_some()
-        {
+        if !is_view && owned_projection_type_reference(self.program, carrier, &path).is_some() {
             *possible_storage = self.project_possible_storage(receiver, &path);
         }
 
@@ -530,13 +526,13 @@ impl Execution<'_, '_, '_> {
             .contexts
             .semantic_constraint_contexts(constraints)
             .collect::<Vec<_>>();
-        let case_places = super::super::observations::descriptor_observation_namespace(
+        let case_places = descriptor_observation_namespace(
             self.program,
             &self.context.control,
             receiver,
             &contexts,
         )
-        .and_then(|namespace| super::super::project_captured_view_place(namespace, &path))
+        .and_then(|namespace| project_captured_view_place(namespace, &path))
         .map(|namespace| self.append_referent_places(&[namespace]))
         .unwrap_or(source_places);
         *case_access = self.record_case_access_places(expression, constraints, case_places);
@@ -545,7 +541,7 @@ impl Execution<'_, '_, '_> {
                 return captured;
             }
             let value = self.context.control.operands.insert(*receiver);
-            if let Some(selected) = super::super::stored_views::reference_places_at_snapshot(
+            if let Some(selected) = reference_places_at_snapshot(
                 self.program,
                 &self.context.control,
                 value,
@@ -570,22 +566,19 @@ impl Execution<'_, '_, '_> {
         path: &[PlaceSegment],
     ) -> Option<HandleSpan<FlowOperandReferent>> {
         if self.is_view_type(receiver.type_reference)
-            || (matches!(
-                receiver.completion,
-                checked_trees::FlowOperandCompletion::Observation
-            ) && receiver.reference_leaves.is_empty())
+            || (matches!(receiver.completion, FlowOperandCompletion::Observation)
+                && receiver.reference_leaves.is_empty())
         {
             return None;
         }
-        let places =
-            super::super::operand_values::captured_operand_reference_places_with_formation(
-                self.program,
-                &self.context.control,
-                receiver,
-                receiver.type_reference,
-                path,
-            )
-            .unwrap_or_default();
+        let places = captured_operand_reference_places_with_formation(
+            self.program,
+            &self.context.control,
+            receiver,
+            receiver.type_reference,
+            path,
+        )
+        .unwrap_or_default();
         Some(self.append_captured_references(&places))
     }
 
@@ -626,7 +619,7 @@ impl Execution<'_, '_, '_> {
     pub(super) fn capture_returned_referents(
         &mut self,
         expression: ExpressionHandle,
-        call: &typed_trees::expression::TableCallExpression,
+        call: &TableCallExpression,
         inputs: &[(ExpressionHandle, FlowOperandFact)],
         referents: &mut Option<HandleSpan<FlowOperandReferent>>,
     ) {
@@ -644,7 +637,7 @@ impl Execution<'_, '_, '_> {
         // A produced unknown result is authoritative, just as an unresolved
         // saved descriptor is. No initializer supplies a replacement address.
         *referents = Some(HandleSpan::empty());
-        let Some((_, state)) = validation::find_state(self.program, call.target_symbol) else {
+        let Some((_, state)) = find_state(self.program, call.target_symbol) else {
             return;
         };
         let Some(indices) = self.captured_argument_indices(
@@ -656,12 +649,9 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        let Some(sources) = super::super::reference_places::call_result_leaf_sources(
-            self.program,
-            call,
-            self.context.call_frames,
-            &indices,
-        ) else {
+        let Some(sources) =
+            call_result_leaf_sources(self.program, call, self.context.call_frames, &indices)
+        else {
             return;
         };
         let mut origins = Vec::new();
@@ -677,7 +667,7 @@ impl Execution<'_, '_, '_> {
             let Some(projected) = self.capture_reference_projection(
                 actual,
                 &source.segments,
-                super::reference_projection::ReferenceProjection::Value,
+                ReferenceProjection::Value,
             ) else {
                 return;
             };
@@ -694,9 +684,9 @@ impl Execution<'_, '_, '_> {
     /// requirement that the caller select every mutually exclusive origin.
     pub(super) fn complete_call_reference_formations(
         &mut self,
-        call: arena::Handle<checked_trees::FlowCallFact>,
+        call: Handle<FlowCallFact>,
         referents: &mut Option<HandleSpan<FlowOperandReferent>>,
-        leaves: &mut Option<HandleSpan<checked_trees::FlowCapturedReferenceLeaf>>,
+        leaves: &mut Option<HandleSpan<ReferenceLeaf>>,
     ) {
         if !self.context.control.calls.is_valid(call) {
             return;
@@ -747,21 +737,23 @@ impl Execution<'_, '_, '_> {
 
     fn returned_descriptor_formations(
         &mut self,
-        call: arena::Handle<checked_trees::FlowCallFact>,
+        call: Handle<FlowCallFact>,
         referents: HandleSpan<FlowOperandReferent>,
     ) -> HandleSpan<FlowOperandReferent> {
         let mut returned = Vec::new();
         for source in referents.handles() {
             let mut referent = *self.context.control.operand_referents.get(source);
-            referent.formation = self.context.control.referent_formations.append(
-                checked_trees::FlowReferentFormation {
-                    source,
-                    evidence: checked_trees::FlowReferentFormationEvidence::Return(call),
-                    root: referent.root,
-                    segments: referent.segments,
-                    ..Default::default()
-                },
-            );
+            referent.formation =
+                self.context
+                    .control
+                    .referent_formations
+                    .append(FlowReferentFormation {
+                        source,
+                        evidence: FormationEvidence::Return(call),
+                        root: referent.root,
+                        segments: referent.segments,
+                        ..Default::default()
+                    });
             returned.push(referent);
         }
         self.context.control.operand_referents.insert_many(returned)
@@ -824,17 +816,13 @@ impl Execution<'_, '_, '_> {
                 root: source.root,
                 segments: Vec::new(),
             };
-            let reference = validation::canonical_place_type_reference(
+            let reference = canonical_place_type_reference(
                 self.program,
                 self.state.symbol,
                 self.statement_index,
                 &root,
             )?;
-            let paths = super::super::operand_values::finite_projection_paths(
-                self.program,
-                reference,
-                &source.segments,
-            )?;
+            let paths = finite_projection_paths(self.program, reference, &source.segments)?;
             let mut alternatives = Vec::new();
             for segments in paths {
                 alternatives.extend(self.stored_reference_contents_at_place(&CanonicalPlace {
@@ -844,7 +832,7 @@ impl Execution<'_, '_, '_> {
             }
             return (!alternatives.is_empty()).then_some(alternatives);
         }
-        let Some(stored) = super::super::stored_views::capture_at_snapshot(
+        let Some(stored) = capture_at_snapshot(
             self.program,
             &self.context.control,
             self.state,
@@ -859,24 +847,24 @@ impl Execution<'_, '_, '_> {
         let mut alternatives = Vec::new();
         while let Some(stored) = pending.pop() {
             match stored {
-                super::super::stored_values::StoredOperand::Unavailable => {
+                StoredOperand::Unavailable => {
                     return Some(vec![StoredReferenceContents::Unknown]);
                 }
-                super::super::stored_values::StoredOperand::Incoming(place) => {
+                StoredOperand::Incoming(place) => {
                     if place != *source || !self.is_incoming_descriptor_place(&place) {
                         return Some(vec![StoredReferenceContents::Unknown]);
                     }
                     alternatives.push(StoredReferenceContents::Incoming);
                 }
-                super::super::stored_values::StoredOperand::Alternatives(values) => {
+                StoredOperand::Alternatives(values) => {
                     pending.extend(values.into_iter().rev());
                 }
-                super::super::stored_values::StoredOperand::Value {
+                StoredOperand::Value {
                     capture,
                     projection,
                     ..
                 } => {
-                    let places = super::super::stored_views::reference_places_at_snapshot(
+                    let places = reference_places_at_snapshot(
                         self.program,
                         &self.context.control,
                         capture,
@@ -901,7 +889,7 @@ impl Execution<'_, '_, '_> {
         end: Option<&FlowOperandFact>,
         possible_storage: &mut Option<HandleSpan<FlowOperandReferent>>,
     ) -> HandleSpan<FlowOperandReferent> {
-        if !validation::indexed_operation_has_builtin_meaning(
+        if !indexed_operation_has_builtin_meaning(
             self.program,
             self.machine,
             Some(self.state),
@@ -909,7 +897,7 @@ impl Execution<'_, '_, '_> {
             Some(collection.type_reference),
         ) || [Some(start), end].into_iter().flatten().any(|bound| {
             bound.expression.is_valid()
-                && !validation::has_builtin_bound_expression_meaning(
+                && !has_builtin_bound_expression_meaning(
                     self.program,
                     self.machine,
                     Some(self.state),
@@ -1008,8 +996,7 @@ impl Execution<'_, '_, '_> {
             return referents;
         }
         for place in &mut places {
-            let Some(segments) =
-                facts::project_captured_view_segments(&place.place.segments, &[geometry])
+            let Some(segments) = project_captured_view_segments(&place.place.segments, &[geometry])
             else {
                 return HandleSpan::empty();
             };
@@ -1027,7 +1014,7 @@ impl Execution<'_, '_, '_> {
     /// captured_coordinate reads their immutable observations, not current homes.
     pub(super) fn captured_argument_indices<'inputs>(
         &self,
-        parameters: &[typed_trees::signature::StateParameter],
+        parameters: &[StateParameter],
         inputs: impl ExactSizeIterator<Item = &'inputs FlowOperandFact>,
     ) -> Option<Vec<Option<usize>>> {
         if parameters.len() != inputs.len() {
@@ -1038,7 +1025,7 @@ impl Execution<'_, '_, '_> {
                 .iter()
                 .zip(inputs)
                 .map(|(parameter, input)| {
-                    if validation::reference_shell(self.program, parameter.type_reference).is_none()
+                    if reference_shell(self.program, parameter.type_reference).is_none()
                         && self
                             .program
                             .primitive_type_reference(parameter.type_reference)
@@ -1054,7 +1041,7 @@ impl Execution<'_, '_, '_> {
     }
 
     pub(super) fn captured_coordinate(&self, operand: &FlowOperandFact) -> Option<usize> {
-        validation::captured_integer_value(
+        captured_integer_value(
             self.program,
             self.machine,
             self.state,
@@ -1069,7 +1056,7 @@ impl Execution<'_, '_, '_> {
                         .root
                         .as_expression()
                         .and_then(|expression| {
-                            validation::declared_place_type_raw(
+                            declared_place_type_raw(
                                 self.program,
                                 self.machine,
                                 Some(self.state),
@@ -1080,7 +1067,7 @@ impl Execution<'_, '_, '_> {
                 {
                     return None;
                 }
-                let place = super::super::observations::completed_copy_read_place(
+                let place = completed_copy_read_place(
                     self.program,
                     &self.context.control,
                     self.context.active_completed_copies,
@@ -1167,7 +1154,7 @@ impl Execution<'_, '_, '_> {
     pub(super) fn complete_reference_formation(
         &mut self,
         expression: ExpressionHandle,
-        constraints: HandleSpan<checked_trees::FlowConstraintRef>,
+        constraints: HandleSpan<FlowConstraintRef>,
         referents: HandleSpan<FlowOperandReferent>,
     ) -> HandleSpan<FlowOperandReferent> {
         // An unknown descriptor forms nothing. The read that loaded it owns
@@ -1193,16 +1180,18 @@ impl Execution<'_, '_, '_> {
                 .control
                 .operand_referent_segments
                 .insert_many(reference.place.segments.iter().copied());
-            reference.formation = self.context.control.referent_formations.append(
-                checked_trees::FlowReferentFormation {
-                    source,
-                    evidence: checked_trees::FlowReferentFormationEvidence::Access(access),
-                    owner: arena::Handle::invalid(),
-                    path: HandleSpan::empty(),
-                    root: reference.place.root,
-                    segments,
-                },
-            );
+            reference.formation =
+                self.context
+                    .control
+                    .referent_formations
+                    .append(FlowReferentFormation {
+                        source,
+                        evidence: FormationEvidence::Access(access),
+                        owner: Handle::invalid(),
+                        path: HandleSpan::empty(),
+                        root: reference.place.root,
+                        segments,
+                    });
             completed.push(reference);
         }
         self.append_captured_references(&completed)
@@ -1236,7 +1225,7 @@ impl Execution<'_, '_, '_> {
         let rows = places
             .iter()
             .map(|place| FlowOperandReferent {
-                formation: arena::Handle::invalid(),
+                formation: Handle::invalid(),
                 root: place.root,
                 segments: self
                     .context

@@ -11,15 +11,15 @@ use super::result_custody::{
     call_owns_result, operand_owned_construction, retained_structural_result,
 };
 use super::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    Multiplicity, StatementNode, control,
+    CheckedStructuralAccess as StructuralAccess, CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitStructuralArgumentPlan as ArgumentPlan, Multiplicity, StatementNode, control,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
 pub(super) fn admit(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
-    operations: &mut [CheckedUnitEffectOperationPlan],
+    operations: &mut [OperationPlan],
     trace: &control::LocalConstructionTrace,
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -42,34 +42,34 @@ pub(super) fn admit(
     }
     for (operation_index, operation) in operations.iter().enumerate() {
         match operation {
-            CheckedUnitEffectOperationPlan::Call(call)
+            OperationPlan::Call(call)
                 if call_custody_admitted(call, &operations[..operation_index]) => {}
             // Capturing coordinates neither moves the destination nor opens
             // restoration debt. The same checked storage namespace must be
             // available before evaluating the assignment's value producer.
-            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { destination, .. }
+            OperationPlan::CaptureAssignmentDestination { destination, .. }
                 if call_argument_admitted(destination, &operations[..operation_index]) => {}
             // The common source replay authenticates construction and each
             // issuance or transferred claim. A state graph changes only the
             // selected-edge disposition, not establishment authority. The
             // result accountant below checks its exact normal disposition;
             // an automatic-return scheduling flag does not classify a producer.
-            CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
-            | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { .. }
+            OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
+            | OperationPlan::EvaluateStructuralValue { .. }
             // A view-subslice local owns nothing: its shared view ends
             // with the loan, on every selected edge alike.
             | checked_trees::byte_sequence_establishment_pattern!()
-            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. })
+            | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Scalar { .. })
             // Fixed-array, mutable-primitive, and trivial-affine locals mint
             // storage at the authored statement the same way: the binding's
             // own loans and disposal carry its custody, not the op.
-            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. })
-            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. })
-            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. })
+            | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::ScalarArray { .. })
+            | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. })
+            | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. })
             // A declared structural local's establishment mints storage at
             // its authored statement the same way: each member operation's
             // loans and the binding's disposal carry the custody, not the op.
-            | CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural { .. })
+            | OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::Structural { .. })
             // A reference pair's custody is the loan's: the establishment is
             // the authored production and the release the authored weakening
             // boundary. Selected edges carry the loan itself; neither op
@@ -86,32 +86,32 @@ pub(super) fn admit(
             // destination and replacement independently. A window repair or
             // local rebind installs a whole owned binding that rejoined at
             // mint: it consumes that binding like a call argument does.
-            CheckedUnitEffectOperationPlan::Store(store)
+            OperationPlan::Store(store)
                 if store.installed_value().is_none_or(|value| {
-                    value.access == CheckedStructuralAccess::Owned
+                    value.access == StructuralAccess::Owned
                         && call_argument_admitted(value, &operations[..operation_index])
                 }) => {}
             // An atomic event's root authority and operands rejoined at
             // mint; its observed prior is an ordinary dense scalar local.
             // A port write carries exact constant operands and its service
             // reach: no structural custody crosses the selected edge.
-            CheckedUnitEffectOperationPlan::AtomicFence { .. }
-            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-            | CheckedUnitEffectOperationPlan::RegisterAccess { .. } => {}
+            OperationPlan::AtomicFence { .. }
+            | OperationPlan::AtomicAccess(_)
+            | OperationPlan::RegisterAccess { .. } => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the disaccess field value and the exact restoration
             // into the opened hole — carries no new custody across the
             // selected edges: its owned source, borrowed destination
             // window, and consumed result binding all rejoined at mint.
-            CheckedUnitEffectOperationPlan::MoveStructuralField { source, .. }
-                if source.access == CheckedStructuralAccess::Owned
+            OperationPlan::MoveStructuralField { source, .. }
+                if source.access == StructuralAccess::Owned
                     && call_argument_admitted(source, &operations[..operation_index]) => {}
             // Every cleanup boundary uses the same live storage namespace as
             // calls and stores. The ownership producer selected death; this
             // join asks only whether the graph can address that storage.
             // Result-only and nearest-producer recognizers lose owned child
             // replacement and do not establish any additional authority.
-            CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            OperationPlan::ContinuationCleanup {
                 boundary,
                 cleanup_actions, ..
             }
@@ -122,14 +122,14 @@ pub(super) fn admit(
                             source: action.source().clone(),
                             path: action.path().to_vec(),
                             type_identity: action.type_identity().to_owned(),
-                            access: CheckedStructuralAccess::Owned,
+                            access: StructuralAccess::Owned,
                         },
                         &operations[..operation_index],
                     ))
                     && match boundary {
                         checked_trees::CheckedUnitCleanupBoundary::Call(coordinate) => operations[..operation_index].iter()
-                            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                            .filter_map(CheckedUnitEffectOperationPlan::invocation_coordinate)
+                            .flat_map(OperationPlan::with_value_calls)
+                            .filter_map(OperationPlan::invocation_coordinate)
                             .filter(|invocation| *invocation == *coordinate)
                             .count() == 1,
                         checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index }
@@ -140,7 +140,7 @@ pub(super) fn admit(
                 // edges cannot yet carry; admitted families never reach
                 // this arm.
                 trace.phase(match operation {
-                    CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
+                    OperationPlan::Call(call) => match (call.route(), call.result()) {
                         (_, CheckedUnitCallResult::Structural { .. }) => {
                             "state graph: operation custody: discarded structural result"
                         }
@@ -161,16 +161,16 @@ pub(super) fn admit(
                             &operations[..operation_index],
                         ),
                     },
-                    CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }) => {
+                    OperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. }) => {
                         "state graph: operation custody: discarded structural result"
                     }
-                    CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {
+                    OperationPlan::ContinuationCleanup { .. } => {
                         "state graph: operation custody: continuation cleanup owner"
                     }
                     checked_trees::reference_hold_pattern!() => {
                         "state graph: operation custody: reference custody"
                     }
-                    CheckedUnitEffectOperationPlan::Complete { .. } => {
+                    OperationPlan::Complete { .. } => {
                         "state graph: operation custody: completion"
                     }
                     _ => "state graph: operation custody: other operation",
@@ -187,10 +187,7 @@ pub(super) fn admit(
 /// boundary call completes its receipts at the call; an ordinary call consumes
 /// its exact argument claims through the shared call custody replay. Every
 /// structural operand except a structural result's must already be admitted.
-pub(super) fn call_custody_admitted(
-    call: &CheckedUnitCallPlan,
-    earlier: &[CheckedUnitEffectOperationPlan],
-) -> bool {
+pub(super) fn call_custody_admitted(call: &CheckedUnitCallPlan, earlier: &[OperationPlan]) -> bool {
     let arguments_admitted = || {
         call.structural_arguments
             .iter()
@@ -212,11 +209,8 @@ pub(super) fn call_custody_admitted(
 /// A state edge does not change that call's argument custody. Boundary and
 /// ordinary calls share this rule; their receipts and claim transfers remain
 /// separate obligations at their respective consumers.
-fn call_argument_admitted(
-    argument: &CheckedUnitStructuralArgumentPlan,
-    earlier: &[CheckedUnitEffectOperationPlan],
-) -> bool {
-    if argument.access != CheckedStructuralAccess::Owned {
+fn call_argument_admitted(argument: &ArgumentPlan, earlier: &[OperationPlan]) -> bool {
+    if argument.access != StructuralAccess::Owned {
         // Loan lifetime and restoration remain the sequencer's obligations;
         // borrowing does not consume a graph-owned structural result.
         return true;
@@ -233,7 +227,7 @@ fn call_argument_admitted(
     // the outer value is not a substitute owner for one of those results.
     let mut producers = earlier
         .iter()
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        .flat_map(OperationPlan::with_value_calls)
         .filter_map(|operation| {
             let result = operation.structural_result_binding()?;
             (result.binding_ordinal == ordinal).then_some((operation, result))
@@ -255,20 +249,20 @@ fn call_argument_admitted(
 /// Name the first unmet call requirement using the same argument admission
 /// as the operation guard, then distinguish its unsupported custody.
 fn call_custody_refusal(
-    structural_arguments: &[CheckedUnitStructuralArgumentPlan],
-    earlier: &[CheckedUnitEffectOperationPlan],
+    structural_arguments: &[ArgumentPlan],
+    earlier: &[OperationPlan],
 ) -> &'static str {
     for argument in structural_arguments {
         if call_argument_admitted(argument, earlier) {
             continue;
         }
-        if argument.access == CheckedStructuralAccess::Owned
+        if argument.access == StructuralAccess::Owned
             && let Some(ordinal) = argument.source_structural_result_binding_ordinal()
         {
             let producer = earlier
                 .iter()
                 .rev()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
                 .find_map(|operation| {
                     operation
                         .structural_result_binding()

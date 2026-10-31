@@ -24,6 +24,7 @@ use crate::scalar_lowering::branch_states::lower_scalar_call;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
@@ -108,7 +109,7 @@ pub(crate) struct Expansion<'a> {
     states: Vec<LoweredScalarBranchState>,
     claim_edges: Vec<PreparedClaimEdge>,
     calls: Vec<SourceInvocation>,
-    declaration_observation: Option<u64>,
+    declaration_observation: Option<(semantic_vocabulary::BlockId, u64)>,
     produced_values: Vec<produced_values::Slot>,
     call_views: Vec<call_views::Slot>,
     subslices: Vec<subslices::Slot>,
@@ -188,11 +189,7 @@ impl<'a> Expansion<'a> {
         roster: &[checked_trees::CheckedErasedProofParameterPlan],
     ) -> Self {
         self.erased_proof_formals =
-            crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                identities,
-                self.checked,
-                roster,
-            );
+            erased_proof_formal_declarations(identities, self.checked, roster);
         self
     }
 
@@ -203,8 +200,12 @@ impl<'a> Expansion<'a> {
         }
     }
 
-    pub(crate) fn with_declaration_observation(mut self, scope: u64) -> Self {
-        self.declaration_observation = Some(scope);
+    pub(crate) fn with_declaration_observation(
+        mut self,
+        block: semantic_vocabulary::BlockId,
+        scope: u64,
+    ) -> Self {
+        self.declaration_observation = Some((block, scope));
         self
     }
 

@@ -9,6 +9,7 @@ use typed_trees::{
     name::Identifier,
     state::State,
 };
+use typed_trees_to_checked_trees::derive_checked_nominal_call_target;
 
 #[test]
 fn contract_owner_queries_keep_lazy_setup_and_exact_fact_namespaces() {
@@ -73,9 +74,7 @@ fn contract_owner_queries_keep_lazy_setup_and_exact_fact_namespaces() {
     for _ in 0..3 {
         assert_eq!(
             queries.derive_checked_nominal_call_target(call),
-            typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-                &program, &facts, call, None
-            )
+            derive_checked_nominal_call_target(&program, &facts, call, None)
         );
         assert_eq!(std::ptr::from_ref(queries.owners.get().unwrap()), prepared);
     }

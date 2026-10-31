@@ -1,3 +1,4 @@
+use super::super::declarations::encode_type_identity;
 use super::super::{
     calling, declarations::encode_representation_target, public_api, representation,
     selected_providers, terminal_permissions, values::identity::encode_nominal,
@@ -129,10 +130,7 @@ pub(super) fn representation(
             false,
             |encoder| {
                 encode_nominal(encoder, &calling.boundary_trait)?;
-                encoder.sequence(
-                    &calling.boundary_arguments,
-                    super::super::declarations::encode_type_identity,
-                )?;
+                encoder.sequence(&calling.boundary_arguments, encode_type_identity)?;
                 encoder.u32(calling.boundary_lifetime_parameter_count);
                 encoder.sequence(&calling.boundary_lifetime_arguments, |encoder, ordinal| {
                     encoder.u32(*ordinal);

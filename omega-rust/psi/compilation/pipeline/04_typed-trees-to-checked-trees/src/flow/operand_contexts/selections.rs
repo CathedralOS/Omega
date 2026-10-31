@@ -9,6 +9,8 @@
 //! is prepared lazily, only when its consumer needs that kind of evidence.
 
 use crate::flow::CapturedOperand;
+use crate::flow::CaseEvidence;
+use crate::flow::MembershipEvidence;
 use arena::HandleSpan;
 use checked_trees::{FlowConstraintRef, FlowFacts};
 use facts::{FactContextHandle, FactPlan};
@@ -47,8 +49,8 @@ pub(crate) struct OperandContextSelection<'checking> {
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    cases: OnceCell<Option<crate::flow::CaseEvidence<'checking>>>,
-    memberships: OnceCell<crate::flow::MembershipEvidence<'checking>>,
+    cases: OnceCell<Option<CaseEvidence<'checking>>>,
+    memberships: OnceCell<MembershipEvidence<'checking>>,
 }
 
 impl OperandContextSelection<'_> {
@@ -60,18 +62,14 @@ impl OperandContextSelection<'_> {
     ) -> bool {
         self.memberships
             .get_or_init(|| {
-                crate::flow::MembershipEvidence::prepare(
-                    self.program,
-                    self.semantic,
-                    &self.contexts,
-                )
+                MembershipEvidence::prepare(self.program, self.semantic, &self.contexts)
             })
             .contains(subject, domain, instance)
     }
 
-    fn cases(&self) -> &Option<crate::flow::CaseEvidence<'_>> {
+    fn cases(&self) -> &Option<CaseEvidence<'_>> {
         self.cases.get_or_init(|| {
-            crate::flow::CaseEvidence::prepare(
+            CaseEvidence::prepare(
                 self.program,
                 self.semantic,
                 &self.contexts,

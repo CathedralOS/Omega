@@ -4,14 +4,15 @@
 //! helper supplied through such a lane needs its declared contract instead.
 
 use super::{Arrival, ExpressionHandle, Machine, SymbolHandle};
+use crate::CheckingInput;
+use symbols::SymbolKeyMap;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::references::TypedReferences;
+use typed_trees::types::TypeReferenceHandle;
 
 /// Specialization custody retains declaration ancestry after executable roots
 /// are flattened. It selects a scope, never imports a template's runtime facts.
-fn authored_machine(
-    program: &dyn crate::CheckingInput,
-    mut symbol: SymbolHandle,
-) -> Option<SymbolHandle> {
+fn authored_machine(program: &dyn CheckingInput, mut symbol: SymbolHandle) -> Option<SymbolHandle> {
     let mut seen = Vec::new();
     while symbol.is_valid() && !seen.contains(&symbol) {
         seen.push(symbol);
@@ -30,17 +31,13 @@ fn authored_machine(
     None
 }
 
-pub(super) fn is_root(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    root: &Machine,
-) -> bool {
+pub(super) fn is_root(program: &dyn CheckingInput, machine: &Machine, root: &Machine) -> bool {
     authored_machine(program, machine.symbol) == Some(root.symbol)
 }
 
 /// Extracted regions retain their source activation as explicit custody.
 /// Ordinary declarations use semantic containment, never a generated name.
-fn enclosing_declaration(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> SymbolHandle {
+fn enclosing_declaration(program: &dyn CheckingInput, symbol: SymbolHandle) -> SymbolHandle {
     program
         .machine_by_symbol(symbol)
         .and_then(|machine| machine.lexical_region_origin)
@@ -53,16 +50,13 @@ fn enclosing_declaration(program: &dyn crate::CheckingInput, symbol: SymbolHandl
 /// Whether caller-derived entry facts have a complete private use roster.
 /// This is graph custody only: it supplies no runtime value or proof premise.
 /// Open ancestors remain independent entries under their own contracts.
-pub fn private_invocation_entry_is_closed(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-) -> bool {
+pub fn private_invocation_entry_is_closed(program: &dyn CheckingInput, machine: &Machine) -> bool {
     lexical_root(program, machine)
         .is_some_and(|root| closed_arrivals(program, root, machine).is_ok())
 }
 
 pub(super) fn lexical_root<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     machine: &Machine,
 ) -> Option<&'program Machine> {
     let declaration = authored_machine(program, machine.symbol)?;
@@ -82,11 +76,7 @@ pub(super) fn lexical_root<'program>(
     root
 }
 
-fn belongs_to(
-    program: &dyn crate::CheckingInput,
-    mut symbol: SymbolHandle,
-    root: SymbolHandle,
-) -> bool {
+fn belongs_to(program: &dyn CheckingInput, mut symbol: SymbolHandle, root: SymbolHandle) -> bool {
     let mut seen = Vec::new();
     while symbol.is_valid() {
         if program.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
@@ -107,10 +97,7 @@ fn belongs_to(
     false
 }
 
-fn enclosing_machine_roots(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-) -> Vec<SymbolHandle> {
+fn enclosing_machine_roots(program: &dyn CheckingInput, machine: &Machine) -> Vec<SymbolHandle> {
     let mut symbol = machine.symbol;
     let mut seen = Vec::new();
     let mut roots = Vec::new();
@@ -147,12 +134,12 @@ struct SubordinateCallSite {
 type SymbolSet = std::collections::HashSet<SymbolHandle, symbols::BuildSymbolHasher>;
 
 pub(crate) struct ProgramPrivateArrivalIndex {
-    members_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>,
-    call_sites_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>>,
+    members_by_root: SymbolKeyMap<SymbolHandle, Vec<usize>>,
+    call_sites_by_root: SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>>,
     unclosed_symbols: SymbolSet,
     private_targets: SymbolSet,
-    private_callees: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
-    callable_use_owners: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
+    private_callees: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
+    callable_use_owners: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
 }
 
 impl ProgramPrivateArrivalIndex {
@@ -160,7 +147,7 @@ impl ProgramPrivateArrivalIndex {
     /// An open callable cannot rely on a known direct-caller demand roster.
     pub(crate) fn has_closed_private_uses(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         machine: &Machine,
     ) -> bool {
         self.private_targets.contains(&machine.symbol)
@@ -178,12 +165,10 @@ impl ProgramPrivateArrivalIndex {
         self.private_callees.get(&caller).map_or(&[], Vec::as_slice)
     }
 
-    fn build(program: &dyn crate::CheckingInput) -> Self {
+    fn build(program: &dyn CheckingInput) -> Self {
         let machines = program.machines();
-        let mut members_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>> =
-            Default::default();
-        let mut target_roots: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> =
-            Default::default();
+        let mut members_by_root: SymbolKeyMap<SymbolHandle, Vec<usize>> = Default::default();
+        let mut target_roots: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> = Default::default();
         let mut all_private_targets = SymbolSet::default();
         for (machine_index, machine) in machines.iter().enumerate() {
             let roots = enclosing_machine_roots(program, machine);
@@ -203,10 +188,9 @@ impl ProgramPrivateArrivalIndex {
             target_roots.insert(machine.symbol, roots);
         }
 
-        let mut call_sites_by_root: symbols::SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>> =
+        let mut call_sites_by_root: SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>> =
             Default::default();
-        let mut private_callees: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> =
-            Default::default();
+        let mut private_callees: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> = Default::default();
         if !target_roots.is_empty() {
             for (caller_machine_index, caller) in machines.iter().enumerate() {
                 for state in program.machine_states(caller) {
@@ -285,7 +269,7 @@ impl ProgramPrivateArrivalIndex {
 /// Share the exact selected-call/use inventory with consumers planning optional
 /// body outputs. The index itself grants neither execution nor proof permission.
 pub(crate) fn private_invocation_index(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
 ) -> std::sync::Arc<ProgramPrivateArrivalIndex> {
     crate::frozen_program::frozen_memo(
         program,
@@ -306,7 +290,7 @@ pub(crate) struct ClosedArrivals {
 }
 
 pub(super) fn closed_arrivals(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: &Machine,
     callee: &Machine,
 ) -> Result<std::sync::Arc<ClosedArrivals>, &'static str> {
@@ -329,7 +313,7 @@ pub(super) fn closed_arrivals(
 }
 
 fn compute_closed_arrivals(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: &Machine,
     callee: &Machine,
 ) -> Result<ClosedArrivals, &'static str> {
@@ -567,11 +551,7 @@ fn compute_closed_arrivals(
 
 /// The graph already knows the executable owner. Check ambiguous storage
 /// membership once in the cached plan; never resolve an owner by spelling.
-fn caller_owner_is_unique(
-    program: &dyn crate::CheckingInput,
-    state: SymbolHandle,
-    owner: usize,
-) -> bool {
+fn caller_owner_is_unique(program: &dyn CheckingInput, state: SymbolHandle, owner: usize) -> bool {
     let machines = program.machines();
     let Some(caller) = machines.get(owner) else {
         return false;
@@ -590,7 +570,7 @@ fn caller_owner_is_unique(
 }
 
 fn progressive_caller_frontiers(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     root: &Machine,
     sites: &[SubordinateCallSite],
     immediate: Option<Vec<usize>>,
@@ -678,19 +658,14 @@ fn retain_scoped_handle<Element>(
 }
 
 struct ProgramPrivateUses<'program> {
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     target_symbols: SymbolSet,
     owner_scopes: Vec<Option<SymbolHandle>>,
-    pending_counts: symbols::SymbolKeyMap<SymbolHandle, usize>,
+    pending_counts: SymbolKeyMap<SymbolHandle, usize>,
     seen_expressions: Vec<Vec<(Option<SymbolHandle>, ExpressionHandle)>>,
-    seen_types: Vec<
-        Vec<(
-            Option<SymbolHandle>,
-            typed_trees::types::TypeReferenceHandle,
-        )>,
-    >,
+    seen_types: Vec<Vec<(Option<SymbolHandle>, TypeReferenceHandle)>>,
     unclosed_symbols: SymbolSet,
-    callable_use_owners: symbols::SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
+    callable_use_owners: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
 }
 
 impl ProgramPrivateUses<'_> {
@@ -755,17 +730,15 @@ impl TypedReferences for ProgramPrivateUses<'_> {
             return false;
         }
         match self.program.expression_table.expression(expression) {
-            typed_trees::expression::ExpressionNode::Call(call) => self.direct(call.target_symbol),
-            typed_trees::expression::ExpressionNode::Name(path)
-                if self.private_target(path.symbol) =>
-            {
+            ExpressionNode::Call(call) => self.direct(call.target_symbol),
+            ExpressionNode::Name(path) if self.private_target(path.symbol) => {
                 self.unclosed_symbols.insert(path.symbol);
             }
             _ => {}
         }
         true
     }
-    fn type_reference(&mut self, reference: typed_trees::types::TypeReferenceHandle) -> bool {
+    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
         let owner = self.owner();
         retain_scoped_handle(&mut self.seen_types, owner, reference)
     }

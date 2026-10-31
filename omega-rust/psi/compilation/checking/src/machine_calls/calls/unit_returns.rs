@@ -1,6 +1,7 @@
 //! Unit calls retain their exact statement or return use and declaration.
 
 use super::{ExpressionHandle, Machine, State, TypeReferenceHandle, TypeReferenceNode};
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
@@ -9,7 +10,7 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// statement root; recursive validators must also retain the current use
 /// position, since a reused handle does not make a nested operand a statement.
 pub fn unit_statement_call_is_admitted(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -61,7 +62,7 @@ pub fn unit_statement_call_is_admitted(
 }
 
 pub fn unit_return_call_is_admitted(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -74,7 +75,7 @@ pub fn unit_return_call_is_admitted(
 /// Signature compatibility for a direct Unit completion. The caller supplies
 /// the actual statement/terminal position; nested operands never inherit it.
 pub(crate) fn call_completes_unit_state(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -96,7 +97,7 @@ enum DeclaredCallResult<'program> {
 /// One logical result query for statement, terminal and wrapper inference.
 /// Public requirement custody takes precedence over any private executable.
 fn declared_call_result<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<DeclaredCallResult<'program>> {
@@ -131,7 +132,7 @@ fn declared_call_result<'program>(
 }
 
 pub(in crate::machine_calls::calls) fn call_returns_unit(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> bool {
@@ -150,7 +151,7 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
 /// the target owner separately admits default declaration operations. Neither
 /// token authorizes execution on a fabricated Build value.
 pub(super) fn admitted_build_declaration_call(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
@@ -219,7 +220,7 @@ pub(super) fn admitted_build_declaration_call(
 /// represented by the type table's Unit sentinel; it is not a missing scalar
 /// carrier. Explicit non-Unit state results and inferred value-return edges
 /// still prevent treating the machine as a resultless citation.
-pub fn machine_has_unit_result(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
+pub fn machine_has_unit_result(program: &dyn CheckingInput, machine: &Machine) -> bool {
     let states = program.machine_states(machine);
     !states.is_empty()
         && states
@@ -231,7 +232,7 @@ pub fn machine_has_unit_result(program: &dyn crate::CheckingInput, machine: &Mac
 // A finite dependency walk follows logical results, not Value-node syntax.
 // A cycle introduces no value by itself; termination and successful completion
 // remain independent checking obligations, never inferred from this query.
-fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
+fn has_inferred_value_return(program: &dyn CheckingInput, machine: &Machine) -> bool {
     use typed_trees::statement::TransitionTargetNode;
     let mut pending = vec![machine];
     let mut visited = Vec::new();
@@ -277,10 +278,7 @@ fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machi
 /// Whether a declared result type denotes no value: `Unit` seen through any
 /// number of refinement shells. A refinement annotates a carrier and adds no
 /// value of its own, so the shells are erased before the check.
-pub(crate) fn unit_type(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-) -> bool {
+pub(crate) fn unit_type(program: &dyn CheckingInput, mut reference: TypeReferenceHandle) -> bool {
     loop {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Unit => return true,

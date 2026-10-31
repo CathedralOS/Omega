@@ -7,6 +7,10 @@
 use crate::symbols::lookup;
 use crate::tables::body_expressions;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::expression::ExpressionHandle;
+use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::statement::Statement;
+use symbol_resolved_trees::statement::TransitionTarget;
 use symbols::{SymbolHandle, SymbolKind};
 
 /// Resolve an authored static path through ordinary source-owned selection.
@@ -63,14 +67,8 @@ fn static_call_target(
 
 pub(crate) fn normalize_static_module_calls(
     program: &mut SymbolResolvedTrees,
-    calls: &[(
-        symbol_resolved_trees::expression::ExpressionHandle,
-        Vec<symbol_resolved_trees::name::DiagnosticName>,
-    )],
-    statement_calls: &[(
-        source::SourceSpan,
-        Vec<symbol_resolved_trees::name::DiagnosticName>,
-    )],
+    calls: &[(ExpressionHandle, Vec<DiagnosticName>)],
+    statement_calls: &[(source::SourceSpan, Vec<DiagnosticName>)],
 ) {
     use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
     use symbols::JoinedPath;
@@ -141,7 +139,7 @@ pub(crate) fn normalize_static_module_calls(
             .expression_mut(*expression)
         {
             call.receiver = ExpressionHandle::invalid();
-            call.target = symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
+            call.target = DiagnosticName::from_str(&name, reference);
             call.target_symbol = selected;
         }
     }
@@ -151,7 +149,7 @@ pub(crate) fn normalize_static_module_calls(
     declarations
         .state_statements
         .for_each_mut(|_, statement| match statement {
-            symbol_resolved_trees::statement::Statement::Call(call) => {
+            Statement::Call(call) => {
                 let Some((_, path)) = statement_calls
                     .iter()
                     .find(|(span, _)| *span == call.target.source_span())
@@ -176,11 +174,10 @@ pub(crate) fn normalize_static_module_calls(
                 call.receiver = arena::HandleSpan::empty();
                 call.receiver_symbol = SymbolHandle::invalid();
                 call.receiver_root_symbol = SymbolHandle::invalid();
-                call.target =
-                    symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
+                call.target = DiagnosticName::from_str(&name, reference);
                 call.target_symbol = selected;
             }
-            symbol_resolved_trees::statement::Statement::Transition(transition) => {
+            Statement::Transition(transition) => {
                 normalize_terminal_namespace(symbols, members, &mut transition.target);
                 if let Some(continuation) = &mut transition.continuation {
                     normalize_terminal_namespace(symbols, members, continuation);
@@ -195,8 +192,8 @@ pub(crate) fn normalize_static_module_calls(
 /// selected callable coordinate, just as an ordinary normalized call does.
 fn normalize_terminal_namespace(
     symbols: &symbols::SymbolTable,
-    members: &mut arena::Arena<symbol_resolved_trees::name::DiagnosticName>,
-    target: &mut symbol_resolved_trees::statement::TransitionTarget,
+    members: &mut arena::Arena<DiagnosticName>,
+    target: &mut TransitionTarget,
 ) {
     use symbol_resolved_trees::statement::TransitionTarget;
     use symbols::JoinedPath;
@@ -220,10 +217,7 @@ fn normalize_terminal_namespace(
     };
     let invocation = super::transitions::terminal_call_target(symbols, selected);
     let mut canonical = arena::HandleSpan::empty();
-    members.append_to_span(
-        &mut canonical,
-        symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference),
-    );
+    members.append_to_span(&mut canonical, DiagnosticName::from_str(&name, reference));
     named.path = canonical;
     named.symbol = invocation;
     named.head_symbol = invocation;

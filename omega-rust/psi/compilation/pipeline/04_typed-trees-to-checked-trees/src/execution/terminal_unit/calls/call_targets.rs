@@ -43,7 +43,8 @@ pub(in crate::execution::terminal_unit) fn resolve_call_target(
     if let Some(slot) = program.dynamic_slot_by_symbol(target) {
         return Some(ResolvedCallTarget::DynamicSlot(slot));
     }
-    let (machine, state) = executable_target(program, target)?;
+    let (machine, state) = validation::find_machine_head(program, target)
+        .or_else(|| validation::find_state(program, target))?;
     Some(ResolvedCallTarget::Declared { machine, state })
 }
 
@@ -95,15 +96,4 @@ fn boundary_requirement(
             }),
         _ => BoundaryTarget::Ambiguous,
     }
-}
-
-/// The machine and state a call to `target` executes. Source custody can name
-/// a machine head or an exact stored state: a machine invokes its entry, and
-/// an explicitly selected state keeps its own signature.
-fn executable_target(
-    program: &dyn ::validation::CheckingInput,
-    target: SymbolHandle,
-) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
-    validation::find_machine_head(program, target)
-        .or_else(|| validation::find_state(program, target))
 }

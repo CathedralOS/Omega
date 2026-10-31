@@ -19,13 +19,28 @@ use crate::resolution::lowerer::Lowerer;
 use crate::tables::syntax_items;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
+use std::mem::replace;
+use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::signature::{
-    SignatureContract, SignatureContractKind, StateParameter, StateSignature, StateSignatureStorage,
+    CrashCause, NativeCallbackParameter, SignatureContract, SignatureContractKind, StateParameter,
+    StateSignature, StateSignatureStorage,
 };
 use symbol_resolved_trees::state::{State, StateStorage};
 use symbol_resolved_trees::statement::Statement;
+use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
+use syntax::identifier::Identifier;
+use syntax::item::CapabilityContract;
+use syntax::item::CapabilityContractKind;
+use syntax::item::NativeCallbackParameterNode;
+use syntax::item::ProofFact;
+use syntax::item::StateParameterHandle;
+use syntax::item::TypeParameter;
+use syntax::operator_spelling::OperatorSpelling;
+use syntax::statement::StatementHandle;
+use syntax::statement::StatementNode;
+use syntax::types::TypeReferenceHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_state_node(
@@ -49,11 +64,11 @@ pub(crate) fn lower_state_node(
 fn lower_state_parts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    name: &syntax::identifier::Identifier,
-    parameters: HandleSpan<syntax::item::StateParameterHandle>,
-    return_type_handle: syntax::types::TypeReferenceHandle,
-    contracts: HandleSpan<syntax::item::CapabilityContract>,
-    statements: arena::HandleSpan<syntax::statement::StatementHandle>,
+    name: &Identifier,
+    parameters: HandleSpan<StateParameterHandle>,
+    return_type_handle: TypeReferenceHandle,
+    contracts: HandleSpan<CapabilityContract>,
+    statements: arena::HandleSpan<StatementHandle>,
     public_signature: bool,
 ) -> Result<State, Diagnostic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
@@ -95,7 +110,7 @@ pub(crate) fn lower_state_body(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
     declaration: &State,
-    statements: HandleSpan<syntax::statement::StatementHandle>,
+    statements: HandleSpan<StatementHandle>,
 ) -> Result<HandleSpan<Statement>, Diagnostic> {
     with_state_scope(lowerer, declaration, |lowerer| {
         lower_state_statements(lowerer, syntax, statements)
@@ -147,14 +162,13 @@ fn with_state_scope<T>(
             )
         })
         .collect();
-    let previous_references = std::mem::replace(
+    let previous_references = replace(
         &mut lowerer.reference_struct_parameters,
         reference_parameters,
     );
-    let previous_names =
-        std::mem::replace(&mut lowerer.current_state_parameter_names, parameter_names);
-    let previous_parameters = std::mem::replace(&mut lowerer.current_state_parameters, parameters);
-    let previous_return = std::mem::replace(
+    let previous_names = replace(&mut lowerer.current_state_parameter_names, parameter_names);
+    let previous_parameters = replace(&mut lowerer.current_state_parameters, parameters);
+    let previous_return = replace(
         &mut lowerer.current_state_return_type,
         state.return_type.clone(),
     );
@@ -202,25 +216,25 @@ where_facts: signature.where_facts },
 /// borrowed from its syntax node.
 #[derive(Debug)]
 pub(crate) struct StateSignatureParts<'a> {
-    pub(crate) name: &'a syntax::identifier::Identifier,
-    pub(crate) spelling: Option<syntax::operator_spelling::OperatorSpelling>,
-    pub(crate) lifetime_parameters: &'a [syntax::identifier::Identifier],
-    pub(crate) type_parameters: HandleSpan<syntax::item::TypeParameter>,
-    pub(crate) parameters: HandleSpan<syntax::item::StateParameterHandle>,
-    pub(crate) native_callback_parameters: &'a [syntax::item::NativeCallbackParameterNode],
-    pub(crate) return_type_handle: syntax::types::TypeReferenceHandle,
+    pub(crate) name: &'a Identifier,
+    pub(crate) spelling: Option<OperatorSpelling>,
+    pub(crate) lifetime_parameters: &'a [Identifier],
+    pub(crate) type_parameters: HandleSpan<TypeParameter>,
+    pub(crate) parameters: HandleSpan<StateParameterHandle>,
+    pub(crate) native_callback_parameters: &'a [NativeCallbackParameterNode],
+    pub(crate) return_type_handle: TypeReferenceHandle,
     pub(crate) is_default: bool,
     pub(crate) service_reach_is_installation_bound: bool,
     pub(crate) service_reach_keyword_source_spans: &'a [source::SourceSpan],
-    pub(crate) service_reaches: HandleSpan<syntax::identifier::Identifier>,
-    pub(crate) invokes: HandleSpan<syntax::identifier::Identifier>,
+    pub(crate) service_reaches: HandleSpan<Identifier>,
+    pub(crate) invokes: HandleSpan<Identifier>,
     pub(crate) suspends_keyword_source_spans: &'a [source::SourceSpan],
     pub(crate) blocks_keyword_source_spans: &'a [source::SourceSpan],
     pub(crate) suspends: bool,
     pub(crate) blocks: bool,
-    pub(crate) contracts: HandleSpan<syntax::item::CapabilityContract>,
+    pub(crate) contracts: HandleSpan<CapabilityContract>,
     pub(crate) terminates_guarantee: bool,
-    pub(crate) where_facts: HandleSpan<syntax::item::ProofFact>,
+    pub(crate) where_facts: HandleSpan<ProofFact>,
 }
 
 pub(crate) fn lower_state_signature_parts(
@@ -259,8 +273,7 @@ pub(crate) fn lower_state_signature_parts(
     let service_reaches = lower_service_reach_names(syntax_trees, service_reaches);
     let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
-    let where_facts =
-        crate::lowering::domain::lower_proof_facts(lowerer, syntax_trees, where_facts)?;
+    let where_facts = lower_proof_facts(lowerer, syntax_trees, where_facts)?;
 
     Ok(LoweredStateSignature {
         signature: StateSignature {
@@ -274,16 +287,11 @@ pub(crate) fn lower_state_signature_parts(
                 parameters,
                 native_callback_parameters: native_callback_parameters
                     .iter()
-                    .map(
-                        |parameter| symbol_resolved_trees::signature::NativeCallbackParameter {
-                            name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
-                            binder: crate::lowering::name::lower_name(
-                                syntax_trees,
-                                &parameter.binder,
-                            ),
-                            native_ordinal: parameter.native_ordinal,
-                        },
-                    )
+                    .map(|parameter| NativeCallbackParameter {
+                        name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
+                        binder: crate::lowering::name::lower_name(syntax_trees, &parameter.binder),
+                        native_ordinal: parameter.native_ordinal,
+                    })
                     .collect(),
                 return_type,
                 invokes,
@@ -312,8 +320,8 @@ pub(crate) struct LoweredStateSignature {
 pub(crate) fn lower_signature_invokes(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    invokes: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
+    invokes: HandleSpan<Identifier>,
+) -> HandleSpan<DiagnosticName> {
     crate::lowering::name::lower_name_members(
         syntax_trees,
         invokes,
@@ -327,8 +335,8 @@ pub(crate) fn lower_signature_invokes(
 
 pub(crate) fn lower_service_reach_names(
     syntax_trees: &SyntaxTrees,
-    service_reaches: HandleSpan<syntax::identifier::Identifier>,
-) -> Vec<symbol_resolved_trees::name::DiagnosticName> {
+    service_reaches: HandleSpan<Identifier>,
+) -> Vec<DiagnosticName> {
     lower_names(
         syntax_trees,
         syntax_trees.items.identifier_path_members(service_reaches),
@@ -338,7 +346,7 @@ pub(crate) fn lower_service_reach_names(
 pub(crate) fn lower_signature_contracts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    contracts: HandleSpan<syntax::item::CapabilityContract>,
+    contracts: HandleSpan<CapabilityContract>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
     lower_signature_contracts_with_result_sum(lowerer, syntax_trees, contracts, None)
 }
@@ -346,7 +354,7 @@ pub(crate) fn lower_signature_contracts(
 pub(crate) fn lower_machine_signature_contracts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    contracts: HandleSpan<syntax::item::CapabilityContract>,
+    contracts: HandleSpan<CapabilityContract>,
     states: HandleSpan<Handle<symbol_resolved_trees::state::State>>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
     let has_outcome_rows = syntax_items(&syntax_trees)
@@ -355,7 +363,7 @@ pub(crate) fn lower_machine_signature_contracts(
         .any(|contract| {
             matches!(
                 &contract.kind,
-                syntax::item::CapabilityContractKind::EnsuresForResultCase { .. }
+                CapabilityContractKind::EnsuresForResultCase { .. }
             )
         });
     if !has_outcome_rows {
@@ -372,8 +380,8 @@ pub(crate) fn lower_machine_signature_contracts(
             Diagnostic::error("outcome-specific ensures requires a machine result state")
         })?;
     let result_data_name = match root_state.return_type.as_ref() {
-        Some(symbol_resolved_trees::types::TypeReference::Named { name, .. }) => name,
-        Some(symbol_resolved_trees::types::TypeReference::Generic(generic)) => &generic.base_name,
+        Some(TypeReference::Named { name, .. }) => name,
+        Some(TypeReference::Generic(generic)) => &generic.base_name,
         _ => {
             return Err(Diagnostic::error(
                 "outcome-specific ensures requires a declared nominal sum result type",
@@ -409,10 +417,8 @@ pub(crate) fn lower_machine_signature_contracts(
         .data_members(data.members)
         .iter()
         .filter_map(|member| match member {
-            symbol_resolved_trees::data::DataMember::Variant(variant) => {
-                Some(variant.name.to_string())
-            }
-            symbol_resolved_trees::data::DataMember::Field(_) => None,
+            DataMember::Variant(variant) => Some(variant.name.to_string()),
+            DataMember::Field(_) => None,
         })
         .collect::<Vec<_>>();
     if variants.is_empty() {
@@ -436,18 +442,16 @@ struct ResultSumContractContext {
 fn lower_signature_contracts_with_result_sum(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    contracts: HandleSpan<syntax::item::CapabilityContract>,
+    contracts: HandleSpan<CapabilityContract>,
     result_sum: Option<&ResultSumContractContext>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
     for contract in syntax_trees.items.capability_contracts(contracts) {
         let (kind, pending_outcome) = match &contract.kind {
-            syntax::item::CapabilityContractKind::Requires => {
-                (SignatureContractKind::Requires, None)
-            }
-            syntax::item::CapabilityContractKind::Ensures => (SignatureContractKind::Ensures, None),
-            syntax::item::CapabilityContractKind::EnsuresForResultCase { result_case } => {
+            CapabilityContractKind::Requires => (SignatureContractKind::Requires, None),
+            CapabilityContractKind::Ensures => (SignatureContractKind::Ensures, None),
+            CapabilityContractKind::EnsuresForResultCase { result_case } => {
                 let Some(result_sum) = result_sum else {
                     return Err(Diagnostic::error(
                         "outcome-specific ensures is admitted only on a top-level machine result",
@@ -490,15 +494,11 @@ fn lower_signature_contracts_with_result_sum(
                     )),
                 )
             }
-            syntax::item::CapabilityContractKind::Crashes { cause } => (
+            CapabilityContractKind::Crashes { cause } => (
                 SignatureContractKind::Crashes {
                     cause: match cause {
-                        syntax::item::CrashCause::Trap => {
-                            symbol_resolved_trees::signature::CrashCause::Trap
-                        }
-                        syntax::item::CrashCause::Abort => {
-                            symbol_resolved_trees::signature::CrashCause::Abort
-                        }
+                        syntax::item::CrashCause::Trap => CrashCause::Trap,
+                        syntax::item::CrashCause::Abort => CrashCause::Abort,
                     },
                 },
                 None,
@@ -542,7 +542,7 @@ fn lower_signature_contracts_with_result_sum(
 fn lower_state_statements(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    statements: HandleSpan<syntax::statement::StatementHandle>,
+    statements: HandleSpan<StatementHandle>,
 ) -> Result<HandleSpan<Statement>, Diagnostic> {
     let mut pending: Vec<Statement> = Vec::new();
     let mut run_start: Option<usize> = None;
@@ -581,10 +581,10 @@ fn lower_state_statements(
 fn lower_statement_into_pending(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    statement: syntax::statement::StatementHandle,
+    statement: StatementHandle,
     pending: &mut Vec<Statement>,
     run_start: &mut Option<usize>,
-    statement_origins: &mut Vec<(usize, syntax::statement::StatementHandle)>,
+    statement_origins: &mut Vec<(usize, StatementHandle)>,
 ) -> Result<(), Diagnostic> {
     // A single syntax statement can lower to MULTIPLE resolved statements: an
     // assignment or local whose value reads a runtime-indexed element in
@@ -634,14 +634,14 @@ fn lower_statement_into_pending(
 
     if matches!(
         syntax_trees.statements.statement(statement),
-        syntax::statement::StatementNode::Transition(transition) if transition.ends_dispatch
+        StatementNode::Transition(transition) if transition.ends_dispatch
     ) {
         *run_start = None;
     }
 
     if matches!(
         syntax_trees.statements.statement(statement),
-        syntax::statement::StatementNode::Call(_) | syntax::statement::StatementNode::LocalData(_)
+        StatementNode::Call(_) | StatementNode::LocalData(_)
     ) {
         statement_origins.push((pending.len() - 1, statement));
     }
@@ -651,7 +651,7 @@ fn lower_statement_into_pending(
 pub(crate) fn lower_state_parameters(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    parameters: HandleSpan<syntax::item::StateParameterHandle>,
+    parameters: HandleSpan<StateParameterHandle>,
 ) -> Result<HandleSpan<StateParameter>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -680,7 +680,7 @@ pub(crate) fn lower_state_parameters(
 pub(crate) fn lower_state_parameter(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    parameter: syntax::item::StateParameterHandle,
+    parameter: StateParameterHandle,
 ) -> Result<StateParameter, Diagnostic> {
     let parameter = syntax_trees.items.state_parameter(parameter);
     Ok(StateParameter {
@@ -709,9 +709,7 @@ fn reference_struct_parameter_names(
         .state_parameters(*parameters)
         .iter()
         .filter_map(|parameter| {
-            let symbol_resolved_trees::types::TypeReference::Reference(reference) =
-                &parameter.type_reference
-            else {
+            let TypeReference::Reference(reference) = &parameter.type_reference else {
                 return None;
             };
             if reference.access.is_exclusive() {
@@ -721,7 +719,7 @@ fn reference_struct_parameter_names(
                 lowerer
                     .symbol_resolved_trees
                     .child_type_reference(reference.referee),
-                symbol_resolved_trees::types::TypeReference::Named { .. }
+                TypeReference::Named { .. }
             )
             .then(|| parameter.name.as_str().to_string())
         })

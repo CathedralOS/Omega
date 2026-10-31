@@ -5,17 +5,26 @@
 //! recorded as pending module calls for `symbols` to normalize.
 
 use crate::lowering::name::lower_name;
+use crate::lowering::statement::hoist_temps::reference_temp;
+use crate::lowering::type_reference::lower_child_type_references;
+use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
 use crate::tables::syntax_expressions;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_core::atomic::AtomicOrderingPlan;
 use symbol_resolved_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableAtomicExpression,
-    TableBinaryExpression, TableCallExpression, TableCastExpression, TableIndexedExpression,
+    BinaryOperator, EvidenceProjection, ExpressionHandle, ExpressionNode, ExpressionTable,
+    StaticMachineArgument, StaticSymbolApplication, TableAtomicExpression, TableBinaryExpression,
+    TableBorrowExpression, TableCallExpression, TableCastExpression, TableIndexedExpression,
     TableMemberExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
     TableStructLiteral, TableStructLiteralField, TableUnaryExpression, UnaryOperator,
 };
+use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
+use syntax::types::TypeReferenceHandle;
+use syntax::types::TypeReferenceNode;
 use syntax_trees as syntax;
 use syntax_trees::SyntaxTrees;
 
@@ -34,10 +43,7 @@ pub(crate) fn lower_expression_into_table(
     // syntax handle. Once that occurrence has a capture, every later use reads
     // the capture, never a new evaluation of its collection or selector.
     let lowered = if let Some((name, _)) = lowerer.match_subject_temp(expression) {
-        crate::lowering::statement::hoist_temps::reference_temp(
-            lowerer,
-            symbol_resolved_trees::name::DiagnosticName::generated(name),
-        )
+        reference_temp(lowerer, DiagnosticName::generated(name))
     } else {
         lower_expression_node_into_table(
             lowerer,
@@ -141,11 +147,7 @@ fn lower_nonbinary_expression_node_into_table(
 ) -> Result<ExpressionHandle, Diagnostic> {
     match expression {
         syntax::expression::ExpressionNode::TypeExpression(reference) => {
-            let reference = crate::lowering::type_reference::lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                *reference,
-            )?;
+            let reference = lower_type_reference_handle(lowerer, syntax_trees, *reference)?;
             let reference = lowerer
                 .declaration_child_type_references()
                 .append(reference);
@@ -188,7 +190,7 @@ fn lower_nonbinary_expression_node_into_table(
             // do not create a declaration-selection occurrence for the carrier.
             let value = if matches!(
                 atomic.ordering,
-                language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce { .. }
+                AtomicOrderingPlan::CompareExchangeOnce { .. }
             ) {
                 lower_expression_node_into_table(
                     lowerer,
@@ -220,11 +222,7 @@ fn lower_nonbinary_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::Cast(cast) => {
             let value = lower_expression_into_table(lowerer, syntax_trees, cast.value)?;
-            let target_type = crate::lowering::type_reference::lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                cast.target_type,
-            )?;
+            let target_type = lower_type_reference_handle(lowerer, syntax_trees, cast.target_type)?;
             let target_type = lowerer
                 .declaration_child_type_references()
                 .append(target_type);
@@ -243,11 +241,7 @@ fn lower_nonbinary_expression_node_into_table(
                     .push_name_path_member(&mut semantic_domain, lower_name(syntax_trees, member));
             }
             let semantic_domain_arguments =
-                crate::lowering::type_reference::lower_child_type_references(
-                    lowerer,
-                    syntax_trees,
-                    cast.semantic_domain_arguments,
-                )?;
+                lower_child_type_references(lowerer, syntax_trees, cast.semantic_domain_arguments)?;
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Cast(TableCastExpression {
                     value,
@@ -384,12 +378,12 @@ fn lower_nonbinary_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::Borrow(expression) => {
             let target = lower_expression_into_table(lowerer, syntax_trees, expression.target)?;
-            Ok(expression_table(lowerer).insert(ExpressionNode::Borrow(
-                symbol_resolved_trees::expression::TableBorrowExpression {
+            Ok(
+                expression_table(lowerer).insert(ExpressionNode::Borrow(TableBorrowExpression {
                     target,
                     access: expression.access,
-                },
-            )))
+                })),
+            )
         }
         syntax::expression::ExpressionNode::Name(path) => {
             // Constants share ordinary lexical and namespace resolution. Their
@@ -444,11 +438,8 @@ fn lower_nonbinary_expression_node_into_table(
             )
         }
         syntax::expression::ExpressionNode::ZeroValue(type_reference) => {
-            let type_reference = crate::lowering::type_reference::lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                *type_reference,
-            )?;
+            let type_reference =
+                lower_type_reference_handle(lowerer, syntax_trees, *type_reference)?;
             let type_reference = lowerer
                 .declaration_child_type_references()
                 .append(type_reference);
@@ -498,15 +489,9 @@ fn lower_nonbinary_expression_node_into_table(
 fn lower_applied_requirement_qualifier(
     lowerer: &mut Lowerer,
     syntax_trees: &syntax::SyntaxTrees,
-    application: syntax::types::TypeReferenceHandle,
-) -> Result<
-    (
-        ExpressionHandle,
-        arena::Handle<symbol_resolved_trees::types::TypeReference>,
-    ),
-    Diagnostic,
-> {
-    let syntax::types::TypeReferenceNode::Generic { base_name, .. } =
+    application: TypeReferenceHandle,
+) -> Result<(ExpressionHandle, arena::Handle<TypeReference>), Diagnostic> {
+    let TypeReferenceNode::Generic { base_name, .. } =
         syntax_trees.type_references.type_reference(application)
     else {
         return Err(Diagnostic::error(
@@ -517,7 +502,7 @@ fn lower_applied_requirement_qualifier(
     for member in base_name.as_str(syntax_trees).split("::") {
         expression_table(lowerer).push_name_path_member(
             &mut path,
-            symbol_resolved_trees::name::DiagnosticName::from_str(member, base_name.source_span()),
+            DiagnosticName::from_str(member, base_name.source_span()),
         );
     }
     let receiver = expression_table(lowerer).insert(ExpressionNode::Name(
@@ -527,11 +512,7 @@ fn lower_applied_requirement_qualifier(
         },
     ));
     expression_table(lowerer).set_source_span(receiver, base_name.source_span());
-    let reference = crate::lowering::type_reference::lower_type_reference_handle(
-        lowerer,
-        syntax_trees,
-        application,
-    )?;
+    let reference = lower_type_reference_handle(lowerer, syntax_trees, application)?;
     let application = lowerer
         .declaration_child_type_references()
         .append(reference);
@@ -542,20 +523,17 @@ pub(crate) fn lower_static_machine_argument(
     lowerer: &mut Lowerer,
     syntax_trees: &syntax::SyntaxTrees,
     argument: &syntax::expression::StaticMachineArgument,
-) -> Result<symbol_resolved_trees::expression::StaticMachineArgument, Diagnostic> {
+) -> Result<StaticMachineArgument, Diagnostic> {
     let type_reference = if argument.type_reference.is_valid() {
-        let reference = crate::lowering::type_reference::lower_type_reference_handle(
-            lowerer,
-            syntax_trees,
-            argument.type_reference,
-        )?;
+        let reference =
+            lower_type_reference_handle(lowerer, syntax_trees, argument.type_reference)?;
         lowerer
             .declaration_child_type_references()
             .append(reference)
     } else {
         arena::Handle::invalid()
     };
-    Ok(symbol_resolved_trees::expression::StaticMachineArgument {
+    Ok(StaticMachineArgument {
         type_reference,
         path: argument
             .path
@@ -567,43 +545,40 @@ pub(crate) fn lower_static_machine_argument(
             .application
             .as_ref()
             .map(|application| {
-                Ok::<_, Diagnostic>(Box::new(
-                    symbol_resolved_trees::expression::StaticSymbolApplication {
-                        member: if application.member.is_valid() {
-                            let source = syntax_expressions(&syntax_trees)
-                                .static_member(application.member)
-                                .ok_or_else(|| {
-                                    Diagnostic::error(
-                                        "qualified static member has no owning syntax record",
-                                    )
-                                })?;
-                            let member =
-                                lower_static_machine_argument(lowerer, syntax_trees, source)?;
-                            expression_table(lowerer).insert_static_member(member)
-                        } else {
-                            arena::Handle::invalid()
-                        },
-                        lifetime_arguments: application
-                            .lifetime_arguments
-                            .iter()
-                            .map(|value| lower_name(syntax_trees, value))
-                            .collect::<Vec<_>>()
-                            .into_boxed_slice(),
-                        arguments: application
-                            .arguments
-                            .iter()
-                            .map(|argument| {
-                                lower_static_machine_argument(lowerer, syntax_trees, argument)
-                            })
-                            .collect::<Result<Vec<_>, _>>()?
-                            .into_boxed_slice(),
+                Ok::<_, Diagnostic>(Box::new(StaticSymbolApplication {
+                    member: if application.member.is_valid() {
+                        let source = syntax_expressions(&syntax_trees)
+                            .static_member(application.member)
+                            .ok_or_else(|| {
+                                Diagnostic::error(
+                                    "qualified static member has no owning syntax record",
+                                )
+                            })?;
+                        let member = lower_static_machine_argument(lowerer, syntax_trees, source)?;
+                        expression_table(lowerer).insert_static_member(member)
+                    } else {
+                        arena::Handle::invalid()
                     },
-                ))
+                    lifetime_arguments: application
+                        .lifetime_arguments
+                        .iter()
+                        .map(|value| lower_name(syntax_trees, value))
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                    arguments: application
+                        .arguments
+                        .iter()
+                        .map(|argument| {
+                            lower_static_machine_argument(lowerer, syntax_trees, argument)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_boxed_slice(),
+                }))
             })
             .transpose()?,
         const_literal: argument.const_literal.clone(),
         evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
-            symbol_resolved_trees::expression::EvidenceProjection {
+            EvidenceProjection {
                 term: lower_name(syntax_trees, &projection.term),
                 member: lower_name(syntax_trees, &projection.member),
             }

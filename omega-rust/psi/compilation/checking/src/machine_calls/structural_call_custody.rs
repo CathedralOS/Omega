@@ -16,6 +16,7 @@
 //! it again. These source facts are not portable PCC openings.
 
 use crate::frozen_program::expression_table;
+use checked_trees::CheckedMemberIdentity;
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
     CheckedStructuralPathQualification, CheckedStructuralResultClaimPlan,
@@ -30,6 +31,8 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
+use typed_trees::statement::TransitionTargetNode;
+use typed_trees::types::DomainConstraintSubject;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 mod declaration_predicates;
@@ -280,7 +283,7 @@ pub fn finite_arrival_parameter(
                     constraint,
                     TypeConstraintNode::Domain(domain)
                         if domain.subject
-                            == typed_trees::types::DomainConstraintSubject::Value(
+                            == DomainConstraintSubject::Value(
                                 language_semantics::value_domain::ValueDomain::Finite,
                             )
                 )
@@ -432,10 +435,7 @@ fn declared_carrier_qualifications(
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         return Err("declared qualification constraint is not a domain");
                     };
-                    if matches!(
-                        domain.subject,
-                        typed_trees::types::DomainConstraintSubject::Carry(_)
-                    ) {
+                    if matches!(domain.subject, DomainConstraintSubject::Carry(_)) {
                         continue;
                     }
                     if !domain.semantic_id.is_valid() {
@@ -655,10 +655,7 @@ fn structural_qualification_inventory(
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         continue;
                     };
-                    if matches!(
-                        domain.subject,
-                        typed_trees::types::DomainConstraintSubject::Carry(_)
-                    ) {
+                    if matches!(domain.subject, DomainConstraintSubject::Carry(_)) {
                         continue;
                     }
                     if !domain.semantic_id.is_valid() {
@@ -845,17 +842,11 @@ fn structural_qualification_inventory(
                     }
                     if let Some(case) = case {
                         path.push(CheckedUnitStructuralPathSegment::Case(
-                            checked_trees::CheckedMemberIdentity::of_member(
-                                case.identity,
-                                case.name.clone(),
-                            ),
+                            CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                         ));
                     }
                     path.push(CheckedUnitStructuralPathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
+                        CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ));
                     collect(
                         program,
@@ -1166,10 +1157,7 @@ pub fn structural_storage_path(
                     return Err("structural claim traverses an erased field");
                 }
                 path.push(CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 reference = field.type_reference;
             }
@@ -1187,10 +1175,7 @@ pub fn structural_storage_path(
                     .find(|candidate| candidate.symbol == *variant)
                     .ok_or("structural claim case differs from its typed owner")?;
                 path.push(CheckedUnitStructuralPathSegment::Case(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        selected.identity,
-                        selected.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(selected.identity, selected.name.clone()),
                 ));
                 payload_fields = Some(program.data_payload_fields(selected));
             }
@@ -1289,10 +1274,8 @@ fn structural_authored_arguments<'program>(
                 };
                 let mut named = transition.targets().filter_map(|target| {
                     match program.statement_table.transition_target(target) {
-                        typed_trees::statement::TransitionTargetNode::Named {
-                            path,
-                            arguments,
-                            ..
+                        TransitionTargetNode::Named {
+                            path, arguments, ..
                         } if names_target(path.symbol) => Some(*arguments),
                         _ => None,
                     }

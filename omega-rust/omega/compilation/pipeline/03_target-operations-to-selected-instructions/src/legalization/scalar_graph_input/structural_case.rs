@@ -4,6 +4,10 @@ use super::{
     PsiProvenance,
 };
 use crate::LegalizationError;
+use crate::structural_inputs::structural_reference_input::{
+    RuntimeElement, case_projection, leaf_copy_geometry, reference_source_geometry,
+    runtime_projection,
+};
 use semantic_vocabulary::{
     BlockId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralPlaceKind,
     StructuralTypeId,
@@ -208,12 +212,8 @@ pub(in crate::legalization) fn dispatch_projection(
     LegalizationError,
 > {
     let root = source_identity(function, source)?;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
-        root,
-        path,
-        &plan.structural_types,
-    )
-    .ok_or(LegalizationError::custody())?;
+    let geometry = reference_source_geometry(root, path, &plan.structural_types)
+        .ok_or(LegalizationError::custody())?;
     if !geometry.elements.is_empty()
         || !geometry.readable
         || geometry
@@ -245,21 +245,10 @@ pub(in crate::legalization) fn membership_layout(
     path: &[terminal_psi::StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
     plan: &AbstractOperationPlan,
-) -> Result<
-    (
-        u32,
-        u32,
-        Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
-    ),
-    LegalizationError,
-> {
+) -> Result<(u32, u32, Vec<RuntimeElement>), LegalizationError> {
     let identity = source_identity(function, source)?;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
-        identity,
-        path,
-        &plan.structural_types,
-    )
-    .ok_or(LegalizationError::custody())?;
+    let geometry = reference_source_geometry(identity, path, &plan.structural_types)
+        .ok_or(LegalizationError::custody())?;
     if !geometry.readable
         || geometry
             .pointer_slots
@@ -307,14 +296,7 @@ pub(in crate::legalization) fn structural_transport_layout(
     path: &abstract_operations::StructuralCopyPath,
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
-) -> Result<
-    (
-        u32,
-        calling_conventions::ValueShape,
-        Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
-    ),
-    LegalizationError,
-> {
+) -> Result<(u32, calling_conventions::ValueShape, Vec<RuntimeElement>), LegalizationError> {
     // Every copy retains source-checked memberships independently of geometry.
     // This layout join checks readable storage and the selected carrier; it
     // neither invents predicates nor imposes a separate byte-only proof mode.
@@ -324,27 +306,22 @@ pub(in crate::legalization) fn structural_transport_layout(
     }
     let (endpoint, byte_offset, indices) = match path {
         abstract_operations::StructuralCopyPath::Case(path) => {
-            let geometry = crate::structural_inputs::structural_reference_input::case_projection(
-                identity,
-                path,
-                &plan.structural_types,
-            )
-            .ok_or(LegalizationError::custody())?;
+            let geometry = case_projection(identity, path, &plan.structural_types)
+                .ok_or(LegalizationError::custody())?;
             (geometry.selected, geometry.byte_offset, geometry.elements)
         }
         abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => {
             (identity, 0, Vec::new())
         }
         abstract_operations::StructuralCopyPath::Ordinary(path) => {
-            let geometry =
-                crate::structural_inputs::structural_reference_input::leaf_copy_geometry(
-                    identity,
-                    path,
-                    result.structural_type,
-                    &plan.structural_types,
-                )
-                .filter(|geometry| geometry.readable)
-                .ok_or(LegalizationError::custody())?;
+            let geometry = leaf_copy_geometry(
+                identity,
+                path,
+                result.structural_type,
+                &plan.structural_types,
+            )
+            .filter(|geometry| geometry.readable)
+            .ok_or(LegalizationError::custody())?;
             (geometry.selected, geometry.byte_offset, geometry.elements)
         }
     };
@@ -448,13 +425,7 @@ fn byte_carrier_leaf_copy(
     let Some((StructuralPathSegment::FixedIndex(index), prefix)) = path.split_last() else {
         return false;
     };
-    let Some((parent, _, _)) =
-        crate::structural_inputs::structural_reference_input::runtime_projection(
-            root,
-            prefix,
-            declarations,
-        )
-    else {
+    let Some((parent, _, _)) = runtime_projection(root, prefix, declarations) else {
         return false;
     };
     let Some(declaration) = find_structural_type(declarations, parent) else {

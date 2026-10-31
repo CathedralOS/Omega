@@ -26,7 +26,7 @@ use super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 /// parameter, an owner, a reference initialized from static text) names its
 /// own storage. A local reference that owns one is rejoined to the storage
 /// its loans captured; `None` when that backing cannot be established.
-pub(in crate::checks::borrows) fn place_backings(
+pub(super) fn place_backings(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
@@ -58,8 +58,8 @@ pub(in crate::checks::borrows) fn place_backings(
 /// storage coincidence. Only the completed result's own input occurrence can
 /// continue a temporary invocation hold without creating a second loan.
 #[derive(Default)]
-pub(in crate::checks::borrows) struct ArgumentBackings {
-    pub(in crate::checks::borrows) places: Vec<ResolvedAlias>,
+pub(super) struct ArgumentBackings {
+    pub(super) places: Vec<ResolvedAlias>,
     capture: Handle<checked_trees::FlowOperandFact>,
     forwarded_inputs: Vec<Handle<checked_trees::FlowOperandFact>>,
 }
@@ -67,14 +67,11 @@ pub(in crate::checks::borrows) struct ArgumentBackings {
 impl ArgumentBackings {
     /// The resolver's exact actual occurrence, independently of its source
     /// expression or the places its descriptor happens to denote.
-    pub(in crate::checks::borrows) fn represents(
-        &self,
-        capture: Handle<checked_trees::FlowOperandFact>,
-    ) -> bool {
+    pub(super) fn represents(&self, capture: Handle<checked_trees::FlowOperandFact>) -> bool {
         capture.is_valid() && self.capture == capture
     }
 
-    pub(in crate::checks::borrows) fn forwards(&self, input: &Self) -> bool {
+    pub(super) fn forwards(&self, input: &Self) -> bool {
         input.capture.is_valid()
             && self.capture != input.capture
             && self.forwarded_inputs.contains(&input.capture)
@@ -85,7 +82,7 @@ impl ArgumentBackings {
 /// completed. Its private carrier read has finished; later actuals may replace
 /// that carrier without retargeting the earlier loan. Existing alias resolution
 /// still supplies lineage, using that observation's own live-loan constraints.
-pub(in crate::checks::borrows) fn argument_backings(
+pub(super) fn argument_backings(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
@@ -344,7 +341,7 @@ fn trace_argument_capture_refusal(
 
 /// Whether an access of `kind` through `backings` interferes with the live
 /// loan `loan_handle`.
-pub(in crate::checks::borrows) fn access_interferes<'p>(
+pub(super) fn access_interferes<'p>(
     program: &'p dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     backings: &[ResolvedAlias],

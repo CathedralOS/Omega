@@ -4,6 +4,7 @@
 //! domain roster. Application substitution changes the required type without
 //! proving membership or changing a domain's exact identity and arguments.
 
+use language_semantics::CarryPermission;
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -47,10 +48,7 @@ pub fn parameter_domain_constraints(
                                 })
                             }
                             TypeConstraintNode::Domain(domain)
-                                if language_semantics::CarryPermission::from_name(
-                                    domain.name.as_str(),
-                                )
-                                .is_some() =>
+                                if CarryPermission::from_name(domain.name.as_str()).is_some() =>
                             {
                                 Some((
                                     SymbolHandle::invalid(),

@@ -9,7 +9,9 @@ use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ord
 use crate::capture::semantics::types::signature_type_identity;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
 use validation::CheckingProjection;
+use validation::conformance_applications::close_conformance_application;
 
 fn selected_conformance_application_type_reference(
     program: &mut typed_trees::TypedTrees,
@@ -46,9 +48,7 @@ fn selected_conformance_application_type_reference(
             .type_reference_table
             .insert(TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
-                name: typed_trees::name::Identifier::generated(
-                    literal.canonical_spelling().as_str(),
-                ),
+                name: Identifier::generated(literal.canonical_spelling().as_str()),
             }));
     }
     if let Some(application) = argument.application.as_ref() {
@@ -101,9 +101,11 @@ fn selected_conformance_application_type_reference(
     if !argument.symbol.is_valid() {
         return Err(rejected("an unresolved declaration argument"));
     }
-    let name = argument.path.last().cloned().unwrap_or_else(|| {
-        typed_trees::name::Identifier::generated(program.symbols.name(argument.symbol))
-    });
+    let name = argument
+        .path
+        .last()
+        .cloned()
+        .unwrap_or_else(|| Identifier::generated(program.symbols.name(argument.symbol)));
     Ok(program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -116,19 +118,13 @@ pub(crate) fn project_selected_conformance_application(
     compilation: &PackageReviewInput<'_>,
     selected: &typed_trees::expression::StaticMachineArgument,
     binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[typed_trees::name::Identifier],
-    scoped_lifetime_substitutions: &[(
-        typed_trees::name::Identifier,
-        typed_trees::name::Identifier,
-    )],
+    lifetime_binders: &[Identifier],
+    scoped_lifetime_substitutions: &[(Identifier, Identifier)],
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<ProjectedSelectedConformanceApplication, Vec<Diagnostic>> {
-    let closed = validation::conformance_applications::close_conformance_application(
-        compilation.checking_input,
-        selected,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let closed = close_conformance_application(compilation.checking_input, selected)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let declarations = compilation
         .conformances()
         .iter()

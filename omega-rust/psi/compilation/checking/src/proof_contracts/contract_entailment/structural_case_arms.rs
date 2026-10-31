@@ -29,6 +29,13 @@ use typed_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
+/// Counts callee re-traversals for the nested-machine check scaling
+/// investigation (`OMEGA_PATH_COUNT=1`); read once per process.
+fn path_counting_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var_os("OMEGA_PATH_COUNT").is_some())
+}
+
 /// One normal-return leaf of the structural proof path walker.
 /// Case refinements and selected public guarantees stay in the leaf's own
 /// frame. Calls retain exact selected owner handles and captured result
@@ -241,6 +248,50 @@ pub(crate) fn recognize_structural_case_arms<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: Option<&mut dyn StructuralPrefixVisitor>,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    if path_counting_enabled() {
+        let site = requirement
+            .as_deref()
+            .map(|visitor| {
+                let site = visitor.site();
+                let state_name = crate::machine_calls::calls::machine_state_by_symbol(
+                    program, site.state,
+                )
+                .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
+                .unwrap_or_else(|| format!("{:?}", site.state));
+                format!(
+                    "{}.{}.{}",
+                    state_name, site.statement_index, site.in_transition_target
+                )
+            })
+            .unwrap_or_else(|| "none".to_owned());
+        static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let driver = format!("{:?}", std::backtrace::Backtrace::force_capture());
+        if COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 400 {
+            eprintln!("[bt]\n{}", driver);
+        }
+        let driver = driver
+            .split("fn: \"")
+            .skip(1)
+            .filter_map(|segment| {
+                let name = segment.split('"').next()?;
+                (name.starts_with("validation::")
+                    && !name.contains("structural_case_arms")
+                    && !name.contains("structural_prefix"))
+                .then(|| {
+                    name.trim_start_matches("validation::")
+                        .split("::")
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                })
+            })
+            .next()
+            .unwrap_or_else(|| "?".to_owned());
+        eprintln!(
+            "[walk] case_arms machine={} site={} via={}",
+            machine.name, site, driver
+        );
+    }
     let states = program.machine_states(machine);
     let root = states.first()?;
     let parameter_names: Vec<String> = program
@@ -289,6 +340,38 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    if path_counting_enabled() {
+        let site = requirement.site();
+        let state_name = crate::machine_calls::calls::machine_state_by_symbol(
+            program, site.state,
+        )
+        .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
+        .unwrap_or_else(|| format!("{:?}", site.state));
+        let driver = format!("{:?}", std::backtrace::Backtrace::force_capture());
+        let driver = driver
+            .split("fn: \"")
+            .skip(1)
+            .filter_map(|segment| {
+                let name = segment.split('"').next()?;
+                (name.starts_with("validation::")
+                    && !name.contains("structural_case_arms")
+                    && !name.contains("structural_prefix"))
+                .then(|| {
+                    name.trim_start_matches("validation::")
+                        .split("::")
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                })
+            })
+            .next()
+            .unwrap_or_else(|| "?".to_owned());
+        eprintln!(
+            "[walk] prefix machine={} site={}.{}.{} via={}",
+            machine.name, state_name, site.statement_index, site.in_transition_target,
+            driver
+        );
+    }
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
         .iter()
@@ -1971,6 +2054,15 @@ fn recognize_structural_state_leaves_from<'a>(
                         None
                     }
                     .unwrap_or_default();
+                    if path_counting_enabled() {
+                        eprintln!(
+                            "[paths] depth={} state={:?} frames={} remaining={}",
+                            path.len(),
+                            state.symbol,
+                            target_frames.len(),
+                            remaining_paths.len(),
+                        );
+                    }
                     for frame in target_frames {
                         let arguments = frame.observed_arguments()?;
                         let caller = frame.judge.clone();
@@ -1994,6 +2086,22 @@ fn recognize_structural_state_leaves_from<'a>(
                             &branch_environment,
                             (invocation, state, state.return_type),
                         )?;
+                        if path_counting_enabled() {
+                            use std::hash::{Hash, Hasher};
+                            let mut env_hash = std::collections::hash_map::DefaultHasher::new();
+                            for (name, term) in &target_environment {
+                                name.hash(&mut env_hash);
+                                format!("{:?}", term.semantic_value()).hash(&mut env_hash);
+                            }
+                            eprintln!(
+                                "[envhash] depth={} state={:?} env={:016x} judge={:016x} {}",
+                                path.len(),
+                                target_state.symbol,
+                                env_hash.finish(),
+                                captured.path_fingerprint(),
+                                captured.field_size_report(),
+                            );
+                        }
                         if let Some(observer) = requirement.as_deref_mut() {
                             observer.entered_body(
                                 state.symbol,
@@ -2028,6 +2136,15 @@ fn recognize_structural_state_leaves_from<'a>(
                                     .clone()
                                     .complete_invocation(&caller, state, &subjects, writes)?;
                             }
+                        }
+                        if path_counting_enabled() {
+                            eprintln!(
+                                "[paths] depth={} state={:?} completed={} leaves_now={}",
+                                path.len(),
+                                target_state.symbol,
+                                completed.len(),
+                                leaves.len() + completed.len(),
+                            );
                         }
                         leaves.extend(completed);
                     }

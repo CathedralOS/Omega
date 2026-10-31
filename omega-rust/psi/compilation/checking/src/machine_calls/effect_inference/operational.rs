@@ -16,6 +16,7 @@
 //! internal state transfers that add no machine-call edge. Exact machine-entry
 //! and requirement targets contribute to the ordinary recursive summaries.
 
+use crate::CheckingInput;
 use arena::HandleSpan;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
@@ -76,13 +77,11 @@ pub(crate) struct DirectCallOperational {
     pub(crate) may_block: bool,
 }
 
-pub fn infer_operational_may(program: &dyn crate::CheckingInput) -> OperationalPlan {
+pub fn infer_operational_may(program: &dyn CheckingInput) -> OperationalPlan {
     super::prepared_effects::operational_plan(program)
 }
 
-pub(crate) fn infer_operational_may_uncached(
-    program: &dyn crate::CheckingInput,
-) -> OperationalPlan {
+pub(crate) fn infer_operational_may_uncached(program: &dyn CheckingInput) -> OperationalPlan {
     infer_operational_may_for_dependencies(
         program,
         &arena::Arena::default(),
@@ -93,7 +92,7 @@ pub(crate) fn infer_operational_may_uncached(
 /// Settle the same operational graph with ownership-selected edge invocations.
 /// The caller supplies exact custody selection, never inferred source calls.
 pub fn infer_operational_may_for_dependencies(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     captured: &flow_effects::CapturedSelectorCalls,
 ) -> OperationalPlan {
@@ -108,7 +107,7 @@ pub fn infer_operational_may_for_dependencies(
 
 fn build_machine_work(
     signature_effects: &DirectSignatureEffects,
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
 ) -> Vec<MachineWork> {
     let mut machines = Vec::with_capacity(program.machines().len());
 
@@ -164,7 +163,7 @@ fn build_machine_work(
 
 fn collect_state_calls(
     signature_effects: &DirectSignatureEffects,
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: SymbolHandle,
     state: &State,
 ) -> Vec<CallWork> {
@@ -206,7 +205,7 @@ fn collect_state_calls(
 /// belongs to `call_sites`; this pass supplies only what it records per site.
 struct OperationalCallSites<'a> {
     signature_effects: &'a DirectSignatureEffects,
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     calls: &'a mut Vec<CallWork>,
 }
 
@@ -321,7 +320,7 @@ impl CallSiteVisitor for OperationalCallSites<'_> {
 /// counter, so this pass reads its position instead of advancing it.
 fn push_call(
     signature_effects: &DirectSignatureEffects,
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target_name: &str,
     target_state_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
@@ -342,7 +341,10 @@ fn push_call(
         .machine_by_symbol(authored_target)
         .and_then(|machine| program.machine_states(machine).first())
         .map_or(authored_target, |state| state.symbol);
-    let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
+    let target_machine_symbol = program
+        .machine_holding_state(target_state_symbol)
+        .map(|machine| machine.symbol)
+        .unwrap_or_else(SymbolHandle::invalid);
     // Static selection changes execution, not the requirement's independent
     // acknowledgement envelope. Both nominal and structural binders retain it.
     let direct = program
@@ -373,16 +375,6 @@ fn push_call(
     });
 }
 
-fn machine_symbol_for_state(
-    program: &dyn crate::CheckingInput,
-    state_symbol: SymbolHandle,
-) -> SymbolHandle {
-    program
-        .machine_holding_state(state_symbol)
-        .map(|machine| machine.symbol)
-        .unwrap_or_else(SymbolHandle::invalid)
-}
-
 /// Signature effects are declaration data for this inference pass. Collection
 /// borrows these rows explicitly; nested inference owns another table and
 /// cannot clear or replace its caller's answers.
@@ -391,7 +383,7 @@ struct DirectSignatureEffects {
 }
 
 impl DirectSignatureEffects {
-    fn of(program: &dyn crate::CheckingInput) -> Self {
+    fn of(program: &dyn CheckingInput) -> Self {
         let mut symbols: Vec<_> = program
             .data_type_parameters
             .iter()
@@ -437,7 +429,7 @@ impl DirectSignatureEffects {
 }
 
 fn direct_operational_for_signature_symbol_uncached(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     symbol: SymbolHandle,
 ) -> DirectCallOperational {
     if let Some(requirement) = program
@@ -458,7 +450,7 @@ fn direct_operational_for_signature_symbol_uncached(
 }
 
 pub(crate) fn signature_operational(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     signature: &typed_trees::signature::StateSignature,
 ) -> DirectCallOperational {
     let mut operational = DirectCallOperational {
@@ -481,7 +473,7 @@ pub(crate) fn signature_operational(
 /// trait requirements. Checked machines derive calls from their body instead;
 /// an invocation permission alone must not manufacture a body effect.
 pub(crate) fn machine_operational(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> DirectCallOperational {
     let mut operational = DirectCallOperational {
@@ -574,7 +566,7 @@ fn selector_actual(
 
 #[allow(clippy::too_many_arguments)]
 fn call_envelope(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machines: &[MachineWork],
     captured: &flow_effects::CapturedSelectorCalls,
     contexts: &mut Vec<OperationalContext>,
@@ -645,7 +637,7 @@ fn call_envelope(
 }
 
 fn propagate_operational_may(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machines: &mut [MachineWork],
     dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     captured: &flow_effects::CapturedSelectorCalls,
@@ -778,7 +770,7 @@ fn propagate_operational_may(
 }
 
 fn retain_static_machine_bindings(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: SymbolHandle,
     arguments: &[typed_trees::expression::StaticMachineArgument],
     bindings: &mut arena::Arena<flow_effects::StaticMachineCallBinding>,
@@ -817,7 +809,7 @@ fn retain_static_machine_bindings(
     result
 }
 
-fn build_plan(program: &dyn crate::CheckingInput, machines: Vec<MachineWork>) -> OperationalPlan {
+fn build_plan(program: &dyn CheckingInput, machines: Vec<MachineWork>) -> OperationalPlan {
     let mut plan = OperationalPlan::default();
 
     for machine in machines {

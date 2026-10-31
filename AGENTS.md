@@ -271,7 +271,10 @@ capability.
    passes, delete its bullet or requirement from `TASKS.md` outright so the
    board shrinks monotonically (never move a landed witness into a
    `"preserving / retaining / keeping / now passes"` clause or append milestone
-   history), and take the next required place of the same fact, or the next
+   history). When one bullet mixes a landed witness with work that is still
+   open, delete only the finished clause and leave the open clause. A merge
+   keeps one heading for each item. Then take the next required place of the
+   same fact, or the next
    uncovered fact under `samples/cli/facts`. Write a new witness when an
    uncovered requirement needs one, not to manufacture a failure or fill a slot.
    Delete the `TASKS.md` item when its full `Acceptance:` passes. Switch capabilities on
@@ -726,7 +729,13 @@ are byte-sensitive.
   ignore unrelated `main` regressions and keep their warm base. The regressing
   PR's author owns repair/revert; otherwise at most **one** unassigned session
   claims the regression (`python tools/claims.py claim --item REGRESSION-<sha>`)
-  and drives a focused repair or revert through the queue. Once a live claim
+  and drives a focused repair or revert through the queue. A missing claim is
+  not enough: before claiming, read open pull requests whose title, body or
+  diff names the failing fixtures or touches the file the repair would edit,
+  the commits on `main` since the newest red run, and any smoke run still in
+  progress. A repair may already be queued, or landed and not yet verified.
+  Repeat that check before pushing. When a candidate repair exists, verify it
+  against the failure instead of writing a second one. Once a live claim
   exists for a regression, every other session skips it and takes normal
   unassigned work. Never `git bisect` or check out historical `main` commits in
   a warm worktree to attribute a regression (inspect the diff or CI log instead

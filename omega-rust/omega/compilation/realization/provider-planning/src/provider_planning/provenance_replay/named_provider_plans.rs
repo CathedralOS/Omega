@@ -6,7 +6,6 @@ use super::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
     satisfies_plan_name,
 };
-use crate::ProviderPlanningContext;
 use crate::provider_planning::entry_state;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
 use build_time_evaluation::provider_declarations::{
@@ -183,12 +182,7 @@ pub(super) fn derive(
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,
                 });
-                provenance.row_requirements.push(row.requirement);
-                provenance
-                    .row_realizations
-                    .push(ProviderRowRealization::Authored(machine.symbol));
-                provenance.row_target_machine_origins.push(origin);
-                provenance.row_accessors.push(None);
+                provenance.push_authored_row(row.requirement, machine.symbol, origin);
             }
             Some(DerivedProviderPlan { plan, provenance })
         })

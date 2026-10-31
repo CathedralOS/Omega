@@ -1,5 +1,6 @@
 //! Project actual completed captures, preserving constructed-child epochs
 //! and exact retained profiles. These associations supply no new authority.
+use checked_trees::FlowOperandCompletion;
 use checked_trees::{FlowControlFacts, FlowOperandFact};
 use facts::PlaceSegment;
 use typed_trees::types::TypeReferenceHandle;
@@ -32,7 +33,7 @@ pub fn captured_retention_profiles_at_path(
         active_copies: &mut Vec<arena::Handle<checked_trees::FlowCopiedValue>>,
         active_selections: &mut Vec<arena::HandleSpan<checked_trees::FlowOperandAlternative>>,
     ) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
-        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion {
+        if let FlowOperandCompletion::Selected(alternatives) = operand.completion {
             if active_selections.contains(&alternatives) {
                 return None;
             }
@@ -95,9 +96,7 @@ pub fn captured_retention_profiles_at_path(
                 active_selections,
             );
         }
-        if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } =
-            operand.completion
-        {
+        if let FlowOperandCompletion::Copied { copy, path: prefix } = operand.completion {
             if !control.copied_values.is_valid(copy) || active_copies.contains(&copy) {
                 return None;
             }
@@ -409,7 +408,7 @@ pub fn captured_operand_children_at_path(
     {
         return None;
     }
-    let checked_trees::FlowOperandCompletion::Constructed(children) = operand.completion else {
+    let FlowOperandCompletion::Constructed(children) = operand.completion else {
         return None;
     };
     let rows = control.operand_children.span(children)?;

@@ -331,12 +331,10 @@ impl ActivationCarryAccumulator<'_> {
         if typed_trees::types::PrimitiveType::from_name(name).is_some() {
             return;
         }
-        let Some(definition) = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|definition| same_semantic_name(definition.name.as_str(), name))
-        else {
+        let Some(definition) = self.program.data_definitions().iter().find(|definition| {
+            definition.name.as_str() == name
+                || definition.name.as_str().rsplit("::").next() == name.rsplit("::").next()
+        }) else {
             self.analysis_complete = false;
             return;
         };
@@ -404,8 +402,4 @@ fn find_operator(
                 .find(|operator| operator.symbol == target)
         })
     })
-}
-
-fn same_semantic_name(left: &str, right: &str) -> bool {
-    left == right || left.rsplit("::").next() == right.rsplit("::").next()
 }

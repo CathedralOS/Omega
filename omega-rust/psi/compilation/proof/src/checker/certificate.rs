@@ -1257,7 +1257,11 @@ fn bounded_conjunction_certificate(
             class: ObligationClass::Derivable,
         },
         assumptions,
-        envelope: envelope(seed, proof)?,
+        envelope: Some(CertificateEnvelope {
+            identity: EvidenceIdentity::new(seed)?,
+            proof_system_marker: ProofSystemMarker::CURRENT,
+            proof,
+        })?,
     })
 }
 
@@ -1402,14 +1406,6 @@ fn fixed_integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
         }
     };
     IntegerType::new(sign, bits).ok()
-}
-
-fn envelope(seed: u64, proof: ProofNode) -> Option<CertificateEnvelope> {
-    Some(CertificateEnvelope {
-        identity: EvidenceIdentity::new(seed)?,
-        proof_system_marker: ProofSystemMarker::CURRENT,
-        proof,
-    })
 }
 
 #[cfg(test)]

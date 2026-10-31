@@ -102,6 +102,72 @@ impl StructuralJudge<'_> {
         .ok_or("the rank entry input has no declared primitive storage-read geometry")?;
         let canonical = crate::canonical_place_from_expression(self.program, expression)
             .ok_or("the rank entry input has no canonical storage coordinate")?;
+        let value = self
+            .declaration_term(expression)
+            .ok_or("the rank entry input has no admitted entry value description")?;
+        self.retain_entry_scalar_observation(machine, state, canonical, value)
+    }
+
+    /// A declared ordered view contributes resolved projection identities,
+    /// rather than manufactured member-expression occurrences. Authenticate
+    /// its complete coordinate and project the authored base's same entry
+    /// value through the ordinary typed observation owner.
+    pub(in crate::proof_contracts::contract_entailment) fn admitted_entry_scalar_projection(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+        base: ExpressionHandle,
+        projection: &[facts::PlaceSegment],
+    ) -> Result<StructuralTerm, &'static str> {
+        if projection.is_empty() {
+            // Preserve the authored scalar-read gate, including the distinction
+            // between a reference descriptor and an observed scalar referent.
+            return self.admitted_entry_scalar_value(machine, state, base);
+        }
+        if self.declaration_state != state.symbol || self.storage_write_sequence != 0 {
+            return Err("the rank entry observation is outside its declaration entry epoch");
+        }
+        if !self.ordinary_storage_path(Some((machine, state)), base) {
+            return Err("the rank entry base is not a selected builtin storage path");
+        }
+        let mut canonical = crate::canonical_place_from_expression(self.program, base)
+            .ok_or("the rank entry base has no canonical storage coordinate")?;
+        let root = canonical
+            .root
+            .as_symbol()
+            .ok_or("the rank entry base has no declared storage root")?;
+        let parameter = self
+            .program
+            .state_parameter_by_symbol(state, root)
+            .ok_or("the rank entry base is not rooted in its state formals")?;
+        let reference = crate::value_custody::places::project_type_reference_from_segments(
+            self.program,
+            parameter.type_reference,
+            &canonical.segments,
+        )
+        .ok_or("the rank entry base lost its declared projection carrier")?;
+        let value = self
+            .declaration_term(base)
+            .ok_or("the rank entry base has no admitted entry value description")?;
+        let value = super::super::super::observed_projections::project_observed_value_in_scope(
+            self.program,
+            self,
+            reference,
+            value,
+            projection,
+        )
+        .ok_or("the rank entry component has no authenticated typed projection")?;
+        canonical.segments.extend_from_slice(projection);
+        self.retain_entry_scalar_observation(machine, state, canonical, value)
+    }
+
+    fn retain_entry_scalar_observation(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+        canonical: crate::CanonicalPlace,
+        value: StructuralTerm,
+    ) -> Result<StructuralTerm, &'static str> {
         let root = canonical
             .root
             .as_symbol()
@@ -117,9 +183,6 @@ impl StructuralJudge<'_> {
         let coordinate = self
             .capture_entry_storage_place(canonical)
             .ok_or("the rank entry input has no exact formal selector snapshot")?;
-        let value = self
-            .declaration_term(expression)
-            .ok_or("the rank entry input has no admitted entry value description")?;
         let backing = self.freeze_entry_scalar_read_backing(state, backing);
         self.retain_storage_value(coordinate.clone(), value, true);
         let stored = std::sync::Arc::make_mut(&mut self.stored_values)

@@ -1,4 +1,6 @@
 use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use language_semantics::ServiceReachId;
 
 pub fn validate_behavior_plan(
     program: &dyn crate::CheckingInput,
@@ -34,9 +36,7 @@ pub fn validate_behavior_plan(
         // both axes are inferred. Validate the declaration-free body fixed
         // points so a published machine cannot launder behavior through a
         // local helper or a pinned requirement.
-        if machine.is_public
-            || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        {
+        if machine.is_public || machine.supply_mode != MachineSupplyMode::CheckedBody {
             if machine_summary.body_may_suspend && !machine.suspends {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` omits `suspends` from its published contract, but its body may suspend",
@@ -82,9 +82,7 @@ fn validate_service_reach_ceilings(
             .authored_service_reach_rows_for(machine.symbol)
             .next()
             .is_some();
-        if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            && !ceiling_present
-        {
+        if machine.supply_mode == MachineSupplyMode::CheckedBody && !ceiling_present {
             continue;
         }
         let required = service_reaches.services(summary.inferred_transitive);
@@ -116,10 +114,7 @@ fn validate_service_reach_ceilings(
     }
 }
 
-fn format_service_row(
-    program: &dyn crate::CheckingInput,
-    services: &[language_semantics::ServiceReachId],
-) -> String {
+fn format_service_row(program: &dyn crate::CheckingInput, services: &[ServiceReachId]) -> String {
     if services.is_empty() {
         return "<none>".to_owned();
     }

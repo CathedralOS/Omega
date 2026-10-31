@@ -32,6 +32,13 @@ pub struct LoweredSourceCustody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPsi {
     pub semantic_module: TerminalModule,
+    /// Exact source owners of emitted opaque declarations. Source publication
+    /// consumes this producer association rather than reconstructing ownership
+    /// from callable spelling or storage shape. Publication discards the map.
+    pub source_boundary_declarations: Vec<(
+        symbols::SymbolHandle,
+        semantic_vocabulary::BoundaryMachineId,
+    )>,
     pub build_provider_requirements: Vec<LoweredBuildProviderRequirement>,
     /// Explicit application roots kept through optimization. Publication need
     /// not encode this producer demand: entry receipts name the exact retained

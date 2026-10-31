@@ -8,6 +8,7 @@ use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
+use typed_trees::typed_trees::{ClosedConformanceApplicationCommitment, PlanLaidLayout};
 
 fn typed_fixture(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -16,8 +17,8 @@ fn typed_fixture(source: &str) -> TypedTrees {
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
-fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees::PlanLaidLayout {
-    typed_trees::typed_trees::PlanLaidLayout {
+fn private_callback_layout(offset: u64, size: usize) -> PlanLaidLayout {
+    PlanLaidLayout {
         application: Default::default(),
         semantic_type: Default::default(),
         policy_application: Default::default(),
@@ -43,29 +44,26 @@ fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees
                 align: 8,
             },
             private_callback_demands: vec![layout_plans::PrivateCallbackLayoutDemandReport {
-            slot_application: typed_trees::typed_trees::ClosedConformanceApplication {
-                declaration: symbols::SymbolHandle::from_arena_index(7),
-                arguments: Box::new([]),
-                lifetime_arguments: Vec::new(),
-                type_arguments: Vec::new(),
-                const_arguments: Vec::new(),
-                machine_arguments: Vec::new(),
-                trait_definition: symbols::SymbolHandle::from_arena_index(8),
-                trait_lifetime_arguments: Vec::new(),
-                trait_arguments: vec!["package::WindowProcedure::call#exact".to_owned()],
-                rows: Vec::new(),
-                report_fingerprint: 0x91,
-                commitment:
-                    typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
-                        [0x92; 32],
-                    ),
-                ..Default::default()
-            },
-            slot_identity: "package::WndClassWindowProcedureSlot#exact".to_owned(),
-            layout_subject_identity: "package::Spread".to_owned(),
-            callback_requirement_identity: "package::WindowProcedure::call#exact".to_owned(),
-            offset,
-        }],
+                slot_application: typed_trees::typed_trees::ClosedConformanceApplication {
+                    declaration: symbols::SymbolHandle::from_arena_index(7),
+                    arguments: Box::new([]),
+                    lifetime_arguments: Vec::new(),
+                    type_arguments: Vec::new(),
+                    const_arguments: Vec::new(),
+                    machine_arguments: Vec::new(),
+                    trait_definition: symbols::SymbolHandle::from_arena_index(8),
+                    trait_lifetime_arguments: Vec::new(),
+                    trait_arguments: vec!["package::WindowProcedure::call#exact".to_owned()],
+                    rows: Vec::new(),
+                    report_fingerprint: 0x91,
+                    commitment: ClosedConformanceApplicationCommitment::from_digest([0x92; 32]),
+                    ..Default::default()
+                },
+                slot_identity: "package::WndClassWindowProcedureSlot#exact".to_owned(),
+                layout_subject_identity: "package::Spread".to_owned(),
+                callback_requirement_identity: "package::WindowProcedure::call#exact".to_owned(),
+                offset,
+            }],
             offsets: vec![0],
             bit_fields: Vec::new(),
             integer_fields: Vec::new(),
@@ -115,7 +113,7 @@ fn assert_overflow(error: &diagnostics::Diagnostic, step: &str) {
 }
 
 fn close_private_callback_demands(
-    plan: &typed_trees::typed_trees::PlanLaidLayout,
+    plan: &PlanLaidLayout,
     fields: &[FieldLayout],
     target: NativeTarget,
     canonical_layout_subject: &str,
@@ -188,8 +186,7 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
         .declaration = symbols::SymbolHandle::from_arena_index(9);
     fixture_geometry_mut(&mut changed_application).private_callback_demands[0]
         .slot_application
-        .commitment =
-        typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest([0x93; 32]);
+        .commitment = ClosedConformanceApplicationCommitment::from_digest([0x93; 32]);
     let changed =
         close_private_callback_demands(&changed_application, &fields, target, "package::Spread")
             .expect("retaining application custody does not re-evaluate its declaration");

@@ -110,6 +110,11 @@ impl<'a> Expansion<'a> {
                         "declaration invocation disagrees with its admitted body, source or selected callee",
                     );
                 }
+                let (observation_block, observation) =
+                    self.declaration_observation
+                        .ok_or(LoweringError::Unsupported(
+                            "declaration invocation has no captured observation scope",
+                        ))?;
                 Ok(CallSource {
                     statement: None,
                     expression,
@@ -122,11 +127,8 @@ impl<'a> Expansion<'a> {
                         state: site.state,
                         application,
                         call,
-                        observation: self.declaration_observation.ok_or(
-                            LoweringError::Unsupported(
-                                "declaration invocation has no captured observation scope",
-                            ),
-                        )?,
+                        observation_block,
+                        observation,
                     },
                 })
             }

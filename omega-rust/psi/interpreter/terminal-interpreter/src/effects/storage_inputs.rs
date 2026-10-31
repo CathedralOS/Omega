@@ -10,23 +10,21 @@
 
 mod borrowed_completion;
 mod byte_views;
-pub(crate) mod contents;
 mod original_residence;
 mod reference_outputs;
+mod structural_buffer;
 
 use crate::effects::scalar_loans::{BoundaryScalarLoans, TerminalBoundaryScalarBuffer};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::{ConstructorStorage, PreparedConstructorReplacement};
+use crate::structural_storage::contents::{self, TerminalBoundaryStorageValue};
 use crate::values::TerminalStructuralValue;
 use std::sync::Arc;
 use terminal_psi::{StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration};
 
 pub use byte_views::TerminalBoundaryByteViewBuffer;
-pub use contents::{
-    TerminalBoundaryReferenceSelection, TerminalBoundaryStorageValue,
-    TerminalBoundaryStructuralBuffer, TerminalStorageContents,
-};
+pub use structural_buffer::{TerminalBoundaryReferenceSelection, TerminalBoundaryStructuralBuffer};
 
 /// Actual backing determines the presentation; these are not alternative
 /// execution modes. Both commit only after all invocation inputs validate.
@@ -186,7 +184,7 @@ impl BoundaryStorageInputs {
             {
                 return Err(malformed());
             }
-            let leaves = contents::describe(execution, referent, parameter.access, None)?;
+            let leaves = contents::describe(execution, referent, parameter.access, None)?.leaves;
             let (values, _) = contents::capture(
                 execution,
                 argument.place,
@@ -253,7 +251,7 @@ impl BoundaryStorageInputs {
                 &normal_qualifications,
             )?;
         }
-        let leaves = contents::describe(execution, referent, parameter.access, None)?;
+        let leaves = contents::describe(execution, referent, parameter.access, None)?.leaves;
         let (original, scalars) = contents::capture(
             execution,
             argument.place,

@@ -18,6 +18,7 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
+use typed_trees::proposition::PropositionBody;
 use typed_trees::signature::SignatureContractKind;
 
 /// The identity equations one transparent application denotes, one per
@@ -32,10 +33,7 @@ pub(super) fn transparent_application_conjuncts(
     application: &typed_trees::proposition::PropositionApplication,
 ) -> Option<Vec<Option<(StructuralTerm, StructuralTerm)>>> {
     let declaration = program.proposition_definition_by_symbol(application.proposition)?;
-    if !matches!(
-        declaration.body,
-        typed_trees::proposition::PropositionBody::Transparent { .. }
-    ) {
+    if !matches!(declaration.body, PropositionBody::Transparent { .. }) {
         return None;
     }
     let parameters = program.proposition_parameters(declaration);
@@ -79,7 +77,7 @@ fn unfold_definition(
         conjuncts.push(None);
         return;
     };
-    let typed_trees::proposition::PropositionBody::Transparent {
+    let PropositionBody::Transparent {
         proposition: formula,
     } = &declaration.body
     else {

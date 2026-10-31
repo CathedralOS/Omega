@@ -3,8 +3,14 @@
 //! neither this association nor its inverse projection grants a storage write.
 
 use super::ArgumentSources;
+use crate::collections::push_unique;
+use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::expressions;
 use crate::flow::mutation::CallMutationWrite;
+use crate::flow::mutation::captured_alias_projection;
+use crate::flow::operand_binds_live_view;
+use crate::flow::operand_contexts::binding_overwrite;
+use crate::flow::operand_values::project_captured_view_place;
 use crate::places::place_at;
 use validation::CanonicalPlace;
 
@@ -16,7 +22,7 @@ impl ArgumentSources<'_, '_> {
         let physical = write.region.anchor();
         let mut aliases = Vec::new();
         for capture in &self.captures {
-            if !crate::flow::operand_binds_live_view(self.program, capture.type_reference) {
+            if !operand_binds_live_view(self.program, capture.type_reference) {
                 continue;
             }
             let Some(alias) =
@@ -37,17 +43,13 @@ impl ArgumentSources<'_, '_> {
             };
             if later.iter().any(|write| {
                 write.root == binding.root
-                    && crate::flow::operand_contexts::binding_overwrite(
-                        self.program,
-                        &binding,
-                        &write.segments,
-                    )
+                    && binding_overwrite(self.program, &binding, &write.segments)
             }) {
                 continue;
             }
             for referent in &capture.referents {
                 if referent.root != physical.root
-                    || !crate::flow::canonical_place_segments_may_overlap(
+                    || !canonical_place_segments_may_overlap(
                         self.program,
                         &referent.segments,
                         &physical.segments,
@@ -56,13 +58,12 @@ impl ArgumentSources<'_, '_> {
                     continue;
                 }
                 let mut projected = alias.clone();
-                if let Some(suffix) = crate::flow::mutation::captured_alias_projection(
-                    &referent.segments,
-                    &physical.segments,
-                ) {
+                if let Some(suffix) =
+                    captured_alias_projection(&referent.segments, &physical.segments)
+                {
                     projected.segments.extend(suffix);
                 }
-                crate::collections::push_unique(&mut aliases, projected);
+                push_unique(&mut aliases, projected);
             }
         }
         // A callee-relative write also retains the path through an input's
@@ -110,11 +111,7 @@ impl ArgumentSources<'_, '_> {
                 binding.segments.extend_from_slice(&path[..boundary]);
                 if !later.iter().any(|write| {
                     write.root == binding.root
-                        && crate::flow::operand_contexts::binding_overwrite(
-                            self.program,
-                            &binding,
-                            &write.segments,
-                        )
+                        && binding_overwrite(self.program, &binding, &write.segments)
                 }) {
                     let projected = path
                         .iter()
@@ -124,15 +121,11 @@ impl ArgumentSources<'_, '_> {
                             })
                         })
                         .collect::<Vec<_>>();
-                    if let Some(projected) =
-                        crate::flow::operand_values::project_captured_view_place(
-                            alias.clone(),
-                            &projected,
-                        )
+                    if let Some(projected) = project_captured_view_place(alias.clone(), &projected)
                     {
                         alias = projected;
                     }
-                    crate::collections::push_unique(&mut aliases, alias);
+                    push_unique(&mut aliases, alias);
                 }
             }
         }

@@ -21,6 +21,7 @@ use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::statement::TransitionTargetNode;
 use typed_trees::types::TypeReferenceHandle;
 
 mod metadata_paths;
@@ -847,7 +848,7 @@ impl StructuralJudge<'_> {
                     }
                     for target in transition.targets() {
                         match program.statement_table.transition_target(target) {
-                            typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                            TransitionTargetNode::Value(expression) => {
                                 pending_values.push((
                                     machine.symbol,
                                     recorded_boolean_exit(
@@ -859,12 +860,10 @@ impl StructuralJudge<'_> {
                                     )?,
                                 ));
                             }
-                            typed_trees::statement::TransitionTargetNode::Named {
-                                path, ..
-                            } => {
+                            TransitionTargetNode::Named { path, .. } => {
                                 pending_states.push(path.symbol);
                             }
-                            typed_trees::statement::TransitionTargetNode::Terminal => return None,
+                            TransitionTargetNode::Terminal => return None,
                         }
                     }
                 }

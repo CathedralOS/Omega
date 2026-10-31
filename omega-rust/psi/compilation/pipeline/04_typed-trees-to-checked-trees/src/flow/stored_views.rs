@@ -1,15 +1,23 @@
 //! Exact view addresses come from completed stores. The same query serves
 //! operand evaluation and later effect proofs; neither may replay an initializer
 //! or replace an unresolved newer descriptor with a historical source address.
+use super::operand_contexts::operand_binds_live_view;
+use super::operand_values::captured_operand_reference_places_with_formation;
+use super::stored_values::at_snapshot;
 use super::stored_values::{StoredObservation, StoredOperand};
 use arena::{Handle, HandleSpan};
-use checked_trees::{FlowControlFacts, FlowStatementFact, FlowStorageSnapshot};
-use validation::CanonicalPlace;
+use checked_trees::{FlowControlFacts, FlowOperandFact, FlowStatementFact, FlowStorageSnapshot};
+use facts::FactPlan;
+use facts::PlaceSegment;
+use language_semantics::ReferenceAccess;
+use typed_trees::state::State;
+use validation::completed_storage::reference_sources_at_path;
+use validation::{CanonicalPlace, CheckingInput, canonical_place_type_reference, reference_shell};
 
 pub(crate) fn before_snapshot(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     control: &FlowControlFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     snapshot: Handle<FlowStorageSnapshot>,
     source: &CanonicalPlace,
 ) -> Option<Vec<CanonicalPlace>> {
@@ -22,9 +30,9 @@ pub(crate) fn before_snapshot(
 }
 
 pub(crate) fn captured_before_snapshot(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     control: &FlowControlFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     snapshot: Handle<FlowStorageSnapshot>,
     source: &CanonicalPlace,
 ) -> Option<Vec<super::CapturedReferencePlace>> {
@@ -57,10 +65,10 @@ pub(crate) fn captured_before_snapshot(
 /// Value association chooses the descriptor at the correct cut. Geometry and
 /// formation still come only from that descriptor's actual captured inventory.
 pub(crate) fn reference_places_at_snapshot(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     control: &FlowControlFacts,
-    capture: Handle<checked_trees::FlowOperandFact>,
-    path: &[facts::PlaceSegment],
+    capture: Handle<FlowOperandFact>,
+    path: &[PlaceSegment],
     snapshot: Handle<FlowStorageSnapshot>,
     mut incoming_is_admitted: impl FnMut(&CanonicalPlace) -> bool,
 ) -> Option<Vec<super::CapturedReferencePlace>> {
@@ -68,9 +76,7 @@ pub(crate) fn reference_places_at_snapshot(
     // Returning None here would make a saved owned subject retry its anchor
     // as storage, discarding the actual entry slot already resolved by the
     // completed graph. The admission callback below remains mandatory.
-    let stored = validation::completed_storage::reference_sources_at_path(
-        program, control, capture, path, snapshot,
-    );
+    let stored = reference_sources_at_path(program, control, capture, path, snapshot);
     let mut pending = vec![stored];
     let mut places = Vec::new();
     while let Some(descriptor) = pending.pop() {
@@ -98,15 +104,13 @@ pub(crate) fn reference_places_at_snapshot(
                     return Some(Vec::new());
                 }
                 let value = control.operands.get(capture);
-                let Some(selected) =
-                    super::operand_values::captured_operand_reference_places_with_formation(
-                        program,
-                        control,
-                        value,
-                        reference,
-                        &projection,
-                    )
-                else {
+                let Some(selected) = captured_operand_reference_places_with_formation(
+                    program,
+                    control,
+                    value,
+                    reference,
+                    &projection,
+                ) else {
                     return Some(Vec::new());
                 };
                 if selected.is_empty() {
@@ -122,9 +126,9 @@ pub(crate) fn reference_places_at_snapshot(
 }
 
 pub(crate) fn capture_at_snapshot(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     control: &FlowControlFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     snapshot: Handle<FlowStorageSnapshot>,
     source: &CanonicalPlace,
 ) -> Option<StoredOperand> {
@@ -134,18 +138,15 @@ pub(crate) fn capture_at_snapshot(
             program
                 .state_parameter_by_symbol(state, symbol)
                 .is_some_and(|parameter| {
-                    validation::reference_shell(program, parameter.type_reference).is_some_and(
-                        |shell| {
-                            shell.access != language_semantics::ReferenceAccess::Shared
-                                || !parameter.is_mutable
-                        },
-                    )
+                    reference_shell(program, parameter.type_reference).is_some_and(|shell| {
+                        shell.access != ReferenceAccess::Shared || !parameter.is_mutable
+                    })
                 })
         })
     {
         return None;
     }
-    if let Some(stored) = super::stored_values::at_snapshot(
+    if let Some(stored) = at_snapshot(
         program,
         control,
         snapshot,
@@ -158,19 +159,17 @@ pub(crate) fn capture_at_snapshot(
         .root
         .as_symbol()
         .and_then(|root| program.state_local_declaration(state, root))
-        .filter(|(_, local)| {
-            super::operand_contexts::operand_binds_live_view(program, local.type_reference)
-        })
+        .filter(|(_, local)| operand_binds_live_view(program, local.type_reference))
         .map(|_| StoredOperand::Unavailable)
 }
 
 /// Resolve only descriptor crossings on an address. Writes to an atomic
 /// cell's contents do not replace its containing record's reference binding.
 pub(crate) fn address_before_statement(
-    program: &dyn validation::CheckingInput,
-    _semantic: &facts::FactPlan,
+    program: &dyn CheckingInput,
+    _semantic: &FactPlan,
     control: &FlowControlFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     statements: HandleSpan<FlowStatementFact>,
     before: usize,
     source: CanonicalPlace,
@@ -204,9 +203,8 @@ pub(crate) fn address_before_statement(
                 root: source.root,
                 segments: source.segments[..length].to_vec(),
             };
-            let reference =
-                validation::canonical_place_type_reference(program, state.symbol, before, &prefix)?;
-            if !super::operand_contexts::operand_binds_live_view(program, reference) {
+            let reference = canonical_place_type_reference(program, state.symbol, before, &prefix)?;
+            if !operand_binds_live_view(program, reference) {
                 continue;
             }
             let Some(places) = before_snapshot(program, control, state, snapshot, &prefix) else {

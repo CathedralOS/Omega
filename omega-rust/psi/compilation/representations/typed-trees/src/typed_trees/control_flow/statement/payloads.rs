@@ -1,5 +1,6 @@
 //! Statement copying and inspection own all referenced proof, value and type tables.
 use crate::domain::ProofFact;
+use crate::expression::ExpressionHandle;
 use crate::statement::*;
 use crate::typed_trees::{TypedTreeTables, remapped};
 use arena::{Handle, HandleSpan};
@@ -158,8 +159,7 @@ impl TypedTreeTables {
                         name: local.name.clone(),
                         type_reference: type_reference
                             .unwrap_or_else(crate::types::TypeReferenceHandle::invalid),
-                        initial_value: initial_value
-                            .unwrap_or_else(crate::expression::ExpressionHandle::invalid),
+                        initial_value: initial_value.unwrap_or_else(ExpressionHandle::invalid),
                         is_mutable: local.is_mutable,
                         type_is_inferred: local.type_is_inferred,
                         is_operand_capture: local.is_operand_capture,
@@ -218,11 +218,12 @@ impl TypedTreeTables {
     /// Remap lexical symbols in a copied statement graph. Expression and type
     /// payloads are delegated to their owning tables so no arena internals
     /// escape this representation layer.
-    pub fn remap_statement_symbols(
+    pub fn remap_statement_symbols<'scope>(
         &mut self,
         statements: HandleSpan<StatementNode>,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: impl Into<crate::SymbolRebinding<'scope>>,
     ) {
+        let symbols = symbols.into();
         let statement_handles: Vec<_> = statements.handles().collect();
         for handle in statement_handles {
             let statement = self.statement_table.statement(handle).clone();
@@ -280,7 +281,7 @@ impl TypedTreeTables {
                     let mut arguments = std::mem::take(&mut current.machine_arguments);
                     for argument in &mut arguments {
                         self.expression_table
-                            .remap_static_argument_symbols(argument, symbols);
+                            .remap_static_argument_symbols(argument, symbols.execution());
                     }
                     let StatementNode::Call(current) =
                         self.statement_table.statements.get_mut(handle)
@@ -332,7 +333,7 @@ impl TypedTreeTables {
     pub fn expression_roots(
         &self,
         statement: &StatementNode,
-    ) -> Vec<(StatementRootRole, crate::expression::ExpressionHandle)> {
+    ) -> Vec<(StatementRootRole, ExpressionHandle)> {
         use StatementRootRole as Role;
         let mut roots = Vec::new();
         match statement {
@@ -384,10 +385,7 @@ impl TypedTreeTables {
         roots
     }
     /// Value roots carried by a proof fact; proposition identity is never a runtime call.
-    pub fn proof_fact_expression_roots(
-        &self,
-        handle: Handle<ProofFact>,
-    ) -> Vec<crate::expression::ExpressionHandle> {
+    pub fn proof_fact_expression_roots(&self, handle: Handle<ProofFact>) -> Vec<ExpressionHandle> {
         match self.proof_facts.get(handle) {
             ProofFact::Expression(expression) => vec![*expression],
             ProofFact::Membership(membership) => vec![membership.value],
@@ -463,7 +461,7 @@ impl TypedTreeTables {
     fn remap_proof_fact_symbols(
         &mut self,
         handle: Handle<ProofFact>,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: crate::SymbolRebinding<'_>,
     ) {
         for expression in self.proof_fact_expression_roots(handle) {
             self.expression_table.remap_symbols_in(expression, symbols);
@@ -487,7 +485,7 @@ impl TypedTreeTables {
             ProofFact::Proposition(application) => {
                 application.proposition = remapped(application.proposition, symbols);
                 for argument in &mut application.binder_arguments {
-                    argument.symbol = remapped(argument.symbol, symbols);
+                    argument.symbol = remapped(argument.symbol, symbols.authored());
                 }
             }
         }

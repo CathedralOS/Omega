@@ -184,10 +184,13 @@ fn search(
         accepted
     };
     let outcome = ranking::machine_decrease_outcome_with(program, machine, frames, &mut accept);
-    // Genuine non-relational orders have no coordinate alternatives. An
-    // entry-only body can still contribute its exact declaration identity.
-    if matches!(outcome, ranking::DecreaseOutcome::Proven(None))
-        && let Some(identity) = RankArrivalAdmission::entry_only(program, machine)
+    // An entry-only identity is a candidate, never a local tuple proof. Only
+    // this continuation can admit a relation that requires the complete call
+    // component; internal-state bodies cannot supply that identity.
+    if matches!(
+        outcome,
+        ranking::DecreaseOutcome::Proven(None) | ranking::DecreaseOutcome::RequiresComponent
+    ) && let Some(identity) = RankArrivalAdmission::entry_only(program, machine)
     {
         return accept(&identity);
     }

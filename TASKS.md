@@ -113,7 +113,11 @@ Update by subtraction, not accumulation. This applies to all three task boards.
   one-per-line bullets (one unfinished witness or missing mechanism gap per
   bullet), followed by the final `Acceptance:` gate. When a witness or mechanism
   gap lands, delete its bullet line outright (`Delta lines < 0`); delete the
-  entire item when its `Acceptance:` passes.
+  entire item when its `Acceptance:` passes. When one bullet mixes a landed
+  witness with work that is still open, delete only the finished clause and
+  leave the open clause. Do not rewrite the finished clause into a retaining
+  or preserving sentence. The witness stays in `samples/cli/facts/` and
+  `tests/omega/`.
 - **No milestone chronicles:** Run histories, stage-by-stage completion notes,
   and `"X now reserves / now completes Y"` narratives belong in commit messages
   and test records, never on the board. Keep a revision only when needed to
@@ -122,7 +126,9 @@ Update by subtraction, not accumulation. This applies to all three task boards.
   sub-tasks into the existing capability outcome that shares their subsystem and
   sample family as a discrete remaining bullet rather than creating stage-sliced
   or `split-of:` shards. Reconcile concurrent edits by their remaining bullets,
-  never by union-merging old and new prose.
+  never by union-merging old and new prose. A merge keeps one heading per
+  item. When that heading appears inside a conflict and again outside it,
+  replace the surviving copy with the edited text and delete the other.
 
 ## Ownership firewall
 
@@ -157,9 +163,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    other declared body forms (including structured and cross-carrier
-    bodies), nonscalar orders,
-    or dependent distances
+    other declared body forms, remaining nonscalar orders beyond fixed-integer
+    lexicographic products, or dependent distances
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -174,9 +179,8 @@ retired-syntax deletions to completion.
   twins. Reject inaccessible descendants, accidental capture, stale parent
   facts, mismatched results, missing exact call markers, unclosed restoration,
   invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Demonstrate bounded physical stack on a long cycle, including
-  live borrowed backing and completion cleanup, and finish the full affected
-  sample/corpus migration and both compiler implementations before closure.
+  `state` syntax. Finish the full affected sample/corpus migration and both
+  compiler implementations before closure.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
@@ -411,7 +415,6 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Admit complete machine-valued static callable tuples through generic dispatch.
   - Preserve exact cross-module const-alias selection in callable/evidence arguments.
   - Admit open-Const callable families through their declaration-owned scopes.
   - Extend `OpenIndexOperationSelection` in
@@ -440,8 +443,9 @@ retired-syntax deletions to completion.
   with its interpreter and native consumers.
   - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
     in samples (**SAMPLE-CORPUS**) and in maintained pass fixtures outside
-    `tests/omega/pass/arithmetic` and `tests/omega/pass/core` to explicit
-    conversions (`as` requires unchanged denotation and representability;
+    `tests/omega/pass/arithmetic`, `tests/omega/pass/core`, and
+    `tests/omega/pass/float` to explicit conversions (`as` requires
+    unchanged denotation and representability;
     wrapping/clamping use
     `core/numeric_conversion.omg`), producing one actionable diagnostic per
     authored conversion error.

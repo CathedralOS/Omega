@@ -14,6 +14,8 @@ arena = { path = "../../../../psi/foundation/arena" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 numerics = { path = "../../../../psi/foundation/numerics" }
 runtime-abi = { path = "../runtime/runtime-abi" }

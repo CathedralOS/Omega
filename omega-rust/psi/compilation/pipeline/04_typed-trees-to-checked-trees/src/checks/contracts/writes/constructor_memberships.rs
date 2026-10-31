@@ -15,6 +15,17 @@ use super::{
 };
 use crate::labels::{machine_name, symbol_name};
 use crate::places::place_at;
+use checked_trees::FlowOperandFact;
+use checked_trees::FlowStateFact;
+use facts::FactContextHandle;
+use typed_trees::types::DomainConstraint;
+use typed_trees::types::TypeReferenceNode;
+use validation::CheckingInput;
+use validation::exact_declared_domain_carrier_interval;
+use validation::field_domains::declared_domain_constraint_records;
+use validation::field_domains::domain_is_vacuous;
+use validation::field_domains::domain_requires_provenance;
+use validation::unwrapped_type_reference;
 
 type Occurrence = ((u32, u32), usize, (u32, u32));
 
@@ -43,29 +54,22 @@ impl<'facts> ConstructorMemberships<'facts> {
 
     pub(super) fn array_element_domains<'program>(
         &self,
-        program: &'program dyn validation::CheckingInput,
+        program: &'program dyn CheckingInput,
         state: SymbolHandle,
         statement: usize,
         expression: ExpressionHandle,
-    ) -> Vec<&'program typed_trees::types::DomainConstraint> {
+    ) -> Vec<&'program DomainConstraint> {
         let mut domains = Vec::new();
         for capture in self.at(state, statement, expression) {
-            let Some(reference) =
-                validation::unwrapped_type_reference(program, capture.type_reference)
-            else {
+            let Some(reference) = unwrapped_type_reference(program, capture.type_reference) else {
                 continue;
             };
-            let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+            let TypeReferenceNode::FixedArray { element_type, .. } =
                 program.type_reference_table.type_reference(reference)
             else {
                 continue;
             };
-            domains.extend(
-                validation::field_domains::declared_domain_constraint_records(
-                    program,
-                    *element_type,
-                ),
-            );
+            domains.extend(declared_domain_constraint_records(program, *element_type));
         }
         domains.sort_by_key(|constraint| {
             (
@@ -101,7 +105,7 @@ impl<'facts> ConstructorMemberships<'facts> {
     }
 }
 
-fn occurrence(capture: &checked_trees::FlowOperandFact) -> Occurrence {
+fn occurrence(capture: &FlowOperandFact) -> Occurrence {
     (
         (
             capture.state_symbol.arena_index(),
@@ -124,8 +128,8 @@ impl ConstructionWalk<'_, '_> {
     pub(super) fn check_constructor_membership(
         &mut self,
         value: ExpressionHandle,
-        constraint: &typed_trees::types::DomainConstraint,
-        contexts: &[facts::FactContextHandle],
+        constraint: &DomainConstraint,
+        contexts: &[FactContextHandle],
         owner: &str,
     ) {
         let program = self.program;
@@ -148,16 +152,9 @@ impl ConstructionWalk<'_, '_> {
         ) {
             return;
         }
-        let predicate_only =
-            !validation::field_domains::domain_requires_provenance(program, domain_symbol);
-        let vacuous = predicate_only
-            && validation::field_domains::domain_is_vacuous(
-                program,
-                domain_symbol,
-                &mut Vec::new(),
-            );
-        let proves = |capture: Option<&checked_trees::FlowOperandFact>,
-                      contexts: &[facts::FactContextHandle]| {
+        let predicate_only = !domain_requires_provenance(program, domain_symbol);
+        let vacuous = predicate_only && domain_is_vacuous(program, domain_symbol, &mut Vec::new());
+        let proves = |capture: Option<&FlowOperandFact>, contexts: &[FactContextHandle]| {
             value_proves_qualification_in_contexts(
                 program,
                 facts,
@@ -243,13 +240,13 @@ impl ConstructionWalk<'_, '_> {
 /// routed domains and unrecognized conjuncts decline the exact-domain query.
 #[allow(clippy::too_many_arguments)]
 fn live_bounds_satisfy_domain(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
-    state: &checked_trees::FlowStateFact,
+    state: &FlowStateFact,
     statement: usize,
     value: ExpressionHandle,
-    constraint: &typed_trees::types::DomainConstraint,
-    contexts: &[facts::FactContextHandle],
+    constraint: &DomainConstraint,
+    contexts: &[FactContextHandle],
 ) -> bool {
     let Some(domain) = program.domain_definition(constraint.symbol) else {
         return false;
@@ -258,7 +255,7 @@ fn live_bounds_satisfy_domain(
         return false;
     };
     let Some((minimum, maximum)) =
-        validation::exact_declared_domain_carrier_interval(program, carrier, constraint)
+        exact_declared_domain_carrier_interval(program, carrier, constraint)
     else {
         return false;
     };

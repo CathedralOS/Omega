@@ -8,6 +8,7 @@
 mod contexts;
 mod normalization;
 
+use crate::CheckingInput;
 pub use normalization::{data_variant_name, push_structural_field};
 
 use crate::frozen_program::expression_table;
@@ -102,7 +103,7 @@ impl ContentDeclarationFormation<'_> {
 }
 
 pub(crate) fn validate_content_conservation_contracts(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let inputs = content_conservation_inputs(program);
@@ -113,7 +114,7 @@ pub(crate) fn validate_content_conservation_contracts(
 /// Frozen consumers borrow this same result rather than discarding and
 /// rebuilding it between source validation and checked fact construction.
 pub(crate) fn content_conservation_inputs(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
 ) -> Arc<ContentConservationInputs> {
     crate::frozen_program::frozen_memo(
         program,
@@ -144,7 +145,7 @@ pub(crate) fn content_conservation_inputs(
 
 /// The already normalized source contracts for check facts and publication.
 pub fn content_conservation_plans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
 ) -> Arc<Vec<ContentConservationSourcePlan>> {
     Arc::clone(&content_conservation_inputs(program).plans)
 }
@@ -152,7 +153,7 @@ pub fn content_conservation_plans(
 /// Shared normalized projections for the same immutable checking invocation.
 /// Completed-call observations must not rebuild every projection per call.
 pub(crate) fn content_projection_plans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
 ) -> Arc<Vec<ContentProjectionPlan>> {
     Arc::clone(&content_conservation_inputs(program).projections)
 }
@@ -172,7 +173,7 @@ pub struct ContentBoundaryBodyRequirement {
 /// roster are reused; a projection does not rescan conformances or rebuild
 /// contract applications. Matching a name or an algebra is insufficient.
 pub fn boundary_body_content_requirements(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     body: &ContentConservationSourcePlan,
 ) -> Result<Vec<ContentBoundaryBodyRequirement>, &'static str> {
     let inputs = content_conservation_inputs(program);
@@ -300,7 +301,7 @@ fn same_conservation_terms(
 }
 
 fn collect_content_conservation_plans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     projections: &[ContentProjectionPlan],
     diagnostics: &mut Vec<Diagnostic>,
     formations: &mut Arena<ContentProjectionFormation>,
@@ -401,7 +402,7 @@ fn collect_content_conservation_plans(
 
 #[allow(clippy::too_many_arguments)]
 fn collect_callable_plans(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     projections: &[ContentProjectionPlan],
     owner_kind: ContentConservationOwnerKind,
     owner: SymbolHandle,
@@ -540,7 +541,7 @@ fn share_projection_owner(left: &ContentConservationTerm, right: &ContentConserv
 }
 
 fn projection_plan_for_call<'a>(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     projections: &'a [ContentProjectionPlan],
     call: &TableCallExpression,
 ) -> Option<&'a ContentProjectionPlan> {
@@ -562,7 +563,7 @@ fn projection_plan_for_call<'a>(
 /// not admission of a content algebra, an entry snapshot, or a disjoint union;
 /// equation normalization separately checks those semantic obligations.
 pub(crate) fn intrinsic_result_type_reference(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     call: &TableCallExpression,
     mut operand_type: impl FnMut(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<TypeReferenceHandle> {
@@ -597,16 +598,16 @@ pub(crate) fn intrinsic_result_type_reference(
     }
 }
 
-fn is_old_call(program: &dyn crate::CheckingInput, call: &TableCallExpression) -> bool {
+fn is_old_call(program: &dyn CheckingInput, call: &TableCallExpression) -> bool {
     is_builtin_call(program, call, BuiltinFunction::ContentOld)
 }
 
-fn is_separate_call(program: &dyn crate::CheckingInput, call: &TableCallExpression) -> bool {
+fn is_separate_call(program: &dyn CheckingInput, call: &TableCallExpression) -> bool {
     is_builtin_call(program, call, BuiltinFunction::ContentSeparate)
 }
 
 fn is_builtin_call(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     call: &TableCallExpression,
     function: BuiltinFunction,
 ) -> bool {
@@ -620,7 +621,7 @@ fn is_builtin_call(
 }
 
 fn expression_uses_content_surface(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     projections: &[ContentProjectionPlan],
     expression: ExpressionHandle,
 ) -> bool {
@@ -686,7 +687,7 @@ fn expression_uses_content_surface(
 }
 
 fn collect_expression_nodes(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     nodes: &mut HashSet<(u32, u32)>,
 ) {
@@ -712,17 +713,14 @@ fn algebra_key(algebra: &ContentAlgebraIdentity) -> String {
     }
 }
 
-fn projection_label(
-    program: &dyn crate::CheckingInput,
-    projection: &ContentProjectionPlan,
-) -> String {
+fn projection_label(program: &dyn CheckingInput, projection: &ContentProjectionPlan) -> String {
     program
         .machine(projection.machine)
         .map(|machine| machine.name.to_string())
         .unwrap_or_else(|| format!("projection#{}", projection.machine.arena_index()))
 }
 
-fn domain_label(program: &dyn crate::CheckingInput, domain: SymbolHandle) -> String {
+fn domain_label(program: &dyn CheckingInput, domain: SymbolHandle) -> String {
     program
         .domain_definition(domain)
         .map(|definition| definition.name.to_string())

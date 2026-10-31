@@ -67,6 +67,23 @@ pub struct ProviderPlanProvenance {
 
 pub use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
 
+impl ProviderPlanProvenance {
+    /// Record one authored row. The requirement, realization, selected target
+    /// origin and accessor stay index-aligned with the plan's rows.
+    fn push_authored_row(
+        &mut self,
+        requirement: SymbolHandle,
+        machine: SymbolHandle,
+        origin: Option<SelectedTargetMachineOrigin>,
+    ) {
+        self.row_requirements.push(requirement);
+        self.row_realizations
+            .push(ProviderRowRealization::Authored(machine));
+        self.row_target_machine_origins.push(origin);
+        self.row_accessors.push(None);
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DerivedProviderPlan {
     pub plan: ProviderPlan,

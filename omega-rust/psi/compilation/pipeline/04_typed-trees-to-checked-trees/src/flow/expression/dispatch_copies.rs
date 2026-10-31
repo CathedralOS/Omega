@@ -6,6 +6,7 @@
 use super::{Execution, ReadPurpose};
 use crate::flow::expressions;
 use crate::places::place_at;
+use crate::semantic::places::append_place;
 use arena::HandleSpan;
 use checked_trees::{
     FlowConstraintKind, FlowConstraintRef, FlowOperandCompletion, FlowOperandFact,
@@ -289,13 +290,8 @@ impl Execution<'_, '_, '_> {
             &active,
             &mut source.segments,
         );
-        let source =
-            crate::semantic::places::append_place(self.semantic, source.root, &source.segments);
-        let destination = crate::semantic::places::append_place(
-            self.semantic,
-            facts::PlaceRoot::Expression(payload),
-            &[],
-        );
+        let source = append_place(self.semantic, source.root, &source.segments);
+        let destination = append_place(self.semantic, facts::PlaceRoot::Expression(payload), &[]);
         let point = facts::ProgramPoint::Statement {
             machine_symbol: self.machine.symbol,
             state_symbol: self.state.symbol,

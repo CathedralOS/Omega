@@ -3,15 +3,28 @@
 //! additionally prove that every selected alternative moved that slot.
 
 use crate::places::place_at;
-use checked_trees::CheckFacts;
+use arena::Handle;
+use checked_trees::{
+    CheckFacts, CheckedCallScalarArgument, CheckedElementViewRegion, CheckedMemberIdentity,
+    CheckedScalarComputationHandle, CheckedStorePlan, CheckedStoreRoot,
+    CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueCall,
+    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitLocalBindingPlan, FlowCallFact,
+    record_or_structural_case_pattern,
+};
 use checked_trees::{
     CheckedStructuralAccess, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
 };
+use facts::PlaceRoot;
+use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
+use typed_trees::type_identity::TypeIdentityId;
 
-type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
+type Results = [(CheckedUnitStructuralResultBindingPlan, PlaceRoot)];
 use checked_trees::{BorrowLoanOwnerSegment as OwnerSegment, CheckedStructuralValueHandle};
 use typed_trees::data::DataMember;
 
@@ -167,7 +180,7 @@ struct Query<'a> {
     operations: &'a [CheckedUnitEffectOperationPlan],
     prepared_calls: &'a super::structural_value_calls::PreparedCalls,
     established_values: Vec<CheckedStructuralValueHandle>,
-    completed_computations: Vec<checked_trees::CheckedScalarComputationHandle>,
+    completed_computations: Vec<CheckedScalarComputationHandle>,
 }
 
 pub(in crate::execution::terminal_unit) fn transfers(
@@ -215,18 +228,16 @@ pub(in crate::execution::terminal_unit) fn from_storage(
             result.binding_ordinal == *binding_ordinal
         }
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            *root == facts::PlaceRoot::Symbol(*symbol)
+            *root == PlaceRoot::Symbol(*symbol)
         }
         CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-            *root == facts::PlaceRoot::Expression(*expression)
+            *root == PlaceRoot::Expression(*expression)
         }
         _ => false,
     });
     let source_is_unrestricted = bindings.next().is_some_and(|(result, _)| {
-        result.multiplicity == language_semantics::Multiplicity::Unrestricted
-            && bindings.all(|(other, _)| {
-                other.multiplicity == language_semantics::Multiplicity::Unrestricted
-            })
+        result.multiplicity == Multiplicity::Unrestricted
+            && bindings.all(|(other, _)| other.multiplicity == Multiplicity::Unrestricted)
     });
     let query = Query {
         program,
@@ -256,7 +267,7 @@ pub(in crate::execution::terminal_unit) fn from_storage(
             && store.statement_index > formation
             && store.installed_value().is_some()
             && query.owner().is_some_and(|symbol| {
-                store.destination.root == (checked_trees::CheckedStoreRoot::Local { symbol })
+                store.destination.root == (CheckedStoreRoot::Local { symbol })
             })
             && query.local_store_owns_destination(store)?
             && selection.starts_with(&store.destination.path)
@@ -288,8 +299,7 @@ pub(in crate::execution::terminal_unit) fn has_computation_transfer(
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
-        source_is_unrestricted: result.multiplicity
-            == language_semantics::Multiplicity::Unrestricted,
+        source_is_unrestricted: result.multiplicity == Multiplicity::Unrestricted,
         formation: result.statement_index,
         operations,
         prepared_calls: &super::structural_value_calls::PreparedCalls::EMPTY,
@@ -326,7 +336,7 @@ pub(super) fn parameter_vacancies(
     parameter_index: u32,
     parameter_position: u32,
     parameter_symbol: SymbolHandle,
-    parameter_multiplicity: language_semantics::Multiplicity,
+    parameter_multiplicity: Multiplicity,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<ParameterVacancies> {
     let query = Query {
@@ -334,8 +344,7 @@ pub(super) fn parameter_vacancies(
         facts,
         results: &[],
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-        source_is_unrestricted: parameter_multiplicity
-            == language_semantics::Multiplicity::Unrestricted,
+        source_is_unrestricted: parameter_multiplicity == Multiplicity::Unrestricted,
         formation: 0,
         operations,
         prepared_calls,
@@ -356,10 +365,8 @@ pub(super) fn parameter_vacancies(
         if let CheckedUnitEffectOperationPlan::Store(store) = operation
             && store.installed_value().is_some()
             && match store.destination.root {
-                checked_trees::CheckedStoreRoot::Parameter { position } => {
-                    position == parameter_position
-                }
-                checked_trees::CheckedStoreRoot::Local { symbol } => symbol == parameter_symbol,
+                CheckedStoreRoot::Parameter { position } => position == parameter_position,
+                CheckedStoreRoot::Local { symbol } => symbol == parameter_symbol,
             }
         {
             let written = &store.destination.path;
@@ -455,7 +462,7 @@ impl Query<'_> {
             output.append(self.leaf(value.path.clone(), destination))
         }
         if let CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
+            CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
         ) = operation
         {
             output.append(self.value(
@@ -479,11 +486,8 @@ impl Query<'_> {
         }
         Some(output)
     }
-    fn local_store_owns_destination(
-        &self,
-        store: &checked_trees::CheckedStorePlan,
-    ) -> Option<bool> {
-        let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination.root else {
+    fn local_store_owns_destination(&self, store: &CheckedStorePlan) -> Option<bool> {
+        let CheckedStoreRoot::Local { symbol } = store.destination.root else {
             return None;
         };
         if store
@@ -494,7 +498,7 @@ impl Query<'_> {
             return Some(false);
         }
         let state = local_state(self.program, symbol)?;
-        let typed_trees::statement::StatementNode::Assignment(assignment) =
+        let StatementNode::Assignment(assignment) =
             crate::flow::state_statements(self.program, state.statement_nodes)
                 .get(store.statement_index as usize)?
         else {
@@ -520,7 +524,7 @@ impl Query<'_> {
                         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
                     ) => self.results.iter().any(|(result, root)| {
                         result.binding_ordinal == *binding_ordinal
-                            && *root == facts::PlaceRoot::Symbol(*symbol)
+                            && *root == PlaceRoot::Symbol(*symbol)
                     }),
                     _ => false,
                 })
@@ -542,7 +546,7 @@ impl Query<'_> {
 
     fn call(
         &self,
-        call: &checked_trees::CheckedUnitCallPlan,
+        call: &CheckedUnitCallPlan,
         active: &mut Vec<CheckedStructuralValueHandle>,
     ) -> Option<Transfers> {
         let mut output = Transfers::default();
@@ -635,12 +639,12 @@ impl Query<'_> {
     /// the former supplies operand preparation at this DAG position.
     fn value_call(
         &self,
-        value: &checked_trees::CheckedStructuralValue,
-        source_call: arena::Handle<checked_trees::FlowCallFact>,
+        value: &CheckedStructuralValue,
+        source_call: Handle<FlowCallFact>,
         active: &[CheckedStructuralValueHandle],
     ) -> Option<(
         &CheckedUnitEffectOperationPlan,
-        Option<&checked_trees::CheckedStructuralValueCall>,
+        Option<&CheckedStructuralValueCall>,
     )> {
         let control = &self.facts.flow.control;
         if !control.calls.is_valid(source_call) {
@@ -658,7 +662,7 @@ impl Query<'_> {
         {
             return None;
         }
-        let coordinate = checked_trees::CheckedUnitCallCoordinate {
+        let coordinate = CheckedUnitCallCoordinate {
             statement_index: u32::try_from(source.statement_index).ok()?,
             call_ordinal: u32::try_from(source.call_ordinal).ok()?,
         };
@@ -714,7 +718,7 @@ impl Query<'_> {
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::EstablishLocal(
-                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
+                    CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
                 ) => Some(calls.as_slice()),
                 _ => None,
             })
@@ -747,7 +751,7 @@ impl Query<'_> {
 
     fn value_kind(
         &self,
-        value: &checked_trees::CheckedStructuralValue,
+        value: &CheckedStructuralValue,
         selection: &[CheckedUnitStructuralPathSegment],
         consumes_selection: bool,
         receiver: ValueReceiver<'_>,
@@ -814,7 +818,7 @@ impl Query<'_> {
                 }
                 return Some(output);
             }
-            checked_trees::record_or_structural_case_pattern!(data_symbol, fields, ..) => {
+            record_or_structural_case_pattern!(data_symbol, fields, ..) => {
                 let data = self.program.data_definition_by_symbol(*data_symbol)?;
                 // Common fields and payload fields have independent path
                 // namespaces even when a case establishes both in one roster.
@@ -853,25 +857,20 @@ impl Query<'_> {
                     let mut owner_path = Vec::new();
                     if let Some(case) = case {
                         relative.push(CheckedUnitStructuralPathSegment::Case(
-                            checked_trees::CheckedMemberIdentity::of_member(
-                                case.identity,
-                                case.name.clone(),
-                            ),
+                            CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                         ));
                         owner_path.push(OwnerSegment::Case(case.symbol));
                     }
                     relative.push(CheckedUnitStructuralPathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
+                        CheckedMemberIdentity::of_member(
                             declaration.identity,
                             declaration.name.clone(),
                         ),
                     ));
                     owner_path.push(OwnerSegment::Field(field.field));
                     let child = match field.value {
-                        checked_trees::CheckedStructuralRecordFieldValue::Structural(child) => {
-                            child
-                        }
-                        checked_trees::CheckedStructuralRecordFieldValue::Scalar(operand) => {
+                        CheckedStructuralRecordFieldValue::Structural(child) => child,
+                        CheckedStructuralRecordFieldValue::Scalar(operand) => {
                             output.append(self.computation(operand)?);
                             continue;
                         }
@@ -1035,7 +1034,7 @@ impl Query<'_> {
                     active,
                 )?);
                 for endpoint in start.iter().chain(end.iter()) {
-                    if let checked_trees::CheckedCallScalarArgument::Computation(root) = endpoint {
+                    if let CheckedCallScalarArgument::Computation(root) = endpoint {
                         output.append(self.computation(*root)?);
                     }
                 }
@@ -1043,10 +1042,7 @@ impl Query<'_> {
             CheckedStructuralValueKind::BorrowedSliceView { source, region }
             | CheckedStructuralValueKind::MutableSliceView { source, region } => {
                 output.append(self.argument_computations(source)?);
-                if let checked_trees::CheckedElementViewRegion::RepresentationBytes {
-                    start, ..
-                } = region
-                {
+                if let CheckedElementViewRegion::RepresentationBytes { start, .. } = region {
                     output.append(self.computation(*start)?);
                 }
             }
@@ -1066,7 +1062,7 @@ pub(in crate::execution::terminal_unit) fn extraction_owns_source(
     program: &dyn ::validation::CheckingInput,
     source: &CheckedUnitStructuralArgumentPlan,
     result: &CheckedUnitStructuralResultBindingPlan,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> Option<bool> {
     if source
         .path
@@ -1091,10 +1087,7 @@ pub(in crate::execution::terminal_unit) fn extraction_owns_source(
     }
 }
 
-fn local_state(
-    program: &dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::state::State> {
+fn local_state(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> Option<&State> {
     let positions = program.local_data_positions_for_symbol(symbol);
     let [position] = positions.as_slice() else {
         return None;
@@ -1107,8 +1100,8 @@ fn local_place_is_owned(
     program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
     statement: u32,
-    expression: typed_trees::expression::ExpressionHandle,
-    selected_type: typed_trees::type_identity::TypeIdentityId,
+    expression: ExpressionHandle,
+    selected_type: TypeIdentityId,
 ) -> Option<bool> {
     let state = local_state(program, symbol)?;
     let place = place_at(program, state.symbol, statement as usize, expression)?;

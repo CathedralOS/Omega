@@ -10,6 +10,7 @@ use super::{
     literal_i64, ordered_values, place_path, range_constraint_interval,
 };
 use std::collections::BTreeMap;
+use typed_trees::expression::TableBinaryExpression;
 
 mod arrivals;
 mod boolean_values;
@@ -528,7 +529,7 @@ pub(super) fn narrow_environment_by_comparison(
     state: Option<&State>,
     environment: &mut ValueEnvironment,
     condition: ExpressionHandle,
-    comparison: &typed_trees::expression::TableBinaryExpression,
+    comparison: &TableBinaryExpression,
     positive: bool,
 ) {
     if matches!(
@@ -736,12 +737,15 @@ pub(super) fn narrow_environment_by_comparison(
     } else {
         return;
     };
-    // A negative arm narrows by the NEGATED comparison. A negated EQUALITY
+    // A negative arm narrows by the NEGATED comparison. Disequality
     // is a point exclusion: it tightens an interval only when an END sits
     // exactly on the excluded literal (`n == 0` refuted with `n: u64` gives
     // n >= 1), handled below after the type/declared intersection.
-    let negated_equality = !positive && comparison.operator == BinaryOperator::Equal;
-    let operator = if positive || negated_equality {
+    let point_exclusion = matches!(
+        (comparison.operator, positive),
+        (BinaryOperator::Equal, false) | (BinaryOperator::NotEqual, true)
+    );
+    let operator = if positive || point_exclusion {
         comparison.operator
     } else {
         let Some(negated) = negate_comparison(comparison.operator) else {
@@ -756,17 +760,25 @@ pub(super) fn narrow_environment_by_comparison(
     else {
         return;
     };
-    if negated_equality {
+    if point_exclusion {
+        // Adjacency belongs to integer storage, never an IEEE value between
+        // two integer endpoints. Retain only current bounds: the environment
+        // already withdraws them after overlapping writes and unknown effects.
+        if declared_place_type_raw(program, machine, state, place_expr)
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .and_then(primitive_range)
+            .is_none()
+        {
+            return;
+        }
         // A point exclusion needs a single excluded value.
         let Some(literal) = bound.low.filter(|low| bound.high == Some(*low)) else {
             return;
         };
-        // Start from the full line; the intersection below brings in the
-        // type + declared ranges, then the point exclusion bumps an end.
-        let mut interval = Interval {
-            low: None,
-            high: None,
-        };
+        // Earlier conjuncts may establish an endpoint not present in the
+        // declared type (4 <= value followed by value != 4). Exclude it from
+        // that live interval before projecting the resulting operand range.
+        let mut interval = environment.get(&name).unwrap_or(Interval::UNBOUNDED);
         intersect_declared_place_ranges(program, machine, state, place_expr, &mut interval);
         if interval.low == Some(literal) {
             interval.low = literal.checked_add(1);
@@ -845,10 +857,7 @@ fn exact_bound_binary<'program>(
     left: ExpressionHandle,
     bound: ExpressionHandle,
     operator: BinaryOperator,
-) -> Option<(
-    &'program typed_trees::expression::TableBinaryExpression,
-    PrimitiveType,
-)> {
+) -> Option<(&'program TableBinaryExpression, PrimitiveType)> {
     let Some(binary) = program.expression_table.binary_node(bound) else {
         return None;
     };
@@ -862,7 +871,7 @@ fn exact_bound_binary<'program>(
 /// `<=` and `>=` orderings reduced to one directed operand pair: the tuple
 /// reads (directed-left, directed-right) as if the comparison were always `<=`.
 fn directed_comparison_operands(
-    comparison: &typed_trees::expression::TableBinaryExpression,
+    comparison: &TableBinaryExpression,
 ) -> Option<(ExpressionHandle, ExpressionHandle)> {
     match comparison.operator {
         BinaryOperator::LessOrEqual => Some((comparison.left, comparison.right)),
@@ -878,7 +887,7 @@ fn joint_subtract_guard(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
-    comparison: &typed_trees::expression::TableBinaryExpression,
+    comparison: &TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (right, left) = match comparison.operator {
         BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
@@ -908,7 +917,7 @@ fn signed_joint_subtract_guard(
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
-    comparison: &typed_trees::expression::TableBinaryExpression,
+    comparison: &TableBinaryExpression,
     lower: bool,
 ) -> Option<(String, String)> {
     let (bound, left) = match (comparison.operator, lower) {
@@ -959,7 +968,7 @@ fn joint_multiply_guard(
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
-    comparison: &typed_trees::expression::TableBinaryExpression,
+    comparison: &TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (left, bound) = directed_comparison_operands(comparison)?;
     let (divide, left_primitive) =
@@ -995,7 +1004,7 @@ fn signed_joint_multiply_lower_guard(
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
-    comparison: &typed_trees::expression::TableBinaryExpression,
+    comparison: &TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (bound, left) = directed_comparison_operands(comparison)?;
     signed_joint_multiply_quotient_guard(program, machine, state, environment, left, bound, true)
@@ -1009,7 +1018,7 @@ fn signed_joint_multiply_upper_guard(
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
-    comparison: &typed_trees::expression::TableBinaryExpression,
+    comparison: &TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (left, bound) = directed_comparison_operands(comparison)?;
     signed_joint_multiply_quotient_guard(program, machine, state, environment, left, bound, false)
@@ -1065,7 +1074,7 @@ fn signed_joint_multiply_negation_guard(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
-    comparison: &typed_trees::expression::TableBinaryExpression,
+    comparison: &TableBinaryExpression,
 ) -> Option<String> {
     let (boundary, value) = match comparison.operator {
         BinaryOperator::LessOrEqual => (comparison.left, comparison.right),

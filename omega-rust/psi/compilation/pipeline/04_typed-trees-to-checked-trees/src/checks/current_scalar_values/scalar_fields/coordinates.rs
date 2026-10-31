@@ -8,7 +8,7 @@ use typed_trees::expression::ExpressionHandle;
 use validation::ScopedArithmeticValue;
 
 #[derive(Clone, Debug)]
-pub(in crate::checks::current_scalar_values) enum ScalarProjection {
+pub(in super::super) enum ScalarProjection {
     Field(SymbolHandle),
     Case(SymbolHandle),
     Element {
@@ -37,7 +37,7 @@ impl PartialEq for ScalarProjection {
 /// Captured recipes share a coordinate only when the existing scoped integer
 /// judgment proves their selectors equal. Equality of source handles or carrier
 /// types supplies no such proof; structural equality is only the fast path.
-pub(in crate::checks::current_scalar_values) fn same_projection(
+pub(in super::super) fn same_projection(
     occurrence: ScopedOccurrence<'_, '_>,
     left: &[ScalarProjection],
     right: &[ScalarProjection],
@@ -67,7 +67,7 @@ pub(in crate::checks::current_scalar_values) fn same_projection(
         })
 }
 
-pub(in crate::checks::current_scalar_values) fn projection_has_prefix(
+pub(in super::super) fn projection_has_prefix(
     occurrence: ScopedOccurrence<'_, '_>,
     path: &[ScalarProjection],
     prefix: &[ScalarProjection],
@@ -75,9 +75,7 @@ pub(in crate::checks::current_scalar_values) fn projection_has_prefix(
     path.len() >= prefix.len() && same_projection(occurrence, &path[..prefix.len()], prefix)
 }
 
-pub(in crate::checks::current_scalar_values) fn source_path(
-    path: &[ScalarProjection],
-) -> Vec<facts::PlaceSegment> {
+pub(in super::super) fn source_path(path: &[ScalarProjection]) -> Vec<facts::PlaceSegment> {
     path.iter()
         .map(|segment| match segment {
             ScalarProjection::Field(symbol) => facts::PlaceSegment::Field { symbol: *symbol },
@@ -87,7 +85,7 @@ pub(in crate::checks::current_scalar_values) fn source_path(
         .collect()
 }
 
-pub(in crate::checks::current_scalar_values) fn capture_path(
+pub(in super::super) fn capture_path(
     path: &[facts::PlaceSegment],
     mut capture: impl FnMut(ExpressionHandle) -> Option<ScopedArithmeticValue>,
 ) -> Option<Vec<ScalarProjection>> {
@@ -115,7 +113,7 @@ pub(in crate::checks::current_scalar_values) fn capture_path(
 /// Entry inference may use values already present in the invocation, never a
 /// producer that will execute in the body. Check the whole executable tree:
 /// a folded length can otherwise hide an effectful collection underneath it.
-pub(in crate::checks::current_scalar_values) fn entry_selector_value(
+pub(in super::super) fn entry_selector_value(
     occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],
@@ -157,7 +155,7 @@ pub(in crate::checks::current_scalar_values) fn entry_selector_value(
     selector_value(occurrence, expression, bindings, fields)
 }
 
-pub(in crate::checks::current_scalar_values) fn selector_value(
+pub(in super::super) fn selector_value(
     occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],
@@ -188,7 +186,7 @@ pub(in crate::checks::current_scalar_values) fn selector_value(
     )
 }
 
-pub(in crate::checks::current_scalar_values) fn storage_path(
+pub(in super::super) fn storage_path(
     occurrence: ScopedOccurrence<'_, '_>,
     expression: ExpressionHandle,
     bindings: &[Binding],

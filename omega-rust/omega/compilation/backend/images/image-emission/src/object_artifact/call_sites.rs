@@ -346,6 +346,12 @@ pub(crate) fn validate_callback_plan_custody(
     Ok(())
 }
 
+/// The relative relocation names the byte after everything emitted so far, or
+/// the encoding overruns the address space and cannot be written at all.
+fn relocation_matches(base: usize, emitted: usize, target: usize) -> bool {
+    base.checked_add(emitted).is_some_and(|end| end == target)
+}
+
 pub(crate) fn validate_callback_address_bytes(
     target: NativeTarget,
     caller: MachineId,
@@ -370,12 +376,7 @@ pub(crate) fn validate_callback_address_bytes(
                 0x8d,
                 0x05 | ((register & 7) << 3),
             ]);
-            if relocation_offset
-                != callback
-                    .code_offset
-                    .checked_add(expected.len())
-                    .ok_or_else(invalid)?
-            {
+            if !relocation_matches(callback.code_offset, expected.len(), relocation_offset) {
                 return Err(invalid());
             }
             expected.extend_from_slice(&[0; 4]);
@@ -386,12 +387,7 @@ pub(crate) fn validate_callback_address_bytes(
             machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
         ) => {
             expected.extend_from_slice(&[0x4c, 0x8d, 0x1d]);
-            if relocation_offset
-                != callback
-                    .code_offset
-                    .checked_add(expected.len())
-                    .ok_or_else(invalid)?
-            {
+            if !relocation_matches(callback.code_offset, expected.len(), relocation_offset) {
                 return Err(invalid());
             }
             expected.extend_from_slice(&[0; 4]);
@@ -415,12 +411,7 @@ pub(crate) fn validate_callback_address_bytes(
             .filter(|register| *register != 4 && *register != 11)
             .ok_or_else(invalid)?;
             expected.extend_from_slice(&[0x4c, 0x8d, 0x1d]);
-            if relocation_offset
-                != callback
-                    .code_offset
-                    .checked_add(expected.len())
-                    .ok_or_else(invalid)?
-            {
+            if !relocation_matches(callback.code_offset, expected.len(), relocation_offset) {
                 return Err(invalid());
             }
             expected.extend_from_slice(&[0; 4]);

@@ -69,7 +69,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         return Ok((guard, bindings, None, rest));
     }
 
-    let (patterns, pattern_rest) = parse_transition_pattern_list(syntax_trees, pattern_input)?;
+    let (patterns, pattern_rest) = parse_transition_match_list(syntax_trees, pattern_input, true)?;
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected transition pattern"));
     }
@@ -398,13 +398,6 @@ pub(super) fn parse_transition_expression_list<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Vec<ExpressionHandle>> {
     parse_transition_match_list(syntax_trees, input, false)
-}
-
-fn parse_transition_pattern_list<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Vec<Option<ExpressionHandle>>> {
-    parse_transition_match_list(syntax_trees, input, true)
 }
 
 fn parse_transition_match_list<'tokens, 'source, T>(

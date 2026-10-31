@@ -42,13 +42,7 @@ fn execution() -> TerminalExecution<'static> {
     TerminalExecution::start_with_program(
         program,
         &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
+        crate::TerminalStructuralInputs::default(),
         None,
         None,
     )

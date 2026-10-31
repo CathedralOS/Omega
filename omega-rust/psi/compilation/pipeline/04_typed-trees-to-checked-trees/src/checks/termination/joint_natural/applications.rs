@@ -9,7 +9,8 @@ pub(super) struct Application {
     pub(super) measure: symbols::SymbolHandle,
     pub(super) parameter: symbols::SymbolHandle,
     pub(super) body: typed_trees::expression::ExpressionHandle,
-    pub(super) primitive: typed_trees::types::PrimitiveType,
+    pub(super) input_primitive: typed_trees::types::PrimitiveType,
+    pub(super) result_primitive: typed_trees::types::PrimitiveType,
 }
 
 pub(super) struct ObservedApplication {
@@ -32,9 +33,12 @@ impl Application {
                 value: input,
             }],
         };
-        let formation =
-            values.declared_integer_application_formation(machine, &expression, self.primitive)?;
-        let (minimum, maximum) = self.primitive.integer_bounds()?;
+        let formation = values.declared_integer_application_formation(
+            machine,
+            &expression,
+            self.result_primitive,
+        )?;
+        let (minimum, maximum) = self.result_primitive.integer_bounds()?;
         // The child-first application proof established these bounds. A later
         // relation query must not lose them when normalizing a polynomial such
         // as (count-1)^2. These facts never justify the application's formation.

@@ -8,6 +8,7 @@
 use super::StructuralTerm;
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::TableMemberExpression;
+use typed_trees::types::FixedArrayLength;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(in crate::proof_contracts::contract_entailment) fn collection_measure_term(
@@ -128,12 +129,10 @@ fn fixed_array_extent_term(
     reference: TypeReferenceHandle,
 ) -> Option<StructuralTerm> {
     match crate::value_custody::places::fixed_array_type_extent(program, reference)? {
-        typed_trees::types::FixedArrayLength::Literal(extent) => Some(StructuralTerm::Integer(
+        FixedArrayLength::Literal(extent) => Some(StructuralTerm::Integer(
             numerics::bignum::BigInt::from_u64(u64::try_from(*extent).ok()?),
         )),
-        typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }
-            if symbol.is_valid() =>
-        {
+        FixedArrayLength::ConstParameter { symbol, .. } if symbol.is_valid() => {
             Some(StructuralTerm::BoundValue(*symbol))
         }
         _ => None,

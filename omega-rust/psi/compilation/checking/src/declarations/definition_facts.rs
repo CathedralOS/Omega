@@ -12,7 +12,7 @@ use facts::{
 pub fn build_definition_fact_plan(program: &dyn crate::CheckingInput) -> FactPlan {
     let mut facts = FactPlan::with_capacity(
         estimated_definition_fact_capacity(program),
-        estimated_definition_context_capacity(program),
+        program.domain_definitions().len() + program.data_definitions().len(),
     );
 
     append_domain_definition_facts(program, &mut facts);
@@ -33,10 +33,6 @@ fn estimated_definition_fact_capacity(program: &dyn crate::CheckingInput) -> usi
         .map(|data| program.proof_facts.span_or_empty(data.where_facts).len())
         .sum::<usize>();
     domain_facts + data_facts
-}
-
-fn estimated_definition_context_capacity(program: &dyn crate::CheckingInput) -> usize {
-    program.domain_definitions().len() + program.data_definitions().len()
 }
 
 fn append_domain_definition_facts(program: &dyn crate::CheckingInput, facts: &mut FactPlan) {

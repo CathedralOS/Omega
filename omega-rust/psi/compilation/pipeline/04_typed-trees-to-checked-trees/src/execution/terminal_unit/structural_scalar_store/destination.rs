@@ -5,9 +5,9 @@
 //! store kind in `super` then reads the resolved place and decides whether
 //! its own leaf and value compose with it.
 use super::super::{
-    CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
-    DataShapeKind, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode,
+    CheckFacts, CheckedStructuralAccess as StructuralAccess, CheckedStructuralScalarParameterPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment as PathSegment,
+    DataMember, DataShapeKind, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
@@ -86,13 +86,13 @@ pub(super) struct Destination<'a> {
 
 /// The checked carrier path to a record, and that record's declaration.
 pub(super) struct Carrier<'a> {
-    pub(super) path: Vec<CheckedUnitStructuralPathSegment>,
+    pub(super) path: Vec<PathSegment>,
     pub(super) owner: &'a typed_trees::data::DataDefinition,
     selected_case: Option<&'a typed_trees::data::DataVariant>,
 }
 
 pub(super) struct StorageProjection<'a> {
-    pub(super) path: Vec<CheckedUnitStructuralPathSegment>,
+    pub(super) path: Vec<PathSegment>,
     /// Position of the last element-view descriptor crossing. Earlier
     /// selectors belong to the full structural operand locating this view;
     /// later selectors locate the scalar leaf inside its element.
@@ -240,7 +240,7 @@ pub(super) fn resolve<'a>(
         return None;
     }
     let root_type = match plan.access {
-        CheckedStructuralAccess::Owned => parameter.type_reference,
+        StructuralAccess::Owned => parameter.type_reference,
         _ => validation::reference_shell(program, parameter.type_reference)?.referee,
     };
     // A borrowed fixed-array root has no record owner of its
@@ -399,9 +399,9 @@ impl<'a> Destination<'a> {
         } = roots;
         if !matches!(
             plan.access,
-            CheckedStructuralAccess::Owned
-                | CheckedStructuralAccess::MutableBorrow
-                | CheckedStructuralAccess::WriteOnlyBorrow
+            StructuralAccess::Owned
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         ) {
             return None;
         }
@@ -435,11 +435,9 @@ impl<'a> Destination<'a> {
             // This slot stores only through an exclusive reference; a shared
             // borrow is not a storable access here. The exclusive accesses
             // themselves come from the shared checked conversion.
-            Some(shell) if shell.access.is_exclusive() => {
-                CheckedStructuralAccess::from(shell.access)
-            }
+            Some(shell) if shell.access.is_exclusive() => StructuralAccess::from(shell.access),
             Some(_) => return None,
-            None => CheckedStructuralAccess::Owned,
+            None => StructuralAccess::Owned,
         };
         (plan.access == expected_access).then_some(())
     }
@@ -483,9 +481,7 @@ impl<'a> Destination<'a> {
                     )
                 ));
         if self.loan_type.is_valid() && !descriptor {
-            projection
-                .path
-                .insert(0, CheckedUnitStructuralPathSegment::Referent);
+            projection.path.insert(0, PathSegment::Referent);
             if let Some(position) = &mut projection.element_view_index {
                 *position += 1;
             }
@@ -528,9 +524,10 @@ impl<'a> Destination<'a> {
                     // root contract. Storage traversal never selects geometry
                     // from a predicate; the receiving writer separately proves
                     // preservation against its full normalized footprint.
-                    path.push(CheckedUnitStructuralPathSegment::Field(
-                        terminal_field_identity(program, carrier.symbol)?,
-                    ));
+                    path.push(PathSegment::Field(terminal_field_identity(
+                        program,
+                        carrier.symbol,
+                    )?));
                     carrier_type = carrier.type_reference;
                     ends_at_field = true;
                 }
@@ -556,7 +553,7 @@ impl<'a> Destination<'a> {
                     if cases.next().is_some() {
                         return None;
                     }
-                    path.push(CheckedUnitStructuralPathSegment::Case(
+                    path.push(PathSegment::Case(
                         checked_trees::CheckedMemberIdentity::of_member(
                             case.identity,
                             case.name.clone(),
@@ -614,9 +611,7 @@ impl<'a> Destination<'a> {
                         facts::PlaceSegment::FixedIndex { index }
                             if length.is_none_or(|length| *index < length) =>
                         {
-                            CheckedUnitStructuralPathSegment::FixedIndex(
-                                u64::try_from(*index).ok()?,
-                            )
+                            PathSegment::FixedIndex(u64::try_from(*index).ok()?)
                         }
                         facts::PlaceSegment::Index { expression } => {
                             self.selectors.as_ref()?.runtime_segment(*expression)?
@@ -651,7 +646,7 @@ impl<'a> Destination<'a> {
                 if !access.is_exclusive() {
                     return None;
                 }
-                path.push(CheckedUnitStructuralPathSegment::Referent);
+                path.push(PathSegment::Referent);
                 carrier_type = *referee;
                 ends_at_field = false;
             }

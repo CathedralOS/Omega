@@ -5,6 +5,7 @@
 use super::{ClaimBindings, ClaimEdgeBinding};
 use crate::checked_facts::flow_facts;
 use crate::lowering_error::{LoweringError, unsupported};
+use crate::terminal_identities::lookup_claim_id;
 use language_semantics::PermissionClaimIdentity;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -110,11 +111,8 @@ pub(crate) fn edge_bindings(
         }
         bindings.push(ClaimEdgeBinding {
             edge,
-            destination: crate::terminal_identities::lookup_claim_id(
-                claims.bindings(),
-                *destination,
-            )?,
-            source: crate::terminal_identities::lookup_claim_id(claims.bindings(), incoming)?,
+            destination: lookup_claim_id(claims.bindings(), *destination)?,
+            source: lookup_claim_id(claims.bindings(), incoming)?,
         });
     }
     Ok(bindings)

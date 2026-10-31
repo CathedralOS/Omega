@@ -82,25 +82,25 @@ fn derive_roster(
     }
     let mut boundaries = Vec::new();
     for (function, (requirements, homes)) in requirements.iter().zip(homes).enumerate() {
-        work.function()?;
+        bump(&mut work.functions)?;
         if requirements.machine != homes.machine {
             return Err(FixedViewCopyError::SegmentEvidenceMismatch);
         }
         let mut assignment_index = 0;
         for register in &requirements.registers {
-            work.register()?;
+            bump(&mut work.registers)?;
             let mut closing = BTreeMap::<_, FixedPrecoloredSourceSegmentHome>::new();
             for fragment in &register.fragments {
-                work.fragment()?;
+                bump(&mut work.fragments)?;
                 let mut previous = None;
                 for segment in &fragment.segments {
-                    work.segment()?;
+                    bump(&mut work.segments)?;
                     let assignment = homes
                         .assignments
                         .get(assignment_index)
                         .ok_or(FixedViewCopyError::SegmentEvidenceMismatch)?;
                     assignment_index += 1;
-                    work.home()?;
+                    bump(&mut work.homes)?;
                     validate_assignment(
                         register.virtual_register,
                         register.class,
@@ -144,7 +144,7 @@ fn derive_roster(
                             {
                                 return Err(FixedViewCopyError::SegmentEvidenceMismatch);
                             }
-                            work.boundary()?;
+                            bump(&mut work.boundaries)?;
                             boundaries.push(AuthenticatedFixedViewBoundary {
                                 function,
                                 machine: requirements.machine,
@@ -219,24 +219,6 @@ impl Work {
             homes: 0,
             boundaries: 0,
         }
-    }
-    fn function(&mut self) -> Result<(), FixedViewCopyError> {
-        bump(&mut self.functions)
-    }
-    fn register(&mut self) -> Result<(), FixedViewCopyError> {
-        bump(&mut self.registers)
-    }
-    fn fragment(&mut self) -> Result<(), FixedViewCopyError> {
-        bump(&mut self.fragments)
-    }
-    fn segment(&mut self) -> Result<(), FixedViewCopyError> {
-        bump(&mut self.segments)
-    }
-    fn home(&mut self) -> Result<(), FixedViewCopyError> {
-        bump(&mut self.homes)
-    }
-    fn boundary(&mut self) -> Result<(), FixedViewCopyError> {
-        bump(&mut self.boundaries)
     }
     fn finish(self) -> Result<OptimizationWorkUsage, FixedViewCopyError> {
         Ok(OptimizationWorkUsage {

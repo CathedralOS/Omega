@@ -29,6 +29,8 @@ use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::terminal_identities::value_id;
 
 /// One resolved step of a destination path: a static Terminal segment, or a
 /// runtime element whose selector the emitter evaluates.
@@ -196,9 +198,7 @@ pub(crate) fn evaluate_selectors(
                 // Dynamic views retain a runtime bound even for a literal.
                 // Keep its exact coordinate for disjoint-window queries too.
                 coordinate = Some(*index);
-                let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
-                    checked_trees::types::PrimitiveType::U64,
-                )?;
+                let scalar_type = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
                 let value = super::emit_direct_expression(
                     &LoweredDirectExpression::IntegerLiteral {
                         value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
@@ -344,15 +344,11 @@ pub(crate) fn observe_element_extent(
             }
             _ => continue,
         };
-        let length = crate::terminal_identities::value_id(
-            crate::terminal_identities::allocate_dense(next_value)?,
-        );
+        let length = value_id(crate::terminal_identities::allocate_dense(next_value)?);
         operations.push_leaf(
             crate::emission::operation_emission::buffer::scalar_result_declaration(
                 length,
-                crate::emission::scalar_types::terminal_scalar_type(
-                    checked_trees::types::PrimitiveType::U64,
-                )?,
+                terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?,
             ),
             kind,
         );

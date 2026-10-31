@@ -215,24 +215,18 @@ pub(super) fn record_merged_node_positions(
     Some(())
 }
 
-/// A scalar CFG rewrite applies only where no block declares descriptor
-/// telescoping parameters: structural substitution is outside these rules.
-pub(super) fn descriptor_telescope_free(function: &PsiOptimizationFunction) -> bool {
-    function
-        .blocks
-        .iter()
-        .all(|block| block.structural_parameters.is_empty())
-}
-
 /// The functions a scalar CFG rewrite traverses: a descriptor telescope requires
 /// structural substitution, so every such rewrite declines it once, here,
 /// instead of at each rule's own loop head.
 pub(super) fn scalar_cleanup_functions(
     functions: &[PsiOptimizationFunction],
 ) -> impl Iterator<Item = &PsiOptimizationFunction> {
-    functions
-        .iter()
-        .filter(|function| descriptor_telescope_free(function))
+    functions.iter().filter(|function| {
+        function
+            .blocks
+            .iter()
+            .all(|block| block.structural_parameters.is_empty())
+    })
 }
 
 /// The terminal jump a block-erasing rewrite starts from: the block's last node

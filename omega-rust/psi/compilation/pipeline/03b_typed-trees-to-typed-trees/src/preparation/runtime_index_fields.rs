@@ -10,6 +10,9 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteralField};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::expression_traversal::{
+    collect_expression_tree, collect_statement_expression_trees,
+};
 
 type Substitutions = Vec<(SymbolHandle, ExpressionHandle)>;
 
@@ -187,11 +190,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                     _ => {}
                 }
                 let mut expressions = Vec::new();
-                validation::expression_traversal::collect_statement_expression_trees(
-                    program,
-                    statement,
-                    &mut expressions,
-                );
+                collect_statement_expression_trees(program, statement, &mut expressions);
                 for expression in expressions {
                     if let Some(call) = expressions_of(program).call_node(expression) {
                         if has_value_parameter_data {
@@ -600,7 +599,7 @@ fn capture_recipe(
         return None;
     }
     let mut tree = Vec::new();
-    validation::expression_traversal::collect_expression_tree(program, expression, &mut tree);
+    collect_expression_tree(program, expression, &mut tree);
     for member in &tree {
         if let ExpressionNode::Name(path) = expressions_of(program).expression(*member)
             && let Some((_, actual)) = substitutions
@@ -616,7 +615,7 @@ fn capture_recipe(
     // later execution/checking must not rewrite the signature's proof schema.
     let copied = expressions_of_mut(program).insert_copy(expression);
     tree.clear();
-    validation::expression_traversal::collect_expression_tree(program, copied, &mut tree);
+    collect_expression_tree(program, copied, &mut tree);
     for member in tree {
         let replacement = match expressions_of(program).expression(member) {
             ExpressionNode::Name(path) => substitutions

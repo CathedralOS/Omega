@@ -16,6 +16,7 @@ use typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
 use typed_trees::name::Identifier;
 use typed_trees::typed_trees::{ClosedConformanceApplication, ClosedConformanceConstArgument};
 use validation::CheckingProjection;
+use validation::conformance_applications::close_conformance_application;
 
 /// Retain the complete source-qualified conformance meaning without historical
 /// report/commitment fields. This component is inert, not complete package
@@ -236,11 +237,8 @@ fn validate_retained_application(
     };
     // This reclassifies retained arguments against the same checked declaration
     // telescope. It executes no source code and consumes no proof certificate.
-    let closed = validation::conformance_applications::close_conformance_application(
-        compilation.checking_input,
-        &selected,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let closed = close_conformance_application(compilation.checking_input, &selected)
+        .map_err(|diagnostic| vec![diagnostic])?;
     if closed.declaration != application.declaration
         || closed.lifetime_arguments != application.lifetime_arguments
         || closed.type_arguments != application.type_arguments

@@ -162,8 +162,23 @@ pub(super) fn compare(
     };
     let initial = normalize(initial)?;
     let next = normalize(&next)?;
-    (proves(BinaryOperator::GreaterOrEqual, &initial, &zero)
-        && proves(BinaryOperator::GreaterOrEqual, &next, &zero)
+    // An explicit declaration's result is a finite integer, including its
+    // negative half. Builtin distance normalizations keep their zero floor.
+    let minimum = |rank: &Rank| -> Option<ScopedArithmeticValue> {
+        let minimum = if order == Order::Descending {
+            match rank.application {
+                Some(application) => application.result_primitive.integer_bounds()?.0,
+                None => 0,
+            }
+        } else {
+            0
+        };
+        Some(ScopedArithmeticValue::Integer(BigInt::from_i128(minimum)))
+    };
+    let source_minimum = minimum(source)?;
+    let destination_minimum = minimum(destination)?;
+    (proves(BinaryOperator::GreaterOrEqual, &initial, &source_minimum)
+        && proves(BinaryOperator::GreaterOrEqual, &next, &destination_minimum)
         && proves(BinaryOperator::LessOrEqual, &next, &initial))
     .then(|| strict_allowed && proves(BinaryOperator::Less, &next, &initial))
 }

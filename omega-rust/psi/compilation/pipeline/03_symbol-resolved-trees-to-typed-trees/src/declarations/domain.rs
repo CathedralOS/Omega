@@ -158,8 +158,11 @@ pub(crate) fn lower_cleanup_selection(
                 },
             )
             .collect::<Vec<_>>();
-        expression_table_mut(&mut lowerer.typed_trees)
-            .set_static_machine_application_lifetimes(application, &lifetimes);
+        expression_table_mut(&mut lowerer.typed_trees).set_static_machine_application_lifetimes(
+            application,
+            selected.symbol,
+            &lifetimes,
+        );
     }
     Ok(typed::domain::CleanupSelection {
         application,

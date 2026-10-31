@@ -264,14 +264,17 @@ pub(super) fn retain_instance(
     // Preserve the representative source application's lexical region scope;
     // every other source edge still owns its separate admission. Roster-only
     // instances have no source call and retain their declaration context.
-    let (lexical_owner, lifetimes) = if candidate.binding_application.is_valid() {
+    let (lexical_owner, lifetime_declaration, lifetimes) = if candidate
+        .binding_application
+        .is_valid()
+    {
         let origin = source.unwrap_or(program);
         let source_application =
             expressions_of(origin).static_machine_application(candidate.binding_application);
         let mut lifetimes = expressions_of(origin)
             .static_machine_application_lifetimes(candidate.binding_application)
             .to_vec();
-        let source_declaration = source_application.binding_declaration;
+        let source_declaration = source_application.lifetime_binding_declaration;
         let target_declaration = candidate.template.template_symbol;
         if source_declaration != target_declaration
             && origin.target_machine_families.iter().any(|family| {
@@ -314,10 +317,22 @@ pub(super) fn retain_instance(
                     })?;
                 binding.parameter = target_machine.lifetime_parameters[ordinal].clone();
             }
+        } else {
+            lifetimes = origin
+                .static_application_lifetimes_for_declaration(
+                    candidate.binding_application,
+                    target_declaration,
+                )
+                .map_err(|reason| vec![super::Diagnostic::error(reason)])?
+                .into_owned();
         }
-        (source_application.lexical_owner, lifetimes)
+        (
+            source_application.lexical_owner,
+            target_declaration,
+            lifetimes,
+        )
     } else {
-        (instance, Vec::new())
+        (instance, candidate.template.template_symbol, Vec::new())
     };
     // Runtime callers share a carrier-specialized instance. No one caller's
     // subject belongs to that instance's static tuple.
@@ -347,6 +362,10 @@ pub(super) fn retain_instance(
         .static_machine_application_mut(application)
         .binding_declaration = candidate.template.template_symbol;
     expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
-    expressions_of_mut(program).set_static_machine_application_lifetimes(application, &lifetimes);
+    expressions_of_mut(program).set_static_machine_application_lifetimes(
+        application,
+        lifetime_declaration,
+        &lifetimes,
+    );
     Ok(application)
 }

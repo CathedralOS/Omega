@@ -1,3 +1,5 @@
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
 use validation::CanonicalPlace;
 
 use crate::flow::FlowBuildContext;
@@ -10,7 +12,7 @@ use checked_trees::{
     BorrowCallFact, BorrowFacts, DomainFacts, FlowConstraintRef, FlowInvalidationFact,
     FlowInvalidationSource, FlowSemanticContextRef,
 };
-use facts::FactPlan;
+use facts::{FactPlan, PlaceRoot};
 
 pub(in crate::flow) struct CallInvalidationResult {
     pub(in crate::flow) post_contexts: HandleSpan<FlowSemanticContextRef>,
@@ -81,8 +83,8 @@ pub(in crate::flow) fn call_storage_writes(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     borrow_call: &BorrowCallFact,
 ) -> Option<std::rc::Rc<CallStorageWrites>> {
     let occurrence = (
@@ -124,8 +126,8 @@ fn call_storage_mutations(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     build: &mut FlowBuildContext,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     borrow_call: &BorrowCallFact,
 ) -> Option<Vec<ObservedCallMutation>> {
     let writes = phase_profile::scope("05.d.3.b.flow.invoke.1a_mutation_writes", || {
@@ -149,10 +151,7 @@ fn call_storage_mutations(
             // An output namespace identifies a performed reference, not a
             // spatially separate allocation. Its anchor alone cannot close
             // aliases in caller storage: retain full unknown invalidation.
-            if matches!(
-                write.region.anchor().root,
-                facts::PlaceRoot::InvocationOutput(_)
-            ) {
+            if matches!(write.region.anchor().root, PlaceRoot::InvocationOutput(_)) {
                 return None;
             }
             let carrier = write.region.anchor().clone();

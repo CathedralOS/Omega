@@ -16,9 +16,11 @@ use crate::record::{
     PackageReviewProviderGrantSelectorKind,
 };
 use diagnostics::Diagnostic;
+use provider_planning::ProviderSchemaDeclaration;
 use provider_planning::SelectedProviderReviewProvenance;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
+use trust_model::ProviderGrantSelectorKind;
 
 /// Retain selected provider meaning and its canonical-to-custody coordinates.
 /// The coordinates travel to boundary application projection in the same
@@ -189,10 +191,8 @@ fn project_plan(
         .iter()
         .filter(|grant| grant.grant.replays_selected_plan(plan))
         .map(|grant| match grant.grant.selector_kind {
-            trust_model::ProviderGrantSelectorKind::PlanName => {
-                PackageReviewProviderGrantSelectorKind::PlanName
-            }
-            trust_model::ProviderGrantSelectorKind::ProviderSlot => {
+            ProviderGrantSelectorKind::PlanName => PackageReviewProviderGrantSelectorKind::PlanName,
+            ProviderGrantSelectorKind::ProviderSlot => {
                 PackageReviewProviderGrantSelectorKind::ProviderSlot
             }
         })
@@ -221,9 +221,7 @@ fn normalized_plan_name(
     retained: &SelectedProviderReviewProvenance,
 ) -> Result<String, Vec<Diagnostic>> {
     let plan = &retained.plan;
-    let provider_planning::ProviderSchemaDeclaration::BoundaryOperator(symbol) =
-        retained.provider.schema
-    else {
+    let ProviderSchemaDeclaration::BoundaryOperator(symbol) = retained.provider.schema else {
         return Ok(plan.name.clone());
     };
     let generated = provider_planning::satisfies_plan_name(

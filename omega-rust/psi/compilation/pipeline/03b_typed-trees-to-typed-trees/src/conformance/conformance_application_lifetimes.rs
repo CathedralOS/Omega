@@ -41,10 +41,31 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     let calls = collect_elision_calls(program);
     let mut diagnostics = Vec::new();
     for mut call in calls {
-        let Some((callee_machine, callee_state)) = validation::find_state(program, call.target)
-        else {
-            continue;
-        };
+        let callee_machine = validation::find_state(program, call.target);
+        // A public call keeps its logical signature after executable retargeting.
+        // Its own regions still come from the same runtime parameter positions;
+        // the selected provider is not the author of this invocation telescope.
+        let requirement = program
+            .closed_requirement_application(call.target)
+            .map_or(call.target, |application| application.template);
+        let (callee_owner, callee_lifetimes, parameters, callee_name) =
+            if let Some((machine, state)) = callee_machine {
+                (
+                    machine.symbol,
+                    &machine.lifetime_parameters[..],
+                    program.state_parameters(state),
+                    &state.name,
+                )
+            } else if let Some((_, signature)) = program.trait_machine_signature(requirement) {
+                (
+                    signature.symbol,
+                    &signature.lifetime_parameters[..],
+                    program.state_signature_parameters(signature),
+                    &signature.name,
+                )
+            } else {
+                continue;
+            };
         let Some(caller_machine) = program.machine_by_symbol(call.caller_machine) else {
             continue;
         };
@@ -53,9 +74,36 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         let caller_state =
             validation::find_state_in_machine(program, call.caller_machine, call.caller_state);
 
-        let mut call_lifetimes = Vec::<(String, String)>::new();
+        let application = match call.site {
+            ElisionCallSite::Expression(handle) => expressions_of(program)
+                .call_node(handle)
+                .map(|call| call.authored_machine_application),
+            ElisionCallSite::Statement(handle) => program
+                .statement_table
+                .statement(handle)
+                .as_call()
+                .map(|call| call.authored_machine_application),
+        };
+        // Explicit or previously inferred operands retain their exact source
+        // declaration. Runtime constraints can agree with them, never erase or
+        // silently override an unused authored region argument.
+        let mut call_lifetimes =
+            if let Some(application) = application.filter(|application| application.is_valid()) {
+                program
+                    .static_application_lifetimes_for_declaration(application, callee_owner)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    .iter()
+                    .map(|binding| {
+                        (
+                            binding.parameter.as_str().to_owned(),
+                            binding.argument.as_str().to_owned(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
         let mut conflicting_call_lifetime = false;
-        let parameters = program.state_parameters(callee_state);
         let skip = parameters.len().saturating_sub(call.arguments.len());
         for (argument, parameter) in call.arguments.iter().zip(parameters.iter().skip(skip)) {
             let Some((actual, applications)) = caller_state
@@ -86,7 +134,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     program,
                     required,
                     actual,
-                    &callee_machine.lifetime_parameters,
+                    callee_lifetimes,
                     argument_scopes::Scope {
                         owner: caller_machine.symbol,
                         frames,
@@ -114,23 +162,14 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         if conflicting_call_lifetime {
             diagnostics.push(Diagnostic::error(format!(
                 "call to `{}` has conflicting ordinary borrow constraints for an erased lifetime",
-                callee_state.name
+                callee_name
             )));
             continue;
         }
 
-        let application = match call.site {
-            ElisionCallSite::Expression(handle) => expressions_of(program)
-                .call_node(handle)
-                .map(|call| call.authored_machine_application),
-            ElisionCallSite::Statement(handle) => program
-                .statement_table
-                .statement(handle)
-                .as_call()
-                .map(|call| call.authored_machine_application),
-        };
-
-        let evidence_bounds = callee_machine.conformance_bounds.iter().collect::<Vec<_>>();
+        let evidence_bounds = callee_machine.map_or_else(Vec::new, |(machine, _)| {
+            machine.conformance_bounds.iter().collect::<Vec<_>>()
+        });
         let mut evidence_index = 0usize;
         for argument_ordinal in 0..call.machine_arguments.len() {
             let mut selected = call.machine_arguments[argument_ordinal].clone();
@@ -146,6 +185,9 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 break;
             };
             evidence_index += 1;
+            let Some((callee_machine, _)) = callee_machine else {
+                break;
+            };
             if !matches!(
                 program.symbols.get(selected.symbol).kind,
                 SymbolKind::Conformance
@@ -280,7 +322,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         }
 
         if let Some(application) = application.filter(|application| application.is_valid()) {
-            let binding_declaration = program.lifetime_declaration_owner(callee_machine.symbol);
+            let binding_declaration = program.lifetime_declaration_owner(callee_owner);
             let lifetimes = call_lifetimes
                 .iter()
                 .map(|(parameter, argument)| {
@@ -297,8 +339,11 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             if !source.binding_declaration.is_valid() {
                 source.binding_declaration = binding_declaration;
             }
-            expressions_of_mut(program)
-                .set_static_machine_application_lifetimes(application, &lifetimes);
+            expressions_of_mut(program).set_static_machine_application_lifetimes(
+                application,
+                binding_declaration,
+                &lifetimes,
+            );
         }
         match call.site {
             ElisionCallSite::Expression(handle) => {
@@ -362,6 +407,11 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                     }
                     StatementNode::AssemblyFact(fact) => {
                         for expression in program.tables.proof_fact_expression_roots(fact.fact) {
+                            walk.visit(expression, &mut calls);
+                        }
+                    }
+                    statement @ StatementNode::Transition(_) => {
+                        for (_, expression) in program.tables.expression_roots(statement) {
                             walk.visit(expression, &mut calls);
                         }
                     }

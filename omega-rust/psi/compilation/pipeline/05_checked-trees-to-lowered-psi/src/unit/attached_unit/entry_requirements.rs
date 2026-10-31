@@ -57,7 +57,12 @@ pub(crate) fn lower(
                     structural_types,
                 )
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(crate::lowering_error::unit_machine_plan_error(
+                checked,
+                checked.symbols.name(source),
+                source,
+            ))?;
     }
     let contextual = &checked.facts.contextual_cleanup.entry_requirements;
     for (_, requirement) in contextual.rows.iter() {

@@ -23,6 +23,7 @@ pub enum CodecError {
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedStructuralFoundation(&'static str),
+    MalformedRanking(&'static str),
     /// Preserve the exact failed return custody row without admitting it or
     /// requiring a second diagnostic build to identify its producing owner.
     MalformedScalarReturnFoundation {

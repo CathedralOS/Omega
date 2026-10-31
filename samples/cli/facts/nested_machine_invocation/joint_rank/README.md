@@ -232,3 +232,19 @@ retains the smaller direct-call shape used to locate the first refusal.
 [Call formation, captured inputs and execution evidence](local/computed_measure/call/README.md)
 cover this production's nine places, its composition probe and invalid controls.
 The parent `NESTED-MACHINE-UNIFICATION` outcome remains open.
+
+[Structured scalar measure bodies](local/computed_measure/structured/README.md)
+continue this fact through ordered conditional values. All nine places execute
+in both engines on macOS ARM64 and their no-progress twins reject. The linked
+page records the ingress compositions and the remaining parent acceptance.
+
+[Cross-carrier scalar measures](local/computed_measure/cross_carrier/README.md)
+carry the same fact through distinct input and result carriers, retaining each
+conversion's own formation and the actual source coordinate. Final acceptance
+is recorded on that production's page.
+
+[Completion cleanup](local/completion_cleanup/README.md) carries the same fact
+through an owned resource that holds the caller's counter and drops exactly once
+when the component completes, in all nine places with strict-descent twins. It
+adds a 100,000-edge long cycle, a missing drop precondition and a live local
+loan. Windows x86-64 native and Terminal Psi agree; other hosts were not run.

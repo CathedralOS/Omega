@@ -6,6 +6,7 @@ use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, PrimitiveType, anonymous_numeric_value,
     has_anonymous_operator_meaning, integer_landing_warning, land_integer_value,
 };
+use crate::CheckingInput;
 use crate::expression_traversal::children;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
@@ -17,9 +18,7 @@ mod result_values;
 /// Query only after successful validation: warnings do not participate in the
 /// admission diagnostic count. The fractional source occurrence survives even
 /// when the final value is integral.
-pub(crate) fn anonymous_integer_landing_warnings(
-    program: &dyn crate::CheckingInput,
-) -> Vec<Diagnostic> {
+pub(crate) fn anonymous_integer_landing_warnings(program: &dyn CheckingInput) -> Vec<Diagnostic> {
     let has_potential_fractional_origin =
         expression_table(program)
             .iter_expressions()
@@ -35,7 +34,13 @@ pub(crate) fn anonymous_integer_landing_warnings(
     let mut warned = Vec::new();
     visit_destination_trees(program, |destination, expression| {
         if let Some(primitive) = program.primitive_type_reference(destination) {
-            append_landing_warning(program, primitive, expression, &mut warned, &mut warnings);
+            append_integer_landing_warning(
+                program,
+                Some(primitive),
+                expression,
+                &mut warned,
+                &mut warnings,
+            );
         }
     });
     // Integer range endpoints land in proof-integer arithmetic. Keeping the
@@ -106,19 +111,9 @@ pub(crate) fn anonymous_integer_landing_warnings(
     warnings
 }
 
-fn append_landing_warning(
-    program: &dyn crate::CheckingInput,
-    primitive: PrimitiveType,
-    expression: ExpressionHandle,
-    warned: &mut Vec<ExpressionHandle>,
-    warnings: &mut Vec<Diagnostic>,
-) {
-    append_integer_landing_warning(program, Some(primitive), expression, warned, warnings);
-}
-
 /// A missing machine carrier denotes the unbounded proof Int landing.
 fn append_integer_landing_warning(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     primitive: Option<PrimitiveType>,
     expression: ExpressionHandle,
     warned: &mut Vec<ExpressionHandle>,
@@ -153,7 +148,7 @@ fn append_integer_landing_warning(
 }
 
 fn visit_destination_trees(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     mut visit: impl FnMut(TypeReferenceHandle, ExpressionHandle),
 ) {
     for machine in program.machines() {
@@ -304,7 +299,7 @@ fn visit_destination_trees(
 /// Destination discovery consumes the resolved state identity, never a spelling
 /// or compatible signature. Call receiver pairing stays with its signature owner.
 fn visit_call_arguments(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: symbols::SymbolHandle,
     arguments: &[ExpressionHandle],
     visit: &mut impl FnMut(TypeReferenceHandle, ExpressionHandle),

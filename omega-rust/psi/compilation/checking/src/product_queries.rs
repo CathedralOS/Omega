@@ -10,6 +10,7 @@ use language_semantics::declaration_selection::{
 };
 use semantic_vocabulary::ProgramEntrySourceCatalog;
 use source::SourceSpan;
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::product_operand::ProductEntryDeclaration;
 
@@ -39,12 +40,7 @@ impl<'path> ProductScope<'path> {
         }
     }
 
-    fn contains(
-        &self,
-        program: &TypedTrees,
-        symbol: symbols::SymbolHandle,
-        is_public: bool,
-    ) -> bool {
+    fn contains(&self, program: &TypedTrees, symbol: SymbolHandle, is_public: bool) -> bool {
         let matches_path = if self.qualified {
             program.symbols.display_path(symbol, "::") == self.path
         } else {
@@ -127,8 +123,8 @@ fn select_declaration(
     path: &[u8],
     role: &str,
     declaration_kind: &str,
-    declarations: impl Iterator<Item = (symbols::SymbolHandle, bool)>,
-) -> Result<symbols::SymbolHandle, String> {
+    declarations: impl Iterator<Item = (SymbolHandle, bool)>,
+) -> Result<SymbolHandle, String> {
     let name = std::str::from_utf8(path)
         .map_err(|_| format!("product {role} path must be canonical UTF-8"))?;
     if name.is_empty() {

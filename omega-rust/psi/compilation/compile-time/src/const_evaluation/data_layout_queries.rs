@@ -184,7 +184,12 @@ pub fn fold_data_layout_queries(
     let measurements = provider.prepare(program);
     for (handle, query, reference) in queries {
         let operand = query.operand.type_reference;
-        if defer_uninstalled_plans && plan_laid_operand_pending_installation(program, operand) {
+        // An exact fixed-representation application waits for its validated plan;
+        // ordinary record packing cannot supply a provisional answer.
+        if defer_uninstalled_plans
+            && program.layout_storage_arguments(operand).is_some()
+            && program.plan_laid_layout_for_type(operand).is_none()
+        {
             continue;
         }
         let spelling = query.kind.target_name();
@@ -231,16 +236,6 @@ pub fn fold_data_layout_queries(
         *program.expression_table.expression_mut(handle) = ExpressionNode::Integer(literal);
     }
     Ok(())
-}
-
-/// An exact fixed-representation application waits for its validated plan;
-/// ordinary record packing cannot supply a provisional answer.
-fn plan_laid_operand_pending_installation(
-    program: &TypedTrees,
-    operand: TypeReferenceHandle,
-) -> bool {
-    program.layout_storage_arguments(operand).is_some()
-        && program.plan_laid_layout_for_type(operand).is_none()
 }
 
 /// A `layout_type_reference` of an unresolved fixed array returns the

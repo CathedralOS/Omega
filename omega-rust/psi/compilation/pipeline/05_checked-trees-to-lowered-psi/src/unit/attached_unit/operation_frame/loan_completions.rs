@@ -1,8 +1,11 @@
 //! Statement calls use the same normal-return custody join as computed calls.
 use super::OperationFrame;
 use super::StructuralArgument;
+use crate::emission::call_qualifications::declaration_represents;
+use crate::emission::call_qualifications::for_call;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::lowering_error::LoweringError;
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 
 impl OperationFrame<'_, '_> {
     pub(super) fn publish_loan_completions(
@@ -35,7 +38,7 @@ impl OperationFrame<'_, '_> {
             let mut qualifications = Vec::new();
             let mut projected_qualifications = Vec::new();
             for (semantic_domain, path, carrier) in &completion.qualifications {
-                let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
+                let domain = lookup_domain_id_for_carrier(
                     self.callees.domain_ids,
                     *semantic_domain,
                     *carrier,
@@ -94,12 +97,9 @@ impl OperationFrame<'_, '_> {
                 homes.push(facts::PlaceRoot::Symbol(parameter.symbol));
             }
         }
-        for fact in crate::emission::call_qualifications::for_call(
-            self.checked,
-            self.machine,
-            coordinate,
-            |root| homes.contains(&root),
-        ) {
+        for fact in for_call(self.checked, self.machine, coordinate, |root| {
+            homes.contains(&root)
+        }) {
             let Some(place_handle) = fact.place.as_place() else {
                 continue;
             };
@@ -138,11 +138,7 @@ impl OperationFrame<'_, '_> {
             let Some((owner, structural_type)) = home else {
                 continue;
             };
-            if crate::emission::call_qualifications::declaration_represents(
-                identities,
-                self.checked,
-                fact,
-            )? {
+            if declaration_represents(identities, self.checked, fact)? {
                 continue;
             }
             let segments = self
@@ -207,11 +203,8 @@ impl OperationFrame<'_, '_> {
                     "call guarantee has no exact projected carrier",
                 ))?
             };
-            let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
-                self.callees.domain_ids,
-                semantic_domain,
-                carrier,
-            )?;
+            let domain =
+                lookup_domain_id_for_carrier(self.callees.domain_ids, semantic_domain, carrier)?;
             let (qualifications, projected_qualifications) = if full_path.is_empty() {
                 (vec![domain], Vec::new())
             } else {

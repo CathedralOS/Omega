@@ -6,6 +6,8 @@ use super::{
     fields, inductive_judgment, integer_bindings, lengths, meanings, saved_arguments,
 };
 use field_coordinates::FieldCoordinates;
+use lengths::SliceCoordinate;
+use symbols::SymbolHandle;
 
 /// The EntryInvariant graph tier re-establishes every readable scalar/length
 /// comparison. Its ignored Boolean or nominal facts confer no such guarantee.
@@ -46,7 +48,7 @@ struct ArithmeticRequirement<'program> {
     engine: Engine<'program>,
     bindings: Vec<super::StrictArithmeticSymbolBinding>,
     fields: FieldCoordinates<'program>,
-    lengths: Vec<(symbols::SymbolHandle, String)>,
+    lengths: Vec<(SymbolHandle, String)>,
     projected_lengths: lengths::SliceCoordinates<'program>,
     comparisons: Vec<super::Comparison>,
 }
@@ -94,8 +96,8 @@ fn prepare_requirement<'program>(
 /// The path contains exact declared fields, not an actual's source itinerary.
 #[derive(Clone, Copy)]
 pub enum ArithmeticCallObservation<'path> {
-    Value(&'path [symbols::SymbolHandle]),
-    CollectionLength(&'path [symbols::SymbolHandle]),
+    Value(&'path [SymbolHandle]),
+    CollectionLength(&'path [SymbolHandle]),
 }
 
 /// Captured values are supplied by the call-flow owner after authenticating
@@ -106,7 +108,7 @@ pub fn prove_captured_arithmetic_call_requirement(
     callee: &Machine,
     target: &State,
     goal: ExpressionHandle,
-    mut observation: impl FnMut(symbols::SymbolHandle, ArithmeticCallObservation<'_>) -> Option<BigInt>,
+    mut observation: impl FnMut(SymbolHandle, ArithmeticCallObservation<'_>) -> Option<BigInt>,
 ) -> bool {
     captured_requirement(program, callee, target, goal, &mut observation).unwrap_or(false)
 }
@@ -116,10 +118,7 @@ fn captured_requirement(
     callee: &Machine,
     target: &State,
     goal: ExpressionHandle,
-    observation: &mut dyn FnMut(
-        symbols::SymbolHandle,
-        ArithmeticCallObservation<'_>,
-    ) -> Option<BigInt>,
+    observation: &mut dyn FnMut(SymbolHandle, ArithmeticCallObservation<'_>) -> Option<BigInt>,
 ) -> Option<bool> {
     let ArithmeticRequirement {
         engine,
@@ -407,9 +406,7 @@ fn prove(
                 *argument,
                 coordinate.borrowed,
             );
-            let value = actual_coordinate
-                .as_ref()
-                .map(lengths::SliceCoordinate::value);
+            let value = actual_coordinate.as_ref().map(SliceCoordinate::value);
             if let Some(actual_coordinate) = actual_coordinate {
                 source_projected_lengths.include(actual_coordinate);
             }
@@ -558,7 +555,7 @@ fn prove(
                 &floor,
                 &ceiling,
                 range.end_inclusive,
-            ));
+            )?);
         }
     }
     if !source_engine.install_hypotheses(comparisons) {

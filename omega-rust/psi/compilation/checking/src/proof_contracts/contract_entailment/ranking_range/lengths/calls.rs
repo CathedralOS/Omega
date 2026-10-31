@@ -11,17 +11,13 @@ use entailment::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
+use std::thread::ThreadId;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::{machine::Machine, state::State, types::TypeReferenceHandle};
 
 type LengthSite = (SymbolHandle, SymbolHandle, ExpressionHandle);
-type ActiveLengthSite = (
-    SymbolHandle,
-    SymbolHandle,
-    ExpressionHandle,
-    std::thread::ThreadId,
-);
+type ActiveLengthSite = (SymbolHandle, SymbolHandle, ExpressionHandle, ThreadId);
 
 pub(super) fn normal_return_length(
     program: &dyn crate::CheckingInput,

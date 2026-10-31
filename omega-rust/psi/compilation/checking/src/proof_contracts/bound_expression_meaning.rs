@@ -33,7 +33,10 @@ pub fn has_builtin_bound_expression_meaning(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    bound_subtree_meaning(program, machine, state, expression, 0)
+    matches!(
+        bound_subtree_height(program, machine, state, expression, 0),
+        SubtreeMeaning::Valid(_)
+    )
 }
 
 /// Check a guard node whose Boolean children the caller decomposes and checks
@@ -183,19 +186,6 @@ enum SubtreeMeaning {
     Valid(u8),
     Invalid,
     DepthLimit,
-}
-
-fn bound_subtree_meaning(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    expression: ExpressionHandle,
-    depth: usize,
-) -> bool {
-    matches!(
-        bound_subtree_height(program, machine, state, expression, depth),
-        SubtreeMeaning::Valid(_)
-    )
 }
 
 fn bound_subtree_height(

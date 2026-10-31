@@ -8,19 +8,13 @@ fn original_require<'a, R: 'a>(
     typed: &TypedTrees,
     semantic_facts: &FactTable,
     symbol: SymbolHandle,
-    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
+    fact_handle: arena::Handle<ProofFact>,
     identity: &PackageReviewNominalIdentity,
     kind: &'static str,
     noun: &'static str,
     origin: impl Fn(SymbolHandle) -> facts::FactOrigin,
     retained_facts: impl Iterator<Item = &'a R>,
-    record_fields: impl Fn(
-        &R,
-    ) -> (
-        SymbolHandle,
-        arena::Handle<typed_trees::domain::ProofFact>,
-        facts::FactHandle,
-    ),
+    record_fields: impl Fn(&R) -> (SymbolHandle, arena::Handle<ProofFact>, facts::FactHandle),
 ) -> Result<(), Vec<Diagnostic>> {
     let point = facts::ProgramPoint::Definition { symbol };
     let matching_rows = semantic_facts

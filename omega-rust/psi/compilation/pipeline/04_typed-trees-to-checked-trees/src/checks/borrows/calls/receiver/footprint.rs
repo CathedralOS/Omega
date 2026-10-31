@@ -2,6 +2,7 @@
 //! Ordinary returning calls use explicit argument exclusivity, not a
 //! receiver-specific relaxation based on which fields the callee accesses.
 
+use crate::flow;
 use validation::CanonicalPlace;
 
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
@@ -59,7 +60,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
         // Each loan has its own state-exit boundary. A shared footprint for
         // the whole argument roster would prolong dropped loans whenever an
         // unrelated argument survives.
-        let writes = captured_places(crate::flow::call_receiver_write_accesses(
+        let writes = captured_places(flow::call_receiver_write_accesses(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
@@ -69,7 +70,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
             &loan,
         ));
         let reads = if argument.kind.is_exclusive() {
-            captured_places(crate::flow::call_receiver_read_accesses(
+            captured_places(flow::call_receiver_read_accesses(
                 program,
                 state_flow.machine_symbol,
                 state_flow.state_symbol,
@@ -168,11 +169,7 @@ fn retained_subject_access(
     machine: &typed_trees::machine::Machine,
 ) -> Option<usize> {
     let target = program.state_by_symbol(call.target_symbol)?;
-    crate::flow::family_data_binding_parameter(
-        program,
-        machine.symbol,
-        program.state_parameters(target),
-    )?;
+    flow::family_data_binding_parameter(program, machine.symbol, program.state_parameters(target))?;
     let site = validation::find_call_site(
         program,
         state_flow.machine_symbol,
@@ -180,7 +177,7 @@ fn retained_subject_access(
         call.statement_index,
         call.call_ordinal,
     )?;
-    let parent = crate::flow::canonical_receiver_place_for_call_site(
+    let parent = flow::canonical_receiver_place_for_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -214,7 +211,7 @@ fn whole_mutable_jump_machine<'p>(
     super::local_jump(program, state_flow, call)?;
     let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
     let target = program.state_by_symbol(call.target_symbol)?;
-    let parameter = crate::flow::family_data_binding_parameter(
+    let parameter = flow::family_data_binding_parameter(
         program,
         machine.symbol,
         program.state_parameters(target),
@@ -238,7 +235,7 @@ fn whole_mutable_jump_machine<'p>(
         call.call_ordinal,
     )
     .and_then(|site| {
-        crate::flow::canonical_receiver_place_for_call_site(
+        flow::canonical_receiver_place_for_call_site(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
