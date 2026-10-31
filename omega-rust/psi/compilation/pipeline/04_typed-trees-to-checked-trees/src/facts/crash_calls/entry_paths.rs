@@ -3,7 +3,9 @@
 //! the selecting caller. Unknown observations widen a route, never erase it.
 
 use super::summary_predicates::{SummaryCrashPredicate, SummaryCrashRouteGuard};
+use crate::facts::boolean_predicates::entry_path_necessary_condition;
 use crate::flow::active_context_handles;
+use crate::values::occupies_scalar_position;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
     CheckedStructuralPredicatePathSegment as Path, CrashPredicateExpression as Expression,
@@ -40,9 +42,7 @@ impl<'a> EntryConditions<'a> {
                     .state_parameters(entry)
                     .iter()
                     .enumerate()
-                    .filter(|(_, parameter)| {
-                        crate::values::occupies_scalar_position(self.program, parameter)
-                    })
+                    .filter(|(_, parameter)| occupies_scalar_position(self.program, parameter))
                     .map(|(position, _)| u32::try_from(position))
                     .collect::<Result<Vec<_>, _>>()
                     .ok()
@@ -99,11 +99,9 @@ impl MachineEntryConditions<'_> {
             return SummaryCrashRouteGuard::Truth;
         }
         let contexts = active_context_handles(&self.query.flow.contexts, contexts);
-        let Some(condition) = crate::facts::boolean_predicates::entry_path_necessary_condition(
-            self.query.semantic,
-            &contexts,
-            self.machine,
-        ) else {
+        let Some(condition) =
+            entry_path_necessary_condition(self.query.semantic, &contexts, self.machine)
+        else {
             return SummaryCrashRouteGuard::Truth;
         };
         let Some(identity) = self.boolean(&condition, 0) else {
