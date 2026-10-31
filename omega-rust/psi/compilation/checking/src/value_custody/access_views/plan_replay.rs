@@ -43,10 +43,6 @@ pub(super) fn exact_access_entry_for_field<'view>(
         })
 }
 
-fn expected_accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
-    access.operation_names()
-}
-
 /// Independently replay the compiler-derived nominal and stable-member joins
 /// before any accessor is accepted as an ordinary typed operation.
 pub(crate) fn validate_plans(
@@ -249,7 +245,7 @@ pub(crate) fn validate_plans(
                 }
             }
 
-            let expected_operations = expected_accessor_operations(&field.access);
+            let expected_operations = field.access.operation_names();
             if field
                 .accessor_targets
                 .iter()
