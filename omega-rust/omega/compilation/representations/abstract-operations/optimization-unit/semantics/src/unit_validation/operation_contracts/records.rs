@@ -7,13 +7,23 @@
 //! separately against the same operands.
 use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
 use crate::unit_validation::operation_contracts::structural_access::structural_source_contract;
+use crate::unit_validation::references::referent;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use crate::unit_validation::structural_catalog::shared_view_declaration;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
+use semantic_vocabulary::OperationId;
+use semantic_vocabulary::StructuralDomainId;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::RecordFieldInitializer;
+use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralDomainDeclaration;
+use terminal_psi::StructuralFieldDeclaration;
+use terminal_psi::StructuralOperationResult;
+use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::nonlinear_multiplicity_pair_pattern;
 use terminal_psi::{
     ByteSequenceCarrier, RecordFieldValue, StructuralAccess, StructuralFieldType,
     StructuralMultiplicity, StructuralTypeShape,
@@ -25,14 +35,14 @@ use terminal_psi::{
 pub(crate) fn plain_record_call(
     operation: &O,
     callee: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
     let Some(call) = plain_structural_call(operation, callee) else {
         return false;
     };
     matches!(
         call.signature.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        nonlinear_multiplicity_pair_pattern!()
     ) && call.signature.qualifications.is_empty()
         && call.signature.projected_qualifications.is_empty()
         && call.selected_evidence.is_empty()
@@ -41,7 +51,7 @@ pub(crate) fn plain_record_call(
         && callee.structural_parameters.iter().all(|parameter| {
             matches!(
                 parameter.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                nonlinear_multiplicity_pair_pattern!()
             ) && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
         })
@@ -55,11 +65,8 @@ pub(crate) fn plain_record_call(
 pub(crate) fn zeroed_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     let O::EstablishZeroedStructural {
         psi_operation,
@@ -69,10 +76,7 @@ pub(crate) fn zeroed_establishment_matches(
         return false;
     };
     operation_result_placement(function, result, *psi_operation)
-        && matches!(
-            result.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        )
+        && matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
         && result.qualifications.is_empty()
         && terminal_semantics::zeroed_projected_byte_qualifications_hold(
             types.values().copied(),
@@ -91,11 +95,8 @@ pub(crate) fn zeroed_establishment_matches(
 pub(crate) fn record_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     let O::EstablishRecord {
         psi_operation,
@@ -113,7 +114,7 @@ pub(crate) fn record_establishment_matches(
         StructuralMultiplicity::Linear => {
             matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
         }
-        terminal_psi::nonlinear_multiplicity_pair_pattern!() => result.claims.is_empty(),
+        nonlinear_multiplicity_pair_pattern!() => result.claims.is_empty(),
     };
     if !exact_result_place
         || !complete_root_custody
@@ -122,7 +123,7 @@ pub(crate) fn record_establishment_matches(
     {
         return false;
     }
-    let Some(terminal_psi::StructuralTypeDeclaration {
+    let Some(StructuralTypeDeclaration {
         shape:
             StructuralTypeShape::Record {
                 fields: declarations,
@@ -187,13 +188,10 @@ pub(crate) fn record_establishment_matches(
 /// own payload namespace; common fields retain their independent namespace.
 pub(super) fn constructor_qualifications_match(
     function: &PsiOptimizationFunction,
-    result: &terminal_psi::StructuralOperationResult,
-    fields: &[terminal_psi::RecordFieldInitializer],
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    result: &StructuralOperationResult,
+    fields: &[RecordFieldInitializer],
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
     selected_case: Option<semantic_vocabulary::StructuralCaseId>,
 ) -> bool {
     if !result.qualifications.is_empty()
@@ -265,8 +263,8 @@ pub(super) fn constructor_qualifications_match(
 /// A projected constructor never substitutes its root type for the selected field.
 fn constructor_argument_contract<'a>(
     function: &'a PsiOptimizationFunction,
-    argument: &terminal_psi::StructuralArgument,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    argument: &StructuralArgument,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<super::structural_access::StructuralSourceContract<'a>> {
     let mut source = structural_source_contract(function, argument.place)?;
     if !argument.path.is_empty() {
@@ -289,15 +287,12 @@ fn constructor_argument_contract<'a>(
 
 pub(crate) fn field_initializers_match(
     function: &PsiOptimizationFunction,
-    constructor: semantic_vocabulary::OperationId,
-    result: &terminal_psi::StructuralOperationResult,
-    declarations: &[terminal_psi::StructuralFieldDeclaration],
-    fields: &[terminal_psi::RecordFieldInitializer],
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    constructor: OperationId,
+    result: &StructuralOperationResult,
+    declarations: &[StructuralFieldDeclaration],
+    fields: &[RecordFieldInitializer],
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     let declarations = declarations
         .iter()
@@ -345,10 +340,7 @@ pub(crate) fn field_initializers_match(
                     && carrier_matches
                     && source.declared_byte_predicates(domains).is_some()
                     && !source_has_claims(function, argument.place)
-                    && matches!(
-                        source.multiplicity,
-                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                    )
+                    && matches!(source.multiplicity, nonlinear_multiplicity_pair_pattern!())
                     && (result.multiplicity != StructuralMultiplicity::Unrestricted
                         || source.multiplicity == StructuralMultiplicity::Unrestricted)
                     && (field_type.byte_predicates().is_empty()
@@ -394,13 +386,10 @@ pub(crate) fn field_initializers_match(
 /// supplies them.
 fn constructed_field_predicates(
     function: &PsiOptimizationFunction,
-    constructor: semantic_vocabulary::OperationId,
+    constructor: OperationId,
     source: PlaceId,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> Option<terminal_psi::ByteSequencePredicateSet> {
     let whole = crate::unit_validation::function_structure::whole_source_predicates(
         types.values().copied(),
@@ -452,7 +441,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
 }
 
 fn plain_record(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
     record_type(types, root, false, false)
@@ -462,7 +451,7 @@ fn plain_record(
 /// separate from plain payload classification: plain calls and returns do not
 /// thereby acquire recursive reference transfer semantics.
 pub(crate) fn constructible_record(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
     record_type(types, root, true, true)
@@ -471,7 +460,7 @@ pub(crate) fn constructible_record(
 /// Whether a member's shape is a shared-view descriptor (`&[T]` element view
 /// or a borrowed byte view): the record stores a loan, not owned bytes.
 fn shared_view_member(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     child: StructuralTypeId,
 ) -> bool {
     types
@@ -480,7 +469,7 @@ fn shared_view_member(
 }
 
 fn record_type(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
     references: bool,
     shared_view_members: bool,
@@ -504,7 +493,7 @@ fn record_type(
         // Classify descriptor leaves here so inserting an array between a
         // record and its reference does not change construction custody.
         // Reference leaves stop at their carrier; they do not own referents.
-        let fields: Vec<&terminal_psi::StructuralFieldDeclaration> = match types
+        let fields: Vec<&StructuralFieldDeclaration> = match types
             .get(&current)
             .copied()
             .map(|declaration| &declaration.shape)
@@ -524,8 +513,7 @@ fn record_type(
             }
             Some(StructuralTypeShape::PrimitiveScalar(_)) => Vec::new(),
             Some(StructuralTypeShape::Reference { .. })
-                if references
-                    && crate::unit_validation::references::referent(types, current).is_some() =>
+                if references && referent(types, current).is_some() =>
             {
                 Vec::new()
             }
@@ -580,7 +568,7 @@ fn record_type(
 /// scalar fields and supported reference leaves. A reference owns its loan,
 /// not the referent's storage; traversal stops at that carrier boundary.
 pub(crate) fn constructible(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
     let mut pending = vec![root];
@@ -597,7 +585,7 @@ pub(crate) fn constructible(
             return false;
         };
         // Fixed arrays carry every element as a member slot.
-        let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
+        let matching: Vec<&StructuralFieldDeclaration> = match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => fields.iter().collect(),
             StructuralTypeShape::Sum { cases } => {
                 cases.iter().flat_map(|case| case.fields.iter()).collect()
@@ -610,9 +598,7 @@ pub(crate) fn constructible(
                 pending.push(*element);
                 Vec::new()
             }
-            StructuralTypeShape::Reference { .. }
-                if crate::unit_validation::references::referent(types, current).is_some() =>
-            {
+            StructuralTypeShape::Reference { .. } if referent(types, current).is_some() => {
                 Vec::new()
             }
             _ => return false,
@@ -641,10 +627,10 @@ pub(crate) fn constructible(
 /// The completed-value join shared by named fields and fixed-array elements.
 pub(super) fn structural_initializer_matches(
     function: &PsiOptimizationFunction,
-    result: &terminal_psi::StructuralOperationResult,
+    result: &StructuralOperationResult,
     expected: StructuralTypeId,
-    argument: &terminal_psi::StructuralArgument,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    argument: &StructuralArgument,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
     let Some(source) = constructor_argument_contract(function, argument, types) else {
         return false;
@@ -660,10 +646,7 @@ pub(super) fn structural_initializer_matches(
         && source.structural_type == expected
         && !source_has_claims(function, argument.place)
         && argument.place != result.place
-        && matches!(
-            source.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        )
+        && matches!(source.multiplicity, nonlinear_multiplicity_pair_pattern!())
         && (result.multiplicity != StructuralMultiplicity::Unrestricted
             || source.multiplicity == StructuralMultiplicity::Unrestricted)
 }
