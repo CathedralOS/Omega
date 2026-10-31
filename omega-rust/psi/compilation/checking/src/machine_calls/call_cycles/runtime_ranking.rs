@@ -351,7 +351,13 @@ pub(super) fn project_component(
             // Whether every earlier statement in this state preserved the
             // entry-relative frame the call-site comparison reads.
             let mut entry_relative = true;
-            let captured_scalar = ranks[position].captured_scalar().is_some();
+            // A fresh invocation saves an entry value. A normalized label
+            // entry instead consumes its admitted state-inductive telescope
+            // and range regime, including the original preservation checks.
+            let captured_scalar = states
+                .first()
+                .is_some_and(|entry| entry.symbol == state.symbol)
+                && ranks[position].captured_scalar().is_some();
             for (statement_ordinal, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -682,7 +688,11 @@ fn admit_ranked_edge(
     if let (Some(source), Some(destination)) = (
         ranks[caller_rank_index].captured_scalar(),
         ranks[callee_position].captured_scalar(),
-    ) {
+    ) && program
+        .machine_states(caller)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol)
+    {
         strict = match prove_captured_scalar_rank_call(
             program,
             caller,

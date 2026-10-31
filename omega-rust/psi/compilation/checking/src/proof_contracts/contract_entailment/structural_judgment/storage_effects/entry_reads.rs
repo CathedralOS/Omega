@@ -20,6 +20,64 @@ impl StructuralJudge<'_> {
         })
     }
 
+    pub(super) fn entry_scalar_read_backing(
+        &self,
+        machine: &Machine,
+        state: &State,
+        root: symbols::SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<crate::machine_calls::calls::CapturedStorageReadBacking> {
+        let geometry = crate::structural_scalar_coordinate(
+            self.program,
+            self.program.state_parameters(state),
+            root,
+            path,
+        )?;
+        let first = self
+            .program
+            .statement_table
+            .admitted_execution_order(state.statement_nodes)
+            .indices()
+            .first()
+            .copied()
+            .unwrap_or(0);
+        let frames = self.frame_resolver()?;
+        let mut backing = crate::machine_calls::calls::CapturedStorageReadBacking {
+            sources: Vec::new(),
+            values: Vec::new(),
+            bindings: Vec::new(),
+        };
+        // Inline elements authenticate their containing collection. Stored
+        // reference crossings retain the complete selected load requirement.
+        // Geometry's list is authoritative; a non-executed dynamic selector
+        // must never masquerade as an executed element-load occurrence.
+        for requirement in &geometry.source_requirements {
+            let part = frames.storage_read_backing_before_statement(
+                machine,
+                state,
+                first,
+                root,
+                requirement,
+            )?;
+            for source in part.sources {
+                if !backing.sources.contains(&source) {
+                    backing.sources.push(source);
+                }
+            }
+            for value in part.values {
+                if !backing.values.contains(&value) {
+                    backing.values.push(value);
+                }
+            }
+            for binding in part.bindings {
+                if !backing.bindings.contains(&binding) {
+                    backing.bindings.push(binding);
+                }
+            }
+        }
+        (!backing.sources.is_empty()).then_some(backing)
+    }
+
     /// The caller has independently admitted the source observation's geometry,
     /// selectors and formation. Authenticate its exact readable backing at entry
     /// before freezing its scalar value; no declaration grants a later reread.
@@ -52,10 +110,10 @@ impl StructuralJudge<'_> {
             .state_parameter_by_symbol(state, root)
             .ok_or("the rank entry input is not rooted in its state formals")?;
         let backing = self
-            .frame_resolver()
-            .ok_or("the rank entry input has no call-frame resolver")?
-            .storage_read_backing_before_statement(machine, state, 0, root, &canonical.segments)
-            .ok_or("the rank entry input has no authenticated before-statement backing")?;
+            .entry_scalar_read_backing(machine, state, root, &canonical.segments)
+            .ok_or(
+                "the rank entry input has an unauthenticated carrier or reference-load requirement",
+            )?;
         let coordinate = self
             .capture_entry_storage_place(canonical)
             .ok_or("the rank entry input has no exact formal selector snapshot")?;

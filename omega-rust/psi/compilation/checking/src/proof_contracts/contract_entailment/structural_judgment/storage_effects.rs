@@ -478,15 +478,9 @@ impl StructuralJudge<'_> {
             let Some(root) = place.root.as_symbol() else {
                 continue;
             };
-            let Some(backing) = self.frame_resolver().and_then(|frames| {
-                frames.storage_read_backing_before_statement(
-                    machine,
-                    state,
-                    0,
-                    root,
-                    &canonical.segments,
-                )
-            }) else {
+            let Some(backing) =
+                self.entry_scalar_read_backing(machine, state, root, &canonical.segments)
+            else {
                 continue;
             };
             let Some(value) = self.declaration_term(expression) else {
