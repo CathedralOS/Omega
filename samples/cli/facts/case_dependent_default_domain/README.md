@@ -73,8 +73,8 @@ guarded `hi <= 32` bound through every transport place into `pick` and
   native agreement on exit 0 for all four hosted `ProgramEntry` rows. This
   host executes `linux_x86_64`.
 
-Still open on the parent item: nested and inherited scalar domain result
-establishment, including qualified constant destinations, and applying a
-generic data declaration's own arguments to `requires self` in the
-Omega-written producer. Case-local `where` is retired;
-`tests/omega/fail/domains/retired_case_predicate` rejects it.
+`Value<T>`'s `requires` uses `T` on the applied subject. Case-local `where`
+is retired; `tests/omega/fail/domains/retired_case_predicate` rejects it.
+The parent item still owes one general predicate representation through
+formation, construction, calls, matching, coverage, writes, and erasure.
+The local write place is `default_domain_field_write`.
