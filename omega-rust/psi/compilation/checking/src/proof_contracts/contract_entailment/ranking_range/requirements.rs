@@ -543,6 +543,7 @@ fn prove(
                     })
                 } else {
                     calls::rank_coordinate(program, caller, &mut source_engine, *measure)
+                        .map(|rank| rank.value)
                 }
             })
         };

@@ -14,6 +14,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CheckedStateNaturalRank>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
@@ -43,7 +44,8 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
         })
     };
     let subject = *subjects.first()?;
-    let mut entry = coordinate(subject)?;
+    let input = coordinate(subject)?;
+    let mut entry = input.clone();
     if let RankingOrder::CustomStructView {
         path, field_symbol, ..
     } = &order
@@ -98,8 +100,77 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     .measures()
                     .iter()
                     .find(|definition| definition.symbol == *measure)?;
+                let formal = declaration.parameter.as_ref()?;
+                let inputs = selected.declaration_bindings(formal.symbol, &input);
+                if inputs.is_empty() {
+                    return None;
+                }
+                // Named/aggregate prefixes need no selector receipt. Only an
+                // indexed destination asks the entry projection owner for its
+                // exact state-local bounds, before executable observation.
+                let has_index = |coordinate: &validation::RankSubjectCoordinate| {
+                    coordinate
+                        .path
+                        .iter()
+                        .any(|step| matches!(step, facts::PlaceSegment::Index { .. }))
+                };
+                let values = if inputs.iter().any(|input| has_index(&input.destination)) {
+                    let paths = inputs
+                        .iter()
+                        .map(|input| input.destination.path.clone())
+                        .collect::<Vec<_>>();
+                    let execution = program
+                        .statement_table
+                        .admitted_execution_order(state.statement_nodes);
+                    let first = *execution.indices().first()?;
+                    Some(crate::checks::current_scalar_values::CurrentScalarValues::at_observing_projections(
+                        program, machine, state, first, Default::default(), frames, &paths,
+                    )?)
+                } else {
+                    None
+                };
+                let bindings = inputs
+                    .into_iter()
+                    .map(|binding| {
+                        let mut retain = |coordinate: validation::RankSubjectCoordinate| {
+                            let path = admitted.path_segments.insert_many(coordinate.path);
+                            admitted
+                                .coordinates
+                                .insert(checked_trees::CheckedRankCoordinate {
+                                    parameter: coordinate.parameter,
+                                    path,
+                                    entry_indexes: Default::default(),
+                                })
+                        };
+                        let entry = retain(binding.entry);
+                        let destination = if !has_index(&binding.destination) {
+                            retain(binding.destination)
+                        } else {
+                            let (_, _, _, indexes) = values
+                                .as_ref()?
+                                .entry_scalar_field_observations(binding.destination.parameter)
+                                .find(|(path, _, _, _)| *path == binding.destination.path)?;
+                            let path = admitted.path_segments.insert_many(binding.destination.path);
+                            let entry_indexes = admitted.entry_indexes.insert_many(indexes);
+                            admitted
+                                .coordinates
+                                .insert(checked_trees::CheckedRankCoordinate {
+                                    parameter: binding.destination.parameter,
+                                    path,
+                                    entry_indexes,
+                                })
+                        };
+                        Some(checked_trees::CheckedRankCoordinateBinding {
+                            entry,
+                            destination,
+                            ..Default::default()
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let bindings = admitted.bindings.insert_many(bindings);
                 CheckedNaturalRankMeasure::DeclaredMeasure {
                     measure: *measure,
+                    bindings,
                     primitive_type: program.primitive_type_reference(declaration.return_type)?,
                 }
             }

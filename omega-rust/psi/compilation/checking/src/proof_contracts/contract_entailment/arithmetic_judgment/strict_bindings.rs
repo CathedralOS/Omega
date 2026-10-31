@@ -420,7 +420,7 @@ impl<'program> Engine<'program> {
         )
     }
 
-    pub(super) fn source_result_type(
+    pub(in crate::proof_contracts::contract_entailment) fn source_result_type(
         &self,
         expression: ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {

@@ -92,13 +92,18 @@ pub(super) fn compare(
     order: Order,
 ) -> Option<bool> {
     let actual = *edge.arguments.get(destination.coordinate.position)?;
-    let initial = &source.coordinate.entry_value;
+    let initial = &source.entry_value;
     let next = destination.coordinate.current(
         &edge.values,
         actual,
         machines[edge.destination],
         edge.arguments,
     )?;
+    let next = if let Some(application) = destination.application {
+        application.observe(&edge.values, machines[edge.source], next)?
+    } else {
+        next
+    };
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
         edge.values
