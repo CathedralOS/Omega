@@ -255,6 +255,9 @@ impl super::TypedTrees {
         // the containment/value roster under this owner, even if a replacement
         // arena happened to carry the predecessor's revision numbers.
         self.invalidate_state_declaration_index();
+        // State lookup in frozen checking/lowering shares these raw positions.
+        // Public table replacement may preserve every previous revision number.
+        self.declaration_indexes.states.clear();
         let any_symbol = self.symbols.root();
         self.with_machine_position_index(|_| ());
         self.with_state_position_index(|_| ());
