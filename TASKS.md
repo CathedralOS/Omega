@@ -890,6 +890,9 @@ helper that passes does not close an item.
     with the original 256-width and mismatched-policy-argument reject controls.
     Its exact source and unfinished repairs are retained at that checkpoint;
     the completed storage/bit rows do not establish this composition.
+    [Phantom-region forwarding through implementation arguments](https://github.com/CathedralOS/Omega/blob/ee2c8a1fceffff32a4533f83bb46d38010735a47/tests/omega/pass/traits/implementation_value_mapped_region_identity/main.omg)
+    also remains unqualified: preserve its distinct environment/storage regions
+    and the same constant index through the original forwarding call.
   - Supply a library C-layout family and migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
