@@ -256,27 +256,88 @@ reached the event's machine** (see below). `site()` is only consumed
 per member — `prefix_site_is_reachable` must run per member before
 registration.
 
-**The masking subtlety.** `stops_at_machine` controls *descent*, not
-event delivery: an event in `m2` is in member `r`'s stream iff `r`
-would not have stopped at `m2` AND at every ancestor machine on the
-descent path `root→…→m2`. Filtering events by `r.stops_at_machine
-(event.machine)` alone is wrong — it leaks observations below a
-stopped boundary. Track per-member reachability instead: members
-start with `reached = {root}`; on `entered_body(caller, _, _, entry)`
-deliver to `r` iff `caller ∈ r.reached` and `!r.stops_at_machine
-(entry_machine)`, then insert `entry_machine` into `r.reached`; on
-`visit`/`observe` for machine `m` deliver iff `m ∈ r.reached`. The
-judge's `body_invocations` chain is an alternative mask source but
-`entered_body` carries no judge — the reached-set is the robust form.
+**No masking needed — streams are identical per root.** Verified
+against the code: `stops_at_machine` is consulted *only* inside
+`prefix_site_is_reachable` (the per-root precheck deciding whether a
+root's walk counts at all) — the traversal never prunes descent.
+Every non-skipped root walk traverses the entire nested cone and
+delivers every event unconditionally, so all members of a (root,
+case_facts_only) batch receive byte-identical streams: broadcast each
+event to all members, gating per-member delivery on `!member.
+is_complete()`. `prefix_site_is_reachable` runs per member before
+registration; unreachable members are simply absent from that root's
+batch, exactly as their solo `continue` behaved. (`entered_body` args
+are *state* symbols — caller state + callee entry state — resolve
+machines via `machine_state_by_symbol` when needed.)
+
+**Descent eligibility is per-member.** At 2008-2018 the nested
+walker *skips* a transition descent when `site().state ==
+state.symbol` (site is here, a jump leaves the invocation) or
+`!prefix_site_is_reachable(target_state, observer)`. `call_entries::
+observe_statement` does the same at 37 (site already on `path` or in
+this state → early return) and 52 (site unreachable via the callee →
+`continue`). `entered_body` must be delivered **only to members whose
+eligibility test passes for that descent** — over-delivered call-entry
+events change inner requirements' verdicts. Per-descent, build the
+eligible member subset (`v.site().state != state.symbol && !
+path.contains(&v.site().state) && prefix_site_is_reachable(..., v)`),
+send `entered_body` to that subset, and recurse with the eligible
+subset only.
+
+**Union-walk over-diagnosis edge (accept + document).** A batched
+walk descends wherever *any* member is eligible, so its arm set is the
+union of members' solo cones — identical per-member leaves where they
+overlap (same judge/frames), but diagnostics/`?`-aborts from a
+member's extra subtree can mark the shared walk unrecognized where
+that member's own solo walk skipped it. This is an incompleteness
+(reject-direction) risk only — never a wrong-accept — and is the
+right trade versus not terminating; corpus CI adjudicates.
+
+**Signature conversion.** The chain is `recognize_structural_case_
+arms` (entry, `Option<&mut dyn>`) → `recognize_structural_state_
+leaves` → `recognize_structural_state_leaves_from` (1184,
+`requirement: &mut Option<&mut dyn StructuralPrefixVisitor>`) →
+`call_entries::observe_statement` (33) → recursion. Convert the inner
+three to `visitors: &mut [&mut dyn StructuralPrefixVisitor]`; keep the
+public Option entry and internally wrap with `map(std::slice::
+from_mut).unwrap_or(&mut [])`, adding a `…_batched(visitors)` entry
+for `observe_frontier`. Touchpoints inside `…_from`: is_complete
+early-exit → `all complete` (1196); observation_position → max
+position over members sited in this state (1235); visit gates →
+per-member site match at 1271/1725/1779/1963; `is_some_and(site…)`
+prunes → `iter().any` at 1442/1468/1950; `is_some()` gates →
+`!visitors.is_empty()` at 1289/1340/1740/1999/2152/2166/2198;
+entered_body → eligible subset (2105); descend → any-eligible
+(2008).
+
+**The real blocker: site() drives the nested walker.** Inside
+`recognize_structural_state_leaves_from` (structural_case_arms.rs
+1168+), `requirement.site()` both *truncates* each entered state's
+statement loop at the site position (1236/1265 `break`) and fires
+`visit` only at the exact site statement (1272+; also 1443, 1469,
+1730, 1786, 1968). A single `site()` cannot express N members, so
+batching requires a **plural nested walker**: thread
+`&mut [&mut dyn StructuralPrefixVisitor]` through
+`recognize_structural_state_leaves` / `…_from` /
+`recognize_structural_case_arms` / `call_entries`, replacing each
+`requirement.site()` gate with per-visitor loops that take the max
+needed position across members whose `site().state == state.symbol`
+and fire each member's `visit` at its own statement — exactly the
+mechanics `recognize_structural_state_prefixes` (544-1125) already
+implements for the same-state case (`any_visitor_at_transition`,
+per-visitor `valid[]`, per-visitor `is_complete` skips). Then
+`observe_frontier` grows a batched twin holding
+`Vec<ArrivalRequirement>` members per root walk, and
+`observe_private_arrivals_batch(program, machine, &mut [&mut Request],
+case_facts_only) -> Vec<Option<bool>>` shares the arrivals/frontier
+computation across a machine's obligations.
 
 **Same-machine shortcut.** Every obligation on `mk` shares `entry`,
 `boundaries`, `closed`, `roots`, `expected` — members differ *only* in
-the wrapped `Request`. So a same-machine batch needs no masking at
-all (identical visibility): one broadcast observer + one shared
-`observed` set. That is a ~sites-per-machine constant cut only; the
-asymptotic win is the cross-machine root pool above (`m0` is a root
-in *every* nested machine's frontier, so pooling it serves N
-obligations in one O(N) walk).
+the wrapped `Request`. Batching per machine is a ~sites-per-machine
+constant cut; the asymptotic win is the cross-machine root pool
+(`m0` is a root in *every* nested machine's frontier, so pooling it
+serves N obligations' m0-legs in one O(N) walk).
 
 **Driver plumbing.** Demand laziness is the real blocker —
 `observe_operand_fit_at_occurrence` builds one `OperandFit` visitor,
