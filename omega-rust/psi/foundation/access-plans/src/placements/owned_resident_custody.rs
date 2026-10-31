@@ -1,5 +1,6 @@
 use extents::{ExtentLoan, ProviderExistingContentGrant};
 
+use crate::access_plan::diagnostic::reject_when;
 use crate::placements::placement_admission::validate_placement_admission;
 use crate::{
     AccessPlanDiagnostic, DormantOwnedResident, ObservationModel, OwnedPlacementAdmission,
@@ -70,41 +71,21 @@ pub(super) fn validate_provider_content_binding(
     loan: &ExtentLoan<'_>,
     content: &ProviderExistingContentGrant,
 ) -> Result<(), AccessPlanDiagnostic> {
-    if content.interpretation() != plan.content_interpretation() {
-        return Err(AccessPlanDiagnostic(
-            "provider existing-content interpretation commitment does not match the admitted placement"
-                .into(),
-        ));
-    }
-    if content.origin() != loan.origin() {
-        return Err(AccessPlanDiagnostic(
-            "provider existing-content origin does not match the admitted Extent".into(),
-        ));
-    }
-    if content.lineage_root() != loan.lineage_root() {
-        return Err(AccessPlanDiagnostic(
-            "provider existing-content lineage does not match the admitted Extent".into(),
-        ));
-    }
-    if content.base() != loan.base() || content.length() != loan.length() {
-        return Err(AccessPlanDiagnostic(
-            "provider existing-content geometry does not match the admitted Extent".into(),
-        ));
-    }
-    if content.address_space() != loan.address_space() {
-        return Err(AccessPlanDiagnostic(
-            "provider existing-content address space does not match the admitted Extent".into(),
-        ));
-    }
-    if content.provenance() != loan.provenance() {
-        return Err(AccessPlanDiagnostic(
-            "provider existing-content provenance does not match the admitted Extent".into(),
-        ));
-    }
-    if content.era() != loan.era() {
-        return Err(AccessPlanDiagnostic(
-            "provider existing-content mapping era does not match the admitted Extent".into(),
-        ));
+    reject_when! {
+        content.interpretation() != plan.content_interpretation()
+            => "provider existing-content interpretation commitment does not match the admitted placement",
+        content.origin() != loan.origin()
+            => "provider existing-content origin does not match the admitted Extent",
+        content.lineage_root() != loan.lineage_root()
+            => "provider existing-content lineage does not match the admitted Extent",
+        content.base() != loan.base() || content.length() != loan.length()
+            => "provider existing-content geometry does not match the admitted Extent",
+        content.address_space() != loan.address_space()
+            => "provider existing-content address space does not match the admitted Extent",
+        content.provenance() != loan.provenance()
+            => "provider existing-content provenance does not match the admitted Extent",
+        content.era() != loan.era()
+            => "provider existing-content mapping era does not match the admitted Extent",
     }
     Ok(())
 }

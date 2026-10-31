@@ -14,7 +14,7 @@ use crate::snapshot::metadata::{local_snapshot_metadata, verify_local_snapshot};
 use crate::snapshot::permissions::make_open_snapshot_read_only;
 use crate::snapshot::publication::PendingMaterializedSnapshot;
 use crate::tree::capture::{CapturedLocalEntryKind, CapturedLocalTree, capture_exact_materialized};
-use crate::tree::filesystem::io_error;
+use crate::tree::filesystem::IoResultAt;
 use cap_fs_ext::DirExt;
 use std::path::Path;
 
@@ -79,11 +79,11 @@ fn materialize_pending_local_snapshot(
     pending
         .directory()?
         .create_dir(LOCAL_SNAPSHOT_SOURCE)
-        .map_err(|error| io_error(&source, error))?;
+        .at(&source)?;
     let source_directory = pending
         .directory()?
         .open_dir_nofollow(LOCAL_SNAPSHOT_SOURCE)
-        .map_err(|error| io_error(&source, error))?;
+        .at(&source)?;
 
     for entry in &captured.entries {
         match &entry.kind {

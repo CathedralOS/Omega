@@ -3,7 +3,7 @@
 use crate::custody::platform::same_capability_file_identity;
 use crate::error::SourceResolveError;
 use crate::limits::GIT_CONFIG_SHA256;
-use crate::tree::filesystem::io_error;
+use crate::tree::filesystem::IoResultAt;
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 use platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
@@ -20,7 +20,7 @@ pub(crate) fn replace_canonical_git_control_file(
 ) -> Result<(), SourceResolveError> {
     let classified = entry
         .symlink_metadata(repository_name)
-        .map_err(|error| io_error(repository_path, error))?;
+        .at(repository_path)?;
     if classified.file_type().is_symlink() || !classified.is_dir() {
         return Err(cache_invalid(
             repository_path,
@@ -30,9 +30,7 @@ pub(crate) fn replace_canonical_git_control_file(
     let directory = entry
         .open_dir_nofollow(repository_name)
         .map_err(|error| cache_invalid(repository_path, error.to_string()))?;
-    let opened = directory
-        .dir_metadata()
-        .map_err(|error| io_error(repository_path, error))?;
+    let opened = directory.dir_metadata().at(repository_path)?;
     if !same_capability_file_identity(&classified, &opened) {
         return Err(cache_invalid(
             repository_path,
@@ -52,9 +50,7 @@ pub(crate) fn replace_canonical_git_control_file_from_open_repository(
     canonical_config: &[u8],
 ) -> Result<(), SourceResolveError> {
     let config_path = repository_path.join("config");
-    let directory = repository
-        .try_clone()
-        .map_err(|error| io_error(repository_path, error))?;
+    let directory = repository.try_clone().at(repository_path)?;
     let root = RecordFileRoot::from_directory(directory, repository_path.to_path_buf()).map_err(
         |error| {
             cache_invalid(

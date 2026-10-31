@@ -3657,11 +3657,7 @@ pub(in crate::legalization) fn referent_argument(
     let selected = projection.selected;
     let source_byte_offset = projection.referent_offset;
     if selected != declaration.structural_type
-        || Some(destination.shape)
-            != crate::structural_inputs::structural_reference_input::parameter_shape(
-                declaration,
-                types,
-            )
+        || Some(destination.shape) != crate::structural_inputs::parameter_shape(declaration, types)
     {
         return Err(invalid());
     }

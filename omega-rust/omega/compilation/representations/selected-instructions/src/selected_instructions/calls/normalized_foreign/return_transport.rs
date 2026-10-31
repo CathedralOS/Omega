@@ -43,13 +43,7 @@ pub fn resolve(
         if !matches!(
             record.call.result,
             target_operations::TargetBoundaryResult::Unit
-        ) || record
-            .call
-            .binding
-            .boundary_entry_plan
-            .call
-            .result
-            .is_some()
+        ) || record.result_placement().is_some()
             || !record.call.callbacks.is_empty()
             || !matches!(&block.terminator,
                 crate::SelectedTerminator::HostedExitProcess { instruction, completion_edge }
@@ -74,19 +68,12 @@ pub fn resolve(
     }
     let operation = record.invocation_site.operation()?;
     let indirect_scalar = record.call.result.scalar_home().is_some()
-        && record
-            .call
-            .binding
-            .boundary_entry_plan
-            .call
-            .result
-            .as_ref()
-            .is_some_and(|placement| {
-                matches!(
-                    placement.locations.as_slice(),
-                    [calling_conventions::ValueLocation::Indirect { .. }]
-                )
-            });
+        && record.result_placement().is_some_and(|placement| {
+            matches!(
+                placement.locations.as_slice(),
+                [calling_conventions::ValueLocation::Indirect { .. }]
+            )
+        });
     let mut result_registers = if indirect_scalar {
         validate_indirect_destination(function, block, record, call_position)?;
         Vec::new()
@@ -108,13 +95,7 @@ pub fn resolve(
         vec![output.virtual_register]
     } else if let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result {
         use calling_conventions::ValueLocation;
-        let placement = record
-            .call
-            .binding
-            .boundary_entry_plan
-            .call
-            .result
-            .as_ref()?;
+        let placement = record.result_placement()?;
         match placement.locations.as_slice() {
             [ValueLocation::Indirect { .. }] => Vec::new(),
             locations if !locations.is_empty() => {
@@ -240,13 +221,7 @@ fn validate_indirect_destination(
 ) -> Option<()> {
     let home = record.call.result.scalar_home()?;
     let operation = record.invocation_site.operation()?;
-    let placement = record
-        .call
-        .binding
-        .boundary_entry_plan
-        .call
-        .result
-        .as_ref()?;
+    let placement = record.result_placement()?;
     if placement.shape != home.shape || !placement.is_complete_scalar_result() {
         return None;
     }

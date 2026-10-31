@@ -140,10 +140,7 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
-    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-        indices,
-        &geometry.elements,
-    ) {
+    if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
         return Err(invalid());
     }
     let field_offset = geometry.offset;

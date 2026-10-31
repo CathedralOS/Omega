@@ -9,6 +9,7 @@ use crate::custody::publication::{
 use crate::custody::tree::verify_cache_custody_root;
 use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid};
 use crate::limits::STAGING_SEQUENCE;
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 #[cfg(test)]
 use crate::tree::filesystem::open_absolute_directory_nofollow;
@@ -50,24 +51,18 @@ impl PendingMaterializedSnapshot {
         retained_parent: &CapabilityDirectory,
         prefix: &str,
     ) -> Result<Self, SourceResolveError> {
-        let parent = retained_parent
-            .try_clone()
-            .map_err(|error| io_error(snapshots, error))?;
+        let parent = retained_parent.try_clone().at(snapshots)?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
             let stage_name = OsString::from(format!("{prefix}-{}-{sequence}", std::process::id()));
             let root = snapshots.join(&stage_name);
             match parent.create_dir(&stage_name) {
                 Ok(()) => {
-                    let classified = parent
-                        .symlink_metadata(&stage_name)
-                        .map_err(|error| io_error(&root, error))?;
+                    let classified = parent.symlink_metadata(&stage_name).at(&root)?;
                     let directory = parent
                         .open_dir_nofollow(&stage_name)
                         .map_err(|error| cache_custody_invalid(kind, &root, error.to_string()))?;
-                    let opened = directory
-                        .dir_metadata()
-                        .map_err(|error| io_error(&root, error))?;
+                    let opened = directory.dir_metadata().at(&root)?;
                     if !classified.is_dir() || !same_capability_file_identity(&classified, &opened)
                     {
                         return Err(cache_custody_invalid(
@@ -108,13 +103,11 @@ impl PendingMaterializedSnapshot {
         publication: &Path,
     ) -> Result<(), SourceResolveError> {
         let directory = self.directory()?;
-        let retained = directory
-            .dir_metadata()
-            .map_err(|error| io_error(&self.root, error))?;
+        let retained = directory.dir_metadata().at(&self.root)?;
         let named = self
             .parent
             .symlink_metadata(&self.stage_name)
-            .map_err(|error| io_error(&self.root, error))?;
+            .at(&self.root)?;
         if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
             return Err(cache_custody_invalid(
                 self.kind,
@@ -150,7 +143,7 @@ impl PendingMaterializedSnapshot {
             let published = self
                 .parent
                 .symlink_metadata(publication_name)
-                .map_err(|error| io_error(publication, error))?;
+                .at(publication)?;
             if !published.is_dir() || !same_capability_file_identity(&retained, &published) {
                 return Err(cache_custody_invalid(
                     self.kind,

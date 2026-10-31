@@ -9,13 +9,13 @@ use register_model::{
 };
 use selected_instructions::LiveRangeIdentity;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineEffectCatalogIdentity, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineSizeKnowledge,
-    OutgoingArgumentSlotId, PreAllocationMachineEffectIdentity, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlanIdentity, SelectedOutgoingArgumentSlot,
-    VirtualRegisterId,
+    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEffectCatalogIdentity,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
+    MachineSizeKnowledge, OutgoingArgumentSlotId, PreAllocationMachineEffectIdentity,
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
+    SelectedLocalStorageSlot, SelectedOutgoingArgumentSlot, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, OperationId};
 use target::NativeTarget;
@@ -26,7 +26,7 @@ use crate::{
     PostAllocationMachineInstruction, PostAllocationMachinePlan, post_allocation_machine_identity,
 };
 
-use super::PostAllocationMachineDecodeError;
+use super::PostAllocationMachineDecodeError as DecodeError;
 
 const HEADER_IDENTITY_OFFSET: usize = 12;
 const SELECTED_OFFSET: usize = 44;
@@ -80,7 +80,7 @@ fn post_allocation_codec_pins_current_schema_at_empty_boundaries() {
 fn post_allocation_identity_stream_scratch_does_not_grow_with_instruction_count() {
     let mut source = plan();
     let single_size = source.encode().len();
-    let instruction = source.functions[0].blocks[0].instructions[0].clone();
+    let instruction = first_instruction(&mut source).clone();
     source.functions[0].blocks[0].instructions = (0..1000)
         .map(|ordinal| {
             let mut instruction = instruction.clone();
@@ -103,7 +103,7 @@ fn post_allocation_identity_stream_scratch_does_not_grow_with_instruction_count(
 #[test]
 fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_operation() {
     let mut source = plan();
-    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    let instruction = first_instruction(&mut source);
     instruction.alternative.key.family = MachineAlternativeFamily::CopyBytes;
     instruction.address = None;
     instruction.alternative.encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
@@ -111,18 +111,14 @@ fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
         destination_pointer_operand: 1,
         count_operand: 2,
     };
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     for role in 0..3 {
         let mut changed = source.clone();
         let MachineEncodedMemoryEffect::CopyBytesV1 {
             source_pointer_operand,
             destination_pointer_operand,
             count_operand,
-        } = &mut changed.functions[0].blocks[0].instructions[0]
-            .alternative
-            .encoded
-            .memory
+        } = &mut first_instruction(&mut changed).alternative.encoded.memory
         else {
             panic!("copy effect");
         };
@@ -139,24 +135,20 @@ fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
 #[test]
 fn physical_zero_bytes_codec_binds_dynamic_operand_roles_without_an_address_operation() {
     let mut source = plan();
-    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    let instruction = first_instruction(&mut source);
     instruction.alternative.key.family = MachineAlternativeFamily::ZeroBytes;
     instruction.address = None;
     instruction.alternative.encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
         destination_pointer_operand: 0,
         count_operand: 1,
     };
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     for role in 0..2 {
         let mut changed = source.clone();
         let MachineEncodedMemoryEffect::ZeroBytesV1 {
             destination_pointer_operand,
             count_operand,
-        } = &mut changed.functions[0].blocks[0].instructions[0]
-            .alternative
-            .encoded
-            .memory
+        } = &mut first_instruction(&mut changed).alternative.encoded.memory
         else {
             panic!("zero fill effect");
         };
@@ -173,6 +165,34 @@ fn identity(byte: u8) -> [u8; 32] {
     [byte; 32]
 }
 
+/// The one instruction these fixtures author in the first block.
+fn first_instruction(
+    plan: &mut PostAllocationMachinePlan,
+) -> &mut PostAllocationMachineInstruction {
+    &mut plan.functions[0].blocks[0].instructions[0]
+}
+
+/// Author one local slot in the single function these fixtures build.
+fn add_local_slot(
+    plan: &mut PostAllocationMachinePlan,
+    id: LocalStorageSlotId,
+    byte_size: u32,
+    alignment: u16,
+) {
+    let slot = SelectedLocalStorageSlot {
+        id,
+        byte_size,
+        alignment,
+    };
+    plan.functions[0].local_storage_slots.push(slot);
+}
+
+/// Stamp the identity the mutated content now has, then prove it round trips.
+fn restamp_and_round_trip(plan: &mut PostAllocationMachinePlan) {
+    plan.identity = post_allocation_machine_identity(plan);
+    assert_round_trip(plan);
+}
+
 /// The codec contract every field probe re-states: one plan round trips
 /// through its own canonical bytes.
 fn assert_round_trip(plan: &PostAllocationMachinePlan) {
@@ -185,10 +205,12 @@ fn assert_round_trip(plan: &PostAllocationMachinePlan) {
 /// Content that changed after the identity was stamped is refused by the
 /// artifact's own authentication, not silently re-authenticated.
 fn assert_content_mismatch(changed: &PostAllocationMachinePlan) {
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&changed.encode()),
-        Err(PostAllocationMachineDecodeError::InvalidIdentity)
-    );
+    assert_rejected(&changed.encode(), DecodeError::InvalidIdentity);
+}
+
+/// The framing refusal every byte-level probe expects for its own field.
+fn assert_rejected(encoded: &[u8], error: DecodeError) {
+    assert_eq!(PostAllocationMachinePlan::decode(encoded), Err(error));
 }
 
 fn assert_content_rejected(
@@ -206,9 +228,7 @@ fn assert_version_rejected(encoded: &[u8], version: u32) {
     crate::codec_bytes::patch_encoded(&mut stale, 8, version.to_le_bytes());
     assert_eq!(
         PostAllocationMachinePlan::decode(&stale),
-        Err(PostAllocationMachineDecodeError::UnsupportedVersion(
-            version
-        ))
+        Err(DecodeError::UnsupportedVersion(version))
     );
 }
 
@@ -310,17 +330,11 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
 #[test]
 fn physical_codec_retains_byte_view_address_family_not_exact_add() {
     let mut source = plan();
-    source.functions[0].blocks[0].instructions[0]
-        .alternative
-        .key
-        .family = MachineAlternativeFamily::ByteViewAddress;
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    first_instruction(&mut source).alternative.key.family =
+        MachineAlternativeFamily::ByteViewAddress;
+    restamp_and_round_trip(&mut source);
     assert_content_rejected(&source, |changed| {
-        changed.functions[0].blocks[0].instructions[0]
-            .alternative
-            .key
-            .family = MachineAlternativeFamily::ExactAddI64;
+        first_instruction(changed).alternative.key.family = MachineAlternativeFamily::ExactAddI64;
     });
 }
 
@@ -371,7 +385,7 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
                 byte_offset: 0,
             },
         ] {
-            source.functions[0].blocks[0].instructions[0].address = Some(address);
+            first_instruction(&mut source).address = Some(address);
             source.identity = post_allocation_machine_identity(&source);
             let encoded = source.encode();
             assert_round_trip(&source);
@@ -390,22 +404,21 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
                     }
                     2 => {
                         let replacement = if slot == argument { copy } else { argument };
-                        changed.functions[0].blocks[0].instructions[0].address =
-                            Some(match address {
-                                PhysicalAddressOperation::FrameAddress { byte_offset, .. } => {
-                                    PhysicalAddressOperation::FrameAddress {
-                                        slot: FrameStorageSlotId::Outgoing(replacement),
-                                        byte_offset,
-                                    }
+                        first_instruction(&mut changed).address = Some(match address {
+                            PhysicalAddressOperation::FrameAddress { byte_offset, .. } => {
+                                PhysicalAddressOperation::FrameAddress {
+                                    slot: FrameStorageSlotId::Outgoing(replacement),
+                                    byte_offset,
                                 }
-                                PhysicalAddressOperation::Store64 { byte_offset, .. } => {
-                                    PhysicalAddressOperation::Store64 {
-                                        slot: FrameStorageSlotId::Outgoing(replacement),
-                                        byte_offset,
-                                    }
+                            }
+                            PhysicalAddressOperation::Store64 { byte_offset, .. } => {
+                                PhysicalAddressOperation::Store64 {
+                                    slot: FrameStorageSlotId::Outgoing(replacement),
+                                    byte_offset,
                                 }
-                                _ => unreachable!(),
-                            });
+                            }
+                            _ => unreachable!(),
+                        });
                     }
                     _ => unreachable!(),
                 }
@@ -419,29 +432,20 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
                 .unwrap();
             let mut unknown_role = encoded;
             unknown_role[offset + slot_bytes.len() - 1] = 2;
-            assert_eq!(
-                PostAllocationMachinePlan::decode(&unknown_role),
-                Err(PostAllocationMachineDecodeError::InvalidField)
-            );
+            assert_rejected(&unknown_role, DecodeError::InvalidField);
         }
     }
 }
 
 #[test]
 fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity() {
-    use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot};
+    use selected_instructions::FrameStorageSlotId;
     use semantic_vocabulary::PlaceId;
 
     let mut source = plan();
     let place = PlaceId::new(139).unwrap();
     let slot = LocalStorageSlotId::StructuralParameter { place };
-    source.functions[0]
-        .local_storage_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 16,
-            alignment: 8,
-        });
+    add_local_slot(&mut source, slot, 16, 8);
     for address in [
         PhysicalAddressOperation::FrameAddress {
             slot: FrameStorageSlotId::Local(slot),
@@ -452,7 +456,7 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
             byte_offset: 8,
         },
     ] {
-        source.functions[0].blocks[0].instructions[0].address = Some(address);
+        first_instruction(&mut source).address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         let encoded = source.encode();
         assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 22);
@@ -465,20 +469,14 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
         assert_eq!(encoded[slot_offset], 4);
         let mut absent = encoded;
         absent[slot_offset + 1..slot_offset + 9].fill(0);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&absent),
-            Err(PostAllocationMachineDecodeError::InvalidField)
-        );
+        assert_rejected(&absent, DecodeError::InvalidField);
 
         let mut substituted = source.clone();
         substituted.functions[0].local_storage_slots[0].id = LocalStorageSlotId::Structural {
             operation: OperationId::new(137).unwrap(),
             place,
         };
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&substituted.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity)
-        );
+        assert_content_mismatch(&substituted);
     }
 }
 
@@ -494,10 +492,7 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
 
     let mut wrong_magic = encoded.clone();
     wrong_magic[0] ^= 0xff;
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&wrong_magic),
-        Err(PostAllocationMachineDecodeError::WrongMagic)
-    );
+    assert_rejected(&wrong_magic, DecodeError::WrongMagic);
 
     let current_version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
     for version in [current_version - 1, current_version.checked_add(1).unwrap()] {
@@ -515,45 +510,30 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
         invalid[offset] = 0xff;
         assert_eq!(
             PostAllocationMachinePlan::decode(&invalid),
-            Err(PostAllocationMachineDecodeError::InvalidField),
+            Err(DecodeError::InvalidField),
             "closed field at byte {offset} was accepted"
         );
     }
     let mut unknown_family = encoded.clone();
     unknown_family[ALTERNATIVE_FAMILY_OFFSET..ALTERNATIVE_FAMILY_OFFSET + 2]
         .copy_from_slice(&u16::MAX.to_le_bytes());
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&unknown_family),
-        Err(PostAllocationMachineDecodeError::InvalidField)
-    );
+    assert_rejected(&unknown_family, DecodeError::InvalidField);
     // 255 is an assigned family, not a malformed tag. Changing the payload
     // to another valid family must still fail content authentication.
     let mut substituted_family = encoded.clone();
     substituted_family[ALTERNATIVE_FAMILY_OFFSET..ALTERNATIVE_FAMILY_OFFSET + 2]
         .copy_from_slice(&255_u16.to_le_bytes());
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&substituted_family),
-        Err(PostAllocationMachineDecodeError::InvalidIdentity)
-    );
+    assert_rejected(&substituted_family, DecodeError::InvalidIdentity);
 
     let mut zero_machine = encoded.clone();
     zero_machine[MACHINE_OFFSET..MACHINE_OFFSET + 8].fill(0);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&zero_machine),
-        Err(PostAllocationMachineDecodeError::InvalidField)
-    );
+    assert_rejected(&zero_machine, DecodeError::InvalidField);
 
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&encoded[..encoded.len() - 1]),
-        Err(PostAllocationMachineDecodeError::Truncated)
-    );
+    assert_rejected(&encoded[..encoded.len() - 1], DecodeError::Truncated);
 
     let mut trailing = encoded;
     trailing.push(0);
-    assert_eq!(
-        PostAllocationMachinePlan::decode(&trailing),
-        Err(PostAllocationMachineDecodeError::TrailingBytes)
-    );
+    assert_rejected(&trailing, DecodeError::TrailingBytes);
 }
 
 #[test]
@@ -568,7 +548,7 @@ fn post_allocation_codec_authenticates_header_and_all_content_roots() {
         corrupted[offset] ^= 0x80;
         assert_eq!(
             PostAllocationMachinePlan::decode(&corrupted),
-            Err(PostAllocationMachineDecodeError::InvalidIdentity),
+            Err(DecodeError::InvalidIdentity),
             "identity-bearing bytes at offset {offset} were accepted"
         );
     }
@@ -636,11 +616,10 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             byte_offset: 0,
         },
     ] {
-        source.functions[0].blocks[0].instructions[0].address = Some(address);
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        first_instruction(&mut source).address = Some(address);
+        restamp_and_round_trip(&mut source);
         assert_content_rejected(&source, |changed| {
-            changed.functions[0].blocks[0].instructions[0].address = None;
+            first_instruction(changed).address = None;
         });
         assert_content_rejected(&source, |changed| {
             changed.functions[0].outgoing_arguments[0].abi_stack_byte_offset += 8;
@@ -658,14 +637,8 @@ fn floating_control_codec_binds_direction_and_private_frame_slot() {
         let slot = selected_instructions::LocalStorageSlotId::Boundary {
             operation: OperationId::new(137).unwrap(),
         };
-        source.functions[0].local_storage_slots.push(
-            selected_instructions::SelectedLocalStorageSlot {
-                id: slot,
-                byte_size: 8,
-                alignment: 8,
-            },
-        );
-        let row = &mut source.functions[0].blocks[0].instructions[0];
+        add_local_slot(&mut source, slot, 8, 8);
+        let row = first_instruction(&mut source);
         row.address = Some(if restore {
             PhysicalAddressOperation::RestoreFloatingControl { slot }
         } else {
@@ -687,10 +660,9 @@ fn floating_control_codec_binds_direction_and_private_frame_slot() {
                 byte_count: 8,
             }
         };
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        restamp_and_round_trip(&mut source);
         assert_content_rejected(&source, |changed| {
-            changed.functions[0].blocks[0].instructions[0].address = Some(if restore {
+            first_instruction(changed).address = Some(if restore {
                 PhysicalAddressOperation::SaveFloatingControl { slot }
             } else {
                 PhysicalAddressOperation::RestoreFloatingControl { slot }
@@ -708,17 +680,10 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
     let slot = selected_instructions::LocalStorageSlotId::Boundary {
         operation: OperationId::new(137).unwrap(),
     };
-    source.functions[0]
-        .local_storage_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 1,
-            alignment: 1,
-        });
-    source.functions[0].blocks[0].instructions[0].address =
+    add_local_slot(&mut source, slot, 1, 1);
+    first_instruction(&mut source).address =
         Some(PhysicalAddressOperation::HostedWriteByteI32 { slot });
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     for mutation in 0..4 {
         let mut changed = source.clone();
         match mutation {
@@ -732,7 +697,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
             1 => changed.functions[0].local_storage_slots[0].byte_size = 2,
             2 => changed.functions[0].local_storage_slots[0].alignment = 2,
             _ => {
-                changed.functions[0].blocks[0].instructions[0].address =
+                first_instruction(&mut changed).address =
                     Some(PhysicalAddressOperation::HostedWriteByteI32 {
                         slot: selected_instructions::LocalStorageSlotId::Boundary {
                             operation: OperationId::new(149).unwrap(),
@@ -751,17 +716,10 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
         place: semantic_vocabulary::PlaceId::new(139).unwrap(),
         operation: OperationId::new(137).unwrap(),
     };
-    source.functions[0]
-        .local_storage_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 8,
-            alignment: 4,
-        });
-    source.functions[0].blocks[0].instructions[0].address =
+    add_local_slot(&mut source, slot, 8, 4);
+    first_instruction(&mut source).address =
         Some(PhysicalAddressOperation::HostedReadByte { slot });
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     for mutation in 0..4 {
         let mut changed = source.clone();
         match mutation {
@@ -774,7 +732,7 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
             1 => changed.functions[0].local_storage_slots[0].byte_size = 2,
             2 => changed.functions[0].local_storage_slots[0].alignment = 2,
             _ => {
-                changed.functions[0].blocks[0].instructions[0].address =
+                first_instruction(&mut changed).address =
                     Some(PhysicalAddressOperation::HostedReadByte {
                         slot: selected_instructions::LocalStorageSlotId::Boundary {
                             operation: OperationId::new(149).unwrap(),
@@ -790,14 +748,12 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
 fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
     for byte_size in [1, 2, 4, 8] {
         let mut source = plan();
-        source.functions[0].blocks[0].instructions[0].address =
-            Some(PhysicalAddressOperation::Store {
-                base_operand: 0,
-                byte_offset: 16,
-                byte_size,
-            });
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        first_instruction(&mut source).address = Some(PhysicalAddressOperation::Store {
+            base_operand: 0,
+            byte_offset: 16,
+            byte_size,
+        });
+        restamp_and_round_trip(&mut source);
         for changed_address in [
             PhysicalAddressOperation::Store {
                 base_operand: 1,
@@ -816,23 +772,19 @@ fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
             },
         ] {
             assert_content_rejected(&source, |changed| {
-                changed.functions[0].blocks[0].instructions[0].address = Some(changed_address);
+                first_instruction(changed).address = Some(changed_address);
             });
         }
     }
     for byte_size in [0, 3, 5, 16, 255] {
         let mut invalid = plan();
-        invalid.functions[0].blocks[0].instructions[0].address =
-            Some(PhysicalAddressOperation::Store {
-                base_operand: 0,
-                byte_offset: 0,
-                byte_size,
-            });
+        first_instruction(&mut invalid).address = Some(PhysicalAddressOperation::Store {
+            base_operand: 0,
+            byte_offset: 0,
+            byte_size,
+        });
         invalid.identity = post_allocation_machine_identity(&invalid);
-        assert_eq!(
-            PostAllocationMachinePlan::decode(&invalid.encode()),
-            Err(PostAllocationMachineDecodeError::InvalidField)
-        );
+        assert_rejected(&invalid.encode(), DecodeError::InvalidField);
     }
 }
 
@@ -843,13 +795,7 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
         operation: OperationId::new(137).unwrap(),
         place: semantic_vocabulary::PlaceId::new(139).unwrap(),
     };
-    source.functions[0]
-        .local_storage_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 24,
-            alignment: 8,
-        });
+    add_local_slot(&mut source, slot, 24, 8);
     for address in [
         PhysicalAddressOperation::FrameAddress {
             slot: selected_instructions::FrameStorageSlotId::Incoming {
@@ -867,9 +813,8 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
             byte_offset: 0,
         },
     ] {
-        source.functions[0].blocks[0].instructions[0].address = Some(address);
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        first_instruction(&mut source).address = Some(address);
+        restamp_and_round_trip(&mut source);
         for field in 0..4 {
             let mut changed = source.clone();
             let local = &mut changed.functions[0].local_storage_slots[0];
@@ -908,10 +853,7 @@ fn every_truncated_physical_frame_rejects() {
 #[test]
 fn reauthenticated_physical_data_is_still_only_a_proposal() {
     let mut substituted = plan();
-    substituted.functions[0].blocks[0].instructions[0]
-        .alternative
-        .key
-        .variant = u32::MAX;
+    first_instruction(&mut substituted).alternative.key.variant = u32::MAX;
     substituted.identity = post_allocation_machine_identity(&substituted);
     // Decoding is deliberately independent of a selected program and target
     // catalog. The consuming validator must reconstruct the chosen alternative.
@@ -924,17 +866,10 @@ fn reauthenticated_physical_data_is_still_only_a_proposal() {
 #[test]
 fn physical_u32_normalization_round_trips_and_binds_its_family() {
     let mut source = plan();
-    source.functions[0].blocks[0].instructions[0]
-        .alternative
-        .key
-        .family = MachineAlternativeFamily::ZeroExtendU32;
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    first_instruction(&mut source).alternative.key.family = MachineAlternativeFamily::ZeroExtendU32;
+    restamp_and_round_trip(&mut source);
     assert_content_rejected(&source, |changed| {
-        changed.functions[0].blocks[0].instructions[0]
-            .alternative
-            .key
-            .family = MachineAlternativeFamily::CopyI64;
+        first_instruction(changed).alternative.key.family = MachineAlternativeFamily::CopyI64;
     });
 }
 
@@ -944,13 +879,7 @@ fn compiler_spill_slot_codec_retains_function_local_identity() {
     let slot = selected_instructions::LocalStorageSlotId::Spill {
         register: selected_instructions::VirtualRegisterId(7),
     };
-    source.functions[0]
-        .local_storage_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 8,
-            alignment: 8,
-        });
+    add_local_slot(&mut source, slot, 8, 8);
     for address in [
         PhysicalAddressOperation::FrameAddress {
             slot: selected_instructions::FrameStorageSlotId::Local(slot),
@@ -961,9 +890,8 @@ fn compiler_spill_slot_codec_retains_function_local_identity() {
             byte_offset: 0,
         },
     ] {
-        source.functions[0].blocks[0].instructions[0].address = Some(address);
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        first_instruction(&mut source).address = Some(address);
+        restamp_and_round_trip(&mut source);
         let mut changed = source.clone();
         changed.functions[0].local_storage_slots[0].id =
             selected_instructions::LocalStorageSlotId::Spill {
@@ -995,18 +923,17 @@ fn physical_codec_retains_narrow_load_families_and_exact_addresses() {
         ),
     ] {
         let mut source = plan();
-        let instruction = &mut source.functions[0].blocks[0].instructions[0];
+        let instruction = first_instruction(&mut source);
         instruction.alternative.key.family = family;
         instruction.address = Some(address);
         instruction.alternative.encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand: 0,
             byte_count,
         };
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        restamp_and_round_trip(&mut source);
         for mutation in 0..3 {
             let mut changed = source.clone();
-            let instruction = &mut changed.functions[0].blocks[0].instructions[0];
+            let instruction = first_instruction(&mut changed);
             match mutation {
                 0 => instruction.alternative.key.family = MachineAlternativeFamily::Load64,
                 1 => {

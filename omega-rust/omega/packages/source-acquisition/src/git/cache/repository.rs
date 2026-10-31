@@ -27,6 +27,7 @@ use crate::limits::{
     GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_CONFIG_SHA1,
     GIT_CONFIG_SHA256, LocalSourceLimits,
 };
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 
 use super::custody::{
@@ -104,9 +105,7 @@ impl VerifiedGitRepository {
             repository_path,
             entry_name: entry_name.to_os_string(),
             expected_metadata: git_cache_metadata(url, requested_rev, execution_transport),
-            cache_parent: cache_parent
-                .try_clone()
-                .map_err(|error| io_error(entry_root, error))?,
+            cache_parent: cache_parent.try_clone().at(entry_root)?,
             entry,
             repository,
             objects,
@@ -160,9 +159,7 @@ impl VerifiedGitRepository {
         self.verify_identity()?;
         verify_cache_custody_from_open_root(
             &self.entry_root,
-            self.entry
-                .try_clone()
-                .map_err(|error| io_error(&self.entry_root, error))?,
+            self.entry.try_clone().at(&self.entry_root)?,
             CacheCustodyKind::Git,
             git_cache_custody_byte_limit(limits),
         )?;
@@ -262,16 +259,12 @@ impl VerifiedGitRepository {
                 verify_macos_open_cache_extended_acl_custody(
                     CacheCustodyKind::Git,
                     &path,
-                    &directory
-                        .try_clone()
-                        .map_err(|error| io_error(&path, error))?
-                        .into_std_file(),
+                    &directory.try_clone().at(&path)?.into_std_file(),
                 )?;
                 (directory, identity)
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                create_private_cache_directory(&self.entry, name)
-                    .map_err(|error| io_error(&path, error))?;
+                create_private_cache_directory(&self.entry, name).at(&path)?;
                 let provisional = ProvisionalCacheDirectory::new(&self.entry, name);
                 let directory = retain_private_cache_directory(
                     CacheCustodyKind::Git,
@@ -279,9 +272,7 @@ impl VerifiedGitRepository {
                     name,
                     &path,
                 )?;
-                let identity = directory
-                    .dir_metadata()
-                    .map_err(|error| io_error(&path, error))?;
+                let identity = directory.dir_metadata().at(&path)?;
                 provisional.disarm();
                 (directory, identity)
             }
@@ -289,10 +280,7 @@ impl VerifiedGitRepository {
         };
         let snapshots = RetainedGitSnapshots {
             path,
-            entry: self
-                .entry
-                .try_clone()
-                .map_err(|error| io_error(&self.entry_root, error))?,
+            entry: self.entry.try_clone().at(&self.entry_root)?,
             directory,
             identity,
         };

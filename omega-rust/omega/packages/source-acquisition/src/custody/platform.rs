@@ -5,7 +5,7 @@ use super::lock::same_std_and_capability_file_identity;
 use super::tree::{CacheCustodyKind, cache_custody_invalid};
 use crate::SourceResolveError;
 #[cfg(any(target_os = "macos", windows))]
-use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{IoResultAt, open_absolute_directory_nofollow};
 #[cfg(any(target_os = "macos", windows))]
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(any(target_os = "macos", windows))]
@@ -124,9 +124,7 @@ pub(super) fn verify_windows_open_cache_directory_identity(
             format!("could not retain Windows cache custody directory: {error}"),
         )
     })?;
-    let opened = directory
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
+    let opened = directory.dir_metadata().at(path)?;
     if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
         return Err(cache_custody_invalid(
             kind,
@@ -159,9 +157,7 @@ pub(super) fn retain_verified_windows_cache_ancestor(
             format!("could not retain Windows cache ancestry: {error}"),
         )
     })?;
-    let opened = directory
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
+    let opened = directory.dir_metadata().at(path)?;
     if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
         return Err(cache_custody_invalid(
             kind,
@@ -198,7 +194,7 @@ pub(super) fn verify_windows_open_cache_regular_file_identity(
             format!("could not retain Windows cache file without following links: {error}"),
         )
     })?;
-    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    let opened = file.metadata().at(path)?;
     if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
         return Err(cache_custody_invalid(
             kind,
@@ -228,7 +224,7 @@ pub(super) fn verify_windows_open_cache_link_identity(
             format!("could not retain Windows cache reparse point: {error}"),
         )
     })?;
-    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    let opened = file.metadata().at(path)?;
     if !same_capability_file_identity(classified, &opened) {
         return Err(cache_custody_invalid(
             kind,
@@ -349,9 +345,7 @@ pub(crate) fn verify_macos_cache_ancestor_acl_custody(
             format!("could not retain cache custody directory: {error}"),
         )
     })?;
-    let metadata = opened
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
+    let metadata = opened.dir_metadata().at(path)?;
     if !metadata.is_dir() || !same_std_and_capability_file_identity(classified, &metadata) {
         return Err(cache_custody_invalid(
             kind,
@@ -384,10 +378,7 @@ pub(crate) fn verify_macos_opened_cache_directory_acl_custody(
     verify_macos_open_cache_extended_acl_custody(
         kind,
         path,
-        &directory
-            .try_clone()
-            .map_err(|error| io_error(path, error))?
-            .into_std_file(),
+        &directory.try_clone().at(path)?.into_std_file(),
     )
 }
 
@@ -426,7 +417,7 @@ pub(super) fn verify_macos_open_cache_regular_file_acl_custody(
             format!("could not open cache file without following links: {error}"),
         )
     })?;
-    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    let opened = file.metadata().at(path)?;
     if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
         return Err(cache_custody_invalid(
             kind,
