@@ -21,6 +21,7 @@ use crate::preparation::generic_data::{
     closed_argument_identity, closed_name_identity, domain_application_head,
     domain_index_telescope, selected_domain_family,
 };
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::bignum::BigInt;
@@ -527,8 +528,7 @@ impl Solver<'_, '_> {
     }
 
     fn integer_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
-        self.syntax
-            .type_references
+        syntax_type_references(&self.syntax)
             .type_reference(reference)
             .as_named()
             .is_some_and(|name| const_binder_envelope(name.as_str(self.syntax)).is_some())
@@ -614,8 +614,7 @@ impl Solver<'_, '_> {
 
     /// The identifier a reference names, absent a structural node.
     fn type_reference_name(&self, reference: TypeReferenceHandle) -> Option<&Identifier> {
-        self.syntax
-            .type_references
+        syntax_type_references(&self.syntax)
             .type_reference(reference)
             .as_named()
     }

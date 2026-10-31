@@ -12,6 +12,7 @@
 //! binds names only; typed alias application still checks subject compatibility
 //! and the selected family's requirements before expanding its atoms.
 
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -106,8 +107,7 @@ pub(crate) fn normalize(
                     constraints,
                 } => {
                     types.push(*base_type);
-                    for (ordinal, constraint) in syntax
-                        .type_references
+                    for (ordinal, constraint) in syntax_type_references(&syntax)
                         .constraints(*constraints)
                         .iter()
                         .enumerate()
@@ -116,8 +116,7 @@ pub(crate) fn normalize(
                             continue;
                         };
                         types.extend(
-                            syntax
-                                .type_references
+                            syntax_type_references(&syntax)
                                 .type_reference_handles(domain.arguments),
                         );
                         let Some((carrier, leaf)) = domain.name.as_str(syntax).rsplit_once("::")

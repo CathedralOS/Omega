@@ -21,6 +21,7 @@ use crate::preparation::generic_data::{
     canonicalize_selected_declared_const_definition, closed_argument_identity,
     closed_fixed_array_length,
 };
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::bignum::BigInt;
@@ -98,9 +99,8 @@ pub(super) fn collect_binder_mentions(
                         {
                             mentions.push(position);
                         }
-                        for argument in syntax
-                            .type_references
-                            .type_reference_handles(domain.arguments)
+                        for argument in
+                            syntax_type_references(&syntax).type_reference_handles(domain.arguments)
                         {
                             collect_binder_mentions(syntax, *argument, parameters, mentions);
                         }
@@ -125,9 +125,7 @@ pub(super) fn collect_binder_mentions(
             trait_arguments,
         } => {
             name_mention(trait_name.as_str(syntax));
-            for argument in syntax
-                .type_references
-                .type_reference_handles(*trait_arguments)
+            for argument in syntax_type_references(&syntax).type_reference_handles(*trait_arguments)
             {
                 collect_binder_mentions(syntax, *argument, parameters, mentions);
             }

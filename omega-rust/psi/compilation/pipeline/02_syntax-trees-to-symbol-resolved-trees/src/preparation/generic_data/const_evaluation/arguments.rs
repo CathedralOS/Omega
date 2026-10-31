@@ -231,6 +231,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                         [],
                     );
                     syntax
+                        .tables
                         .type_references
                         .retain_const_argument_expression(*argument, expression);
                     syntax.type_references.replace_type_reference(

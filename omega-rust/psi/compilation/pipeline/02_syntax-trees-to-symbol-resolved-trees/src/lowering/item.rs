@@ -16,6 +16,7 @@ use crate::lowering::proposition::lower_proposition_definition;
 use crate::lowering::trait_definition::lower_trait_definition;
 use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{self as syntax, SyntaxTrees};
@@ -594,8 +595,7 @@ fn syntax_type_spelling(
             arguments,
             ..
         } => {
-            let arguments = syntax_trees
-                .type_references
+            let arguments = syntax_type_references(&syntax_trees)
                 .type_reference_handles(*arguments)
                 .iter()
                 .map(|argument| syntax_type_spelling(syntax_trees, *argument))

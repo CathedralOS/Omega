@@ -1,5 +1,6 @@
 //! Exact anonymous values, independent of their eventual const landing.
 
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigRational;
 use syntax_trees::SyntaxTrees;
@@ -286,8 +287,7 @@ fn machine_parameter_names(
         .iter()
         .map(|handle| {
             let parameter = syntax.items.state_parameter(*handle);
-            let name = syntax
-                .type_references
+            let name = syntax_type_references(&syntax)
                 .type_reference(parameter.type_reference)
                 .as_named()?;
             (!binder_names.contains(&name.as_str(syntax))).then(|| name.as_str(syntax).to_string())

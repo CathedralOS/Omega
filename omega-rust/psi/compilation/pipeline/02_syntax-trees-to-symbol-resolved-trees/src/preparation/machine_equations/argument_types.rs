@@ -218,9 +218,11 @@ fn expression_types<'trees>(
                     syntax_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
                     _ => target,
                 };
-                let reference = syntax
-                    .type_references
-                    .insert_reference(referee, borrow.access);
+                let reference =
+                    syntax
+                        .tables
+                        .type_references
+                        .insert_reference(referee, borrow.access);
                 // The resolved declaration anchors nominal selection; the
                 // authored reference carries this expression's constructor.
                 borrowed.push((reference, declaration));

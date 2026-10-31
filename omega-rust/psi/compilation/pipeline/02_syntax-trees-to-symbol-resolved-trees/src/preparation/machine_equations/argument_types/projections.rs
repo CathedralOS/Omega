@@ -12,6 +12,7 @@ use crate::preparation::{
     generic_data,
     type_equations::{self, EquationTemplate},
 };
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, types};
 use symbols::{SymbolHandle, SymbolKind};
@@ -62,8 +63,7 @@ pub(super) fn member_types<'trees>(
                 generic_data::selected_data_item(syntax, Some(selection), base_name),
                 Some((
                     base_name.clone(),
-                    syntax
-                        .type_references
+                    syntax_type_references(&syntax)
                         .type_reference_handles(*arguments)
                         .to_vec(),
                 )),

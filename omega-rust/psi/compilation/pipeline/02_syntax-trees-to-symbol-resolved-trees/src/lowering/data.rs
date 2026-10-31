@@ -8,6 +8,7 @@
 use crate::lowering::name::lower_names;
 use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
@@ -667,8 +668,7 @@ fn generic_case_facts_unsupported(
                         .identifier_path_members(membership.domain)
                         .iter()
                         .any(|member| gate.mentions(member.as_str(syntax_trees)))
-                    || syntax_trees
-                        .type_references
+                    || syntax_type_references(&syntax_trees)
                         .type_reference_handles(membership.domain_arguments)
                         .iter()
                         .any(|argument| membership_argument_mentions(syntax_trees, *argument, gate))
@@ -811,8 +811,7 @@ fn case_fact_expression_mentions(
                     .identifier_path_members(cast.semantic_domain)
                     .iter()
                     .any(|member| gate.mentions(member.as_str(syntax_trees)))
-                || syntax_trees
-                    .type_references
+                || syntax_type_references(&syntax_trees)
                     .type_reference_handles(cast.semantic_domain_arguments)
                     .iter()
                     .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
@@ -924,8 +923,7 @@ fn case_fact_type_mentions(
             ..
         } => {
             gate.mentions(base_name.as_str(syntax_trees))
-                || syntax_trees
-                    .type_references
+                || syntax_type_references(&syntax_trees)
                     .type_reference_handles(*arguments)
                     .iter()
                     .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
@@ -935,8 +933,7 @@ fn case_fact_type_mentions(
             constraints,
         } => {
             case_fact_type_mentions(syntax_trees, *base_type, gate)
-                || syntax_trees
-                    .type_references
+                || syntax_type_references(&syntax_trees)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
@@ -950,8 +947,7 @@ fn case_fact_type_mentions(
                         TypeConstraintNode::ArithmeticDomain(_) => false,
                         TypeConstraintNode::Domain(domain) => {
                             gate.mentions(domain.name.as_str(syntax_trees))
-                                || syntax_trees
-                                    .type_references
+                                || syntax_type_references(&syntax_trees)
                                     .type_reference_handles(domain.arguments)
                                     .iter()
                                     .any(|argument| {
@@ -968,8 +964,7 @@ fn case_fact_type_mentions(
             trait_arguments,
         } => {
             gate.mentions(trait_name.as_str(syntax_trees))
-                || syntax_trees
-                    .type_references
+                || syntax_type_references(&syntax_trees)
                     .type_reference_handles(*trait_arguments)
                     .iter()
                     .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))

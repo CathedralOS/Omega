@@ -13,6 +13,7 @@ use super::super::{
     TypeReferenceNode,
 };
 use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use syntax_trees::expression::UnaryOperator;
 use syntax_trees::identifier::Identifier;
@@ -1590,9 +1591,7 @@ pub(crate) fn const_type_requires_declaration_proof(
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> bool {
     use syntax_trees::item::DataMember;
-    let origin = syntax
-        .type_references
-        .generic_application_origin(type_reference);
+    let origin = syntax_type_references(&syntax).generic_application_origin(type_reference);
     if origin.is_valid() && origin != type_reference {
         return const_type_requires_declaration_proof(syntax, origin, visiting, selection);
     }
@@ -1644,8 +1643,7 @@ pub(crate) fn const_type_requires_declaration_proof(
             base_type,
             constraints,
         } => {
-            syntax
-                .type_references
+            syntax_type_references(&syntax)
                 .constraints(*constraints)
                 .iter()
                 .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
@@ -1660,8 +1658,7 @@ pub(crate) fn const_type_requires_declaration_proof(
             arguments,
             ..
         } => {
-            syntax
-                .type_references
+            syntax_type_references(&syntax)
                 .type_reference_handles(*arguments)
                 .iter()
                 .any(|argument| {

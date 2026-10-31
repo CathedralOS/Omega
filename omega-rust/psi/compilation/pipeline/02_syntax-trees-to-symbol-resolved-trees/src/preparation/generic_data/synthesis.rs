@@ -366,8 +366,7 @@ pub(crate) fn desugar_generic_data_instances_in(
             synthetic_name: definition.name.as_str(syntax).to_owned(),
             declaration,
             template,
-            argument_handles: syntax
-                .type_references
+            argument_handles: syntax_type_references(&syntax)
                 .type_reference_handles(*arguments)
                 .to_vec(),
             argument_identity,
@@ -849,9 +848,7 @@ fn synthesize_instance(
         }
         count += 1;
     }
-    let copied_types = syntax
-        .type_references
-        .named_nodes_from(type_watermark, syntax);
+    let copied_types = syntax_type_references(&syntax).named_nodes_from(type_watermark, syntax);
     substitute_copied_type_names(syntax, copied_types, &substitution);
     // Run the const-binder literal rewrite only after member
     // substitution: a carried case `where` fact is copied inside the

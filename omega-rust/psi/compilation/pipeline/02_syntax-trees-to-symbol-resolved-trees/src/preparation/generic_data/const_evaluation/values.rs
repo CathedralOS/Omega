@@ -761,12 +761,10 @@ fn same_carrier(
     // spelling or the `Named` instance spelling synthesis rewrote it to —
     // identifies the carrier by its selected template and closed argument
     // tuple, never by which spelling reached this comparison.
-    if syntax
-        .type_references
+    if syntax_type_references(&syntax)
         .generic_application_origin(declared)
         .is_valid()
-        || syntax
-            .type_references
+        || syntax_type_references(&syntax)
             .generic_application_origin(required)
             .is_valid()
     {
@@ -977,8 +975,7 @@ pub(crate) fn closed_fixed_array_length(
         FixedArrayLength::Literal(length) => Ok(*length),
         FixedArrayLength::ConstParameter(name) => {
             if let Some(argument) = substitution.get(name.as_str(syntax)) {
-                return syntax
-                    .type_references
+                return syntax_type_references(&syntax)
                     .type_reference(*argument)
                     .as_named()
                     .ok_or_else(|| {
@@ -1035,8 +1032,7 @@ pub(crate) fn closed_fixed_array_length(
                 "array extent constant is not a nonnegative host-sized integer".to_owned()
             })
         }
-        FixedArrayLength::Expression(value) => syntax
-            .type_references
+        FixedArrayLength::Expression(value) => syntax_type_references(&syntax)
             .type_reference(*value)
             .as_named()
             .and_then(|value| value.as_str(syntax).parse::<usize>().ok())
@@ -1075,9 +1071,7 @@ fn validate_selected_const_type(
     }
     // A rewritten `Named` instance spelling validates through its retained
     // authored application rather than the synthesized name.
-    let origin = syntax
-        .type_references
-        .generic_application_origin(type_reference);
+    let origin = syntax_type_references(&syntax).generic_application_origin(type_reference);
     if origin.is_valid() && origin != type_reference {
         return validate_selected_const_type(
             syntax,
@@ -1315,9 +1309,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
     }
     // A rewritten `Named` instance spelling canonicalizes through its
     // retained authored application rather than the synthesized name.
-    let origin = syntax
-        .type_references
-        .generic_application_origin(expected_type);
+    let origin = syntax_type_references(&syntax).generic_application_origin(expected_type);
     if origin.is_valid() && origin != expected_type {
         return canonicalize_const_expression_with_admission(
             syntax,
@@ -1581,8 +1573,7 @@ fn substituted_type_label(
             selected_type_label(syntax, substitution[name.as_str(syntax)], selection)
         }
         TypeReferenceNode::Named(_)
-            if syntax
-                .type_references
+            if syntax_type_references(&syntax)
                 .generic_application_origin(reference)
                 .is_valid() =>
         {
@@ -1597,8 +1588,7 @@ fn substituted_type_label(
             arguments,
             ..
         } => {
-            let argument_handles = syntax
-                .type_references
+            let argument_handles = syntax_type_references(&syntax)
                 .type_reference_handles(*arguments)
                 .to_vec();
             if argument_handles.is_empty() {

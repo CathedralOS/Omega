@@ -72,10 +72,7 @@ pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_nam
             captured.expressions.insert(handle);
         }
     }
-    for (handle, _) in syntax
-        .type_references
-        .named_nodes_from(type_watermark, syntax)
-    {
+    for (handle, _) in syntax_type_references(&syntax).named_nodes_from(type_watermark, syntax) {
         if let Some(name) = syntax.type_references.type_reference(handle).as_named()
             && header_frontier.captures_name(syntax, name)
         {
@@ -239,8 +236,7 @@ fn collect_contract_expression_handles(
                 }
                 ProofFact::Membership(membership) => {
                     collect_expression_handles(syntax, membership.value, expressions);
-                    for argument in syntax
-                        .type_references
+                    for argument in syntax_type_references(&syntax)
                         .type_reference_handles(membership.domain_arguments)
                     {
                         collect_type_expression_handles(
@@ -307,9 +303,8 @@ fn collect_type_expression_handles(
                         collect_expression_handles(syntax, *maximum, expressions);
                     }
                     TypeConstraintNode::Domain(domain) => {
-                        for argument in syntax
-                            .type_references
-                            .type_reference_handles(domain.arguments)
+                        for argument in
+                            syntax_type_references(&syntax).type_reference_handles(domain.arguments)
                         {
                             collect_type_expression_handles(
                                 syntax,
@@ -625,9 +620,8 @@ fn visit_type_positions(
             }
             for constraint in syntax.type_references.constraints(*constraints) {
                 if let TypeConstraintNode::Domain(domain) = constraint {
-                    for argument in syntax
-                        .type_references
-                        .type_reference_handles(domain.arguments)
+                    for argument in
+                        syntax_type_references(&syntax).type_reference_handles(domain.arguments)
                     {
                         visit_child!(*argument);
                     }
@@ -742,9 +736,8 @@ fn collect_owned_type_reference_positions(
         // Satisfier arguments and signatures select the same closed carrier.
         // All states, including inline conformance states, own their type uses.
         for conformance in syntax.items.satisfies_clauses(machine.satisfies) {
-            for argument in syntax
-                .type_references
-                .type_reference_handles(conformance.arguments)
+            for argument in
+                syntax_type_references(&syntax).type_reference_handles(conformance.arguments)
             {
                 visit_type_positions(syntax, *argument, &mut positions, false, traversal);
             }

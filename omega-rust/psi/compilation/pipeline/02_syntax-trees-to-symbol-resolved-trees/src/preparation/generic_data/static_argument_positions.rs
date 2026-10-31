@@ -8,6 +8,7 @@ use super::{
     HashSet, Identifier, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
     declaration_selection::ConstantSelection,
 };
+use crate::tables::syntax_type_references;
 use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
 use syntax_trees::statement::StatementNode;
 
@@ -94,9 +95,7 @@ fn has_const_expression_argument(
     arguments.iter().any(|argument| {
         (argument.type_reference.is_valid()
             && matches!(
-                syntax
-                    .type_references
-                    .type_reference(argument.type_reference),
+                syntax_type_references(&syntax).type_reference(argument.type_reference),
                 TypeReferenceNode::ConstExpression(_)
             ))
             || argument.application.as_ref().is_some_and(|application| {
@@ -118,9 +117,7 @@ fn collect_application(
     if arguments.iter().any(|argument| {
         argument.type_reference.is_valid()
             && matches!(
-                syntax
-                    .type_references
-                    .type_reference(argument.type_reference),
+                syntax_type_references(&syntax).type_reference(argument.type_reference),
                 TypeReferenceNode::ConstExpression(_)
             )
     }) && let Some(parameters) = selection.const_parameter_carriers(
@@ -137,9 +134,7 @@ fn collect_application(
             if let Some(destination) = *parameter
                 && positions.contains(&argument.type_reference)
                 && matches!(
-                    syntax
-                        .type_references
-                        .type_reference(argument.type_reference),
+                    syntax_type_references(&syntax).type_reference(argument.type_reference),
                     TypeReferenceNode::ConstExpression(_)
                 )
                 && !pending

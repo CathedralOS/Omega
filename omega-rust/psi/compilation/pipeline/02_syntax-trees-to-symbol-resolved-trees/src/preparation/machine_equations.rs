@@ -17,6 +17,7 @@ use super::{
     generic_data::module_constants,
     type_equations::{self, EquationTemplate},
 };
+use crate::tables::syntax_type_references;
 use arena::Handle;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
@@ -450,8 +451,7 @@ fn inferred_const_argument(
 ) -> Result<StaticMachineArgument, Diagnostic> {
     let reject =
         || Diagnostic::error("inferred structural constant lost its authored operand custody");
-    let normalization = syntax
-        .type_references
+    let normalization = syntax_type_references(&syntax)
         .const_argument_normalization(reference)
         .ok_or_else(reject)?
         .clone();
@@ -469,8 +469,7 @@ fn inferred_const_argument(
             evidence_projection: None,
         });
     }
-    let mut origins = syntax
-        .type_references
+    let mut origins = syntax_type_references(&syntax)
         .const_argument_origins(normalization.selections)
         .iter()
         .filter(|origin| origin.reference == normalization.reference);
@@ -599,8 +598,7 @@ fn application_argument_reference(
     }
     match kind {
         TypeParameterKind::Const { type_reference } => {
-            let Some(carrier) = syntax
-                .type_references
+            let Some(carrier) = syntax_type_references(&syntax)
                 .type_reference(*type_reference)
                 .as_named()
             else {

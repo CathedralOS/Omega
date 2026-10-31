@@ -6,6 +6,7 @@ use super::super::{
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::uses::{ConstructorFrontier, closed_sum_path};
 use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::Instantiation;
@@ -192,8 +193,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     let expected_owner = if let Some(instance) = instance {
         instance.declaration
     } else {
-        let Some(name) = syntax
-            .type_references
+        let Some(name) = syntax_type_references(&syntax)
             .type_reference(expected_type)
             .as_named()
         else {

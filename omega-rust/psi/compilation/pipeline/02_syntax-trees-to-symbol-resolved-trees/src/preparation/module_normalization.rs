@@ -27,6 +27,7 @@
 //! declaring source at this boundary; unselected or nongeneric spellings
 //! reject here rather than drifting to a later stage's weaker error.
 
+use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -101,9 +102,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             // admits every value after its dependencies have evaluated.
         } else if module_literal_constant(syntax, constant) {
             if matches!(
-                syntax
-                    .type_references
-                    .type_reference(constant.type_reference),
+                syntax_type_references(&syntax).type_reference(constant.type_reference),
                 TypeReferenceNode::FixedArray { .. }
             ) {
                 crate::preparation::generic_data::canonicalize_declared_const_definition(

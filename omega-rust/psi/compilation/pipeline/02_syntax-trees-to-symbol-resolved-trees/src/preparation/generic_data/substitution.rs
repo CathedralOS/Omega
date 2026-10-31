@@ -311,8 +311,7 @@ fn copy_case_membership_fact(
         unreachable!("membership fact checked by caller")
     };
     let membership = *membership;
-    let arguments = snapshot
-        .type_references
+    let arguments = syntax_type_references(&snapshot)
         .type_reference_handles(membership.domain_arguments)
         .to_vec();
     let substituted: Vec<TypeReferenceHandle> = arguments

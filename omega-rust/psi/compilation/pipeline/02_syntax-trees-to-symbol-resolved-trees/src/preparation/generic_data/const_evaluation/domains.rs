@@ -60,10 +60,7 @@ pub(in crate::preparation::generic_data) fn domain_index_parameters<'syntax>(
 ) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
     // A non-Named target (for example a fixed-array carrier) can never name a
     // leading type parameter, so the whole telescope is index parameters.
-    let target_name = match syntax
-        .type_references
-        .type_reference(definition.target_type)
-    {
+    let target_name = match syntax_type_references(&syntax).type_reference(definition.target_type) {
         TypeReferenceNode::Named(target) => Some(target.as_str(syntax)),
         _ => None,
     };
@@ -221,8 +218,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 else {
                     return Vec::new();
                 };
-                syntax
-                    .type_references
+                syntax_type_references(&syntax)
                     .constraints(*constraints)
                     .iter()
                     .filter_map(|constraint| {

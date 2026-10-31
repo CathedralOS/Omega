@@ -27,6 +27,7 @@
 //! inside the declaration's package instead of falling back to a same-leaf
 //! competitor.
 
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use source::SourceMap;
@@ -149,9 +150,8 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                     .unique()
                     .unwrap_or_else(SymbolHandle::invalid)
             };
-            for handle in syntax
-                .type_references
-                .type_reference_handles(trait_definition.parents)
+            for handle in
+                syntax_type_references(&syntax).type_reference_handles(trait_definition.parents)
             {
                 match syntax.type_references.type_reference(*handle) {
                     TypeReferenceNode::Named(name) => requirements.push(TraitRequirementInput {
@@ -164,8 +164,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                         ..
                     } => requirements.push(TraitRequirementInput {
                         symbol: requirement_symbol(base_name),
-                        arguments: syntax
-                            .type_references
+                        arguments: syntax_type_references(&syntax)
                             .type_reference_handles(*arguments)
                             .to_vec(),
                     }),
@@ -223,8 +222,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             .trait_name
             .as_str(syntax)
             .to_string();
-        let arguments = syntax
-            .type_references
+        let arguments = syntax_type_references(&syntax)
             .type_reference_handles(conformance.declaration.trait_arguments)
             .to_vec();
         let Some(conformed_trait) = traits.get(&trait_symbol) else {
@@ -538,8 +536,13 @@ fn substitute_type_reference(
                 handle
             } else {
                 syntax
+                    .tables
                     .type_references
-                    .insert_reference_with_lifetime(substituted, access, lifetime)
+                    .insert_reference_with_lifetime(
+                    substituted,
+                    access,
+                    lifetime,
+                )
             }
         }
         TypeReferenceNode::Constrained {
@@ -551,6 +554,7 @@ fn substitute_type_reference(
                 handle
             } else {
                 syntax
+                    .tables
                     .type_references
                     .insert_constrained(substituted, constraints)
             }
@@ -578,6 +582,7 @@ fn substitute_type_reference(
                 handle
             } else {
                 syntax
+                    .tables
                     .type_references
                     .insert_fixed_array(substituted_element, substituted_length)
             }
@@ -595,8 +600,7 @@ fn substitute_type_reference(
             arguments,
             lifetime_arguments,
         } => {
-            let original = syntax
-                .type_references
+            let original = syntax_type_references(&syntax)
                 .type_reference_handles(arguments)
                 .to_vec();
             let substituted = original
@@ -623,8 +627,7 @@ fn substitute_type_reference(
             trait_name,
             trait_arguments,
         } => {
-            let original = syntax
-                .type_references
+            let original = syntax_type_references(&syntax)
                 .type_reference_handles(trait_arguments)
                 .to_vec();
             let substituted = original
@@ -680,10 +683,7 @@ fn instantiate_default_signature(
     let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
     let copied = syntax.copy_state_signature_from(&snapshot, signature);
-    for (handle, name) in syntax
-        .type_references
-        .named_nodes_from(type_watermark, syntax)
-    {
+    for (handle, name) in syntax_type_references(&syntax).named_nodes_from(type_watermark, syntax) {
         let Some(argument) = substitution.get(&name) else {
             continue;
         };
@@ -702,6 +702,7 @@ fn instantiate_default_signature(
                 .retain_generic_application_origin(handle, origin);
         }
         syntax
+            .tables
             .type_references
             .retain_copied_operand_owner(supplied, handle);
         if matches!(
@@ -709,6 +710,7 @@ fn instantiate_default_signature(
             Ok(owner) if !owner.is_valid()
         ) {
             syntax
+                .tables
                 .type_references
                 .retain_supplied_operand_owner(handle, supplying_declaration);
         }
@@ -1024,8 +1026,7 @@ fn static_argument_for_actual(
             lifetime_arguments,
             arguments,
         } => {
-            let nested = syntax
-                .type_references
+            let nested = syntax_type_references(&syntax)
                 .type_reference_handles(*arguments)
                 .iter()
                 .map(|argument| static_argument_for_actual(syntax, *argument))

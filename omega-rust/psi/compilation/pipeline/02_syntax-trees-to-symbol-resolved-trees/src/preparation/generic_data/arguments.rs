@@ -309,8 +309,7 @@ pub(crate) fn type_reference_slug(
                 .enumerate()
             {
                 if matches!(constraint, TypeConstraintNode::Range { .. }) {
-                    let range = syntax
-                        .type_references
+                    let range = syntax_type_references(&syntax)
                         .integer_range_normalization(handle, ordinal)?;
                     rendered.push(format!("[{}..={}]", range.minimum, range.maximum));
                 } else {
@@ -337,9 +336,8 @@ pub(crate) fn constraint_slug(
     match constraint {
         TypeConstraintNode::Named(name) => Some(name.as_str(syntax).to_string()),
         TypeConstraintNode::Domain(domain) => {
-            let arguments = syntax
-                .type_references
-                .type_reference_handles(domain.arguments);
+            let arguments =
+                syntax_type_references(&syntax).type_reference_handles(domain.arguments);
             if arguments.is_empty() {
                 return Some(domain.name.as_str(syntax).to_string());
             }
@@ -564,8 +562,7 @@ pub(crate) fn closed_argument_identity(
         } => {
             let base = closed_argument_identity(syntax, selection, *base_type, false)?;
             let mut identities = Vec::new();
-            for (ordinal, constraint) in syntax
-                .type_references
+            for (ordinal, constraint) in syntax_type_references(&syntax)
                 .constraints(*constraints)
                 .iter()
                 .enumerate()
@@ -636,9 +633,7 @@ pub(crate) fn closed_argument_identity(
                                     ) {
                                         return None;
                                     }
-                                    let carrier = syntax
-                                        .type_references
-                                        .type_reference(*base_type).as_named()?;
+                                    let carrier = syntax_type_references(&syntax).type_reference(*base_type).as_named()?;
                                     ClosedConstraintIdentity::RetainedDeclaration(
                                         selection.retained_domain_identity(syntax, carrier, name)?,
                                     )
@@ -676,9 +671,7 @@ pub(crate) fn closed_argument_identity(
                         }
                     }
                     TypeConstraintNode::Range { .. } => ClosedConstraintIdentity::Range(
-                        syntax
-                            .type_references
-                            .integer_range_normalization(handle, ordinal)?
+                        syntax_type_references(&syntax).integer_range_normalization(handle, ordinal)?
                             .clone(),
                     ),
                 });
@@ -703,10 +696,7 @@ pub(crate) fn domain_index_telescope(
     definition: &DomainDefinition,
 ) -> (Vec<TypeParameter>, bool) {
     let parameters = syntax.items.type_parameters(definition.type_parameters);
-    let target_name = match syntax
-        .type_references
-        .type_reference(definition.target_type)
-    {
+    let target_name = match syntax_type_references(&syntax).type_reference(definition.target_type) {
         TypeReferenceNode::Named(target) => Some(target.as_str(syntax)),
         _ => None,
     };
@@ -902,8 +892,7 @@ fn normalize_domain_head_node(
             lifetime_arguments,
             arguments,
         } => {
-            let nested = syntax
-                .type_references
+            let nested = syntax_type_references(&syntax)
                 .type_reference_handles(arguments)
                 .to_vec();
             // A data application keeps its nominal head; only a node whose
@@ -956,8 +945,7 @@ fn normalize_domain_head_node(
                 let TypeConstraintNode::Domain(domain) = constraint else {
                     continue;
                 };
-                for argument in syntax
-                    .type_references
+                for argument in syntax_type_references(&syntax)
                     .type_reference_handles(domain.arguments)
                     .to_vec()
                 {
