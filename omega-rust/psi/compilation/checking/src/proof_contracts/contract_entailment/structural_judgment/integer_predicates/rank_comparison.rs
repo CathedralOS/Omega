@@ -5,6 +5,7 @@
 //! application still forms independently at the completed operand frontier.
 
 use super::{BigInt, IntegerObservations, Polynomial, StructuralJudge, StructuralTerm, atom_name};
+use crate::proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation;
 use std::collections::BTreeMap;
 use symbols::SymbolHandle;
 use typed_trees::{expression::BinaryOperator, types::PrimitiveType};
@@ -19,7 +20,7 @@ pub(in crate::proof_contracts::contract_entailment) struct CapturedIntegerRank {
 /// and its exact observed atoms travel together with independently proved
 /// natural/carrier bounds; a raw desired interval cannot construct one.
 pub(in crate::proof_contracts::contract_entailment) struct FormedIntegerRank {
-    value: Polynomial,
+    value: IntegerDenotation,
     atoms: Vec<(String, StructuralTerm, PrimitiveType)>,
     maximum: BigInt,
 }
@@ -72,14 +73,13 @@ impl StructuralJudge<'_> {
         let (_, maximum) = primitive
             .integer_bounds()
             .ok_or("the entry rank has no fixed integer carrier bounds")?;
+        let value = engine
+            .capture_integer_denotation(&value)
+            .ok_or("the formed rank has an incomplete opaque dependency graph")?;
         let mut atoms = Vec::new();
         for (position, term) in observations.atoms.into_iter().enumerate() {
             let name = atom_name(position);
-            if !value
-                .terms
-                .keys()
-                .any(|monomial| monomial.contains_key(&name))
-            {
+            if !value.leaf_atoms().contains(&name) {
                 continue;
             }
             let atom = Polynomial::atom(name.clone());
@@ -92,12 +92,11 @@ impl StructuralJudge<'_> {
             atoms.push((name, term, primitive));
         }
         if value
-            .terms
-            .keys()
-            .flat_map(|monomial| monomial.keys())
+            .leaf_atoms()
+            .iter()
             .any(|name| !atoms.iter().any(|(captured, _, _)| captured == name))
         {
-            return Err("the formed rank denotation has an uncaptured integer atom");
+            return Err("the formed rank denotation has an uncaptured integer leaf");
         }
         Ok(FormedIntegerRank {
             value,
@@ -119,12 +118,6 @@ impl StructuralJudge<'_> {
                 .ok_or("the saved rank lost an immutable atom observation")?;
             substitutions.insert(name.clone(), value);
         }
-        let source_value =
-            crate::proof_contracts::contract_entailment::inductive_judgment::apply_argument_map(
-                &source.value,
-                &substitutions,
-            )
-            .ok_or("the saved rank lost its complete observed atom roster")?;
         let destination_input = self
             .integer_value(
                 &destination.input,
@@ -139,6 +132,9 @@ impl StructuralJudge<'_> {
             return Err("a captured rank operand has unformed arithmetic");
         }
         let engine = &mut observations.engine;
+        let source_value = engine
+            .instantiate_integer_denotation(&source.value, &substitutions)
+            .ok_or("the saved rank lost its complete observed dependency roster")?;
         // These facts were proved at the source observation, before effects.
         // They constrain its saved produced value, never the destination input
         // or that application's still-pending intermediate operations.

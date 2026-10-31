@@ -1,7 +1,7 @@
 //! Denotation and its pending application travel together until caller facts
 //! are installed. Normalizing a rank never proves its intermediate operations.
 
-use super::{BTreeMap, Engine, ExpressionHandle, Machine, Polynomial, identity_views};
+use super::{BTreeMap, Engine, ExpressionHandle, Polynomial, identity_views};
 
 pub(super) struct RankValue {
     pub value: Polynomial,
@@ -23,21 +23,14 @@ impl RankValue {
 
     pub fn computed(
         program: &dyn crate::CheckingInput,
-        machine: &Machine,
         engine: &mut Engine<'_>,
         subject: ExpressionHandle,
         parameter: symbols::SymbolHandle,
         body: ExpressionHandle,
     ) -> Option<Self> {
         let input = engine.normalize(subject)?;
-        let body = identity_views::computed_measure_polynomial(program, machine, parameter, body)?;
-        let value = super::inductive_judgment::apply_argument_map(
-            &body,
-            &BTreeMap::from([(
-                identity_views::COMPUTATION_PARAMETER_ATOM.to_owned(),
-                input.clone(),
-            )]),
-        )?;
+        let value =
+            identity_views::computed_measure_value(program, engine, parameter, body, &input)?;
         Some(Self {
             value,
             application: Some(DeclaredApplication {

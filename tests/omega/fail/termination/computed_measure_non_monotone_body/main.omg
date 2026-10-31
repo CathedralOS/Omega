@@ -1,6 +1,5 @@
-// FAIL CANARY. `value * 0 + 1` normalizes to the constant 1: no term reaches
-// the parameter, so the subject's descent says nothing about the rank and the
-// view is not admitted for this subject.
+// FAIL CANARY. The application forms, but its produced rank is always one.
+// A decreasing input cannot establish strict descent of this constant view.
 data Countdown {}
 
 measure Countdown::Flat(value: u8) -> u8 { value * 0 + 1 }
