@@ -9,13 +9,13 @@ use register_model::{
 };
 use selected_instructions::LiveRangeIdentity;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineEffectCatalogIdentity, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineSizeKnowledge,
-    OutgoingArgumentSlotId, PreAllocationMachineEffectIdentity, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlanIdentity, SelectedOutgoingArgumentSlot,
-    VirtualRegisterId,
+    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineEffectCatalogIdentity,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
+    MachineSizeKnowledge, OutgoingArgumentSlotId, PreAllocationMachineEffectIdentity,
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
+    SelectedLocalStorageSlot, SelectedOutgoingArgumentSlot, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, OperationId};
 use target::NativeTarget;
@@ -172,6 +172,21 @@ fn first_instruction(
     plan: &mut PostAllocationMachinePlan,
 ) -> &mut PostAllocationMachineInstruction {
     &mut plan.functions[0].blocks[0].instructions[0]
+}
+
+/// Author one local slot in the single function these fixtures build.
+fn add_local_slot(
+    plan: &mut PostAllocationMachinePlan,
+    id: LocalStorageSlotId,
+    byte_size: u32,
+    alignment: u16,
+) {
+    let slot = SelectedLocalStorageSlot {
+        id,
+        byte_size,
+        alignment,
+    };
+    plan.functions[0].local_storage_slots.push(slot);
 }
 
 /// The codec contract every field probe re-states: one plan round trips
@@ -421,19 +436,13 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
 
 #[test]
 fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity() {
-    use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot};
+    use selected_instructions::FrameStorageSlotId;
     use semantic_vocabulary::PlaceId;
 
     let mut source = plan();
     let place = PlaceId::new(139).unwrap();
     let slot = LocalStorageSlotId::StructuralParameter { place };
-    source.functions[0]
-        .local_storage_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 16,
-            alignment: 8,
-        });
+    add_local_slot(&mut source, slot, 16, 8);
     for address in [
         PhysicalAddressOperation::FrameAddress {
             slot: FrameStorageSlotId::Local(slot),
@@ -626,13 +635,7 @@ fn floating_control_codec_binds_direction_and_private_frame_slot() {
         let slot = selected_instructions::LocalStorageSlotId::Boundary {
             operation: OperationId::new(137).unwrap(),
         };
-        source.functions[0].local_storage_slots.push(
-            selected_instructions::SelectedLocalStorageSlot {
-                id: slot,
-                byte_size: 8,
-                alignment: 8,
-            },
-        );
+        add_local_slot(&mut source, slot, 8, 8);
         let row = first_instruction(&mut source);
         row.address = Some(if restore {
             PhysicalAddressOperation::RestoreFloatingControl { slot }
@@ -676,13 +679,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
     let slot = selected_instructions::LocalStorageSlotId::Boundary {
         operation: OperationId::new(137).unwrap(),
     };
-    source.functions[0]
-        .local_storage_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 1,
-            alignment: 1,
-        });
+    add_local_slot(&mut source, slot, 1, 1);
     first_instruction(&mut source).address =
         Some(PhysicalAddressOperation::HostedWriteByteI32 { slot });
     source.identity = post_allocation_machine_identity(&source);
@@ -719,13 +716,7 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
         place: semantic_vocabulary::PlaceId::new(139).unwrap(),
         operation: OperationId::new(137).unwrap(),
     };
-    source.functions[0]
-        .local_storage_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 8,
-            alignment: 4,
-        });
+    add_local_slot(&mut source, slot, 8, 4);
     first_instruction(&mut source).address =
         Some(PhysicalAddressOperation::HostedReadByte { slot });
     source.identity = post_allocation_machine_identity(&source);
@@ -806,13 +797,7 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
         operation: OperationId::new(137).unwrap(),
         place: semantic_vocabulary::PlaceId::new(139).unwrap(),
     };
-    source.functions[0]
-        .local_storage_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 24,
-            alignment: 8,
-        });
+    add_local_slot(&mut source, slot, 24, 8);
     for address in [
         PhysicalAddressOperation::FrameAddress {
             slot: selected_instructions::FrameStorageSlotId::Incoming {
@@ -898,13 +883,7 @@ fn compiler_spill_slot_codec_retains_function_local_identity() {
     let slot = selected_instructions::LocalStorageSlotId::Spill {
         register: selected_instructions::VirtualRegisterId(7),
     };
-    source.functions[0]
-        .local_storage_slots
-        .push(selected_instructions::SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: 8,
-            alignment: 8,
-        });
+    add_local_slot(&mut source, slot, 8, 8);
     for address in [
         PhysicalAddressOperation::FrameAddress {
             slot: selected_instructions::FrameStorageSlotId::Local(slot),
