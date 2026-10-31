@@ -4,4 +4,4 @@ This first executable rung uses imported `Represented<T, Policy>`, its partially
 
 The intended invalid children change the exact policy, store 41 outside the declared field domain, name a private alias, introduce growing/direct and indirect alias-definition cycles, or violate an erased parameter’s `[copy]` obligation. They retain separate expected reasons. These are planned observations until an actual current producer records source checking, matching native execution and Terminal execution; no host matrix or Product acceptance is implied.
 
-The full nine-place row, computed alias-RHS operands with supplying custody, remaining ordinary binder cases, qualified cases/patterns and exposure controls remain owned by `LIBRARY-REPRESENTATION-FAMILIES` after this rung.
+The full nine-place row, computed alias-RHS operands with supplying custody, remaining ordinary binder cases, alias-bearing captured Product/Build static-operand transport, qualified cases/patterns and exposure controls remain owned by `LIBRARY-REPRESENTATION-FAMILIES` after this rung.

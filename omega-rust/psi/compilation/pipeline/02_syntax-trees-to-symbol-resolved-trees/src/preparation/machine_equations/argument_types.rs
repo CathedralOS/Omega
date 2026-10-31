@@ -12,11 +12,11 @@
 use super::{ConstantSelection, SourceLinks};
 use crate::tables::body_expressions;
 use crate::tables::resolved_declarations;
-use symbol_resolved_trees::types::TypeReference;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use expression::ExpressionNode;
 use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::types::TypeReference;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, statement, types};
 use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::SyntaxTrees;

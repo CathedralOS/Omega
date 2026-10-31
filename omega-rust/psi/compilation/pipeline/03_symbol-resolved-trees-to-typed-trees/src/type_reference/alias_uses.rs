@@ -11,27 +11,20 @@ pub(super) fn retain_application(
     expansion: typed::types::TypeReferenceHandle,
     application: typed::types::TypeReferenceHandle,
     declaration_source: SourceSpan,
+    reference: SourceSpan,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     use typed::types::TypeReferenceNode;
-    let (declaration, reference, arguments, lifetime_arguments) =
+    let (declaration, arguments, lifetime_arguments) =
         match target.type_reference_table.type_reference(application) {
             TypeReferenceNode::Generic {
                 base_symbol,
-                base_name,
                 arguments,
                 lifetime_arguments,
-            } => (
-                *base_symbol,
-                base_name.source_span(),
-                *arguments,
-                lifetime_arguments.clone(),
-            ),
-            TypeReferenceNode::Named { symbol, name } => (
-                *symbol,
-                name.source_span(),
-                arena::HandleSpan::empty(),
-                Vec::new(),
-            ),
+                ..
+            } => (*base_symbol, *arguments, lifetime_arguments.clone()),
+            TypeReferenceNode::Named { symbol, .. } => {
+                (*symbol, arena::HandleSpan::empty(), Vec::new())
+            }
             _ => {
                 return Err(Diagnostic::error(
                     "type alias application lost its declaration head",

@@ -55,6 +55,11 @@ fn alias_obligations_survive_copy_actual_substitution_and_complete_applied_views
     let written = source.fresh_occurrence(input);
     let original_application = application(&mut source, receiving_alias, input);
     retain(&mut source, written, original_application, receiving_alias);
+    let mut program = crate::TypedTrees::default();
+    program.type_reference_table = source.clone();
+    let operand = program.static_operand_from_type_reference(written).unwrap();
+    assert_eq!(operand.type_reference, written);
+    assert!(operand.path.is_empty());
     let mut target = TypeReferenceTable::new();
     let mut expressions = crate::expression::ExpressionTable::default();
     let copied = target.copy_from(

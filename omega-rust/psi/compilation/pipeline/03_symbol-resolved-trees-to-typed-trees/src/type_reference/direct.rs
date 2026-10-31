@@ -149,6 +149,15 @@ pub(super) fn lower_type_reference_handle_with_context(
                 expansion,
                 None,
             )?;
+            let reference = match application.as_ref() {
+                resolved::types::TypeReference::Generic(value) => value.base_name.source_span(),
+                resolved::types::TypeReference::Named { name, .. } => name.source_span(),
+                _ => {
+                    return Err(Diagnostic::error(
+                        "type alias application lost its source declaration head",
+                    ));
+                }
+            };
             let application = lower!(application)?;
             super::alias_uses::retain_application(
                 source_trees,
@@ -156,6 +165,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 expansion,
                 application,
                 *declaration_source,
+                reference,
             )
         }
         resolved::types::TypeReference::Unit => Ok(typed_trees
