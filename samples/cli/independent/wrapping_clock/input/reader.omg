@@ -11,7 +11,7 @@ data Token {
 // Nonnegative decimal tokens, ASCII whitespace, at most 19 digits and i64::MAX.
 // The guard precedes multiply/add, including at the signed overflow boundary.
 machine next_token() -> Token reaches Console
-blocks;
+blocks
 crashes Trap
 {
     transition { _ -> scan(0, 0) }
@@ -55,7 +55,7 @@ crashes Trap
 }
 
 machine read_acquisition(acquisition: &mut Acquisition) reaches Console
-blocks;
+blocks
 crashes Trap
 {
     acquisition.used = 0;

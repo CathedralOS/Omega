@@ -20,8 +20,8 @@ public boundary trait UefiPhysicalEntry {
         system_table: &EfiSystemTable
     ) -> EfiStatus
         reaches ExtentRootProvider + ProgramStorageEntry + PortIo
-        invokes ExtentRootProvider;
-        invokes ProgramStorageEntry;
+        invokes ExtentRootProvider
+        invokes ProgramStorageEntry
         requires addr::Bound == 18446744073709551616;
 }
 

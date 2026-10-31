@@ -6,7 +6,7 @@ public boundary trait Registrar {
     reaches
     invokes Handler;
 }
-machine wait_callback() -> u64 satisfies Handler::wait blocks; { 7 }
+machine wait_callback() -> u64 satisfies Handler::wait blocks { 7 }
 
 machine missing_acknowledgement() -> u64 reaches Registrar {
     Registrar::execute<wait_callback>()

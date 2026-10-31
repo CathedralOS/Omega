@@ -6,7 +6,7 @@ data Main {
 }
 
 machine read_edge(v: &[u8], i: u64) -> u8
-    requires i < v.len;
+    requires i < v.len
 {
     v[i]
 }

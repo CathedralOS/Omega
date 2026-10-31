@@ -1,6 +1,6 @@
 machine walk(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     transition remaining >= 2 {
         true -> finish(remaining - 2)

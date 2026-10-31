@@ -8,7 +8,7 @@ public boundary trait Service {
 Provider satisfies Service { Service::echo = echo; }
 machine echo<const Count: u64>(value: i32) -> i32 { value }
 machine relay<const Count: u64>(value: i32) -> i32 reaches Service
-requires Count == 4 || Count == 8;
+requires Count == 4 || Count == 8
 { Service::echo<Count>(value) }
 
 data Providers {}

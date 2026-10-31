@@ -41,7 +41,7 @@ machine nonzero_rat(
     denominator: Nat
 ) -> Rat in NonZero
 requires
-    positive != negative;
+    positive != negative,
     (saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator)) == Nat::Zero
 {
     Rat {

@@ -8,8 +8,8 @@ machine Provider::read() -> i32 satisfies Reader::read { 37 }
 
 public data Runner { }
 public machine Runner::run(runner: &mut Runner) reaches Reader, Console
-invokes Reader;
-invokes Console;
+invokes Reader
+invokes Console
 {
     let value: i32 = Reader::read();
     transition value == 37 { true -> deliver(runner, value) _ -> wrong(runner, value) }

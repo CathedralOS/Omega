@@ -73,7 +73,7 @@ public machine histogram(distribution: &mut Distribution) crashes Trap {
     }
     machine done() { }
 }
-public machine report(distribution: &Distribution) reaches Console invokes Console; crashes Trap {
+public machine report(distribution: &Distribution) reaches Console invokes Console crashes Trap {
     Console::write_line("molecular_pair_distribution bin count g coordination");
     transition { _ -> row(distribution, 0, 0.0, 0) }
     machine row(distribution: &Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {

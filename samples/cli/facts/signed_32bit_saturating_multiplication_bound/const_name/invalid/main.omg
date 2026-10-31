@@ -11,8 +11,8 @@ const PROD_MIN: i32 = 50i32;
 const PROD_MAX: i32 = 200i32;
 
 machine multiply_const(lhs: i32, rhs: i32) -> i32
-    requires lhs >= LHS_MIN && lhs <= LHS_MAX;
-    requires rhs >= RHS_MIN && rhs <= RHS_MAX;
+    requires lhs >= LHS_MIN && lhs <= LHS_MAX
+    requires rhs >= RHS_MIN && rhs <= RHS_MAX
 {
     let a: i32 in Saturating = lhs as i32 in Saturating;
     let b: i32 in Saturating = rhs as i32 in Saturating;

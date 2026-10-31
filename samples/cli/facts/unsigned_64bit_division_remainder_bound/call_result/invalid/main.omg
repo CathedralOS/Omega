@@ -4,14 +4,14 @@
 // Expected rejection: may overflow `u64`
 
 machine compute_remainder(d: u64, s: u64) -> u64
-    requires s >= 64u64 && s <= 65u64;
-    ensures result <= 64u64;
+    requires s >= 64u64 && s <= 65u64
+    ensures result <= 64u64
 {
     d % s
 }
 
 machine remainder_call_result(dividend: u64, divisor: u64) -> i32
-    requires divisor >= 64u64 && divisor <= 65u64;
+    requires divisor >= 64u64 && divisor <= 65u64
 {
     let rem: u64 = compute_remainder(dividend, divisor);
     let headroom: u64 = 63u64 - rem;

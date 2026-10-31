@@ -212,7 +212,7 @@ machine soft_threshold(value: f64, threshold: f64) -> f64 {
 // selected row returns as an independent owned value; its shared source loan
 // ends before reassembly writes the application buffers.
 machine pair(pairs: &[[f64; 2]; 32], index: u64) -> [f64; 2]
-requires index < 32;
+requires index < 32
 {
     pairs[index]
 }

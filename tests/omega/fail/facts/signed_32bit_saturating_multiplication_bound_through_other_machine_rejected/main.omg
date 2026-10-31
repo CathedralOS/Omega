@@ -4,7 +4,7 @@
 // Expected rejection: not provably representable
 
 machine forward_eval(p: i32) -> i32
-    requires p >= 50i32 && p <= 210i32;
+    requires p >= 50i32 && p <= 210i32
 {
     let headroom: i32 = 200i32 - p;
     let margin: i32 = p - 50i32;
@@ -19,8 +19,8 @@ machine forward_eval(p: i32) -> i32
 }
 
 machine multiply_other_machine(lhs: i32, rhs: i32) -> i32
-    requires lhs >= 10i32 && lhs <= 21i32;
-    requires rhs >= 5i32 && rhs <= 10i32;
+    requires lhs >= 10i32 && lhs <= 21i32
+    requires rhs >= 5i32 && rhs <= 10i32
 {
     let a: i32 in Saturating = lhs as i32 in Saturating;
     let b: i32 in Saturating = rhs as i32 in Saturating;

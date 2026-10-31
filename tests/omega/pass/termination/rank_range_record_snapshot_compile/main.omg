@@ -3,10 +3,9 @@
 // without retaining the measure in that state's telescope.
 data Pair where left <= 5 { left: u32; }
 
-machine walk(remaining: u32)
+machine walk(remaining: u32) -> u32
 requires remaining <= 5
-terminates by remaining in 0..=5;
--> u32 {
+terminates by remaining in 0..=5 {
     transition { _ -> s(Pair { left: remaining }, remaining) }
     machine s(pair: Pair, copy: u32) -> u32
     requires copy <= 5

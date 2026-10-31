@@ -1,6 +1,6 @@
 // A literal selector still owes the actual view's live extent.
 machine read(values: &[u32]) -> u32
-requires values.len == 0;
+requires values.len == 0
 {
     values[0]
 }

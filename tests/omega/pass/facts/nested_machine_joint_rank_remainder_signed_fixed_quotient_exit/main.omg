@@ -1,11 +1,11 @@
 // Expected exit: 0
 machine positive_divisor(value: i64, divisor: i64) -> i64
-requires value >= -7 && value <= -5 && divisor >= 4 && divisor <= 5;
-ensures result == value + divisor;
+requires value >= -7 && value <= -5 && divisor >= 4 && divisor <= 5
+ensures result == value + divisor
 { value % divisor }
 machine negative_divisor(value: i64, divisor: i64) -> i64
-requires value >= -7 && value <= -5 && divisor >= -5 && divisor <= -4;
-ensures result == value - divisor;
+requires value >= -7 && value <= -5 && divisor >= -5 && divisor <= -4
+ensures result == value - divisor
 { value % divisor }
 machine main() crashes Trap {
     let a: i64 = positive_divisor(-7, 4);

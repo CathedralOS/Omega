@@ -11,8 +11,8 @@ const DIFF_MIN: i16 = 200i16;
 const DIFF_MAX: i16 = 450i16;
 
 machine subtract_const(lhs: i16, rhs: i16) -> i32
-    requires lhs >= LHS_MIN && lhs <= LHS_MAX;
-    requires rhs >= RHS_MIN && rhs <= RHS_MAX;
+    requires lhs >= LHS_MIN && lhs <= LHS_MAX
+    requires rhs >= RHS_MIN && rhs <= RHS_MAX
 {
     let diff: i16 = lhs - rhs;
     let headroom: i16 = DIFF_MAX - diff;

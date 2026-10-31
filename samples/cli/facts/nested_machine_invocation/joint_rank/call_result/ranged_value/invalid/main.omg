@@ -1,16 +1,16 @@
 // A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
 // Expected exit: 0
 machine count(counter: &mut u64, remaining: u64)
-terminates;
-terminates by remaining in 0..=7;
-requires remaining <= 7;
+terminates
+terminates by remaining in 0..=7
+requires remaining <= 7
 {
     transition remaining > 0 {
         true -> forward(remaining, counter)
         false -> done()
     }
     machine forward(pending: u64, counter: &mut u64)
-    requires pending > 0 && pending <= 7;
+    requires pending > 0 && pending <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         transition { _ -> count(counter, pending) }
@@ -18,7 +18,7 @@ requires remaining <= 7;
     machine done() {}
 }
 machine remaining(select: bool) -> u64
-ensures result <= 7;
+ensures result <= 7
 { match select { true -> 7 false -> 0 } }
 machine perform(counter: &mut u64, select: bool) {
     let received: u64 = remaining(select);

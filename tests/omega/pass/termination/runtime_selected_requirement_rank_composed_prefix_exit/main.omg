@@ -15,12 +15,12 @@ ReadOnly satisfies RankReader {
 }
 
 machine nested_countdown(selected: dyn RankReader, remaining: u32) -> u32
-requires remaining <= 9;
-terminates by remaining in 0..=9;
+requires remaining <= 9
+terminates by remaining in 0..=9
 {
     transition { _ -> scan(selected, remaining) }
     machine scan(selected: dyn RankReader, remaining: u32) -> u32
-    requires remaining <= 9;
+    requires remaining <= 9
     {
         let observed: u32 = RankReader::read(selected, &remaining);
         let nested: u32 = RankReader::keep(selected, RankReader::read(selected, &remaining));
@@ -33,12 +33,12 @@ terminates by remaining in 0..=9;
 }
 
 machine composed_countdown(selected: dyn RankReader, remaining: u32) -> u32
-requires remaining <= 9;
-terminates by remaining in 0..=9;
+requires remaining <= 9
+terminates by remaining in 0..=9
 {
     transition { _ -> scan(selected, remaining) }
     machine scan(selected: dyn RankReader, remaining: u32) -> u32
-    requires remaining <= 9;
+    requires remaining <= 9
     {
         let observed: u32 = RankReader::read(selected, &remaining);
         let composed: u32 = RankReader::read(selected, &remaining) + 0;

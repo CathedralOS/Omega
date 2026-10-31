@@ -12,20 +12,18 @@ machine Main::main(main: &mut Main) -> u32 {
     transition { _ -> Main::scan_a(main, 5) }
 }
 
-machine Main::scan_a(main: &mut Main, remaining: u32)
-requires remaining <= 5;
-terminates by remaining -> Countdown::Remaining in 0..=5;
--> u32 {
+machine Main::scan_a(main: &mut Main, remaining: u32) -> u32
+requires remaining <= 5
+terminates by remaining -> Countdown::Remaining in 0..=5 {
     transition remaining > 0 {
         true -> Main::scan_b(main, remaining)
         false -> remaining
     }
 }
 
-machine Main::scan_b(main: &mut Main, pending: u32)
-requires pending <= 5;
-terminates by pending -> Nat::Descending in 0..=5;
--> u32 {
+machine Main::scan_b(main: &mut Main, pending: u32) -> u32
+requires pending <= 5
+terminates by pending -> Nat::Descending in 0..=5 {
     transition pending > 0 {
         true -> Main::scan_a(main, pending - 1)
         false -> pending

@@ -50,14 +50,14 @@ satisfies Arithmetic::multiply_divide via ForeignBinding::TableFunction(multiply
 
 machine measure_function(table: &CounterFunctions, output: &mut i64) -> i32
 reaches CounterFunction
-invokes CounterFunction;
+invokes CounterFunction
 {
     CounterFunction::query(table, output)
 }
 
 machine measure(table: &mut CounterTable) -> i32
 reaches Counter
-invokes Counter;
+invokes Counter
 {
     Counter::query(table)
 }
@@ -65,11 +65,11 @@ invokes Counter;
 machine main()
 reaches ModuleSymbols + Counter + CounterFunction + ProcessIdentity + Arithmetic
 crashes Trap
-invokes ModuleSymbols;
-invokes Counter;
-invokes CounterFunction;
-invokes ProcessIdentity;
-invokes Arithmetic;
+invokes ModuleSymbols
+invokes Counter
+invokes CounterFunction
+invokes ProcessIdentity
+invokes Arithmetic
 {
     let library: [u8; 13] = "kernel32.dll\0";
     let symbol: [u8; 24] = "QueryPerformanceCounter\0";

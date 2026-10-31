@@ -7,7 +7,7 @@ data Token { id: u32; }
 data Main { }
 
 machine spin(token: Token, remaining: u32)
-terminates by remaining;
+terminates by remaining
 requires remaining <= 5
 {
     transition remaining > 0 {

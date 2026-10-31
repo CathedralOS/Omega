@@ -3,7 +3,7 @@ data Device { pending: u64; }
 boundary trait Poll { machine poll(device: &mut Device) -> Status reaches; }
 machine read(device: &mut Device, retry: u64) -> u64
 reaches Poll
-invokes Poll;
+invokes Poll
 requires addr::Bound == 18446744073709551616 && retry <= 1
 {
     transition { _ -> inspect(device, retry) }

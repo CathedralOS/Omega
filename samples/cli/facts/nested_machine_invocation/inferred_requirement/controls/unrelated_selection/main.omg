@@ -5,7 +5,7 @@ requires machine Transform(item: u64) -> u64;
 // Every actual arrival establishes the nested helper's equality.
 data Note { value: u64; tag: u64; }
 machine same(left: u64, right: u64) -> u64
-requires left == right; ensures result == left; { left }
+requires left == right ensures result == left { left }
 machine probe(value: u64, select: bool) -> Note {
     let ignored: u64 = apply<identity>(value);
     transition select {

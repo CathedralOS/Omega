@@ -1,30 +1,30 @@
 machine walk(remaining: u64) -> u64
-requires remaining <= 4;
-terminates;
-terminates by remaining in 0..=4;
+requires remaining <= 4
+terminates
+terminates by remaining in 0..=4
 {
     transition remaining > 0 {
         true -> forward(remaining)
         false -> 0
     }
     machine forward(count: u64) -> u64
-    requires count > 0 && count <= 4;
+    requires count > 0 && count <= 4
     {
         transition { _ -> walk(count - 1) }
     }
 }
 
 machine walk_value(remaining: u64) -> u64
-requires remaining <= 4;
-terminates;
-terminates by remaining in 0..=4;
+requires remaining <= 4
+terminates
+terminates by remaining in 0..=4
 {
     transition remaining > 0 {
         true -> forward(remaining)
         false -> 0
     }
     machine forward(count: u64) -> u64
-    requires count > 0 && count <= 4;
+    requires count > 0 && count <= 4
     {
         let next: u64 = count - 1;
         transition { _ -> (walk_value(next)) }
@@ -32,16 +32,16 @@ terminates by remaining in 0..=4;
 }
 
 machine walk_arrival(remaining: u64) -> u64
-requires remaining <= 4;
-terminates;
-terminates by remaining in 0..=4;
+requires remaining <= 4
+terminates
+terminates by remaining in 0..=4
 {
     transition remaining > 0 {
         true -> forward(remaining - 1)
         false -> 0
     }
     machine forward(count: u64) -> u64
-    requires count < 4;
+    requires count < 4
     {
         transition { _ -> walk_arrival(count) }
     }
@@ -62,25 +62,25 @@ machine main() crashes Trap {
 }
 
 machine walk_signed(remaining: i32) -> i32
-requires remaining >= 0 && remaining <= 4;
-terminates;
-terminates by remaining -> Nat::Descending in 0..=4;
+requires remaining >= 0 && remaining <= 4
+terminates
+terminates by remaining -> Nat::Descending in 0..=4
 {
     transition remaining > 0 {
         true -> forward(remaining)
         false -> remaining
     }
     machine forward(count: i32) -> i32
-    requires count > 0 && count <= 4;
+    requires count > 0 && count <= 4
     {
         transition { _ -> walk_signed(count - 1) }
     }
 }
 
 machine walk_distance(index: u64, ceiling: u64) -> u64
-requires ceiling <= 4 && index <= ceiling + 1;
-terminates;
-terminates by (index, ceiling + 1) -> Nat::BoundedDistance;
+requires ceiling <= 4 && index <= ceiling + 1
+terminates
+terminates by (index, ceiling + 1) -> Nat::BoundedDistance
 {
     transition index < ceiling + 1 {
         true -> walk_distance(index + 1, ceiling)

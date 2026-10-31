@@ -8,8 +8,8 @@ data Operands {
 }
 
 machine subtract_field(lhs: i16, rhs: i16) -> i32
-    requires lhs >= 300i16 && lhs <= 500i16;
-    requires rhs >= 50i16 && rhs <= 100i16;
+    requires lhs >= 300i16 && lhs <= 500i16
+    requires rhs >= 50i16 && rhs <= 100i16
 {
     let ops: Operands = Operands { lhs: lhs, rhs: rhs };
     let diff: i16 = ops.lhs - ops.rhs;

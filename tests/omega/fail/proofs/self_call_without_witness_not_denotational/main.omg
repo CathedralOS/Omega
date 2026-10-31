@@ -3,7 +3,7 @@ machine stalled(value: u64) -> u64 {
 }
 
 machine harmless(value: u64) -> u64
-requires stalled(value) == stalled(value);
+requires stalled(value) == stalled(value)
 {
     value
 }

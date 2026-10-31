@@ -11,7 +11,7 @@ machine main() crashes Trap {
         false -> bad()
     }
     machine inspect(bytes: &[u8])
-    requires bytes.len == 2;
+    requires bytes.len == 2
     {
         let suffix: &[u8] = &bytes[1..2];
         transition valid_utf8(bytes) && !valid_utf8(suffix) && suffix.len == 1 {

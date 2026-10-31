@@ -2,7 +2,7 @@
 data Buffer<const N: u64> { items: [u8; N]; }
 
 machine window<const Extent: u64>(buffer: &Buffer<Extent>) -> u64
-requires Extent >= 0;
+requires Extent >= 0
 {
     let view: &[u8] = &buffer.items[..Extent];
     transition { _ -> view.len }
@@ -16,7 +16,7 @@ data Nest<'next, Value> {
 machine nested_window<'storage, const Extent: u64>(
     node: &Nest<'storage, Buffer<Extent>>
 ) -> u64
-requires Extent >= 0;
+requires Extent >= 0
 {
     let view: &[u8] = &node.next.value[0].items[..Extent];
     transition { _ -> view.len }

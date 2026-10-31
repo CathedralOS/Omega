@@ -4,13 +4,13 @@
 // Expected rejection: cannot prove index
 
 machine fetch_element(values: [u64; 16], idx: u64) -> u64
-    requires idx <= 16u64;
+    requires idx <= 16u64
 {
     values[idx]
 }
 
 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx <= 16u64;
+    requires idx <= 16u64
 {
     fetch_element(values, idx)
 }

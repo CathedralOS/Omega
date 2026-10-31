@@ -3,16 +3,16 @@
 data Remaining { canary: u64; count: u64; tail: u64; }
 measure Remaining::Doubled(value: u64) -> u64 { value * 2 }
 machine count(counter: &mut u64, remaining: Remaining) crashes Trap
-terminates;
-terminates by remaining.count -> Remaining::Doubled in 0..=14;
-requires remaining.count <= 7;
+terminates
+terminates by remaining.count -> Remaining::Doubled in 0..=14
+requires remaining.count <= 7
 {
     transition remaining.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.count, remaining.canary, remaining.tail)
     }
     machine forward(pending: Remaining, counter: &mut u64) crashes Trap
-    requires pending.count > 0 && pending.count <= 7;
+    requires pending.count > 0 && pending.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         let next: Remaining = Remaining { canary: pending.canary, count: pending.count - 1, tail: pending.tail };

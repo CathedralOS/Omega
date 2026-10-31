@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 machine divide_param(dividend: u32, divisor: u32) -> i32
-    requires dividend >= 200u32 && dividend <= 200u32;
-    requires divisor >= 4u32 && divisor <= 4u32;
+    requires dividend >= 200u32 && dividend <= 200u32
+    requires divisor >= 4u32 && divisor <= 4u32
 {
     let quotient: u32 = dividend / divisor;
     let check: u32 = quotient - 50u32;

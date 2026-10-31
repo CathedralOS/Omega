@@ -9,9 +9,8 @@ machine Main::main(main: &mut Main) -> u64 {
     }
 }
 
-machine Main::walk(main: &mut Main, index: u64)
-terminates by (index, 8) -> Nat::BoundedDistance;
--> u64
+machine Main::walk(main: &mut Main, index: u64) -> u64
+terminates by (index, 8) -> Nat::BoundedDistance
 {
     transition index < 9 {
         true -> walk(main, index + 1)

@@ -15,16 +15,16 @@ requires machine Read(index: Nat) -> Observation terminates;
 machine result_projection<machine Read>(index: Nat)
 requires machine Read(index: Nat) -> Observation terminates;
 ensures
-    project<Read>(index) == (Read(index)).value;
+    project<Read>(index) == (Read(index)).value,
     forwarded<Read>(index) == (Read(index)).value
 {
 }
-machine literal(index: Nat) -> Observation terminates; {
+machine literal(index: Nat) -> Observation terminates {
     Observation { value: index, other: Nat::Zero }
 }
 machine concrete_projection(index: Nat)
 ensures
-    project<literal>(index) == index;
+    project<literal>(index) == index,
     forwarded<literal>(index) == index
 {
 }

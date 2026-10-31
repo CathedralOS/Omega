@@ -9,7 +9,7 @@ data Seq<T> {
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
 requires machine Predicate(value: &T) -> bool;
-terminates by items;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty

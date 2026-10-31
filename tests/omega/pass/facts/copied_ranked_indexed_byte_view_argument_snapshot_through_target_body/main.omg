@@ -6,10 +6,9 @@ data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
 data Counted<'storage, Count: u64> [copy]
 where view.bytes.len == Count
 { view: View<'storage>; }
-machine retain_counted<'storage, Count: u64>(selected: Counted<'storage, Count>, remaining: u64)
+machine retain_counted<'storage, Count: u64>(selected: Counted<'storage, Count>, remaining: u64) -> Counted<'storage, Count>
 requires remaining <= 2
-terminates by remaining -> Nat::Descending in 0..=2;
--> Counted<'storage, Count>
+terminates by remaining -> Nat::Descending in 0..=2
 {
     transition remaining > 0 {
         true -> retain_counted<Count>(selected, remaining - 1)

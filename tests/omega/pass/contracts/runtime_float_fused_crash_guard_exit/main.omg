@@ -1,17 +1,15 @@
 use omega::language::core::float_operations;
 data Reading { value: f64; }
-machine ping(reading: &Reading, count: u64)
-terminates by count;
--> f64
+machine ping(reading: &Reading, count: u64) -> f64
+terminates by count
 crashes Trap reading.value < 0.0 {
     transition count == 0 {
         true -> reading.value
         false -> pong(reading, count - 1)
     }
 }
-machine pong(reading: &Reading, count: u64)
-terminates by count;
--> f64
+machine pong(reading: &Reading, count: u64) -> f64
+terminates by count
 crashes Trap reading.value < 0.0 {
     transition count == 0 {
         true -> finish(reading)

@@ -3,8 +3,8 @@
 data Leaf { count: u64; stamp: u64; }
 data Payload<'storage> { guard: u64; case Pending(value: &'storage Leaf); case Empty; }
 machine input<'storage>(value: &'storage mut Leaf, other: &'storage mut Leaf, select: bool) -> Payload<'storage>
-requires other.count == 8;
-ensures (result in Payload::Pending) && result.value.count <= 7;
+requires other.count == 8
+ensures (result in Payload::Pending) && result.value.count <= 7
 {
  value.count = 7;
  let mut current: &'storage Leaf = value;

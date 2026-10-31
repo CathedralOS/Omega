@@ -4,8 +4,8 @@ use omega_language_std::console;
 public data Parsed [copy] { value: u64; valid: bool; }
 public machine read_number() -> Parsed
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> skip() }
@@ -67,8 +67,8 @@ crashes Trap
 
 public machine only_whitespace() -> bool
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan() }

@@ -13,7 +13,7 @@ let retain<Length: u64, Total: u64>(value: Vector<Length, Total>): Vector<Length
 
 machine vector_bound<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>)
 requires Length <= 7
-terminates by Length;
+terminates by Length
 ensures embed(Total) <= 10 * embed(Length)
 {
     transition evidence {

@@ -6,7 +6,7 @@ use protocol::model;
 public data Report { }
 
 public machine Report::row(laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
-invokes Console;
+invokes Console
 {
     Report::decision(decision);
     Console::write(" owner=");

@@ -1,15 +1,15 @@
 // Expected exit: 0
 machine invert_unsigned(value: u64) -> u64
-ensures result == 18446744073709551615u64 - value;
+ensures result == 18446744073709551615u64 - value
 { ~value }
 machine invert_byte(value: u8) -> u8
-ensures result == 255u8 - value;
+ensures result == 255u8 - value
 { ~value }
 machine invert_signed(value: i64) -> i64
-ensures result == -1i64 - value;
+ensures result == -1i64 - value
 { ~value }
 machine twice(value: u64) -> u64
-ensures result == value;
+ensures result == value
 { ~~value }
 machine wrapped(value: u8 in Wrapping) -> u8 in Wrapping { ~(value + 1) }
 machine saturated(value: u8 in Saturating) -> u8 in Saturating { ~(value + 1) }

@@ -30,7 +30,7 @@ pub(crate) fn validate_invocation_contracts(
                 &summary.published,
                 |binding, ceiling| {
                     format!(
-                        "machine `{}` omits `invokes {binding};` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [{ceiling}])",
+                        "machine `{}` omits `invokes {binding}` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [{ceiling}])",
                         machine.name,
                     )
                 },
@@ -85,7 +85,7 @@ fn validate_target_names(
             && seen.contains(&target.target)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "callable `{owner}` declares `invokes {};` more than once",
+                "callable `{owner}` declares `invokes {}` more than once",
                 target.name,
             )));
             continue;
@@ -95,7 +95,7 @@ fn validate_target_names(
         match target.target {
             typed_trees::signature::AuthoredInvocationTarget::Unresolved => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "callable `{owner}` declares `invokes {};`, but `{}` is neither one of its boundary-binding parameters nor a known boundary trait",
+                    "callable `{owner}` declares `invokes {}`, but `{}` is neither one of its boundary-binding parameters nor a known boundary trait",
                     target.name,
                     target.name,
                 )));
@@ -107,7 +107,7 @@ fn validate_target_names(
                         || boundary_trait_for_type(program, parameter.type_reference).is_none()
                 }) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "callable `{owner}` retains `invokes {};` with a stale or non-boundary parameter target",
+                        "callable `{owner}` retains `invokes {}` with a stale or non-boundary parameter target",
                         target.name,
                     )));
                 }
@@ -119,7 +119,7 @@ fn validate_target_names(
                     .any(|definition| definition.symbol == symbol && definition.is_boundary)
                 {
                     diagnostics.push(Diagnostic::error(format!(
-                        "callable `{owner}` retains `invokes {};` with a stale or non-boundary service target",
+                        "callable `{owner}` retains `invokes {}` with a stale or non-boundary service target",
                         target.name,
                     )));
                 }
@@ -212,7 +212,7 @@ fn validate_conformance_refinement(
                 &allowed,
                 |binding, ceiling| {
                     format!(
-                        "machine `{}` does not refine `{}::{}`: its body may synchronously invoke binding `{binding}`, but the requirement omits `invokes {binding};` (requirement invokes: [{ceiling}])",
+                        "machine `{}` does not refine `{}::{}`: its body may synchronously invoke binding `{binding}`, but the requirement omits `invokes {binding}` (requirement invokes: [{ceiling}])",
                         machine.name, trait_definition.name, requirement.name,
                     )
                 },

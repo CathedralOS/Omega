@@ -12,7 +12,7 @@ data Decimal {
 // working value represents i32::MIN exactly; eleven bytes include its sign.
 public machine number(value: i32 in Wrapping)
 reaches Console
-invokes Console;
+invokes Console
 {
     let mut decimal: Decimal;
     decimal.divisor = 1;

@@ -11,7 +11,7 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 data Holder { case Filled(region: Region in Owned); }
 data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(holder: Holder, cut: u64) -> Pieces
-requires holder in Holder::Filled;
+requires holder in Holder::Filled,
     holder.region.start <= cut && cut <= holder.region.end
 ensures Owned::content(old(&holder.region)) == separate(
     Owned::content(&result.left), Owned::content(&result.right)) {

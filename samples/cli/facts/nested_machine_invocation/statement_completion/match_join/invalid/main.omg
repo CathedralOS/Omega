@@ -4,7 +4,7 @@
 use omega_language_std::console;
 
 machine probe(value: i64, event: i32, select: bool) -> i64
-ensures result != -1;
+ensures result != -1
 reaches Console {
     let saved: i64 = match select { true -> value false -> 0 };
     transition { _ -> filter(saved, event) }
@@ -13,7 +13,7 @@ reaches Console {
         transition candidate != 0 && candidate != -2 { true -> candidate false -> 0 }
     }
 }
-machine accept(value: i64) -> i64 requires value != -1; { value }
+machine accept(value: i64) -> i64 requires value != -1 { value }
 machine main() reaches Console crashes Trap {
     let a: i64 = accept(probe(7, 65, true));
     let b: i64 = accept(probe(9, 66, false));

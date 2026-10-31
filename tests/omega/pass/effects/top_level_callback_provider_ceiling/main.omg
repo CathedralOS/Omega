@@ -11,5 +11,5 @@ invokes Handler;
 machine implementation<machine Callback>() -> u64
 requires machine Callback satisfies Handler::read;
 satisfies Operations::execute
-reaches Read blocks;
+reaches Read blocks
 { block Callback() }

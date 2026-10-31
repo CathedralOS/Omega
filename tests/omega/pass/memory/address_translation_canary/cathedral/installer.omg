@@ -82,7 +82,7 @@ public machine CathedralPageTables::install(
     pending: Mapping in Pending
 ) -> WalkedInstall
 reaches TranslationHardware + MachineControl
-invokes TranslationHardware;
+invokes TranslationHardware
 {
     let virtual_base: u64 = pending.destination.base as u64;
     let source_frame: u64 = pending.source.base as u64;
@@ -121,7 +121,7 @@ public machine CathedralPageTables::remove(
     active: Mapping in Installed
 ) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
-invokes TranslationHardware;
+invokes TranslationHardware
 {
     let leaf_slot: u64 = level_index(active.destination.base as u64, 3);
     let cleared: TableEntry = TableEntry::EMPTY;
@@ -148,7 +148,7 @@ public machine CathedralPageTables::install_huge(
     pending: Mapping in Pending
 ) -> WalkedInstall
 reaches TranslationHardware + MachineControl
-invokes TranslationHardware;
+invokes TranslationHardware
 {
     let virtual_base: u64 = pending.destination.base as u64;
     let source_frame: u64 = pending.source.base as u64;
@@ -180,7 +180,7 @@ public machine CathedralPageTables::remove_huge(
     active: Mapping in Installed
 ) -> ClearedLeaf
 reaches TranslationHardware + MachineControl
-invokes TranslationHardware;
+invokes TranslationHardware
 {
     let leaf_slot: u64 = level_index(active.destination.base as u64, 2);
     let cleared: TableEntry = TableEntry::EMPTY;

@@ -13,9 +13,8 @@
 // correctly or fail to compile, never silently ZII. Differential.
 use omega_language_std::console;
 data Main { hits: i32 in Wrapping; total: i32 in Wrapping; }
-machine Main::count(main: &mut Main, i: u64, j: u64)
-terminates by (j, i) -> Nat::BoundedDistance;
--> i32
+machine Main::count(main: &mut Main, i: u64, j: u64) -> i32
+terminates by (j, i) -> Nat::BoundedDistance
 {
     main.hits = main.hits + 1;
     transition j < i {

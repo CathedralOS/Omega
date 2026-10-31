@@ -2,7 +2,7 @@
 use omega_language_std::console;
 data Buffer { value: i32; canary: u64; }
 data Empty {}
-machine consume(empty: &mut Empty, buffer: &mut Buffer) reaches Console invokes Console; blocks; crashes Trap {
+machine consume(empty: &mut Empty, buffer: &mut Buffer) reaches Console invokes Console blocks crashes Trap {
  let input: ByteRead = block Console::read_byte();
  transition input { ByteRead::Byte { value } -> block found(empty, buffer, value) ByteRead::Eof -> halt() }
  machine halt() { Console::exit_process(0); }
@@ -11,7 +11,7 @@ machine consume(empty: &mut Empty, buffer: &mut Buffer) reaches Console invokes 
   transition { _ -> block consume(empty, buffer) }
  }
 }
-machine main() reaches Console invokes Console; blocks; crashes Trap {
+machine main() reaches Console invokes Console blocks crashes Trap {
  let mut empty: Empty;
  let mut buffer: Buffer = Buffer { value: 0, canary: 33 };
  block consume(&mut empty, &mut buffer);

@@ -15,6 +15,6 @@ ensures result.code == 0;
 // The domain family matches, but the complete instance does not.
 machine wrong(table: &Table, value: u64) -> Status
 requires value in u64::Coordinate<8>
-ensures result.code == 0; {
+ensures result.code == 0 {
     Table::read(table, value)
 }

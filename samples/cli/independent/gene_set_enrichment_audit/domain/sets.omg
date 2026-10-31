@@ -46,8 +46,8 @@ public machine intersection(left: u64 in Wrapping, right: u64 in Wrapping) -> u6
 
 // Newline terminates each row; at most 63 IDs precede it. EOF and any other byte reject.
 public machine read_set() -> Parsed reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan(0, 0, 0) }
@@ -86,8 +86,8 @@ crashes Trap
 }
 
 public machine end_input() -> bool reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let observed: ByteRead = block Console::read_byte();

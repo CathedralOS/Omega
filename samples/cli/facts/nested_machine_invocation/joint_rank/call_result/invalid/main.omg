@@ -1,15 +1,15 @@
 // A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
 // Expected exit: 0
 machine count(counter: &mut u64, remaining: u64)
-terminates;
-terminates by remaining;
+terminates
+terminates by remaining
 {
     transition remaining > 0 {
         true -> forward(counter, remaining)
         false -> done()
     }
     machine forward(counter: &mut u64, pending: u64)
-    requires pending > 0;
+    requires pending > 0
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         transition { _ -> count(counter, pending) }

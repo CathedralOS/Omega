@@ -20,14 +20,14 @@ Selected satisfies Sum<i32> {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures result == left + right
-    blocks;
+    blocks
     {
         add(left, right)
     }
 }
 
 machine apply<Operations satisfies Sum<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -42,13 +42,13 @@ machine supply(value: i32) -> i32
 }
 
 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= 50
 {
     block apply<Selected>(a, supply(b))
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22);
     transition result == 42 { true -> done() _ -> bad() }
 

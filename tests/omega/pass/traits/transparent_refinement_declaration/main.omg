@@ -4,7 +4,7 @@
 // evidence binders (`B satisfies R`) are its legal consumers.
 
 trait Logger<T> {
-    machine write(subject: &mut T) suspends; blocks;
+    machine write(subject: &mut T) suspends blocks;
     machine flush(subject: &mut T);
 }
 

@@ -10,8 +10,8 @@ machine produced(index: &mut i32 in Wrapping, value: i32) -> f64 {
 }
 
 public machine Main::main(application: &mut Main) reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition block Console::read_byte() {

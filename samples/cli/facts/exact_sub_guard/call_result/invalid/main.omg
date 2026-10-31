@@ -3,16 +3,16 @@
 
 machine supply(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 ensures
-    result == remaining;
+    result == remaining
 {
     remaining
 }
 
 machine walk(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     supply(remaining) - 2
 }

@@ -4,15 +4,15 @@ machine perform(counter: &mut u64, select: bool) {
     let remaining: u64 = match select { true -> 7 false -> 0 };
     transition { _ -> count(counter, remaining) }
     machine count(counter: &mut u64, remaining: u64)
-    terminates;
-    terminates by remaining;
+    terminates
+    terminates by remaining
     {
         transition remaining > 0 {
             true -> forward(counter, remaining)
             false -> done()
         }
         machine forward(counter: &mut u64, pending: u64)
-        requires pending > 0;
+        requires pending > 0
         {
             counter = ((counter as u64 in Wrapping) + 1) as u64;
             transition { _ -> count(counter, pending) }

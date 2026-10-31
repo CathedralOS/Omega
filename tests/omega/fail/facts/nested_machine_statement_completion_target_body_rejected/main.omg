@@ -8,7 +8,7 @@ boundary trait HostedProbe {
 }
 HostedProbeBody satisfies HostedProbe {
 machine apply(value: i64, event: i32, select: bool) -> i64
-ensures result != -1;
+ensures result != -1
 reaches Console {
 
     transition { _ -> filter(value, event) }
@@ -18,7 +18,7 @@ reaches Console {
     }
 }
 }
-machine accept(value: i64) -> i64 requires value != -1; { value }
+machine accept(value: i64) -> i64 requires value != -1 { value }
 machine main() reaches Console crashes Trap {
     let a: i64 = accept(HostedProbe::apply(7, 65, true));
     let b: i64 = accept(HostedProbe::apply(0, 66, false));

@@ -9,7 +9,7 @@ proposition finished(token: InterruptAcknowledgement) = model_specific_written(2
 machine finish(token: InterruptAcknowledgement)
 satisfies ForeignCompletion::finish
 reaches MachineControl
-ensures finished(token);
+ensures finished(token)
 {
     let index: u32 = 2059;
     let value: u64 = 0;

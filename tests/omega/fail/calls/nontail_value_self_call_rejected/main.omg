@@ -7,7 +7,7 @@
 use omega_language_std::console;
 data Main { }
 machine Main::triple(main: &mut Main, n: u64) -> u64
-terminates by n;
+terminates by n
 {
     transition n > 0 {
         true -> 3 * Main::triple(main, n - 1)

@@ -2,7 +2,7 @@
 // cursor where it was. The entry needs no `index <= limit`, but the arrival
 // still owes a strict decrease.
 machine fill(index: u64, limit: u64)
-terminates by (index, limit) -> Nat::BoundedDistance;
+terminates by (index, limit) -> Nat::BoundedDistance
 {
     transition index < limit { true -> fill(index, limit) _ -> done() }
     machine done() { }

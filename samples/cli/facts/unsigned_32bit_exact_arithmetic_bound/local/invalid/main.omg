@@ -4,8 +4,8 @@
 // Expected rejection: may overflow `u32`
 
 machine evaluate(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 40u32;
-    requires rhs >= 30u32 && rhs <= 51u32;
+    requires lhs >= 20u32 && lhs <= 40u32
+    requires rhs >= 30u32 && rhs <= 51u32
 {
     let a: u32 = lhs;
     let b: u32 = rhs;

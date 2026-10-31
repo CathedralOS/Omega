@@ -26,10 +26,10 @@ public boundary trait WorkerProvider {
     machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(
         arguments: Arguments
     ) -> T
-    requires machine Target(arguments: Arguments) -> T suspends; blocks;
+    requires machine Target(arguments: Arguments) -> T suspends blocks;
     ensures true
     reaches
-    suspends; blocks;
+    suspends blocks;
 }
 
 // Hung-worker recovery boundary — the declared isolation contract the board
@@ -51,7 +51,7 @@ public boundary trait IsolatedWorkerProvider: WorkerProvider {}
 // canonical crossing; the parked continuation is compiler/provider-owned.
 // Wake operations are ordinary boundary calls on the same word identity.
 public boundary data WaitSubstrate;
-boundary machine WaitSubstrate::park(word: u64) suspends; blocks;
+boundary machine WaitSubstrate::park(word: u64) suspends blocks;
 boundary machine WaitSubstrate::wake_one(word: u64);
 boundary machine WaitSubstrate::wake_all(word: u64);
 
@@ -142,7 +142,7 @@ public boundary trait BlockingExecutor {
     reaches
     requires
         executor.open
-    suspends;
+    suspends
     blocks;
 
     // Request cancellation of the activation this claim covers — the
@@ -166,7 +166,7 @@ public boundary trait BlockingExecutor {
         executor: &mut Executor<T, Arguments, N>
     ) -> ExecutorOutcome<T>
     reaches
-    suspends;
+    suspends
     blocks;
 
     // Terminally consume an executor with a provably empty queue and no live

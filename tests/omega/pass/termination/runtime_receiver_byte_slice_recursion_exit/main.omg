@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) {
 }
 
 machine Main::walk(main: &mut Main, bytes: &[u8])
-terminates by bytes -> Slice::Length;
+terminates by bytes -> Slice::Length
 reaches Console {
     main.count = main.count + 10;
 

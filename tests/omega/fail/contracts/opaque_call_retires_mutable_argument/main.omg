@@ -6,7 +6,7 @@ boundary trait Replace {
 
 machine after_call(output: &mut Value)
 reaches Replace
-invokes Replace;
+invokes Replace
 requires output.number == 7
 {
     let first: Value = Value { number: 7 };

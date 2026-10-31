@@ -21,8 +21,8 @@ machine cauchy_at<machine Sequence, machine Modulus>(
 requires machine Sequence(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero,
     (saturating_sub(Modulus(precision), right_index)) == Nat::Zero
 {
     let left: Rat = Sequence(left_index);
@@ -39,8 +39,8 @@ requires machine Left(index: Nat) -> Rat terminates;
 requires machine Right(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero,
     (saturating_sub(Modulus(precision), right_index)) == Nat::Zero
 {
     let left: Rat = Left(left_index);
@@ -55,7 +55,7 @@ machine cauchy_at_reflexive<machine Sequence, machine Modulus>(
 requires machine Sequence(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
     (saturating_sub(Modulus(precision), index)) == Nat::Zero
 ensures
     (cauchy_at<Sequence, Modulus>(precision, index, index)) == Nat::Zero
@@ -77,9 +77,9 @@ requires machine Left(index: Nat) -> Rat terminates;
 requires machine Right(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
-    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
-    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero,
+    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero,
     (converges_together_at<Left, Right, Modulus>(
         precision,
         left_index,
@@ -118,25 +118,25 @@ requires machine Middle(index: Nat) -> Rat terminates;
 requires machine Right(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero;
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
     (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         add(precision, precision)
-    )) == Nat::Zero;
-    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero;
-    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero;
-    (saturating_sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero;
-    (saturating_sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero;
-    (saturating_sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero;
+    )) == Nat::Zero,
+    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero,
+    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero,
+    (saturating_sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero,
+    (saturating_sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero,
+    (saturating_sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero,
     (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         (Middle(middle_index)).den
-    )) == Nat::Zero;
+    )) == Nat::Zero,
     (converges_together_at<Left, Middle, Modulus>(
         add(precision, precision),
         left_index,
         middle_index
-    )) == Nat::Zero;
+    )) == Nat::Zero,
     (converges_together_at<Middle, Right, Modulus>(
         add(precision, precision),
         middle_index,
@@ -194,7 +194,7 @@ requires
     (saturating_sub(
         FirstModulus(add(precision, precision)),
         index
-    )) == Nat::Zero;
+    )) == Nat::Zero,
     (saturating_sub(
         SecondModulus(add(precision, precision)),
         index

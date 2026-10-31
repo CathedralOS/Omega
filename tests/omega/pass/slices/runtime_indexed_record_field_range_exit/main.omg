@@ -9,14 +9,14 @@ machine write_pair(values: &mut [i32]) {
     machine skip() {}
 }
 machine ordinary(window: &mut Window, row: u64)
-requires row < 2;
+requires row < 2
 { write_pair(&mut window.rows[row].values[1..3]); }
 machine staged(window: &mut Window, row: u64)
-requires row < 2;
+requires row < 2
 {
     transition { _ -> next(window, row) }
     machine next(window: &mut Window, row: u64)
-    requires row < 2;
+    requires row < 2
     { write_pair(&mut window.rows[row].values[0..2]); }
 }
 machine main() crashes Trap {

@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 linux_x86_64 machine add_target(lhs: u8, rhs: u8) -> i32
-    requires lhs >= 40u8 && lhs <= 80u8;
-    requires rhs >= 10u8 && rhs <= 20u8;
+    requires lhs >= 40u8 && lhs <= 80u8
+    requires rhs >= 10u8 && rhs <= 20u8
 {
     let a: u8 in Saturating = lhs as u8 in Saturating;
     let b: u8 in Saturating = rhs as u8 in Saturating;
@@ -21,8 +21,8 @@ linux_x86_64 machine add_target(lhs: u8, rhs: u8) -> i32
 }
 
 linux_arm64 machine add_target(lhs: u8, rhs: u8) -> i32
-    requires lhs >= 40u8 && lhs <= 80u8;
-    requires rhs >= 10u8 && rhs <= 20u8;
+    requires lhs >= 40u8 && lhs <= 80u8
+    requires rhs >= 10u8 && rhs <= 20u8
 {
     let a: u8 in Saturating = lhs as u8 in Saturating;
     let b: u8 in Saturating = rhs as u8 in Saturating;
@@ -39,8 +39,8 @@ linux_arm64 machine add_target(lhs: u8, rhs: u8) -> i32
 }
 
 macos_arm64 machine add_target(lhs: u8, rhs: u8) -> i32
-    requires lhs >= 40u8 && lhs <= 80u8;
-    requires rhs >= 10u8 && rhs <= 20u8;
+    requires lhs >= 40u8 && lhs <= 80u8
+    requires rhs >= 10u8 && rhs <= 20u8
 {
     let a: u8 in Saturating = lhs as u8 in Saturating;
     let b: u8 in Saturating = rhs as u8 in Saturating;
@@ -57,8 +57,8 @@ macos_arm64 machine add_target(lhs: u8, rhs: u8) -> i32
 }
 
 windows_x86_64 machine add_target(lhs: u8, rhs: u8) -> i32
-    requires lhs >= 40u8 && lhs <= 80u8;
-    requires rhs >= 10u8 && rhs <= 20u8;
+    requires lhs >= 40u8 && lhs <= 80u8
+    requires rhs >= 10u8 && rhs <= 20u8
 {
     let a: u8 in Saturating = lhs as u8 in Saturating;
     let b: u8 in Saturating = rhs as u8 in Saturating;

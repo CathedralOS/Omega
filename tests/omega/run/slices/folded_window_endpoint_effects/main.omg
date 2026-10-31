@@ -26,11 +26,11 @@ machine prefix_of(sequence: &mut Sequence) -> u64 {
     sequence.digits = sequence.digits * 10 + 1;
     17
 }
-machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0; {
+machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0 {
     sequence.digits = sequence.digits * 10 + 2;
     0
 }
-machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3; {
+machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3 {
     sequence.digits = sequence.digits * 10 + 3;
     3
 }

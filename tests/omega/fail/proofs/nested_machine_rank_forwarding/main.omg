@@ -5,7 +5,7 @@ data Branch {
 }
 
 machine descend(subject: Branch)
-terminates by subject;
+terminates by subject
 {
     transition subject {
         Branch::End -> done()

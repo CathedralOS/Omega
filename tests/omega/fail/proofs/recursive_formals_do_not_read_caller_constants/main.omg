@@ -1,5 +1,5 @@
 machine recurse(remaining: u8 in Wrapping, value: u8 in Wrapping) -> u8 in Wrapping
-terminates by remaining;
+terminates by remaining
 ensures result == value + 1
 {
     transition remaining > 0 && value == 0 {

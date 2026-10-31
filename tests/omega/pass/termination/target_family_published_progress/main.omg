@@ -7,16 +7,16 @@ public boundary trait Grant {
 // Each member's published premise belongs to its own parameter telescope.
 macos_arm64 machine finish(value: Handle)
 requires value in Ready
-terminates;
+terminates
 { }
 windows_x86_64 machine finish(other: Handle)
 requires other in Ready
-terminates;
+terminates
 { }
 
 machine forward(value: Handle)
 requires value in Ready
-terminates;
+terminates
 {
     finish(value);
 }

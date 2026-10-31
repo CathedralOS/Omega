@@ -4,7 +4,7 @@
 public boundary trait Scheduler {
     machine identity(value: u64) -> u64
     ensures result == value
-    suspends; reaches;
+    suspends reaches;
 }
 
 InlineScheduler satisfies Scheduler {
@@ -22,7 +22,7 @@ InlineValue satisfies DeferredValue {
     machine get(value: u64) -> u64
     requires value == 100u64
     ensures result == 100u64
-    suspends;
+    suspends
     {
         let returned: u64 = suspend Scheduler::identity(value);
         returned
@@ -31,7 +31,7 @@ InlineValue satisfies DeferredValue {
 
 machine invoke(selected: dyn DeferredValue) -> u64
 ensures result == 100u64
-suspends; {
+suspends {
     let observed: u64 = suspend DeferredValue::get(selected, 99u64);
     observed
 }

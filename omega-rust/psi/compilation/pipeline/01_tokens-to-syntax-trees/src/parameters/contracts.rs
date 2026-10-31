@@ -122,7 +122,6 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
         let (clauses, rest) = crate::contracts::signature::parse_signature_clauses(
             syntax_trees,
             after_nested_contracts,
-            false,
             nested_type_parameters,
         )?;
         validate_machine_parameter_contracts(syntax_trees, nested_type_parameters, rest)?;
@@ -195,26 +194,13 @@ pub(crate) fn validate_machine_parameter_contracts(
     Ok(())
 }
 
-/// A final semicolon may also terminate a bodyless declaration. A following
-/// clause, body, or explicit outer separator instead continues that owner;
-/// the nested callable's contract is complete in either case.
+/// This terminator belongs to this nested declaration alone. Its enclosing
+/// bodyless declaration, if any, owns another terminator; sharing one would
+/// silently change the scope of subsequent clauses.
 fn take_machine_contract_terminator<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    let after = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if after.at_punctuation(PunctuationKind::LeftBrace)
-        || after.at_punctuation(PunctuationKind::Semicolon)
-        || after.at_punctuation(PunctuationKind::Arrow)
-        || after.at_contract_continuation_keyword()
-        || after.at_contextual("requires")
-        || after.at_contextual("ensures")
-        || after.at_contextual("where")
-        || after.at_contextual("satisfies")
-    {
-        Ok(after)
-    } else {
-        Ok(input)
-    }
+    input.take_punctuation(PunctuationKind::Semicolon, ";")
 }
 
 /// `Trait::requirement` or `Trait<Arguments>::requirement`, optionally

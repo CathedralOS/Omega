@@ -186,7 +186,7 @@ crashes Trap
     machine shaped(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         let written: Contract = SyntaxTrees::contract(syntax, item.first_contract + offset);
         let clauses: bool = Resolver::callable_contract_clauses(syntax, written.first_clause, written.clause_count);
-        transition written.kind == ContractKind::Machine && written.generic_parameter_count == 0 && clauses {
+        transition written.kind == ContractKind::Machine && written.generic_parameter_count == 0 && written.contract_count == 0 && clauses {
             true -> contract(resolver, syntax, item, offset + 1)
             _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedMachineContract, written.source_span)
         }

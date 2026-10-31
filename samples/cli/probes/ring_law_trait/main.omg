@@ -27,7 +27,7 @@ trait RingOps<T> {
 
 machine add(a: Peano, b: Peano) -> Peano
 satisfies RingOps<Peano>::add
-terminates by a;
+terminates by a
 {
     transition a {
         Peano::Zero -> (b)
@@ -37,7 +37,7 @@ terminates by a;
 
 machine mul(a: Peano, b: Peano) -> Peano
 satisfies RingOps<Peano>::mul as Standard
-terminates by a;
+terminates by a
 {
     transition a {
         Peano::Zero -> Peano::Zero

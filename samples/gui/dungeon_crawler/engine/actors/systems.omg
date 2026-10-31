@@ -12,15 +12,15 @@ use control::state::IntentSet;
 use world::rooms::Dungeon;
 
 public machine advance_actors<const Capacity: u64, const Rooms: u64>(actors: &mut ActorSet<Capacity, Rooms>, intents: &IntentSet<Capacity>, dungeon: &Dungeon<Rooms>, key: bool)
-terminates;
+terminates
 requires Capacity >= 1 && Rooms >= 1 {
     let count: u64 = actors.count;
     advance_slice<Rooms>(&mut actors.items[..count], &intents.items[..count], dungeon, key);
 }
 
 machine advance_slice<const Rooms: u64>(actors: &mut [Actor<Rooms>], intents: &[Command], dungeon: &Dungeon<Rooms>, key: bool)
-terminates;
-terminates by actors -> Slice::Length;
+terminates
+terminates by actors -> Slice::Length
 requires Rooms >= 1 && actors.len == intents.len {
     transition actors.len > 0 { true -> head(actors, intents, dungeon, key) _ -> done() }
     machine head(actors: &mut [Actor<Rooms>], intents: &[Command], dungeon: &Dungeon<Rooms>, key: bool)
@@ -34,15 +34,15 @@ requires Rooms >= 1 && actors.len == intents.len {
 }
 
 public machine resolve_combat<const Capacity: u64, const Rooms: u64>(actors: &mut ActorSet<Capacity, Rooms>)
-terminates;
+terminates
 requires Capacity >= 1 && Rooms >= 1 {
     let count: u64 = actors.count;
     resolve_sources<Capacity, Rooms>(actors, 0, count);
 }
 
 machine resolve_sources<const Capacity: u64, const Rooms: u64>(actors: &mut ActorSet<Capacity, Rooms>, source: u64, remaining: u64)
-terminates;
-terminates by remaining -> Nat::Descending;
+terminates
+terminates by remaining -> Nat::Descending
 requires Capacity >= 1 && Rooms >= 1 {
     transition remaining > 0 && source < Capacity { true -> head(actors, source, remaining) _ -> done() }
     machine head(actors: &mut ActorSet<Capacity, Rooms>, source: u64, remaining: u64)
@@ -55,8 +55,8 @@ requires Capacity >= 1 && Rooms >= 1 {
 }
 
 machine resolve_targets<const Rooms: u64>(attacker: Actor<Rooms>, targets: &mut [Actor<Rooms>])
-terminates;
-terminates by targets -> Slice::Length;
+terminates
+terminates by targets -> Slice::Length
 requires Rooms >= 1 {
     transition targets.len > 0 { true -> head(attacker, targets) _ -> done() }
     machine head(attacker: Actor<Rooms>, targets: &mut [Actor<Rooms>])
@@ -69,8 +69,8 @@ requires Rooms >= 1 {
 }
 
 public machine room_has_hostiles<const Rooms: u64>(actors: &[Actor<Rooms>], room: u64, faction: u32) -> bool
-terminates;
-terminates by actors -> Slice::Length;
+terminates
+terminates by actors -> Slice::Length
 requires Rooms >= 1 && room < Rooms {
     transition actors.len > 0 { true -> head(actors, room, faction) _ -> (false) }
     machine head(actors: &[Actor<Rooms>], room: u64, faction: u32) -> bool

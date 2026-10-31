@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) {
 }
 
 machine Main::gauss_sum(main: &mut Main, n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
-terminates by n;
+terminates by n
 ensures
     result * 2 == acc * 2 + n * (n + 1) + 1
 {

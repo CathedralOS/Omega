@@ -2,11 +2,11 @@
 // Expected exit: 0
 machine write_first(first: &mut u8) { first = 41; }
 machine preserve_suffix(bytes: &mut [u8])
-requires bytes.len >= 1024;
+requires bytes.len >= 1024
 {
     transition { _ -> active(bytes) }
     machine active(view: &mut [u8])
-    requires view.len >= 1024;
+    requires view.len >= 1024
     {
         let saved: u8 = view[view.len - 4];
         write_first(&mut view[0]);

@@ -6,13 +6,13 @@
 data Backing { guard: u64; items: [u64; 3]; }
 
 machine storage_view<'input>(backing: &'input mut Backing) -> &'input mut [u64]
-    ensures result.len == 3;
+    ensures result.len == 3
 {
     &mut backing.items
 }
 
 machine mutate_match_join(bytes: &mut [u64], choose_first: bool) -> u64
-    requires bytes.len >= 2;
+    requires bytes.len >= 2
 {
     let view: &mut [u64] = match choose_first {
         true -> bytes,

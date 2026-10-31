@@ -21,7 +21,7 @@ public RuntimePresentation satisfies PresentationClient {
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit
-    invokes ObjectiveC; {
+    invokes ObjectiveC {
         ObjectiveC::send(receiver, selector)
     }
 }

@@ -7,8 +7,8 @@ use domain::model;
 
 public data Input { tokens: [i32; 13]; valid: bool; }
 public machine read_input(input: &mut Input) reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     input.valid = false;

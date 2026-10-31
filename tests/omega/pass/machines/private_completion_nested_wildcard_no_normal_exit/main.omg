@@ -2,7 +2,7 @@
 use omega_language_std::console;
 data Buffer { value: i32; canary: u64; }
 data Empty {}
-machine main() reaches Console invokes Console; blocks; crashes Trap {
+machine main() reaches Console invokes Console blocks crashes Trap {
  let mut empty: Empty;
  let mut buffer: Buffer = Buffer { value: 0, canary: 33 };
  transition { _ -> block read(&mut empty, &mut buffer) }

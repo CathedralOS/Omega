@@ -3,7 +3,7 @@ use domain::model;
 use domain::solver;
 
 public machine number(value: i32 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition { _ -> leading(value, 10000) }
     machine leading(value: i32 in Wrapping, divisor: i32 in Wrapping) {
@@ -29,7 +29,7 @@ invokes Console;
 }
 
 public machine emit(pedigree: &Pedigree, result: &Inference) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write("SOLUTIONS "); number(result.solutions); Console::write_line("");
     Console::write("EVIDENCE "); number(result.mass); Console::write("/");

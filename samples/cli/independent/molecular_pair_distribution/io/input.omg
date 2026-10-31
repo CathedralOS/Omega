@@ -13,8 +13,8 @@ public data Token {
 }
 // The caller sets a 32768-byte budget; exhaustion is distinct from real EOF.
 machine next_byte(reader: &mut InputReader) -> ByteRead reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let byte: ByteRead = block Console::read_byte();
@@ -42,8 +42,8 @@ crashes Trap
     }
 }
 public machine token(reader: &mut InputReader) -> Token reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> skip(reader) }

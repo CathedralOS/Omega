@@ -7,8 +7,8 @@ machine Provider::emit() -> i32 satisfies Sink::emit { 11 }
 
 public data Runner { }
 public machine Runner::run(context: &mut Runner) reaches Sink, Console
-invokes Sink;
-invokes Console;
+invokes Sink
+invokes Console
 {
     _ = Sink::emit();
     let observed: i32 = Sink::emit();

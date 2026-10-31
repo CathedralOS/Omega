@@ -20,14 +20,14 @@ Selected satisfies Sum<i32> {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures result == left + right
-    blocks;
+    blocks
     {
         add(left, right)
     }
 }
 
 machine apply<Operations satisfies Sum<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -43,13 +43,13 @@ data Operands where 0 <= left && left <= 50 && 0 <= right && right <= 50 {
 }
 
 machine probe(operands: Operands) -> i32
-blocks;
+blocks
 ensures result == operands.left + operands.right
 {
     block apply<Selected>(operands.left, operands.right)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let wide: i32 = block probe(Operands { left: 20, right: 22 });
     let narrow: i32 = block probe(Operands { left: 10, right: 12 });
     transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }

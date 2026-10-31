@@ -4,8 +4,8 @@
 // Expected rejection: not provably representable
 
 linux_x86_64 machine subtract_target(lhs: i16, rhs: i16) -> i32
-    requires lhs >= 300i16 && lhs <= 520i16;
-    requires rhs >= 50i16 && rhs <= 100i16;
+    requires lhs >= 300i16 && lhs <= 520i16
+    requires rhs >= 50i16 && rhs <= 100i16
 {
     let diff: i16 = lhs - rhs;
     let headroom: i16 = 450i16 - diff;
@@ -21,8 +21,8 @@ linux_x86_64 machine subtract_target(lhs: i16, rhs: i16) -> i32
 }
 
 linux_arm64 machine subtract_target(lhs: i16, rhs: i16) -> i32
-    requires lhs >= 300i16 && lhs <= 520i16;
-    requires rhs >= 50i16 && rhs <= 100i16;
+    requires lhs >= 300i16 && lhs <= 520i16
+    requires rhs >= 50i16 && rhs <= 100i16
 {
     let diff: i16 = lhs - rhs;
     let headroom: i16 = 450i16 - diff;
@@ -38,8 +38,8 @@ linux_arm64 machine subtract_target(lhs: i16, rhs: i16) -> i32
 }
 
 macos_arm64 machine subtract_target(lhs: i16, rhs: i16) -> i32
-    requires lhs >= 300i16 && lhs <= 520i16;
-    requires rhs >= 50i16 && rhs <= 100i16;
+    requires lhs >= 300i16 && lhs <= 520i16
+    requires rhs >= 50i16 && rhs <= 100i16
 {
     let diff: i16 = lhs - rhs;
     let headroom: i16 = 450i16 - diff;
@@ -55,8 +55,8 @@ macos_arm64 machine subtract_target(lhs: i16, rhs: i16) -> i32
 }
 
 windows_x86_64 machine subtract_target(lhs: i16, rhs: i16) -> i32
-    requires lhs >= 300i16 && lhs <= 520i16;
-    requires rhs >= 50i16 && rhs <= 100i16;
+    requires lhs >= 300i16 && lhs <= 520i16
+    requires rhs >= 50i16 && rhs <= 100i16
 {
     let diff: i16 = lhs - rhs;
     let headroom: i16 = 450i16 - diff;

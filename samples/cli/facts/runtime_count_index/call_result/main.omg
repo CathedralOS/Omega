@@ -1,19 +1,19 @@
 // A call result that returns a runtime count still indexes a byte view.
 // Expected exit: 0
 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }
 
 machine measure() -> u32
-ensures result <= 1;
+ensures result <= 1
 {
     1
 }
 
 machine indexed(items: &[u8]) -> u8
-requires items.len == 4;
+requires items.len == 4
 {
     let count: u32 = measure();
     read_at<count>(items)

@@ -9,11 +9,11 @@ machine Point::zero() -> Point { Point { x: 0, y: 0 } }
 machine Point::from_x(value: u64) -> Point { Point { x: value, y: 0 } }
 machine Point::local_zero() -> Point { let value: u64 = 0; Point { x: value, y: 0 } }
 machine Point::terminal_zero() -> Point { transition { _ -> Point { x: 0, y: 0 } } }
-machine take(point: Point) -> u64 requires point == Point::zero(); { point.x }
-machine take_parameter(point: Point) -> u64 requires point == Point::from_x(0); { point.x }
-machine take_local(point: Point) -> u64 requires point == Point::local_zero(); { point.x }
-machine take_terminal(point: Point) -> u64 requires point == Point::terminal_zero(); { point.x }
-machine take_projection(point: Point) -> u64 requires point.x == Point::zero().x; { point.x }
+machine take(point: Point) -> u64 requires point == Point::zero() { point.x }
+machine take_parameter(point: Point) -> u64 requires point == Point::from_x(0) { point.x }
+machine take_local(point: Point) -> u64 requires point == Point::local_zero() { point.x }
+machine take_terminal(point: Point) -> u64 requires point == Point::terminal_zero() { point.x }
+machine take_projection(point: Point) -> u64 requires point.x == Point::zero().x { point.x }
 machine Main::main(main: &mut Main) reaches Console {
     let result: u64 = take(Point { x: 0, y: 0 });
     transition result == 0 { true -> parameter(main) _ -> wrong(main) }

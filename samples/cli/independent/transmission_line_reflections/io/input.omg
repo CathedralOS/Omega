@@ -11,8 +11,8 @@ public data Request [copy] {
 // are explicit rejection routes. No input can grow the simulation storage.
 public machine read_request() -> Request
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let observed: ByteRead = block Console::read_byte();

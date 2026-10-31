@@ -61,11 +61,11 @@ linux_x86_64 boundary machine DescriptorImports::write_header(descriptor: i32, h
     satisfies DescriptorIo::write_header via linux_x86_64_header_binding();
 
 machine receive(packet: &mut Packet, count: u64) -> i64
-    reaches DescriptorIo blocks; {
+    reaches DescriptorIo blocks {
     block DescriptorIo::read(0, packet, count)
 }
 
-machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks crashes Trap {
     main.holder.prefix = 17;
     main.holder.packet.value.store(287454020, NoOrdering);
     main.holder.packet.neighbor = 1144201745;
@@ -91,7 +91,7 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches DescriptorIo blocks; crashes Trap {
+machine entry_start() reaches DescriptorIo blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

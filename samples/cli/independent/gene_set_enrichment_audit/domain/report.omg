@@ -3,7 +3,7 @@ use domain::exact;
 use domain::sets;
 
 public machine number(value: u64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     // The declared model displays values at most 756. Subtraction extracts
     // its three decimal columns without retaining a division operand over IO.
@@ -46,13 +46,13 @@ invokes Console;
 }
 
 public machine fraction(value: Fraction) reaches Console
-invokes Console;
+invokes Console
 {
     number(value.numerator); Console::write("/"); number(value.denominator);
 }
 
 public machine membership(mask: u64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition { _ -> step(mask, 0) }
     machine step(mask: u64 in Wrapping, gene: u64 in Wrapping) {
@@ -73,7 +73,7 @@ invokes Console;
 }
 
 public machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write("set="); number(identifier);
     Console::write(" K="); number(size(annotated));

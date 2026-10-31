@@ -147,8 +147,8 @@ via line_binding();
 
 data Main { context: CallbackState; }
 machine Main::main(main: &mut Main) reaches LineRaster + PointProcedure + Console
-invokes LineRaster;
-invokes Console;
+invokes LineRaster
+invokes Console
 {
     main.context = CallbackState { observed: false, last_x: 0, last_y: 0 };
     let status: i32 = LineRaster::draw<PointHandler::visit>(2, 4, 5, 4, &mut main.context);
@@ -163,8 +163,8 @@ invokes Console;
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches LineRaster + PointProcedure + Console
-invokes LineRaster;
-invokes Console;
+invokes LineRaster
+invokes Console
 {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);

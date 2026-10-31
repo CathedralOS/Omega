@@ -3,8 +3,8 @@ use omega_language_std::console;
 // Separators are ASCII space and LF. EOF terminates a token, never invents one.
 public machine read_number() -> i32 in Saturating
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan(0, false, 0) }
@@ -48,8 +48,8 @@ crashes Trap
 }
 
 public machine require_end() -> bool reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let observed: ByteRead = block Console::read_byte();

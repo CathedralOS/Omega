@@ -12,6 +12,6 @@ public ProbeProvider satisfies Probe {
     }
     machine idle() -> u64 { 7u64 }
 }
-public machine entry() reaches Probe invokes Probe; {
+public machine entry() reaches Probe invokes Probe {
     let observed: u64 = Probe::run(64u64);
 }

@@ -32,8 +32,8 @@ machine cells_valid(cells: &[i32]) -> bool { check_cells(cells, cells.len) }
 
 machine check_cells(cells: &[i32], remaining: u64) -> bool
 requires remaining <= cells.len
-terminates;
-terminates by remaining in 0..=cells.len;
+terminates
+terminates by remaining in 0..=cells.len
 {
     transition remaining > 0 { true -> inspect(cells, remaining) false -> (true) }
     machine inspect(cells: &[i32], remaining: u64) -> bool
