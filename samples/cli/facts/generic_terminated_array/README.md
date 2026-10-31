@@ -46,10 +46,12 @@ do not establish the terminator needed by the boundary invocation.
 - Soundness: each reject breaks construction. Separate focused controls check a
   recursive generic call changing Count to zero and a reversed requirement order.
 - Psi lowering: the generic count is static; runtime storage and the full-array
-  borrow must survive Terminal lowering. Actual engine acceptance is pending.
+  borrow survive Terminal lowering. All nine places execute with native exit 0
+  and Terminal exit 0 on macOS arm64. Each checks explicit and inferred `Count`.
 - Provider/ABI: Build binds `CText::length` on all four hosted targets, retaining
   exact closed applications and package/native admission. The C ABI has one
-  pointer argument, with no runtime Count argument. Runtime qualification is pending.
+  pointer argument, with no runtime Count argument. The available macOS arm64
+  host executes both lengths through the real native binding and Terminal provider.
 - Instructions and image emission: all places must execute the stated oracle
   with `omega run --both` on the available host. Other hosted targets are bound
   but have no execution claim here.
@@ -57,8 +59,15 @@ do not establish the terminator needed by the boundary invocation.
 The frozen pre-repair producer at `fac4a53` rejects the local generic signature
 with `cannot form specification index`. The prototype at `12cfb317` passes that
 formation and refuses provider projection with `closed Import application
-requires its complete retained source application`. These are current baseline
-observations, not passing acceptance. Raw source/producer hashes and commands
-are retained in the session's ignored qualification evidence. Full row execution,
-reason-matched reject captures, corpus pins, and the calculator's native/Terminal
-acceptance remain open.
+requires its complete retained source application`. These are retained
+pre-repair observations. The optimized producer from
+`815f96ad1d3899ddb260c996cb3f9c7d31de0a94` (SHA-256
+`be05129cf3848392d37738411b704448d09626cea5ee9a96224fec307411d4d6`)
+executes all nine positive places with native exit 0 and Terminal exit 0 on
+macOS arm64. All nine twins reject with ``data `Text` literal violates the
+default domain``. Source-identical positive and negative fixtures are pinned
+under `tests/omega/{pass,fail}/facts/generic_terminated_array_through_*`.
+The retained `r5-row-acceptance-r2.json` ledger binds source, Build and producer
+hashes, actual engine reports, empty output streams and intended refusals.
+Other hosts, the calculator's interactive acceptance, and the parent migration
+remain open; this row does not establish their completion.

@@ -1,0 +1,19 @@
+// Expected exit: 0. Applied outer T and member U retain distinct declaration binders.
+boundary trait Relay<T> {
+    machine relay<U>(left: T, right: U) -> U reaches;
+}
+ByteRelay satisfies Relay<u8> {
+    machine relay<U>(left: u8, right: U) -> U reaches {
+        right
+    }
+}
+machine main() reaches Relay crashes Trap {
+    let explicit: u64 = Relay<u8>::relay<u64>(7u8, 91u64);
+    let inferred: u64 = Relay<u8>::relay(9u8, 173u64);
+    transition explicit == 91 && inferred == 173 && explicit != inferred {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
