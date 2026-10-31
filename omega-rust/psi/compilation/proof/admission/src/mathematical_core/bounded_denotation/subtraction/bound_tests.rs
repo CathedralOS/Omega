@@ -12,6 +12,7 @@ use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
 };
+use std::slice::from_ref;
 
 macro_rules! sub {
     ($a:expr => $b:expr) => {
@@ -82,13 +83,7 @@ fn check(left: ScalarTerm, right: ScalarTerm) {
     };
     root_bound.conclusion = Proposition::LessOrEqual(left, right);
     let reversed_premise = root_bound.conclusion.clone();
-    assert_refused(
-        &context,
-        &goal,
-        std::slice::from_ref(&reversed_premise),
-        &[],
-        &reversed,
-    );
+    assert_refused(&context, &goal, from_ref(&reversed_premise), &[], &reversed);
 }
 
 #[test]
@@ -182,7 +177,7 @@ fn correlated_subtract_lower_uses_the_add_cancel_law() {
     assert_refused(
         &context,
         &goal,
-        std::slice::from_ref(&wrong_assumption),
+        from_ref(&wrong_assumption),
         &[],
         &wrong_premise,
     );
@@ -238,7 +233,7 @@ fn correlated_subtract_upper_through_cited_definitions() {
         verify_bounded_certificate(
             &context,
             &goal,
-            std::slice::from_ref(&premise),
+            from_ref(&premise),
             &axioms,
             &proof,
             &mut Budget::default(),
@@ -489,13 +484,7 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
             unreachable!()
         };
         root_bound.conclusion = wrong_premise.clone();
-        assert_refused(
-            &context,
-            &goal,
-            std::slice::from_ref(&wrong_premise),
-            &[],
-            &invalid,
-        );
+        assert_refused(&context, &goal, from_ref(&wrong_premise), &[], &invalid);
     }
     // The witness root must be the minuend.
     let mut invalid = proof.clone();
@@ -682,7 +671,7 @@ fn exact_subtract_definition_bound_rejects_mismatched_certificates() {
                 &case.context,
                 goal,
                 &[left.clone(), right.clone()],
-                std::slice::from_ref(definition),
+                from_ref(definition),
                 &proof,
                 &mut Budget::default(),
             )

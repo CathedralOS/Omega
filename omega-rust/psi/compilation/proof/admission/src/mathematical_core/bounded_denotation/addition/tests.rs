@@ -1,3 +1,4 @@
+use super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals;
 use super::super::test_utilities::{
     assert_refused, direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
     verify_then_elaborate,
@@ -11,12 +12,11 @@ use semantic_vocabulary::{
     ScalarTerm, ScalarType, ValueId,
 };
 use std::collections::BTreeSet;
+use std::slice::from_ref;
 
 #[test]
 fn open_addition_preserves_previously_skipped_numeric_resource_refusals() {
-    super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals(
-        IntegerMathTerm::Add,
-    );
+    open_operation_preserves_skipped_numeric_resource_refusals(IntegerMathTerm::Add);
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn correlated_add_bounds_transport_ssa_roots_and_carrier_endpoints() {
             let denoted = verify_bounded_certificate(
                 &context,
                 &goal,
-                std::slice::from_ref(&premise),
+                from_ref(&premise),
                 &axioms,
                 &proof,
                 &mut Budget::default(),
@@ -315,14 +315,7 @@ fn exact_add_definition_fixture(
     )
     .unwrap();
     let parameters = BTreeSet::new();
-    let elaboration = super::super::test_utilities::elaborate_checked(
-        context,
-        goal,
-        assumptions,
-        axioms,
-        &parameters,
-        proof,
-    );
+    let elaboration = elaborate_checked(context, goal, assumptions, axioms, &parameters, proof);
     (denoted, elaboration.denotation)
 }
 
@@ -542,7 +535,7 @@ fn exact_add_definition_bound_rejects_mismatched_certificates() {
             &context,
             &goal,
             &assumptions,
-            std::slice::from_ref(&wrong_axiom),
+            from_ref(&wrong_axiom),
             &proof,
         );
     }
@@ -683,12 +676,6 @@ fn direct_add_bound_rejects_mismatched_certificates() {
             unreachable!()
         };
         root_bound.conclusion = wrong_premise.clone();
-        assert_refused(
-            &context,
-            &goal,
-            std::slice::from_ref(&wrong_premise),
-            &[],
-            &invalid,
-        );
+        assert_refused(&context, &goal, from_ref(&wrong_premise), &[], &invalid);
     }
 }

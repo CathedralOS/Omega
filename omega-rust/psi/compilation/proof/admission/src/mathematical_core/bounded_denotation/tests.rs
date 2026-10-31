@@ -20,6 +20,7 @@ use crate::mathematical_core::{
     Budget, DEFAULT_CONVERSION_STEPS, certificate_assumption_closure,
     verify_mathematical_certificate,
 };
+use std::slice::from_ref;
 
 macro_rules! v {
     ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
@@ -74,7 +75,7 @@ fn contract_entailment_discharge_shape_is_a_kernel_judgment() {
     let denoted = verify_bounded_certificate(
         &context,
         &bound,
-        std::slice::from_ref(&bound),
+        from_ref(&bound),
         &[],
         &proof,
         &mut budget(),
@@ -265,7 +266,7 @@ fn order_rules_become_named_law_citations() {
     let denoted = verify_bounded_certificate(
         &context,
         &weakened,
-        std::slice::from_ref(&strict),
+        from_ref(&strict),
         &[],
         &proof,
         &mut budget(),
@@ -310,13 +311,7 @@ fn order_rules_become_named_law_citations() {
         },
     };
     assert!(matches!(
-        denote_bounded_certificate(
-            &context,
-            &weakened,
-            std::slice::from_ref(&weakened),
-            &[],
-            &proof,
-        ),
+        denote_bounded_certificate(&context, &weakened, from_ref(&weakened), &[], &proof),
         Err(BoundedDenotationError::Certificate(
             ProofError::RulePremiseMismatch(_)
         )),
@@ -650,7 +645,7 @@ fn disjunction_rules_become_tagged_sum_constructions() {
     let denoted = verify_bounded_certificate(
         &PropositionContext::default(),
         &disjunction,
-        std::slice::from_ref(&p),
+        from_ref(&p),
         &[],
         &proof,
         &mut budget(),
@@ -688,7 +683,7 @@ fn disjunction_rules_become_tagged_sum_constructions() {
         let denoted = verify_bounded_certificate(
             &PropositionContext::default(),
             &disjunction,
-            std::slice::from_ref(&selected),
+            from_ref(&selected),
             &[],
             &proof,
             &mut budget(),
@@ -737,7 +732,7 @@ fn disjunction_rules_become_tagged_sum_constructions() {
     let denoted = verify_bounded_certificate(
         &PropositionContext::default(),
         &Proposition::Truth,
-        std::slice::from_ref(&disjunction),
+        from_ref(&disjunction),
         &[],
         &proof,
         &mut budget(),
@@ -786,7 +781,7 @@ fn semantic_axioms_bind_after_the_assumption_roster() {
         &PropositionContext::default(),
         &goal,
         &[],
-        std::slice::from_ref(&p),
+        from_ref(&p),
         &proof,
         &mut budget(),
     )
@@ -824,7 +819,7 @@ fn forged_and_malformed_certificates_reject() {
     // A citation past the roster is an unknown assumption.
     let proof = assumption_proof(bound.clone(), 1);
     assert!(matches!(
-        denote_bounded_certificate(&context, &bound, std::slice::from_ref(&bound), &[], &proof),
+        denote_bounded_certificate(&context, &bound, from_ref(&bound), &[], &proof),
         Err(BoundedDenotationError::Certificate(
             ProofError::UnknownAssumption(1)
         )),
@@ -833,13 +828,7 @@ fn forged_and_malformed_certificates_reject() {
     // A citation whose conclusion is not the retained premise mismatches.
     let proof = assumption_proof(swapped.clone(), 0);
     assert!(matches!(
-        denote_bounded_certificate(
-            &context,
-            &swapped,
-            std::slice::from_ref(&bound),
-            &[],
-            &proof
-        ),
+        denote_bounded_certificate(&context, &swapped, from_ref(&bound), &[], &proof),
         Err(BoundedDenotationError::Certificate(
             ProofError::AssumptionConclusionMismatch(0)
         )),
@@ -848,13 +837,7 @@ fn forged_and_malformed_certificates_reject() {
     // A proof of the obligation's sibling does not discharge it.
     let proof = assumption_proof(bound.clone(), 0);
     assert!(matches!(
-        denote_bounded_certificate(
-            &context,
-            &Proposition::Truth,
-            std::slice::from_ref(&bound),
-            &[],
-            &proof
-        ),
+        denote_bounded_certificate(&context, &Proposition::Truth, from_ref(&bound), &[], &proof),
         Err(BoundedDenotationError::Certificate(
             ProofError::CertificateConclusionMismatch
         )),
@@ -872,9 +855,8 @@ fn forged_and_malformed_certificates_reject() {
 
     // A kernel-tampered term rejects: the variable is unbound.
     let proof = assumption_proof(bound.clone(), 0);
-    let mut denoted =
-        denote_bounded_certificate(&context, &bound, std::slice::from_ref(&bound), &[], &proof)
-            .expect("denotation succeeds before tampering");
+    let mut denoted = denote_bounded_certificate(&context, &bound, from_ref(&bound), &[], &proof)
+        .expect("denotation succeeds before tampering");
     denoted.certificate.term = denoted.arena.insert(Term::Variable(9));
     assert!(matches!(
         verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget(),),
@@ -899,14 +881,14 @@ fn the_equal_integer_math_crossing_denotes_identically() {
     let lifted = crate::lift_fixed_integer_relation(&fixed).expect("lifts");
     let proof = assumption_proof(lifted.clone(), 0);
     assert_eq!(
-        crate::check_certificate(&context, &lifted, std::slice::from_ref(&fixed), &[], &proof),
+        crate::check_certificate(&context, &lifted, from_ref(&fixed), &[], &proof),
         Ok(()),
         "the bounded checker accepts the normalized citation",
     );
     let denoted = verify_bounded_certificate(
         &context,
         &lifted,
-        std::slice::from_ref(&fixed),
+        from_ref(&fixed),
         &[],
         &proof,
         &mut budget(),
