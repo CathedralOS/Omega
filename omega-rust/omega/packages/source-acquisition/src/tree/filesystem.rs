@@ -19,6 +19,7 @@ use cap_std::{
 };
 
 use crate::SourceResolveError;
+use crate::error::local_source_changed;
 
 pub(crate) fn open_canonical_source_root(
     canonical_root: &Path,
@@ -152,9 +153,7 @@ fn read_opened_file_bounded(
     }
 
     if bytes.len() as u64 != metadata.len() {
-        return Err(SourceResolveError::LocalSourceChanged {
-            path: display_path.to_path_buf(),
-        });
+        return Err(local_source_changed(display_path));
     }
     let completed = file.metadata().at(display_path)?;
     require_unchanged_source_file(metadata, &completed, display_path)?;
@@ -224,9 +223,7 @@ pub(crate) fn require_unchanged_entry(
         || !same_modified
         || !same_change_time
     {
-        return Err(SourceResolveError::LocalSourceChanged {
-            path: display_path.to_path_buf(),
-        });
+        return Err(local_source_changed(display_path));
     }
     Ok(())
 }

@@ -7,7 +7,7 @@ use super::snapshot::{
     publish_local_tree_in_lane, verify_live_source_unchanged, verify_requested_local_root,
 };
 use crate::SourceResolveError;
-use crate::error::too_many_bytes;
+use crate::error::{local_source_changed, too_many_bytes};
 use crate::identity::SourceRelativePath;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
 use crate::storage::RetainedStorageLane;
@@ -129,7 +129,7 @@ fn replace_file(
     };
     let actual: [u8; 32] = crate::digest_encoder::content_identity(&bytes.as_slice()).into();
     if &actual != expected_sha256 {
-        return Err(SourceResolveError::LocalSourceChanged { path });
+        return Err(local_source_changed(&path));
     }
     let proposed_bytes = captured
         .normalized
