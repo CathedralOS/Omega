@@ -1,0 +1,21 @@
+public data Tallies [copy]
+requires self.values[0] >= 1 && self.values[0] <= 16,
+    self.values[1] >= 0 && self.values[1] <= 16,
+    self.values[2] >= 0 && self.values[2] <= 16,
+    self.values[3] >= 0 && self.values[3] <= 16
+{ values: [i32; 4]; }
+
+// Expected exit: 0
+machine consume(tallies: &Tallies) {}
+
+machine main() crashes Trap {
+    let tallies: Tallies;
+    consume(&tallies);
+    transition tallies.values[0] == 0 && tallies.values[1] == 0
+        && tallies.values[2] == 0 && tallies.values[3] == 0 {
+        true -> good()
+        false -> bad()
+    }
+    machine good() {}
+    machine bad() crashes Trap { crash Trap; }
+}

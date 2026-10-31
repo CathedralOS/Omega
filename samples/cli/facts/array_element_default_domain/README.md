@@ -45,7 +45,7 @@ frame realization, encoding and native execution. Actual engine observations
 identify their producer and host; authored four-target bindings do not claim
 execution on the other hosts.
 
-## Current failure and remaining acceptance
+## Baseline and acceptance
 
 On fixed base `5b4628fb00863b76e4a1a33a5108f2646db32096`, the exact optimized
 producer rejects all nine valid places at `observe`'s `result >= 0 && result
@@ -53,7 +53,37 @@ producer rejects all nine valid places at `observe`'s `result >= 0 && result
 fixed-index observation checks successfully. The sources, original outcomes,
 producer profile and oracles are frozen in the qualification evidence.
 
-Completion requires the general projection/fact repair, all nine native/Terminal
-agreements, their intended reject twins and exact corpus pins, the related
-historical indexed-storage restorations and independent exact-candidate review.
-The full parent migration remains open.
+The repair reads the complete declared projection path and combines every
+possible selected element's established floor and ceiling. Completed reads
+retain their own value identity; return and arithmetic consumers use that
+observation rather than rereading its source storage. Declaration predicates
+use the existing bounded predicate explorer, preserving resolved operator
+identity and independent call admission.
+
+Three additional productions exercise this same owner requirement once:
+
+- [writeback](writeback/main.omg) stores 5 through a public runtime-indexed
+  mutable parameter, rereads it, and stores 6. All four final cells are checked.
+  Its [twin](writeback/invalid/main.omg) changes only 5 to 16; 17 cannot restore
+  the owner at handback.
+- [saved_read](saved_read/main.omg) saves 15, writes 16 into the same cell,
+  and checks both the returned snapshot and all current cells. Its
+  [twin](saved_read/invalid/main.omg) returns a fresh read under the same
+  result-below-16 obligation.
+- [zero_owner](zero_owner/main.omg) consumes the whole zero-initialized owner
+  before checking all four cells. Its [twin](zero_owner/invalid/main.omg)
+  changes only the first element's floor to one; representation zero alone
+  cannot establish that owner.
+
+The exact programs and reject twins are pinned under
+`tests/omega/{pass,fail}/facts/array_element_default_domain/`. Additional
+single controls retain the signed floor, independent predicate-index formation,
+and selected user index operation; existing write-only and recast controls
+exercise the unchanged access and carrier boundaries.
+
+Qualification requires all nine places and these three productions to agree
+under native and Terminal execution on macOS ARM64, their intended rejects,
+the restored historical increment's authored exit one, focused affected-domain
+checks, fresh authored-project replay and independent exact-candidate review.
+Run receipts retain actual producer and target identities. Other hosted targets
+and the full parent migration remain open.
