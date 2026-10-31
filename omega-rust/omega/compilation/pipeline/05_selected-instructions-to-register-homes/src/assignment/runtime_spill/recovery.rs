@@ -39,8 +39,7 @@ use selected_instructions_to_selected_instructions::{
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     UnsealedRecoveryFacts, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
     ValidatedLiveRanges, ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
-    ValidatedSelectedAnalysis, analyze_allocation_legality_reusing, analyze_live_ranges_reusing,
-    analyze_liveness_reusing, materialize_selected_fixed_occurrences,
+    ValidatedSelectedAnalysis, materialize_selected_fixed_occurrences,
     rematerialize_selected_runtime_value, spill_selected_runtime_value,
     spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
 };
@@ -71,45 +70,6 @@ fn assign_reusing(
         environment,
         reuse,
     )
-}
-
-#[allow(dead_code)]
-pub(super) fn analyze(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    availability: &ValidatedAllocatorAvailability,
-    previous: &impl ValidatedSelectedAnalysis,
-    previous_liveness: &ValidatedLiveness,
-    previous_ranges: &ValidatedLiveRanges,
-    previous_legality: &ValidatedAllocationLegality,
-    selected: &impl ValidatedSelectedAnalysis,
-) -> Result<RuntimeSpillFacts, RuntimeSpillAllocationError> {
-    let liveness = analyze_liveness_reusing(previous, previous_liveness, selected)
-        .map_err(RuntimeSpillAllocationError::Liveness)?;
-    let ranges = analyze_live_ranges_reusing(
-        previous,
-        previous_liveness,
-        previous_ranges,
-        selected,
-        &liveness,
-    )
-    .map_err(RuntimeSpillAllocationError::Ranges)?;
-    let legality = analyze_allocation_legality_reusing(
-        previous_ranges,
-        previous_legality,
-        &ranges,
-        availability,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    )
-    .map_err(RuntimeSpillAllocationError::Legality)?;
-    Ok(RuntimeSpillFacts {
-        liveness,
-        ranges,
-        legality,
-    })
 }
 
 fn reanalyze_unsealed(
