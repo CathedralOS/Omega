@@ -172,12 +172,13 @@ impl ExpressionTable {
     }
 
     /// Rebase both retained source telescopes into the cloned lexical owner.
-    pub fn remap_call_static_applications(
+    pub fn remap_call_static_applications<'scope>(
         &mut self,
         application: crate::static_applications::StaticMachineApplicationHandle,
         dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: impl Into<crate::SymbolRebinding<'scope>>,
     ) {
+        let symbols = symbols.into();
         let selected = dispatch.map_or(Default::default(), |dispatch| {
             dispatch.selection_application
         });
@@ -192,7 +193,7 @@ impl ExpressionTable {
     fn remap_static_application(
         &mut self,
         handle: crate::static_applications::StaticMachineApplicationHandle,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: crate::SymbolRebinding<'_>,
     ) {
         let application = self.static_machine_application_mut(handle);
         application.lexical_owner = remapped(application.lexical_owner, symbols);
@@ -210,7 +211,7 @@ impl ExpressionTable {
             .collect::<Vec<_>>();
         let mut bindings = self.static_machine_application_bindings(handle).to_vec();
         for binding in &mut bindings {
-            self.remap_static_binding_symbols(binding, symbols);
+            self.remap_static_binding_symbols(binding, symbols.authored());
         }
         self.static_machine_application_bindings_mut(handle)
             .clone_from_slice(&bindings);
@@ -358,11 +359,12 @@ impl ExpressionTable {
     /// arena handles and authored names stay stable; only normalized symbols
     /// change. This is the second half of cloning a lexical scope after
     /// [`Self::copy_from`] has made its payload handles independent.
-    pub fn remap_symbols_in(
+    pub fn remap_symbols_in<'scope>(
         &mut self,
         root: ExpressionHandle,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: impl Into<crate::SymbolRebinding<'scope>>,
     ) {
+        let symbols = symbols.into();
         let mut visited = Vec::new();
         self.remap_symbols_in_inner(root, symbols, &mut visited);
     }
@@ -370,7 +372,7 @@ impl ExpressionTable {
     fn remap_symbols_in_inner(
         &mut self,
         root: ExpressionHandle,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: crate::SymbolRebinding<'_>,
         visited: &mut Vec<ExpressionHandle>,
     ) {
         if !root.is_valid() || visited.contains(&root) {
@@ -390,7 +392,7 @@ impl ExpressionTable {
         if let Some(mut authority) = self.index_expression_authority(root).cloned() {
             if let Some(operation) = &mut authority.operation {
                 if let Some(application) = &mut operation.application {
-                    self.remap_static_argument_symbols(application, symbols);
+                    self.remap_static_argument_symbols(application, symbols.execution());
                 }
                 for symbol in [
                     &mut operation.provider,
@@ -463,7 +465,7 @@ impl ExpressionTable {
                     binding.selected = remapped(binding.selected, symbols);
                 }
                 call.visit_static_arguments_mut(|argument| {
-                    self.remap_static_argument_symbols(argument, symbols)
+                    self.remap_static_argument_symbols(argument, symbols.execution())
                 });
                 *self.expression_mut(root) = ExpressionNode::Call(call);
             }

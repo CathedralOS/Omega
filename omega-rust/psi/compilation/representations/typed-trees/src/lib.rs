@@ -50,6 +50,6 @@ pub use typed_trees::{
     PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
-    ProgramIdentity, TypedTreeRoots, TypedTreeTables, TypedTrees,
+    ProgramIdentity, SymbolRebinding, TypedTreeRoots, TypedTreeTables, TypedTrees,
     closed_conformance_applications_of, machine_specialization_matches_template_identity,
 };

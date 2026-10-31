@@ -421,7 +421,7 @@ fn contract_frontier(
     contract: &CallableBorrowContract<'_>,
     symbolic_parameters: &[SymbolHandle],
     scope_starts: &[usize],
-) -> Result<ContractFrontier, &'static str> {
+) -> Result<ContractFrontier, String> {
     let regions = super::callable_regions::resolve(program, contract)?;
     let collect = |reference, frontier| {
         let leaves = scoped_carried_lifetimes(
@@ -438,12 +438,27 @@ fn contract_frontier(
             true,
             frontier,
         )
-        .ok_or("unimplemented: callable input region frontier is incomplete")?;
-        if leaves
-            .iter()
-            .any(|leaf| matches!(&leaf.lifetime, Some(RegionIdentity::Declared(_))))
-        {
-            return Err("callable input region has no lexical declaration custody");
+        .ok_or_else(|| "unimplemented: callable input region frontier is incomplete".to_owned())?;
+        if let Some((leaf, name)) = leaves.iter().find_map(|leaf| {
+            if let Some(RegionIdentity::Declared(name)) = &leaf.lifetime {
+                Some((leaf, name))
+            } else {
+                None
+            }
+        }) {
+            let supplier = program
+                .type_reference_table
+                .operand_lifetime_owner(leaf.reference);
+            return Err(format!(
+                "callable input region has no lexical declaration custody: region '{name} in `{}` while checking `{}`, supplied by `{}`",
+                program.type_reference_table.display_name(reference),
+                program.symbols.display_path(contract.lexical_owner, "::"),
+                if supplier.is_valid() {
+                    program.symbols.display_path(supplier, "::")
+                } else {
+                    "<no retained supplier>".to_owned()
+                },
+            ));
         }
         Ok(leaves)
     };
@@ -451,7 +466,7 @@ fn contract_frontier(
         .parameters
         .iter()
         .map(|parameter| collect(parameter.type_reference, LifetimeFrontier::Input))
-        .collect::<Result<Vec<_>, &'static str>>()?;
+        .collect::<Result<Vec<_>, String>>()?;
     let outputs = collect(contract.return_type, LifetimeFrontier::Value)?;
     let sources = frontier_sources(&inputs, &outputs, contract.parameters);
     Ok(ContractFrontier {
