@@ -1,7 +1,21 @@
 // Expected exit: 0
-// An application-selected Clock implementation replaces the package default.
+// The application-selected Clock leaves elapsed time below 250 milliseconds;
+// the package default's requested 500 milliseconds must fail this oracle.
 use omega_language_std::clock;
+use omega_language_std::time_host;
 NoWaitClock satisfies Clock {
     machine sleep(milliseconds: u32) reaches Clock {}
 }
-machine program() reaches Clock { Clock::sleep(500); }
+machine program() crashes Trap reaches Clock + TimeHost {
+    let before: u64 = TimeHost::monotonic_ticks();
+    Clock::sleep(500);
+    let after: u64 = TimeHost::monotonic_ticks();
+    let frequency: u64 = TimeHost::monotonic_ticks_per_second();
+    let elapsed: u64 in Wrapping = (after as u64 in Wrapping) - (before as u64 in Wrapping);
+    transition (elapsed as u64) < frequency / 4u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
