@@ -4,8 +4,8 @@ use selected_instructions::{
     MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SaturatingCarrier, SaturatingOperation, SelectedConstraintKeys,
+    MachineMemoryEffect, MachineSemanticKind as Semantic, MachineSizeKnowledge as Size,
+    MachineTrapBehavior, SaturatingCarrier, SaturatingOperation, SelectedConstraintKeys,
     isa_machine_effect_catalog_plumbing,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -55,7 +55,7 @@ pub fn x86_64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
-                if semantic == MachineSemanticKind::MemoryFence {
+                if semantic == Semantic::MemoryFence {
                     return Ok(crate::selected_form_encoding::memory_fence::declaration(
                         constraint,
                     ));
@@ -67,31 +67,31 @@ pub fn x86_64_machine_effect_catalog(
                         operation, constraint,
                     ));
                 }
-                if semantic == MachineSemanticKind::PortWrite {
+                if semantic == Semantic::PortWrite {
                     return Ok(crate::selected_form_encoding::port_write::declaration(
                         constraint,
                     ));
                 }
-                if semantic == MachineSemanticKind::AtomicFence {
+                if semantic == Semantic::AtomicFence {
                     return Ok(crate::selected_form_encoding::atomic_fence::declaration(
                         constraint,
                     ));
                 }
-                if semantic == MachineSemanticKind::Crash {
+                if semantic == Semantic::Crash {
                     return Ok(crate::selected_form_encoding::crash::declaration(
                         constraints.catalog().constraint(constraint).ok_or(
                             X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch,
                         )?,
                     ));
                 }
-                if let MachineSemanticKind::FloatResultPolicy(form) = semantic {
+                if let Semantic::FloatResultPolicy(form) = semantic {
                     return Ok(
                         crate::selected_form_encoding::float_result_policy::declaration(
                             form, constraint,
                         ),
                     );
                 }
-                if let MachineSemanticKind::NearestIeeeFloatArithmetic(form) = semantic {
+                if let Semantic::NearestIeeeFloatArithmetic(form) = semantic {
                     return crate::selected_form_encoding::ieee_float_arithmetic::declaration(
                         form, constraint,
                     )
@@ -99,7 +99,7 @@ pub fn x86_64_machine_effect_catalog(
                         X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch
                     });
                 }
-                if semantic == MachineSemanticKind::HostedExitProcessI32 {
+                if semantic == Semantic::HostedExitProcessI32 {
                     return crate::selected_form_encoding::hosted_exit_process::declaration(
                         target, constraint,
                     )
@@ -107,7 +107,7 @@ pub fn x86_64_machine_effect_catalog(
                         X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch
                     });
                 }
-                if semantic == MachineSemanticKind::HostedReadByte {
+                if semantic == Semantic::HostedReadByte {
                     return Ok(
                         crate::selected_form_encoding::hosted_read_byte::declaration(
                             target, constraint,
@@ -116,8 +116,7 @@ pub fn x86_64_machine_effect_catalog(
                 }
                 if matches!(
                     semantic,
-                    MachineSemanticKind::SaveFloatingControl
-                        | MachineSemanticKind::RestoreFloatingControl
+                    Semantic::SaveFloatingControl | Semantic::RestoreFloatingControl
                 ) {
                     return Ok(
                         crate::selected_form_encoding::floating_control::declaration(
@@ -125,7 +124,7 @@ pub fn x86_64_machine_effect_catalog(
                         ),
                     );
                 }
-                if semantic == MachineSemanticKind::HostedWriteByteI32 {
+                if semantic == Semantic::HostedWriteByteI32 {
                     return Ok(
                         crate::selected_form_encoding::hosted_write_byte::declaration(
                             target, constraint,
@@ -136,18 +135,14 @@ pub fn x86_64_machine_effect_catalog(
                     memory::declaration(semantic, constraint, constraints)
                 } else if matches!(
                     semantic,
-                    MachineSemanticKind::CallScalar
-                        | MachineSemanticKind::CallAggregate
-                        | MachineSemanticKind::InvokeNoNormal
-                        | MachineSemanticKind::NormalizedForeignCall
+                    Semantic::CallScalar
+                        | Semantic::CallAggregate
+                        | Semantic::InvokeNoNormal
+                        | Semantic::NormalizedForeignCall
                 ) {
                     scalar_call_declaration(semantic, constraint, constraints)
-                } else if matches!(
-                    semantic,
-                    MachineSemanticKind::ReturnAggregate | MachineSemanticKind::ReturnScalar
-                ) {
-                    let mut returned =
-                        declaration(MachineSemanticKind::ReturnScalar, &selected_keys);
+                } else if matches!(semantic, Semantic::ReturnAggregate | Semantic::ReturnScalar) {
+                    let mut returned = declaration(Semantic::ReturnScalar, &selected_keys);
                     returned.semantic = semantic;
                     returned.constraint = constraint;
                     returned.alternatives[0].key.family = semantic.into();
@@ -372,60 +367,56 @@ pub fn x86_64_selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
     })
 }
 
-fn declaration(
-    semantic: MachineSemanticKind,
-    keys: &SelectedConstraintKeys,
-) -> MachineEffectDeclaration {
+fn declaration(semantic: Semantic, keys: &SelectedConstraintKeys) -> MachineEffectDeclaration {
     let always = |width| alternative(semantic, 0, MachineAlternativeApplicability::Always, width);
     let alternatives = match semantic {
-        MachineSemanticKind::ExactDivideU64
-        | MachineSemanticKind::ExactRemainderU64
-        | MachineSemanticKind::WrappingRemainderI64
-        | MachineSemanticKind::WrappingDivideI64
-        | MachineSemanticKind::ExactDivideI64
-        | MachineSemanticKind::ExactRemainderI64
-        | MachineSemanticKind::SaturatingAdd(_)
-        | MachineSemanticKind::SaturatingSubtract(_)
-        | MachineSemanticKind::SaturatingDivide(_)
-        | MachineSemanticKind::SaturatingRemainder(_)
-        | MachineSemanticKind::SaturatingMultiply(_)
-        | MachineSemanticKind::TrappingInteger(_)
-        | MachineSemanticKind::BitwiseAndI64
-        | MachineSemanticKind::BitwiseOrI64
-        | MachineSemanticKind::BitwiseNotI64
-        | MachineSemanticKind::BitwiseXorI64
-        | MachineSemanticKind::ByteViewAddress
-        | MachineSemanticKind::WrappingAddI64
-        | MachineSemanticKind::ExactAddI64 => {
+        Semantic::ExactDivideU64
+        | Semantic::ExactRemainderU64
+        | Semantic::WrappingRemainderI64
+        | Semantic::WrappingDivideI64
+        | Semantic::ExactDivideI64
+        | Semantic::ExactRemainderI64
+        | Semantic::SaturatingAdd(_)
+        | Semantic::SaturatingSubtract(_)
+        | Semantic::SaturatingDivide(_)
+        | Semantic::SaturatingRemainder(_)
+        | Semantic::SaturatingMultiply(_)
+        | Semantic::TrappingInteger(_)
+        | Semantic::BitwiseAndI64
+        | Semantic::BitwiseOrI64
+        | Semantic::BitwiseNotI64
+        | Semantic::BitwiseXorI64
+        | Semantic::ByteViewAddress
+        | Semantic::WrappingAddI64
+        | Semantic::ExactAddI64 => {
             vec![always(size(semantic))]
         }
-        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64 => {
+        Semantic::ExactSubtractI64 | Semantic::WrappingSubtractI64 => {
             binary_alias_ladder(semantic, [3, 3, 6, 6])
         }
         // `imul r64, r64` is one REX.W + 0F AF form in every alias case; only
         // the distinct-result variant prepends a three-byte `mov`.
-        MachineSemanticKind::ExactMultiplyI64 | MachineSemanticKind::WrappingMultiplyI64 => {
+        Semantic::ExactMultiplyI64 | Semantic::WrappingMultiplyI64 => {
             binary_alias_ladder(semantic, [4, 4, 4, 7])
         }
-        MachineSemanticKind::ConditionalBranchU64LessThan
-        | MachineSemanticKind::ConditionalBranchI64LessThan => {
-            vec![always(MachineSizeKnowledge::ExactBytes(6))]
+        Semantic::ConditionalBranchU64LessThan | Semantic::ConditionalBranchI64LessThan => {
+            vec![always(Size::ExactBytes(6))]
         }
         // The early-clobber result never shares the pinned RCX count or the
         // value it is initialized from, so `mov result, value; shX result, cl`
         // is the only realization and applies to every allocation.
-        MachineSemanticKind::WrappingShiftLeftI64
-        | MachineSemanticKind::WrappingShiftRightI64
-        | MachineSemanticKind::WrappingShiftRightU64
-        | MachineSemanticKind::ExactShiftLeftI64
-        | MachineSemanticKind::ExactShiftRightI64
-        | MachineSemanticKind::ExactShiftRightU64 => {
-            vec![always(MachineSizeKnowledge::ExactBytes(6))]
+        Semantic::WrappingShiftLeftI64
+        | Semantic::WrappingShiftRightI64
+        | Semantic::WrappingShiftRightU64
+        | Semantic::ExactShiftLeftI64
+        | Semantic::ExactShiftRightI64
+        | Semantic::ExactShiftRightU64 => {
+            vec![always(Size::ExactBytes(6))]
         }
         // Variant 1 is the three-byte `xor r64, r64` zero idiom. The
         // legality rule never chooses it: `X86SelectXorZeroI64MaterializationV1`
         // rewrites a zero materialization onto it after proving RFLAGS dead.
-        MachineSemanticKind::MaterializeI64 => vec![
+        Semantic::MaterializeI64 => vec![
             always(size(semantic)),
             alternative(
                 semantic,
@@ -434,7 +425,7 @@ fn declaration(
                     optimization:
                         optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1,
                 },
-                MachineSizeKnowledge::ExactBytes(3),
+                Size::ExactBytes(3),
             ),
         ],
         _ => vec![always(size(semantic))],
@@ -444,7 +435,7 @@ fn declaration(
         constraint: keys
             .for_semantic(semantic)
             .expect("required x86-64 machine semantic has a constraint"),
-        memory: if matches!(semantic, MachineSemanticKind::AtomicAccess(_)) {
+        memory: if matches!(semantic, Semantic::AtomicAccess(_)) {
             MachineMemoryEffect::AtomicPointerV1
         } else {
             MachineMemoryEffect::NoneV1
@@ -452,27 +443,27 @@ fn declaration(
         // A Trapping form may stop the process at its inline UD2, which is
         // as observable as a hosted effect: it is ordered like one and is
         // never dead. An atomic access dereferences a pointer the cell owns.
-        trap: if matches!(semantic, MachineSemanticKind::TrappingInteger(_)) {
+        trap: if matches!(semantic, Semantic::TrappingInteger(_)) {
             MachineTrapBehavior::TrappingIntegerV1
-        } else if matches!(semantic, MachineSemanticKind::AtomicAccess(_)) {
+        } else if matches!(semantic, Semantic::AtomicAccess(_)) {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else {
             MachineTrapBehavior::NeverV1
         },
         barrier: if matches!(
             semantic,
-            MachineSemanticKind::ConditionalBranchNonZero
-                | MachineSemanticKind::ConditionalBranchU64LessThan
-                | MachineSemanticKind::ConditionalBranchI64LessThan
-                | MachineSemanticKind::ReturnScalar
-                | MachineSemanticKind::ReturnAggregate
-                | MachineSemanticKind::Jump
-                | MachineSemanticKind::ReturnUnit
+            Semantic::ConditionalBranchNonZero
+                | Semantic::ConditionalBranchU64LessThan
+                | Semantic::ConditionalBranchI64LessThan
+                | Semantic::ReturnScalar
+                | Semantic::ReturnAggregate
+                | Semantic::Jump
+                | Semantic::ReturnUnit
         ) {
             MachineBarrier::ControlFlow
         } else if matches!(
             semantic,
-            MachineSemanticKind::TrappingInteger(_) | MachineSemanticKind::AtomicAccess(_)
+            Semantic::TrappingInteger(_) | Semantic::AtomicAccess(_)
         ) {
             MachineBarrier::ExternalEffect
         } else {
@@ -487,7 +478,7 @@ fn declaration(
 /// Two-input ops that define a third result home run the same four-way
 /// ladder: both operands aliased together, each operand aliased alone and
 /// the distinct-result variant. Only the encoded sizes differ per family.
-fn binary_alias_ladder(semantic: MachineSemanticKind, sizes: [u16; 4]) -> Vec<MachineAlternative> {
+fn binary_alias_ladder(semantic: Semantic, sizes: [u16; 4]) -> Vec<MachineAlternative> {
     vec![
         alternative(
             semantic,
@@ -497,7 +488,7 @@ fn binary_alias_ladder(semantic: MachineSemanticKind, sizes: [u16; 4]) -> Vec<Ma
                 left: 0,
                 right: 1,
             },
-            MachineSizeKnowledge::ExactBytes(sizes[0]),
+            Size::ExactBytes(sizes[0]),
         ),
         alternative(
             semantic,
@@ -507,7 +498,7 @@ fn binary_alias_ladder(semantic: MachineSemanticKind, sizes: [u16; 4]) -> Vec<Ma
                 aliased_operand: 0,
                 distinct_operand: 1,
             },
-            MachineSizeKnowledge::ExactBytes(sizes[1]),
+            Size::ExactBytes(sizes[1]),
         ),
         alternative(
             semantic,
@@ -517,7 +508,7 @@ fn binary_alias_ladder(semantic: MachineSemanticKind, sizes: [u16; 4]) -> Vec<Ma
                 aliased_operand: 1,
                 distinct_operand: 0,
             },
-            MachineSizeKnowledge::ExactBytes(sizes[2]),
+            Size::ExactBytes(sizes[2]),
         ),
         alternative(
             semantic,
@@ -527,16 +518,16 @@ fn binary_alias_ladder(semantic: MachineSemanticKind, sizes: [u16; 4]) -> Vec<Ma
                 left: 0,
                 right: 1,
             },
-            MachineSizeKnowledge::ExactBytes(sizes[3]),
+            Size::ExactBytes(sizes[3]),
         ),
     ]
 }
 
 fn alternative(
-    semantic: MachineSemanticKind,
+    semantic: Semantic,
     variant: u32,
     applicability: MachineAlternativeApplicability,
-    size: MachineSizeKnowledge,
+    size: Size,
 ) -> MachineAlternative {
     MachineAlternative {
         key: MachineAlternativeKey {
@@ -550,157 +541,150 @@ fn alternative(
     }
 }
 
-fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncodedEffects {
-    if semantic == MachineSemanticKind::Crash {
+fn encoded_effects(semantic: Semantic, variant: u32) -> MachineEncodedEffects {
+    if semantic == Semantic::Crash {
         return selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"));
     }
-    if let MachineSemanticKind::TrappingInteger(form) = semantic {
+    if let Semantic::TrappingInteger(form) = semantic {
         return TrappingShape::of(form).encoded_effects();
     }
-    if let MachineSemanticKind::NearestIeeeFloatArithmetic(form) = semantic {
+    if let Semantic::NearestIeeeFloatArithmetic(form) = semantic {
         return crate::selected_form_encoding::ieee_float_arithmetic::effects(form);
     }
     let (reads, writes) = match semantic {
-        MachineSemanticKind::PortRegisterRead
-        | MachineSemanticKind::PortRegisterWrite
-        | MachineSemanticKind::ModelSpecificRead
-        | MachineSemanticKind::ModelSpecificWrite
-        | MachineSemanticKind::ProcessorHalt
-        | MachineSemanticKind::InterruptControl
-        | MachineSemanticKind::ControlRegisterRead
-        | MachineSemanticKind::ControlRegisterWrite
-        | MachineSemanticKind::SystemRegisterRead => {
+        Semantic::PortRegisterRead
+        | Semantic::PortRegisterWrite
+        | Semantic::ModelSpecificRead
+        | Semantic::ModelSpecificWrite
+        | Semantic::ProcessorHalt
+        | Semantic::InterruptControl
+        | Semantic::ControlRegisterRead
+        | Semantic::ControlRegisterWrite
+        | Semantic::SystemRegisterRead => {
             return crate::selected_form_encoding::register_access::effects(
                 crate::selected_form_encoding::register_access::operation(semantic)
                     .expect("x86 register semantic"),
             );
         }
-        MachineSemanticKind::SystemRegisterWrite => {
+        Semantic::SystemRegisterWrite => {
             return crate::selected_form_encoding::register_access::effects(
                 crate::selected_form_encoding::register_access::operation(semantic)
                     .expect("x86 flags restore"),
             );
         }
-        MachineSemanticKind::AccessorScalarAccess(form) => {
+        Semantic::AccessorScalarAccess(form) => {
             if form.write {
                 (vec![0, 1], vec![])
             } else {
                 (vec![0], vec![1])
             }
         }
-        MachineSemanticKind::PortWrite => {
+        Semantic::PortWrite => {
             return crate::selected_form_encoding::port_write::effects();
         }
-        MachineSemanticKind::MemoryFence => return MachineEncodedEffects::catalog_fence_v1(),
-        MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
-        MachineSemanticKind::FloatResultPolicy(form) => {
+        Semantic::MemoryFence => return MachineEncodedEffects::catalog_fence_v1(),
+        Semantic::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
+        Semantic::FloatResultPolicy(form) => {
             return crate::selected_form_encoding::float_result_policy::effects(form);
         }
         // LOCK-prefixed atomic forms read their address plus operation
         // inputs and write the observed-prior output alone.
-        MachineSemanticKind::AtomicAccess(form) => (
+        Semantic::AtomicAccess(form) => (
             (0..form.operation.input_count()).collect(),
             form.observed_operand().into_iter().collect(),
         ),
-        MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
+        Semantic::NearestIeeeFloatArithmetic(_) => {
             unreachable!("float arithmetic effects returned above")
         }
-        MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
-        MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
-        MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
-        MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
-        MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
-        MachineSemanticKind::ImageAddress => (vec![], vec![0]),
-        MachineSemanticKind::MaterializeBooleanEqual
-        | MachineSemanticKind::MaterializeBooleanU64LessThan
-        | MachineSemanticKind::MaterializeBooleanI64LessThan
-        | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
-        | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0]),
-        MachineSemanticKind::Float32ToBits
-        | MachineSemanticKind::Float64ToBits
-        | MachineSemanticKind::BitsToFloat32
-        | MachineSemanticKind::BitsToFloat64
-        | MachineSemanticKind::CopyI64
-        | MachineSemanticKind::ZeroExtendU8
-        | MachineSemanticKind::ZeroExtendU16
-        | MachineSemanticKind::SignExtendI8
-        | MachineSemanticKind::SignExtendI16
-        | MachineSemanticKind::SignExtendI32
-        | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
-        MachineSemanticKind::ExactDivideU64 => (vec![0, 1, 3], vec![2]),
-        MachineSemanticKind::WrappingRemainderI64
-        | MachineSemanticKind::ExactRemainderU64
-        | MachineSemanticKind::WrappingDivideI64
-        | MachineSemanticKind::ExactDivideI64
-        | MachineSemanticKind::ExactRemainderI64 => (vec![0, 1], vec![2, 3]),
-        MachineSemanticKind::SaturatingAdd(carrier)
-        | MachineSemanticKind::SaturatingSubtract(carrier)
-        | MachineSemanticKind::SaturatingDivide(carrier)
-        | MachineSemanticKind::SaturatingRemainder(carrier)
-        | MachineSemanticKind::SaturatingMultiply(carrier) => {
+        Semantic::Crash => (Vec::new(), Vec::new()),
+        Semantic::CompareI64Zero => (vec![0], vec![]),
+        Semantic::CompareI64Immediate => (vec![0], vec![]),
+        Semantic::CompareI64 => (vec![0, 1], vec![]),
+        Semantic::MaterializeI64 => (vec![], vec![0]),
+        Semantic::ImageAddress => (vec![], vec![0]),
+        Semantic::MaterializeBooleanEqual
+        | Semantic::MaterializeBooleanU64LessThan
+        | Semantic::MaterializeBooleanI64LessThan
+        | Semantic::MaterializeBooleanU64LessOrEqual
+        | Semantic::MaterializeBooleanI64LessOrEqual => (vec![], vec![0]),
+        Semantic::Float32ToBits
+        | Semantic::Float64ToBits
+        | Semantic::BitsToFloat32
+        | Semantic::BitsToFloat64
+        | Semantic::CopyI64
+        | Semantic::ZeroExtendU8
+        | Semantic::ZeroExtendU16
+        | Semantic::SignExtendI8
+        | Semantic::SignExtendI16
+        | Semantic::SignExtendI32
+        | Semantic::ZeroExtendU32 => (vec![0], vec![1]),
+        Semantic::ExactDivideU64 => (vec![0, 1, 3], vec![2]),
+        Semantic::WrappingRemainderI64
+        | Semantic::ExactRemainderU64
+        | Semantic::WrappingDivideI64
+        | Semantic::ExactDivideI64
+        | Semantic::ExactRemainderI64 => (vec![0, 1], vec![2, 3]),
+        Semantic::SaturatingAdd(carrier)
+        | Semantic::SaturatingSubtract(carrier)
+        | Semantic::SaturatingDivide(carrier)
+        | Semantic::SaturatingRemainder(carrier)
+        | Semantic::SaturatingMultiply(carrier) => {
             saturating_form(semantic, carrier).operand_reads_and_writes()
         }
-        MachineSemanticKind::BitwiseAndI64
-        | MachineSemanticKind::BitwiseOrI64
-        | MachineSemanticKind::BitwiseXorI64
-        | MachineSemanticKind::ByteViewAddress
-        | MachineSemanticKind::WrappingAddI64
-        | MachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
-        MachineSemanticKind::BitwiseNotI64 => (vec![0], vec![1]),
-        MachineSemanticKind::ExactAddI64Immediate
-        | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
-        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64
-            if variant == 0 =>
-        {
+        Semantic::BitwiseAndI64
+        | Semantic::BitwiseOrI64
+        | Semantic::BitwiseXorI64
+        | Semantic::ByteViewAddress
+        | Semantic::WrappingAddI64
+        | Semantic::ExactAddI64 => (vec![0, 1], vec![2]),
+        Semantic::BitwiseNotI64 => (vec![0], vec![1]),
+        Semantic::ExactAddI64Immediate | Semantic::ExactSubtractI64Immediate => (vec![0], vec![1]),
+        Semantic::ExactSubtractI64 | Semantic::WrappingSubtractI64 if variant == 0 => {
             (vec![], vec![2])
         }
-        MachineSemanticKind::ExactSubtractI64 | MachineSemanticKind::WrappingSubtractI64 => {
-            (vec![0, 1], vec![2])
-        }
+        Semantic::ExactSubtractI64 | Semantic::WrappingSubtractI64 => (vec![0, 1], vec![2]),
         // `imul r, r` genuinely reads its input to square it, so even the
         // fully-aliased variant 0 reads both external operands.
-        MachineSemanticKind::ExactMultiplyI64 | MachineSemanticKind::WrappingMultiplyI64 => {
-            (vec![0, 1], vec![2])
-        }
-        MachineSemanticKind::WrappingShiftLeftI64
-        | MachineSemanticKind::WrappingShiftRightI64
-        | MachineSemanticKind::WrappingShiftRightU64
-        | MachineSemanticKind::ExactShiftLeftI64
-        | MachineSemanticKind::ExactShiftRightI64
-        | MachineSemanticKind::ExactShiftRightU64 => (vec![0, 1], vec![2]),
-        MachineSemanticKind::ConditionalBranchNonZero
-        | MachineSemanticKind::ConditionalBranchU64LessThan
-        | MachineSemanticKind::ConditionalBranchI64LessThan
-        | MachineSemanticKind::ReturnScalar
-        | MachineSemanticKind::ReturnAggregate
-        | MachineSemanticKind::Jump
-        | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
+        Semantic::ExactMultiplyI64 | Semantic::WrappingMultiplyI64 => (vec![0, 1], vec![2]),
+        Semantic::WrappingShiftLeftI64
+        | Semantic::WrappingShiftRightI64
+        | Semantic::WrappingShiftRightU64
+        | Semantic::ExactShiftLeftI64
+        | Semantic::ExactShiftRightI64
+        | Semantic::ExactShiftRightU64 => (vec![0, 1], vec![2]),
+        Semantic::ConditionalBranchNonZero
+        | Semantic::ConditionalBranchU64LessThan
+        | Semantic::ConditionalBranchI64LessThan
+        | Semantic::ReturnScalar
+        | Semantic::ReturnAggregate
+        | Semantic::Jump
+        | Semantic::ReturnUnit => (vec![], vec![]),
         // The family macro restates the memory module's whole arm set; the
         // placement form is matched by its own arm above.
         #[allow(unreachable_patterns)]
-        MachineSemanticKind::CallScalar
-        | MachineSemanticKind::InvokeNoNormal
-        | MachineSemanticKind::CallAggregate
-        | MachineSemanticKind::NormalizedForeignCall
-        | MachineSemanticKind::HostedExitProcessI32
-        | MachineSemanticKind::HostedReadByte
-        | MachineSemanticKind::SaveFloatingControl
-        | MachineSemanticKind::RestoreFloatingControl
-        | MachineSemanticKind::HostedWriteByteI32
+        Semantic::CallScalar
+        | Semantic::InvokeNoNormal
+        | Semantic::CallAggregate
+        | Semantic::NormalizedForeignCall
+        | Semantic::HostedExitProcessI32
+        | Semantic::HostedReadByte
+        | Semantic::SaveFloatingControl
+        | Semantic::RestoreFloatingControl
+        | Semantic::HostedWriteByteI32
         | memory::declared_semantics!() => {
             unreachable!("semantics with a dedicated declaration do not reach the generic effects")
         }
-        MachineSemanticKind::TrappingInteger(_) => {
+        Semantic::TrappingInteger(_) => {
             unreachable!("trapping forms return their shared encoded effects above")
         }
     };
     let (implicit_uses, implicit_defs, implicit_clobbers, memory, stack, trap, control) =
         match semantic {
-            MachineSemanticKind::MaterializeBooleanEqual
-            | MachineSemanticKind::MaterializeBooleanU64LessThan
-            | MachineSemanticKind::MaterializeBooleanI64LessThan
-            | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
-            | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => (
+            Semantic::MaterializeBooleanEqual
+            | Semantic::MaterializeBooleanU64LessThan
+            | Semantic::MaterializeBooleanI64LessThan
+            | Semantic::MaterializeBooleanU64LessOrEqual
+            | Semantic::MaterializeBooleanI64LessOrEqual => (
                 units("rflags"),
                 vec![],
                 vec![],
@@ -709,9 +693,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::NeverV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
-            MachineSemanticKind::CompareI64Zero
-            | MachineSemanticKind::CompareI64
-            | MachineSemanticKind::CompareI64Immediate => (
+            Semantic::CompareI64Zero | Semantic::CompareI64 | Semantic::CompareI64Immediate => (
                 vec![],
                 units("rflags"),
                 vec![],
@@ -720,7 +702,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::NeverV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
-            MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::SaturatingDivide(_) => (
+            Semantic::ExactDivideU64 | Semantic::SaturatingDivide(_) => (
                 vec![],
                 vec![],
                 units_of(&["rdx", "rflags"]),
@@ -729,12 +711,12 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
-            MachineSemanticKind::WrappingRemainderI64
-            | MachineSemanticKind::ExactRemainderU64
-            | MachineSemanticKind::WrappingDivideI64
-            | MachineSemanticKind::ExactDivideI64
-            | MachineSemanticKind::ExactRemainderI64
-            | MachineSemanticKind::SaturatingRemainder(_) => (
+            Semantic::WrappingRemainderI64
+            | Semantic::ExactRemainderU64
+            | Semantic::WrappingDivideI64
+            | Semantic::ExactDivideI64
+            | Semantic::ExactRemainderI64
+            | Semantic::SaturatingRemainder(_) => (
                 vec![],
                 vec![],
                 units("rflags"),
@@ -743,22 +725,22 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
-            MachineSemanticKind::BitwiseAndI64
-            | MachineSemanticKind::BitwiseOrI64
-            | MachineSemanticKind::BitwiseXorI64
-            | MachineSemanticKind::SaturatingAdd(_)
-            | MachineSemanticKind::SaturatingSubtract(_)
-            | MachineSemanticKind::SaturatingMultiply(_)
-            | MachineSemanticKind::ExactMultiplyI64
-            | MachineSemanticKind::WrappingMultiplyI64
-            | MachineSemanticKind::WrappingShiftLeftI64
-            | MachineSemanticKind::WrappingShiftRightI64
-            | MachineSemanticKind::WrappingShiftRightU64
-            | MachineSemanticKind::ExactShiftLeftI64
-            | MachineSemanticKind::ExactShiftRightI64
-            | MachineSemanticKind::ExactShiftRightU64
-            | MachineSemanticKind::ExactSubtractI64
-            | MachineSemanticKind::WrappingSubtractI64 => (
+            Semantic::BitwiseAndI64
+            | Semantic::BitwiseOrI64
+            | Semantic::BitwiseXorI64
+            | Semantic::SaturatingAdd(_)
+            | Semantic::SaturatingSubtract(_)
+            | Semantic::SaturatingMultiply(_)
+            | Semantic::ExactMultiplyI64
+            | Semantic::WrappingMultiplyI64
+            | Semantic::WrappingShiftLeftI64
+            | Semantic::WrappingShiftRightI64
+            | Semantic::WrappingShiftRightU64
+            | Semantic::ExactShiftLeftI64
+            | Semantic::ExactShiftRightI64
+            | Semantic::ExactShiftRightU64
+            | Semantic::ExactSubtractI64
+            | Semantic::WrappingSubtractI64 => (
                 vec![],
                 vec![],
                 units("rflags"),
@@ -767,7 +749,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::NeverV1,
                 MachineEncodedControlEffect::FallThroughV1,
             ),
-            MachineSemanticKind::Jump => (
+            Semantic::Jump => (
                 units("rip"),
                 units("rip"),
                 vec![],
@@ -776,9 +758,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                 MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
             ),
-            MachineSemanticKind::ConditionalBranchNonZero
-            | MachineSemanticKind::ConditionalBranchU64LessThan
-            | MachineSemanticKind::ConditionalBranchI64LessThan => {
+            Semantic::ConditionalBranchNonZero
+            | Semantic::ConditionalBranchU64LessThan
+            | Semantic::ConditionalBranchI64LessThan => {
                 let uses = units_of(&["rflags", "rip"]);
                 (
                     uses,
@@ -790,9 +772,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                     MachineEncodedControlEffect::ConditionalRelativeBranchV1,
                 )
             }
-            MachineSemanticKind::ReturnScalar
-            | MachineSemanticKind::ReturnAggregate
-            | MachineSemanticKind::ReturnUnit => {
+            Semantic::ReturnScalar | Semantic::ReturnAggregate | Semantic::ReturnUnit => {
                 let stack_pointer = view_of("rsp").id;
                 let defs = units_of(&["rsp", "rip"]);
                 (
@@ -811,7 +791,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                     MachineEncodedControlEffect::ReturnFromActivationStackV1,
                 )
             }
-            MachineSemanticKind::AtomicAccess(form) => {
+            Semantic::AtomicAccess(form) => {
                 let encoded = crate::selected_form_encoding::atomic::effects(form);
                 (
                     encoded.implicit_unit_uses,
@@ -825,7 +805,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             }
             // The xor-zero idiom defines its destination from no input and
             // clobbers RFLAGS; the baseline `mov r64, imm64` touches no flag.
-            MachineSemanticKind::MaterializeI64 if variant == 1 => (
+            Semantic::MaterializeI64 if variant == 1 => (
                 vec![],
                 vec![],
                 units("rflags"),
@@ -859,135 +839,121 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
 
 /// The realization shape of a saturating semantic, which fixes its operand
 /// reads and writes and its exact size.
-fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) -> SaturatingForm {
+fn saturating_form(semantic: Semantic, carrier: SaturatingCarrier) -> SaturatingForm {
     let operation = match semantic {
-        MachineSemanticKind::SaturatingAdd(_) => SaturatingOperation::Add,
-        MachineSemanticKind::SaturatingSubtract(_) => SaturatingOperation::Subtract,
-        MachineSemanticKind::SaturatingDivide(_) => SaturatingOperation::Divide,
-        MachineSemanticKind::SaturatingRemainder(_) => SaturatingOperation::Remainder,
-        MachineSemanticKind::SaturatingMultiply(_) => SaturatingOperation::Multiply,
+        Semantic::SaturatingAdd(_) => SaturatingOperation::Add,
+        Semantic::SaturatingSubtract(_) => SaturatingOperation::Subtract,
+        Semantic::SaturatingDivide(_) => SaturatingOperation::Divide,
+        Semantic::SaturatingRemainder(_) => SaturatingOperation::Remainder,
+        Semantic::SaturatingMultiply(_) => SaturatingOperation::Multiply,
         _ => unreachable!("saturating semantics carry their operation"),
     };
     SaturatingForm::of(operation, carrier)
 }
 
-fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
+fn size(semantic: Semantic) -> Size {
     match semantic {
-        MachineSemanticKind::PortRegisterRead
-        | MachineSemanticKind::PortRegisterWrite
-        | MachineSemanticKind::ModelSpecificRead
-        | MachineSemanticKind::ModelSpecificWrite
-        | MachineSemanticKind::SystemRegisterRead
-        | MachineSemanticKind::SystemRegisterWrite
-        | MachineSemanticKind::ControlRegisterRead
-        | MachineSemanticKind::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
-        MachineSemanticKind::AccessorScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
-        MachineSemanticKind::PortWrite => {
-            MachineSizeKnowledge::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16)
-        }
-        MachineSemanticKind::AtomicFence => MachineSizeKnowledge::ExactBytes(3),
-        MachineSemanticKind::MemoryFence => MachineSizeKnowledge::ExactBytes(3),
-        MachineSemanticKind::ProcessorHalt => MachineSizeKnowledge::ExactBytes(1),
-        MachineSemanticKind::InterruptControl => MachineSizeKnowledge::ExactBytes(1),
-        MachineSemanticKind::FloatResultPolicy(form) => {
+        Semantic::PortRegisterRead
+        | Semantic::PortRegisterWrite
+        | Semantic::ModelSpecificRead
+        | Semantic::ModelSpecificWrite
+        | Semantic::SystemRegisterRead
+        | Semantic::SystemRegisterWrite
+        | Semantic::ControlRegisterRead
+        | Semantic::ControlRegisterWrite => crate::encoder_resolved(1, Some(40)),
+        Semantic::AccessorScalarAccess(_) => crate::encoder_resolved(7, Some(9)),
+        Semantic::PortWrite => Size::ExactBytes(x86_encoding::IMMEDIATE_PORT_WRITE_WIDTH as u16),
+        Semantic::AtomicFence => Size::ExactBytes(3),
+        Semantic::MemoryFence => Size::ExactBytes(3),
+        Semantic::ProcessorHalt => Size::ExactBytes(1),
+        Semantic::InterruptControl => Size::ExactBytes(1),
+        Semantic::FloatResultPolicy(form) => {
             crate::selected_form_encoding::float_result_policy::size(form)
         }
-        MachineSemanticKind::AtomicAccess(_) => crate::encoder_resolved(1, None),
-        MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
+        Semantic::AtomicAccess(_) => crate::encoder_resolved(1, None),
+        Semantic::NearestIeeeFloatArithmetic(_) => {
             unreachable!("float arithmetic uses its dedicated declaration")
         }
-        MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(2),
-        MachineSemanticKind::MaterializeBooleanEqual
-        | MachineSemanticKind::MaterializeBooleanU64LessThan
-        | MachineSemanticKind::MaterializeBooleanI64LessThan
-        | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
-        | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => {
-            MachineSizeKnowledge::ExactBytes(8)
-        }
-        MachineSemanticKind::Jump => MachineSizeKnowledge::ExactBytes(5),
-        MachineSemanticKind::CompareI64Zero
-        | MachineSemanticKind::CompareI64
-        | MachineSemanticKind::CopyI64 => MachineSizeKnowledge::ExactBytes(3),
-        MachineSemanticKind::CompareI64Immediate => MachineSizeKnowledge::ExactBytes(7),
-        MachineSemanticKind::Float32ToBits | MachineSemanticKind::BitsToFloat32 => {
-            crate::encoder_resolved(4, Some(5))
-        }
-        MachineSemanticKind::Float64ToBits | MachineSemanticKind::BitsToFloat64 => {
-            MachineSizeKnowledge::ExactBytes(5)
-        }
-        MachineSemanticKind::ZeroExtendU8
-        | MachineSemanticKind::ZeroExtendU16
-        | MachineSemanticKind::SignExtendI8
-        | MachineSemanticKind::SignExtendI16 => MachineSizeKnowledge::ExactBytes(4),
-        MachineSemanticKind::ZeroExtendU32 | MachineSemanticKind::SignExtendI32 => {
-            MachineSizeKnowledge::ExactBytes(3)
-        }
-        MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
+        Semantic::Crash => Size::ExactBytes(2),
+        Semantic::MaterializeBooleanEqual
+        | Semantic::MaterializeBooleanU64LessThan
+        | Semantic::MaterializeBooleanI64LessThan
+        | Semantic::MaterializeBooleanU64LessOrEqual
+        | Semantic::MaterializeBooleanI64LessOrEqual => Size::ExactBytes(8),
+        Semantic::Jump => Size::ExactBytes(5),
+        Semantic::CompareI64Zero | Semantic::CompareI64 | Semantic::CopyI64 => Size::ExactBytes(3),
+        Semantic::CompareI64Immediate => Size::ExactBytes(7),
+        Semantic::Float32ToBits | Semantic::BitsToFloat32 => crate::encoder_resolved(4, Some(5)),
+        Semantic::Float64ToBits | Semantic::BitsToFloat64 => Size::ExactBytes(5),
+        Semantic::ZeroExtendU8
+        | Semantic::ZeroExtendU16
+        | Semantic::SignExtendI8
+        | Semantic::SignExtendI16 => Size::ExactBytes(4),
+        Semantic::ZeroExtendU32 | Semantic::SignExtendI32 => Size::ExactBytes(3),
+        Semantic::MaterializeI64 => Size::ExactBytes(10),
         // `lea r64, [rip+disp32]` with the disp32 left for object construction.
-        MachineSemanticKind::ImageAddress => MachineSizeKnowledge::ExactBytes(7),
-        MachineSemanticKind::ExactDivideU64 => MachineSizeKnowledge::ExactBytes(3),
-        MachineSemanticKind::WrappingRemainderI64 => MachineSizeKnowledge::ExactBytes(17),
+        Semantic::ImageAddress => Size::ExactBytes(7),
+        Semantic::ExactDivideU64 => Size::ExactBytes(3),
+        Semantic::WrappingRemainderI64 => Size::ExactBytes(17),
         // `xor` the RDX high half, unsigned `div`, then move the remainder
         // from RDX into the RAX result home.
-        MachineSemanticKind::ExactRemainderU64 => MachineSizeKnowledge::ExactBytes(9),
+        Semantic::ExactRemainderU64 => Size::ExactBytes(9),
         // `cmp` the divisor against -1, `jne` to the divide, `neg` the
         // dividend for the wrapping MIN / -1 answer, `jmp` over `cqo; idiv`.
-        MachineSemanticKind::WrappingDivideI64 => MachineSizeKnowledge::ExactBytes(16),
+        Semantic::WrappingDivideI64 => Size::ExactBytes(16),
         // Bare `cqo; idiv` / `cqo; idiv; mov rdx, rax`: the proven exact
         // obligations exclude every faulting input the guard exists for.
-        MachineSemanticKind::ExactDivideI64 => MachineSizeKnowledge::ExactBytes(5),
-        MachineSemanticKind::ExactRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
-        MachineSemanticKind::SaturatingAdd(carrier)
-        | MachineSemanticKind::SaturatingSubtract(carrier)
-        | MachineSemanticKind::SaturatingDivide(carrier)
-        | MachineSemanticKind::SaturatingRemainder(carrier)
-        | MachineSemanticKind::SaturatingMultiply(carrier) => {
-            MachineSizeKnowledge::ExactBytes(saturating_form(semantic, carrier).byte_count())
+        Semantic::ExactDivideI64 => Size::ExactBytes(5),
+        Semantic::ExactRemainderI64 => Size::ExactBytes(8),
+        Semantic::SaturatingAdd(carrier)
+        | Semantic::SaturatingSubtract(carrier)
+        | Semantic::SaturatingDivide(carrier)
+        | Semantic::SaturatingRemainder(carrier)
+        | Semantic::SaturatingMultiply(carrier) => {
+            Size::ExactBytes(saturating_form(semantic, carrier).byte_count())
         }
         // Every instruction of a Trapping realization has a register-free
         // length, so each form has one exact size.
-        MachineSemanticKind::TrappingInteger(form) => {
-            MachineSizeKnowledge::ExactBytes(TrappingShape::of(form).byte_count())
+        Semantic::TrappingInteger(form) => Size::ExactBytes(TrappingShape::of(form).byte_count()),
+        Semantic::BitwiseAndI64
+        | Semantic::BitwiseOrI64
+        | Semantic::BitwiseNotI64
+        | Semantic::BitwiseXorI64 => crate::encoder_resolved(3, Some(6)),
+        Semantic::ByteViewAddress | Semantic::WrappingAddI64 | Semantic::ExactAddI64 => {
+            crate::encoder_resolved(4, Some(5))
         }
-        MachineSemanticKind::BitwiseAndI64
-        | MachineSemanticKind::BitwiseOrI64
-        | MachineSemanticKind::BitwiseNotI64
-        | MachineSemanticKind::BitwiseXorI64 => crate::encoder_resolved(3, Some(6)),
-        MachineSemanticKind::ByteViewAddress
-        | MachineSemanticKind::WrappingAddI64
-        | MachineSemanticKind::ExactAddI64 => crate::encoder_resolved(4, Some(5)),
-        MachineSemanticKind::ExactAddI64Immediate => crate::encoder_resolved(4, Some(8)),
-        MachineSemanticKind::ExactSubtractI64Immediate => crate::encoder_resolved(4, Some(8)),
-        MachineSemanticKind::ConditionalBranchNonZero
-        | MachineSemanticKind::ConditionalBranchU64LessThan
-        | MachineSemanticKind::ConditionalBranchI64LessThan => crate::encoder_resolved(2, Some(6)),
-        MachineSemanticKind::ReturnScalar
-        | MachineSemanticKind::ReturnAggregate
-        | MachineSemanticKind::ReturnUnit => MachineSizeKnowledge::ExactBytes(1),
-        MachineSemanticKind::ExactSubtractI64
-        | MachineSemanticKind::WrappingSubtractI64
-        | MachineSemanticKind::ExactMultiplyI64
-        | MachineSemanticKind::WrappingMultiplyI64
-        | MachineSemanticKind::WrappingShiftLeftI64
-        | MachineSemanticKind::WrappingShiftRightI64
-        | MachineSemanticKind::WrappingShiftRightU64
-        | MachineSemanticKind::ExactShiftLeftI64
-        | MachineSemanticKind::ExactShiftRightI64
-        | MachineSemanticKind::ExactShiftRightU64 => {
+        Semantic::ExactAddI64Immediate => crate::encoder_resolved(4, Some(8)),
+        Semantic::ExactSubtractI64Immediate => crate::encoder_resolved(4, Some(8)),
+        Semantic::ConditionalBranchNonZero
+        | Semantic::ConditionalBranchU64LessThan
+        | Semantic::ConditionalBranchI64LessThan => crate::encoder_resolved(2, Some(6)),
+        Semantic::ReturnScalar | Semantic::ReturnAggregate | Semantic::ReturnUnit => {
+            Size::ExactBytes(1)
+        }
+        Semantic::ExactSubtractI64
+        | Semantic::WrappingSubtractI64
+        | Semantic::ExactMultiplyI64
+        | Semantic::WrappingMultiplyI64
+        | Semantic::WrappingShiftLeftI64
+        | Semantic::WrappingShiftRightI64
+        | Semantic::WrappingShiftRightU64
+        | Semantic::ExactShiftLeftI64
+        | Semantic::ExactShiftRightI64
+        | Semantic::ExactShiftRightU64 => {
             unreachable!("subtraction, multiplication, and shifts declare explicit alternatives")
         }
         // The family macro restates the memory module's whole arm set; the
         // placement form is matched by its own arm above.
         #[allow(unreachable_patterns)]
-        MachineSemanticKind::CallScalar
-        | MachineSemanticKind::InvokeNoNormal
-        | MachineSemanticKind::CallAggregate
-        | MachineSemanticKind::NormalizedForeignCall
-        | MachineSemanticKind::HostedExitProcessI32
-        | MachineSemanticKind::HostedReadByte
-        | MachineSemanticKind::SaveFloatingControl
-        | MachineSemanticKind::RestoreFloatingControl
-        | MachineSemanticKind::HostedWriteByteI32
+        Semantic::CallScalar
+        | Semantic::InvokeNoNormal
+        | Semantic::CallAggregate
+        | Semantic::NormalizedForeignCall
+        | Semantic::HostedExitProcessI32
+        | Semantic::HostedReadByte
+        | Semantic::SaveFloatingControl
+        | Semantic::RestoreFloatingControl
+        | Semantic::HostedWriteByteI32
         | memory::declared_semantics!() => {
             unreachable!("semantics with a dedicated declaration have no generic size")
         }
