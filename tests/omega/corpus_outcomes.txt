@@ -18,6 +18,10 @@ fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
 	native binding requires the exact compiler-owned `ForeignBinding` declaration
 fail/build/package_owned_callable_identity rejected 1474ms @946b56944a1b
 	build selects provider `other_clock::clock::DependencyClock` for slot `clock::Clock`, but no candidate exists in the loaded dependency closure
+fail/build/retained_behavior_selected_trap rejected 1408ms expected @a0939f4833eb
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: crash cause Trap is reachable in machine `Trapping::check` (Terminal machine 3) at crash terminator in block 3
+	the selected composition retains crash cause Trap through machine `Trapping::check` (Terminal machine 3) declared here
 fail/build/terminal_calling_policy_invalid_rejection rejected 8431ms expected @d2937c3afdf3
 	construction of `CallingPolicyRejection` field `reason` is not proven in domain `[u8]::Utf8` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
@@ -1635,6 +1639,7 @@ pass/build/provider_structural_type_application_exit checked 5285ms check-target
 pass/build/provider_target_value_forwarding_exit checked 3407ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/readiness_generated_dependency_diamond checked 8469ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/receiver_view_writeback_exit checked 55339ms check-target:macos_arm64 terminal-runtime.configure_build_boundary:unrequested terminal-runtime.build:unrequested terminal-runtime.bind_reborrowed:unrequested terminal-runtime.case_storage:unrequested terminal-runtime.record_storage:unrequested terminal-runtime.moved_record_storage:unrequested terminal-runtime.copied_record_storage:unrequested terminal-runtime.primitive_storage:unrequested terminal-runtime.primitive_entry:unrequested terminal-runtime.byte_field_storage:unrequested terminal-runtime.array_result:unrequested terminal-runtime.empty_array_result:unrequested terminal-runtime.frame_sequence:unrequested terminal-inspections:match @ccdb99ca2214
+pass/build/retained_behavior_admission checked 3155ms check-target:macos_arm64 behavior-admission-controls:match terminal-inspections:match @a0939f4833eb
 pass/build/retained_domain_and_service_rows_exit checked 2624ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/runtime_calling_register_copy_exit checked 18345ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/runtime_depend_mapping_exit checked 20322ms check-target:macos_arm64 @ccdb99ca2214

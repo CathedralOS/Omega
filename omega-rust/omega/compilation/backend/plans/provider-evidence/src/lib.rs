@@ -19,8 +19,9 @@ pub mod provider_grants;
 
 pub use provider_evidence::executable_scopes::behavior_exclusions::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusionReport,
-    BehaviorExclusionVerdict, BehaviorExclusions, authored_behavior_exclusion_set_in,
-    establish_behavior_exclusions, resolve_authored_behavior_exclusion,
+    BehaviorExclusionVerdict, BehaviorExclusions, EvidenceGapKind,
+    authored_behavior_exclusion_set_in, establish_behavior_exclusions,
+    resolve_authored_behavior_exclusion,
 };
 
 pub(crate) use provider_evidence::SelectedProviderClosureDigest;
