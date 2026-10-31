@@ -113,6 +113,11 @@ machine configure_macos_image(builder: &mut Build) {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGDataProviderRelease"
         } });
+    Build::bind<MacosImageObjects::release_image>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGImageRelease"
+        } });
     Build::bind<MacosImageObjects::create>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",

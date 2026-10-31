@@ -26,6 +26,8 @@ public boundary trait MacosImageObjects: Calling<DarwinArm64ScalarCalling> {
     machine release_provider(provider: u64)
     requires provider != 0
     reaches;
+    // CGImageRelease explicitly tolerates a null image.
+    machine release_image(image: u64) reaches;
     machine create(width: u64, height: u64, bits_per_component: u64,
         bits_per_pixel: u64, bytes_per_row: u64, space: u64,
         bitmap_info: u32, provider: u64, decode: u64,

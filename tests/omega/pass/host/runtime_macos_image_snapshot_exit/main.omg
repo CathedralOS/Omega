@@ -67,7 +67,7 @@ machine snapshot(space: u64) -> u64 invokes ImageReadback invokes MacosImageData
         _ -> failed_snapshot(image)
     }
     machine failed_snapshot(image: u64) -> u64 {
-        cg_image_release(image);
+        MacosImageObjects::release_image(image);
         0
     }
 }
@@ -123,7 +123,7 @@ machine main() reaches Console invokes Console invokes ImageReadback invokes Mac
         // Nondefault values expose Darwin's compact bool/u32 stack lanes.
         let configured: u64 = MacosImageObjects::create(3, 2, 8, 32, 12,
             space, 0x2006, provider, 0, true, 3);
-        cg_image_release(image);
+        MacosImageObjects::release_image(image);
         cg_color_space_release(space);
         transition configured != 0 {
             true -> inspect_image(configured)
@@ -136,7 +136,7 @@ machine main() reaches Console invokes Console invokes ImageReadback invokes Mac
         let interpolates: bool = ImageReadback::interpolates(image);
         let intent: u32 = ImageReadback::intent(image);
         let correct: bool = inspect(image);
-        cg_image_release(image);
+        MacosImageObjects::release_image(image);
         transition correct && width == 3 && height == 2 && interpolates && intent == 3 {
             true -> passed()
             _ -> failed()

@@ -142,8 +142,6 @@ public boundary trait ObjectiveC {
 public boundary trait CoreGraphics {
     machine color_space_rgb() -> u64 reaches;
     machine color_space_release(space: u64) reaches;
-    // Drop the caller's Create-rule CGImage reference after handing it to Cocoa.
-    machine image_release(image: u64) reaches;
     // `CGEventSourceKeyState(state_id, keycode) -> bool` — is a physical key down?
     // The macOS backing for `Input.key_state` (see macos_key_state below).
     machine event_source_key_state(state_id: u64, keycode: u64) -> u64
@@ -424,7 +422,7 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 
     machine image(window_state: &Window, source_width: u32, source_height: u32, cgimg: u64) -> u32
     requires cgimg != 0
-    invokes ObjectiveC
+    invokes ObjectiveC invokes MacosImageObjects
     {
         let fbwf: f64 = F64::from_u32(source_width);
         let fbhf: f64 = F64::from_u32(source_height);
@@ -444,21 +442,22 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 
     machine failed_image(cgimg: u64) -> u32
     requires cgimg != 0
+    invokes MacosImageObjects
     {
-        cg_image_release(cgimg);
+        MacosImageObjects::release_image(cgimg);
         0
     }
 
     machine display(window_state: &Window, source_height: u32, cgimg: u64, nsimg: u64) -> u32
     requires cgimg != 0 && nsimg != 0
-    invokes ObjectiveC
+    invokes ObjectiveC invokes MacosImageObjects
     {
         let cbuf33: [u8; 10] = "setImage:\0";
         let sel: u64 = ObjectiveC::register_selector(&cbuf33);
         let rc: u64 = ObjectiveC::send_scalar(window_state.view, sel, nsimg);
         // NSImage owns its image backing and setImage: retains the NSImage.
         // Drop our native image and NSImage references; no pixel loan survives.
-        cg_image_release(cgimg);
+        MacosImageObjects::release_image(cgimg);
         let released: u64 = ObjectiveC::send(nsimg, window_state.relsel);
         // Every source scanline was copied into the independent snapshot.
         source_height

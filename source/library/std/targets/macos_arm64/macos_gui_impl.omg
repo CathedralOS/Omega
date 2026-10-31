@@ -36,14 +36,6 @@ public macos_arm64 machine cg_color_space_release_binding() -> ForeignBinding<62
         },
     }
 }
-public macos_arm64 machine cg_image_release_binding() -> ForeignBinding<62, 15, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
-            symbol: "_CGImageRelease",
-        },
-    }
-}
 public macos_arm64 machine cg_event_source_key_state_binding() -> ForeignBinding<62, 22, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -57,8 +49,6 @@ public macos_arm64 machine cg_color_space_rgb() -> u64
     satisfies CoreGraphics::color_space_rgb via cg_color_space_rgb_binding();
 public macos_arm64 machine cg_color_space_release(space: u64)
     satisfies CoreGraphics::color_space_release via cg_color_space_release_binding();
-public macos_arm64 machine cg_image_release(image: u64)
-    satisfies CoreGraphics::image_release via cg_image_release_binding();
 public macos_arm64 machine cg_event_source_key_state(state_id: u64, keycode: u64) -> u64
     satisfies CoreGraphics::event_source_key_state via cg_event_source_key_state_binding();
 
