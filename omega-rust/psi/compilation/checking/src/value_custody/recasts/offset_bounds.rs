@@ -1,3 +1,4 @@
+use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -90,9 +91,7 @@ fn unsigned_place_floor(
         Some(source),
         name,
     )?;
-    if program.arithmetic_domain_for_type_reference(raw)
-        != numerics::arithmetic::ArithmeticDomain::Exact
-    {
+    if program.arithmetic_domain_for_type_reference(raw) != ArithmeticDomain::Exact {
         return None;
     }
     matches!(

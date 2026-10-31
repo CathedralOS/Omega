@@ -2,6 +2,7 @@
 
 use crate::value_custody::places::unique_data_definition_by_symbol;
 use crate::value_custody::recasts::representation_types::exact_primitive_type;
+use language_semantics::const_value::CanonicalConstValue;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 const MAX_RECAST_RECORD_GRAPH_NODES: usize = 4096;
@@ -275,9 +276,7 @@ fn closed_raw_generic_const_argument_is_eligible(
     if symbol.is_valid() {
         return false;
     }
-    if let Some(value) =
-        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-    {
+    if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
         return crate::value_custody::type_references::validate_exact_typed_structured_const_argument(
             program,
             parameter_type,

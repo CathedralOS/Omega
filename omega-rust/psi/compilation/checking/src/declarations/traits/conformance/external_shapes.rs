@@ -7,6 +7,7 @@ use crate::declarations::traits::trait_definition_by_symbol;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateSignature;
 use typed_trees::trait_definition::TraitDefinition;
@@ -107,9 +108,7 @@ pub(crate) fn validate_external_via_expression(
         return;
     }
     let source_span = expression_table(program).source_span(expression);
-    let typed_trees::expression::ExpressionNode::Call(call) =
-        expression_table(program).expression(expression)
-    else {
+    let ExpressionNode::Call(call) = expression_table(program).expression(expression) else {
         diagnostics.push(
             Diagnostic::error(format!(
                 "external realization `{}` must use one direct zero-argument machine call after `via`",

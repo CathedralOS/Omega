@@ -1,5 +1,6 @@
 use crate::value_custody::places::unwrapped_type_reference;
 use diagnostics::Diagnostic;
+use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::wire::{WireField, WireMember, WireSchema};
 
@@ -60,7 +61,7 @@ pub(super) fn validate_nested_value_field(
     if program
         .data_members(child_value_data)
         .iter()
-        .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+        .any(|member| matches!(member, DataMember::Variant(_)))
     {
         diagnostics.push(Diagnostic::error(format!(
             "`{}::{machine_name}` value field `{}.{}` has case-bearing type `{}`; wire encoding over sums and mixed data shapes is not implemented yet",
@@ -140,9 +141,7 @@ pub(super) fn validate_repeated_value_field(
             .data_members(value_data)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(data_field)
-                    if data_field.name.as_str() == name =>
-                {
+                DataMember::Field(data_field) if data_field.name.as_str() == name => {
                     Some(data_field)
                 }
                 _ => None,
@@ -311,7 +310,7 @@ pub(super) fn validate_value_argument_fields(
         if program
             .data_members(value_data)
             .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
+            .any(|member| matches!(member, DataMember::Variant(_)))
         {
             diagnostics.push(Diagnostic::error(format!(
                 "`{}::{}` value type `{}` is case-bearing; wire {} sums and mixed data shapes is not implemented yet (the case tag and payload have no schema spelling)",

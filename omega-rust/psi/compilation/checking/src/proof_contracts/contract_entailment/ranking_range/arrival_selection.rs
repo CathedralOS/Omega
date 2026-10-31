@@ -11,6 +11,7 @@ use super::{
     RankingRangePremises, State, StateEntryCorrespondence,
 };
 use crate::frozen_program::expression_table;
+use facts::PlaceSegment;
 use symbols::SymbolHandle;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -333,24 +334,22 @@ fn collect_read_coordinates(
             let parameter = place.root.as_symbol()?;
             program.state_parameter_by_symbol(root, parameter)?;
             if !place.segments.iter().all(|segment| match segment {
-                facts::PlaceSegment::Field { symbol } => {
+                PlaceSegment::Field { symbol } => {
                     symbol.is_valid() && program.any_field_owner(*symbol).is_some()
                 }
-                facts::PlaceSegment::Case { variant } => {
+                PlaceSegment::Case { variant } => {
                     variant.is_valid() && program.variant_owner(*variant).is_some()
                 }
-                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::FixedRange { .. } => {
-                    true
-                }
+                PlaceSegment::FixedIndex { .. } | PlaceSegment::FixedRange { .. } => true,
                 // A selector is another required observation. Merely discovering
                 // this coordinate establishes neither bounds nor a readable load.
-                facts::PlaceSegment::Index { expression } => expression.is_valid(),
-                facts::PlaceSegment::OpaqueRange => false,
+                PlaceSegment::Index { expression } => expression.is_valid(),
+                PlaceSegment::OpaqueRange => false,
             }) {
                 return None;
             }
             for segment in &place.segments {
-                if let facts::PlaceSegment::Index { expression } = segment {
+                if let PlaceSegment::Index { expression } = segment {
                     collect_read_coordinates(
                         program,
                         machine,

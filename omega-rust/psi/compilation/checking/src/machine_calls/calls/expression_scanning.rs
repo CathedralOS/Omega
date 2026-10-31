@@ -15,6 +15,7 @@ use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
+use numerics::float_semantics_catalog::FloatSemanticKernel;
 use symbols::BuiltinFunction;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -702,10 +703,7 @@ fn validate_expression_call_bounds(
                     && target.operation == call.target.as_str()
             })
         });
-    if !namespace
-        && !accessor
-        && machine_state_by_symbol(program, call.target_symbol).is_some()
-    {
+    if !namespace && !accessor && machine_state_by_symbol(program, call.target_symbol).is_some() {
         if expression_table(program)
             .name_path_node(call.receiver)
             .is_some_and(|path| !path.head_symbol.is_valid() || !path.symbol.is_valid())
@@ -771,13 +769,11 @@ fn validate_named_float_to_integer_call(
     let Some((_, semantic)) = crate::float_integer_conversion_contract(program, operator) else {
         return;
     };
-    if !matches!(
-        semantic.kernel(),
-        numerics::float_semantics_catalog::FloatSemanticKernel::ToIntegerExact
-    ) || program
-        .type_reference_table
-        .arithmetic_domain(operator.return_type)
-        != numerics::arithmetic::ArithmeticDomain::Exact
+    if !matches!(semantic.kernel(), FloatSemanticKernel::ToIntegerExact)
+        || program
+            .type_reference_table
+            .arithmetic_domain(operator.return_type)
+            != numerics::arithmetic::ArithmeticDomain::Exact
     {
         return;
     }
