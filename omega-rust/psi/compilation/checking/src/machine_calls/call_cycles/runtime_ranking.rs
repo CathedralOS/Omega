@@ -24,7 +24,7 @@ use crate::RankingRangeMeasure;
 use crate::machine_calls::graph_components::strongly_connected_components;
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, prove_captured_scalar_rank_call, prove_ranking_range_call,
+    call_member_premise_symbols, prove_captured_rank_call, prove_ranking_range_call,
 };
 use comparison::Comparison;
 use projection::RankProjection;
@@ -366,10 +366,10 @@ pub(super) fn project_component(
             // A fresh invocation saves an entry value. A normalized label
             // entry instead consumes its admitted state-inductive telescope
             // and range regime, including the original preservation checks.
-            let captured_scalar = states
+            let captured_components = states
                 .first()
                 .is_some_and(|entry| entry.symbol == state.symbol)
-                && ranks[position].captured_scalar().is_some();
+                && ranks[position].captured_components(program).is_some();
             for (statement_ordinal, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -381,7 +381,7 @@ pub(super) fn project_component(
                     // Captured scalar comparisons execute this complete prefix
                     // through the ordinary value ledger. They never reuse a
                     // retired entry-relative storage reading after a write.
-                    if captured_scalar {
+                    if captured_components {
                         continue;
                     }
                     if prefix::preserves_rank(
@@ -455,7 +455,7 @@ pub(super) fn project_component(
                     }
                 };
                 let mut site_guards = guards.clone();
-                if !captured_scalar
+                if !captured_components
                     && !prefix::preserves_rank(
                         program,
                         machine,
@@ -690,14 +690,14 @@ fn admit_ranked_edge(
     observed.push(callee);
     let strict;
     if let (Some(source), Some(destination)) = (
-        ranks[caller_rank_index].captured_scalar(),
-        ranks[callee_position].captured_scalar(),
+        ranks[caller_rank_index].captured_components(program),
+        ranks[callee_position].captured_components(program),
     ) && program
         .machine_states(caller)
         .first()
         .is_some_and(|entry| entry.symbol == state.symbol)
     {
-        let progress = prove_captured_scalar_rank_call(
+        let progress = prove_captured_rank_call(
             program,
             caller,
             state,
@@ -708,9 +708,10 @@ fn admit_ranked_edge(
             transition_target,
             arguments,
         )?;
-        if let (Some(component), Some(application)) =
-            (natural.as_mut(), progress.source_application)
-        {
+        for application in progress.source_applications.into_iter().flatten() {
+            let Some(component) = natural.as_mut() else {
+                continue;
+            };
             if let Some(row) = component
                 .states
                 .iter_mut()

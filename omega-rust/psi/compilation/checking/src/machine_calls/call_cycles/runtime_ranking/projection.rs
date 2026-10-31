@@ -1,5 +1,4 @@
 use crate::frozen_program::expression_table;
-use crate::proof_contracts::contract_entailment::CapturedScalarRank;
 use crate::{
     MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
     find_declared_measure, measure_body_shape,
@@ -395,7 +394,35 @@ impl RankProjection {
         }
     }
 
-    pub(super) fn captured_scalar(&self) -> Option<CapturedScalarRank> {
+    pub(super) fn captured_components(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<Vec<crate::proof_contracts::contract_entailment::CapturedRankComponent>> {
+        use crate::proof_contracts::contract_entailment::CapturedRankComponent;
+        if let RankOrder::Lexicographic { data, fields, .. } = &self.order {
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *data)?;
+            return fields
+                .iter()
+                .map(|symbol| {
+                    let field =
+                        program.data_members(definition).iter().find_map(
+                            |member| match member {
+                                DataMember::Field(field) if field.symbol == *symbol => Some(field),
+                                _ => None,
+                            },
+                        )?;
+                    Some(CapturedRankComponent {
+                        subject: self.subject,
+                        projection: vec![facts::PlaceSegment::Field { symbol: *symbol }],
+                        primitive: program.primitive_type_reference(field.type_reference)?,
+                        measure: SymbolHandle::invalid(),
+                    })
+                })
+                .collect();
+        }
         let (primitive, measure) = match self.order {
             RankOrder::Natural(primitive) => (primitive, SymbolHandle::invalid()),
             RankOrder::DeclaredIdentity { measure, primitive } => (primitive, measure),
@@ -406,11 +433,12 @@ impl RankProjection {
             } => (input_primitive, measure),
             _ => return None,
         };
-        Some(CapturedScalarRank {
+        Some(vec![CapturedRankComponent {
             subject: self.subject,
+            projection: Vec::new(),
             primitive,
             measure,
-        })
+        }])
     }
 
     pub(super) fn same_order(&self, other: &Self) -> bool {
