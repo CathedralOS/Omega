@@ -1,5 +1,15 @@
 use super::*;
+use semantic_vocabulary::{IntegerSign, IntegerType};
 use terminal_psi::StructuralAccess;
+use terminal_psi::{
+    ByteSequenceCarrier, StructuralArgument, StructuralTypeShape,
+    nonlinear_multiplicity_pair_pattern,
+};
+use terminal_semantics::{
+    arrival_parameter, byte_owned_call_result, byte_parameter_predicates,
+    descriptor_reborrow_matches, fixed_byte_extent, projected_field_declaration,
+    runtime_structural_field,
+};
 
 /// Canonical shape only: a Unit store of a shared borrowed-view slot -- a
 /// field below a current declared storage carrier, or, without a field and
@@ -25,14 +35,14 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if operation.result != OperationResult::Unit || destination == source {
         return malformed("byte view field store requires Unit and a distinct source");
     }
-    let shared_view = terminal_psi::ByteSequenceCarrier::BorrowedView {
-        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+    let shared_view = ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::SharedBorrow),
     };
     let view_slot = match field {
         Some(field) => {
             let (root_type, carrier_path) =
                 field_store_carrier(module, machine, *destination, path, *field)?;
-            terminal_semantics::projected_field_declaration(
+            projected_field_declaration(
                 module.structural_types.iter(),
                 root_type,
                 carrier_path,
@@ -50,9 +60,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                             && matches!(
                                 declaration.shape,
                                 StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                        access: None
-                                            | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                                    ByteSequenceCarrier::BorrowedView {
+                                        access: None | Some(StructuralAccess::SharedBorrow),
                                     }
                                 )
                             )
@@ -100,16 +109,15 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     } else if let Some(structural_type) = owned_store_carrier(module, machine, *destination, path) {
         (structural_type, path.as_slice())
     } else {
-        let Some(parameter) = terminal_semantics::arrival_parameter(machine, *destination) else {
+        let Some(parameter) = arrival_parameter(machine, *destination) else {
             return malformed("byte field store destination is not arrival storage");
         };
         if !matches!(
             parameter.access,
-            terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         ) || !matches!(
             parameter.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+            nonlinear_multiplicity_pair_pattern!()
         ) || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
@@ -138,7 +146,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                     && !candidate.relevance.is_erased()
                     && matches!(
                         candidate.field_type.byte_sequence_carrier(),
-                        Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+                        Some(ByteSequenceCarrier::BoundedOwned { .. })
                     )
             }),
             _ => false,
@@ -158,22 +166,17 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             // A state parameter is the same arrival storage as a machine
             // parameter. Declaration location grants no additional permission:
             // both retain exact access, predicates, capacity and live length.
-            let Some(parameter) =
-                terminal_semantics::arrival_parameter(machine, *source).filter(|parameter| {
-                    parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        && parameter.projected_qualifications.is_empty()
-                        && ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-                            && parameter.qualifications.is_empty())
-                            || (parameter.access == terminal_psi::StructuralAccess::Owned
-                                && terminal_semantics::byte_parameter_predicates(
-                                    module, parameter,
-                                )
-                                .is_some()))
-                })
-            else {
+            let Some(parameter) = arrival_parameter(machine, *source).filter(|parameter| {
+                parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && parameter.projected_qualifications.is_empty()
+                    && ((parameter.access == StructuralAccess::SharedBorrow
+                        && parameter.qualifications.is_empty())
+                        || (parameter.access == StructuralAccess::Owned
+                            && byte_parameter_predicates(module, parameter).is_some()))
+            }) else {
                 return malformed("byte field store source is not a readable whole byte carrier");
             };
-            owned_source = parameter.access == terminal_psi::StructuralAccess::Owned;
+            owned_source = parameter.access == StructuralAccess::Owned;
             parameter.structural_type
         }
         StructuralPlaceKind::OperationResult {
@@ -189,8 +192,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             // Normal completion imports the exact declared byte owner, not a
             // borrowed descriptor. Receiving verification still checks callee
             // contents, predicate preservation, capacity and dominance.
-            let owned_call =
-                terminal_semantics::byte_owned_call_result(module, machine, *source).is_some();
+            let owned_call = byte_owned_call_result(module, machine, *source).is_some();
             if producers.next().is_some()
                 || !(owned_call
                     || matches!(
@@ -220,14 +222,14 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     };
     if !module.structural_types.iter().any(|declaration| declaration.id == source_type
         && match declaration.shape {
-            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => !owned_source,
-            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => owned_source,
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => !owned_source,
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => owned_source,
             _ => false,
         })
         || !machine.operations().any(|candidate| {
             matches!(&candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured.place == *source && measured.path.is_empty())
                 && candidate.result.scalar_ref().is_some_and(|result| result.id == *length
-                    && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64))
+                    && matches!(result.scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64))
         })
     {
         return malformed("byte field store source or exact length is invalid");
@@ -258,9 +260,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let OperationKind::StructuralByteSequenceFieldRead { .. } = &operation.kind else {
         unreachable!("dispatched validate_structural_byte_sequence_field_read")
     };
-    let expected = ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"),
-    );
+    let expected =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"));
     if operation
         .result
         .scalar()
@@ -284,19 +285,15 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let Some(result) = operation.result.structural() else {
         return malformed("byte-sequence subslice requires a structural result");
     };
-    if !matches!(
-        result.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) || !result.qualifications.is_empty()
+    if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
+        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !module.structural_types.iter().any(|row| {
             row.id == result.structural_type
                 && matches!(
                     row.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                    )
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
                 )
         }) || !machine.structural_places.iter().any(|row| {
         row.id == result.place
@@ -309,7 +306,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let root = place_structural_type(machine, source.place).expect("source checked above");
     let selected = validate_structural_path(module, root, &source.path)?;
     let source_occurrence_access = if source.path.is_empty() {
-        terminal_semantics::arrival_parameter(machine, source.place)
+        arrival_parameter(machine, source.place)
             .and_then(|parameter| {
                 if parameter.access != StructuralAccess::Owned {
                     Some(parameter.access)
@@ -343,17 +340,13 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 })
             })
     } else {
-        terminal_semantics::runtime_structural_field(
-            module.structural_types.iter(),
-            root,
-            &source.path,
-        )
-        .and_then(|field| field.field_type.byte_sequence_carrier())
-        .and_then(|carrier| match carrier {
-            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
-            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. } => access,
-            _ => None,
-        })
+        runtime_structural_field(module.structural_types.iter(), root, &source.path)
+            .and_then(|field| field.field_type.byte_sequence_carrier())
+            .and_then(|carrier| match carrier {
+                ByteSequenceCarrier::BorrowedView { access }
+                | ByteSequenceCarrier::BoundedView { access, .. } => access,
+                _ => None,
+            })
     };
     let Some(result_access) = terminal_semantics::descriptor_results::descriptor_value_access(
         module.structural_types.iter(),
@@ -362,7 +355,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     ) else {
         return malformed("byte subslice result lacks descriptor permission");
     };
-    if !terminal_semantics::descriptor_reborrow_matches(
+    if !descriptor_reborrow_matches(
         module.structural_types.iter(),
         selected,
         source.access,
@@ -383,9 +376,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let OperationKind::ByteSequenceRead { .. } = &operation.kind else {
         unreachable!("dispatched validate_byte_sequence_read")
     };
-    let expected = ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"),
-    );
+    let expected =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"));
     if operation
         .result
         .scalar()
@@ -420,10 +412,10 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 fn validate_byte_descriptor_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    source: &terminal_psi::StructuralArgument,
+    source: &StructuralArgument,
     borrowed_only: bool,
 ) -> Result<(), CodecError> {
-    if source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+    if source.access == StructuralAccess::WriteOnlyBorrow {
         return malformed("byte descriptor requires readable access");
     }
     let Some(root) = place_structural_type(machine, source.place) else {
@@ -434,14 +426,8 @@ fn validate_byte_descriptor_source(
         declaration.shape.is_borrowed_byte_carrier()
             || (!borrowed_only
                 && (declaration.shape.is_bounded_owned_byte_sequence()
-                    || matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::FixedArray { .. }
-                    ) && terminal_semantics::fixed_byte_extent(
-                        module.structural_types.iter(),
-                        selected,
-                    )
-                    .is_some()))
+                    || matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                        && fixed_byte_extent(module.structural_types.iter(), selected).is_some()))
     }) {
         return malformed("byte operation requires its exact selected byte descriptor");
     }
