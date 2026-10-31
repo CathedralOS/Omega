@@ -54,12 +54,23 @@ pub(crate) fn closed_requirement_provider_associations(
     if rows.is_empty() {
         return None;
     }
-    for implementation in program.conformances().iter().filter(|implementation| {
-        implementation.rows.iter().any(|row| {
+    for implementation in program.conformances() {
+        let declares_row = implementation.rows.iter().any(|row| {
             row.declaring_trait == application.declaring_trait
                 && row.requirement == application.template
-        })
-    }) {
+        });
+        // A partial map of this same trait is a missing alternative, not
+        // permission to infer coverage from the healthy maps alone.
+        if !trait_reaches(
+            program,
+            implementation.trait_symbol,
+            application.declaring_trait,
+        )? {
+            if declares_row {
+                return None;
+            }
+            continue;
+        }
         if rows
             .iter()
             .any(|row| row.identity.selecting_declaration == implementation.symbol)
@@ -136,6 +147,35 @@ pub(crate) fn closed_requirement_provider_associations(
         }
     }
     Some(rows)
+}
+
+/// Scope projection can be absent or ambiguous. Only this complete nominal
+/// walk can establish that a map is unrelated; unknown declarations refuse.
+fn trait_reaches(
+    program: &dyn crate::CheckingInput,
+    root: SymbolHandle,
+    wanted: SymbolHandle,
+) -> Option<bool> {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(symbol) = pending.pop() {
+        if symbol == wanted {
+            return Some(true);
+        }
+        if visited.contains(&symbol) {
+            continue;
+        }
+        let declaration = program.trait_definition_by_symbol(symbol)?;
+        visited.push(symbol);
+        pending.extend(
+            program
+                .trait_requirements(declaration)
+                .iter()
+                .chain(declaration.refines.iter())
+                .map(|parent| parent.symbol),
+        );
+    }
+    Some(false)
 }
 
 fn derive_provider_application_associations(
