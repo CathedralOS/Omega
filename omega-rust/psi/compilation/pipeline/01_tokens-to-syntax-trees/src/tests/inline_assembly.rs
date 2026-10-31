@@ -108,11 +108,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed
-        .items
-        .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
+    let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 2);
 
     let StatementNode::Assignment(snapshot) = parsed.statements.statement(statements[0]) else {
@@ -145,11 +141,7 @@ fn parses_x86_msr_as_structured_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed
-        .items
-        .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
+    let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 2);
 
     let StatementNode::Assignment(read) = parsed.statements.statement(statements[0]) else {
@@ -187,11 +179,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed
-        .items
-        .state(parsed.items.state_handles(machine.states)[0]);
-    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
+    let statements = main_statements(&parsed);
     assert_eq!(statements.len(), 7);
 
     for (statement_index, target) in [
