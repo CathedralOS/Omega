@@ -253,7 +253,7 @@ pub fn prepare_product_requirement_operand(
         lower
             .program
             .expression_table
-            .set_static_machine_application_lifetimes(application, &lifetimes);
+            .set_static_machine_application_lifetimes(application, requirement, &lifetimes);
         let instance = lower
             .program
             .instantiate_requirement_application(

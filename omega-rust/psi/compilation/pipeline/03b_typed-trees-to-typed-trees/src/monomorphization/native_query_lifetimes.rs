@@ -26,18 +26,18 @@ pub(super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         );
         let lifetimes =
             super::application_lifetimes::bind(program, operand.symbol, &operand, application)?;
+        let declaration = program
+            .machines()
+            .iter()
+            .find(|machine| program.machine_or_state_symbol(machine, operand.symbol))
+            .map(|machine| machine.symbol)
+            .unwrap_or(operand.symbol);
         if !program
             .expression_table
             .static_machine_application(application)
             .binding_declaration
             .is_valid()
         {
-            let declaration = program
-                .machines()
-                .iter()
-                .find(|machine| program.machine_or_state_symbol(machine, operand.symbol))
-                .map(|machine| machine.symbol)
-                .unwrap_or(operand.symbol);
             program
                 .expression_table
                 .static_machine_application_mut(application)
@@ -45,7 +45,7 @@ pub(super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         }
         program
             .expression_table
-            .set_static_machine_application_lifetimes(application, &lifetimes);
+            .set_static_machine_application_lifetimes(application, declaration, &lifetimes);
     }
     Ok(())
 }

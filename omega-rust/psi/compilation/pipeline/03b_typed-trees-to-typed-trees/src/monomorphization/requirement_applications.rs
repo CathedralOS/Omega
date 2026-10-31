@@ -75,6 +75,7 @@ pub(crate) fn instantiate_requirement_applications(
             }
             vec![calls::InvocationTuple {
                 owner: demand.argument_owner,
+                lifetime_declaration: requirement,
                 arguments: Vec::new(),
                 lifetimes: Vec::new(),
             }]
@@ -93,6 +94,7 @@ pub(crate) fn instantiate_requirement_applications(
                     .into_iter()
                     .map(|arguments| calls::InvocationTuple {
                         owner: demand.argument_owner,
+                        lifetime_declaration: requirement,
                         arguments,
                         lifetimes: Vec::new(),
                     })
@@ -162,7 +164,11 @@ pub(crate) fn instantiate_requirement_applications(
             source.binding_declaration = requirement;
             program
                 .expression_table
-                .set_static_machine_application_lifetimes(application, &invocation.lifetimes);
+                .set_static_machine_application_lifetimes(
+                    application,
+                    requirement,
+                    &invocation.lifetimes,
+                );
             program
                 .expression_table
                 .set_static_machine_application_bindings(application, &bindings);

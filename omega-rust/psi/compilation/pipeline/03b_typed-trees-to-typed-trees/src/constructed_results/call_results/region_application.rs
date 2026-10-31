@@ -18,29 +18,35 @@ pub(super) fn bindings(
 ) -> Result<Vec<(Identifier, Option<Identifier>)>, Vec<Diagnostic>> {
     // Use the same applied logical signature that owns the result carrier,
     // not a selected private body's still-open declaration telescope.
-    let (parameters, lifetimes) = if let Some(signature) =
+    let (parameters, lifetimes, declaration) = if let Some(signature) =
         program.requirement_call_signature(caller.symbol, call)
     {
         (
             program.state_signature_parameters(signature),
             &signature.lifetime_parameters,
+            signature.symbol,
         )
     } else if let Some((machine, entry)) = validation::find_state(program, call.target_symbol) {
         (
             program.state_parameters(entry),
             &machine.lifetime_parameters,
+            machine.symbol,
         )
     } else if let Some((_, signature)) = program.machine_parameter_signature(call.target_symbol) {
         (
             program.state_signature_parameters(signature),
             &signature.lifetime_parameters,
+            signature.symbol,
         )
     } else {
         return Ok(Vec::new());
     };
     let mut regions = program
-        .expression_table
-        .static_machine_application_lifetimes(call.authored_machine_application)
+        .static_application_lifetimes_for_declaration(
+            call.authored_machine_application,
+            declaration,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?
         .iter()
         .map(|binding| (binding.parameter.clone(), Some(binding.argument.clone())))
         .collect::<Vec<_>>();

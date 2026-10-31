@@ -419,6 +419,18 @@ pub(super) fn clone_single_specialized_machine(
         }
     }
 
+    let authored_symbols = symbol_map
+        .iter()
+        .copied()
+        .filter(|(symbol, _)| {
+            !matches!(
+                source.unwrap_or(program).symbols.get(*symbol).kind,
+                SymbolKind::Machine | SymbolKind::State
+            )
+        })
+        .collect::<Vec<_>>();
+    let rebinding = typed_trees::SymbolRebinding::new(&symbol_map, &authored_symbols);
+
     let mut cloned = source_machine.clone();
     cloned.structural_type_equations_pending = !predicates_closed;
     // Published progress premises are declaration-owned identities, like
@@ -462,7 +474,7 @@ pub(super) fn clone_single_specialized_machine(
                 parameter.kind = program
                     .copy_callable_parameter_kind(
                         parameter.kind,
-                        &symbol_map,
+                        &authored_symbols,
                         source_machine.symbol,
                     )
                     .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -483,7 +495,7 @@ pub(super) fn clone_single_specialized_machine(
                 source,
                 program,
                 source_machine.attached_data_application,
-                &symbol_map,
+                rebinding,
             )?
         } else {
             TypeReferenceHandle::invalid()
@@ -497,8 +509,8 @@ pub(super) fn clone_single_specialized_machine(
         .into_iter()
         .map(|equation| {
             Ok(typed_trees::machine::DeclaredTypeEquation {
-                parameter: copy_type_reference(source, program, equation.parameter, &symbol_map)?,
-                definition: copy_type_reference(source, program, equation.definition, &symbol_map)?,
+                parameter: copy_type_reference(source, program, equation.parameter, rebinding)?,
+                definition: copy_type_reference(source, program, equation.definition, rebinding)?,
             })
         })
         .collect::<Result<Vec<_>, TypeCopyError>>()?;
@@ -510,7 +522,7 @@ pub(super) fn clone_single_specialized_machine(
         .to_vec();
     let predicates = predicates
         .into_iter()
-        .map(|expression| copy_expression(source, program, expression, &symbol_map))
+        .map(|expression| copy_expression(source, program, expression, rebinding))
         .collect::<Vec<_>>();
     cloned.declared_type_predicates = program
         .expression_table
@@ -522,7 +534,7 @@ pub(super) fn clone_single_specialized_machine(
         for bound in &mut cloned.conformance_bounds {
             bound.binder = remapped_symbol(bound.binder, &symbol_map);
             for argument in &mut bound.arguments {
-                *argument = copy_type_reference(source, program, *argument, &symbol_map)?;
+                *argument = copy_type_reference(source, program, *argument, rebinding)?;
             }
         }
     }
@@ -563,7 +575,7 @@ pub(super) fn clone_single_specialized_machine(
     .unwrap_or_default()
     .into_iter()
     .map(|expression| {
-        let copied = copy_expression(source, program, expression, &symbol_map);
+        let copied = copy_expression(source, program, expression, rebinding);
         if let Some(realized) = state_realized_parameters.first() {
             program.expression_table.remap_symbols_in(copied, realized);
         }
@@ -577,7 +589,7 @@ pub(super) fn clone_single_specialized_machine(
     .unwrap_or_default()
     .into_iter()
     .map(|expression| {
-        let copied = copy_expression(source, program, expression, &symbol_map);
+        let copied = copy_expression(source, program, expression, rebinding);
         if let Some(realized) = state_realized_parameters.first() {
             program.expression_table.remap_symbols_in(copied, realized);
         }
@@ -589,7 +601,7 @@ pub(super) fn clone_single_specialized_machine(
         .ranking_expression_custody_for(source_machine.symbol)
         .and_then(|custody| custody.rank_range)
         .map(|expression| {
-            let copied = copy_expression(source, program, expression, &symbol_map);
+            let copied = copy_expression(source, program, expression, rebinding);
             if let Some(realized) = state_realized_parameters.first() {
                 program.expression_table.remap_symbols_in(copied, realized);
             }
@@ -614,9 +626,8 @@ pub(super) fn clone_single_specialized_machine(
         let mut item = source_item.clone();
         item.symbol = symbol_map[owned_symbol_offset + index].1;
         item.type_reference =
-            copy_type_reference(source, program, source_item.type_reference, &symbol_map)?;
-        item.initial_value =
-            copy_expression(source, program, source_item.initial_value, &symbol_map);
+            copy_type_reference(source, program, source_item.type_reference, rebinding)?;
+        item.initial_value = copy_expression(source, program, source_item.initial_value, rebinding);
         program.push_machine_owned_data(&mut cloned, item);
     }
     // Satisfaction quantifies over the authored family. Keep its edge operands
@@ -634,7 +645,7 @@ pub(super) fn clone_single_specialized_machine(
         .machine_contracts(&source_machine)
         .to_vec()
     {
-        let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map)?;
+        let contract = copy_signature_contract(source, program, contract.clone(), rebinding)?;
         // A machine-level contract reads entry-state parameters, so a
         // runtime-bound `Value` binder inside its fact expressions denotes the
         // entry state's realized trailing parameter.
@@ -652,12 +663,12 @@ pub(super) fn clone_single_specialized_machine(
         state.parameters = HandleSpan::empty();
         state.contracts = HandleSpan::empty();
         state.return_type =
-            copy_type_reference(source, program, source_state.return_type, &symbol_map)?;
+            copy_type_reference(source, program, source_state.return_type, rebinding)?;
         state.statement_nodes =
-            copy_statements(source, program, source_state.statement_nodes, &symbol_map)?;
+            copy_statements(source, program, source_state.statement_nodes, rebinding)?;
         program
             .tables
-            .remap_statement_symbols(state.statement_nodes, &symbol_map);
+            .remap_statement_symbols(state.statement_nodes, rebinding);
 
         // Executable uses of a runtime-bound `Value` binder read the realized
         // parameter. The plain map intentionally leaves binder symbols in type
@@ -708,12 +719,8 @@ pub(super) fn clone_single_specialized_machine(
         {
             let mut parameter = source_parameter.clone();
             parameter.symbol = remapped_symbol(parameter.symbol, &symbol_map);
-            parameter.type_reference = copy_type_reference(
-                source,
-                program,
-                source_parameter.type_reference,
-                &symbol_map,
-            )?;
+            parameter.type_reference =
+                copy_type_reference(source, program, source_parameter.type_reference, rebinding)?;
             // An erased carrier's indices describe its exact source value;
             // they do not determine executable layout. Preserve that carrier
             // under this state's realized Value subjects, in private copied
@@ -746,7 +753,7 @@ pub(super) fn clone_single_specialized_machine(
             .iter()
             .zip(state_realized_parameters[state_index].iter())
         {
-            let type_reference = copy_type_reference(source, program, *declared_type, &symbol_map)?;
+            let type_reference = copy_type_reference(source, program, *declared_type, rebinding)?;
             program.push_state_parameter(
                 &mut state,
                 typed_trees::signature::StateParameter {
@@ -765,7 +772,7 @@ pub(super) fn clone_single_specialized_machine(
             .state_contracts(source_state)
             .to_vec()
         {
-            let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map)?;
+            let contract = copy_signature_contract(source, program, contract.clone(), rebinding)?;
             // A state-level contract reads this state's parameters; a
             // runtime-bound `Value` binder inside its fact expressions denotes
             // this state's realized trailing parameter.
@@ -789,7 +796,7 @@ pub(super) fn clone_single_specialized_machine(
     for mut call in proof_output_calls {
         call.machine_symbol = cloned.symbol;
         call.state_symbol = remapped_symbol(call.state_symbol, &symbol_map);
-        call.call = copy_expression(source, program, call.call, &symbol_map);
+        call.call = copy_expression(source, program, call.call, rebinding);
         program.proof_output_calls.push(call);
     }
     for state in program.machine_states(&cloned).to_vec() {
@@ -809,22 +816,22 @@ pub(super) fn clone_single_specialized_machine(
                     source,
                     program,
                     &mut authored_arguments,
-                    &symbol_map,
+                    rebinding,
                 )?;
                 program
                     .expression_table
                     .static_machine_application_arguments_mut(application)
                     .clone_from_slice(&authored_arguments);
-                copy_application_binding_type_payloads(source, program, application, &symbol_map)?;
+                copy_application_binding_type_payloads(source, program, application, rebinding)?;
             }
-            copy_static_argument_type_payloads(source, program, &mut arguments, &symbol_map)?;
+            copy_static_argument_type_payloads(source, program, &mut arguments, rebinding)?;
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 unreachable!();
             };
             call.machine_arguments = arguments;
         }
     }
-    copy_cloned_expression_type_payloads(source, program, expression_start, &symbol_map)?;
+    copy_cloned_expression_type_payloads(source, program, expression_start, rebinding)?;
     // Publish the exact authored derivation before applying copied regions.
     // Type payloads already name the fresh instance, whose source telescope
     // must be rejoined even while its body is still under construction. This
@@ -1075,12 +1082,13 @@ pub(super) fn clone_single_specialized_machine(
 
 // Existing cross-table copiers retain recursive graph shape and source spans.
 // Staging visits only the selected graph, never the complete program arenas.
-pub(super) fn copy_statements(
+pub(super) fn copy_statements<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     statements: HandleSpan<StatementNode>,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<HandleSpan<StatementNode>, TypeCopyError> {
+    let symbols = symbols.into();
     let mut expressions = Vec::new();
     let copied = if let Some(source) = source {
         program.tables.copy_statement_nodes_with_type_expressions(
@@ -1108,11 +1116,11 @@ pub(super) fn copy_statements(
     Ok(copied)
 }
 
-pub(super) fn copy_expression(
+pub(super) fn copy_expression<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     expression: ExpressionHandle,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> ExpressionHandle {
     if !expression.is_valid() {
         return ExpressionHandle::invalid();
@@ -1132,12 +1140,13 @@ pub(super) fn copy_expression(
 /// machine is a new semantic graph, so copy call/cast/zero-value type payloads here
 /// before binder substitution; otherwise a cloned cast would still point into
 /// the authored template's type nodes, and substitution would mutate both.
-pub(super) fn copy_cloned_expression_type_payloads(
+pub(super) fn copy_cloned_expression_type_payloads<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     expression_start: usize,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<(), TypeCopyError> {
+    let symbols = symbols.into();
     let query_carriers = program
         .expression_table
         .iter_expressions_from(expression_start)
@@ -1308,12 +1317,13 @@ pub(super) fn copy_cloned_expression_type_payloads(
     Ok(())
 }
 
-fn copy_application_binding_type_payloads(
+fn copy_application_binding_type_payloads<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<(), TypeCopyError> {
+    let symbols = symbols.into();
     let mut selected = program
         .expression_table
         .static_machine_application_selected_machines(application)
@@ -1335,12 +1345,13 @@ fn copy_application_binding_type_payloads(
     Ok(())
 }
 
-pub(super) fn copy_binding_type_payloads(
+pub(super) fn copy_binding_type_payloads<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     bindings: &mut [typed_trees::static_applications::StaticMachineBinding],
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<(), TypeCopyError> {
+    let symbols = symbols.into();
     use typed_trees::static_applications::StaticMachineBindingValue;
     for binding in bindings {
         match &mut binding.value {
@@ -1375,12 +1386,13 @@ pub(super) fn copy_binding_type_payloads(
     Ok(())
 }
 
-fn copy_static_argument_type_payloads(
+fn copy_static_argument_type_payloads<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     arguments: &mut [typed_trees::expression::StaticMachineArgument],
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<(), TypeCopyError> {
+    let symbols = symbols.into();
     for argument in arguments {
         if argument.type_reference.is_valid() {
             argument.type_reference =
@@ -1398,12 +1410,13 @@ fn copy_static_argument_type_payloads(
     Ok(())
 }
 
-pub(crate) fn copy_type_reference(
+pub(crate) fn copy_type_reference<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     type_reference: TypeReferenceHandle,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<TypeReferenceHandle, TypeCopyError> {
+    let symbols = symbols.into();
     if !type_reference.is_valid() {
         return Ok(TypeReferenceHandle::invalid());
     }
@@ -1448,12 +1461,13 @@ pub(crate) fn copy_type_reference(
     Ok(copied)
 }
 
-pub(super) fn copy_signature_contract(
+pub(super) fn copy_signature_contract<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     contract: typed_trees::signature::SignatureContract,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<typed_trees::signature::SignatureContract, Vec<Diagnostic>> {
+    let symbols = symbols.into();
     let original_facts = contract.facts;
     let mut copied = contract;
     copied.facts = HandleSpan::empty();
@@ -1524,7 +1538,7 @@ pub(super) fn copy_signature_contract(
                                 .to_vec();
                             program.domain_path_members.insert_many(members)
                         },
-                        domain_symbol: remapped_symbol(membership.domain_symbol, symbols),
+                        domain_symbol: remapped_symbol(membership.domain_symbol, &symbols),
                         domain_arguments,
                         semantic_domain: membership.semantic_domain,
                         authored_domain_selection: membership.authored_domain_selection,
@@ -1547,7 +1561,7 @@ pub(super) fn copy_signature_contract(
                     .insert_expression_handles(arguments);
                 typed_trees::domain::ProofFact::Proposition(
                     typed_trees::proposition::PropositionApplication {
-                        proposition: remapped_symbol(application.proposition, symbols),
+                        proposition: remapped_symbol(application.proposition, &symbols),
                         name: application.name.clone(),
                         binder_arguments: application
                             .binder_arguments
@@ -1558,7 +1572,7 @@ pub(super) fn copy_signature_contract(
                                     path: argument.path.clone(),
                                     const_literal: argument.const_literal.clone(),
                                     evidence_projection: argument.evidence_projection.clone(),
-                                    symbol: remapped_symbol(argument.symbol, symbols),
+                                    symbol: remapped_symbol(argument.symbol, symbols.authored()),
                                 },
                             )
                             .collect::<Vec<_>>()

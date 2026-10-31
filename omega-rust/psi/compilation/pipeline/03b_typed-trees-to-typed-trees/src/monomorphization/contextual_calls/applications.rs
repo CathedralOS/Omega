@@ -61,6 +61,10 @@ pub(super) fn retain_provider(
         .set_static_machine_application_bindings(retained, &bindings);
     program
         .expression_table
-        .set_static_machine_application_lifetimes(retained, lifetimes);
+        .set_static_machine_application_lifetimes(
+            retained,
+            provider.template.template_symbol,
+            lifetimes,
+        );
     retained
 }

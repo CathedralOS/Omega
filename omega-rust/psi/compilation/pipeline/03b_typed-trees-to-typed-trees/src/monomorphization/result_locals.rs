@@ -195,17 +195,15 @@ pub(super) fn refresh_generic_call_results(
         // predicates out of the sweep even when iteration roots were projected.
         let type_start = program.type_reference_table.type_reference_count() + 1;
         let expression_start = program.expression_table.expression_count() + 1;
-        let lifetimes = program
-            .expression_table
-            .static_machine_application_lifetimes(candidate.binding_application)
-            .iter()
-            .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
-            .collect::<Vec<_>>();
         // Copy the declaration result before substitution. An open caller's
         // result uses this call's exact constants or caller binders, never the
         // callee's unbound parameters or the inferred destination as evidence.
         let selected_return = program
-            .apply_callable_type(return_type, &[], &lifetimes, selection.callee_symbol)
+            .apply_static_application_type(
+                return_type,
+                candidate.binding_application,
+                candidate.template.template_symbol,
+            )
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
         // Application already owns a fresh graph. Remap that graph in place:
         // copying it again leaves an unused open graph inside the substitution

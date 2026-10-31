@@ -18,7 +18,11 @@ use typed_trees::types::TypeReferenceHandle;
 #[derive(Clone, Copy)]
 enum RegionEnvironment<'scope> {
     Resolved(&'scope [(String, RegionIdentity)]),
-    Captured(SymbolHandle),
+    Captured {
+        owner: SymbolHandle,
+        bindings: &'scope [super::callable_regions::AppliedRegionBinding],
+    },
+    Bound(&'scope RegionIdentity),
 }
 
 impl RegionEnvironment<'_> {
@@ -33,11 +37,26 @@ impl RegionEnvironment<'_> {
                 .rev()
                 .find(|(parameter, _)| parameter == name.as_str())
                 .map(|(_, identity)| identity.clone()),
-            Self::Captured(owner) => captured_lifetimes(program, owner)
+            Self::Bound(region) => Some(region.clone()),
+            Self::Captured { owner, bindings } => captured_lifetimes(program, owner)
                 .into_iter()
                 .rev()
                 .find(|(parameter, _)| parameter == name.as_str())
-                .map(|(_, identity)| identity),
+                .map(|(_, identity)| match identity {
+                    RegionIdentity::Captured(declaration, ordinal) => {
+                        super::callable_regions::applied_region(
+                            program,
+                            bindings,
+                            typed_trees::type_identity::LifetimeParameterIdentity {
+                                declaration,
+                                ordinal,
+                            },
+                        )
+                        .cloned()
+                        .unwrap_or(RegionIdentity::Captured(declaration, ordinal))
+                    }
+                    identity => identity,
+                }),
         }
     }
 }
@@ -52,6 +71,7 @@ struct RegionScope<'scope> {
     regions: RegionEnvironment<'scope>,
     arguments: RegionEnvironment<'scope>,
     output_elisions: &'scope [(TypeReferenceHandle, RegionIdentity)],
+    captured: &'scope [super::callable_regions::AppliedRegionBinding],
 }
 
 impl TypeRegionScope for RegionScope<'_> {
@@ -75,7 +95,17 @@ impl TypeRegionScope for RegionScope<'_> {
         program: &dyn crate::CheckingInput,
         owner: symbols::SymbolHandle,
     ) -> Self {
-        self.regions = RegionEnvironment::Captured(owner);
+        let declaration = program.lifetime_declaration_owner(self.declaration);
+        if declaration.is_valid() && program.lifetime_declaration_owner(owner) == declaration {
+            // An annotation naming this telescope does not turn its fresh
+            // invocation binders into captured regions. Keep the active frame,
+            // including a simultaneous operand prefix selected by named_alias.
+            return self;
+        }
+        self.regions = RegionEnvironment::Captured {
+            owner,
+            bindings: self.captured,
+        };
         self.output_elisions = &[];
         if program.lifetime_declaration_owner(owner)
             != program.lifetime_declaration_owner(self.declaration)
@@ -85,6 +115,21 @@ impl TypeRegionScope for RegionScope<'_> {
             self.applications = &[];
         }
         self
+    }
+
+    fn enter_lifetime(
+        mut self,
+        program: &dyn crate::CheckingInput,
+        region: typed_trees::type_identity::LifetimeParameterIdentity,
+    ) -> Self {
+        if let Some(argument) =
+            super::callable_regions::applied_region(program, self.captured, region)
+        {
+            self.regions = RegionEnvironment::Bound(argument);
+            self
+        } else {
+            self.enter_operand(program, region.declaration)
+        }
     }
 
     fn named_alias(
@@ -123,6 +168,9 @@ impl TypeRegionScope for RegionScope<'_> {
         self.starts = &starts[..scope_ordinal];
         self.applications = &applications[..applications.len().min(scope_ordinal)];
         self.output_elisions = &[];
+        // This operand belongs to the preceding application. Even recursive
+        // calls sharing a declaration cannot inherit this receiver's bindings.
+        self.captured = &[];
         Some(ReferenceStep::Chase(self, operand))
     }
 }
@@ -140,6 +188,7 @@ fn contract_scope<'scope>(
         regions: RegionEnvironment::Resolved(&regions.names),
         arguments: RegionEnvironment::Resolved(&regions.arguments),
         output_elisions: &[],
+        captured: &regions.bindings,
     }
 }
 

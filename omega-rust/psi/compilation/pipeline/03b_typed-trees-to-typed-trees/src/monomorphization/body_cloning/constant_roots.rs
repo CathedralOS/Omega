@@ -42,12 +42,13 @@ pub(super) fn compose_type_copies(
 
 /// Type copying owns expression correspondence just as contract copying does.
 /// Keep the job in the copied scope without carrying an evaluated entry or value.
-pub(super) fn copy_type_contexts(
+pub(super) fn copy_type_contexts<'scope>(
     source: Option<&dyn validation::CheckingInput>,
     program: &mut TypedTrees,
     expressions: &[typed_trees::types::TypeExpressionCopy],
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<(), super::TypeCopyError> {
+    let symbols = symbols.into();
     let source_program = source.unwrap_or(program);
     let mut pending = Vec::new();
     let mut marked = Vec::new();
@@ -117,7 +118,7 @@ pub(super) fn copy_type_contexts(
             .into_iter()
             .map(|context| {
                 Ok(ConstantExpressionContext::new(
-                    super::remapped_symbol(context.owner, symbols),
+                    super::remapped_symbol(context.owner, &symbols),
                     super::copy_type_reference(source, program, context.result_type, symbols)?,
                 ))
             })
@@ -128,7 +129,7 @@ pub(super) fn copy_type_contexts(
             invocations: program
                 .expression_table
                 .insert_expression_handles(invocations),
-            machine: super::remapped_symbol(recipe.machine, symbols),
+            machine: super::remapped_symbol(recipe.machine, &symbols),
             name: recipe.name,
             source_span: recipe.source_span,
         };
@@ -138,12 +139,13 @@ pub(super) fn copy_type_contexts(
     Ok(())
 }
 
-pub(super) fn copy_expression(
+pub(super) fn copy_expression<'scope>(
     source: Option<&dyn validation::CheckingInput>,
     program: &mut TypedTrees,
     expression: ExpressionHandle,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<ExpressionHandle, Vec<Diagnostic>> {
+    let symbols = symbols.into();
     let copied = program
         .expression_table
         .copy_graph(source.map(|source| &source.expression_table), expression);
@@ -154,12 +156,13 @@ pub(super) fn copy_expression(
     Ok(copied.root)
 }
 
-fn copy_contexts(
+fn copy_contexts<'scope>(
     source: Option<&dyn validation::CheckingInput>,
     program: &mut TypedTrees,
     copied: &ExpressionCopy,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let symbols = symbols.into();
     let source_program = source.unwrap_or(program);
     let mut pending = Vec::new();
     for (_, recipe) in source_program.constant_recipes.iter() {
@@ -261,7 +264,7 @@ fn copy_contexts(
             invocations: program
                 .expression_table
                 .insert_expression_handles(invocations),
-            machine: super::remapped_symbol(recipe.machine, symbols),
+            machine: super::remapped_symbol(recipe.machine, &symbols),
             name: recipe.name,
             source_span: recipe.source_span,
         };

@@ -17,6 +17,7 @@ mod invocation_binding_views;
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct InvocationTuple {
     pub owner: SymbolHandle,
+    pub lifetime_declaration: SymbolHandle,
     pub arguments: Vec<StaticMachineArgument>,
     pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
 }
@@ -42,6 +43,10 @@ fn occurrence(
                 .expression_table
                 .static_machine_application(application)
                 .lexical_owner,
+            lifetime_declaration: program
+                .expression_table
+                .static_machine_application(application)
+                .lifetime_binding_declaration,
             arguments,
             lifetimes: program
                 .expression_table
@@ -51,6 +56,7 @@ fn occurrence(
     } else {
         InvocationTuple {
             owner,
+            lifetime_declaration: SymbolHandle::invalid(),
             arguments,
             lifetimes: Vec::new(),
         }
@@ -166,7 +172,12 @@ fn instance_in_scope(
                         .expression_table
                         .static_machine_application(application.application)
                         .lexical_owner
-                        == invocation.owner)
+                        == invocation.owner
+                        && program
+                            .expression_table
+                            .static_machine_application(application.application)
+                            .lifetime_binding_declaration
+                            == invocation.lifetime_declaration)
                 && parameters
                     .iter()
                     .zip(arguments)

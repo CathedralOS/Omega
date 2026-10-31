@@ -32,6 +32,54 @@ impl TypedTrees {
         self.symbols.get(owner).parent
     }
 
+    /// Exact authored ownership of an inline/default/synthesized map member.
+    /// Execution projection may remove the map from type-work roots while
+    /// retaining its member bodies. Its immutable declaration metadata still
+    /// owns their captures and requirement slots; referenced callees do not.
+    pub fn owned_conformance_realization(
+        &self,
+        machine: symbols::SymbolHandle,
+    ) -> Option<(
+        &crate::trait_definition::Conformance,
+        &crate::trait_definition::ConformanceRow,
+    )> {
+        if !machine.is_valid() {
+            return None;
+        }
+        let owner = self.symbols.get(machine).declaration_owner;
+        let implementation = self.product_declarations().conformance_by_symbol(owner)?;
+        let mut rows = implementation
+            .rows
+            .iter()
+            .filter(|row| row.source.owns_realization() && row.realization_machine == machine);
+        let row = rows.next()?;
+        rows.next().is_none().then_some((implementation, row))
+    }
+
+    /// Nominal authority of one exact owned map member. The selected row,
+    /// declaring trait, overload and authored entry must all agree; callable
+    /// shape or another map referencing the same body grants no membership.
+    /// The complete inherited scope stays borrowed until the caller composes
+    /// its independently retained provider and demand application frames.
+    pub fn owned_conformance_requirement_scope(
+        &self,
+        realization: symbols::SymbolHandle,
+        declaring_trait: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+    ) -> Option<crate::trait_definition::AppliedTraitScope<'_>> {
+        let (implementation, row) = self.owned_conformance_realization(realization)?;
+        if row.declaring_trait != declaring_trait || row.requirement != requirement {
+            return None;
+        }
+        let machine = self.machine_by_symbol(realization)?;
+        let entry = self.machine_states(machine).first()?;
+        if entry.symbol != row.realization_state {
+            return None;
+        }
+        crate::trait_definition::AppliedTraitScope::from_conformance(self, implementation)?
+            .declaring_scope(self, declaring_trait)
+    }
+
     /// Authored applications still joined to retained source calls. Arena rows
     /// survive projection and therefore cannot define checking obligations.
     /// Uncalled authored bodies remain in the full Source machine roster.
@@ -669,7 +717,17 @@ impl TypedTrees {
                         .iter()
                         .filter(|(_, application)| application.instance == owner)
                         .map(|(_, application)| application.template),
-                );
+                )
+                .chain(self.retained_static_machine_contract(owner).and_then(|_| {
+                    // Applying a logical callable freshens its nested contract
+                    // symbols, while each rigid lifetime slot keeps the exact
+                    // authored declaration. Rejoin only a retained contract's
+                    // explicit compiler derivation, never an equal signature.
+                    let original = self.symbols.get(owner).generated_from;
+                    (original.is_valid()
+                        && self.retained_static_machine_contract(original).is_some())
+                    .then_some(original)
+                }));
             let Some(template) = templates.next() else {
                 break;
             };
