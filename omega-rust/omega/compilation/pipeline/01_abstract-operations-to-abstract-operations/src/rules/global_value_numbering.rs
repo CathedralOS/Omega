@@ -27,11 +27,10 @@ use expression_keys::{ScalarExpressionKey, ScalarExpressionRow};
 use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
 
 use crate::rules::catalog::BuiltInRuleRegistration;
-use crate::{AnalysisProduct, EffectSummaryAnalysis, RuleProposalError};
 use crate::{
-    EffectKnowledge, RuleProposalError,
+    AnalysisProduct, EffectKnowledge, EffectSummaryAnalysis, RuleProposalError,
     analyses::block_dominates,
-    rules::{GLOBAL_VALUE_NUMBERING_PASS_NAME, accepted_obligation_fact, standard_rule_contract},
+    rules::{GLOBAL_VALUE_NUMBERING_PASS_NAME, accepted_obligations, standard_rule_contract},
 };
 use abstract_operations::AbstractOperation;
 
@@ -642,12 +641,13 @@ pub(super) const PROOF_CERTIFIED_CSE_KEYS: ScalarCseKeys<
 > = ScalarCseKeys {
     leader: |_value_types, unit, function, operation| {
         let row = expression_keys::proof_certified_scalar_expression(operation)?;
-        accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+        accepted_obligations::accepted_obligation_fact(unit, function.machine, row.1).ok()?;
         Some(row)
     },
     redundant: |_value_types, unit, function, operation| {
         let row = expression_keys::proof_certified_scalar_expression(operation)?;
-        let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+        let fact =
+            accepted_obligations::accepted_obligation_fact(unit, function.machine, row.1).ok()?;
         Some((row, Some(fact)))
     },
 };
@@ -669,7 +669,8 @@ pub(super) const COMPATIBLE_POLICY_CSE_KEYS: ScalarCseKeys<
     },
     redundant: |_value_types, unit, function, operation| {
         let row = expression_keys::compatible_policy_scalar_redundant(operation)?;
-        let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
+        let fact =
+            accepted_obligations::accepted_obligation_fact(unit, function.machine, row.1).ok()?;
         Some((row, Some(fact)))
     },
 };
