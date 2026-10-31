@@ -1563,13 +1563,13 @@ fn prove_edge(
     let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
     let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;
     let pinned_view_bound = match measure {
-        RankingRangeMeasure::IncreasingTo { limit, .. }
-        | RankingRangeMeasure::Distance { upper: limit, .. } => {
+        RankingRangeMeasure::IncreasingTo { limit, .. } => {
             let bound = engine.normalize(limit)?;
             let next = inductive_judgment::apply_argument_map(&bound, &substitutions)?;
             Some((bound, next))
         }
-        RankingRangeMeasure::Single(_)
+        RankingRangeMeasure::Distance { .. }
+        | RankingRangeMeasure::Single(_)
         | RankingRangeMeasure::Computed { .. }
         | RankingRangeMeasure::SliceLength(_)
         | RankingRangeMeasure::Field { .. } => None,

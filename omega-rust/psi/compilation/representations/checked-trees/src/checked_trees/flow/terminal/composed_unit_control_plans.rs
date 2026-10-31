@@ -218,13 +218,19 @@ pub enum CheckedNaturalRankMeasure {
         coordinate: crate::CheckedRankCoordinateHandle,
         primitive_type: PrimitiveType,
     },
-    /// `Nat::BoundedDistance` and `Nat::IncreasingTo(limit)`: the natural
+    /// Exact formed difference. Both operands retain their own declaration
+    /// namespace or coordinate receipts; no invariant-upper shortcut is implied.
+    Distance {
+        lower: arena::Handle<crate::CheckedRankOperand>,
+        upper: arena::Handle<crate::CheckedRankOperand>,
+    },
+    /// `Nat::IncreasingTo(limit)`: the natural
     /// distance from the climbing lower subject (`parameter`) up to `upper`.
     /// The cursor uses `primitive_type`; the bound is an admitted expression
     /// in the authored entry namespace, transported by the retained telescope.
-    /// Every cyclic edge advances the cursor and preserves the bound. Emission
+    /// Every complete cycle advances the cursor while conserving the named bound. Emission
     /// uses the equivalent MAX-cursor observation, not another bound evaluator.
-    BoundedDistance {
+    IncreasingTo {
         primitive_type: PrimitiveType,
         upper: typed_trees::expression::ExpressionHandle,
     },
