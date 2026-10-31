@@ -747,13 +747,7 @@ fn parses_fixed_operator_tokens_on_machine_declarations() {
         machine ordinary(value: u64) -> u64 { value }
     "#;
     let parsed = super::parse_source(source, "machine token heads should parse");
-    let machines = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let machines = super::root_machines(&parsed);
 
     assert_eq!(machines.len(), 6);
     assert_eq!(
@@ -985,13 +979,7 @@ fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_ma
         boundary machine Transitional::claim();
     "#;
     let parsed = super::parse_source(source, "top-level boundary requirements should parse");
-    let machines = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let machines = super::root_machines(&parsed);
     assert_eq!(machines.len(), 3);
 
     let requirement = machines[0];
@@ -1058,13 +1046,7 @@ fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
         .expect("tokenize consecutive requirements");
     let parsed = parse_syntax_trees(&tokens)
         .expect("a contract-final semicolon must also terminate the first requirement");
-    let requirements = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let requirements = super::root_machines(&parsed);
     assert_eq!(requirements.len(), 2);
     assert_eq!(
         requirements[0].name.as_str(&parsed),
@@ -1455,13 +1437,7 @@ fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
         }
     "#;
     let parsed = super::parse_source(source, "bodyless crash bucket should parse");
-    let machines = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let machines = super::root_machines(&parsed);
     let [equal, compare] = machines.as_slice() else {
         panic!("two machine items");
     };

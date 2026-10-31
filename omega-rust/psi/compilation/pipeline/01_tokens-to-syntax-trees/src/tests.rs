@@ -81,6 +81,18 @@ root_item!(root_conformance -> Conformance(item): ConformanceItem;);
 root_item!(root_const -> Const(definition): ConstDefinition;);
 root_item!(root_operator -> Operator(definition): OperatorDefinition;);
 
+/// Every root `Machine` item, in source order — the plural counterpart of
+/// `root_machine` for tests that index the declaration list.
+fn root_machines(parsed: &syntax_trees::SyntaxTrees) -> Vec<&syntax_trees::item::Machine> {
+    parsed
+        .root_items()
+        .filter_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The handle of `machine`'s first state — the entry state of the
 /// single-state machines these tests parse.
 fn entry_state_handle(
