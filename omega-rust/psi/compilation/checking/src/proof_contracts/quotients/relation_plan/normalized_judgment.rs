@@ -690,7 +690,11 @@ fn transport_correspondence(
     ) -> Result<QuotientForwardPreconditionTransportFact, String> {
         Ok(QuotientForwardPreconditionTransportFact {
             application: fact.application,
-            source: representative_contract_coordinate(fact.source)?,
+            source: fact_coordinate(
+                fact.source,
+                "source contract position",
+                "source contract fact position",
+            )?,
             actual: contract_coordinate(fact.actual)?,
         })
     }
@@ -871,16 +875,6 @@ fn contract_coordinate(
     location: ContractFactLocation,
 ) -> Result<QuotientContractFactCoordinate, String> {
     fact_coordinate(location, "contract position", "contract fact position")
-}
-
-fn representative_contract_coordinate(
-    location: ContractFactLocation,
-) -> Result<QuotientContractFactCoordinate, String> {
-    fact_coordinate(
-        location,
-        "source contract position",
-        "source contract fact position",
-    )
 }
 
 fn to_u32(value: usize, label: &str) -> Result<u32, String> {
