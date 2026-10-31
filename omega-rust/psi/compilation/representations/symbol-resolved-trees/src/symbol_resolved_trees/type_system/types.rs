@@ -64,6 +64,7 @@ pub enum TypeReference {
         expansion: Box<TypeReference>,
         application: Box<TypeReference>,
         declaration_source: source::SourceSpan,
+        definition_references: Vec<source::SourceSpan>,
         supplied_operand_owner: OperandLifetimeOwnerHandle,
     },
 }
@@ -542,6 +543,7 @@ impl TypeReferenceTable {
                 expansion,
                 application,
                 declaration_source,
+                definition_references,
                 ..
             } => {
                 let expansion = self.insert_tree_from_source(
@@ -562,6 +564,7 @@ impl TypeReferenceTable {
                     expansion,
                     application,
                     declaration_source: *declaration_source,
+                    definition_references: definition_references.clone(),
                 })
             }
         };
@@ -687,6 +690,7 @@ pub enum TypeReferenceNode {
         expansion: TypeReferenceHandle,
         application: TypeReferenceHandle,
         declaration_source: source::SourceSpan,
+        definition_references: Vec<source::SourceSpan>,
     },
 }
 

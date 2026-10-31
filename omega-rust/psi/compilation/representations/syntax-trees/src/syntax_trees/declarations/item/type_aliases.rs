@@ -15,5 +15,8 @@ pub struct TypeAliasDefinition {
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
+    /// Immutable declaration syntax, never a type-work root. Expansion always
+    /// binds these source occurrences, including after an activated re-entry.
+    pub authored_expansion: TypeReferenceHandle,
     pub expansion: TypeReferenceHandle,
 }

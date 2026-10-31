@@ -48,8 +48,30 @@ impl TypeReferenceTable {
         occurrence: TypeReferenceHandle,
         replacement: TypeReferenceHandle,
     ) -> Result<(), &'static str> {
+        self.substitute_occurrence(occurrence, replacement, false)
+    }
+
+    /// Install a complete simultaneously applied view, whose obligation roster
+    /// already contains both receiving and supplied-actual formation inputs.
+    pub fn substitute_applied_from(
+        &mut self,
+        occurrence: TypeReferenceHandle,
+        replacement: TypeReferenceHandle,
+    ) -> Result<(), &'static str> {
+        self.substitute_occurrence(occurrence, replacement, true)
+    }
+
+    fn substitute_occurrence(
+        &mut self,
+        occurrence: TypeReferenceHandle,
+        replacement: TypeReferenceHandle,
+        complete_applied_view: bool,
+    ) -> Result<(), &'static str> {
         self.constant_origins(occurrence)?;
         let origins = self.constant_origins(replacement)?.to_vec();
+        if occurrence == replacement {
+            return Ok(());
+        }
         let node = self.type_reference(replacement).clone();
         self.attach_constant_origins(occurrence, origins)?;
         let owner = self.operand_lifetime_owner(replacement);
@@ -64,6 +86,28 @@ impl TypeReferenceTable {
         let lifetimes = self.operand_lifetimes(replacement).to_vec();
         self.substitute_node(occurrence, node);
         self.retain_operand_lifetimes(occurrence, lifetimes)?;
+        let applications = self
+            .type_alias_applications(replacement)
+            .cloned()
+            .collect::<Vec<_>>();
+        if complete_applied_view {
+            let previous = self
+                .type_alias_applications
+                .iter()
+                .filter_map(|(handle, application)| {
+                    (application.instance == occurrence).then_some(handle)
+                })
+                .collect::<Vec<_>>();
+            for handle in previous {
+                self.type_alias_applications.free(handle);
+            }
+        }
+        for application in applications {
+            self.retain_type_alias_application(crate::type_aliases::TypeAliasApplication {
+                instance: occurrence,
+                ..application
+            });
+        }
         Ok(())
     }
 

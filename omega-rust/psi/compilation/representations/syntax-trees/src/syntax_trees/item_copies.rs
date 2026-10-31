@@ -28,7 +28,14 @@ pub(super) struct SyntaxCopy<'destination> {
         crate::types::TypeReferenceHandle,
     )>,
     pub(super) expression_substitutions: Vec<(ExpressionHandle, ExpressionHandle)>,
+    pub(super) supplied_type_copies: Vec<crate::types::TypeReferenceHandle>,
+    pub(super) retain_alias_header_role: bool,
     lifetime_substitutions: Vec<(source::SourceSpan, String, crate::identifier::Identifier)>,
+    pub(super) array_length_substitutions: Vec<(
+        source::SourceSpan,
+        String,
+        crate::types::TypeReferenceHandle,
+    )>,
     pub(super) match_subject_copies: Vec<(
         Handle<crate::expression::MatchSubjectCapture>,
         Handle<crate::expression::MatchSubjectCapture>,
@@ -43,7 +50,10 @@ impl<'destination> SyntaxCopy<'destination> {
             expression_copies: Vec::new(),
             type_substitutions: Vec::new(),
             expression_substitutions: Vec::new(),
+            supplied_type_copies: Vec::new(),
+            retain_alias_header_role: true,
             lifetime_substitutions: Vec::new(),
+            array_length_substitutions: Vec::new(),
             match_subject_copies: Vec::new(),
         }
     }
@@ -136,16 +146,6 @@ impl SyntaxTrees {
 
     /// Copy an operand from a retained snapshot of this syntax lineage.
     /// Independent forests use `extend_from`, which remaps declaration owners.
-    /// Copy only a selected declaration's telescope into this syntax lineage.
-    /// Imported headers do not become executable work roots.
-    pub fn copy_type_parameters_from(
-        &mut self,
-        other: &SyntaxTrees,
-        parameters: HandleSpan<TypeParameter>,
-    ) -> HandleSpan<TypeParameter> {
-        SyntaxCopy::new(self, other).copy_type_parameter_span(other, parameters)
-    }
-
     /// Copy a declaration-owned type graph with simultaneous substitutions of
     /// exact source occurrences. Actual handles already belong to the receiving
     /// forest, so they retain their supplying scope and are not rewritten again.
@@ -159,12 +159,24 @@ impl SyntaxTrees {
         )],
         expressions: &[(ExpressionHandle, ExpressionHandle)],
         lifetimes: &[(source::SourceSpan, String, crate::identifier::Identifier)],
-    ) -> crate::types::TypeReferenceHandle {
+        array_lengths: &[(
+            source::SourceSpan,
+            String,
+            crate::types::TypeReferenceHandle,
+        )],
+    ) -> (
+        crate::types::TypeReferenceHandle,
+        Vec<crate::types::TypeReferenceHandle>,
+    ) {
         let mut copy = SyntaxCopy::new(self, other);
+        copy.retain_alias_header_role = false;
         copy.type_substitutions.extend_from_slice(types);
         copy.expression_substitutions.extend_from_slice(expressions);
         copy.lifetime_substitutions.extend_from_slice(lifetimes);
-        copy.copy_type_reference_handle(other, reference)
+        copy.array_length_substitutions
+            .extend_from_slice(array_lengths);
+        let reference = copy.copy_type_reference_handle(other, reference);
+        (reference, copy.supplied_type_copies)
     }
 
     pub fn copy_type_reference_handle(
@@ -420,6 +432,8 @@ impl SyntaxCopy<'_> {
                         arguments: self.copy_type_reference_handle_span(other, bound.arguments),
                     })
                     .collect(),
+                authored_expansion: self
+                    .copy_type_reference_handle(other, alias.authored_expansion),
                 expansion: self.copy_type_reference_handle(other, alias.expansion),
             }),
             Item::Domain(domain) => Item::Domain(DomainDefinition {

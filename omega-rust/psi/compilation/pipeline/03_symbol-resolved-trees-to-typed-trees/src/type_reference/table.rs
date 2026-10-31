@@ -170,12 +170,13 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             expansion,
             application,
             declaration_source,
+            ..
         } => {
             let expansion = lower_type_reference_handle_from_table_with_context(
                 source_trees,
                 typed_trees,
                 *expansion,
-                exposure,
+                None,
             )?;
             let application = lower_type_reference_handle_from_table_with_context(
                 source_trees,

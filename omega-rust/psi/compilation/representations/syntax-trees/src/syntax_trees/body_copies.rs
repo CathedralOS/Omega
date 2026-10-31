@@ -363,6 +363,7 @@ impl SyntaxCopy<'_> {
                 .cloned()
                 .collect::<Vec<_>>();
             if origins.is_empty() {
+                self.supplied_type_copies.push(actual);
                 return actual;
             }
             let copied = self.type_references.fresh_type_occurrence(actual);
@@ -373,9 +374,11 @@ impl SyntaxCopy<'_> {
                         instance: copied,
                         application,
                         declaration: origin.declaration,
+                        definition_references: origin.definition_references.clone(),
                     },
                 );
             }
+            self.supplied_type_copies.push(copied);
             return copied;
         }
 
@@ -412,6 +415,14 @@ impl SyntaxCopy<'_> {
                             self.copy_type_reference_handle(other, *use_type),
                         )
                     }
+                    crate::types::FixedArrayLength::ConstParameter(name) => self
+                        .array_length_substitutions
+                        .iter()
+                        .find_map(|(span, spelling, actual)| {
+                            (*span == name.source_span() && spelling == name.as_str(other))
+                                .then_some(crate::types::FixedArrayLength::Expression(*actual))
+                        })
+                        .unwrap_or_else(|| length.clone()),
                     length => length.clone(),
                 };
                 self.type_references
@@ -456,6 +467,10 @@ impl SyntaxCopy<'_> {
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         };
+        if self.retain_alias_header_role && other.type_references.is_alias_header_reference(handle)
+        {
+            self.type_references.retain_alias_header_reference(copied);
+        }
         for pending in other.type_references.pending_const_arguments(handle) {
             self.type_references
                 .retain_pending_const_argument(copied, pending);
@@ -521,6 +536,7 @@ impl SyntaxCopy<'_> {
                     instance: copied,
                     application,
                     declaration: origin.declaration,
+                    definition_references: origin.definition_references.clone(),
                 },
             );
         }

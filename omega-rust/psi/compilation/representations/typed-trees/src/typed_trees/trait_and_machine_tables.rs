@@ -329,6 +329,14 @@ impl TypedTrees {
             SymbolKind::Data => self
                 .data_definition_by_symbol(symbol)
                 .map(|declaration| self.data_type_parameters(declaration)),
+            SymbolKind::TypeAlias => self
+                .type_aliases()
+                .iter()
+                .find(|alias| alias.symbol == symbol)
+                .map(|alias| {
+                    self.data_type_parameters
+                        .span_or_empty(alias.type_parameters)
+                }),
             SymbolKind::Domain => crate::domain::domain_by_symbol(self, symbol)
                 .map(|declaration| self.domain_type_parameters(declaration)),
             SymbolKind::Trait => self

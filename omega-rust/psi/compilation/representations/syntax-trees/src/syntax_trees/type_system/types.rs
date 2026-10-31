@@ -18,6 +18,7 @@ paged_roster! {
         arena pending_const_arguments: PendingConstArgument,
         arena supplied_operand_owners: SuppliedOperandOwner,
         arena type_alias_applications: TypeAliasApplicationOrigin,
+        arena alias_header_references: TypeReferenceHandle,
     }
 }
 
@@ -37,6 +38,7 @@ pub struct TypeAliasApplicationOrigin {
     pub instance: TypeReferenceHandle,
     pub application: TypeReferenceHandle,
     pub declaration: source::SourceSpan,
+    pub definition_references: Vec<source::SourceSpan>,
 }
 
 /// The exact declaration supplying a substituted operand. This is syntax
@@ -164,6 +166,20 @@ impl TypeReferenceTable {
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.type_references.insert(type_reference)
+    }
+
+    /// Alias headers describe a recipe; only its expanded uses demand type
+    /// work. This role does not establish any argument or layout obligation.
+    pub fn retain_alias_header_reference(&mut self, reference: TypeReferenceHandle) {
+        if !self.is_alias_header_reference(reference) {
+            self.alias_header_references.insert(reference);
+        }
+    }
+
+    pub fn is_alias_header_reference(&self, reference: TypeReferenceHandle) -> bool {
+        self.alias_header_references
+            .iter()
+            .any(|(_, candidate)| *candidate == reference)
     }
 
     pub fn type_alias_applications(
@@ -535,6 +551,7 @@ impl TypeReferenceTable {
     ) -> Vec<(TypeReferenceHandle, crate::expression::ExpressionHandle)> {
         self.type_references
             .iter()
+            .filter(|(handle, _)| !self.is_alias_header_reference(*handle))
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::ConstExpression(expression) => Some((handle, *expression)),
                 _ => None,
@@ -551,6 +568,7 @@ impl TypeReferenceTable {
     pub fn generic_nodes(&self) -> Vec<TypeReferenceHandle> {
         self.type_references
             .iter()
+            .filter(|(handle, _)| !self.is_alias_header_reference(*handle))
             .filter(|(handle, _)| {
                 !self
                     .generic_application_origins

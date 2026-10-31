@@ -390,6 +390,17 @@ fn collect_type_reference_domain_symbols<'program>(
         scope: subject.scope,
     };
     let constrained = match subject.reference {
+        TypeReference::AliasUse { expansion, .. } => {
+            // The source wrapper adds no owned carrier step or traversal cost.
+            traversal.remaining += 1;
+            return collect_type_reference_domain_symbols(
+                program,
+                child(expansion),
+                position,
+                traversal,
+                domains,
+            );
+        }
         TypeReference::Reference(reference) => {
             // Root references can name exact boundary subjects. A reference
             // stored inside the returned carrier does not own its referent;

@@ -364,6 +364,15 @@ fn collect_type_domain_homes(
     use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 
     match type_reference {
+        TypeReference::AliasUse { expansion, .. } => collect_type_domain_homes(
+            program,
+            scope,
+            expansion,
+            domain_names,
+            domain_modules,
+            domain_paths,
+            matches,
+        ),
         TypeReference::Reference(reference) => collect_type_domain_homes(
             program,
             scope,

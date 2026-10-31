@@ -23,6 +23,42 @@ pub(crate) fn lower_type_reference_handle(
     syntax_trees: &SyntaxTrees,
     type_reference: syntax::types::TypeReferenceHandle,
 ) -> Result<TypeReference, Diagnostic> {
+    let aliases = syntax_trees
+        .type_references
+        .type_alias_applications(type_reference)
+        .cloned()
+        .collect::<Vec<_>>();
+    // The definition owns RHS selections. The use owns its original alias
+    // head and supplied arguments; expanded copies are derived occurrences.
+    let prior_exposure = if aliases.is_empty() {
+        None
+    } else {
+        Some(lowerer.current_authored_expression_exposure.take())
+    };
+    let result = lower_type_reference_contents(lowerer, syntax_trees, type_reference);
+    if let Some(exposure) = prior_exposure {
+        lowerer.current_authored_expression_exposure = exposure;
+    }
+    let mut lowered = result?;
+    for alias in aliases {
+        let application = lower_alias_application(lowerer, syntax_trees, alias.application)?;
+        let supplied_operand_owner = application.supplied_operand_owner();
+        lowered = TypeReference::AliasUse {
+            expansion: Box::new(lowered),
+            application: Box::new(application),
+            declaration_source: alias.declaration,
+            definition_references: alias.definition_references,
+            supplied_operand_owner,
+        };
+    }
+    Ok(lowered)
+}
+
+fn lower_type_reference_contents(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    type_reference: syntax::types::TypeReferenceHandle,
+) -> Result<TypeReference, Diagnostic> {
     lowerer
         .encountered_pending_type_arguments
         .extend(syntax_type_references(&syntax_trees).pending_const_arguments(type_reference));
@@ -137,7 +173,7 @@ pub(crate) fn lower_type_reference_handle(
                 })?;
         }
     }
-    let mut lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
+    let lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
     let origin = syntax_type_references(&syntax_trees).generic_application_origin(type_reference);
     if origin.is_valid() {
         let application = lower_generic_application_origin(lowerer, syntax_trees, origin)?;
@@ -157,22 +193,40 @@ pub(crate) fn lower_type_reference_handle(
                 application,
             });
     }
-    let aliases = syntax_trees
-        .type_references
-        .type_alias_applications(type_reference)
-        .cloned()
-        .collect::<Vec<_>>();
-    for alias in aliases {
-        let application = lower_type_reference_node(lowerer, syntax_trees, alias.application)?;
-        let supplied_operand_owner = application.supplied_operand_owner();
-        lowered = TypeReference::AliasUse {
-            expansion: Box::new(lowered),
-            application: Box::new(application),
-            declaration_source: alias.declaration,
-            supplied_operand_owner,
-        };
-    }
     Ok(lowered)
+}
+
+/// The original alias head is source formation, not a closed nominal-data
+/// synthesis request. Arguments still use the ordinary lowering and const
+/// custody checks; alias-own carrier/bound admission occurs at the use site.
+fn lower_alias_application(
+    lowerer: &mut Lowerer,
+    syntax: &SyntaxTrees,
+    reference: syntax::types::TypeReferenceHandle,
+) -> Result<TypeReference, Diagnostic> {
+    let syntax::types::TypeReferenceNode::Generic {
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = syntax.type_references.type_reference(reference)
+    else {
+        return lower_type_reference_node(lowerer, syntax, reference);
+    };
+    let arguments = lower_indexed_application_arguments(lowerer, syntax, *arguments)?;
+    let owner = syntax
+        .type_references
+        .supplied_operand_owner(reference)
+        .map_err(Diagnostic::error)?;
+    let supplied_operand_owner = crate::resolution::operand_owners::retain(lowerer, owner);
+    Ok(TypeReference::Generic(GenericTypeReference {
+        storage: GenericTypeReferenceStorage {
+            supplied_operand_owner,
+            base_symbol: SymbolHandle::invalid(),
+            base_name: crate::lowering::name::lower_name(syntax, base_name),
+            lifetime_arguments: lower_names(syntax, lifetime_arguments),
+            arguments,
+        },
+    }))
 }
 
 /// An already synthesized instance retains its generic tuple as identity

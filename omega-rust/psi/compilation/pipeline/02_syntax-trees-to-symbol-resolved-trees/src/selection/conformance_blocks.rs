@@ -727,6 +727,9 @@ fn collect_result_dispatch(
     alias_stack: &mut Vec<SymbolHandle>,
 ) {
     match type_reference {
+        TypeReference::AliasUse { expansion, .. } => {
+            collect_result_dispatch(program, expansion, terms, alias_stack);
+        }
         TypeReference::Reference(reference) => collect_result_dispatch(
             program,
             program.child_type_reference(reference.referee),

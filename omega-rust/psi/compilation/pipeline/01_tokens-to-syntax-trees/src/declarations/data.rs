@@ -76,6 +76,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                     lifetime_parameters,
                     type_parameters,
                     conformance_bounds: generic_parameters.conformance_bounds,
+                    authored_expansion: carrier,
                     expansion: carrier,
                 }),
                 next.take_punctuation(PunctuationKind::Semicolon, ";")?,

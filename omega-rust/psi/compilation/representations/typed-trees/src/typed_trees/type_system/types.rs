@@ -9,6 +9,8 @@ use crate::typed_trees::remapped;
 
 mod copies;
 pub use copies::TypeExpressionCopy;
+#[cfg(test)]
+mod alias_tests;
 mod display;
 mod substitution;
 
@@ -188,7 +190,13 @@ impl TypeReferenceTable {
         &mut self,
         application: crate::type_aliases::TypeAliasApplication,
     ) {
-        self.type_alias_applications.insert(application);
+        if !self
+            .type_alias_applications
+            .iter()
+            .any(|(_, row)| row == &application)
+        {
+            self.type_alias_applications.insert(application);
+        }
     }
 
     /// Give source obligations a distinct occurrence without changing the

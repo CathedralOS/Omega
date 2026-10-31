@@ -238,9 +238,8 @@ impl TypedReferences for ReferenceCollector {
             describing_alias_arguments: true,
             ..ReferenceCollector::default()
         };
-        for argument in program.type_reference_handles(application.arguments) {
-            visit_type_reference(program, &mut description, *argument);
-        }
+        description.declaration_description_dependency(application.supplied_operand_owner);
+        visit_type_reference(program, &mut description, application.application);
         let description = finish_references(description);
         self.descriptor_symbols.extend(description.symbols);
         self.descriptor_symbols

@@ -21,6 +21,17 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 
+/// Scratch declaration roles, not parameter payloads or admission evidence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum GenericParameterRole {
+    Type,
+    Implementation,
+    Const,
+    Value,
+    Machine,
+    Proposition,
+}
+
 /// Private selection state; transient symbols never escape into normalized syntax.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct ConstantSelection<'base> {
@@ -822,16 +833,15 @@ impl<'base> ConstantSelection<'base> {
             .flatten()
     }
 
-    /// The complete selected telescope, including non-type roles. The result
-    /// is scratch source syntax; its receiving declaration is selected once
-    /// by source custody and no transient symbol identity escapes.
-    pub(crate) fn generic_parameter_header(
+    /// The selected telescope's roles only. Reading a retained header does
+    /// not copy scratch syntax into the receiving forest or create work.
+    pub(crate) fn generic_parameter_roles(
         &self,
-        syntax: &mut SyntaxTrees,
+        syntax: &SyntaxTrees,
         declaration_syntax: &[&SyntaxTrees],
         name: &Identifier,
         kinds: &[SymbolKind],
-    ) -> Option<Vec<syntax_trees::item::TypeParameter>> {
+    ) -> Option<Vec<GenericParameterRole>> {
         let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
             name.as_str(syntax),
             kinds,
@@ -876,15 +886,38 @@ impl<'base> ConstantSelection<'base> {
             if headers.next().is_some() {
                 return Err(());
             }
-            Ok(Some(result))
+            Ok(Some(
+                forest
+                    .items
+                    .type_parameters(result)
+                    .iter()
+                    .map(|parameter| match parameter.kind {
+                        syntax_trees::item::TypeParameterKind::Type => GenericParameterRole::Type,
+                        syntax_trees::item::TypeParameterKind::Implementation => {
+                            GenericParameterRole::Implementation
+                        }
+                        syntax_trees::item::TypeParameterKind::Const { .. } => {
+                            GenericParameterRole::Const
+                        }
+                        syntax_trees::item::TypeParameterKind::Value { .. } => {
+                            GenericParameterRole::Value
+                        }
+                        syntax_trees::item::TypeParameterKind::Machine { .. } => {
+                            GenericParameterRole::Machine
+                        }
+                        syntax_trees::item::TypeParameterKind::Proposition { .. } => {
+                            GenericParameterRole::Proposition
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            ))
         };
         if let Some(parameters) = parameters(syntax).ok()? {
-            return Some(syntax.items.type_parameters(parameters).to_vec());
+            return Some(parameters);
         }
         for forest in declaration_syntax {
             if let Some(parameters) = parameters(forest).ok()? {
-                let copied = syntax.copy_type_parameters_from(forest, parameters);
-                return Some(syntax.items.type_parameters(copied).to_vec());
+                return Some(parameters);
             }
         }
         None

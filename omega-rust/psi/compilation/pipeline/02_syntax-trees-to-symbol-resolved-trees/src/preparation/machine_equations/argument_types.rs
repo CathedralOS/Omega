@@ -64,7 +64,7 @@ impl DeclaredTypeOrigin {
     }
 }
 
-fn closed_type(trees: &SymbolResolvedTrees, root: &types::TypeReference) -> bool {
+pub(super) fn closed_type(trees: &SymbolResolvedTrees, root: &types::TypeReference) -> bool {
     let binder = |symbol: SymbolHandle| {
         symbol.is_valid()
             && matches!(
@@ -78,6 +78,7 @@ fn closed_type(trees: &SymbolResolvedTrees, root: &types::TypeReference) -> bool
     let mut pending = vec![root];
     while let Some(reference) = pending.pop() {
         match reference {
+            types::TypeReference::AliasUse { expansion, .. } => pending.push(expansion),
             types::TypeReference::Named { symbol, .. }
             | types::TypeReference::DynamicTrait { symbol, .. } => {
                 if binder(*symbol) {
@@ -218,11 +219,10 @@ fn expression_types<'trees>(
                     syntax_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
                     _ => target,
                 };
-                let reference =
-                    syntax
-                        .tables
-                        .type_references
-                        .insert_reference(referee, borrow.access);
+                let reference = syntax
+                    .tables
+                    .type_references
+                    .insert_reference(referee, borrow.access);
                 // The resolved declaration anchors nominal selection; the
                 // authored reference carries this expression's constructor.
                 borrowed.push((reference, declaration));

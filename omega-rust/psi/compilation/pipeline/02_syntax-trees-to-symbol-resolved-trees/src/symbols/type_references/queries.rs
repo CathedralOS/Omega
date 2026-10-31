@@ -9,6 +9,9 @@ fn type_reference_symbol(
     type_reference: &symbol_resolved_trees::types::TypeReference,
 ) -> SymbolHandle {
     match type_reference {
+        symbol_resolved_trees::types::TypeReference::AliasUse { expansion, .. } => {
+            type_reference_symbol(child_type_references, expansion)
+        }
         symbol_resolved_trees::types::TypeReference::Reference(reference) => type_reference_symbol(
             child_type_references,
             child_type_references.get(reference.referee),

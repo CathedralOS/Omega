@@ -3,7 +3,7 @@
 //! Source application rows retain the alias telescope independently from the
 //! ordinary type replacing it. This stage forms no checked admission receipt.
 
-use super::declaration_selection::ConstantSelection;
+use super::declaration_selection::{ConstantSelection, GenericParameterRole};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use source::SourceSpan;
@@ -51,7 +51,7 @@ impl Expansion<'_, '_> {
             head.filter(|head| !bound.iter().any(|name| name == head.as_str(syntax)))
         {
             let declaration = self.selection.type_alias_source(syntax, &head);
-            let parameters = self.selection.generic_parameter_header(
+            let parameters = self.selection.generic_parameter_roles(
                 syntax,
                 &self.declarations,
                 &head,
@@ -69,7 +69,7 @@ impl Expansion<'_, '_> {
                 if parameters
                     .as_ref()
                     .and_then(|parameters| parameters.get(position))
-                    .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                    .is_some_and(|parameter| *parameter == GenericParameterRole::Type)
                 {
                     self.reference(syntax, *argument, bound)?;
                 }
@@ -124,7 +124,7 @@ impl Expansion<'_, '_> {
                     .type_references
                     .type_reference_handles(trait_arguments)
                     .to_vec();
-                let parameters = self.selection.generic_parameter_header(
+                let parameters = self.selection.generic_parameter_roles(
                     syntax,
                     &self.declarations,
                     &trait_name,
@@ -134,7 +134,7 @@ impl Expansion<'_, '_> {
                     if parameters
                         .as_ref()
                         .and_then(|parameters| parameters.get(position))
-                        .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                        .is_some_and(|parameter| *parameter == GenericParameterRole::Type)
                     {
                         self.reference(syntax, *argument, bound)?;
                     }
@@ -155,12 +155,12 @@ impl Expansion<'_, '_> {
     ) -> Result<(), Diagnostic> {
         let parameters =
             self.selection
-                .generic_parameter_header(syntax, &self.declarations, name, kinds);
+                .generic_parameter_roles(syntax, &self.declarations, name, kinds);
         for (position, argument) in arguments.iter().enumerate() {
             if parameters
                 .as_ref()
                 .and_then(|parameters| parameters.get(position))
-                .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                .is_some_and(|parameter| *parameter == GenericParameterRole::Type)
             {
                 self.reference(syntax, *argument, bound)?;
             }
@@ -215,31 +215,39 @@ impl Expansion<'_, '_> {
         }
         let mut types = Vec::new();
         let mut lifetime_uses = Vec::new();
+        let mut array_length_uses = Vec::new();
+        let mut unresolved_expression_operands = Vec::new();
         bind_type_occurrences(
             forest,
-            alias.expansion,
+            alias.authored_expansion,
             &alias,
             arguments,
             lifetimes,
             &mut types,
             &mut lifetime_uses,
+            &mut array_length_uses,
+            &mut unresolved_expression_operands,
         );
-        let raw = syntax
-            .type_references
-            .insert(syntax.type_references.type_reference(reference).clone());
+        if let Some(operand) = unresolved_expression_operands.first() {
+            return Err(Diagnostic::error("transparent alias expansion cannot yet retain the declaration and supplying scopes of this expression operand").with_source_span(forest.expressions.source_span(*operand)));
+        }
+        let authored = syntax.type_references.type_reference(reference).clone();
+        let raw = syntax.type_references.insert(authored);
         syntax
             .type_references
             .retain_copied_operand_owner(reference, raw);
-        let expanded = syntax.instantiate_type_reference_from(
+        let (expanded, supplied_copies) = syntax.instantiate_type_reference_from(
             forest,
-            alias.expansion,
+            alias.authored_expansion,
             &types,
             &[],
             &lifetime_uses,
+            &array_length_uses,
         );
         self.active.push(declaration);
         let prior_supplied = self.supplied.len();
         self.supplied.extend_from_slice(arguments);
+        self.supplied.extend(supplied_copies);
         let bound = forest
             .items
             .type_parameters(alias.type_parameters)
@@ -259,9 +267,49 @@ impl Expansion<'_, '_> {
                 instance: reference,
                 application: raw,
                 declaration,
+                definition_references: definition_reference_spans(forest, &alias),
             });
         Ok(())
     }
+}
+
+/// These are lexical references in the original declaration, not rendered
+/// identities. Supplied actuals carry their own distinct source occurrences.
+fn definition_reference_spans(
+    forest: &SyntaxTrees,
+    alias: &TypeAliasDefinition,
+) -> Vec<SourceSpan> {
+    let parameters = forest.items.type_parameters(alias.type_parameters);
+    let mut positions = Vec::new();
+    super::generic_data::collect_type_positions(
+        forest,
+        alias.authored_expansion,
+        &mut positions,
+        true,
+    );
+    let mut references = Vec::new();
+    for position in positions {
+        let name = match forest.type_references.type_reference(position) {
+            TypeReferenceNode::Named(name) => Some(name),
+            TypeReferenceNode::Generic { base_name, .. } => Some(base_name),
+            TypeReferenceNode::DynamicTrait { trait_name, .. } => Some(trait_name),
+            TypeReferenceNode::FixedArray {
+                length: syntax_trees::types::FixedArrayLength::ConstParameter(name),
+                ..
+            } => Some(name),
+            _ => None,
+        };
+        if let Some(name) = name
+            && !parameters
+                .iter()
+                .any(|parameter| parameter.name.as_str(forest) == name.as_str(forest))
+        {
+            if !references.contains(&name.source_span()) {
+                references.push(name.source_span());
+            }
+        }
+    }
+    references
 }
 
 fn bind_type_occurrences(
@@ -272,6 +320,8 @@ fn bind_type_occurrences(
     lifetimes: &[Identifier],
     types: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
     lifetime_uses: &mut Vec<(SourceSpan, String, Identifier)>,
+    array_length_uses: &mut Vec<(SourceSpan, String, TypeReferenceHandle)>,
+    unresolved_expression_operands: &mut Vec<syntax_trees::expression::ExpressionHandle>,
 ) {
     for application in templates.type_references.type_alias_applications(reference) {
         bind_type_occurrences(
@@ -282,6 +332,8 @@ fn bind_type_occurrences(
             lifetimes,
             types,
             lifetime_uses,
+            array_length_uses,
+            unresolved_expression_operands,
         );
     }
     let mut lifetime = |name: &Identifier| {
@@ -332,6 +384,35 @@ fn bind_type_occurrences(
                 .type_reference_handles(*arguments)
                 .to_vec()
         }
+        TypeReferenceNode::ConstExpression(expression) => {
+            use syntax_trees::expression::ExpressionNode;
+            let mut expressions = std::collections::HashSet::new();
+            super::generic_data::collect_expression_handles(
+                templates,
+                *expression,
+                &mut expressions,
+            );
+            let mut children = Vec::new();
+            for expression in expressions {
+                super::generic_data::visit_expression_type_inputs(
+                    templates,
+                    expression,
+                    &mut |reference| children.push(reference),
+                );
+                // Until an expression has declaration-owned bindings, copying
+                // its names into the use's lexical scope could capture caller
+                // locals or rebind a supplied runtime subject. Retain this as
+                // unfinished source work, never as an alternative successful
+                // expansion or a static-value promotion.
+                if matches!(
+                    templates.expressions.expression(expression),
+                    ExpressionNode::Name(_) | ExpressionNode::Call(_)
+                ) {
+                    unresolved_expression_operands.push(expression);
+                }
+            }
+            children
+        }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
@@ -353,8 +434,27 @@ fn bind_type_occurrences(
             length,
         } => {
             let mut children = vec![*element_type];
-            if let syntax_trees::types::FixedArrayLength::Expression(reference) = length {
-                children.push(*reference);
+            match length {
+                syntax_trees::types::FixedArrayLength::Expression(reference) => {
+                    children.push(*reference)
+                }
+                syntax_trees::types::FixedArrayLength::ConstParameter(name) => {
+                    if let Some(position) = templates
+                        .items
+                        .type_parameters(alias.type_parameters)
+                        .iter()
+                        .position(|parameter| {
+                            parameter.name.as_str(templates) == name.as_str(templates)
+                        })
+                    {
+                        array_length_uses.push((
+                            name.source_span(),
+                            name.as_str(templates).to_owned(),
+                            arguments[position],
+                        ));
+                    }
+                }
+                _ => {}
             }
             children
         }
@@ -376,6 +476,8 @@ fn bind_type_occurrences(
             lifetimes,
             types,
             lifetime_uses,
+            array_length_uses,
+            unresolved_expression_operands,
         );
     }
 }
@@ -409,15 +511,35 @@ pub(super) fn normalize_with_declarations(
     let mut forests = vec![&templates];
     forests.extend_from_slice(declarations);
     let mut expansion = Expansion {
-        templates: &templates,
         declarations: forests,
         selection,
         active: Vec::new(),
         supplied: Vec::new(),
     };
-    for item in templates.root_items() {
-        if let Err(error) = expansion.item(syntax, item, &[]) {
+    for handle in templates.root_item_handles() {
+        let mut item = templates.root_item(*handle).clone();
+        if let Item::TypeAlias(alias) = &mut item {
+            if alias.expansion == alias.authored_expansion {
+                let (working, _) = syntax.instantiate_type_reference_from(
+                    &templates,
+                    alias.authored_expansion,
+                    &[],
+                    &[],
+                    &[],
+                    &[],
+                );
+                alias.expansion = working;
+                syntax.items.replace_item(*handle, item.clone());
+            }
+            if let Item::TypeAlias(alias) = &item {
+                mark_header_references(syntax, alias.authored_expansion);
+            }
+        }
+        if let Err(error) = expansion.item(syntax, &item, &[]) {
             return Err(vec![error]);
+        }
+        if let Item::TypeAlias(alias) = item {
+            mark_header_references(syntax, alias.expansion);
         }
     }
     Ok(())
@@ -441,6 +563,30 @@ pub fn normalize_type_aliases(
         .collect::<Vec<_>>();
     normalize_with_declarations(&mut request.syntax, &selection, &declarations)?;
     Ok(request.syntax)
+}
+
+fn mark_header_references(syntax: &mut SyntaxTrees, root: TypeReferenceHandle) {
+    let mut pending = vec![root];
+    let mut seen = Vec::new();
+    while let Some(root) = pending.pop() {
+        if seen.contains(&root) {
+            continue;
+        }
+        seen.push(root);
+        let mut references = Vec::new();
+        super::generic_data::collect_type_positions(syntax, root, &mut references, true);
+        for reference in references {
+            pending.extend(
+                syntax
+                    .type_references
+                    .type_alias_applications(reference)
+                    .map(|origin| origin.application),
+            );
+            syntax
+                .type_references
+                .retain_alias_header_reference(reference);
+        }
+    }
 }
 
 impl Expansion<'_, '_> {

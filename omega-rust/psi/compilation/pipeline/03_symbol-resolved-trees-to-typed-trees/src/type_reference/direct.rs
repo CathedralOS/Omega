@@ -145,7 +145,12 @@ pub(super) fn lower_type_reference_handle_with_context(
             declaration_source,
             ..
         } => {
-            let expansion = lower!(expansion)?;
+            let expansion = lower_type_reference_handle_with_context(
+                source_trees,
+                typed_trees,
+                expansion,
+                None,
+            )?;
             let application = lower!(application)?;
             super::alias_uses::retain_application(
                 source_trees,

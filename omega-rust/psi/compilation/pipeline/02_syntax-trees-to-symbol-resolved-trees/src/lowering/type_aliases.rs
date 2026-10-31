@@ -18,7 +18,13 @@ pub(crate) fn lower_type_alias_definition(
     let type_parameters = lower_type_parameters(lowerer, syntax, alias.type_parameters)?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax, &alias.conformance_bounds)?;
-    let expansion = lower_type_reference_handle(lowerer, syntax, alias.expansion)?;
+    // A header retains a type recipe, not a demand to synthesize a closed
+    // nominal instance. Concrete expanded uses still take the ordinary gate.
+    let previous = lowerer.structural_type_equations_pending;
+    lowerer.structural_type_equations_pending = true;
+    let expansion = lower_type_reference_handle(lowerer, syntax, alias.expansion);
+    lowerer.structural_type_equations_pending = previous;
+    let expansion = expansion?;
     Ok(TypeAliasDefinition {
         symbol: SymbolHandle::invalid(),
         name: lower_name(syntax, &alias.name),
