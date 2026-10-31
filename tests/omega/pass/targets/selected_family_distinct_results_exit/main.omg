@@ -7,29 +7,29 @@
 data Helper { seed: u64; }
 
 linux_x86_64 machine Helper::delta(helper: &Helper) -> u64
-ensures result <= 404;
+ensures result <= 404
 { 101 }
 windows_x86_64 machine Helper::delta(helper: &Helper) -> u64
-ensures result <= 404;
+ensures result <= 404
 { 202 }
 macos_arm64 machine Helper::delta(helper: &Helper) -> u64
-ensures result <= 404;
+ensures result <= 404
 { 303 }
 linux_arm64 machine Helper::delta(helper: &Helper) -> u64
-ensures result <= 404;
+ensures result <= 404
 { 404 }
 
 linux_x86_64 machine Helper::value(helper: &Helper) -> u64
-ensures result <= 411;
+ensures result <= 411
 { Helper::delta(helper) + 7 }
 windows_x86_64 machine Helper::value(helper: &Helper) -> u64
-ensures result <= 411;
+ensures result <= 411
 { Helper::delta(helper) + 7 }
 macos_arm64 machine Helper::value(helper: &Helper) -> u64
-ensures result <= 411;
+ensures result <= 411
 { Helper::delta(helper) + 7 }
 linux_arm64 machine Helper::value(helper: &Helper) -> u64
-ensures result <= 411;
+ensures result <= 411
 { Helper::delta(helper) + 7 }
 
 data Main { helper: Helper; }

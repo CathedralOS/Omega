@@ -30,7 +30,7 @@ machine verify(settled: bool) crashes Trap {
 }
 
 machine ping(depth: u64) crashes Trap
-terminates by depth;
+terminates by depth
 {
     let fresh: Receipt = Receipt { code: 11 };
     drop(fresh);
@@ -44,7 +44,7 @@ terminates by depth;
 }
 
 machine pong(depth: u64) crashes Trap
-terminates by depth;
+terminates by depth
 {
     let fresh: Receipt = Receipt { code: 22 };
     drop(fresh);

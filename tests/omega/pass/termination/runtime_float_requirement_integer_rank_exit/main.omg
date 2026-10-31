@@ -1,39 +1,35 @@
 use omega::language::core::float_operations;
 
-machine countdown(value: f64, count: u64)
-requires value >= 0.0 && count <= 4;
-terminates by count in 0..=4;
--> f64 {
+machine countdown(value: f64, count: u64) -> f64
+requires value >= 0.0 && count <= 4
+terminates by count in 0..=4 {
     transition count == 0 {
         true -> value
         false -> countdown(value, count - 1)
     }
 }
 
-machine narrow(value: f32, count: u64)
-requires value >= 0.0f32;
-requires count <= 4;
-terminates by count in 0..=4;
--> f32 {
+machine narrow(value: f32, count: u64) -> f32
+requires value >= 0.0f32
+requires count <= 4
+terminates by count in 0..=4 {
     transition count == 0 {
         true -> value
         false -> narrow(value, count - 1)
     }
 }
 
-machine ping(value: f64, count: u64)
-requires value >= 0.0 && count <= 4;
-terminates by count in 0..=4;
--> f64 {
+machine ping(value: f64, count: u64) -> f64
+requires value >= 0.0 && count <= 4
+terminates by count in 0..=4 {
     transition count == 0 {
         true -> value
         false -> pong(value, count - 1)
     }
 }
-machine pong(value: f64, count: u64)
-requires value >= 0.0 && count <= 4;
-terminates by count in 0..=4;
--> f64 {
+machine pong(value: f64, count: u64) -> f64
+requires value >= 0.0 && count <= 4
+terminates by count in 0..=4 {
     transition count == 0 {
         true -> value
         false -> ping(value, count - 1)
@@ -41,16 +37,15 @@ terminates by count in 0..=4;
 }
 
 data Reading { value: f64; }
-machine ranged(reading: &Reading, count: u64)
-requires reading.value >= 0.0 && count <= 4;
-terminates by count in 0..=4;
--> f64 {
+machine ranged(reading: &Reading, count: u64) -> f64
+requires reading.value >= 0.0 && count <= 4
+terminates by count in 0..=4 {
     transition count == 0 {
         true -> reading.value
         false -> advance(reading, count - 1)
     }
     machine advance(current: &Reading, pending: u64) -> f64
-    requires current.value >= 0.0 && pending <= 4;
+    requires current.value >= 0.0 && pending <= 4
     {
         transition pending == 0 {
             true -> current.value
@@ -60,7 +55,7 @@ terminates by count in 0..=4;
 }
 
 machine observed(reading: &Reading, count: u64) -> f64
-requires count <= 4;
+requires count <= 4
 {
     let ready: bool = reading.value >= 0.0;
     transition ready {
@@ -70,7 +65,7 @@ requires count <= 4;
 }
 
 machine supplied() -> f64
-ensures result >= 0.0;
+ensures result >= 0.0
 { 2.0 }
 
 machine main() crashes Trap {
@@ -84,7 +79,7 @@ machine main() crashes Trap {
         false -> bad()
     }
     machine check(reading: &Reading, value: f64, direct: f64, smaller: f32)
-    requires reading.value >= 0.0;
+    requires reading.value >= 0.0
     {
         let field: f64 = ranged(reading, 3);
         let saved: f64 = observed(reading, 4);

@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
 public machine integer(reader: &mut Reader, value: i64)
 reaches Console
-invokes Console;
+invokes Console
 {
     let widened: i64 = value;
     transition widened < 0 {
@@ -48,7 +48,7 @@ invokes Console;
 // Normalize before integer conversion so finite concentrations never saturate.
 public machine field(reader: &mut Reader, name: &[u8], value: f64)
 reaches Console
-invokes Console;
+invokes Console
 {
     Console::write(name);
     transition { _ -> normalize(reader, value, -12) }

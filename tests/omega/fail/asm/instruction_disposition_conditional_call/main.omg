@@ -10,7 +10,7 @@ boundary trait Finish {
 Finisher satisfies Finish { Finish::finish = finish; }
 proposition finished(token: Token) = model_specific_written(2059, 0);
 machine emit() -> u32 reaches MachineControl
-ensures model_specific_written(2059, 0);
+ensures model_specific_written(2059, 0)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
@@ -20,8 +20,8 @@ ensures model_specific_written(2059, 0);
 machine finish(token: Token, enabled: bool)
 satisfies Finish::finish
 reaches MachineControl
-requires model_specific_written(2059, 0);
-ensures finished(token);
+requires model_specific_written(2059, 0)
+ensures finished(token)
 {
     let observed: u32 = match enabled { true -> emit(), false -> 0 };
     let mut marker: u32 = observed;

@@ -10,7 +10,7 @@ public data Main {
 }
 
 boundary machine Main::main(main: &mut Main)
-invokes WaitService;
+invokes WaitService
 {
     block WaitService::wait();
 }

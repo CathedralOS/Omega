@@ -47,7 +47,7 @@ machine FixedVecI32x4::push(fixed_vec_i32x4: &mut FixedVecI32x4, value: i32 in W
 requires
     fixed_vec_i32x4.length < fixed_vec_i32x4.items.len
 ensures
-    fixed_vec_i32x4.length > 0;
+    fixed_vec_i32x4.length > 0,
     fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len
 {
     let slots: &mut [i32] = &mut fixed_vec_i32x4.items[..];
@@ -65,7 +65,7 @@ ensures
 // calls/runtime_trailing_local_return_exit.)
 machine FixedVecI32x4::pop(fixed_vec_i32x4: &mut FixedVecI32x4) -> i32
 requires
-    fixed_vec_i32x4.length > 0;
+    fixed_vec_i32x4.length > 0,
     fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len
 {
     let slots: &[i32] = &fixed_vec_i32x4.items[..];
@@ -78,7 +78,7 @@ requires
 
 machine FixedVecI32x4::get(fixed_vec_i32x4: &FixedVecI32x4, index: u64 in Wrapping) -> i32
 requires
-    fixed_vec_i32x4.length > index;
+    fixed_vec_i32x4.length > index,
     index < fixed_vec_i32x4.items.len
 {
     let slots: &[i32] = &fixed_vec_i32x4.items[..];

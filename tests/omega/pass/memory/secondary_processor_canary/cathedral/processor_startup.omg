@@ -346,8 +346,8 @@ proposition confirmed(envelope: StartupEnvelope) =
 machine StartupConfirmation::confirm(envelope: StartupEnvelope)
     satisfies StartupAcknowledgementProtocol::confirm
     reaches MachineControl
-    requires envelope in StartupEnvelope::Pending;
-    ensures confirmed(envelope);
+    requires envelope in StartupEnvelope::Pending
+    ensures confirmed(envelope)
 {
     let nonce: u64 = envelope.invocation;
     envelope.acknowledgement.value.store(nonce, Publish);

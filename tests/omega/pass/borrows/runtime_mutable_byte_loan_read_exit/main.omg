@@ -16,7 +16,7 @@ requires left < 5 && right < 5
 }
 
 machine reverse(bytes: &mut [u8; 5], index: u64) -> bool
-terminates by (index, 2) -> Nat::BoundedDistance;
+terminates by (index, 2) -> Nat::BoundedDistance
 requires index < 2
 {
     let swapped: bool = swap(bytes, index, 4 - index);

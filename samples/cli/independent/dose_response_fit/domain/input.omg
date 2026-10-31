@@ -14,8 +14,8 @@ data Token {
 }
 // The caller sets a 4096-byte budget; exhaustion is distinct from real EOF.
 machine next_byte(reader: &mut InputReader) -> ByteRead reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let byte: ByteRead = block Console::read_byte();
@@ -43,8 +43,8 @@ crashes Trap
     }
 }
 machine token(reader: &mut InputReader) -> Token reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> skip(reader) }
@@ -112,8 +112,8 @@ crashes Trap
 }
 data Row { dose: i32; replicate: i32; role: i32; }
 public machine read_input(reader: &mut InputReader, observations: &mut Observations) -> bool reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let item: Token = block token(reader);

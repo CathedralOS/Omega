@@ -20,6 +20,6 @@ public macos_arm64 machine observe_clock() -> u64 reaches ClockObservation {
 }
 
 public windows_x86_64 machine observe_window() -> u64
-reaches WindowManagement invokes WindowsGuiHost; {
+reaches WindowManagement invokes WindowsGuiHost {
     WindowsGuiHost::foreground_window()
 }

@@ -11,8 +11,8 @@ public data Tokens {
 }
 public machine Tokens::read(tokens: &mut Tokens)
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     tokens.valid = true;

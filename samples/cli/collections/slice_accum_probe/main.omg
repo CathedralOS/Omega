@@ -34,7 +34,7 @@ data Main {
 
 // Probe A: i32 slice accumulation.
 machine Walker::sum_ints(walker: &mut Walker, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
-terminates by s -> Slice::Length;
+terminates by s -> Slice::Length
 {
     transition s.len > 0 {
         true -> sum_ints(walker, s[1..], acc + s[0])
@@ -44,7 +44,7 @@ terminates by s -> Slice::Length;
 
 // Probe B: struct slice accumulation using s[0].value.
 machine Walker::sum_entries(walker: &mut Walker, s: &[Entry], acc: i32 in Wrapping) -> i32
-terminates by s -> Slice::Length;
+terminates by s -> Slice::Length
 {
     transition s.len > 0 {
         true -> sum_entries(walker, s[1..], acc + s[0].value)

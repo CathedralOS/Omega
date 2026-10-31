@@ -2,16 +2,16 @@ data Pair [copy] { count: u32; enabled: bool; }
 data Bag { guard: u64; pairs: [Pair; 2]; }
 
 machine lend<'input>(pairs: &'input mut [Pair]) -> &'input mut Pair
-    requires pairs.len > 0;
+    requires pairs.len > 0
 { &mut pairs[0] }
 
 machine view<'input>(bag: &'input mut Bag) -> &'input mut [Pair]
-    ensures result.len == 2;
+    ensures result.len == 2
 {
     &mut bag.pairs
 }
 
-machine edit(pairs: &mut [Pair]) requires pairs.len > 0; {
+machine edit(pairs: &mut [Pair]) requires pairs.len > 0 {
     let target: &mut Pair = lend(pairs);
     target.count = 11;
     target.enabled = true;
@@ -19,7 +19,7 @@ machine edit(pairs: &mut [Pair]) requires pairs.len > 0; {
 
 machine choose<'left, 'right>(left: &'left mut [Pair], right: &'right mut [Pair])
     -> &'left mut Pair
-    requires left.len > 0 && right.len > 0;
+    requires left.len > 0 && right.len > 0
 {
     right[0].count = 19;
     &mut left[0]

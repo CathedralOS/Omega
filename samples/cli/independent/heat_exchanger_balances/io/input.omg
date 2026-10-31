@@ -14,7 +14,7 @@ public data Input {
     conductance: [f64; 8];
 }
 
-public machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine parse(raw: &mut Raw) -> bool reaches Console invokes Console blocks crashes Trap {
     transition { _ -> read(raw, 0, false, 0) }
     machine read(raw: &mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition bytes < 256 {

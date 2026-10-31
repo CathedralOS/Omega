@@ -49,8 +49,8 @@ public boundary trait Clock {
     // are synchronous invocation edges, not extra reach members.
     machine sleep(milliseconds: u32)
     reaches Clock
-    invokes LinuxClockWait;
-    invokes LinuxArmClockWait;
+    invokes LinuxClockWait
+    invokes LinuxArmClockWait
     invokes DarwinClockWait;
 }
 
@@ -64,9 +64,9 @@ public data ClockNativeProvider { }
 public NativeClock satisfies Clock {
     machine sleep(milliseconds: u32)
     reaches Clock
-    invokes LinuxClockWait;
-    invokes LinuxArmClockWait;
-    invokes DarwinClockWait;
+    invokes LinuxClockWait
+    invokes LinuxArmClockWait
+    invokes DarwinClockWait
     {
         ClockNativeProvider::sleep(milliseconds);
     }

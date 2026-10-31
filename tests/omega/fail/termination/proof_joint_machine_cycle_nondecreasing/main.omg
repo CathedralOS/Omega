@@ -9,13 +9,13 @@ data ProofNat {
 machine main() {}
 
 machine left(n: ProofNat) -> ProofNat
-terminates by n;
+terminates by n
 {
     right(n)
 }
 
 machine right(n: ProofNat) -> ProofNat
-terminates by n;
+terminates by n
 {
     left(n)
 }

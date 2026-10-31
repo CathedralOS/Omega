@@ -21,7 +21,7 @@ data Seq<T> {
 
 machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
 requires machine F(value: T) -> U;
-terminates by items;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty
@@ -34,7 +34,7 @@ terminates by items;
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
 requires machine Predicate(value: &T) -> bool;
-terminates by items;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty

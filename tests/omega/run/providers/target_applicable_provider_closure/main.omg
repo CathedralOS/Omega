@@ -30,11 +30,11 @@ windows_x86_64 machine selected_member() -> i32 { Upstream::read() }
 uefi_x86_64 machine selected_member() -> i32 { absent_on_uefi() }
 linux_x86_64 machine absent_on_uefi() -> i32 { 1 }
 machine bridge(remaining: u64) -> i32
-terminates by remaining;
+terminates by remaining
 { transition { _ -> nested_bridge(remaining) } }
 // The absent leaf also propagates through a recursive direct-call component.
 machine nested_bridge(remaining: u64) -> i32
-terminates by remaining;
+terminates by remaining
 {
     let value: i32 = firmware_only();
     transition remaining > 0 { true -> again(remaining) false -> value }

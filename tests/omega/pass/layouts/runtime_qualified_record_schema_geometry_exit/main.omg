@@ -13,7 +13,7 @@ data Payload {
 
 
 Packed satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 },

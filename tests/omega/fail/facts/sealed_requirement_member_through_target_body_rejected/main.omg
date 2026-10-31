@@ -21,14 +21,14 @@ Selected satisfies Sum {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures 0 <= result && result <= 100
-    blocks;
+    blocks
     {
         add(left, right)
     }
 }
 
 machine apply<Operations satisfies Sum>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures 0 <= result && result <= 100
@@ -38,34 +38,34 @@ ensures 0 <= result && result <= 100
 
 // Place: another selected target implementation. Each target body omits the right operand bound.
 linux_x86_64 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= 50
 {
     block apply<Selected>(a, b)
 }
 
 linux_arm64 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= 50
 {
     block apply<Selected>(a, b)
 }
 
 macos_arm64 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= 50
 {
     block apply<Selected>(a, b)
 }
 
 windows_x86_64 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= 50
 {
     block apply<Selected>(a, b)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22);
     transition result == 42 { true -> done() _ -> bad() }
 

@@ -8,8 +8,8 @@ boundary trait Completion {
 }
 proposition published(envelope: Envelope) = atomic_release_written<AtomicU64, u64>(&envelope.acknowledgement.value, envelope.invocation);
 machine finish(envelope: Envelope) satisfies Completion::confirm
-requires envelope in Envelope::Pending;
-ensures published(envelope);
+requires envelope in Envelope::Pending
+ensures published(envelope)
 { envelope.acknowledgement.value.store(0, Publish); }
 CompletionProvider satisfies Completion { Completion::confirm = finish; }
 

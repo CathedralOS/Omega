@@ -7,18 +7,18 @@ data Tree {
 }
 
 machine make_empty(marked: bool) -> Tree
-ensures result in Tree::Empty;
-terminates;
+ensures result in Tree::Empty
+terminates
 { Tree::Empty { marked: marked } }
 
 machine needs_unmarked_empty(value: Tree) -> Tree
-requires value in Tree::Empty;
-requires value.marked == false;
-terminates;
+requires value in Tree::Empty
+requires value.marked == false
+terminates
 { value }
 
 machine completed_call() -> Tree
-terminates;
+terminates
 {
     let value: Tree = make_empty(true);
     needs_unmarked_empty(value)

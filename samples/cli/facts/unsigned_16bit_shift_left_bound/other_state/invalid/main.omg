@@ -4,14 +4,14 @@
 // Expected rejection: may overflow `u16`
 
 machine shift_other_state(val: u16) -> i32
-    requires val >= 25u16 && val <= 30u16;
+    requires val >= 25u16 && val <= 30u16
 {
     let shifted: u16 = val << 2u16;
     transition {
         _ -> check_state(shifted)
     }
     machine check_state(s: u16) -> i32
-        requires s >= 100u16 && s <= 120u16;
+        requires s >= 100u16 && s <= 120u16
     {
         let check: u16 = s - 120u16;
         transition s == 120u16 && check == 0u16 {

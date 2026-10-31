@@ -8,7 +8,7 @@ data Stored {
 }
 
 machine extend_field(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 101i8;
+    requires narrow >= 30i8 && narrow <= 101i8
 {
     let s: Stored = Stored { value: narrow };
     let wide: i32 = s.value as i32;

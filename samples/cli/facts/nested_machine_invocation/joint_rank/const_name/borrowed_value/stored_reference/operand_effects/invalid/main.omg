@@ -4,16 +4,16 @@ data Payload where count <= 7 { count: u64; guard: u64; }
 data Remaining<'payload> { canary: u64; child: &'payload mut Payload; spare: &'payload mut Payload; audit: u64; }
 const Limit: u64 = 7;
 machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
-terminates;
-terminates by remaining.child.count;
-requires remaining.child.count <= 7;
+terminates
+terminates by remaining.child.count
+requires remaining.child.count <= 7
 {
     transition remaining.child.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
-    requires pending.child.count > 0 && pending.child.count <= 7;
+    requires pending.child.count > 0 && pending.child.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         let before: u64 = pending.child.count;
@@ -27,7 +27,7 @@ requires remaining.child.count <= 7;
     machine bad() crashes Trap { crash Trap; }
 }
 machine invoke(counter: &mut u64, payload: &mut Payload) crashes Trap
-requires payload.count <= 7;
+requires payload.count <= 7
 {
     let start: u64 = payload.count;
     let mut spare: Payload = Payload { count: 7, guard: 829 };
@@ -65,7 +65,7 @@ machine main() crashes Trap {
 }
 
 machine step<'payload>(pending: &mut Remaining<'payload>) -> u64
-ensures result == 0;
+ensures result == 0
 {
     let saved: &mut Payload = pending.child;
     pending.child = pending.spare;

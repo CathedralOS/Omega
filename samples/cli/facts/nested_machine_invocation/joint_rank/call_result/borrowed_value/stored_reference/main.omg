@@ -3,16 +3,16 @@
 data Payload { count: u64; guard: u64; }
 data Remaining { canary: u64; child: &mut Payload; }
 machine count(counter: &mut u64, remaining: &mut Remaining) crashes Trap
-terminates;
-terminates by remaining.child.count;
-requires remaining.child.count <= 7;
+terminates
+terminates by remaining.child.count
+requires remaining.child.count <= 7
 {
     transition remaining.child.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: &mut Remaining, counter: &mut u64) crashes Trap
-    requires pending.child.count > 0 && pending.child.count <= 7;
+    requires pending.child.count > 0 && pending.child.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         pending.child.count = pending.child.count - 1;
@@ -25,7 +25,7 @@ requires remaining.child.count <= 7;
     machine bad() crashes Trap { crash Trap; }
 }
 machine invoke(counter: &mut u64, payload: &mut Payload) crashes Trap
-requires payload.count <= 7;
+requires payload.count <= 7
 {
     let mut remaining: Remaining = Remaining { canary: 641, child: payload };
     count(counter, &mut remaining);
@@ -36,7 +36,7 @@ requires payload.count <= 7;
     machine bad() crashes Trap { crash Trap; }
 }
 machine input(select: bool) -> Payload
-ensures result.count <= 7;
+ensures result.count <= 7
 { match select { true -> Payload { guard: 827, count: 7 } false -> Payload { guard: 827, count: 0 } } }
 machine perform(counter: &mut u64, select: bool) crashes Trap {
     let mut remaining: Payload = input(select);

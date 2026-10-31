@@ -1,5 +1,5 @@
 machine read(items: &[u8; 2], index: i64 in Wrapping) -> u8
-requires index < 2;
+requires index < 2
 {
     items[index as u64]
 }

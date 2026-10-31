@@ -5,7 +5,7 @@
 data Backing { guard: u64; items: [u64; 3]; }
 
 machine storage_view<'input>(backing: &'input mut Backing) -> &'input mut [u64]
-    ensures result.len == 3;
+    ensures result.len == 3
 {
     &mut backing.items
 }
@@ -13,7 +13,7 @@ machine storage_view<'input>(backing: &'input mut Backing) -> &'input mut [u64]
 const MIN_LEN: u64 = 2;
 
 machine mutate_const(bytes: &mut [u64]) -> u64
-    requires bytes.len >= MIN_LEN;
+    requires bytes.len >= MIN_LEN
 {
     bytes[1] = 45u64;
     let diff: u64 = bytes.len - MIN_LEN;

@@ -3,13 +3,13 @@
 public trait Predicates<Element> {
     machine inspect<'scope, machine Callback>(value: &'scope Element) -> bool
     requires machine Callback<'scope>(value: &'scope Element) -> bool;
-    machine borrow<'scope>(value: &'scope Element) -> &'scope Element;
+    ;machine borrow<'scope>(value: &'scope Element) -> &'scope Element;
 }
 
 public trait Measurements<Element> {
     machine inspect<'scope, machine Callback>(value: &'scope Element) -> i32
     requires machine Callback<'scope>(value: &'scope Element) -> i32;
-    machine borrow_mut<'scope>(value: &'scope mut Element) -> &'scope mut Element;
+    ;machine borrow_mut<'scope>(value: &'scope mut Element) -> &'scope mut Element;
 }
 
 machine main() {}

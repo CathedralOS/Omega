@@ -6,7 +6,7 @@ machine count(value: &mut u64, remaining: u64) {
         false -> step(value, remaining)
     }
     machine step(value: &mut u64, remaining: u64)
-    requires remaining > 0;
+    requires remaining > 0
     {
         value = (value as u64 in Wrapping + 1) as u64;
         transition { _ -> count(value, remaining - 1) }

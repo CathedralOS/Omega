@@ -18,9 +18,9 @@ public data ParserHarness {
 // context storage and passes that borrow explicitly to the harness.
 public machine parser_entry_start()
 reaches Console
-invokes Console;
+invokes Console
 crashes Trap
-blocks;
+blocks
 {
     let mut parser_harness: ParserHarness;
     block ParserHarness::main(&mut parser_harness);
@@ -28,9 +28,9 @@ blocks;
 
 public machine ParserHarness::main(parser_harness: &mut ParserHarness)
 reaches Console
-invokes Console;
+invokes Console
 crashes Trap
-blocks;
+blocks
 {
     let mut lexer: Lexer;
     Lexer::initialize(&mut lexer, 1);

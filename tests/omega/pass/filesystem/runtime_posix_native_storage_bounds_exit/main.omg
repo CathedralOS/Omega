@@ -118,7 +118,7 @@ macos_arm64 machine native_times_match(record: &[u8; 146]) -> bool {
 }
 
 machine native_word_matches(bytes: &[u8], first: u8, rest: u8) -> bool
-requires bytes.len == 8;
+requires bytes.len == 8
 {
     bytes[0] == first && bytes[1] == rest && bytes[2] == rest && bytes[3] == rest
         && bytes[4] == rest && bytes[5] == rest && bytes[6] == rest && bytes[7] == rest

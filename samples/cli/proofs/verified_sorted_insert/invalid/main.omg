@@ -10,8 +10,8 @@ machine sorted(values: &[i32; 16]) -> bool {
 
 machine check_sorted(values: &[i32; 16], remaining: u64) -> bool
 requires remaining <= 15
-terminates;
-terminates by remaining in 0..=15;
+terminates
+terminates by remaining in 0..=15
 {
     transition remaining >= 1 {
         true -> inspect(values, remaining)
@@ -36,7 +36,7 @@ requires width == hi - lo
 requires width <= 16
 requires sorted(values) == true
 ensures lo <= result && result <= hi
-terminates by width -> Nat::Descending in 0..=16;
+terminates by width -> Nat::Descending in 0..=16
 {
     transition lo < hi {
         true -> lo

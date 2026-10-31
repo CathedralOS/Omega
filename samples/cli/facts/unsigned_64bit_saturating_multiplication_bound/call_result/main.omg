@@ -3,9 +3,9 @@
 // Expected exit: 0
 
 machine compute_sat_prod(l: u64, r: u64) -> u64
-    requires l >= 10u64 && l <= 20u64;
-    requires r >= 5u64 && r <= 10u64;
-    ensures result >= 50u64 && result <= 200u64;
+    requires l >= 10u64 && l <= 20u64
+    requires r >= 5u64 && r <= 10u64
+    ensures result >= 50u64 && result <= 200u64
 {
     let a: u64 in Saturating = l as u64 in Saturating;
     let b: u64 in Saturating = r as u64 in Saturating;
@@ -14,8 +14,8 @@ machine compute_sat_prod(l: u64, r: u64) -> u64
 }
 
 machine multiply_call_result(lhs: u64, rhs: u64) -> i32
-    requires lhs >= 10u64 && lhs <= 20u64;
-    requires rhs >= 5u64 && rhs <= 10u64;
+    requires lhs >= 10u64 && lhs <= 20u64
+    requires rhs >= 5u64 && rhs <= 10u64
 {
     let prod: u64 = compute_sat_prod(lhs, rhs);
     let headroom: u64 = 200u64 - prod;

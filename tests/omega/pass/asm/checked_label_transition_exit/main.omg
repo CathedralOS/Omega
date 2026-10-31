@@ -1,7 +1,7 @@
 // Expected exit: 0. A label exit contract observes the successful argument
 // call on the enclosing Omega state edge, including its checked guarantee.
 data Main { ready: bool; }
-machine establish(main: &mut Main) -> u64 ensures main.ready; {
+machine establish(main: &mut Main) -> u64 ensures main.ready {
     main.ready = true;
     17
 }

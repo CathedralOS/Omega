@@ -1,6 +1,6 @@
 // A runtime value cannot acquire module namespace authority.
 use routines;
-machine probe(routines: u64, value: u64) -> u64 requires value > 0; {
+machine probe(routines: u64, value: u64) -> u64 requires value > 0 {
     routines::entry(value)
 }
 machine main() crashes Trap {

@@ -7,7 +7,7 @@ boundary machine DirectProvider::emit_byte(byte: i32) satisfies Output::emit_byt
 macos_arm64 boundary machine Provider::emit_byte(byte: i32) satisfies Output::emit_byte;
 linux_x86_64 boundary machine Provider::emit_byte(byte: i32) satisfies Output::emit_byte;
 machine console_write_bytes(bytes: &[u8], newline: bool)
-terminates by bytes -> Slice::Length;
+terminates by bytes -> Slice::Length
 reaches Output
 {
     transition bytes.len > 0 {

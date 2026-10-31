@@ -34,7 +34,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine apply(main: &mut Main, target: i32)
-    requires target >= 0 && target <= 100;
+    requires target >= 0 && target <= 100
     {
         main.brightness = target;
         transition { _ -> report(main) }

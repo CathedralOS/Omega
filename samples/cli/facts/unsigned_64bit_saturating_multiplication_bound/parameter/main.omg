@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 machine multiply_param(lhs: u64, rhs: u64) -> i32
-    requires lhs >= 10u64 && lhs <= 20u64;
-    requires rhs >= 5u64 && rhs <= 10u64;
+    requires lhs >= 10u64 && lhs <= 20u64
+    requires rhs >= 5u64 && rhs <= 10u64
 {
     let a: u64 in Saturating = lhs as u64 in Saturating;
     let b: u64 in Saturating = rhs as u64 in Saturating;

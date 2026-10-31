@@ -10,7 +10,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost; {
+    ProcessOutput + ProcessExit invokes WindowsGuiHost {
     let handle: u64 = WindowsGuiHost::window_create_client(&class_name, &title, style, x, y, width, height);
     Window { window: handle, view: 0, app: 0, space: 0, date: 0, mode: 0,
         psel: 0, mask: 0, evt: 0, relsel: 0, dsel: 0, vsel: 0, ksel: 0, pool: 0 }
@@ -22,7 +22,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes AppKit; invokes CoreGraphics; invokes ObjectiveC; {
+    ProcessOutput + ProcessExit invokes AppKit invokes CoreGraphics invokes ObjectiveC {
     // Preserve the existing Cocoa adapter's outer-size convention without
     // imposing fixed dimensions on the shared target facade.
     let outer_width: i64 = (width as i64) + 16;
@@ -44,7 +44,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost; {
+    ProcessOutput + ProcessExit invokes WindowsGuiHost {
     transition device != 0 { true -> release(window, device) _ -> destroy(window, true) }
     machine release(window: Window, device: u64) -> bool {
         let released: i32 = WindowsGuiHost::release_dc(window.window, device);
@@ -63,7 +63,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes CoreGraphics; invokes ObjectiveC; {
+    ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC {
     transition window.pool != 0 { true -> close(window) _ -> (true) }
     machine close(window: Window) -> bool {
         macos_window_destroy(window);
@@ -78,7 +78,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost; { WindowsGuiHost::get_dc(window) }
+    ProcessOutput + ProcessExit invokes WindowsGuiHost { WindowsGuiHost::get_dc(window) }
 public macos_arm64 machine demo_get_dc(window_state: &Window, window: u64) -> u64 {
     macos_window_get_dc(window_state, window)
 }
@@ -90,7 +90,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost; {
+    ProcessOutput + ProcessExit invokes WindowsGuiHost {
     let present: bool = WindowsGuiHost::pump_message(message);
     transition present { true -> inspect(window_state, message, close_requested) _ -> (0) }
     machine inspect(window_state: &Window, message: &WindowsMessage, close_requested: &mut bool) -> u32 {
@@ -116,7 +116,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC; {
+    ProcessOutput + ProcessExit invokes ObjectiveC {
     let scratch: [u64; 6] = [0, 0, 0, 0, 0, 0];
     let present: u32 = macos_window_msg_peek(window_state, scratch);
     transition present != 0 { true -> dispatch(window_state, scratch) _ -> (0) }
@@ -134,7 +134,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost; {
+    ProcessOutput + ProcessExit invokes WindowsGuiHost {
     let alive: bool = WindowsGuiHost::is_window(window);
     transition alive { true -> (1) _ -> (0) }
 }
@@ -145,7 +145,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC; { macos_window_is_window(window_state, window) }
+    ProcessOutput + ProcessExit invokes ObjectiveC { macos_window_is_window(window_state, window) }
 
 public windows_x86_64 machine demo_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches
@@ -154,7 +154,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost; {
+    ProcessOutput + ProcessExit invokes WindowsGuiHost {
     transition dest_width <= 2147483647 && dest_height <= 2147483647
         && source_width <= 2147483647 && source_height <= 2147483647 {
         true -> copy(device, dest_width, dest_height, source_width, source_height, pixels, info)
@@ -175,7 +175,7 @@ reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes CoreGraphics; invokes ObjectiveC; {
+    ProcessOutput + ProcessExit invokes CoreGraphics invokes ObjectiveC {
     macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
 }
 

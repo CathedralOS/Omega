@@ -82,7 +82,7 @@ windows_x86_64 machine WindowsConsoleImports::set_mode(descriptor: i32, mode: i3
 windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
 reaches Console
-blocks;
+blocks
 crashes Trap
 {
     let mut cell: i32 = 0;

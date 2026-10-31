@@ -14,9 +14,8 @@
 // machine and frame arrays both relocate). Differential.
 use omega_language_std::console;
 data Main { nums: [i32; 4]; picked: i32; }
-machine Main::pick(picked: &mut i32, s: &[i32], i: u64, j: u64)
-terminates by (j, i) -> Nat::BoundedDistance;
--> i32
+machine Main::pick(picked: &mut i32, s: &[i32], i: u64, j: u64) -> i32
+terminates by (j, i) -> Nat::BoundedDistance
 {
     transition j < i {
         true -> pick(picked, s, i, j + 1)

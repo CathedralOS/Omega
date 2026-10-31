@@ -10,10 +10,9 @@ machine Main::main(main: &mut Main) -> u32
     transition { _ -> Main::count(main, 9, 1) }
 }
 
-machine Main::count(main: &mut Main, remaining: u32, stride: u32)
+machine Main::count(main: &mut Main, remaining: u32, stride: u32) -> u32
     requires 0 <= remaining && remaining <= 9 && 1 <= stride && stride <= 5
-terminates by remaining in 0..=9;
--> u32 {
+terminates by remaining in 0..=9 {
     transition remaining >= stride {
         true -> pair(main, remaining, remaining - stride, stride)
         false -> remaining
@@ -28,10 +27,9 @@ terminates by remaining in 0..=9;
     }
 }
 
-machine Main::step(main: &mut Main, n: u32, stride: u32)
+machine Main::step(main: &mut Main, n: u32, stride: u32) -> u32
     requires 0 <= n && n <= 9 && 1 <= stride && stride <= 5
-terminates by n in 0..=9;
--> u32 {
+terminates by n in 0..=9 {
     transition n >= stride {
         true -> Main::count(main, n - stride, stride)
         false -> n

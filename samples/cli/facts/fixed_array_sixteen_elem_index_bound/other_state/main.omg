@@ -3,11 +3,11 @@
 // Expected exit: 0
 
 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx < 16u64;
+    requires idx < 16u64
 {
     transition { _ -> element(values, idx) }
     machine element(passed_values: [u64; 16], passed_index: u64) -> u64
-        requires passed_index < 16u64;
+        requires passed_index < 16u64
     {
         passed_values[passed_index]
     }

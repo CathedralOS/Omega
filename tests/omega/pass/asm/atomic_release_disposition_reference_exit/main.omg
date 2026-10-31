@@ -8,10 +8,10 @@ boundary trait Completion {
 }
 proposition acknowledged(ack: Ack, envelope: &Envelope) = atomic_release_written<AtomicU64, u64>(&envelope.word.value, ack.nonce);
 machine write_nonce(envelope: &Envelope, nonce: u64)
-ensures atomic_release_written<AtomicU64, u64>(&envelope.word.value, nonce);
+ensures atomic_release_written<AtomicU64, u64>(&envelope.word.value, nonce)
 { envelope.word.value.store(nonce, Publish); }
 machine finish(ack: Ack, envelope: &Envelope) satisfies Completion::complete
-ensures acknowledged(ack, envelope);
+ensures acknowledged(ack, envelope)
 {
  write_nonce(envelope, ack.nonce);
 }

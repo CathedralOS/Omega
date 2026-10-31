@@ -9,8 +9,8 @@ const DIVISOR_MAX: u32 = 5u32;
 const QUOTIENT_BOUND: u32 = 50u32;
 
 machine divide_const(dividend: u32, divisor: u32) -> i32
-    requires dividend >= DIVIDEND_VAL && dividend <= DIVIDEND_VAL;
-    requires divisor >= DIVISOR_VAL && divisor <= DIVISOR_MAX;
+    requires dividend >= DIVIDEND_VAL && dividend <= DIVIDEND_VAL
+    requires divisor >= DIVISOR_VAL && divisor <= DIVISOR_MAX
 {
     let quotient: u32 = dividend / divisor;
     let check: u32 = quotient - QUOTIENT_BOUND;

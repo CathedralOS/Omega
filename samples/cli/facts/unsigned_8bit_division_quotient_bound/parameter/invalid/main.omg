@@ -4,8 +4,8 @@
 // Expected rejection: may overflow `u8`
 
 machine divide_param(dividend: u8, divisor: u8) -> i32
-    requires dividend >= 120u8 && dividend <= 120u8;
-    requires divisor >= 4u8 && divisor <= 5u8;
+    requires dividend >= 120u8 && dividend <= 120u8
+    requires divisor >= 4u8 && divisor <= 5u8
 {
     let quotient: u8 = dividend / divisor;
     let check: u8 = quotient - 30u8;

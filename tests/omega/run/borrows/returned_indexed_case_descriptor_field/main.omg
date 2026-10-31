@@ -3,10 +3,10 @@ data Node { case Number(value: u64); case Empty; }
 data Nodes { items: [Node; 2]; }
 data Selection<'storage> { node: &'storage Node; }
 machine select<'storage>(nodes: &'storage Nodes, position: u64) -> Selection<'storage>
-requires position < 2;
+requires position < 2
 { Selection { node: &nodes.items[position] } }
 machine evaluate(nodes: &Nodes, position: u64) -> u64
-requires position < 2;
+requires position < 2
 {
     let selection: Selection = select(nodes, position);
     transition selection.node {

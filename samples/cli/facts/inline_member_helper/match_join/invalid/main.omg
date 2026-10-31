@@ -20,14 +20,14 @@ Selected satisfies Sum<i32> {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures result == left + right
-    blocks;
+    blocks
     {
         add(left, right)
     }
 }
 
 machine apply<Operations satisfies Sum<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -37,7 +37,7 @@ ensures result == left + right
 
 // Place: match join. The low right arm has no bound, so the false join cannot prove combine's requires.
 machine probe(high_left: i32, high_right: i32, low_left: i32, low_right: i32, flag: bool) -> i32
-blocks;
+blocks
 requires 0 <= high_left && high_left <= 50
 requires 0 <= high_right && high_right <= 50
 requires 0 <= low_left && low_left <= 50
@@ -47,7 +47,7 @@ requires 0 <= low_left && low_left <= 50
     block apply<Selected>(left, right)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22, 10, 12, true);
     transition result == 42 { true -> done() _ -> bad() }
 

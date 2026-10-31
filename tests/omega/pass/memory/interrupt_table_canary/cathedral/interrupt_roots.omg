@@ -323,8 +323,8 @@ AcknowledgementCompletion satisfies InterruptAcknowledgementCompletion {
 machine complete_acknowledgement(acknowledgement: InterruptAcknowledgement)
 satisfies InterruptAcknowledgementCompletion::complete
 reaches MachineControl
-requires acknowledgement in InterruptAcknowledgement::Pending;
-ensures acknowledgement_completed(acknowledgement);
+requires acknowledgement in InterruptAcknowledgement::Pending
+ensures acknowledgement_completed(acknowledgement)
 {
     let index: u32 = 2059;
     let value: u64 = 0;

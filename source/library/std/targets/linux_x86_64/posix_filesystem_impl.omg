@@ -497,7 +497,7 @@ linux_x86_64 machine PosixFilesystemNativeProvider::read_file_metadata(fd: i32, 
 reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 144 { true -> query(fd, buffer) _ -> -22 }
-    machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 144; {
+    machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 144 {
         PosixFilesystemLinux::fstat(fd, &mut buffer[0])
     }
 }
@@ -515,14 +515,14 @@ reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 144 { true -> prepare(directory_descriptor, name, buffer, flags) _ -> -22 }
     machine prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
-    requires buffer.len >= 144;
+    requires buffer.len >= 144
     {
         let mut terminated: [u8; 4096];
         let fits: bool = posix_terminated_path(name, &mut terminated);
         transition fits { true -> query(directory_descriptor, terminated, buffer, flags) _ -> -36 }
     }
     machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
-    requires buffer.len >= 144;
+    requires buffer.len >= 144
     {
         PosixFilesystemLinux::newfstatat(directory_descriptor, &terminated[0], &mut buffer[0], flags)
     }
@@ -541,7 +541,7 @@ linux_x86_64 machine PosixFilesystemNativeProvider::set_file_times(fd: i32, time
 reaches FilesystemMetadataMutation
 {
     transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
-    machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
+    machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32 {
         // The raw syscall copies bytes from user storage, without a libc object.
         PosixFilesystemLinux::utimensat(fd, 0, &times[0], 0)
     }

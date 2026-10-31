@@ -1,8 +1,8 @@
 data WindowBuffer { items: [i32; 4]; }
 
 machine choose(value: u64) -> u64
-    requires 2 <= value, value <= 4;
-    ensures result >= 2, result <= 4;
+    requires 2 <= value, value <= 4
+    ensures result >= 2, result <= 4
 {
     transition value <= 4 {
         true -> value
@@ -15,7 +15,7 @@ machine take(slot: &mut i32) {
 }
 
 machine write_outside_window(context: &mut WindowBuffer, seed: u64) -> u64
-    requires 2 <= seed, seed <= 4;
+    requires 2 <= seed, seed <= 4
 {
     let split_point: u64 = choose(seed);
     let held: &mut [i32] = &mut context.items[split_point..4];

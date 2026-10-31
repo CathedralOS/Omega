@@ -45,7 +45,7 @@ requires
     limit <= 1000,
     acc <= index,
     acc <= 1000
-terminates by (index, limit) -> Nat::BoundedDistance;
+terminates by (index, limit) -> Nat::BoundedDistance
 ensures
     embed(result) >= embed(acc) + embed(limit) - embed(index)
 {

@@ -25,7 +25,7 @@ machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
         }
     }
     machine byte(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool
-    requires position < 1024;
+    requires position < 1024
     {
         transition left[position] == right[position] {
             true -> compare(left, right, position + 1)

@@ -7,7 +7,7 @@ satisfies Query::run via ForeignBinding::VtableField(query);
 
 machine main()
 reaches Query
-invokes Query;
+invokes Query
 {
     let table: Table;
     let result: i32 = Query::run(&table);

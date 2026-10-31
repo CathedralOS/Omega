@@ -9,13 +9,13 @@ data FixedBuffer<const N: u64> where N >= 1 {
 }
 
 machine FixedBuffer::set_first<const N: u64>(buffer: &mut FixedBuffer<N>, value: i32 in Wrapping)
-requires N >= 1;
+requires N >= 1
 {
     buffer.items[0] = value;
 }
 
 machine FixedBuffer::first<const Extent: u64>(buffer: &FixedBuffer<Extent>) -> i32 in Wrapping
-requires Extent >= 1;
+requires Extent >= 1
 {
     let window: &[i32 in Wrapping] = &buffer.items[..Extent];
     transition { _ -> (buffer.items[0]) }

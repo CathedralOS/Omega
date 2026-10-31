@@ -1,7 +1,6 @@
-machine reset(remaining: u32)
-requires remaining <= 4;
-terminates by remaining in 0..=5;
--> u32 {
+machine reset(remaining: u32) -> u32
+requires remaining <= 4
+terminates by remaining in 0..=5 {
     transition { _ -> step(remaining + 1) }
     machine step(current: u32) -> u32 requires current >= 1 && current <= 5 {
         transition { _ -> (reset(current - 1)) }

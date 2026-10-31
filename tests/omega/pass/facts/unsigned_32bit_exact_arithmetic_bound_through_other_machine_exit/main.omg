@@ -3,7 +3,7 @@
 // Expected exit: 0
 
 machine forward_eval(sum: u32) -> i32
-    requires sum >= 50u32 && sum <= 90u32;
+    requires sum >= 50u32 && sum <= 90u32
 {
     let headroom: u32 = 90u32 - sum;
     let margin: u32 = sum - 50u32;
@@ -16,8 +16,8 @@ machine forward_eval(sum: u32) -> i32
 }
 
 machine evaluate(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 40u32;
-    requires rhs >= 30u32 && rhs <= 50u32;
+    requires lhs >= 20u32 && lhs <= 40u32
+    requires rhs >= 30u32 && rhs <= 50u32
 {
     let sum: u32 = lhs + rhs;
     forward_eval(sum)

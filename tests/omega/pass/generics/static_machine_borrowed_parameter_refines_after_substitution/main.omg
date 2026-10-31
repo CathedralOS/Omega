@@ -20,7 +20,7 @@ data Holder<T> {
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
 requires machine Predicate(value: &T) -> bool;
-terminates by items;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty
@@ -41,7 +41,7 @@ terminates by items;
 
 machine filter_against<T, U, machine Predicate>(items: Seq<T>, bound: U) -> Seq<T>
 requires machine Predicate(value: &T, bound: &U) -> bool;
-terminates by items;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty
@@ -62,7 +62,7 @@ terminates by items;
 
 machine filter_touch<T, machine Touch>(items: Seq<T>) -> Seq<T>
 requires machine Touch(value: &mut T) -> bool;
-terminates by items;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty
@@ -85,7 +85,7 @@ terminates by items;
 
 machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
 requires machine F(value: T) -> U;
-terminates by items;
+terminates by items
 {
     transition items {
         Seq::Empty -> Seq::Empty
@@ -97,7 +97,7 @@ terminates by items;
 }
 
 machine count<T>(items: Seq<T>) -> u64
-terminates by items;
+terminates by items
 {
     transition items {
         Seq::Empty -> 0

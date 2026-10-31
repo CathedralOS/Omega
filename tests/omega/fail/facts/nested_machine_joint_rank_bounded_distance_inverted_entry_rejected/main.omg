@@ -1,8 +1,8 @@
 // Inverted coordinates cannot establish Distance formation independently.
 machine count(lower: u64, upper: u64)
 requires lower > upper
-terminates;
-terminates by (lower, upper) -> Nat::BoundedDistance;
+terminates
+terminates by (lower, upper) -> Nat::BoundedDistance
 {
     transition { _ -> forward(lower, upper) }
     machine forward(position: u64, cap: u64)

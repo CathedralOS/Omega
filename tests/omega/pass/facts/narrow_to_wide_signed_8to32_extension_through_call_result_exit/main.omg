@@ -3,14 +3,14 @@
 // Expected exit: 0
 
 machine widen(n: i8) -> i32
-    requires n >= 30i8 && n <= 100i8;
-    ensures result >= 30i32 && result <= 100i32;
+    requires n >= 30i8 && n <= 100i8
+    ensures result >= 30i32 && result <= 100i32
 {
     n as i32
 }
 
 machine extend_call_result(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 100i8;
+    requires narrow >= 30i8 && narrow <= 100i8
 {
     let wide: i32 = widen(narrow);
     let headroom: i32 = 100i32 - wide;

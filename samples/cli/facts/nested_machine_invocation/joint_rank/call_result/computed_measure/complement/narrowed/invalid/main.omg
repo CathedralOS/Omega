@@ -3,21 +3,21 @@
 data Remaining { canary: u64; values: [u64; 2]; }
 measure Remaining::Complement(value: u64) -> u64 { (~(value as u8)) as u64 }
 machine input(amount: u64) -> Remaining
-ensures result.canary == 641 && result.values[0] == amount && result.values[1] == amount;
+ensures result.canary == 641 && result.values[0] == amount && result.values[1] == amount
 { Remaining { canary: 641, values: [amount, amount] } }
 machine count(counter: &mut u64, remaining: &mut Remaining, slot: u64) crashes Trap
-terminates;
-terminates by remaining.values[slot] -> Remaining::Complement in 248..=251;
-requires slot < 2 && remaining.values[slot] >= 4 && remaining.values[slot] <= 18446744073709551615;
+terminates
+terminates by remaining.values[slot] -> Remaining::Complement in 248..=251
+requires slot < 2 && remaining.values[slot] >= 4 && remaining.values[slot] <= 18446744073709551615
 {
     transition remaining.values[slot] < 7 {
         true -> forward(remaining, slot, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: &mut Remaining, selected: u64, counter: &mut u64) crashes Trap
-    terminates;
-    terminates by pending.values[selected] -> Remaining::Complement in 248..=251;
-    requires selected < 2 && pending.values[selected] >= 4 && pending.values[selected] < 7;
+    terminates
+    terminates by pending.values[selected] -> Remaining::Complement in 248..=251
+    requires selected < 2 && pending.values[selected] >= 4 && pending.values[selected] < 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         pending.values[selected] = pending.values[selected] + 1;

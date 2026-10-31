@@ -17,8 +17,8 @@ public data Input {
 // tokens of at most four digits. Spaces and LF/EOF delimit; other bytes reject.
 public machine read(input: &mut Input)
 reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> next(input) }

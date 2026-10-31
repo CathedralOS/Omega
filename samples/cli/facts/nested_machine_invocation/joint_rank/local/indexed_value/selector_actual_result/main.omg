@@ -2,16 +2,16 @@
 // Expected exit: 0
 data Remaining { canary: u64; values: [u64; 2]; }
 machine count(counter: &mut u64, remaining: &mut Remaining, slot: u64) crashes Trap
-terminates;
-terminates by remaining.values[slot];
-requires slot < 2 && remaining.values[slot] <= 7;
+terminates
+terminates by remaining.values[slot]
+requires slot < 2 && remaining.values[slot] <= 7
 {
     transition remaining.values[slot] > 0 {
         true -> forward(remaining, slot, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: &mut Remaining, selected: u64, counter: &mut u64) crashes Trap
-    requires selected < 2 && pending.values[selected] > 0 && pending.values[selected] <= 7;
+    requires selected < 2 && pending.values[selected] > 0 && pending.values[selected] <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         pending.values[selected] = pending.values[selected] - 1;
@@ -57,7 +57,7 @@ machine main() crashes Trap {
 }
 
 machine observe_selector(observations: &mut u64, selected: u64) -> u64
-ensures result == selected;
+ensures result == selected
 {
     observations = ((observations as u64 in Wrapping) + 1) as u64;
     selected

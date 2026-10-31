@@ -4,7 +4,7 @@ data Cells { bytes: [u8; 4]; }
 data Storage { cells: Cells; }
 
 machine fill_nested(storage: &mut Storage, position: u64) -> u64
-terminates by (position, storage.cells.bytes.len) -> Nat::BoundedDistance in 0..=storage.cells.bytes.len;
+terminates by (position, storage.cells.bytes.len) -> Nat::BoundedDistance in 0..=storage.cells.bytes.len
 requires position < storage.cells.bytes.len
 {
     storage.cells.bytes[position] = 7;
@@ -15,7 +15,7 @@ requires position < storage.cells.bytes.len
 }
 
 machine fill_nested_next(storage: &mut Storage, position: u64) -> u64
-terminates by (position, storage.cells.bytes.len) -> Nat::BoundedDistance;
+terminates by (position, storage.cells.bytes.len) -> Nat::BoundedDistance
 requires position < storage.cells.bytes.len
 {
     storage.cells.bytes[position] = 7;
@@ -26,7 +26,7 @@ requires position < storage.cells.bytes.len
 }
 
 machine fill_slice(bytes: &mut [u8], position: u64) -> u64
-terminates by (position, bytes.len) -> Nat::BoundedDistance in 0..=bytes.len;
+terminates by (position, bytes.len) -> Nat::BoundedDistance in 0..=bytes.len
 requires position < bytes.len
 {
     bytes[position] = 3;
@@ -37,7 +37,7 @@ requires position < bytes.len
 }
 
 machine fill_slice_next(bytes: &mut [u8], position: u64) -> u64
-terminates by (position, bytes.len) -> Nat::BoundedDistance;
+terminates by (position, bytes.len) -> Nat::BoundedDistance
 requires position < bytes.len
 {
     bytes[position] = 3;

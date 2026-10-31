@@ -9,9 +9,8 @@ machine build(builder: &mut Build) {
     }
 }
 
-machine count_down(remaining: u64)
-terminates by remaining;
--> u64 {
+machine count_down(remaining: u64) -> u64
+terminates by remaining {
     transition remaining > 0 {
         true -> count_down(remaining - 1)
         false -> 0

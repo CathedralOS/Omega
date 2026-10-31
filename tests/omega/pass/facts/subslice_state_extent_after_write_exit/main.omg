@@ -14,7 +14,7 @@ machine trial(buffer: &mut [u8], count: u64) -> u8 {
         transition buffer.len >= 1024 { true -> extended(buffer) _ -> 0 }
     }
     machine extended(buffer: &mut [u8]) -> u8
-    requires buffer.len >= 1024;
+    requires buffer.len >= 1024
     {
         let position: u64 = buffer.len - 4;
         let saved: u8 = buffer[position];

@@ -3,7 +3,7 @@ use omega::language::core::numeric_conversion;
 use model::records;
 // Decimal output is authored here rather than relying on a numeric library.
 public machine write_number(value: i64 in Saturating) reaches Console
-invokes Console;
+invokes Console
 {
     transition value < 0 {
         true -> negative(value)
@@ -36,7 +36,7 @@ invokes Console;
     machine done() {}
 }
 public machine write_echo(index: u64 in Saturating, result: EchoResult) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write("echo ");
     write_number(narrow_u64_to_i64_saturating(index as u64) as i64 in Saturating);

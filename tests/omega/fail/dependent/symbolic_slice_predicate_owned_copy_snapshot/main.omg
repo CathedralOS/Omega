@@ -3,8 +3,8 @@
 machine valid_values(values: &[i32]) -> bool { check_values(values, values.len) }
 machine check_values(values: &[i32], remaining: u64) -> bool
 requires remaining <= values.len
-terminates;
-terminates by remaining;
+terminates
+terminates by remaining
 {
     transition remaining > 0 { true -> inspect(values, remaining) false -> (true) }
     machine inspect(values: &[i32], remaining: u64) -> bool

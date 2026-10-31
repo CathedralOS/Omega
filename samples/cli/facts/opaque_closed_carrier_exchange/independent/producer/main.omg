@@ -98,7 +98,7 @@ public AddressBridgeProvider satisfies AddressBridge {
   AddressParts::make(network, host)
  }
 }
-public machine component_entry() reaches AddressBridge, AddressParts invokes AddressBridge; invokes AddressParts; crashes Trap {
+public machine component_entry() reaches AddressBridge, AddressParts invokes AddressBridge invokes AddressParts crashes Trap {
  let address: InternetAddress = AddressBridge::make(10, 66051);
  let host: u32 = AddressParts::host(address);
  transition host == 66051 { true -> done() _ -> failed() }

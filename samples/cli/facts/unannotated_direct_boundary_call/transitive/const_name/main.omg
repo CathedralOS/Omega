@@ -8,7 +8,7 @@ public boundary trait Mark {
 MarkerMark satisfies Mark {
     machine read() -> u64 { MARK_VALUE }
 }
-public machine read_service() -> u64 invokes Mark; { Mark::read() }
+public machine read_service() -> u64 invokes Mark { Mark::read() }
 machine call_mark() -> u64 { read_service() }
 
 machine main() crashes Trap {

@@ -10,19 +10,19 @@ use omega_language_std::console;
 // place in the last three before resolution, and the selected machine must
 // still run there.
 machine clamp(value: u32) -> u32
-    requires value <= 4;
+    requires value <= 4
 {
     value + 1
 }
 
 machine max(value: u32) -> u32
-    requires value <= 4;
+    requires value <= 4
 {
     value + 40
 }
 
 machine forward(value: u32) -> u32
-    requires value <= 4;
+    requires value <= 4
 {
     max(value)
 }

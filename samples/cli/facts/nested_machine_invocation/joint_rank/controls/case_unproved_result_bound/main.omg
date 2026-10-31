@@ -2,16 +2,16 @@
 // Expected rejection: cannot prove requires contract for call count
 data Remaining { canary: u64; case Pending(count: u64); case Empty; }
 machine count(counter: &mut u64, remaining: Remaining) crashes Trap
-terminates;
-terminates by remaining.count;
-requires remaining in Remaining::Pending, remaining.count <= 7;
+terminates
+terminates by remaining.count
+requires remaining in Remaining::Pending, remaining.count <= 7
 {
     transition remaining.count > 0 {
         true -> forward(remaining, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: Remaining, counter: &mut u64) crashes Trap
-    requires pending in Remaining::Pending, pending.count > 0 && pending.count <= 7;
+    requires pending in Remaining::Pending, pending.count > 0 && pending.count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         let next: Remaining = Remaining::Pending { canary: pending.canary, count: pending.count - 1 };
@@ -24,7 +24,7 @@ requires remaining in Remaining::Pending, remaining.count <= 7;
     machine bad() crashes Trap { crash Trap; }
 }
 machine input(select: bool) -> Remaining
-ensures result in Remaining::Pending;
+ensures result in Remaining::Pending
 { match select { true -> Remaining::Pending { canary: 641, count: 8 } false -> Remaining::Pending { canary: 641, count: 0 } } }
 machine perform(counter: &mut u64, select: bool) crashes Trap {
     let received: Remaining = input(select);

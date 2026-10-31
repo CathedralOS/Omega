@@ -28,11 +28,11 @@ machine ordered_prefix(sequence: &mut Sequence) -> u64 {
     sequence.digits = sequence.digits * 10 + 1;
     17
 }
-machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0; {
+machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0 {
     sequence.digits = sequence.digits * 10 + 2;
     0
 }
-machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3; {
+machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3 {
     sequence.digits = sequence.digits * 10 + 3;
     3
 }
@@ -55,7 +55,7 @@ machine from_ordered(payload: Payload) -> CountResult {
 }
 
 machine from_owned(payload: Payload) -> CountResult
-requires payload.length <= payload.bytes.len;
+requires payload.length <= payload.bytes.len
 {
     let count: u64 = Selected::count(17, payload.bytes[0..payload.length], 23);
     let mut observed: Observation;
@@ -66,11 +66,11 @@ requires payload.length <= payload.bytes.len;
     }
 }
 machine from_borrowed(payload: &Payload) -> CountResult
-requires payload.length <= payload.bytes.len;
+requires payload.length <= payload.bytes.len
 {
     transition { _ -> inspect(payload) }
     machine inspect(payload: &Payload) -> CountResult
-    requires payload.length <= payload.bytes.len;
+    requires payload.length <= payload.bytes.len
     {
         let count: u64 = ByteObserver::count<Selected>(17, payload.bytes[0..payload.length], 23);
         CountResult::Ok { count: count }
@@ -90,7 +90,7 @@ machine main() crashes Trap {
         CountResult::Ok { count } -> borrowed(payload, count)
     }
     machine borrowed(payload: Payload, previous: u64)
-    requires payload.length == 3;
+    requires payload.length == 3
     {
         let result: CountResult = from_borrowed(&payload);
         transition result {
@@ -99,7 +99,7 @@ machine main() crashes Trap {
         }
     }
     machine view(payload: Payload, owned: u64, borrowed: u64)
-    requires payload.length == 3;
+    requires payload.length == 3
     {
         let result: CountResult = from_view(payload.bytes[0..payload.length]);
         transition result {

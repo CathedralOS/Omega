@@ -3,7 +3,7 @@
 
 machine loop_calc(remaining: u64, accumulated: u64) -> u64
 requires remaining <= 10 && accumulated == 100
-terminates by remaining;
+terminates by remaining
 ensures result >= 100 && result <= 100
 {
     transition remaining > 0 {

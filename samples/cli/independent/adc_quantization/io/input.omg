@@ -4,8 +4,8 @@ use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 public machine number() -> i64 in Wrapping reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan(0, false, false, false) }

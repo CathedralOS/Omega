@@ -27,20 +27,20 @@ machine Main::main(context: &mut Main) reaches Console {
         }
     }
     machine positive_expression(context: &mut Main, value: i8 in Saturating, count: u64)
-    requires count <= 7;
+    requires count <= 7
     {
         // Clamp at the operation, without a destination's landing policy.
         transition (value << count) == 127 { true -> negative(context, count) _ -> bad(context) }
     }
     machine negative(context: &mut Main, count: u64)
-    requires count <= 7;
+    requires count <= 7
     {
         let value: i8 in Saturating = -1;
         let result: i8 in Saturating = value << count;
         transition result == -128 { true -> right_shift(context, count) _ -> bad(context) }
     }
     machine right_shift(context: &mut Main, count: u64)
-    requires count <= 7;
+    requires count <= 7
     {
         let value: i8 in Saturating = -128;
         let result: i8 in Saturating = value >> count;

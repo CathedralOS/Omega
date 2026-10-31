@@ -15,7 +15,7 @@ via ForeignBinding::CompilerIntrinsic;
 machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> StartOutcome<T, Arguments>
-requires machine Target(arguments: Arguments) -> T suspends; blocks;
+requires machine Target(arguments: Arguments) -> T suspends blocks;
 satisfies TaskRuntime::try_start
 via ForeignBinding::CompilerIntrinsic;
 

@@ -30,7 +30,7 @@ ensures
 
 machine Main::set_label(main: &mut Main) crashes Trap
 ensures
-    main.label.storage in Utf8;
+    main.label.storage in Utf8
 ensures
     main.count < 4
 {
@@ -104,17 +104,17 @@ machine Buffer16::equal(buffer: &Buffer16, expected: &[u8]) -> bool crashes Trap
 }
 
 machine Buffer16::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
-requires start <= 16; bytes.len <= 16 - start {
+requires start <= 16, bytes.len <= 16 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
     machine copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
-    requires start <= 16; index <= 16 {
+    requires start <= 16, index <= 16 {
         transition index < bytes.len && start + index < 16 {
             true -> writing(storage, bytes, start, index)
             _ -> done()
         }
     }
     machine writing(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
-    requires start <= 16; index < 16; index < bytes.len; start + index < 16 {
+    requires start <= 16, index < 16, index < bytes.len, start + index < 16 {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
     }
@@ -126,7 +126,7 @@ machine Buffer16::join(left: &[u8], right: &[u8]) -> Buffer16 crashes Trap {
         false -> bad()
     }
     machine joining(left: &[u8], right: &[u8]) -> Buffer16
-    requires left.len <= 16; right.len <= 16 - left.len {
+    requires left.len <= 16, right.len <= 16 - left.len {
         let mut storage: [u8; 16];
         Buffer16::copy(&mut storage, left, 0);
         Buffer16::copy(&mut storage, right, left.len);

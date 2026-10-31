@@ -5,11 +5,11 @@
 // Expected exit: 0
 data Payload [copy] { bytes: [u8; 8]; }
 data Sequence [copy] { digits: u64 in Wrapping; }
-machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0; {
+machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0 {
     sequence.digits = sequence.digits * 10 + 2;
     0
 }
-machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3; {
+machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3 {
     sequence.digits = sequence.digits * 10 + 3;
     3
 }

@@ -4,9 +4,9 @@
 // Expected rejection: may overflow `u32`
 
 machine compute_wrap_prod(l: u32, r: u32) -> u32
-    requires l >= 10u32 && l <= 21u32;
-    requires r >= 5u32 && r <= 10u32;
-    ensures result >= 50u32 && result <= 210u32;
+    requires l >= 10u32 && l <= 21u32
+    requires r >= 5u32 && r <= 10u32
+    ensures result >= 50u32 && result <= 210u32
 {
     let a: u32 in Wrapping = l as u32 in Wrapping;
     let b: u32 in Wrapping = r as u32 in Wrapping;
@@ -15,8 +15,8 @@ machine compute_wrap_prod(l: u32, r: u32) -> u32
 }
 
 machine multiply_call_result(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 10u32 && lhs <= 21u32;
-    requires rhs >= 5u32 && rhs <= 10u32;
+    requires lhs >= 10u32 && lhs <= 21u32
+    requires rhs >= 5u32 && rhs <= 10u32
 {
     let prod: u32 = compute_wrap_prod(lhs, rhs);
     let headroom: u32 = 200u32 - prod;

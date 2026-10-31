@@ -9,7 +9,7 @@ use omega_language_std::console;
 data Main { bytes: [u8; 8]; more: [u8; 6]; }
 
 machine fill(bytes: &mut [u8; 8], index: u64) -> u64
-terminates by (index, 8) -> Nat::BoundedDistance;
+terminates by (index, 8) -> Nat::BoundedDistance
 requires index < 8
 {
     bytes[index] = 7;
@@ -20,7 +20,7 @@ requires index < 8
 }
 
 machine fill_slice(bytes: &mut [u8], index: u64) -> u64
-terminates by (index, bytes.len) -> Nat::BoundedDistance;
+terminates by (index, bytes.len) -> Nat::BoundedDistance
 requires index < bytes.len
 {
     bytes[index] = 5;

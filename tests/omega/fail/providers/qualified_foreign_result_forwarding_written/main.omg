@@ -21,6 +21,6 @@ machine clear(protocol: &mut Guid) -> u64 {
 // An eager sibling writes the referent before the foreign invocation begins.
 machine wrong(table: &Table, protocol: &mut Guid) -> Status
 requires protocol in Guid::Selected
-ensures result.code == 0; {
+ensures result.code == 0 {
     Table::read(table, protocol, clear(protocol))
 }

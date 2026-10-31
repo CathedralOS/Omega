@@ -12,7 +12,7 @@ data Chain<Count: u64, Weight: u64>
 let preserve<Count: u64, Weight: u64>(value: Chain<Count, Weight>): Chain<Count, Weight> = value;
 
 machine chain_bound<Count: u64, Weight: u64>(evidence [erased]: Chain<Count, Weight>)
-terminates by Count;
+terminates by Count
 ensures embed(Weight) <= 10 * embed(Count)
 {
     transition evidence {

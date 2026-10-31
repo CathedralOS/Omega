@@ -40,14 +40,14 @@ macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, words: &[
 linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, words: &[u16; 3], count: u64) -> i64
     satisfies DescriptorIo::write via linux_x86_64_write_binding();
 
-machine receive(words: &mut [u16; 3]) -> i64 reaches DescriptorIo blocks; {
+machine receive(words: &mut [u16; 3]) -> i64 reaches DescriptorIo blocks {
     transition { _ -> read(words) }
     machine read(words: &mut [u16; 3]) -> i64 {
         block DescriptorIo::read(0, words, 6)
     }
 }
 
-machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks crashes Trap {
     let mut words: [u16; 3] = [21845, 21845, 11442];
     let moved: i64 = block receive(&mut words);
     let at_end: i64 = block DescriptorIo::read(0, &mut words, 6);
@@ -62,7 +62,7 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches DescriptorIo blocks; crashes Trap {
+machine entry_start() reaches DescriptorIo blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

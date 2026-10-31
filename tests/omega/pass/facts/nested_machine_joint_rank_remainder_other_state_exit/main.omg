@@ -18,18 +18,18 @@ machine perform(counter: &mut u64, active: bool, second: bool) crashes Trap {
     machine bad() crashes Trap { crash Trap; }
 
     machine count(counter: &mut u64, remaining: &mut Remaining, slot: u64) crashes Trap
-    terminates;
-    terminates by remaining.values[slot] -> Remaining::LowBits in 0..=3;
-    requires slot < 2 && remaining.values[slot] >= 4 && remaining.values[slot] <= 7;
+    terminates
+    terminates by remaining.values[slot] -> Remaining::LowBits in 0..=3
+    requires slot < 2 && remaining.values[slot] >= 4 && remaining.values[slot] <= 7
     {
         transition remaining.values[slot] > 4 {
             true -> forward(remaining, slot, counter)
             false -> finish(remaining.canary)
         }
         machine forward(pending: &mut Remaining, selected: u64, counter: &mut u64) crashes Trap
-        terminates;
-        terminates by pending.values[selected] -> Remaining::LowBits in 0..=3;
-        requires selected < 2 && pending.values[selected] > 4 && pending.values[selected] <= 7;
+        terminates
+        terminates by pending.values[selected] -> Remaining::LowBits in 0..=3
+        requires selected < 2 && pending.values[selected] > 4 && pending.values[selected] <= 7
         {
             counter = ((counter as u64 in Wrapping) + 1) as u64;
             pending.values[selected] = pending.values[selected] - 1;

@@ -245,15 +245,15 @@ via windows_c_set_last_error_binding();
 NativeWindowsFilesystemImports satisfies WindowsFilesystemIo {
     machine c_create_file(path: &[u16; 4096] in WindowsNativePath, desired_access: u32, share_mode: u32, security_attributes: u64, creation_disposition: u32, flags_and_attributes: u32, template: u64) -> i64
     requires security_attributes == 0 && template == 0
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation blocks;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation blocks
     { block WindowsFilesystemImports::c_create_file(path, desired_access, share_mode, security_attributes, creation_disposition, flags_and_attributes, template) }
-    machine c_close_handle(handle: i64) -> i32 blocks;
+    machine c_close_handle(handle: i64) -> i32 blocks
     { block WindowsFilesystemImports::c_close_handle(handle) }
     machine c_get_last_error() -> u32
     { WindowsFilesystemImports::c_get_last_error() }
-    machine c_flush_file_buffers(handle: i64) -> i32 blocks;
+    machine c_flush_file_buffers(handle: i64) -> i32 blocks
     { block WindowsFilesystemImports::c_flush_file_buffers(handle) }
-    machine c_set_file_pointer(handle: i64, distance: i64, position: &mut i64, method: u32) -> i32 blocks;
+    machine c_set_file_pointer(handle: i64, distance: i64, position: &mut i64, method: u32) -> i32 blocks
     { block WindowsFilesystemImports::c_set_file_pointer(handle, distance, position, method) }
     machine c_get_current_process() -> i64
     { WindowsFilesystemImports::c_get_current_process() }
@@ -261,45 +261,45 @@ NativeWindowsFilesystemImports satisfies WindowsFilesystemIo {
     { WindowsFilesystemImports::c_duplicate_handle(source_process, source, target_process, target, desired_access, inherit, options) }
     machine c_set_file_attributes(path: &[u16; 4096] in WindowsNativePath, attributes: u32) -> i32
 
-    reaches FilesystemMetadataMutation blocks;
+    reaches FilesystemMetadataMutation blocks
     { block WindowsFilesystemImports::c_set_file_attributes(path, attributes) }
     machine c_move_file(from: &[u16; 4096] in WindowsNativePath, to: &[u16; 4096] in WindowsNativePath, flags: u32) -> i32
 
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation blocks;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation blocks
     { block WindowsFilesystemImports::c_move_file(from, to, flags) }
     machine c_rename_file(from: &[u16; 4096] in WindowsNativePath, to: &[u16; 4096] in WindowsNativePath, flags: u32) -> i32
     requires flags == 1
-    reaches FilesystemNamespaceMutation blocks;
+    reaches FilesystemNamespaceMutation blocks
     { block WindowsFilesystemImports::c_rename_file(from, to, flags) }
     machine c_hard_link(link: &[u16; 4096] in WindowsNativePath, original: &[u16; 4096] in WindowsNativePath, security_attributes: u64) -> i32
     requires security_attributes == 0
-    reaches FilesystemNamespaceMutation blocks;
+    reaches FilesystemNamespaceMutation blocks
     { block WindowsFilesystemImports::c_hard_link(link, original, security_attributes) }
     machine c_create_directory(path: &[u16; 4096] in WindowsNativePath, security_attributes: u64) -> i32
     requires security_attributes == 0
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation blocks;
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation blocks
     { block WindowsFilesystemImports::c_create_directory(path, security_attributes) }
     machine c_remove_directory(path: &[u16; 4096] in WindowsNativePath) -> i32
 
-    reaches FilesystemNamespaceMutation blocks;
+    reaches FilesystemNamespaceMutation blocks
     { block WindowsFilesystemImports::c_remove_directory(path) }
     machine c_delete_file(path: &[u16; 4096] in WindowsNativePath) -> i32
 
-    reaches FilesystemNamespaceMutation blocks;
+    reaches FilesystemNamespaceMutation blocks
     { block WindowsFilesystemImports::c_delete_file(path) }
     machine c_set_file_time(handle: i64, creation_time: u64, access_time: &[u32; 2], write_time: &[u32; 2]) -> i32
     requires creation_time == 0
-    reaches FilesystemMetadataMutation blocks;
+    reaches FilesystemMetadataMutation blocks
     { block WindowsFilesystemImports::c_set_file_time(handle, creation_time, access_time, write_time) }
     machine c_get_file_time(handle: i64, creation_time: u64, access_time: &mut u64, write_time: &mut u64) -> i32
     requires creation_time == 0
-    reaches FilesystemMetadataQuery blocks;
+    reaches FilesystemMetadataQuery blocks
     { block WindowsFilesystemImports::c_get_file_time(handle, creation_time, access_time, write_time) }
     machine c_set_last_error(code: u32)
     { WindowsFilesystemImports::c_set_last_error(code) }
     machine c_file_mode(handle: i64, status: &mut WindowsFilesystemIoStatus, mode: &mut u32, length: u32, information_class: u32) -> i32
     requires length == 4 && information_class == 16
-    blocks;
+    blocks
     { block WindowsFilesystemImports::c_file_mode(handle, status, mode, length, information_class) }
     machine c_status_to_error(status: i32) -> u32
     { WindowsFilesystemImports::c_status_to_error(status) }

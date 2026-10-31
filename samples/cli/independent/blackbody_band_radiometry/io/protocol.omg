@@ -20,7 +20,7 @@ data Protocol {
 // reads at most 256 bytes, and rejects rather than wrapping decimal overflow.
 machine Protocol::read(protocol: &mut Protocol) -> bool
 reaches Console
-blocks;
+blocks
 crashes Trap
 {
     protocol.position = 0;

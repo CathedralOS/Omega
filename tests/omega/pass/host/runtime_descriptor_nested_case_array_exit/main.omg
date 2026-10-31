@@ -71,7 +71,7 @@ machine publish(variant: &Variant) -> i64 reaches ByteIo {
         ByteIo::write(1, &bytes.values)
     }
 }
-machine Main::main(main: &mut Main) reaches PacketIo, ByteIo blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches PacketIo, ByteIo blocks crashes Trap {
     let mut envelope: Envelope = Envelope {
         prefix: 17,
         variant: Variant::Left { revision: 7, value: 9, bytes: Bytes { values: [65, 66, 67, 10] } },
@@ -89,7 +89,7 @@ machine Main::main(main: &mut Main) reaches PacketIo, ByteIo blocks; crashes Tra
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches PacketIo, ByteIo blocks; crashes Trap {
+machine entry_start() reaches PacketIo, ByteIo blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -4,20 +4,18 @@ machine Main::main(main: &mut Main) -> u64 {
     transition { _ -> Main::first(main, 2, 6, 6) }
 }
 
-machine Main::first(main: &mut Main, floor: u64, remaining: u64, ceiling: u64)
-requires floor <= remaining && remaining <= ceiling;
-terminates by remaining in floor..=ceiling;
--> u64 {
+machine Main::first(main: &mut Main, floor: u64, remaining: u64, ceiling: u64) -> u64
+requires floor <= remaining && remaining <= ceiling
+terminates by remaining in floor..=ceiling {
     transition remaining > floor {
         true -> Main::second(main, ceiling, remaining, floor)
         false -> remaining
     }
 }
 
-machine Main::second(main: &mut Main, upper: u64, pending: u64, lower: u64)
-requires lower <= pending && pending <= upper;
-terminates by pending in lower..=upper;
--> u64 {
+machine Main::second(main: &mut Main, upper: u64, pending: u64, lower: u64) -> u64
+requires lower <= pending && pending <= upper
+terminates by pending in lower..=upper {
     transition pending > lower {
         true -> Main::first(main, lower, pending - 1, upper)
         false -> pending

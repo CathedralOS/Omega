@@ -11,8 +11,8 @@ public data Reader {
 }
 
 public machine Reader::next(reader: &mut Reader) reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     reader.value = 0;

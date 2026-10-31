@@ -2,8 +2,8 @@ data Countdown { remaining: u64; }
 measure Countdown::Remaining(value: Countdown) -> u64 { value.remaining }
 
 machine walk(mut value: Countdown) -> u64
-requires value.remaining <= 5;
-terminates by value -> Countdown::Remaining in 0..=5;
+requires value.remaining <= 5
+terminates by value -> Countdown::Remaining in 0..=5
 {
     let ready: bool = value.remaining > 0;
     value.remaining = 0;

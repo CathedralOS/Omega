@@ -2,7 +2,7 @@
 // Expected exit: 0
 
 machine remainder_bounded(dividend: u32, divisor: u32) -> i32
-    requires divisor >= 16u32 && divisor <= 16u32;
+    requires divisor >= 16u32 && divisor <= 16u32
 {
     let rem: u32 = dividend % divisor;
     let headroom: u32 = 15u32 - rem;

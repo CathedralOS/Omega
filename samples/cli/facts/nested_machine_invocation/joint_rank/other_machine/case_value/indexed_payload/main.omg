@@ -3,16 +3,16 @@
 data Cell [copy] { stamp: u64; case Pending(count: u64); case Empty; }
 data Remaining { canary: u64; values: [Cell; 2]; tail: u64; }
 machine count(counter: &mut u64, remaining: &mut Remaining, slot: u64) crashes Trap
-terminates;
-terminates by remaining.values[slot].count;
-requires slot < 2, remaining.values[slot] in Cell::Pending, remaining.values[slot].count <= 7;
+terminates
+terminates by remaining.values[slot].count
+requires slot < 2, remaining.values[slot] in Cell::Pending, remaining.values[slot].count <= 7
 {
     transition remaining.values[slot].count > 0 {
         true -> forward(remaining, slot, counter)
         false -> finish(remaining.canary)
     }
     machine forward(pending: &mut Remaining, selected: u64, counter: &mut u64) crashes Trap
-    requires selected < 2, pending.values[selected] in Cell::Pending, pending.values[selected].count > 0 && pending.values[selected].count <= 7;
+    requires selected < 2, pending.values[selected] in Cell::Pending, pending.values[selected].count > 0 && pending.values[selected].count <= 7
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
         pending.values[selected].count = pending.values[selected].count - 1;
@@ -25,13 +25,13 @@ requires slot < 2, remaining.values[slot] in Cell::Pending, remaining.values[slo
     machine bad() crashes Trap { crash Trap; }
 }
 machine input(active: bool) -> Remaining
-ensures (result.values[0] in Cell::Pending && result.values[0].count <= 7) && (result.values[1] in Cell::Pending && result.values[1].count <= 7);
+ensures (result.values[0] in Cell::Pending && result.values[0].count <= 7) && (result.values[1] in Cell::Pending && result.values[1].count <= 7)
 {
     let amount: u64 = match active { true -> 7 false -> 0 };
     Remaining { canary: 641, values: [Cell::Pending { stamp: 413, count: amount }, Cell::Pending { stamp: 919, count: amount }], tail: 967 }
 }
 machine invoke(counter: &mut u64, received: &mut Remaining, slot: u64) crashes Trap
-requires slot < 2, received.values[slot] in Cell::Pending, received.values[slot].count <= 7;
+requires slot < 2, received.values[slot] in Cell::Pending, received.values[slot].count <= 7
 { count(counter, received, slot); }
 machine perform(counter: &mut u64, active: bool, second: bool) crashes Trap {
     let amount: u64 = match active { true -> 7 false -> 0 };
