@@ -62,7 +62,12 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The customer reuses one parser across sixteen invocations. Complete
+The current customer reuses one parser across twenty invocations. Four header
+controls were added after the historical sixteen-invocation observations below:
+termination and reach clauses in both orders retain their exact ranges, and
+obsolete clause semicolons refuse without being consumed as separators.
+The new bound subject is awaiting its lower-chain execution; the historical
+timings and outcomes below retain their original subjects. Complete
 inputs cover decimal expressions and transition guards, a named struct literal,
 a cast domain, reference/array/constrained types, and an externally bound
 satisfying clause. Data predicates retain ordinary expression roots, repeated
@@ -197,10 +202,10 @@ or proof evidence. No Windows profiling result is claimed.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 10,867 bytes, SHA-256
-`42e53e69af142994a46558d311bcb0d5e1ffdddf17760173c76229f19cd45555`, and packs
-on top of the bound member closure to 582,785 bytes, SHA-256
-`3ceb640563ef2ce57dd3089bbc117a7345813b06dbf800acf18419339d1b1364`.
+The [customer](main.epsilon) entry is bound at 12,762 bytes, SHA-256
+`a87644b6264ae90ea6adca2f46ea1c9faa53b4484da79a9fbfa1f219a26ca823`, and packs
+on top of the bound member closure to 584,628 bytes, SHA-256
+`d58391eac0c7acb3226e562385d6038806422b5e61b5ee0f00a4d58f98d39107`.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

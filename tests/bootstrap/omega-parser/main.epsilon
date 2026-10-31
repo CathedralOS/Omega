@@ -20,6 +20,18 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine ext() satisfies Service::f via Binding::CompilerIntrinsic;");
     self.check_external_rows();
 
+    self.parser.parse_view("machine p() terminates by n -> Ordinal::Down reaches Console {}");
+    self.check_header_rows(0, 1, 44, 60);
+
+    self.parser.parse_view("machine p() reaches Console terminates by n -> Ordinal::Down {}");
+    self.check_header_rows(1, 0, 60, 27);
+
+    self.parser.parse_view("machine p() terminates by n -> Ordinal::Down; {}");
+    self.check_incomplete(44, 45);
+
+    self.parser.parse_view("machine p() reaches Console; {}");
+    self.check_incomplete(27, 28);
+
     // A previous complete clause must not satisfy this invocation's count guard.
     self.parser.parse_view("machine p() via Binding::CompilerIntrinsic;");
     self.check_incomplete(12, 15);
@@ -258,6 +270,34 @@ machine Main::check_external_rows(&mut self) {
     state binding() {
         transition self.parser.machine_clauses[0].external_binding_kind {
             OmegaExternalBindingKind::CompilerIntrinsic -> return
+        }
+    }
+}
+
+// Supported callable clauses retain their exact subject/view and service
+// ranges while the declaration owns the body boundary. Reverse ordering
+// exercises both continuations through the shared header owner.
+machine Main::check_header_rows(&mut self, termination: i32, reached: i32, termination_end: i32, reaches_end: i32) {
+    self.check_complete();
+    assert self.parser.root_count == 1;
+    assert self.parser.machine_count == 1;
+    assert self.parser.machine_state_count == 1;
+    assert self.parser.machine_clause_count == 2;
+    assert self.parser.machine_items[0].first_clause == 0;
+    assert self.parser.machine_items[0].clause_count == 2;
+    assert self.parser.machine_clauses[termination].member_count == 1;
+    assert self.parser.machine_clauses[termination].view_member_count == 2;
+    assert self.parser.machine_clauses[termination].end == termination_end;
+    assert self.parser.machine_clauses[reached].member_count == 1;
+    assert self.parser.machine_clauses[reached].end == reaches_end;
+    transition self.parser.machine_clauses[termination].kind {
+        OmegaMachineClauseKind::Terminates -> service(reached)
+        _ -> self.console.exit_process(1)
+    }
+    state service(reached: i32) {
+        transition self.parser.machine_clauses[reached].kind {
+            OmegaMachineClauseKind::Reaches -> return
+            _ -> self.console.exit_process(1)
         }
     }
 }
