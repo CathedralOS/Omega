@@ -2,6 +2,7 @@
 //! The namespace is exact toolchain data; ordinary same-named calls keep their
 //! normal path. Final Product admission owns declaration visibility and roles.
 
+use super::expression::lower_static_machine_argument;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, ProductDeclarationOperand, ProductDeclarationRequest,
@@ -103,12 +104,7 @@ pub(crate) fn request(
         .with_source_span(span));
     }
     let requirement = if operation == BuildOperation::ProviderReadiness {
-        let operand = super::expression::lower_static_machine_argument(
-            Some(source),
-            typed,
-            exposure,
-            &operands[0],
-        )?;
+        let operand = lower_static_machine_argument(Some(source), typed, exposure, &operands[0])?;
         let reference = typed
             .static_operand_type_reference(&operand)
             .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;

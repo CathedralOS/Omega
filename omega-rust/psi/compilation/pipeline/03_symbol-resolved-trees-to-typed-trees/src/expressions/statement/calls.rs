@@ -4,6 +4,7 @@ use crate::tables::expression_table_mut;
 use crate::tables::resolved_statements;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use typed::statement::StatementNode;
 use typed_trees as typed;
 
 use super::arguments::{lower_statement_argument_span, lower_statement_path_members};
@@ -11,7 +12,7 @@ use super::arguments::{lower_statement_argument_span, lower_statement_path_membe
 pub(super) fn lower_call_statement(
     lowerer: &mut Lowerer,
     call: &resolved::statement::TableCall,
-) -> Result<typed::statement::StatementNode, Diagnostic> {
+) -> Result<StatementNode, Diagnostic> {
     if let Some(operation) = crate::expressions::product_queries::operation(
         lowerer.source_trees,
         call.receiver_symbol,
@@ -47,7 +48,7 @@ pub(super) fn lower_call_statement(
             .find(|signature| signature.symbol == operation.target)
             .ok_or_else(|| Diagnostic::error("Product query lost its exact operation"))?;
         lowered.target = crate::lowerer::name::lower_name(&signature.name);
-        return Ok(typed::statement::StatementNode::Call(lowered));
+        return Ok(StatementNode::Call(lowered));
     }
     if let Some(request) = crate::expressions::product_selections::request(
         lowerer.source_trees,
@@ -79,11 +80,9 @@ pub(super) fn lower_call_statement(
         )?;
         expression_table_mut(&mut lowerer.typed_trees)
             .attach_authored_selection_occurrences(expression, occurrences);
-        return Ok(typed::statement::StatementNode::Expression(expression));
+        return Ok(StatementNode::Expression(expression));
     }
-    Ok(typed::statement::StatementNode::Call(lower_ordinary_call(
-        lowerer, call,
-    )?))
+    Ok(StatementNode::Call(lower_ordinary_call(lowerer, call)?))
 }
 
 fn lower_ordinary_call(

@@ -22,12 +22,15 @@ mod hoist_temp_type;
 mod root_bindings;
 mod transitions;
 
+use crate::contracts::proof_facts::lower_statement_fact;
+use crate::expressions::expression::native_code_layout::result_type;
 use crate::lowerer::Lowerer;
 use crate::tables::expression_table_mut;
 use crate::tables::type_references;
 use crate::type_reference::lower_type_reference_handle_from_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use typed::statement::TableLocalData;
 use typed_trees as typed;
 
 use self::arguments::lower_statement_expression;
@@ -78,10 +81,7 @@ fn lower_statement_node(
                         typed::statement::AssemblyFactKind::Ensures
                     }
                 },
-                fact: crate::contracts::proof_facts::lower_statement_fact(
-                    lowerer,
-                    fact.expression,
-                )?,
+                fact: lower_statement_fact(lowerer, fact.expression)?,
             }),
         ),
         resolved::statement::StatementNode::Assignment(assignment) => Ok(
@@ -105,10 +105,7 @@ fn lower_statement_node(
                 call.evidence_arguments.len(),
             )?;
             request.discards_result = true;
-            let result = crate::expressions::expression::native_code_layout::result_type(
-                Some(lowerer.source_trees),
-                &mut lowerer.typed_trees,
-            )?;
+            let result = result_type(Some(lowerer.source_trees), &mut lowerer.typed_trees)?;
             let expression = lowerer.typed_trees.expression_table.insert(
                 typed::expression::ExpressionNode::Call(typed::expression::TableCallExpression {
                     authored_call_selection: call.authored_call_selection,
@@ -178,24 +175,22 @@ fn lower_statement_node(
                 Some(type_reference) => type_reference,
                 None => lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?,
             };
-            Ok(typed::statement::StatementNode::LocalData(
-                typed::statement::TableLocalData {
-                    role: local_data.role,
-                    symbol: local_data.symbol,
-                    name: crate::lowerer::name::lower_name(&local_data.name),
-                    type_reference,
-                    initial_value: local_data
-                        .initial_value
-                        .is_valid()
-                        .then(|| lower_statement_expression(lowerer, local_data.initial_value))
-                        .transpose()?
-                        .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
-                    is_mutable: local_data.is_mutable,
-                    type_is_inferred: local_data.type_is_inferred,
-                    is_operand_capture: local_data.is_operand_capture,
-                    relevance: local_data.relevance,
-                },
-            ))
+            Ok(typed::statement::StatementNode::LocalData(TableLocalData {
+                role: local_data.role,
+                symbol: local_data.symbol,
+                name: crate::lowerer::name::lower_name(&local_data.name),
+                type_reference,
+                initial_value: local_data
+                    .initial_value
+                    .is_valid()
+                    .then(|| lower_statement_expression(lowerer, local_data.initial_value))
+                    .transpose()?
+                    .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
+                is_mutable: local_data.is_mutable,
+                type_is_inferred: local_data.type_is_inferred,
+                is_operand_capture: local_data.is_operand_capture,
+                relevance: local_data.relevance,
+            }))
         }
         resolved::statement::StatementNode::Transition(transition) => {
             Ok(typed::statement::StatementNode::Transition(

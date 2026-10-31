@@ -1,5 +1,5 @@
 use crate::lowerer::Lowerer;
-use crate::lowerer::name::lower_names;
+use crate::lowerer::name::{lower_name, lower_names};
 use crate::signatures::parameters::state_parameter;
 use crate::signatures::type_parameters::lower_type_parameters;
 use crate::type_reference::lower_type_reference_into_table;
@@ -25,10 +25,9 @@ pub(crate) fn lower_operator_definition(
     };
 
     for member in lowerer.source_trees.operator_path_members(operator.name) {
-        lowerer.typed_trees.push_operator_path_member(
-            &mut typed_operator,
-            crate::lowerer::name::lower_name(member),
-        );
+        lowerer
+            .typed_trees
+            .push_operator_path_member(&mut typed_operator, lower_name(member));
     }
 
     typed_operator.type_parameters = lower_type_parameters(lowerer, operator.type_parameters)?;

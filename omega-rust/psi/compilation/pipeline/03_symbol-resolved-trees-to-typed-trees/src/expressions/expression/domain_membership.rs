@@ -1,7 +1,9 @@
 use super::lower_expression_handle_from_table_with_symbol_substitution;
+use crate::expressions::exhaustiveness::data_definition_index;
 use crate::lowerer::name::lower_name;
 use crate::tables::expression_table;
 use crate::tables::expression_table_mut;
+use crate::type_reference::domain_aliases::expand_domain_reference;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -205,11 +207,8 @@ pub(super) fn lower_domain_membership_expression(
             "cannot form named-domain membership: the logical data subject's own default domain is still pending admission",
         ).with_source_span(target.expression_table.source_span(value)));
     }
-    let expanded = crate::type_reference::domain_aliases::expand_domain_reference(
-        program,
-        domain_symbol,
-        vec![domain_definition.name.clone()],
-    )?;
+    let expanded =
+        expand_domain_reference(program, domain_symbol, vec![domain_definition.name.clone()])?;
     let mut lowered = Vec::with_capacity(expanded.len());
     for atom in expanded {
         lowered.push(lower_atomic_domain_membership_expression(
@@ -335,9 +334,7 @@ fn case_symbols_for_domain_fact(
     let [type_name, case_name] = program.domain_path_members(domain) else {
         return (SymbolHandle::invalid(), SymbolHandle::invalid());
     };
-    let Some(data_index) =
-        crate::expressions::exhaustiveness::data_definition_index(program, type_name)
-    else {
+    let Some(data_index) = data_definition_index(program, type_name) else {
         return (SymbolHandle::invalid(), SymbolHandle::invalid());
     };
     let data = &program.data_definitions[data_index];

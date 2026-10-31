@@ -3,6 +3,7 @@
 //! artifact metadata; source typing retains only its ordinary record carrier.
 
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
 use symbol_resolved_trees as resolved;
 use symbols::SymbolKind;
 use typed_trees as typed;
@@ -10,9 +11,7 @@ use typed_trees as typed;
 pub(crate) fn lower_request(
     program: Option<&resolved::SymbolResolvedTrees>,
     target: &mut typed::TypedTrees,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
+    exposure: Option<SelectionExposure>,
     operands: &[resolved::expression::StaticMachineArgument],
     value_count: usize,
     evidence_count: usize,

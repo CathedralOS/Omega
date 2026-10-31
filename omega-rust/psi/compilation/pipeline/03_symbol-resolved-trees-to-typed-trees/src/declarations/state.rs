@@ -7,6 +7,7 @@ use diagnostics::Diagnostic;
 use language_semantics::CallOperationalAcknowledgementOrigin;
 use symbol_resolved_trees as resolved;
 use symbols::SymbolHandle;
+use typed::expression::ExpressionHandle;
 use typed_trees as typed;
 
 /// Lower the declaration once; deferred implementation completion reuses these
@@ -136,10 +137,7 @@ pub(crate) fn complete_state_body(
     Ok(())
 }
 
-fn proof_output_call_requires_execution(
-    lowerer: &Lowerer,
-    call: typed::expression::ExpressionHandle,
-) -> bool {
+fn proof_output_call_requires_execution(lowerer: &Lowerer, call: ExpressionHandle) -> bool {
     let typed::expression::ExpressionNode::Call(call) =
         lowerer.typed_trees.expression_table.expression(call)
     else {
@@ -169,7 +167,7 @@ fn proof_output_call_requires_execution(
 
 fn proof_output_runtime_call(
     lowerer: &mut Lowerer,
-    call_handle: typed::expression::ExpressionHandle,
+    call_handle: ExpressionHandle,
 ) -> Result<typed::statement::TableCall, Diagnostic> {
     let source_span = expression_table(&lowerer.typed_trees).source_span(call_handle);
     let typed::expression::ExpressionNode::Call(call) = expression_table(&lowerer.typed_trees)
@@ -255,7 +253,7 @@ fn proof_output_runtime_call(
 
 fn proof_output_receiver_parts(
     program: &typed::TypedTrees,
-    expression: typed::expression::ExpressionHandle,
+    expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, SymbolHandle, Vec<typed::name::Identifier>)> {
     if !expression.is_valid() {
         return Some((SymbolHandle::invalid(), SymbolHandle::invalid(), Vec::new()));

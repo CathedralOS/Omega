@@ -3,6 +3,7 @@
 
 use crate::lowerer::name::lower_name;
 use diagnostics::Diagnostic;
+use language_semantics::build_requests::is_build_protocol;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::SymbolHandle;
 use typed_trees::expression::{
@@ -33,11 +34,7 @@ pub(crate) fn operation(
     };
     let protocol = source.traits.iter().find(|definition| {
         definition.is_boundary
-            && language_semantics::build_requests::is_build_protocol(
-                &source.symbols,
-                definition.symbol,
-                "BuildProductOperations",
-            )
+            && is_build_protocol(&source.symbols, definition.symbol, "BuildProductOperations")
     })?;
     source
         .trait_machine_signatures(protocol.machines)

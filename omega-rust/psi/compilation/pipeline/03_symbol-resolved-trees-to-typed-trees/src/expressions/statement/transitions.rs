@@ -1,3 +1,4 @@
+use crate::expressions::exhaustiveness::closed_boolean_guard;
 use crate::lowerer::Lowerer;
 use crate::tables::resolved_statements;
 use crate::tables::statement_table_mut;
@@ -68,10 +69,7 @@ fn lower_transition_guard(
         }
         resolved::statement::TransitionGuardNode::When(expression)
             if closes_run
-                && crate::expressions::exhaustiveness::closed_boolean_guard(
-                    lowerer.source_trees,
-                    *expression,
-                ) == Some(true) =>
+                && closed_boolean_guard(lowerer.source_trees, *expression) == Some(true) =>
         {
             Ok(typed::statement::TransitionGuardNode::Always)
         }

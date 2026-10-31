@@ -1,9 +1,12 @@
 use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
 use crate::lowerer::Lowerer;
+use crate::lowerer::name::lower_name;
 use crate::tables::expression_table_mut;
 use crate::tables::resolved_expressions;
 use diagnostics::Diagnostic;
+use resolved::types::TypeReference;
 use symbol_resolved_trees as resolved;
+use typed::proposition::PropositionBinderArgumentKind as ArgumentKind;
 use typed_trees as typed;
 
 /// Whether a call's resolved target is a proposition application: a
@@ -80,19 +83,14 @@ pub(crate) fn lower_proposition_application(
                     )));
                 }
                 let symbol = resolve_proposition_static_path(lowerer, argument);
-                if classify_proposition_static_symbol(lowerer, symbol)
-                    != Some(typed::proposition::PropositionBinderArgumentKind::Type)
-                {
+                if classify_proposition_static_symbol(lowerer, symbol) != Some(ArgumentKind::Type) {
                     return Err(Diagnostic::error(format!(
                         "proposition `{}` type binder `{}` received a non-type argument",
                         call.target.as_str(),
                         binder.name.as_str()
                     )));
                 }
-                (
-                    typed::proposition::PropositionBinderArgumentKind::Type,
-                    symbol,
-                )
+                (ArgumentKind::Type, symbol)
             }
             resolved::proposition::PropositionBinderKind::Const { type_reference } => {
                 let symbol = if argument.const_literal.is_some() {
@@ -108,7 +106,7 @@ pub(crate) fn lower_proposition_application(
                         literal,
                     )?;
                 } else if classify_proposition_static_symbol(lowerer, symbol)
-                    != Some(typed::proposition::PropositionBinderArgumentKind::Const)
+                    != Some(ArgumentKind::Const)
                 {
                     return Err(Diagnostic::error(format!(
                         "proposition `{}` const binder `{}` received a non-const argument",
@@ -124,22 +122,16 @@ pub(crate) fn lower_proposition_application(
                         binder.name.as_str()
                     )));
                 }
-                (
-                    typed::proposition::PropositionBinderArgumentKind::Const,
-                    symbol,
-                )
+                (ArgumentKind::Const, symbol)
             }
             resolved::proposition::PropositionBinderKind::Machine => {
                 if argument.evidence_projection.is_some() {
-                    (
-                        typed::proposition::PropositionBinderArgumentKind::Machine,
-                        symbols::SymbolHandle::invalid(),
-                    )
+                    (ArgumentKind::Machine, symbols::SymbolHandle::invalid())
                 } else {
                     let symbol = resolve_proposition_static_path(lowerer, argument);
                     if argument.const_literal.is_some()
                         || classify_proposition_static_symbol(lowerer, symbol)
-                            != Some(typed::proposition::PropositionBinderArgumentKind::Machine)
+                            != Some(ArgumentKind::Machine)
                     {
                         return Err(Diagnostic::error(format!(
                             "proposition `{}` machine binder `{}` received a non-machine argument",
@@ -147,10 +139,7 @@ pub(crate) fn lower_proposition_application(
                             binder.name.as_str()
                         )));
                     }
-                    (
-                        typed::proposition::PropositionBinderArgumentKind::Machine,
-                        symbol,
-                    )
+                    (ArgumentKind::Machine, symbol)
                 }
             }
         };
@@ -170,7 +159,7 @@ pub(crate) fn lower_proposition_application(
             lowerer.typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Named {
                     symbol,
-                    name: crate::lowerer::name::lower_name(name),
+                    name: lower_name(name),
                 },
             );
         }
@@ -187,14 +176,14 @@ pub(crate) fn lower_proposition_application(
             path: argument
                 .path
                 .iter()
-                .map(crate::lowerer::name::lower_name)
+                .map(lower_name)
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
             const_literal: argument.const_literal.clone(),
             evidence_projection: argument.evidence_projection.as_ref().map(|projection| {
                 typed::expression::EvidenceProjection {
-                    term: crate::lowerer::name::lower_name(&projection.term),
-                    member: crate::lowerer::name::lower_name(&projection.member),
+                    term: lower_name(&projection.term),
+                    member: lower_name(&projection.member),
                 }
             }),
             symbol,
@@ -237,7 +226,7 @@ pub(crate) fn lower_proposition_application(
 
     Ok(typed::proposition::PropositionApplication {
         proposition: call.target_symbol,
-        name: crate::lowerer::name::lower_name(&call.target),
+        name: lower_name(&call.target),
         binder_arguments: typed_binder_arguments.into_boxed_slice(),
         arguments,
     })
@@ -263,19 +252,15 @@ fn resolve_proposition_static_path(
 fn classify_proposition_static_symbol(
     lowerer: &Lowerer,
     symbol: symbols::SymbolHandle,
-) -> Option<typed::proposition::PropositionBinderArgumentKind> {
+) -> Option<ArgumentKind> {
     if !symbol.is_valid() {
         return None;
     }
     match lowerer.source_trees.symbols.get(symbol).kind {
-        symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data => {
-            Some(typed::proposition::PropositionBinderArgumentKind::Type)
-        }
+        symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data => Some(ArgumentKind::Type),
         symbols::SymbolKind::State
         | symbols::SymbolKind::MachineParameter
-        | symbols::SymbolKind::PropositionMachineParameter => {
-            Some(typed::proposition::PropositionBinderArgumentKind::Machine)
-        }
+        | symbols::SymbolKind::PropositionMachineParameter => Some(ArgumentKind::Machine),
         symbols::SymbolKind::TypeParameter => lowerer
             .source_trees
             .tables
@@ -285,28 +270,20 @@ fn classify_proposition_static_symbol(
             .map(|(_, binder)| binder)
             .find(|binder| binder.symbol == symbol)
             .map(|binder| match binder.kind {
-                resolved::proposition::PropositionBinderKind::Type => {
-                    typed::proposition::PropositionBinderArgumentKind::Type
-                }
-                resolved::proposition::PropositionBinderKind::Const { .. } => {
-                    typed::proposition::PropositionBinderArgumentKind::Const
-                }
-                resolved::proposition::PropositionBinderKind::Machine => {
-                    typed::proposition::PropositionBinderArgumentKind::Machine
-                }
+                resolved::proposition::PropositionBinderKind::Type => ArgumentKind::Type,
+                resolved::proposition::PropositionBinderKind::Const { .. } => ArgumentKind::Const,
+                resolved::proposition::PropositionBinderKind::Machine => ArgumentKind::Machine,
             })
             .or_else(|| {
                 find_data_type_parameter(lowerer, symbol).and_then(|parameter| {
                     match parameter.kind {
-                        resolved::data::TypeParameterKind::Type => {
-                            Some(typed::proposition::PropositionBinderArgumentKind::Type)
-                        }
+                        resolved::data::TypeParameterKind::Type => Some(ArgumentKind::Type),
                         resolved::data::TypeParameterKind::Const { .. }
                         | resolved::data::TypeParameterKind::Value { .. } => {
-                            Some(typed::proposition::PropositionBinderArgumentKind::Const)
+                            Some(ArgumentKind::Const)
                         }
                         resolved::data::TypeParameterKind::Machine { .. } => {
-                            Some(typed::proposition::PropositionBinderArgumentKind::Machine)
+                            Some(ArgumentKind::Machine)
                         }
                         resolved::data::TypeParameterKind::Implementation
                         | resolved::data::TypeParameterKind::Proposition { .. } => None,
@@ -320,7 +297,7 @@ fn classify_proposition_static_symbol(
 fn validate_const_literal_argument(
     proposition: &str,
     binder: &str,
-    type_reference: &resolved::types::TypeReference,
+    type_reference: &TypeReference,
     literal: &numerics::literals::IntegerLiteral,
 ) -> Result<(), Diagnostic> {
     let Some(primitive) = type_reference.primitive_type() else {
@@ -342,7 +319,7 @@ fn validate_const_literal_argument(
 fn proposition_const_symbol_type<'a>(
     lowerer: &'a Lowerer,
     symbol: symbols::SymbolHandle,
-) -> Option<&'a resolved::types::TypeReference> {
+) -> Option<&'a TypeReference> {
     lowerer
         .source_trees
         .tables
@@ -388,18 +365,15 @@ fn find_data_type_parameter<'l>(
         .find(|parameter| parameter.symbol == symbol)
 }
 
-fn proposition_const_types_match(
-    expected: &resolved::types::TypeReference,
-    actual: &resolved::types::TypeReference,
-) -> bool {
+fn proposition_const_types_match(expected: &TypeReference, actual: &TypeReference) -> bool {
     match (expected.primitive_type(), actual.primitive_type()) {
         (Some(expected), Some(actual)) => expected == actual,
         _ => match (expected, actual) {
             (
-                resolved::types::TypeReference::Named {
+                TypeReference::Named {
                     symbol: expected, ..
                 },
-                resolved::types::TypeReference::Named { symbol: actual, .. },
+                TypeReference::Named { symbol: actual, .. },
             ) => expected == actual,
             _ => expected == actual,
         },

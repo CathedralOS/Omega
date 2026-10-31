@@ -1,10 +1,11 @@
+use crate::access_borrow_factory::access_borrow_factory;
 use crate::contracts::invocations::lower_authored_invocations;
 use crate::declarations::state::{complete_state_body, lower_state_declaration};
 use crate::expressions::equatable::EqualityScope;
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::{lower_name, lower_names};
-use crate::signatures::type_parameters::lower_type_parameters;
+use crate::signatures::type_parameters::{lower_type_parameter, lower_type_parameters};
 use crate::tables::expression_table_mut;
 use crate::tables::resolved_expressions;
 use crate::type_reference::{lower_type_reference_into_table, retain_type_reference_selection};
@@ -23,9 +24,7 @@ pub(crate) fn lower_machine(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
-    if let Some(factory) =
-        crate::access_borrow_factory::access_borrow_factory(lowerer.source_trees, machine.symbol)?
-    {
+    if let Some(factory) = access_borrow_factory(lowerer.source_trees, machine.symbol)? {
         if !lowerer
             .typed_trees
             .access_borrow_factories
@@ -243,9 +242,7 @@ fn lower_machine_contents(
     if !inherited.is_empty() {
         let mut parameters = inherited
             .into_iter()
-            .map(|parameter| {
-                crate::signatures::type_parameters::lower_type_parameter(lowerer, parameter)
-            })
+            .map(|parameter| lower_type_parameter(lowerer, parameter))
             .collect::<Result<Vec<_>, _>>()?;
         parameters.extend_from_slice(
             lowerer

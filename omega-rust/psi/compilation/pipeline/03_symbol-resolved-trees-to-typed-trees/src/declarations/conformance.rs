@@ -1,5 +1,6 @@
 use crate::lowerer::name::{lower_name, lower_names};
 use crate::lowerer::{Lowerer, declaration_exposure};
+use crate::signatures::type_parameters::lower_type_parameters;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::trait_definition::Conformance;
@@ -111,12 +112,9 @@ pub(crate) fn lower_conformance(
             })
             .collect(),
     };
-    conformance.type_parameters =
-        lowerer.with_type_reference_exposure(conformance_exposure, |lowerer| {
-            crate::signatures::type_parameters::lower_type_parameters(
-                lowerer,
-                source_type_parameters,
-            )
+    conformance.type_parameters = lowerer
+        .with_type_reference_exposure(conformance_exposure, |lowerer| {
+            lower_type_parameters(lowerer, source_type_parameters)
         })?;
     // The row keeps its independently authored invocation telescope. Capture
     // belongs to the exact owned-row relationship, queried through the map's

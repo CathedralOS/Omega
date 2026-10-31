@@ -8,6 +8,8 @@ use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 use symbol_resolved_trees as resolved;
+use symbol_resolved_trees::signature::StateSignature;
+use typed::trait_definition::TraitRefinementClause;
 use typed_trees as typed;
 
 pub(crate) fn lower_trait_definition(
@@ -134,9 +136,7 @@ pub(crate) fn lower_trait_definition(
             // A refinement narrows an existing base conformance: a named
             // clause must select a real base requirement, and its authored
             // axes may only restrict what the base already permits.
-            let covered: Vec<&symbol_resolved_trees::signature::StateSignature> = match &clause
-                .requirement
-            {
+            let covered: Vec<&StateSignature> = match &clause.requirement {
                 Some(requirement) => {
                     let matching = base_machines
                         .iter()
@@ -279,14 +279,12 @@ pub(crate) fn lower_trait_definition(
                         .intern(clause_services),
                 )
             };
-            typed_trait
-                .refinement_clauses
-                .push(typed::trait_definition::TraitRefinementClause {
-                    requirement: clause.requirement.as_ref().map(lower_name),
-                    signature,
-                    service_reaches: lower_names(&clause.service_reaches),
-                    service_reach,
-                });
+            typed_trait.refinement_clauses.push(TraitRefinementClause {
+                requirement: clause.requirement.as_ref().map(lower_name),
+                signature,
+                service_reaches: lower_names(&clause.service_reaches),
+                service_reach,
+            });
         }
     }
 
