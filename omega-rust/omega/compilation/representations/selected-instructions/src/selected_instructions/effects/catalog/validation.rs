@@ -70,7 +70,7 @@ fn touches_external_state(semantic: MachineSemanticKind) -> bool {
 /// declared total pins the arity the arm requires, so a roster of any other
 /// length is not evidence for that row's operand shape.
 fn positional_roster(
-    constraint: &register_model::RegisterInstructionConstraint,
+    constraint: &RegisterInstructionConstraint,
     inputs: usize,
     total: usize,
 ) -> bool {
@@ -95,10 +95,7 @@ fn positional_roster(
 
 /// The encoded scalar codec rows move six operands, declare no implicit unit
 /// dependency, and always clobber.
-fn encoded_scalar_constraint(
-    constraint: &register_model::RegisterInstructionConstraint,
-    inputs: usize,
-) -> bool {
+fn encoded_scalar_constraint(constraint: &RegisterInstructionConstraint, inputs: usize) -> bool {
     constraint.implicit_uses.is_empty()
         && constraint.implicit_defs.is_empty()
         && !constraint.clobbers.is_empty()
