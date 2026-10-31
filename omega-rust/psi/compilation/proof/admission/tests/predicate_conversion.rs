@@ -1,6 +1,8 @@
 use crate::common::*;
 use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, check_certificate};
+use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
+use std::slice::from_ref;
 
 fn context() -> PropositionContext {
     PropositionContext::from_value_types(
@@ -27,11 +29,7 @@ fn conversion_rejects_wrong_polarity_identity_type_and_unproved_child() {
         Proposition::Equal(
             value(1),
             ScalarTerm::integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    8,
-                )
-                .unwrap(),
+                IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8).unwrap(),
                 semantic_vocabulary::IntegerValue::Unsigned(0),
             )
             .unwrap(),
@@ -44,16 +42,7 @@ fn conversion_rejects_wrong_polarity_identity_type_and_unproved_child() {
                 rule: ProofRule::Assumption { index: 0 },
             },
         );
-        assert!(
-            check_certificate(
-                &context(),
-                &goal,
-                std::slice::from_ref(&original),
-                &[],
-                &proof
-            )
-            .is_err()
-        );
+        assert!(check_certificate(&context(), &goal, from_ref(&original), &[], &proof).is_err());
     }
     let proof = converted(
         original.clone(),
@@ -81,7 +70,5 @@ fn conversion_cannot_bypass_denotation_resource_limits() {
             rule: ProofRule::Assumption { index: 0 },
         },
     );
-    assert!(
-        check_certificate(&context(), &deep, std::slice::from_ref(&deep), &[], &proof).is_err()
-    );
+    assert!(check_certificate(&context(), &deep, from_ref(&deep), &[], &proof).is_err());
 }
