@@ -1931,14 +1931,19 @@ impl<'program> StructuralJudge<'program> {
             value
         };
         let call = self.completed_integer_call(value);
-        // An exact conversion preserves the saved mathematical value, but
-        // its consumer's wider carrier does not replace the producer's bounds.
-        let observed_primitive = call
-            .as_ref()
-            .map_or(primitive, |(_, _, observed)| *observed);
+        if let Some((_, _, observed)) = call.as_ref()
+            && *observed != primitive
+        {
+            // A denotation-preserving conversion keeps the completed source
+            // observation. Project it in its own carrier first so both its
+            // bounds and canonical occurrence survive in the receiving one.
+            // The receiving carrier still owes its own conversion formation;
+            // its interval cannot be donated to the original source atom.
+            return self.integer_value(value, *observed, observations, depth + 1);
+        }
         let value = call.as_ref().map_or(value, |(captured, _, _)| captured);
         let completed = completed_before_resolution
-            .or_else(|| self.completed_scalar_observation(value, observed_primitive));
+            .or_else(|| self.completed_scalar_observation(value, primitive));
         let canonical_atom = |identity: &StructuralTerm| {
             call.as_ref()
                 .filter(|(original, _, _)| original.same_resolution_payload(identity))
@@ -1970,7 +1975,7 @@ impl<'program> StructuralJudge<'program> {
             && !matches!(value, StructuralTerm::ScalarBinary { .. })
             && !(resolves_completed_call && matches!(value, StructuralTerm::Integer(_)))
         {
-            return observations.observed_atom(canonical_atom(identity), observed_primitive);
+            return observations.observed_atom(canonical_atom(identity), primitive);
         }
         if let StructuralTerm::Integer(integer) = value {
             let value = Polynomial::constant(integer.clone());
@@ -1978,7 +1983,7 @@ impl<'program> StructuralJudge<'program> {
             // anonymous again. Contextual literal destinations carry no such
             // observation, nor does the operation whose fit is being queried.
             if observed_carrier || (resolves_completed_call && completed.is_some()) {
-                observations.install_observed_carrier_bounds(observed_primitive, &value)?;
+                observations.install_observed_carrier_bounds(primitive, &value)?;
             }
             return Some(value);
         }
@@ -2029,7 +2034,7 @@ impl<'program> StructuralJudge<'program> {
             });
             let (value, formation) = if let Some((completed, _)) = completed {
                 (
-                    observations.observed_atom(canonical_atom(&completed), observed_primitive)?,
+                    observations.observed_atom(canonical_atom(&completed), primitive)?,
                     OperationFormation::CompletedValue,
                 )
             } else {
@@ -2051,7 +2056,7 @@ impl<'program> StructuralJudge<'program> {
         }
         // Only an opaque completed leaf receives intrinsic carrier bounds;
         // an unadmitted recipe has neither a carrier assumption nor an interval.
-        observations.observed_atom(canonical_atom(value), observed_primitive)
+        observations.observed_atom(canonical_atom(value), primitive)
     }
 
     fn mathematical_value(
