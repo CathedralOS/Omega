@@ -894,11 +894,11 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    The unqualified [nested-reference descriptor witness](https://github.com/CathedralOS/Omega/blob/ac343388cae3444d9eda04a548139f2ec8a9dd9c/samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
-    remains follow-on acceptance: preserve its value 7 and pointee 43 checks,
-    with the original 256-width and mismatched-policy-argument reject controls.
-    Its exact source and unfinished repairs are retained at that checkpoint;
-    the completed storage/bit rows do not establish this composition.
+    The basic [nested-reference descriptor composition](samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
+    now preserves value 7 and pointee 43 in Mac ARM64 native/Terminal execution,
+    with the original 256-width and mismatched-policy-argument rejects.
+    Stored-descriptor reads/roundtrips, other-host execution and broader
+    reference composition remain outstanding; see its [evidence scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
     [Phantom-region forwarding through implementation arguments](https://github.com/CathedralOS/Omega/blob/ee2c8a1fceffff32a4533f83bb46d38010735a47/tests/omega/pass/traits/implementation_value_mapped_region_identity/main.omg)
     also remains unqualified: preserve its distinct environment/storage regions
     and the same constant index through the original forwarding call.

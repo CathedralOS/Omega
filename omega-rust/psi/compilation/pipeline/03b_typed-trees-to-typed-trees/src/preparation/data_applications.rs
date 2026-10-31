@@ -273,15 +273,19 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     };
     if let Some(storage) = program.layout_storage_arguments(reference) {
         elaborate_value_fields(program, storage.semantic_type, &mut Vec::new());
-        if let Some(mut semantic) = program
+        let is_closed = program
             .closed_data_field_definition(storage.semantic_type)
+            .is_some();
+        if let Some(mut semantic) = program
+            .data_field_definition(storage.semantic_type)
             .cloned()
         {
             // This is a field view of the original semantic application, not a
             // declaration or an owned wrapper. Every member keeps T's symbols,
             // regions, predicates, relevance and cleanup disposition.
             semantic.generic_instance = Some(reference);
-            program.retain_data_application_definition(reference, semantic, true);
+            // Symbolic fields do not establish closed storage or geometry.
+            program.retain_data_application_definition(reference, semantic, is_closed);
         }
         return;
     }
@@ -487,8 +491,8 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 ..
             } => {
                 // A nominal application's static operands can themselves be
-                // applied traits. They describe its closed contract, not a
-                // second stored data value. Closure must follow either exact
+                // applied traits or implementations. They describe its closed
+                // contract, not a second stored data value. Follow the exact
                 // declaration telescope rather than treating every Generic
                 // node as a data constructor.
                 let telescope = program
@@ -505,6 +509,16 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                             .map(|declaration| {
                                 (
                                     program.trait_type_parameters(declaration).len(),
+                                    declaration.lifetime_parameters.len(),
+                                )
+                            })
+                    })
+                    .or_else(|| {
+                        program
+                            .conformance_by_symbol(*base_symbol)
+                            .map(|declaration| {
+                                (
+                                    program.conformance_type_parameters(declaration).len(),
                                     declaration.lifetime_parameters.len(),
                                 )
                             })
