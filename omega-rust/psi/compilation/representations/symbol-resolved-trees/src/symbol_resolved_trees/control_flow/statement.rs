@@ -1,3 +1,4 @@
+use crate::expression::{ExpressionHandle, ExpressionSource};
 use crate::name::DiagnosticName;
 use arena::{Arena, Handle, HandleSpan};
 use source::SourceSpan;
@@ -316,17 +317,11 @@ impl StatementTable {
         self.nodes.statements.span_or_empty(span)
     }
 
-    pub fn expression_handles(
-        &self,
-        span: HandleSpan<crate::expression::ExpressionHandle>,
-    ) -> &[crate::expression::ExpressionHandle] {
+    pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.paths.expression_handles.span_or_empty(span)
     }
 
-    pub fn reserve_expression_handles(
-        &mut self,
-        count: u32,
-    ) -> HandleSpan<crate::expression::ExpressionHandle> {
+    pub fn reserve_expression_handles(&mut self, count: u32) -> HandleSpan<ExpressionHandle> {
         self.paths.expression_handles.insert_many(
             std::iter::repeat_with(crate::expression::ExpressionHandle::invalid)
                 .take(usize::try_from(count).expect("expression handle span count overflow")),
@@ -497,9 +492,7 @@ impl StatementTable {
             statement,
             &StatementTransplant {
                 source_expressions: crate::expression::ExpressionSource::Table(source_expressions),
-                source_expression_table: crate::expression::ExpressionSource::Table(
-                    source_expression_table,
-                ),
+                source_expression_table: ExpressionSource::Table(source_expression_table),
                 source_child_type_references,
                 source_constraints,
                 source_statement_path_members,
@@ -924,14 +917,11 @@ mod tests {
     use crate::name::DiagnosticName;
     use crate::types::TypeReferenceTable;
     use arena::{Arena, Handle};
+    use language_semantics::declaration_selection::AuthoredDeclarationSelections;
     use symbols::SymbolHandle;
 
-    fn selection_ledger(
-        start: usize,
-        symbol: u32,
-    ) -> language_semantics::declaration_selection::AuthoredDeclarationSelections {
-        let mut ledger =
-            language_semantics::declaration_selection::AuthoredDeclarationSelections::default();
+    fn selection_ledger(start: usize, symbol: u32) -> AuthoredDeclarationSelections {
+        let mut ledger = AuthoredDeclarationSelections::default();
         ledger
             .record_resolved(
                 source::SourceSpan::new(
