@@ -1,11 +1,10 @@
 //! Select independently observed candidate coordinates for every participant.
 
 use super::{
-    coordinates::{Bound, Rank, coordinates},
+    coordinates::{Bound, Rank},
     ranges,
     views::Order,
 };
-use crate::checks::current_scalar_values::CurrentScalarValues;
 use typed_trees::expression::BinaryOperator;
 use validation::ScopedArithmeticValue;
 
@@ -62,21 +61,10 @@ pub(super) fn prepare(
         let [entry] = program.machine_states(machine) else {
             return None;
         };
-        let execution = program
-            .statement_table
-            .admitted_execution_order(entry.statement_nodes);
-        let first = *execution.indices().first()?;
-        let values = CurrentScalarValues::at_observing_projections(
-            program,
-            machine,
-            entry,
-            first,
-            Default::default(),
-            frames,
-            &field_paths,
-        )?;
-        available.push(coordinates(program, entry, &values));
-        entry_values.push(values);
+        let prepared =
+            super::super::rank_inputs::at_entry(program, machine, entry, frames, &field_paths)?;
+        available.push(prepared.coordinates);
+        entry_values.push(prepared.values);
         let Some(view) = view else {
             candidates.push(Vec::new());
             continue;

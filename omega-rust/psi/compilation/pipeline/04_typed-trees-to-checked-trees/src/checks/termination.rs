@@ -18,6 +18,7 @@ mod graph;
 mod joint_natural;
 mod order;
 mod progress;
+mod rank_inputs;
 mod ranking;
 mod source_natural;
 
