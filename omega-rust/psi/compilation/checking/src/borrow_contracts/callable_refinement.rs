@@ -404,7 +404,6 @@ impl PreparedCallableBorrowRefinement {
             &application.elided,
             &output_elisions,
         )
-        .map_err(str::to_owned)
     }
 }
 
