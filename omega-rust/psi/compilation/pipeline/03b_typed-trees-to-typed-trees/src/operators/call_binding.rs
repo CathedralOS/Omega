@@ -65,6 +65,7 @@
 //! leaving a selection without executable supply could silently substitute
 //! builtin arithmetic, which the contract forbids.
 
+use crate::monomorphization::insert_subject_name;
 use crate::tables::{expressions_of, expressions_of_mut};
 use checked_trees::{
     CheckedOperatorOccurrence, CheckedOperatorResolutionStatus, CheckedValueOrigin,
@@ -382,11 +383,7 @@ pub(crate) fn bind_selected_operator_calls(
         let receiver = if target.binder.is_valid() {
             let binder_name =
                 typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
-            crate::monomorphization::insert_subject_name(
-                expressions_of_mut(program),
-                binder_name,
-                target.binder,
-            )
+            insert_subject_name(expressions_of_mut(program), binder_name, target.binder)
         } else {
             ExpressionHandle::invalid()
         };
@@ -512,11 +509,7 @@ fn rewrite_match_equality(
         let receiver = if target.binder.is_valid() {
             let binder_name =
                 typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
-            crate::monomorphization::insert_subject_name(
-                expressions_of_mut(program),
-                binder_name,
-                target.binder,
-            )
+            insert_subject_name(expressions_of_mut(program), binder_name, target.binder)
         } else {
             ExpressionHandle::invalid()
         };

@@ -2,6 +2,7 @@
 //! This consumes its owned graph, resolves names in the original source scope,
 //! and uses the ordinary application owners before immutable checking. It does
 //! not execute a source call, choose a provider, or manufacture a new telescope.
+use crate::monomorphization::normalize_const_arguments;
 use crate::tables::expressions_of_mut;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -9,6 +10,7 @@ use language_semantics::declaration_selection::{
     ProductDeclarationOperand, ProductOperandRole, product_operands::*,
 };
 use symbols::SymbolHandle;
+use typed_trees::product_operand::resolve_product_path;
 use typed_trees::{
     TypedTrees, expression as expr,
     name::Identifier,
@@ -48,7 +50,7 @@ pub fn prepare_product_requirement_operand(
     let refuse =
         |reason: &str| vec![Diagnostic::error(reason).with_source_span(operand.source_span)];
     let Some(graph) = operand.application.as_deref() else {
-        return typed_trees::product_operand::resolve_product_path(
+        return resolve_product_path(
             program,
             &operand.path,
             operand.source_span,
@@ -75,7 +77,7 @@ pub fn prepare_product_requirement_operand(
     let root_application = graph.applications.get(root.application).clone();
     let (requirement, environment, method) = if root_application.member.is_valid() {
         let path = lower.path(root.path)?;
-        let owner = typed_trees::product_operand::resolve_product_path(
+        let owner = resolve_product_path(
             lower.program,
             &path,
             operand.source_span,
@@ -108,7 +110,7 @@ pub fn prepare_product_requirement_operand(
         );
         // Closure consumes a derived tuple. Keep the source reference above
         // intact so immutable checking still judges every supplying recipe.
-        crate::monomorphization::normalize_const_arguments(
+        normalize_const_arguments(
             lower.program,
             author,
             std::slice::from_mut(&mut owner_argument),
@@ -138,7 +140,7 @@ pub fn prepare_product_requirement_operand(
             "{}::{member_path}",
             lower.program.symbols.display_path(owner, "::")
         );
-        let requirement = typed_trees::product_operand::resolve_product_path(
+        let requirement = resolve_product_path(
             lower.program,
             &joined,
             operand.source_span,
@@ -158,7 +160,7 @@ pub fn prepare_product_requirement_operand(
         }
         (requirement, Some(environment), member.application)
     } else {
-        let requirement = typed_trees::product_operand::resolve_product_path(
+        let requirement = resolve_product_path(
             lower.program,
             &operand.path,
             operand.source_span,
@@ -223,12 +225,8 @@ pub fn prepare_product_requirement_operand(
             member: Handle::invalid(),
         });
         let authored_arguments = supplied.arguments.clone();
-        crate::monomorphization::normalize_const_arguments(
-            lower.program,
-            author,
-            &mut supplied.arguments,
-        )
-        .map_err(|reason| refuse(&reason))?;
+        normalize_const_arguments(lower.program, author, &mut supplied.arguments)
+            .map_err(|reason| refuse(&reason))?;
         let bindings = crate::monomorphization::requirement_applications::invocation_bindings(
             lower.program,
             author,
