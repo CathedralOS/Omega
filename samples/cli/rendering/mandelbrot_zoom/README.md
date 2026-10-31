@@ -7,7 +7,7 @@ with the ANSI cursor-home sequence `ESC [ H` and use `Clock.sleep(70)` for pacin
 After completing the sample's package review, run from the repository root:
 
 ```sh
-OMEGA_INTERP_STEP_BUDGET=100000000 omega run --both samples/cli/rendering/mandelbrot_zoom/main.omg
+omega run --both --terminal-fuel-allowance 100000000 samples/cli/rendering/mandelbrot_zoom/main.omg
 ```
 
 Press Enter at the final prompt. A POSIX shell can redirect stdin from
