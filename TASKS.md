@@ -451,6 +451,21 @@ retired-syntax deletions to completion.
   and `fail/slices/signed_slice_index_upper_only` each report their intended
   refusal.
 
+- **LOC-OMEGA-CONSOLIDATION.** Fold Omega-side (non-Psi) semantic duplication
+  where only data differs, deleting the superseded copy in the same change.
+  Base `55f4a84e523`; target net -1,500 lines across `omega-rust/omega/`.
+  - Per-ISA (`isa-x86_64`/`isa-aarch64`) selected-form test bodies that differ
+    only in roster, bytes and target move into `isa-conformance`: hosted exit,
+    read and write byte, floating control, scalar call, memory pointer and
+    integer normalization tests.
+  - Per-ISA register-catalog builder helpers (`view`, `fixed`, `allocatable`,
+    `merged_units`, `convention`) and the matching error enums move to
+    `register-model`.
+  - Driver test adapters (`TerminalImportAdapter` + `TerminalEffectHandler`
+    stubs) share one test-support type.
+  Acceptance: each family has one path and the old copies are gone; touched
+  crates' `mbx nextest run` and `corpus_gate --filter` on touched groups pass.
+
 ## Pipeline route
 
 Follow one connected stage chain under the
