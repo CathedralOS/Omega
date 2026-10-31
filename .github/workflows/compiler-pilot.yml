@@ -59,7 +59,8 @@ jobs:
         env:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
         run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: build-cache
         with:
           path: |
             ~/.cargo/registry
@@ -69,6 +70,7 @@ jobs:
           restore-keys: |
             compiler-pilot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check the exact integration candidate
+        id: compiler-check
         run: cargo check --locked -p omega
       - name: Optional executable smoke or exact fixtures
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '')
@@ -86,3 +88,14 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
+      # A source/runtime fixture failure does not invalidate compiled Cargo
+      # objects. Retain them for the next correction; check outcomes stay red.
+      - name: Save build cache after fixture observations
+        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
