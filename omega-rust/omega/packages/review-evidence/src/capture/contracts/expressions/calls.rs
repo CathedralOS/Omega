@@ -213,11 +213,7 @@ pub(crate) fn exact_checked_contract_call_target(
         ))]);
     }
     let retained_symbol = resolved_contract_call_symbol(compilation, call);
-    let owner_derived_symbol = typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-        compilation.checking_input,
-        &compilation.facts,
-        expression,
-    );
+    let owner_derived_symbol = compilation.derive_checked_nominal_call_target(expression);
     if retained_symbol.is_some()
         && owner_derived_symbol.is_some()
         && retained_symbol != owner_derived_symbol

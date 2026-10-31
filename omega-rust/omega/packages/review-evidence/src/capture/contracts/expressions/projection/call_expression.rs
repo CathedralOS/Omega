@@ -27,13 +27,8 @@ pub(super) fn project_call_expression(
     child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     let target = exact_checked_contract_call_target(compilation, context, expression, call)?;
-    let resolved_symbol = resolved_contract_call_symbol(compilation, call).or_else(|| {
-        typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-            compilation.checking_input,
-            &compilation.facts,
-            expression,
-        )
-    });
+    let resolved_symbol = resolved_contract_call_symbol(compilation, call)
+        .or_else(|| compilation.derive_checked_nominal_call_target(expression));
     let static_parameter_kinds = match &target {
         PackageReviewContractCallTarget::Nominal(_) => {
             let target_symbol = resolved_symbol.ok_or_else(|| {

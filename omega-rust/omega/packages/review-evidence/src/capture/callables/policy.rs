@@ -22,7 +22,8 @@ pub(crate) fn project_checked_callable_policy<'a>(
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyCallables, Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let input = input.into();
+    let compilation = &input;
     if compilation.custody.sources().package_identity() != Some(package)
         || compilation.custody.execution().selected_target_profile != Some(target)
         || compilation.custody.execution().selected_native_target() != Some(target.native_target())
@@ -31,6 +32,14 @@ pub(crate) fn project_checked_callable_policy<'a>(
             "package or target differs from the checked root activation",
         ));
     }
+    let owner_queries = crate::capture::input::ContractOwnerQueries::new(
+        compilation.checking_input,
+        &compilation.facts,
+    );
+    let compilation = &PackageReviewInput {
+        contract_owner_queries: Some(&owner_queries),
+        ..input
+    };
     let build = compilation.custody.build().selected_build_machine_symbol;
     // Selected dispatch changes no checked body, so the settled trees are the
     // authored source the policy callables classify.
