@@ -11,7 +11,7 @@ use diagnostics::Diagnostic;
 use language_semantics::DomainEstablishmentRoute;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure as Exposure,
-    AuthoredDeclarationSelectionKind as SelectionKind, AuthoredDeclarationSelectionRecordError,
+    AuthoredDeclarationSelectionKind as SelectionKind,
 };
 use source::{SourceSpan, Span};
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -103,7 +103,11 @@ fn record_route_selection_once(
     if !retained {
         program
             .record_resolved_authored_declaration_selection(source_span, exposure, kind, symbol)
-            .map_err(selection_diagnostic)?;
+            .map_err(|error| {
+                Diagnostic::error(format!(
+                    "failed to retain domain establishment-route declaration selection: {error:?}"
+                ))
+            })?;
     }
     Ok(())
 }
@@ -286,12 +290,6 @@ fn path_source_span(path: &[DiagnosticName]) -> SourceSpan {
     } else {
         first
     }
-}
-
-fn selection_diagnostic(error: AuthoredDeclarationSelectionRecordError) -> Diagnostic {
-    Diagnostic::error(format!(
-        "failed to retain domain establishment-route declaration selection: {error:?}"
-    ))
 }
 
 fn requirement_authorizes_domain_subject(
