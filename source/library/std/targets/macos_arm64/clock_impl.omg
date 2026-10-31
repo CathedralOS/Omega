@@ -26,7 +26,7 @@ boundary trait DarwinClockWait {
 public DarwinClock satisfies Clock {
     machine sleep(milliseconds: u32)
     reaches Clock
-    invokes DarwinClockWait;
+    invokes DarwinClockWait
     {
         transition milliseconds > 2147483647 {
             true -> in_parts(milliseconds)

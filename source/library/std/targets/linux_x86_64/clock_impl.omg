@@ -25,7 +25,7 @@ boundary trait LinuxClockWait {
 public LinuxX8664Clock satisfies Clock {
     machine sleep(milliseconds: u32)
     reaches Clock
-    invokes LinuxClockWait;
+    invokes LinuxClockWait
     {
         transition milliseconds > 2147483647 {
             true -> in_parts(milliseconds)

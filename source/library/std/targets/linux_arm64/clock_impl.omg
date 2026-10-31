@@ -23,7 +23,7 @@ boundary trait LinuxArmClockWait {
 public LinuxArm64Clock satisfies Clock {
     machine sleep(milliseconds: u32)
     reaches Clock
-    invokes LinuxArmClockWait;
+    invokes LinuxArmClockWait
     {
         let request: LinuxArmClockSleepRequest = LinuxArmClockSleepRequest {
             seconds: widen_u32_to_i64(milliseconds / 1000),
