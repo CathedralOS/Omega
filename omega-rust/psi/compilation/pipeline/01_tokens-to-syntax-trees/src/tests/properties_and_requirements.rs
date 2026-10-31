@@ -335,15 +335,15 @@ fn parses_trait_owned_fixed_operator_requirements() {
 #[test]
 fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let source = r#"
-        machine run() reaches Console suspends; blocks; {
+        machine run() reaches Console suspends blocks {
         }
 
         trait Worker {
-            machine wait() reaches Clock suspends; blocks; ensures true;
+            machine wait() reaches Clock suspends blocks ensures true;
         }
 
         machine schedule<machine Callback>()
-        requires machine Callback() suspends; blocks;
+        requires machine Callback() suspends blocks;
         {
         }
         "#;
@@ -479,7 +479,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
 
         machine App::reaches_then_requires(app: &mut App) reaches Console requires app.a <= app.b {
         }
-        machine App::requires_semicolon_reaches(app: &mut App) requires app.a <= app.b; reaches Console {
+        machine App::requires_semicolon_reaches(app: &mut App) requires app.a <= app.b reaches Console {
         }
         machine App::requires_newline_reaches(app: &mut App)
             requires app.a <= app.b
@@ -1471,10 +1471,10 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
 fn contextual_clause_names_retain_their_first_contract_proposition() {
     let parsed = super::parse_source_verbose(
         r#"machine check(blocks: i64, suspends: bool)
-            requires blocks >= 0;
-            requires suspends;
-            blocks;
-            ensures blocks >= 0;
+            requires blocks >= 0
+            requires suspends
+            blocks
+            ensures blocks >= 0
             {}"#,
         "tokenize contextual contract subjects",
         "contextual subjects must not become empty contracts or effect clauses",

@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "machine header clauses have no trailing semicolons"
+    "found identifier `crashes`"
   ]
 }

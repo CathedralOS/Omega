@@ -30,15 +30,15 @@ domain Socket::Usable = Socket::Connected & Socket::Authenticated;
 
 machine consume(socket: Socket)
 requires
-    socket in Socket::Usable;
+    socket in Socket::Usable
 {
 }
 
 // Two atomic requires discharge the conjunction alias transparently.
 machine forward(socket: Socket)
 requires
-    socket in Socket::Connected;
-    socket in Socket::Authenticated;
+    socket in Socket::Connected,
+    socket in Socket::Authenticated
 {
     consume(socket)
 }

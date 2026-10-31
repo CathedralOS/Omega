@@ -4,7 +4,7 @@ const REMAINING: u64 = 1;
 
 machine walk() -> u64
 requires
-    REMAINING <= 5;
+    REMAINING <= 5
 {
     REMAINING - 2
 }

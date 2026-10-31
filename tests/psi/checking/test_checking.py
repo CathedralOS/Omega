@@ -207,17 +207,17 @@ def invocation_component_cases(program: str) -> None:
         ('own_loan_result/invalid', b'data Score { points: i32; }\nmachine outer(score: &Score) -> &i32 {\n    child(score)\n    machine child(item: &Score) -> &i32 { let local: Score = Score { points: 1 }; &local.points }\n}\n', 'LoanEscapes'),
         ('own_linear_custody/positive', b'data Receipt [linear] { code: i32; }\nmachine finish(receipt: Receipt) -> i32;\nmachine outer(receipt: Receipt) -> i32 {\n    child(receipt)\n    machine child(owned: Receipt) -> i32 { finish(owned) }\n}\n', None),
         ('own_linear_custody/invalid', b'data Receipt [linear] { code: i32; }\nmachine finish(receipt: Receipt) -> i32;\nmachine outer(receipt: Receipt) -> i32 {\n    child(receipt)\n    machine child(owned: Receipt) -> i32 { let code: i32 = owned.code; code }\n}\n', 'LinearUnconsumed'),
-        ('joint_terminal_component/positive', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\n', None),
-        ('joint_terminal_component/invalid', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending, stamp)\n        false -> stamp\n    }\n}\n', 'RankUnproven'),
-        ('joint_terminal_component/positive_reordered', b'machine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\nmachine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\n', None),
-        ('joint_terminal_component/invalid_reordered', b'machine right(stamp: u64, pending: u64) -> u64\nterminates by pending;\n{\n    transition pending > 0 {\n        true -> left(pending, stamp)\n        false -> stamp\n    }\n}\nmachine left(remaining: u64, canary: u64) -> u64\nterminates by remaining;\n{\n    transition { _ -> right(canary, remaining) }\n}\n', 'RankUnproven'),
-        ('rank_initial_and_backedge/positive', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, bound) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, limit)\n            false -> (0)\n        }\n    }\n}\n', None),
-        ('rank_initial_and_backedge/invalid', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, 0) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, limit)\n            false -> (0)\n        }\n    }\n}\n', 'RequirementUnproven'),
-        ('rank_initial_and_backedge/invalid_backedge', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound;\n{\n    transition { _ -> child(start, bound) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit;\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, 0)\n            false -> (0)\n        }\n    }\n}\n', 'RequirementUnproven'),
-        ('outer_termination_promise/positive', b'machine outer(n: u64) -> u64\nterminates;\n{\n    child(n)\n    machine child(remaining: u64) -> u64\n    terminates by remaining;\n    {\n        transition remaining > 0 {\n            true -> child(remaining - 1)\n            false -> (0)\n        }\n    }\n}\n', None),
-        ('outer_termination_promise/invalid', b'machine outer(n: u64) -> u64\nterminates;\n{\n    child(n)\n    machine child(remaining: u64) -> u64\n    {\n        transition remaining > 0 {\n            true -> child(remaining - 1)\n            false -> (0)\n        }\n    }\n}\n', 'ProgressUnproven'),
-        ('full_lexicographic_arity/positive', b'data Progress { outer: u64; middle: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, middle, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps;\n{\n    transition progress.inner > 0 {\n        true -> scan(Progress { outer: progress.outer, middle: progress.middle, inner: progress.inner - 1 })\n        false -> progress.outer\n    }\n}\n', None),
-        ('full_lexicographic_arity/invalid', b'data Progress { outer: u64; middle: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, middle, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps;\n{\n    transition progress.inner > 0 {\n        true -> scan(Progress { outer: progress.outer, middle: progress.middle, inner: progress.inner })\n        false -> progress.outer\n    }\n}\n', 'RankUnproven'),
+        ('joint_terminal_component/positive', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\n', None),
+        ('joint_terminal_component/invalid', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending\n{\n    transition pending > 0 {\n        true -> left(pending, stamp)\n        false -> stamp\n    }\n}\n', 'RankUnproven'),
+        ('joint_terminal_component/positive_reordered', b'machine right(stamp: u64, pending: u64) -> u64\nterminates by pending\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\nmachine left(remaining: u64, canary: u64) -> u64\nterminates by remaining\n{\n    transition { _ -> right(canary, remaining) }\n}\n', None),
+        ('joint_terminal_component/invalid_reordered', b'machine right(stamp: u64, pending: u64) -> u64\nterminates by pending\n{\n    transition pending > 0 {\n        true -> left(pending, stamp)\n        false -> stamp\n    }\n}\nmachine left(remaining: u64, canary: u64) -> u64\nterminates by remaining\n{\n    transition { _ -> right(canary, remaining) }\n}\n', 'RankUnproven'),
+        ('rank_initial_and_backedge/positive', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound\n{\n    transition { _ -> child(start, bound) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, limit)\n            false -> (0)\n        }\n    }\n}\n', None),
+        ('rank_initial_and_backedge/invalid', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound\n{\n    transition { _ -> child(start, 0) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, limit)\n            false -> (0)\n        }\n    }\n}\n', 'RequirementUnproven'),
+        ('rank_initial_and_backedge/invalid_backedge', b'machine outer(start: u64, bound: u64) -> u64\nrequires start <= bound\nterminates by start in 0..=bound\n{\n    transition { _ -> child(start, bound) }\n    machine child(pending: u64, limit: u64) -> u64\n    requires pending <= limit\n    terminates by pending in 0..=limit\n    {\n        transition pending > 0 {\n            true -> child(pending - 1, 0)\n            false -> (0)\n        }\n    }\n}\n', 'RequirementUnproven'),
+        ('outer_termination_promise/positive', b'machine outer(n: u64) -> u64\nterminates\n{\n    child(n)\n    machine child(remaining: u64) -> u64\n    terminates by remaining\n    {\n        transition remaining > 0 {\n            true -> child(remaining - 1)\n            false -> (0)\n        }\n    }\n}\n', None),
+        ('outer_termination_promise/invalid', b'machine outer(n: u64) -> u64\nterminates\n{\n    child(n)\n    machine child(remaining: u64) -> u64\n    {\n        transition remaining > 0 {\n            true -> child(remaining - 1)\n            false -> (0)\n        }\n    }\n}\n', 'ProgressUnproven'),
+        ('full_lexicographic_arity/positive', b'data Progress { outer: u64; middle: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, middle, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps\n{\n    transition progress.inner > 0 {\n        true -> scan(Progress { outer: progress.outer, middle: progress.middle, inner: progress.inner - 1 })\n        false -> progress.outer\n    }\n}\n', None),
+        ('full_lexicographic_arity/invalid', b'data Progress { outer: u64; middle: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, middle, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps\n{\n    transition progress.inner > 0 {\n        true -> scan(Progress { outer: progress.outer, middle: progress.middle, inner: progress.inner })\n        false -> progress.outer\n    }\n}\n', 'RankUnproven'),
         ('numeric_completion/original_clamp', b'machine clamp(x: u64) -> u64 ensures result <= 10 { transition x <= 10 { true -> (x) _ -> capped() } machine capped() -> u64 { 10 } }', None),
         ('numeric_completion/capped_eleven', b'machine clamp(x: u64) -> u64 ensures result <= 10 { transition x <= 10 { true -> (x) _ -> capped() } machine capped() -> u64 { 11 } }', 'GuaranteeUnproven'),
         ('numeric_completion/mixed_returns', b'machine clamp(flag: bool) -> u64 ensures result <= 10 { capped(flag) machine capped(flag: bool) -> u64 { transition flag { true -> 10 false -> 11 } } }', 'GuaranteeUnproven'),
@@ -246,9 +246,9 @@ def invocation_component_cases(program: str) -> None:
         ('shared_reborrow/shared_local_invalid_write', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let shared:&Cell=cell; cell.value=7; shared.value }', 'LoanConflict'),
         ('signed_snapshot/positive', b'machine shifted(value: &mut i64) -> u8\nrequires value == -7\nensures result == 1\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', None),
         ('signed_snapshot/invalid', b'machine shifted(value: &mut i64) -> u8\nrequires value == -7\nensures result == 2\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', 'GuaranteeUnproven'),
-        ('assignment_entry_rank/positive-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next - 1;\n        transition { _ -> countdown(next) }\n    }\n}\n', None),
-        ('assignment_entry_rank/invalid-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next;\n        transition { _ -> countdown(next) }\n    }\n}\n', 'RankUnproven'),
-        ('assignment_entry_rank/invalid-formation', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining;\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value;\n    {\n        let mut next: u64 = value;\n        next = next - (value + 1);\n        transition { _ -> countdown(next) }\n    }\n}\n', 'ArithmeticOverflow'),
+        ('assignment_entry_rank/positive-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value\n    {\n        let mut next: u64 = value;\n        next = next - 1;\n        transition { _ -> countdown(next) }\n    }\n}\n', None),
+        ('assignment_entry_rank/invalid-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value\n    {\n        let mut next: u64 = value;\n        next = next;\n        transition { _ -> countdown(next) }\n    }\n}\n', 'RankUnproven'),
+        ('assignment_entry_rank/invalid-formation', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value\n    {\n        let mut next: u64 = value;\n        next = next - (value + 1);\n        transition { _ -> countdown(next) }\n    }\n}\n', 'ArithmeticOverflow'),
     )
     for name, source, diagnostic in cases:
         status, payload = run(program, source)
@@ -1450,21 +1450,7 @@ def main() -> None:
     # complete cycle must descend; an ordinary promise also needs terminating
     # callees. An unpromised productive cycle owes no rank.
     countdown = (
-        b"machine count(n: u64) -> u64\nterminates by n;\n{\n"
-        b"    transition n > 0 {\n"
-        b"        true -> step(n - 1)\n"
-        b"        _ -> done()\n"
-        b"    }\n"
-        b"\n"
-        b"    machine step(n: u64) -> u64\n    terminates by n;\n    {\n"
-        b"        transition n > 0 {\n"
-        b"            true -> STEP\n"
-        b"            _ -> done()\n"
-        b"        }\n"
-        b"    }\n"
-        b"\n"
-        b"    machine done() -> u64 { 0 }\n"
-        b"}"
+        b'machine count(n: u64) -> u64\nterminates by n\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n\n    machine step(n: u64) -> u64\n    terminates by n\n    {\n        transition n > 0 {\n            true -> STEP\n            _ -> done()\n        }\n    }\n\n    machine done() -> u64 { 0 }\n}'
     )
     accepted(program, "ranked-state-cycle-descends", countdown.replace(b"STEP", b"step(n - 1)"))
     rejected(
@@ -1487,13 +1473,7 @@ def main() -> None:
         countdown.replace(b"terminates by n;\n", b"").replace(b"STEP", b"step(n)"),
     )
     walk = (
-        b"machine walk(items: &[u8], i: u64) -> u64\n"
-        b"terminates by (i, items.len) -> Nat::BoundedDistance;\n{\n"
-        b"    transition i < items.len {\n"
-        b"        true -> NEXT\n"
-        b"        _ -> (i)\n"
-        b"    }\n"
-        b"}"
+        b'machine walk(items: &[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance\n{\n    transition i < items.len {\n        true -> NEXT\n        _ -> (i)\n    }\n}'
     )
     accepted(program, "self-call-climbs-its-bounded-distance", walk.replace(b"NEXT", b"walk(items, i + 1)"))
     # Qualification keeps the exact fixed-array width. Literal predicates
@@ -1573,41 +1553,29 @@ def main() -> None:
     accepted(
         program,
         "a-measured-rank-range-holds-by-the-data's-where-facts",
-        b"data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }\n"
-        b"measure Countdown::Remaining(countdown: Countdown) -> u64\n{ countdown.remaining }\n"
-        b"machine walk(countdown: Countdown)\nterminates by countdown -> Countdown::Remaining in 0..=5;\n-> u64 {\n"
-        b"    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n"
-        b"        false -> countdown.remaining\n    }\n}",
+        b'data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }\nmeasure Countdown::Remaining(countdown: Countdown) -> u64\n{ countdown.remaining }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown -> Countdown::Remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
     )
     accepted(
         program,
         "a-field-rank-range-holds-by-the-data's-where-facts",
-        b"data Countdown where remaining <= 5 { remaining: u64; }\n"
-        b"machine walk(countdown: Countdown)\nterminates by countdown.remaining in 0..=5;\n-> u64 {\n"
-        b"    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n"
-        b"        false -> countdown.remaining\n    }\n}",
+        b'data Countdown where remaining <= 5 { remaining: u64; }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown.remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
     )
     rejected(
         program,
         "a-field-rank-range-beyond-the-data's-where-facts",
-        b"data Countdown where remaining <= 9 { remaining: u64; }\n"
-        b"machine walk(countdown: Countdown)\nterminates by countdown.remaining in 0..=5;\n-> u64 {\n"
-        b"    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n"
-        b"        false -> countdown.remaining\n    }\n}",
+        b'data Countdown where remaining <= 9 { remaining: u64; }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown.remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
         "RankRangeUnproven",
         b"0..=5",
     )
     accepted(
         program,
         "an-increasing-view's-rank-lies-within-its-limit",
-        b"machine walk(limit: u64, index: u64)\nterminates by index -> Nat::IncreasingTo(limit) in 0..=limit;\n-> u64\n{\n"
-        b"    transition index < limit {\n        true -> walk(limit, index + 1)\n        false -> index\n    }\n}",
+        b'machine walk(limit: u64, index: u64) -> u64\nterminates by index -> Nat::IncreasingTo(limit) in 0..=limit\n{\n    transition index < limit {\n        true -> walk(limit, index + 1)\n        false -> index\n    }\n}',
     )
     accepted(
         program,
         "a-bounded-distance-rank-lies-within-its-limit",
-        b"machine walk(items: &[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance in 0..=items.len;\n{\n"
-        b"    transition i < items.len {\n        true -> walk(items, i + 1)\n        _ -> (i)\n    }\n}",
+        b'machine walk(items: &[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance in 0..=items.len\n{\n    transition i < items.len {\n        true -> walk(items, i + 1)\n        _ -> (i)\n    }\n}',
     )
     # A layout query is known only by its `u64` type
     # (wiki/spec/language/counts_and_addresses.md).
@@ -1703,16 +1671,14 @@ def main() -> None:
     accepted(
         program,
         "a-measure-body-is-exact",
-        b"data Countdown {}\nmeasure Countdown::Shifted(value: u8) -> u8 { value + 1 }\n"
-        b"machine walk(remaining: u8)\nterminates by remaining -> Countdown::Shifted;\n-> u8 {\n"
-        b"    transition remaining > 0 {\n        true -> walk(remaining - 1)\n        false -> remaining\n    }\n}",
+        b'data Countdown {}\nmeasure Countdown::Shifted(value: u8) -> u8 { value + 1 }\nmachine walk(remaining: u8) -> u8\nterminates by remaining -> Countdown::Shifted {\n    transition remaining > 0 {\n        true -> walk(remaining - 1)\n        false -> remaining\n    }\n}',
     )
     rejected(program, "an-ordinary-body-owes-its-carrier", b"machine shift(value: u8) -> u8 { value + 1 }", "ArithmeticOverflow", b"value + 1")
     # Every declaration ranks its own explicit arguments. Passing another
     # caller parameter changes the invocation value, never the callee witness.
     # Lexical ancestry supplies no runtime subject or ranking contract.
     carried = (
-        b'data Countdown { remaining: u64; }\nmachine walk(countdown: Countdown, other: Countdown)\nterminates by countdown.remaining;\n-> u64 {\n    transition { _ -> iterate(ARRIVAL) }\n    machine iterate(pending: Countdown) -> u64\n    terminates by pending.remaining;\n    {\n        transition pending.remaining > 0 {\n            true -> iterate(Countdown { remaining: pending.remaining - 1 })\n            false -> pending.remaining\n        }\n    }\n}'
+        b'data Countdown { remaining: u64; }\nmachine walk(countdown: Countdown, other: Countdown) -> u64\nterminates by countdown.remaining {\n    transition { _ -> iterate(ARRIVAL) }\n    machine iterate(pending: Countdown) -> u64\n    terminates by pending.remaining\n    {\n        transition pending.remaining > 0 {\n            true -> iterate(Countdown { remaining: pending.remaining - 1 })\n            false -> pending.remaining\n        }\n    }\n}'
     )
     accepted(program, "an-own-rank-uses-the-explicit-record-argument", carried.replace(b"ARRIVAL", b"countdown"))
     accepted(program, "an-own-rank-is-independent-of-the-caller-parameter", carried.replace(b"ARRIVAL", b"other"))
@@ -1720,14 +1686,14 @@ def main() -> None:
     accepted(
         program,
         "a-formal-carries-through-another-formal",
-        b'machine walk(count: u64)\nterminates by count;\n-> u64 {\n    transition { _ -> first(count) }\n    machine first(pending: u64) -> u64\n    terminates by pending;\n    {\n        transition { _ -> second(pending) }\n    }\n    machine second(left: u64) -> u64\n    terminates by left;\n    {\n        transition left > 0 {\n            true -> second(left - 1)\n            false -> left\n        }\n    }\n}',
+        b'machine walk(count: u64) -> u64\nterminates by count {\n    transition { _ -> first(count) }\n    machine first(pending: u64) -> u64\n    terminates by pending\n    {\n        transition { _ -> second(pending) }\n    }\n    machine second(left: u64) -> u64\n    terminates by left\n    {\n        transition left > 0 {\n            true -> second(left - 1)\n            false -> left\n        }\n    }\n}',
     )
     # A `Slice::Length` witness rooted at a field path ranks the record's
     # slice by its live length. A rebuilt record's field takes the paths
     # below the view it was written from, so the view's shorter length
     # arrives in the child's own formal.
     rebuilt = (
-        b'data Bag { items: &[u32]; }\nmachine walk(bag: Bag, capacity: u64)\nrequires bag.items.len <= capacity;\nterminates by bag.items -> Slice::Length in 0..=capacity;\n-> u64 {\n    transition { _ -> step(bag, capacity) }\n    machine step(current: Bag, bound: u64) -> u64\n    requires current.items.len <= bound\n    terminates by current.items -> Slice::Length in 0..=bound;\n    {\n        transition current.items.len > 0 {\n            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}'
+        b'data Bag { items: &[u32]; }\nmachine walk(bag: Bag, capacity: u64) -> u64\nrequires bag.items.len <= capacity\nterminates by bag.items -> Slice::Length in 0..=capacity {\n    transition { _ -> step(bag, capacity) }\n    machine step(current: Bag, bound: u64) -> u64\n    requires current.items.len <= bound\n    terminates by current.items -> Slice::Length in 0..=bound\n    {\n        transition current.items.len > 0 {\n            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}'
     )
     accepted(program, "a-rebuilt-record-field-ranks-by-its-view-length", rebuilt.replace(b"RANGE", b"1.."))
     rejected(
@@ -1740,7 +1706,7 @@ def main() -> None:
     accepted(
         program,
         "a-nested-rebuilt-record-field-ranks-by-its-view-length",
-        b'data Inner { items: &[u32]; }\ndata Outer { inner: Inner; }\nmachine walk(outer: Outer)\nterminates by outer.inner.items -> Slice::Length;\n-> u64 {\n    transition { _ -> step(outer) }\n    machine step(current: Outer) -> u64\n    terminates by current.inner.items -> Slice::Length;\n    {\n        transition current.inner.items.len > 0 {\n            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}',
+        b'data Inner { items: &[u32]; }\ndata Outer { inner: Inner; }\nmachine walk(outer: Outer) -> u64\nterminates by outer.inner.items -> Slice::Length {\n    transition { _ -> step(outer) }\n    machine step(current: Outer) -> u64\n    terminates by current.inner.items -> Slice::Length\n    {\n        transition current.inner.items.len > 0 {\n            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}',
     )
     # A recast borrows its operand's storage under another shape
     # (wiki/spec/layouts/recasts.md): a write through the view reaches the
@@ -1877,10 +1843,7 @@ def main() -> None:
     # A declared measure ranks its subject by its body, or lexicographically
     # by the subject's named fields (wiki/spec/language/termination.md#ranking).
     measured = (
-        b"data Card { power: u64; }\n"
-        b"measure Card::PowerOrder(card: Card) -> u64 { card.power }\n"
-        b"machine weaken(card: Card) -> u64\nterminates by card -> Card::PowerOrder;\n{\n"
-        b"    transition card.power > 0 {\n        true -> NEXT\n        _ -> card.power\n    }\n}"
+        b'data Card { power: u64; }\nmeasure Card::PowerOrder(card: Card) -> u64 { card.power }\nmachine weaken(card: Card) -> u64\nterminates by card -> Card::PowerOrder\n{\n    transition card.power > 0 {\n        true -> NEXT\n        _ -> card.power\n    }\n}'
     )
     accepted(program, "self-call-descends-a-declared-measure", measured.replace(b"NEXT", b"weaken(Card { power: card.power - 1 })"))
     rejected(
@@ -1891,10 +1854,7 @@ def main() -> None:
         b"weaken(card)",
     )
     ordered = (
-        b"data Progress { outer: u64; inner: u64; }\n"
-        b"measure Progress::Steps lexicographic { outer, inner }\n"
-        b"machine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps;\n{\n"
-        b"    transition progress.inner > 0 {\n        true -> NEXT\n        _ -> progress.outer\n    }\n}"
+        b'data Progress { outer: u64; inner: u64; }\nmeasure Progress::Steps lexicographic { outer, inner }\nmachine scan(progress: Progress) -> u64\nterminates by progress -> Progress::Steps\n{\n    transition progress.inner > 0 {\n        true -> NEXT\n        _ -> progress.outer\n    }\n}'
     )
     accepted(
         program,
@@ -1916,36 +1876,19 @@ def main() -> None:
         b"walk(items, i)",
     )
     shrink = (
-        b"machine total(bytes: &[u8]) -> u64\n"
-        b"terminates by bytes -> Slice::Length;\n{\n"
-        b"    transition bytes.len > 0 {\n"
-        b"        true -> emit(bytes[1..])\n"
-        b"        _ -> done()\n"
-        b"    }\n"
-        b"\n"
-        b"    machine emit(bytes: &[u8]) -> u64\n    terminates by bytes -> Slice::Length;\n    {\n"
-        b"        transition bytes.len > 0 {\n"
-        b"            true -> TAIL\n"
-        b"            _ -> done()\n"
-        b"        }\n"
-        b"    }\n"
-        b"\n"
-        b"    machine done() -> u64 { 0 }\n"
-        b"}"
+        b'machine total(bytes: &[u8]) -> u64\nterminates by bytes -> Slice::Length\n{\n    transition bytes.len > 0 {\n        true -> emit(bytes[1..])\n        _ -> done()\n    }\n\n    machine emit(bytes: &[u8]) -> u64\n    terminates by bytes -> Slice::Length\n    {\n        transition bytes.len > 0 {\n            true -> TAIL\n            _ -> done()\n        }\n    }\n\n    machine done() -> u64 { 0 }\n}'
     )
     # Ranking creates the synthetic length before the guard. Its captured
     # value retains the admitted scalar type and equality to that live length.
     accepted(
         program,
         "a-ranked-slice-keeps-its-captured-length",
-        b"machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length; "
-        b"{ transition bytes.len > 0 { true -> bytes[1..] false -> bytes } }",
+        b'machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length { transition bytes.len > 0 { true -> bytes[1..] false -> bytes } }',
     )
     rejected(
         program,
         "a-ranked-slice-still-needs-a-bound",
-        b"machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length; "
-        b"{ bytes[1..] }",
+        b'machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length { bytes[1..] }',
         "IndexOutOfBounds",
         b"bytes[1..]",
     )
@@ -1960,39 +1903,26 @@ def main() -> None:
     accepted(
         program,
         "promise-over-terminating-callees",
-        b"machine helper(x: u64) -> u64 { x }\n"
-        b"machine leaf(x: u64) -> u64 terminates;\n"
-        b"machine run(x: u64) -> u64\nterminates;\n{\n"
-        b"    let a: u64 = helper(x);\n"
-        b"    leaf(a)\n"
-        b"}",
+        b'machine helper(x: u64) -> u64 { x }\nmachine leaf(x: u64) -> u64 terminates;\nmachine run(x: u64) -> u64\nterminates\n{\n    let a: u64 = helper(x);\n    leaf(a)\n}',
     )
     rejected(
         program,
         "promise-over-a-productive-loop",
-        b"machine spin(x: u64) -> u64 {\n"
-        b"    transition { _ -> again(x) }\n"
-        b"\n"
-        b"    machine again(x: u64) -> u64 {\n"
-        b"        transition { _ -> again(x) }\n"
-        b"    }\n"
-        b"}\n"
-        b"machine run(x: u64) -> u64\nterminates;\n{ spin(x) }",
+        b'machine spin(x: u64) -> u64 {\n    transition { _ -> again(x) }\n\n    machine again(x: u64) -> u64 {\n        transition { _ -> again(x) }\n    }\n}\nmachine run(x: u64) -> u64\nterminates\n{ spin(x) }',
         "ProgressUnproven",
         b"terminates;",
     )
     rejected(
         program,
         "promise-over-an-unpromised-leaf",
-        b"machine leaf(x: u64) -> u64;\nmachine run(x: u64) -> u64\nterminates;\n{ leaf(x) }",
+        b'machine leaf(x: u64) -> u64;\nmachine run(x: u64) -> u64\nterminates\n{ leaf(x) }',
         "ProgressUnproven",
         b"terminates;",
     )
     rejected(
         program,
         "promise-over-mutual-recursion",
-        b"machine ping(x: u64) -> u64\nterminates;\n{ pong(x) }\n"
-        b"machine pong(x: u64) -> u64\nterminates;\n{ ping(x) }",
+        b'machine ping(x: u64) -> u64\nterminates\n{ pong(x) }\nmachine pong(x: u64) -> u64\nterminates\n{ ping(x) }',
         "ProgressUnproven",
         b"terminates;",
     )

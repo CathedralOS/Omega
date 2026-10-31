@@ -1,1 +1,1 @@
-machine header clauses have no trailing semicolons
+found identifier `crashes`

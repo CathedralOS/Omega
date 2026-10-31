@@ -10,7 +10,7 @@ const REMAINING: u64 = 4;
 
 machine walk() -> u64
 requires
-    REMAINING <= 5;
+    REMAINING <= 5
 {
     transition REMAINING >= 2 {
         true -> finish(REMAINING - 2)

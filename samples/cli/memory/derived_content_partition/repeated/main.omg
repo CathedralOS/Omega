@@ -15,10 +15,10 @@ data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(whole: Region in Owned, cut: u64) -> Pieces
 requires whole.start <= cut && cut <= whole.end
 ensures
-    result.left.start == whole.start;
-    result.left.end == cut;
-    result.right.start == cut;
-    result.right.end == whole.end;
+    result.left.start == whole.start,
+    result.left.end == cut,
+    result.right.start == cut,
+    result.right.end == whole.end,
     Owned::content(old(&whole)) == separate(
         Owned::content(&result.left), Owned::content(&result.right))
 {

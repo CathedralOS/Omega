@@ -594,7 +594,7 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
 fn tail_self_call_retains_authored_call_until_resolution() {
     let source = r#"
         machine repeat(remaining: u64) -> u64
-        terminates by remaining -> Nat::Descending;
+        terminates by remaining -> Nat::Descending
         {
             repeat(remaining - 1)
         }
