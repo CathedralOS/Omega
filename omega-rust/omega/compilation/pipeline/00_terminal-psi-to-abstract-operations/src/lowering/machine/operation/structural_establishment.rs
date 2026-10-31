@@ -150,35 +150,14 @@ pub(super) fn lower(
                 .iter()
                 .find(|(place, _, _)| place.id == destination)
                 .copied()
-                .ok_or_else(|| LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                })?;
+                .ok_or_else(|| unsupported_return(machine, block))?;
             let declaration = find_structural_type(structural_types, structural_type)
                 .cloned()
-                .ok_or_else(|| LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                })?;
+                .ok_or_else(|| unsupported_return(machine, block))?;
             if usize::try_from(ordinal) != Ok(lowered_unit_affine_locals.len())
                 || !matches!(declaration.shape, StructuralTypeShape::Record { ref fields, .. } if fields.is_empty())
             {
-                return Err(LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: block
-                        .terminator
-                        .edges()
-                        .next()
-                        .expect("every terminator carries an edge"),
-                });
+                return Err(unsupported_return(machine, block));
             }
             lowered_unit_affine_locals.push((operation.id, *place, declaration.clone()));
             AbstractOperation::EstablishTrivialAffineLocal {
@@ -213,6 +192,19 @@ pub(super) fn lower(
     })
 }
 
+/// The lowerer's unsupported-return error, naming the machine and the block's
+/// first outgoing edge.
+fn unsupported_return(machine: &TerminalMachine, block: &Block) -> LoweringError {
+    LoweringError::UnsupportedStructuralReturn {
+        machine: machine.id,
+        edge: block
+            .terminator
+            .edges()
+            .next()
+            .expect("every terminator carries an edge"),
+    }
+}
+
 /// The operation's structural result, cloned, or the unsupported-return
 /// error naming the machine's first outgoing edge.
 fn structural_result(
@@ -220,14 +212,9 @@ fn structural_result(
     machine: &TerminalMachine,
     block: &Block,
 ) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
-    operation.result.structural().cloned().ok_or_else(|| {
-        LoweringError::UnsupportedStructuralReturn {
-            machine: machine.id,
-            edge: block
-                .terminator
-                .edges()
-                .next()
-                .expect("every terminator carries an edge"),
-        }
-    })
+    operation
+        .result
+        .structural()
+        .cloned()
+        .ok_or_else(|| unsupported_return(machine, block))
 }
