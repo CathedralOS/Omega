@@ -1,9 +1,8 @@
 //! Identities of satisfied requirements, external bindings, hosted catalog
 //! leaves and provider boundary arguments.
 
-use crate::provider_planning::is_unit_type;
 use crate::provider_planning::provenance_replay::SelectedTargetMachineOrigin;
-use crate::provider_planning::{ProviderBinding, TypedTrees, type_reference_node};
+use crate::provider_planning::{ProviderBinding, TypedTrees, is_unit_type};
 use checked_trees::typed_trees::{signature::StateSignature, trait_definition::TraitDefinition};
 use target::HostedIntrinsicBundle;
 
