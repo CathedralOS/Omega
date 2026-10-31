@@ -2,6 +2,8 @@
 //! whether an expression establishes a linear obligation.
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
+use crate::flow::expressions;
+use crate::places::place_at;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -21,12 +23,7 @@ pub(crate) fn expression_establishes_obligation(
     relative_path: &[facts::PlaceSegment],
     places: &[LinearPlace],
 ) -> bool {
-    if let Some(source) = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    ) {
+    if let Some(source) = place_at(program, state_symbol, statement_index, expression) {
         let mut source_path = source.segments;
         source_path.extend_from_slice(relative_path);
         if let Some(place) = places.iter().find(|place| {
@@ -40,8 +37,7 @@ pub(crate) fn expression_establishes_obligation(
         program.expression_table.expression(expression)
         && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
     {
-        return program
-            .expression_table
+        return expressions(program)
             .expression_handles(*values)
             .get(*index)
             .is_some_and(|value| {
@@ -74,8 +70,7 @@ pub(crate) fn expression_establishes_obligation(
             let Some(field_name) = data_field_name(program, *symbol) else {
                 return false;
             };
-            let Some(field) = program
-                .expression_table
+            let Some(field) = expressions(program)
                 .struct_fields(literal.fields)
                 .iter()
                 .find(|field| field.name.as_str() == field_name)

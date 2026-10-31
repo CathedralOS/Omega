@@ -12,6 +12,8 @@ pub(crate) use reference_places::{
 };
 pub(crate) use result_memberships::CapturedResultMemberships;
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::{FlowControlFacts, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use typed_trees::types::TypeReferenceHandle;
@@ -221,7 +223,7 @@ pub(super) fn captured_places(
     if !super::operand_contexts::operand_binds_live_view(program, type_reference)
         || referents.is_empty()
     {
-        let mut place = validation::canonical_place_from_expression_in_state(
+        let mut place = place_at(
             program,
             operand.state_symbol,
             operand.statement_index,
@@ -611,9 +613,7 @@ fn reaching_store_values<'capture>(
         // Zero formation has no evaluated RHS. Its establishment belongs to
         // the observed storage, not an invalid completed producer. Every
         // predecessor must support the requested detached copy.
-        if !program
-            .expression_table
-            .expression_is_valid(stored.expression)
+        if !expressions(program).expression_is_valid(stored.expression)
             || !selected.reference.is_valid()
             || !validation::project_type_reference_from_segments(
                 program,

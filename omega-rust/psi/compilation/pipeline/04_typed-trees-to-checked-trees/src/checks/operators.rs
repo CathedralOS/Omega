@@ -1,6 +1,7 @@
 use checked_trees::{CheckFacts, CheckedOperatorResolutionIssue};
 use diagnostics::Diagnostic;
 
+use crate::flow::expressions;
 use crate::labels::symbol_name;
 
 mod destinations;
@@ -71,9 +72,7 @@ fn inadmissible_operator_diagnostic(
     program: &dyn ::validation::CheckingInput,
     issue: CheckedOperatorResolutionIssue<'_>,
 ) -> Diagnostic {
-    let operand = program
-        .expression_table
-        .display_name(issue.operator_use.expression);
+    let operand = expressions(program).display_name(issue.operator_use.expression);
     let required_facts = issue
         .candidates
         .iter()

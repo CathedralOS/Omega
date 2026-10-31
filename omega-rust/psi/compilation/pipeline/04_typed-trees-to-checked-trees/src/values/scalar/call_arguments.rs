@@ -1,5 +1,7 @@
 //! Nested call operands retain captured coordinates and source scope independently
 //! of result shape. The consuming planner owns result eligibility and custody.
+use crate::flow::expressions;
+use crate::flow::indexed_statements;
 use crate::values::scalar::call_lowering::lower_call_arguments;
 use crate::values::scalar::call_lowering::retain_call_arguments;
 use crate::values::scalar::expression_plans::ScalarLocal;
@@ -54,10 +56,7 @@ pub(crate) fn retain_nested_call_arguments(
             let mut locals = Vec::new();
             let captured =
                 crate::values::scalar::array_constructions::unique_state_flow(flow, machine, state);
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
@@ -219,9 +218,7 @@ pub(crate) fn nested_call_sites<'program>(
         .filter_map(|source| {
             if source.statement_index != statement_index
                 || (source.call_ordinal == 0 && statement_root == Some(source.authored_expression))
-                || !program
-                    .expression_table
-                    .expression_is_valid(source.authored_expression)
+                || !expressions(program).expression_is_valid(source.authored_expression)
                 || calls.iter().any(|other| {
                     !std::ptr::eq(source, other)
                         && other.statement_index == statement_index
@@ -231,9 +228,8 @@ pub(crate) fn nested_call_sites<'program>(
             {
                 return None;
             }
-            let ExpressionNode::Call(call) = program
-                .expression_table
-                .expression(source.authored_expression)
+            let ExpressionNode::Call(call) =
+                expressions(program).expression(source.authored_expression)
             else {
                 return None;
             };

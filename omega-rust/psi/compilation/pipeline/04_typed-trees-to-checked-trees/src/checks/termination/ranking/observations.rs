@@ -6,6 +6,7 @@ use super::{
     OrderResolution, RankingOrder, resolve_machine_witness_subjects,
     resolve_machine_witness_view_arguments,
 };
+use crate::places::place_at;
 use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;
@@ -29,12 +30,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     let body_states = admitted.for_body(machine.symbol, machine.states)?.states;
     let relevance = validation::rank_relevance(program, &[machine.symbol])?;
     let coordinate = |expression| {
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            root.symbol,
-            0,
-            expression,
-        )?;
+        let place = place_at(program, root.symbol, 0, expression)?;
         let facts::PlaceRoot::Symbol(parameter) = place.root else {
             return None;
         };

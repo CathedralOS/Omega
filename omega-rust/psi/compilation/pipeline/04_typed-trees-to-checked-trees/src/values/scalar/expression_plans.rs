@@ -7,6 +7,7 @@
 //! elements first, and the statement's kind selects its own planner beside
 //! this file.
 
+use crate::flow::indexed_statements;
 use crate::values::scalar::boolean_lowering::lower_boolean_guard;
 use crate::values::scalar::call_lowering::{
     LoweredCallArguments, lower_call_arguments, lower_direct_call_binding_arguments,
@@ -198,10 +199,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 crate::values::scalar::scalar_parameter_roster(program, parameters)
                     .expect("filtered scalar parameters retain primitive carriers");
             let result_type = program.primitive_type_reference(state.return_type);
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
+            for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };

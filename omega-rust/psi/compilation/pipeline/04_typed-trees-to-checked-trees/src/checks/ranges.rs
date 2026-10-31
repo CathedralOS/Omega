@@ -62,6 +62,7 @@ pub(crate) mod types;
 
 // Tests.
 
+use crate::flow::expressions;
 use ::diagnostics::Diagnostic;
 use arrays::fixed_array_field_lengths;
 pub(in crate::checks) use arrays::fixed_array_type_length;
@@ -322,10 +323,7 @@ fn expression_contains_indexed(
     depth: usize,
 ) -> bool {
     use typed_trees::expression::{ExpressionNode, MatchPattern};
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
+    let Some(node) = expressions(program).expression_at_depth(expression, depth) else {
         return false;
     };
     let next = depth + 1;
@@ -334,14 +332,12 @@ fn expression_contains_indexed(
         ExpressionNode::Indexed(_) => true,
         ExpressionNode::Match(dispatch) => {
             expression_contains_indexed(program, dispatch.subject, next)
-                || program
-                    .expression_table
+                || expressions(program)
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
                         (match arm.pattern {
-                            MatchPattern::Destructure(_) => program
-                                .expression_table
+                            MatchPattern::Destructure(_) => expressions(program)
                                 .match_pattern_operands(arm.pattern)
                                 .any(|operand| expression_contains_indexed(program, operand, next)),
                             MatchPattern::Value(pattern) => {
@@ -357,8 +353,7 @@ fn expression_contains_indexed(
         }
         ExpressionNode::Call(call) => {
             expression_contains_indexed(program, call.receiver, next)
-                || program
-                    .expression_table
+                || expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| expression_contains_indexed(program, *argument, next))
@@ -375,8 +370,7 @@ fn expression_contains_indexed(
                 expression_contains_indexed(program, atomic.value, next)
             }
         }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expressions(program)
             .expression_handles(*values)
             .iter()
             .any(|value| expression_contains_indexed(program, *value, next)),
@@ -389,8 +383,7 @@ fn expression_contains_indexed(
             expression_contains_indexed(program, range.start, next)
                 || expression_contains_indexed(program, range.end, next)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_contains_indexed(program, field.value, next)),

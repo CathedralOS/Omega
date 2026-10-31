@@ -2,6 +2,7 @@
 //! or result carries, and the domain requirements boundary machines publish.
 
 use super::*;
+use crate::places::place_at;
 
 /// Invocation clauses retain their own represented erased lanes. Their
 /// presence is independent of a scalar body's result operation. Internal
@@ -97,12 +98,7 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_has_plan
         .iter()
         .all(|fact| match (&contract.kind, fact) {
             (SignatureContractKind::Requires, ProofFact::Membership(membership)) => {
-                let Some(place) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    0,
-                    membership.value,
-                ) else {
+                let Some(place) = place_at(program, state.symbol, 0, membership.value) else {
                     return false;
                 };
                 if let Some(valid) =

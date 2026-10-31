@@ -9,6 +9,7 @@ use super::{
     BigInt, ExitScalars, ExpressionHandle, exact_integer_carrier, exit_return_expression,
     interval_comparison, is_result_reference,
 };
+use crate::flow::state_statements;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
     CheckedScalarExpressionRole,
@@ -120,10 +121,7 @@ impl ExitScalars<'_, '_> {
         *remaining = remaining.checked_sub(1)?;
         let symbol = *symbols.get(position)?;
         let state = self.state()?;
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = state_statements(self.program, state.statement_nodes);
         let mut locals = statements
             .iter()
             .enumerate()

@@ -3,6 +3,7 @@
 //! label carries renderer-specific context (names, struct literals, the
 //! `result` binder) stay with their own match.
 
+use crate::flow::expressions;
 use arena::HandleSpan;
 use typed_trees::expression::{
     ExpressionHandle, MatchPattern, TableAtomicExpression, TableBinaryExpression,
@@ -16,8 +17,7 @@ pub(super) fn match_label(
     dispatch: &TableMatchExpression,
     render: &dyn Fn(ExpressionHandle) -> String,
 ) -> String {
-    let arms = program
-        .expression_table
+    let arms = expressions(program)
         .match_arms(dispatch.arms)
         .iter()
         .map(|arm| {
@@ -49,8 +49,7 @@ pub(super) fn array_literal_label(
     values: HandleSpan<ExpressionHandle>,
     render: &dyn Fn(ExpressionHandle) -> String,
 ) -> String {
-    let values = program
-        .expression_table
+    let values = expressions(program)
         .expression_handles(values)
         .iter()
         .map(|value| render(*value))
@@ -80,9 +79,7 @@ pub(super) fn cast_label(
         "{} as {}",
         render(cast.value),
         display_name_path(
-            program
-                .expression_table
-                .name_path_members(cast.target_label),
+            expressions(program).name_path_members(cast.target_label),
             "::",
         )
     )

@@ -22,6 +22,8 @@ use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode, PrimitiveType,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 
 impl Builder<'_, '_> {
     pub(super) fn is_bodyless_boundary_call(&self, mut expression: ExpressionHandle) -> bool {
@@ -112,20 +114,14 @@ impl Builder<'_, '_> {
                 state,
                 call.receiver,
             )?;
-            if validation::canonical_place_from_expression_in_state(
-                program,
-                self.state,
-                self.statement_index,
-                call.receiver,
-            )
-            .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
+            if place_at(program, self.state, self.statement_index, call.receiver)
+                .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
             {
                 authority_value = self.structural_value(call.receiver, reference)?;
                 self.retain_structural_value_root(authority_value, reference)?;
             }
         }
-        let operands = program
-            .expression_table
+        let operands = expressions(program)
             .expression_handles(call.arguments)
             .to_vec();
         self.boundary_application(

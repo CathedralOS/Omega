@@ -3,6 +3,7 @@
 //! no initializer or stale mutable read is replayed to reconstruct a value.
 
 use super::{ExitScalars, exit_return_expression, has_builtin_operators, is_result_reference};
+use crate::places::place_at;
 use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
 use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
@@ -149,7 +150,7 @@ impl ExitScalars<'_, '_> {
         // source construct. Read that immutable result occurrence before the
         // older signed-enclosure adapters; u64's unstated upper bound remains
         // its actual carrier maximum, not an i64 ceiling.
-        if let Some(subject) = validation::canonical_place_from_expression_in_state(
+        if let Some(subject) = place_at(
             self.program,
             state.symbol,
             self.exit.statement_index,

@@ -4,6 +4,7 @@
 //! recursive types do not define a finite set of observable field paths.
 use super::CurrentScalarValues;
 use super::scalar_fields::{ScalarProjection, capture_path};
+use crate::flow::indexed_statements;
 use validation::ScopedArithmeticValue;
 
 /// Paths are declaration identities, shared across a call component so a private
@@ -15,10 +16,7 @@ pub(crate) fn parameter_projection_paths(
     state: &typed_trees::state::State,
 ) -> Vec<Vec<facts::PlaceSegment>> {
     let mut pending = Vec::new();
-    for (_, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (_, statement) in indexed_statements(program, state.statement_nodes) {
         pending.extend(
             program
                 .tables

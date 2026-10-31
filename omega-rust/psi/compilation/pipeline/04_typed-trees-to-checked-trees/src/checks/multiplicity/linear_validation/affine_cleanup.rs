@@ -1,6 +1,7 @@
 //! Scope-exit permission events for eligible owned cleanup.
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
+use crate::flow::state_statements;
 use checked_trees::{
     FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation, FlowPermissionEventFact,
 };
@@ -424,9 +425,8 @@ pub(crate) fn exit_evaluation(
 ) -> FlowPermissionEvaluation {
     match coordinate.kind {
         FlowClaimJoinExitKind::TransitionTarget | FlowClaimJoinExitKind::TransitionContinuation => {
-            let StatementNode::Transition(transition) = &program
-                .statement_table
-                .statements(state.statement_nodes)[coordinate.statement_index]
+            let StatementNode::Transition(transition) =
+                &state_statements(program, state.statement_nodes)[coordinate.statement_index]
             else {
                 unreachable!()
             };

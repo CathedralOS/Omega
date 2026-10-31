@@ -74,6 +74,11 @@ tracks their removal and end-to-end validation.
 
 ## Declaration forms
 
+Header clauses are delimited by the next clause or body, never by semicolons.
+Only a bodyless declaration or requirement has a final declaration semicolon.
+This includes nested `requires machine` contracts; see
+[machine header delimiters](state_contracts.md#machine-header-delimiters).
+
 A fixed operator token after `machine`, as in `machine + Vec2::add(...)`, binds
 expression syntax to the same named machine. This is not a separate executable
 species or an alternate contract system. [Operator declarations](expressions.md#operator-declarations)

@@ -5,6 +5,8 @@ use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
 use crate::checks::ranges::facts::dependencies::reads;
 use crate::checks::ranges::facts::dependencies::same_reads;
+use crate::flow::expressions;
+use crate::places::place_at;
 
 impl<'field> RangeFacts<'field> {
     pub(in crate::checks::ranges) fn alias_integer_value(
@@ -88,12 +90,8 @@ impl<'field> RangeFacts<'field> {
             if !validation::place_has_builtin_coordinates(program, machine, Some(state), source) {
                 continue;
             }
-            let Some(source_place) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                self.statement_index,
-                source,
-            ) else {
+            let Some(source_place) = place_at(program, state.symbol, self.statement_index, source)
+            else {
                 continue;
             };
             if !source_place.segments.iter().any(|segment| {
@@ -109,7 +107,7 @@ impl<'field> RangeFacts<'field> {
                 {
                     continue;
                 }
-                let Some(mut candidate) = validation::canonical_place_from_expression_in_state(
+                let Some(mut candidate) = place_at(
                     program,
                     state.symbol,
                     self.statement_index.saturating_add(1),
@@ -138,9 +136,7 @@ impl<'field> RangeFacts<'field> {
                     else {
                         continue;
                     };
-                    if !program
-                        .expression_table
-                        .expressions_structurally_equal(*source_index, captured)
+                    if !expressions(program).expressions_structurally_equal(*source_index, captured)
                     {
                         continue;
                     }
@@ -166,8 +162,7 @@ impl<'field> RangeFacts<'field> {
                                     ) == Some(value)
                             });
                     if (selector_symbol != Some(symbol) && !shared_snapshot)
-                        || program
-                            .expression_table
+                        || expressions(program)
                             .name_path_members(selector.members)
                             .len()
                             != 1
@@ -246,14 +241,10 @@ impl<'field> RangeFacts<'field> {
                         label,
                         machine: machine.symbol,
                         state: state.symbol,
-                        descriptor: original.descriptor.as_ref().and_then(|_| {
-                            validation::canonical_place_from_expression_in_state(
-                                program,
-                                state.symbol,
-                                prefix,
-                                expression,
-                            )
-                        }),
+                        descriptor: original
+                            .descriptor
+                            .as_ref()
+                            .and_then(|_| place_at(program, state.symbol, prefix, expression)),
                         reads: Some(reads),
                     });
                 }

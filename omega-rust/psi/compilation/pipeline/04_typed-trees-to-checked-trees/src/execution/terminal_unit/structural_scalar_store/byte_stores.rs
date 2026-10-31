@@ -12,6 +12,7 @@ use super::value::{self, AssignmentSource};
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference, terminal_field_identity,
 };
+use crate::places::place_at;
 
 /// `view[index] = byte` through a whole mutable borrowed view or owned home.
 /// Replacing a byte observes the current length, so a borrowed root needs an
@@ -383,12 +384,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
             )
         }
         _ => {
-            let place = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index as usize,
-                expression,
-            )?;
+            let place = place_at(program, state.symbol, statement_index as usize, expression)?;
             let root = place.root;
             let parameter_position = program
                 .state_parameters(state)

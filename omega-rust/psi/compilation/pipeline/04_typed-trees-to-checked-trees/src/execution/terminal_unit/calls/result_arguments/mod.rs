@@ -16,6 +16,8 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
     base_type_identity, structural_access_for_type_reference,
 };
+use crate::flow::expressions;
+use crate::places::place_at;
 
 use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
@@ -597,12 +599,8 @@ fn argument_contract(
                     // A loan selects a place within the complete producer.
                     // Rejoin that root/path, not expression equality: the
                     // selected field is not a separate temporary owner.
-                    let referent_place = validation::canonical_place_from_expression_in_state(
-                        program,
-                        state,
-                        call.statement_index,
-                        referent_expression,
-                    );
+                    let referent_place =
+                        place_at(program, state, call.statement_index, referent_expression);
                     let (owner, owner_type) = if referent_place.as_ref() == Some(place) {
                         (source, produced_type?)
                     } else if place.segments.is_empty()
@@ -652,10 +650,7 @@ fn argument_contract(
             // field at the captured path. The statement is the consumer, so
             // the loan is not a local initialized by this call.
             if projected
-                && program
-                    .expression_table
-                    .borrow_expression(expression)
-                    .is_none()
+                && expressions(program).borrow_expression(expression).is_none()
                 && matches!(place.root, facts::PlaceRoot::Expression(_))
             {
                 return Some(CheckedUnitStructuralArgumentPlan {
@@ -834,13 +829,7 @@ fn argument_contract(
                     .count()
                     != 1
                 || (projected
-                    && validation::canonical_place_from_expression_in_state(
-                        program,
-                        state,
-                        call.statement_index,
-                        expression,
-                    )
-                    .as_ref()
+                    && place_at(program, state, call.statement_index, expression).as_ref()
                         != Some(place))
             {
                 return None;

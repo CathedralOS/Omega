@@ -5,6 +5,7 @@ use super::{
     RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
 };
+use crate::register_model::{units_of, view_of};
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
@@ -28,30 +29,14 @@ fn leaf_bytes(target: NativeTarget) -> u16 {
 }
 
 pub(crate) fn effects() -> MachineEncodedEffects {
-    let physical = crate::x86_64_physical_register_model_ref();
-    let view = |name: &str| {
-        physical
-            .view_named(name)
-            .expect("canonical Linux write register")
-    };
-    let mut uses = view("rsp").units.clone();
-    uses.extend(view("rip").units.iter().copied());
-    uses.sort_unstable();
-    uses.dedup();
-    let mut clobbers = Vec::new();
-    for name in ["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"] {
-        clobbers.extend(view(name).units.iter().copied());
-    }
-    clobbers.sort_unstable();
-    clobbers.dedup();
     MachineEncodedEffects {
         external_operand_reads: vec![0],
         external_operand_writes: Vec::new(),
-        implicit_unit_uses: uses,
+        implicit_unit_uses: units_of(&["rsp", "rip"]),
         implicit_unit_defs: Vec::new(),
-        implicit_unit_clobbers: clobbers,
+        implicit_unit_clobbers: units_of(&["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"]),
         memory: MachineEncodedMemoryEffect::HostedWriteByteV1 {
-            stack_pointer: view("rsp").id,
+            stack_pointer: view_of("rsp").id,
         },
         stack: MachineEncodedStackEffect::UnchangedV1,
         trap: MachineEncodedTrapBehavior::HostedWriteFailureV1,

@@ -4,6 +4,7 @@ use crate::checks::content::content_paths::{
     content_path, content_segments_to_fact_path, projection_observations,
 };
 use crate::flow::{SelectionCondition, SelectionConditions};
+use crate::places::place_at;
 use checked_trees::{
     CheckFacts, ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite,
@@ -809,7 +810,7 @@ fn instantiate_partition_result_subject(
             operand.type_reference,
             &selected,
         )?;
-        let mut expected = validation::canonical_place_from_expression_in_state(
+        let mut expected = place_at(
             program,
             caller_state.symbol,
             invocation.statement_index,

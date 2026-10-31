@@ -5,6 +5,7 @@
 mod projections;
 
 use super::{Callable, Invocation, arithmetic};
+use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;
@@ -63,15 +64,10 @@ fn tuple<'program>(
         return None;
     }
     let parameters = program.machine_type_parameters(declaration);
-    let bindings = program
-        .expression_table
-        .static_machine_application_bindings(handle);
+    let bindings = expressions(program).static_machine_application_bindings(handle);
     if arguments.len() != parameters.len() + declaration.conformance_bounds.len()
         || bindings.len() != arguments.len()
-        || program
-            .expression_table
-            .static_machine_application_arguments(handle)
-            != arguments
+        || expressions(program).static_machine_application_arguments(handle) != arguments
     {
         return None;
     }

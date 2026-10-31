@@ -25,6 +25,7 @@
 //! `scalars` (scalar Boolean evaluation) are re-exported for the other
 //! contract checks, and `call_guarantees` is also used by `checks::borrows`.
 
+use crate::places::place_at;
 use checked_trees::{FlowCallFact, FlowStateFact};
 use facts::FactPayload;
 
@@ -261,7 +262,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     if let Some((predicate, subject)) = place_predicate(program, expression)
         && let Some((value, remaining)) =
             case_test_subject_actual(program, &call_site, target_parameters, subject)
-        && let Some(mut place) = validation::canonical_place_from_expression_in_state(
+        && let Some(mut place) = place_at(
             program,
             state_flow.state_symbol,
             call_flow.statement_index,

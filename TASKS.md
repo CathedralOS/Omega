@@ -786,10 +786,13 @@ helper that passes does not close an item.
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
     enclosing declaration's requirements and guarantees, including higher-order
-    and logical-evidence requirements. The single-semicolon boundary between
-    nested and enclosing operational clauses is **OWNER-BLOCKED** on the narrow
-    punctuation question in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md); explicit
-    distinct terminators and the other requirement forms remain engineering work.
+    and logical-evidence requirements. Apply the settled
+    [machine header delimiters](wiki/spec/language/state_contracts.md#machine-header-delimiters):
+    no clause-ending semicolons, including termination and operational clauses;
+    one final semicolon closes each bodyless callable. Remove the parser's
+    termination-clause semicolon requirement; reject extra same-level terminators
+    rather than treating them as a workaround. Keep distinct terminators for
+    genuinely nested declarations.
   - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
     after `asm`, including headers without predicates. Preserve label scopes,
     incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
@@ -807,6 +810,11 @@ helper that passes does not close an item.
   twins retain native/Terminal agreement (`omega run --both`). Exercise repeated
   predicates, mixed generic/call-entry constraints, nested callable contracts
   followed by outer clauses, and assembly with and without entry predicates.
+  Pin callbacks with combined `suspends blocks terminates`, termination followed
+  by another clause or a body, and correctly closed higher-order requirements;
+  reject clause separators and extra same-level terminators. Migrate both
+  producers' parsers, source examples and diagnostic expectations without
+  changing which callable owns each obligation.
   Reject each retired `where` form, unsatisfied predicates, wrong callable scope
   or kind, unjustified static specialization, invalid default-domain formation,
   and unproved assembly assertions or incorrect clobbers. No old parser mode or

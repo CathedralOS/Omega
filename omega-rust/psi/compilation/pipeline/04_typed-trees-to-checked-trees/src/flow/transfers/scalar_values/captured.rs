@@ -6,6 +6,7 @@ use super::conversions::{ConversionKind, SelectedConversion};
 
 use crate::flow::FlowBuildContext;
 use crate::flow::transfers::scalar_values::CallValues;
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;
@@ -63,12 +64,7 @@ pub(super) trait CapturedValue: Sized {
         statement_index: usize,
         expression: ExpressionHandle,
     ) -> Option<Self> {
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            live.state,
-            statement_index,
-            expression,
-        )?;
+        let place = place_at(program, live.state, statement_index, expression)?;
         Self::at_place(&place, live)
     }
     /// Evaluate a non-call operand below authored conversions: a literal or a
@@ -272,12 +268,7 @@ impl CapturedValue for IntegerRange {
         if let Some(value) = Self::literal(program.expression_table.expression(expression)) {
             return Some(value);
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            live.state,
-            statement_index,
-            expression,
-        )?;
+        let place = place_at(program, live.state, statement_index, expression)?;
         let primitive =
             program.primitive_type_reference(validation::expression_type_reference_in_state(
                 program,

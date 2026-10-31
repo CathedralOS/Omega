@@ -18,6 +18,8 @@ use crate::checks::multiplicity::linear_validation::{
     established_provenance, linear_claim_frontier, permission_event_statement_index,
 };
 use crate::checks::multiplicity::type_multiplicity::data_field_name;
+use crate::flow::expressions;
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::{
     CheckFacts, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
@@ -429,12 +431,7 @@ impl ClaimAbsence<'_> {
         path: &[facts::PlaceSegment],
         expected: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
-        if let Some(mut place) = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state.symbol,
-            statement,
-            expression,
-        ) {
+        if let Some(mut place) = place_at(self.program, self.state.symbol, statement, expression) {
             place.segments.extend_from_slice(path);
             if self
                 .writes
@@ -486,8 +483,7 @@ impl ClaimAbsence<'_> {
                 let Some(field_name) = data_field_name(self.program, *symbol) else {
                     return false;
                 };
-                self.program
-                    .expression_table
+                expressions(self.program)
                     .struct_fields(literal.fields)
                     .iter()
                     .find(|field| field.name.as_str() == field_name)
@@ -509,8 +505,7 @@ impl ClaimAbsence<'_> {
                 let Some(facts::PlaceSegment::FixedIndex { index }) = path.first() else {
                     return false;
                 };
-                self.program
-                    .expression_table
+                expressions(self.program)
                     .expression_handles(*values)
                     .get(*index)
                     .is_some_and(|value| {
@@ -523,9 +518,7 @@ impl ClaimAbsence<'_> {
             typed_trees::expression::ExpressionNode::Call(call) => self.arguments(
                 statement,
                 call.target_symbol,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
+                expressions(self.program).expression_handles(call.arguments),
                 path,
             ),
             _ => false,
@@ -716,12 +709,7 @@ fn claim_outcomes_for_expression(
         };
     }
     let segments = &ownership.segments;
-    if let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        expression,
-    ) {
+    if let Some(place) = place_at(program, state.symbol, statement_index, expression) {
         let found = permission_events
             .iter()
             .filter(|event| {
@@ -757,8 +745,7 @@ fn claim_outcomes_for_expression(
     }
 
     match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        typed_trees::expression::ExpressionNode::ArrayLiteral(values) => expressions(program)
             .expression_handles(*values)
             .iter()
             .enumerate()
@@ -791,8 +778,7 @@ fn claim_outcomes_for_expression(
                 .data_payload_fields(variant)
                 .iter()
                 .filter_map(|field| {
-                    let value = program
-                        .expression_table
+                    let value = expressions(program)
                         .struct_fields(literal.fields)
                         .iter()
                         .find(|literal_field| literal_field.name == field.name)?
@@ -821,8 +807,7 @@ fn claim_outcomes_for_expression(
             }) else {
                 return Vec::new();
             };
-            program
-                .expression_table
+            expressions(program)
                 .struct_fields(literal.fields)
                 .iter()
                 .flat_map(|literal_field| {
@@ -1171,7 +1156,7 @@ fn bind_claim_outcome_source_at_arguments(
     if !projections.is_empty() {
         return None;
     }
-    let mut place = validation::canonical_place_from_expression_in_state(
+    let mut place = place_at(
         program,
         caller_state.symbol,
         statement_index,

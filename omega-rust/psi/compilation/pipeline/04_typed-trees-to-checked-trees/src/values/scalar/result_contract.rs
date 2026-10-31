@@ -5,6 +5,7 @@
 mod logical_matches;
 mod predicate_conditions;
 
+use crate::flow::expressions;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
 use crate::values::scalar::contract_entry;
@@ -380,11 +381,7 @@ impl ContractPredicates<'_, '_> {
             })
         {
             if (parameter.is_const)
-                || program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    != 1
+                || expressions(program).name_path_members(path.members).len() != 1
             {
                 return None;
             }
@@ -731,8 +728,7 @@ impl ContractPredicates<'_, '_> {
                 primitive_type,
                 operand,
             }
-        } else if let Some(member) = program
-            .expression_table
+        } else if let Some(member) = expressions(program)
             .name_path_node(expression)
             .and_then(|path| program.symbols.builtin_type_member(path.symbol))
         {

@@ -22,6 +22,7 @@ use crate::borrow::tracker::StateLoanTracker;
 use crate::borrow::view_link::ViewReturnFieldSource;
 use crate::borrow::view_link::ViewReturnSource;
 use crate::borrow::view_link::resolve_view_return_source;
+use crate::flow::expressions;
 use validation::borrow_contracts::ViewReturnInputSource;
 
 use checked_trees::expression::ExpressionHandle;
@@ -650,8 +651,7 @@ pub(super) fn relative_result_loans(
                     indexed.collection,
                     loan_trackers,
                 )?;
-                let index = program
-                    .expression_table
+                let index = expressions(program)
                     .constant_integer_value(indexed.index)
                     .and_then(|value| usize::try_from(value).ok());
                 let loans = loans

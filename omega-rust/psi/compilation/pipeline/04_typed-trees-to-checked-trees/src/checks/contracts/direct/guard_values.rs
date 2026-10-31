@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 pub(super) mod denotations;
@@ -17,11 +18,7 @@ pub(super) fn proves(
         guard_value,
         required,
         required_value,
-        &|left, right| {
-            program
-                .expression_table
-                .expressions_structurally_equal(left, right)
-        },
+        &|left, right| expressions(program).expressions_structurally_equal(left, right),
     )
 }
 

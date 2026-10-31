@@ -13,9 +13,11 @@ use crate::flow::apply_call_invalidations;
 use crate::flow::build_call_entry_contexts;
 use crate::flow::build_call_exit_contexts;
 use crate::flow::build_call_requires_contexts;
+use crate::flow::expressions;
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{
@@ -657,14 +659,9 @@ fn append_call_parameter_domain_facts<'plans>(
         };
         // Stable copied inputs keep their observation-survival rule. Borrowed
         // guarantees use the actual captured occurrence in referents.rs.
-        let places = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            borrow_call.statement_index,
-            argument,
-        )
-        .into_iter()
-        .collect::<Vec<_>>();
+        let places = place_at(program, state.symbol, borrow_call.statement_index, argument)
+            .into_iter()
+            .collect::<Vec<_>>();
         for place in &places {
             let place =
                 crate::semantic::places::append_place(semantic, place.root, &place.segments);
@@ -911,9 +908,7 @@ fn append_ensures_result_rows(
         // This occurrence is already selected from this exact callable's
         // ensures, including bodyless trait requirements. It must be the
         // reserved result form, never a same-spelled parameter.
-        if !program
-            .expression_table
-            .names_reserved_result(membership.value)
+        if !expressions(program).names_reserved_result(membership.value)
             || parameters.is_some_and(|parameters| {
                 !language_core::signature_reserves_result(
                     parameters.iter().map(|parameter| parameter.name.as_str()),

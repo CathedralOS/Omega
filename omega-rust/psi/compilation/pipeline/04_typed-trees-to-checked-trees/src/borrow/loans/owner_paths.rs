@@ -1,4 +1,5 @@
 use super::super::tracker::BorrowOwnerSegment;
+use crate::flow::expressions;
 
 /// Retain unknown selections as unknown coordinates, never as absent loans.
 pub(crate) fn owner_place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
@@ -99,8 +100,7 @@ pub(crate) fn owner_path_from_place_segments(
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
                 BorrowOwnerSegment::DynamicIndex
             }
-            facts::PlaceSegment::Index { expression } => program
-                .expression_table
+            facts::PlaceSegment::Index { expression } => expressions(program)
                 .constant_integer_value(*expression)
                 .and_then(|value| usize::try_from(value).ok())
                 .map(BorrowOwnerSegment::FixedIndex)
@@ -150,8 +150,7 @@ pub(crate) fn owner_segment_matches_place_segment(
             BorrowOwnerSegment::FixedIndex(owner_index),
             facts::PlaceSegment::Index { expression },
         ) => Some(
-            program
-                .expression_table
+            expressions(program)
                 .constant_integer_value(*expression)
                 .and_then(|value| usize::try_from(value).ok())
                 .is_none_or(|place_index| *owner_index == place_index),
@@ -215,8 +214,7 @@ pub(crate) fn place_path_covers_owner(
                     let BorrowOwnerSegment::FixedIndex(owner_index) = owner else {
                         return false;
                     };
-                    program
-                        .expression_table
+                    expressions(program)
                         .constant_integer_value(*expression)
                         .and_then(|value| usize::try_from(value).ok())
                         .is_some_and(|place_index| *owner_index == place_index)

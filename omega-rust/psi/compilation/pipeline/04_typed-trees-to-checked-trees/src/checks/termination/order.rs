@@ -3,6 +3,7 @@
 //! range membership nor descent, and never rewrites custom witness identity to
 //! a builtin view. Diagnostic type spellings are not identity-view application evidence.
 
+use crate::flow::expressions;
 use language_semantics::RankingViewId;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::JoinedPath;
@@ -523,8 +524,7 @@ fn lexicographic_component_fields(
     for component in body {
         match program.expression_table.expression(*component) {
             ExpressionNode::Name(path) => {
-                let member = program
-                    .expression_table
+                let member = expressions(program)
                     .name_path_members(path.members)
                     .last()
                     .cloned()?;
@@ -556,8 +556,7 @@ fn expression_type_name(
             program,
             state,
             path.symbol,
-            program
-                .expression_table
+            expressions(program)
                 .name_path_members(path.members)
                 .last()
                 .map(|member| member.as_str()),
