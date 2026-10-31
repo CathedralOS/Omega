@@ -1,0 +1,54 @@
+// Fact: Numbered mixed data preserves the active payload bound, common field and neighbor canaries; schema case 90 is authored first and remains the ordinary zero case.
+// Expected exit: 0
+
+domain u64::PayloadValue requires self <= 50;
+
+data Reading [copy] {
+    #1 common: u64;
+    #90 case Sample(#1 value: u64 in PayloadValue, retired #2);
+    #7 case Empty;
+}
+
+data Neighbors [copy] {
+    left: u64;
+    reading: Reading;
+    right: u64;
+}
+
+machine evaluate(reading: Reading, expected_common: u64) -> u64
+ensures result <= 60
+crashes Trap
+{
+    transition reading.common == expected_common {
+        true -> inspect(reading)
+        _ -> bad()
+    }
+    machine inspect(selected: Reading) -> u64 {
+        transition selected {
+            Reading::Sample { value, .. } -> (value + 10)
+            Reading::Empty { .. } -> 3
+        }
+    }
+    machine bad() -> u64 { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let neighbors: Neighbors = Neighbors {
+        left: 305419896,
+        reading: Reading::Sample { common: 91, value: 32 },
+        right: 1515863100,
+    };
+    let fallback: Reading = Reading::Empty { common: 73 };
+    let zero_value: Reading;
+    let sample_result: u64 = evaluate(neighbors.reading, 91);
+    let fallback_result: u64 = evaluate(fallback, 73);
+    let zero_result: u64 = evaluate(zero_value, 0);
+    transition sample_result == 42 && fallback_result == 3 && zero_result == 10
+        && neighbors.left == 305419896 && neighbors.right == 1515863100
+        && neighbors.reading.common == 91 && fallback.common == 73 && zero_value.common == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

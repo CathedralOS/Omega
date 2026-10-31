@@ -1,0 +1,2 @@
+data Grouped { #1 case { First; Later; } }
+machine main() {}

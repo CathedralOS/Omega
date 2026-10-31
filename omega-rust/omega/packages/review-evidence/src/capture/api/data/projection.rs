@@ -60,7 +60,8 @@ pub(crate) fn require_exact_checked_data_fact(
     identity: &PackageReviewNominalIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
     crate::capture::api::domains::facts::require_exact_checked_fact(
-        compilation,
+        &compilation.typed,
+        &compilation.facts.semantic.facts,
         data_symbol,
         fact_handle,
         identity,

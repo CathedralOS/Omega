@@ -100,8 +100,8 @@ pub use live_ranges::{
     BlockPointDomain, CopyAffinity, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
     EdgeRegisterTransfer, FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeFragment,
     LiveRangeIdentity, LiveRangePlan, LiveRangePoint, VirtualFixedConstraint,
-    VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
-    live_range_function_digest, live_range_identity_from_digests,
+    VirtualFixedConstraintSite, VirtualInterference, VirtualInterferences, VirtualLiveRange,
+    VirtualOccurrence, live_range_function_digest, live_range_identity_from_digests,
 };
 pub use liveness::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessIdentity,

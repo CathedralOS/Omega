@@ -74,7 +74,9 @@ pub(super) struct Replay<'a> {
     pub(super) slot_kind: DescriptorSlotKind,
     pub(super) machines: &'a [DescriptorMachine],
     pub(super) summaries: BTreeMap<MachineId, Option<Summary>>,
-    pub(super) snapshots: BTreeMap<MachineId, Option<States>>,
+    // Completed maps are immutable; callers share the position roster as well as
+    // the individual states' slot/content maps. In-flight/failed remains None.
+    pub(super) snapshots: BTreeMap<MachineId, Option<Arc<States>>>,
     pub(super) arrival_snapshots: BTreeMap<MachineId, Option<States>>,
 }
 impl<'a> Replay<'a> {
@@ -846,7 +848,7 @@ impl<'a> Replay<'a> {
         }
         Some(after)
     }
-    pub(super) fn states(&mut self, identity: MachineId, depth: usize) -> Option<States> {
+    pub(super) fn states(&mut self, identity: MachineId, depth: usize) -> Option<Arc<States>> {
         if let Some(cached) = self.snapshots.get(&identity) {
             return cached.clone();
         }
@@ -1042,6 +1044,7 @@ impl<'a> Replay<'a> {
                 }
             }
         }
+        let states = Arc::new(states);
         self.snapshots.insert(identity, Some(states.clone()));
         self.arrival_snapshots.insert(identity, Some(arrivals));
         Some(states)
@@ -1580,45 +1583,58 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
     }
     // The maps already order the union of keys. Walk each once rather than
     // rebuilding that union and searching both maps again for every slot.
-    let mut left = before.slots.iter().peekable();
-    let mut right = incoming.slots.iter().peekable();
-    while left.peek().is_some() || right.peek().is_some() {
-        let order = match (left.peek(), right.peek()) {
-            (Some((left, _)), Some((right, _))) => left.cmp(right),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => unreachable!(),
-        };
-        let (location, previous, arriving) = match order {
-            std::cmp::Ordering::Less => {
-                let (location, value) = left.next().unwrap();
-                (location, Some(value), None)
+    let mut slot_updates = Vec::new();
+    {
+        let mut left = before.slots.iter().peekable();
+        let mut right = incoming.slots.iter().peekable();
+        while left.peek().is_some() || right.peek().is_some() {
+            let order = match (left.peek(), right.peek()) {
+                (Some((left, _)), Some((right, _))) => left.cmp(right),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => unreachable!(),
+            };
+            let (location, previous, arriving) = match order {
+                std::cmp::Ordering::Less => {
+                    let (location, value) = left.next().unwrap();
+                    (location, Some(value), None)
+                }
+                std::cmp::Ordering::Greater => {
+                    let (location, value) = right.next().unwrap();
+                    (location, None, Some(value))
+                }
+                std::cmp::Ordering::Equal => {
+                    let (location, previous) = left.next().unwrap();
+                    let (_, arriving) = right.next().unwrap();
+                    (location, Some(previous), Some(arriving))
+                }
+            };
+            // Raw slot unions are idempotent; symbolic contents joins above are
+            // not. Missing and present-unknown entries must remain distinct.
+            if previous == arriving {
+                continue;
             }
-            std::cmp::Ordering::Greater => {
-                let (location, value) = right.next().unwrap();
-                (location, None, Some(value))
+            let value = match (
+                previous.and_then(Option::as_ref),
+                arriving.and_then(Option::as_ref),
+            ) {
+                (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
+                _ => None,
+            };
+            if previous != Some(&value) {
+                slot_updates.push((location.clone(), value));
+                changed = true;
             }
-            std::cmp::Ordering::Equal => {
-                let (location, previous) = left.next().unwrap();
-                let (_, arriving) = right.next().unwrap();
-                (location, Some(previous), Some(arriving))
-            }
-        };
-        // Raw slot unions are idempotent; symbolic contents joins above are
-        // not. Missing and present-unknown entries must remain distinct.
-        if previous == arriving {
-            continue;
         }
-        let value = match (
-            previous.and_then(Option::as_ref),
-            arriving.and_then(Option::as_ref),
-        ) {
-            (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
-            _ => None,
-        };
-        if previous != Some(&value) {
-            existing.slots_mut().insert(location.clone(), value);
-            changed = true;
+    }
+    // Finish every read of the original maps before releasing this scratch
+    // snapshot. A uniquely owned slot map then needs no whole-map COW clone;
+    // genuine external snapshots still keep their independent old contents.
+    drop(before);
+    if !slot_updates.is_empty() {
+        let slots = existing.slots_mut();
+        for (location, value) in slot_updates {
+            slots.insert(location, value);
         }
     }
     changed
@@ -1676,6 +1692,138 @@ mod snapshot_tests {
 
     fn location(number: u64) -> DescriptorLocation {
         DescriptorLocation::whole(PlaceId::new(number).unwrap())
+    }
+
+    #[test]
+    fn completed_position_maps_share_ownership_preserve_snapshots_and_failure_fences() {
+        use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorFlowStep};
+        use semantic_vocabulary::{BlockId, IntegerSign, IntegerType, ScalarType};
+        use terminal_psi::TerminalIdentityIndex;
+
+        let id = MachineId::new(1).unwrap();
+        let block = BlockId::new(1).unwrap();
+        let positions = [(block, 0), (block, 1), (block, 2)];
+        let parameter = location(1);
+        let scalar = StructuralTypeId::new(1).unwrap();
+        let carrier = StructuralTypeId::new(2).unwrap();
+        let referent = StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: scalar,
+            identity: TerminalIdentityIndex(1),
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            )),
+            scalar_restriction: None,
+        };
+        let reference = StructuralTypeDeclaration {
+            id: carrier,
+            identity: TerminalIdentityIndex(2),
+            shape: StructuralTypeShape::Reference {
+                referent: scalar,
+                access: StructuralAccess::SharedBorrow,
+            },
+            ..referent.clone()
+        };
+        let types = vec![referent, reference];
+        let mut flow = BTreeMap::new();
+        for (index, position) in positions.iter().copied().enumerate() {
+            let mut step = DescriptorFlowStep::default();
+            if let Some(&target) = positions.get(index + 1) {
+                step.successors.push(DescriptorFlowEdge {
+                    target,
+                    parameters: Vec::new(),
+                    bindings: Vec::new(),
+                });
+            }
+            if index == 0 {
+                step.definitions.push(parameter.clone());
+            }
+            flow.insert(position, step);
+        }
+        let mut graph = vec![DescriptorMachine {
+            id,
+            returns: None,
+            places: vec![DescriptorPlace {
+                place: parameter.root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    access: StructuralAccess::Owned,
+                    structural_type: carrier,
+                },
+            }],
+            place_types: BTreeMap::from([(parameter.root, carrier)]),
+            entry: positions[0],
+            flow,
+            case_constructors: BTreeMap::new(),
+            case_successors: BTreeMap::new(),
+            originations: BTreeMap::new(),
+            projections: BTreeMap::new(),
+            contents_queries: BTreeMap::new(),
+            contents_transfers: BTreeMap::new(),
+            payload_producers: BTreeMap::new(),
+            payload_entry_predicates: None,
+            payload_scalar_definitions: BTreeMap::new(),
+            payload_scalar_postconditions: BTreeMap::new(),
+            payload_scalar_parameters: BTreeMap::new(),
+            scalar_payload_reads: BTreeMap::new(),
+            payload_edge_predicates: BTreeMap::new(),
+            payload_scalar_bindings: BTreeMap::new(),
+            scalar_payload_writes: BTreeMap::new(),
+            payload_invalidations: BTreeMap::new(),
+            unresolved_contents_writes: BTreeSet::new(),
+            storage_derivations: BTreeSet::new(),
+            calls: BTreeMap::new(),
+            normal_exits: vec![positions[2]],
+        }];
+        let mut replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+        let completed = replay.states(id, 0).unwrap();
+        assert_eq!(completed.keys().copied().collect::<Vec<_>>(), positions);
+        let original = Some(BTreeSet::from([Origin::Incoming(parameter.clone())]));
+        assert_eq!(
+            completed[&positions[0]].slots.get(&parameter),
+            Some(&original)
+        );
+        assert_eq!(completed[&positions[1]].slots.get(&parameter), Some(&None));
+        assert!(Arc::ptr_eq(
+            &completed,
+            replay.snapshots[&id].as_ref().unwrap()
+        ));
+        assert!(Arc::ptr_eq(&completed, &replay.states(id, 0).unwrap()));
+        // A successful cached map keeps the original lookup-before-depth rule.
+        assert!(Arc::ptr_eq(&completed, &replay.states(id, 128).unwrap()));
+        replay.prepare_states(id).unwrap();
+        let mut edited = completed[&positions[0]].clone();
+        edited.slots_mut().insert(parameter.clone(), None);
+        assert_eq!(
+            completed[&positions[0]].slots.get(&parameter),
+            Some(&original)
+        );
+        assert_eq!(edited.slots.get(&parameter), Some(&None));
+        drop(replay);
+
+        let mut limited = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+        assert!(limited.states(id, 128).is_none());
+        assert!(limited.snapshots.get(&id).is_some_and(Option::is_none));
+        assert!(limited.states(id, 0).is_none());
+        drop(limited);
+        // A new query cannot borrow a completed map from another body/context.
+        // Disconnected raw rows remain an unavailable graph, never dead flow.
+        graph[0]
+            .flow
+            .insert((block, 99), DescriptorFlowStep::default());
+        let mut unavailable =
+            Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+        assert!(unavailable.states(id, 0).is_none());
+        assert!(unavailable.snapshots.get(&id).is_some_and(Option::is_none));
+        assert_eq!(completed.len(), 3);
+        assert_eq!(
+            completed[&positions[0]].slots.get(&parameter),
+            Some(&original)
+        );
     }
 
     #[test]
@@ -1804,5 +1952,65 @@ mod snapshot_tests {
                 }
             }
         }
+    }
+    #[test]
+    fn join_slot_updates_release_only_the_scratch_snapshot_before_writing() {
+        let mut existing = State::default();
+        for index in 1..=64 {
+            existing.slots_mut().insert(
+                location(index),
+                Some(BTreeSet::from([Origin::Storage(location(100 + index))])),
+            );
+        }
+        // A deep input copy supplies a different value without manufacturing
+        // another owner of the existing map under test.
+        let mut incoming = State {
+            slots: Arc::new((*existing.slots).clone()),
+            ..State::default()
+        };
+        incoming.slots_mut().insert(
+            location(64),
+            Some(BTreeSet::from([Origin::Storage(location(200))])),
+        );
+        assert_eq!(Arc::strong_count(&existing.slots), 1);
+        assert_eq!(Arc::weak_count(&existing.slots), 0);
+        let unique_map = Arc::as_ptr(&existing.slots);
+        assert!(merge_state(&mut existing, &incoming));
+        assert_eq!(Arc::as_ptr(&existing.slots), unique_map);
+        assert_eq!(
+            existing.slots.get(&location(64)),
+            Some(&Some(BTreeSet::from([
+                Origin::Storage(location(164)),
+                Origin::Storage(location(200)),
+            ]))),
+        );
+        // A real retained snapshot keeps the old map; no-op writes must not
+        // detach, while a changed union must leave that snapshot untouched.
+        let retained = existing.clone();
+        incoming.slots = Arc::new((*existing.slots).clone());
+        assert!(!merge_state(&mut existing, &incoming));
+        assert!(Arc::ptr_eq(&existing.slots, &retained.slots));
+        let original_slots = (*retained.slots).clone();
+        incoming.slots_mut().insert(
+            location(64),
+            Some(BTreeSet::from([Origin::Storage(location(201))])),
+        );
+        assert!(merge_state(&mut existing, &incoming));
+        assert!(!Arc::ptr_eq(&existing.slots, &retained.slots));
+        assert_eq!(*retained.slots, original_slots);
+        assert_eq!(
+            existing.slots.get(&location(1)),
+            retained.slots.get(&location(1))
+        );
+        assert_eq!(
+            existing
+                .slots
+                .get(&location(64))
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .len(),
+            3
+        );
     }
 }

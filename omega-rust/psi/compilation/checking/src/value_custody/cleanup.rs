@@ -30,6 +30,7 @@ pub(crate) struct CleanupTypeQueries {
 #[derive(Default)]
 struct CleanupTypeAnswers {
     plain_without_nominal_cleanup: OnceLock<bool>,
+    no_code_cleanup_contents: OnceLock<bool>,
     no_owned_cleanup_obligations: OnceLock<bool>,
 }
 
@@ -87,6 +88,28 @@ pub fn has_plain_contents_without_nominal_cleanup(
     };
     match cleanup_type_answers(program, reference) {
         Some(answers) => *answers.plain_without_nominal_cleanup.get_or_init(compute),
+        None => compute(),
+    }
+}
+
+/// Exact qualified contents require no executable cleanup. Descriptor leaves
+/// retain their referents and loan obligations; this supplies no copying,
+/// ownership transfer, claim discharge or source completion authority.
+/// The contents owner checks selected hooks throughout the owned graph.
+pub fn has_no_code_cleanup_contents(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let compute = || {
+        super::storage_contents::has_contents(
+            program,
+            reference,
+            &[],
+            super::storage_contents::ContentsRequirement::DescriptorCleanup,
+        )
+    };
+    match cleanup_type_answers(program, reference) {
+        Some(answers) => *answers.no_code_cleanup_contents.get_or_init(compute),
         None => compute(),
     }
 }

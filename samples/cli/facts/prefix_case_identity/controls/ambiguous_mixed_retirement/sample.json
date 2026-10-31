@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "is ambiguous in mixed field-and-case data"
+  ]
+}

@@ -1,0 +1,8 @@
+// Expected exit: 0. A numbered field named case remains a field.
+data Contextual [copy] { #1 case: u64; #2 neighbor: u64; }
+machine main() crashes Trap {
+    let value: Contextual = Contextual { case: 7, neighbor: 91 };
+    transition value.case == 7 && value.neighbor == 91 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

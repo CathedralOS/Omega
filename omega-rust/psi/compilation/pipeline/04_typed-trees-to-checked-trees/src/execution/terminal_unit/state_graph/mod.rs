@@ -35,6 +35,7 @@ mod closed_sum;
 mod fused;
 mod guards;
 mod loan_backing;
+pub(super) use loan_backing::RetainedBorrowRecords;
 mod local_results;
 mod operation_custody;
 mod result_custody;
@@ -245,6 +246,7 @@ pub(super) fn natural_rank_plans_for_fused(
 pub(super) fn build_traced(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    records: &RetainedBorrowRecords<'_>,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
@@ -302,6 +304,7 @@ pub(super) fn build_traced(
     let _fused_guard = phase_profile::guard("05.d.8_10.a.3.2c.1.fused_and_ranks");
     let fused_states = fused_states(program, machine);
     let fused = &fused_states;
+    let declarations = loan_backing::DeclaredStoragePlans::new(program);
     trace.phase("state graph: natural ranks");
     let (mut natural_ranks, preserving_rank_edges) =
         natural_rank_plans_for_fused(program, fused, &facts.termination.rank_arrivals)?;
@@ -581,6 +584,8 @@ pub(super) fn build_traced(
         let (terminator, selected_exit) = terminator::build(
             program,
             facts,
+            &declarations,
+            records,
             scalar_callees,
             shapes,
             fused,

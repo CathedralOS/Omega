@@ -36,6 +36,7 @@ pub(crate) fn derive_checked_nominal_call_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
+    owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
     let call = program.expression_table.call_node(expression)?;
     validation::expression_owners::checked_machine_call_target_from_exact_owner(
@@ -43,7 +44,7 @@ pub(crate) fn derive_checked_nominal_call_target(
         &facts.proof.contract_facts,
         expression,
         call,
-        None,
+        owner_index,
     )
 }
 

@@ -27,6 +27,8 @@ use super::{
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    declarations: &super::loan_backing::DeclaredStoragePlans<'_>,
+    records: &super::loan_backing::RetainedBorrowRecords<'_>,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
     fused: &FusedStates<'_>,
@@ -94,6 +96,8 @@ pub(super) fn build(
         successor(
             program,
             facts,
+            declarations,
+            records,
             fused,
             state_index,
             signatures,
@@ -220,6 +224,8 @@ pub(super) fn build(
     let closed_sum = closed_sum::build(
         program,
         facts,
+        declarations,
+        records,
         shapes,
         fused,
         state_index,
@@ -440,6 +446,8 @@ pub(super) fn build(
                         return successor(
                             program,
                             facts,
+                            declarations,
+                            records,
                             fused,
                             state_index,
                             signatures,
@@ -542,6 +550,8 @@ pub(super) fn build(
                     successor(
                         program,
                         facts,
+                        declarations,
+                        records,
                         fused,
                         state_index,
                         signatures,

@@ -522,3 +522,59 @@ crashes Trap
         }
     }
 }
+
+// Qualification can name a lexically visible nested declaration; it cannot
+// open a sibling's private scope or borrow a missing same-spelled owner's member.
+public machine Resolver::qualified_lexical_machine(sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    transition { _ -> scope(sources, syntax, machine, owner, name) }
+    machine scope(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, parent);
+        let named: bool = SourceSet::spans_equal(sources, item.name.source_span, owner);
+        transition named {
+            true -> child(sources, syntax, parent, name, 0)
+            false -> outer(sources, syntax, item.parent, owner, name)
+        }
+    }
+    machine child(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+        transition index < syntax.machine_count {
+            true -> candidate(sources, syntax, parent, name, index)
+            false -> ValueBinding::Unresolved
+        }
+    }
+    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        transition { _ -> named(sources, syntax, parent, name, index, item) }
+    }
+    machine named(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping, item: MachineItem) -> ValueBinding {
+        let same: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
+        transition item.parent == parent + 1 && same {
+            true -> ValueBinding::Machine { handle: index }
+            false -> child(sources, syntax, parent, name, index + 1)
+        }
+    }
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+        transition parent > 0 {
+            true -> scope(sources, syntax, parent - 1, owner, name)
+            false -> ValueBinding::Unresolved
+        }
+    }
+}
+
+public machine Resolver::lexical_owner_visible(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> bool
+crashes Trap
+{
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, parent);
+    let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
+    transition named {
+        true -> true
+        false -> outer(sources, syntax, item.parent, name)
+    }
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> bool {
+        transition parent > 0 {
+            true -> Resolver::lexical_owner_visible(sources, syntax, parent - 1, name)
+            false -> false
+        }
+    }
+}

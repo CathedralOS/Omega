@@ -12,6 +12,8 @@ use typed_trees::{
     state::State,
 };
 
+mod own_fact_reuse;
+
 fn fixture() -> (TypedTrees, State, SymbolHandle, HandleSpan<ProofFact>) {
     let mut symbols = SymbolTableBuilder::default();
     let integer = symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("u64"));
