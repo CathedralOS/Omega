@@ -723,13 +723,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             MachineSemanticKind::ExactDivideU64 | MachineSemanticKind::SaturatingDivide(_) => (
                 vec![],
                 vec![],
-                {
-                    let mut clobbers = units("rdx");
-                    clobbers.extend(units("rflags"));
-                    clobbers.sort_unstable();
-                    clobbers.dedup();
-                    clobbers
-                },
+                units_of(&["rdx", "rflags"]),
                 MachineEncodedMemoryEffect::NoneV1,
                 MachineEncodedStackEffect::UnchangedV1,
                 MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -785,10 +779,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             MachineSemanticKind::ConditionalBranchNonZero
             | MachineSemanticKind::ConditionalBranchU64LessThan
             | MachineSemanticKind::ConditionalBranchI64LessThan => {
-                let mut uses = units("rflags");
-                uses.extend(units("rip"));
-                uses.sort_unstable();
-                uses.dedup();
+                let uses = units_of(&["rflags", "rip"]);
                 (
                     uses,
                     units("rip"),
