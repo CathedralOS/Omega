@@ -3,7 +3,8 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpr
 use symbols::SymbolHandle;
 
 use super::premises::{
-    BorrowCompatibilityPremiseRelation, StatedOrderingPremise, premise_chain_proves, premise_proves,
+    BorrowCompatibilityPremiseRelation as PremiseRelation, StatedOrderingPremise,
+    premise_chain_proves, premise_proves,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -189,7 +190,7 @@ impl<'a> SelectorEvaluation<'a> {
     fn prove_ordering(
         &mut self,
         left: NormalizedBound,
-        relation: BorrowCompatibilityPremiseRelation,
+        relation: PremiseRelation,
         right: NormalizedBound,
     ) -> bool {
         // Reserve the whole former single/two-premise search unchanged, then
@@ -230,7 +231,7 @@ impl<'a> SelectorEvaluation<'a> {
                     }
                     if !self.prove_from_premises(
                         subject.clone(),
-                        BorrowCompatibilityPremiseRelation::Equal,
+                        PremiseRelation::Equal,
                         candidate.clone(),
                         &mut remaining,
                     ) {
@@ -260,7 +261,7 @@ impl<'a> SelectorEvaluation<'a> {
     fn prove_from_premises(
         &self,
         left: NormalizedBound,
-        relation: BorrowCompatibilityPremiseRelation,
+        relation: PremiseRelation,
         right: NormalizedBound,
         remaining: &mut usize,
     ) -> bool {
@@ -361,11 +362,7 @@ pub(super) fn index_extents_may_overlap(
         (EvaluatedIndexExtent::Point(Some(left)), EvaluatedIndexExtent::Point(Some(right))) => {
             !bound_is_strictly_before(left.clone(), right.clone(), selectors)
                 && !bound_is_strictly_before(right.clone(), left.clone(), selectors)
-                && !selectors.prove_ordering(
-                    left,
-                    BorrowCompatibilityPremiseRelation::NotEqual,
-                    right,
-                )
+                && !selectors.prove_ordering(left, PremiseRelation::NotEqual, right)
         }
         (EvaluatedIndexExtent::Point(_), EvaluatedIndexExtent::Point(_)) => true,
         (EvaluatedIndexExtent::Window { start, end }, EvaluatedIndexExtent::Point(point))
@@ -495,7 +492,7 @@ pub(super) fn bound_is_at_or_before(
     if structural_bound_is_at_or_before(left.clone(), right.clone()) {
         return true;
     }
-    selectors.prove_ordering(left, BorrowCompatibilityPremiseRelation::LessOrEqual, right)
+    selectors.prove_ordering(left, PremiseRelation::LessOrEqual, right)
 }
 
 fn structural_bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool {
@@ -516,11 +513,7 @@ pub(super) fn bound_is_strictly_before(
     if structural_bound_is_strictly_before(left.clone(), right.clone()) {
         return true;
     }
-    selectors.prove_ordering(
-        left,
-        BorrowCompatibilityPremiseRelation::StrictlyBefore,
-        right,
-    )
+    selectors.prove_ordering(left, PremiseRelation::StrictlyBefore, right)
 }
 
 fn structural_bound_is_strictly_before(left: NormalizedBound, right: NormalizedBound) -> bool {
@@ -542,7 +535,7 @@ pub(super) fn bound_equal(
     if structural_bound_equal(left.clone(), right.clone()) {
         return true;
     }
-    selectors.prove_ordering(left, BorrowCompatibilityPremiseRelation::Equal, right)
+    selectors.prove_ordering(left, PremiseRelation::Equal, right)
 }
 
 fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool {

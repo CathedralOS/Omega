@@ -1,0 +1,9 @@
+// A represented byte-field predicate remains required after call publication.
+use omega_language_std::calling;
+
+machine main() {
+    let bytes: [u8; 1] = [255u8];
+    let result: BoundaryPlanResult = BoundaryPlanResult::Rejected {
+        reason: CallingPolicyRejection { reason: &bytes[..] },
+    };
+}

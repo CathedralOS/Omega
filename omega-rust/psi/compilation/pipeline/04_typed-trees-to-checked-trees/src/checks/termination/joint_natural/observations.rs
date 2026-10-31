@@ -7,6 +7,27 @@ pub(in crate::checks::termination) fn retain_observation(
     admitted: &mut checked_trees::CheckedRankArrivalPlan,
     input: &validation::ValidatedRuntimeNaturalState,
 ) -> Result<checked_trees::CheckedStateNaturalRank, &'static str> {
+    if input.values.is_empty() {
+        return Err("an admitted state rank has no ordered component observations");
+    }
+    let values = input
+        .values
+        .iter()
+        .map(|value| retain_component(program, admitted, input.state, value))
+        .collect::<Result<Vec<_>, _>>()?;
+    let components = admitted.observation_components.insert_many(values);
+    Ok(checked_trees::CheckedStateNaturalRank {
+        state: input.state,
+        components,
+    })
+}
+
+fn retain_component(
+    program: &dyn validation::CheckingInput,
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    state: symbols::SymbolHandle,
+    input: &validation::ValidatedRuntimeIntegerRank,
+) -> Result<checked_trees::CheckedIntegerRankObservation, &'static str> {
     let path = admitted
         .path_segments
         .insert_many(input.coordinate.path.clone());
@@ -42,7 +63,7 @@ pub(in crate::checks::termination) fn retain_observation(
                     ..Default::default()
                 }]);
         let formation = if let Some(application) = &input.application {
-            let (owner, _) = validation::find_state(program, input.state)
+            let (owner, _) = validation::find_state(program, state)
                 .ok_or("a formed rank application lost its exact state owner")?;
             let declaration = program
                 .measures()
@@ -65,7 +86,7 @@ pub(in crate::checks::termination) fn retain_observation(
                 .insert(checked_trees::CheckedRankApplicationFormation {
                     machine: owner.symbol,
                     machine_body: owner.states,
-                    state: input.state,
+                    state,
                     application: checked_trees::CheckedRankApplicationFacts {
                         measure: application.measure(),
                         definition_body: application.body(),
@@ -86,21 +107,39 @@ pub(in crate::checks::termination) fn retain_observation(
             primitive_type: input.primitive_type,
         }
     } else {
-        match input.observation {
-            validation::RankPremiseObservation::Value => {
+        match &input.observation {
+            validation::RuntimeRankInput::Value(validation::RankPremiseObservation::Value) => {
                 checked_trees::CheckedNaturalRankMeasure::IntegerValue {
                     coordinate,
                     primitive_type: input.primitive_type,
                 }
             }
-            validation::RankPremiseObservation::Length => {
+            validation::RuntimeRankInput::Value(validation::RankPremiseObservation::Length) => {
                 checked_trees::CheckedNaturalRankMeasure::SequenceLength { coordinate }
+            }
+            validation::RuntimeRankInput::Distance {
+                lower_observation,
+                lower_primitive,
+                upper,
+            } => {
+                if input.function != checked_trees::CheckedNaturalRankFunction::Identity {
+                    return Err("an exact distance cannot retain a complement normalization");
+                }
+                let lower =
+                    admitted
+                        .rank_operands
+                        .insert(checked_trees::CheckedRankOperand::Coordinate {
+                            coordinate,
+                            primitive_type: *lower_primitive,
+                            observation: *lower_observation,
+                        });
+                let upper = upper.retain(admitted);
+                checked_trees::CheckedNaturalRankMeasure::Distance { lower, upper }
             }
         }
     };
-    Ok(checked_trees::CheckedStateNaturalRank {
+    Ok(checked_trees::CheckedIntegerRankObservation {
         function: input.function,
-        state: input.state,
         parameter: input.parameter,
         parameter_position: input.parameter_position,
         measure,

@@ -1987,6 +1987,21 @@ impl<'program> StructuralJudge<'program> {
             }
             return Some(value);
         }
+        // An embedding denotes an integer that was already evaluated in the
+        // embedded carrier. That carrier bounds the value; the carrier that
+        // observes the embedding is at most as wide and must not replace it.
+        if let StructuralTerm::IntegerEmbedding {
+            reference,
+            value: embedded,
+        } = value
+        {
+            let (embedded_primitive, _) = super::super::structural_terms::scalar_operand_meaning(
+                self.program,
+                *reference,
+                embedded,
+            )?;
+            return self.integer_value(embedded, embedded_primitive, observations, depth + 1);
+        }
         // A completed scalar observation can have a recorded mathematical
         // denotation (for example a window's end minus start). Keep that
         // equation visible to the existing polynomial owner. Executable
@@ -2056,7 +2071,18 @@ impl<'program> StructuralJudge<'program> {
         }
         // Only an opaque completed leaf receives intrinsic carrier bounds;
         // an unadmitted recipe has neither a carrier assumption nor an interval.
-        observations.observed_atom(canonical_atom(value), primitive)
+        let atom = observations.observed_atom(canonical_atom(value), primitive)?;
+        // A capture read through a wider carrier is still its call's result:
+        // a u8 call widened into an i32 payload keeps 0..=255. The opaque
+        // completed-call leaf no longer unfolds the body that implied it.
+        if let StructuralTerm::CapturedValue { result_type, .. } = value
+            && let Some(own) = self.program.primitive_type_reference(*result_type)
+            && own != primitive
+            && own.accepts_integer_literal()
+        {
+            observations.install_observed_carrier_bounds(own, &atom)?;
+        }
+        Some(atom)
     }
 
     fn mathematical_value(

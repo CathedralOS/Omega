@@ -5,8 +5,8 @@ use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
     MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior,
+    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect,
+    MachineSemanticKind as Semantic, MachineSizeKnowledge as Size, MachineTrapBehavior,
 };
 
 /// The semantics this module declares, as a pattern list: the ordinary
@@ -16,34 +16,34 @@ use selected_instructions::{
 /// membership list instead of re-spelling the rows.
 macro_rules! declared_semantics {
     () => {
-        MachineSemanticKind::AccessorScalarAccess(_)
-            | MachineSemanticKind::CopyBytes
-            | MachineSemanticKind::ZeroBytes
-            | MachineSemanticKind::LoadEncodedScalar
-            | MachineSemanticKind::StoreEncodedScalar
-            | MachineSemanticKind::ScanByteSequence
-            | MachineSemanticKind::CompareByteSequences
-            | MachineSemanticKind::LoadPacked3
-            | MachineSemanticKind::LoadPacked5
-            | MachineSemanticKind::LoadPacked6
-            | MachineSemanticKind::LoadPacked7
-            | MachineSemanticKind::StorePacked
-            | MachineSemanticKind::Store
-            | MachineSemanticKind::AddressOffset
-            | MachineSemanticKind::Load8Indexed
-            | MachineSemanticKind::Load8
-            | MachineSemanticKind::Load16
-            | MachineSemanticKind::Load32
-            | MachineSemanticKind::Load64
-            | MachineSemanticKind::Store64
-            | MachineSemanticKind::FrameAddress
-            | MachineSemanticKind::CallUnit
+        Semantic::AccessorScalarAccess(_)
+            | Semantic::CopyBytes
+            | Semantic::ZeroBytes
+            | Semantic::LoadEncodedScalar
+            | Semantic::StoreEncodedScalar
+            | Semantic::ScanByteSequence
+            | Semantic::CompareByteSequences
+            | Semantic::LoadPacked3
+            | Semantic::LoadPacked5
+            | Semantic::LoadPacked6
+            | Semantic::LoadPacked7
+            | Semantic::StorePacked
+            | Semantic::Store
+            | Semantic::AddressOffset
+            | Semantic::Load8Indexed
+            | Semantic::Load8
+            | Semantic::Load16
+            | Semantic::Load32
+            | Semantic::Load64
+            | Semantic::Store64
+            | Semantic::FrameAddress
+            | Semantic::CallUnit
     };
 }
 pub(super) use declared_semantics;
 
 pub(super) fn declaration(
-    semantic: MachineSemanticKind,
+    semantic: Semantic,
     constraint: RegisterConstraintKey,
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
@@ -56,7 +56,7 @@ pub(super) fn declaration(
         .expect("canonical stack pointer")
         .id;
     let (memory, trap, reads, writes, encoded_memory, size) = match semantic {
-        MachineSemanticKind::AccessorScalarAccess(form) => (
+        Semantic::AccessorScalarAccess(form) => (
             if form.write {
                 MachineMemoryEffect::WritePointerV1
             } else {
@@ -76,7 +76,7 @@ pub(super) fn declaration(
             crate::encoder_resolved(7, Some(9)),
         ),
 
-        MachineSemanticKind::CopyBytes => (
+        Semantic::CopyBytes => (
             MachineMemoryEffect::CopyBytesV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1, 2],
@@ -86,9 +86,9 @@ pub(super) fn declaration(
                 destination_pointer_operand: 1,
                 count_operand: 2,
             },
-            MachineSizeKnowledge::ExactBytes(36),
+            Size::ExactBytes(36),
         ),
-        MachineSemanticKind::ZeroBytes => (
+        Semantic::ZeroBytes => (
             MachineMemoryEffect::ZeroBytesV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1],
@@ -97,9 +97,9 @@ pub(super) fn declaration(
                 destination_pointer_operand: 0,
                 count_operand: 1,
             },
-            MachineSizeKnowledge::ExactBytes(25),
+            Size::ExactBytes(25),
         ),
-        MachineSemanticKind::LoadEncodedScalar => (
+        Semantic::LoadEncodedScalar => (
             MachineMemoryEffect::ReadEncodedScalarV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1],
@@ -110,7 +110,7 @@ pub(super) fn declaration(
             },
             crate::encoder_resolved(16, None),
         ),
-        MachineSemanticKind::StoreEncodedScalar => (
+        Semantic::StoreEncodedScalar => (
             MachineMemoryEffect::WriteEncodedScalarV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1, 2],
@@ -121,7 +121,7 @@ pub(super) fn declaration(
             },
             crate::encoder_resolved(16, None),
         ),
-        MachineSemanticKind::ScanByteSequence => (
+        Semantic::ScanByteSequence => (
             MachineMemoryEffect::ScanByteSequenceV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1],
@@ -132,7 +132,7 @@ pub(super) fn declaration(
             },
             crate::encoder_resolved(16, None),
         ),
-        MachineSemanticKind::CompareByteSequences => (
+        Semantic::CompareByteSequences => (
             MachineMemoryEffect::CompareByteSequencesV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1, 2, 3],
@@ -145,14 +145,14 @@ pub(super) fn declaration(
             },
             crate::encoder_resolved(16, None),
         ),
-        MachineSemanticKind::LoadPacked3
-        | MachineSemanticKind::LoadPacked5
-        | MachineSemanticKind::LoadPacked6
-        | MachineSemanticKind::LoadPacked7 => {
+        Semantic::LoadPacked3
+        | Semantic::LoadPacked5
+        | Semantic::LoadPacked6
+        | Semantic::LoadPacked7 => {
             let byte_count = match semantic {
-                MachineSemanticKind::LoadPacked3 => 3,
-                MachineSemanticKind::LoadPacked5 => 5,
-                MachineSemanticKind::LoadPacked6 => 6,
+                Semantic::LoadPacked3 => 3,
+                Semantic::LoadPacked5 => 5,
+                Semantic::LoadPacked6 => 6,
                 _ => 7,
             };
             (
@@ -170,7 +170,7 @@ pub(super) fn declaration(
                 ),
             )
         }
-        MachineSemanticKind::StorePacked => (
+        Semantic::StorePacked => (
             MachineMemoryEffect::WritePointerV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1],
@@ -178,7 +178,7 @@ pub(super) fn declaration(
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
             crate::encoder_resolved(32, Some(83)),
         ),
-        MachineSemanticKind::Store => (
+        Semantic::Store => (
             MachineMemoryEffect::WritePointerV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1],
@@ -186,7 +186,7 @@ pub(super) fn declaration(
             MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
             crate::encoder_resolved(7, Some(9)),
         ),
-        MachineSemanticKind::AddressOffset => (
+        Semantic::AddressOffset => (
             MachineMemoryEffect::NoneV1,
             MachineTrapBehavior::NeverV1,
             vec![0],
@@ -194,7 +194,7 @@ pub(super) fn declaration(
             MachineEncodedMemoryEffect::NoneV1,
             crate::encoder_resolved(7, Some(8)),
         ),
-        MachineSemanticKind::Load8Indexed => (
+        Semantic::Load8Indexed => (
             MachineMemoryEffect::ReadPointerV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0, 1],
@@ -204,39 +204,31 @@ pub(super) fn declaration(
                 index_operand: 1,
                 byte_count: 1,
             },
-            MachineSizeKnowledge::ExactBytes(9),
+            Size::ExactBytes(9),
         ),
-        MachineSemanticKind::Load8 | MachineSemanticKind::Load16 => (
+        Semantic::Load8 | Semantic::Load16 => (
             MachineMemoryEffect::ReadPointerV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0],
             vec![1],
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
-                byte_count: if semantic == MachineSemanticKind::Load8 {
-                    1
-                } else {
-                    2
-                },
+                byte_count: if semantic == Semantic::Load8 { 1 } else { 2 },
             },
             crate::encoder_resolved(8, Some(9)),
         ),
-        MachineSemanticKind::Load32 | MachineSemanticKind::Load64 => (
+        Semantic::Load32 | Semantic::Load64 => (
             MachineMemoryEffect::ReadPointerV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0],
             vec![1],
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
-                byte_count: if semantic == MachineSemanticKind::Load32 {
-                    4
-                } else {
-                    8
-                },
+                byte_count: if semantic == Semantic::Load32 { 4 } else { 8 },
             },
             crate::encoder_resolved(7, Some(8)),
         ),
-        MachineSemanticKind::Store64 => (
+        Semantic::Store64 => (
             MachineMemoryEffect::WriteFrameStorageV1,
             MachineTrapBehavior::MayArchitecturalFaultV1,
             vec![0],
@@ -247,7 +239,7 @@ pub(super) fn declaration(
             },
             crate::encoder_resolved(15, Some(31)),
         ),
-        MachineSemanticKind::FrameAddress => (
+        Semantic::FrameAddress => (
             MachineMemoryEffect::NoneV1,
             MachineTrapBehavior::NeverV1,
             vec![],
@@ -255,7 +247,7 @@ pub(super) fn declaration(
             MachineEncodedMemoryEffect::NoneV1,
             crate::encoder_resolved(8, Some(23)),
         ),
-        MachineSemanticKind::CallUnit => (
+        Semantic::CallUnit => (
             MachineMemoryEffect::NoneV1,
             MachineTrapBehavior::NeverV1,
             row.operands.iter().map(|operand| operand.operand).collect(),
@@ -264,17 +256,17 @@ pub(super) fn declaration(
                 stack_pointer,
                 byte_count: 8,
             },
-            MachineSizeKnowledge::ExactBytes(5),
+            Size::ExactBytes(5),
         ),
         _ => unreachable!("ordinary address/call declaration only"),
     };
-    let is_call = semantic == MachineSemanticKind::CallUnit;
+    let is_call = semantic == Semantic::CallUnit;
     MachineEffectDeclaration {
         semantic,
         constraint,
         memory,
         trap,
-        barrier: if matches!(semantic, MachineSemanticKind::AccessorScalarAccess(_)) {
+        barrier: if matches!(semantic, Semantic::AccessorScalarAccess(_)) {
             MachineBarrier::ExternalEffect
         } else if is_call {
             MachineBarrier::Call
@@ -312,10 +304,7 @@ pub(super) fn declaration(
                 } else {
                     MachineEncodedStackEffect::UnchangedV1
                 },
-                trap: if matches!(
-                    semantic,
-                    MachineSemanticKind::FrameAddress | MachineSemanticKind::AddressOffset
-                ) {
+                trap: if matches!(semantic, Semantic::FrameAddress | Semantic::AddressOffset) {
                     MachineEncodedTrapBehavior::NeverV1
                 } else {
                     MachineEncodedTrapBehavior::MayArchitecturalFaultV1

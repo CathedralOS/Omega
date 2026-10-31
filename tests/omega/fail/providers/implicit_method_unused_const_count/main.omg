@@ -1,0 +1,13 @@
+// Expected: checking rejection; the unused static Count has no determining equation.
+boundary trait UnusedCount {
+    machine read<const Count: u64>(bytes: &[u8; 4]) -> u8 reaches;
+}
+CheckedUnusedCount satisfies UnusedCount {
+    machine read<const Count: u64>(bytes: &[u8; 4]) -> u8 reaches {
+        0
+    }
+}
+machine main() reaches UnusedCount {
+    let bytes: [u8; 4] = [1, 2, 3, 4];
+    let observed: u8 = UnusedCount::read(&bytes);
+}

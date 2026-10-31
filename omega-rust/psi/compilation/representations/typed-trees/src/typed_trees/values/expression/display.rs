@@ -1,5 +1,6 @@
 use diagnostics::{bracketed_display_names, comma_join_display};
 
+use crate::expression::OwnedMatchPattern;
 use crate::expression::{
     BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, ExpressionHandle,
     ExpressionNode, ExpressionTable, RangeExpression, StaticMachineArgument, TableBinaryExpression,
@@ -72,10 +73,8 @@ impl Expression {
                     .iter()
                     .map(|arm| {
                         let pattern = match &arm.pattern {
-                            crate::expression::OwnedMatchPattern::Value(value) => {
-                                value.display_name()
-                            }
-                            crate::expression::OwnedMatchPattern::Wildcard => "_".to_owned(),
+                            OwnedMatchPattern::Value(value) => value.display_name(),
+                            OwnedMatchPattern::Wildcard => "_".to_owned(),
                         };
                         format!("{pattern} => {}", arm.value.display_name())
                     })

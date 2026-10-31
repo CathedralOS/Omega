@@ -10,21 +10,28 @@
 
 use super::overlap::StatedOrderingPremise;
 use crate::checks::ownership_occurrences::{InvocationIdentity, StatementOccurrence};
-use checked_trees::{CheckFacts, FlowStateFact};
+use checked_trees::{CheckFacts, FlowCallDispatchRole, FlowStateFact};
 use diagnostics::Diagnostic;
+use typed_trees::expression::ExpressionHandle;
+use validation::CallSite;
+use validation::CheckingInput;
+use validation::ImmutableBoundLookup;
+use validation::borrow_contracts::is_borrow_carrying_data;
+use validation::find_call_site_in_state;
+use validation::transition_call_target;
 
 mod captures;
 mod conflicts;
 
 pub(super) fn check<'program>(
-    program: &'program dyn validation::CheckingInput,
+    program: &'program dyn CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     statement: usize,
     occurrences: &[StatementOccurrence],
     premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'program>>,
+    bounds: &mut Option<ImmutableBoundLookup<'program>>,
 ) {
     let Some(machine) = program.machine_by_symbol(state.machine_symbol) else {
         return;
@@ -37,30 +44,23 @@ pub(super) fn check<'program>(
         .iter()
         .filter(|call| {
             call.statement_index == statement
-                && call.authored_dispatch_role
-                    != checked_trees::FlowCallDispatchRole::SavedSubjectRead
+                && call.authored_dispatch_role != FlowCallDispatchRole::SavedSubjectRead
         })
     {
-        let identity = match validation::find_call_site_in_state(
+        let identity = match find_call_site_in_state(
             program,
             machine,
             typed_state,
             statement,
             call.call_ordinal,
         ) {
-            Some(validation::CallSite::Expression { expression, .. }) => {
+            Some(CallSite::Expression { expression, .. }) => {
                 Some(InvocationIdentity::Expression(expression))
             }
-            Some(validation::CallSite::Statement(_)) => Some(InvocationIdentity::Statement),
-            Some(validation::CallSite::TransitionNamed { .. }) => {
-                validation::transition_call_target(
-                    program,
-                    machine,
-                    typed_state,
-                    statement,
-                    call.call_ordinal,
-                )
-                .map(InvocationIdentity::Transition)
+            Some(CallSite::Statement(_)) => Some(InvocationIdentity::Statement),
+            Some(CallSite::TransitionNamed { .. }) => {
+                transition_call_target(program, machine, typed_state, statement, call.call_ordinal)
+                    .map(InvocationIdentity::Transition)
             }
             None => None,
         };
@@ -73,10 +73,7 @@ pub(super) fn check<'program>(
             if call.operands.handles().any(|operand| {
                 let capture = facts.flow.control.operands.get(operand);
                 crate::borrow::accesses::is_owned_copy_type(program, capture.type_reference)
-                    && validation::borrow_contracts::is_borrow_carrying_data(
-                        program,
-                        capture.type_reference,
-                    )
+                    && is_borrow_carrying_data(program, capture.type_reference)
             }) {
                 diagnostics.push(refusal(
                     program,
@@ -117,10 +114,10 @@ pub(super) fn check<'program>(
 /// Produced descriptors can have no authored expression or source span. Keep their refusal
 /// locatable without pretending that zero identifies a source occurrence.
 fn refusal(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     state: &FlowStateFact,
     statement: usize,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     message: &str,
 ) -> Diagnostic {
     if expression.is_valid() {

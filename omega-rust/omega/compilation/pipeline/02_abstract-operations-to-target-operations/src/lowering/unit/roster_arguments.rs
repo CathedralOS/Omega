@@ -1,6 +1,7 @@
 //! Ordinary structural call operands resolved against the caller's parameter
 //! roster, earlier call results, dominating local homes and established views.
 
+use super::super::scalar::byte_views::{block_source, is_immutable_byte_carrier_parameter};
 use super::super::structural_layout::{
     checked_align_up_u32, resolve_structural_projection_path, structural_parameter_shape,
     structural_shape,
@@ -98,20 +99,11 @@ pub(in crate::lowering) fn lower_structural_argument(
                 *structural_type,
             )
         })
-        .or_else(|| {
-            super::super::scalar::byte_views::block_source(
-                function,
-                argument.place,
-                structural_types,
-            )
-        })
+        .or_else(|| block_source(function, argument.place, structural_types))
     {
         if !argument.path.is_empty()
             || argument.access != StructuralAccess::SharedBorrow
-            || !super::super::scalar::byte_views::is_immutable_byte_carrier_parameter(
-                callee_parameter,
-                structural_types,
-            )
+            || !is_immutable_byte_carrier_parameter(callee_parameter, structural_types)
             || structural_type != callee_parameter.structural_type
             || shape != ValueShape::borrowed_reference(16, 8)
         {

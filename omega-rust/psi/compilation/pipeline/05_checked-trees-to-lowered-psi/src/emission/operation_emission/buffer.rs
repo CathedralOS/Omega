@@ -15,6 +15,8 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
+use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
+use crate::terminal_identities::edge_id;
 pub(crate) use lowered_psi::LoweredSourceCallOrigin as SourceInvocation;
 pub(crate) use lowered_psi::LoweredStatementCallCoordinate as SourceCallCoordinate;
 
@@ -251,9 +253,7 @@ pub(crate) struct ComputedValueBinding {
 #[derive(Clone, Debug)]
 pub(crate) struct ComputedValueObservation {
     pub(crate) root_type: semantic_vocabulary::StructuralTypeId,
-    pub(crate) path: Vec<
-        crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment,
-    >,
+    pub(crate) path: Vec<PreparedStructuralPathSegment>,
     pub(crate) access: terminal_psi::StructuralAccess,
 }
 
@@ -765,9 +765,7 @@ impl OperationBuffer {
         let Some(completion) = self.invocation_completion.take() else {
             return Ok(None);
         };
-        let edge = crate::terminal_identities::edge_id(crate::terminal_identities::allocate_dense(
-            next_edge,
-        )?);
+        let edge = edge_id(crate::terminal_identities::allocate_dense(next_edge)?);
         let (site, terminator) = match completion.outcome {
             PendingInvocationOutcome::ModuleNoNormal { callee, inputs } => {
                 let crate::direct_calls::ModuleInvocationArguments {

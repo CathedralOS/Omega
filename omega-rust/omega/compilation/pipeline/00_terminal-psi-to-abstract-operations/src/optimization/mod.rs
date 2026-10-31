@@ -8,7 +8,12 @@ mod error;
 pub use error::VerifiedPsiOptimizationUnitBuildError;
 
 use abstract_operations::AbstractOperationPlan;
+use installation_evidence::InstalledAssumedBindingEvidence;
+use optimization_unit::{AcceptedObligationFact, PsiOptimizationUnit};
 use std::collections::BTreeSet;
+use terminal_installation::{
+    AdmittedScalarApplications, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
+};
 
 /// The only optimizer-facing unit constructor. Consuming the verified carrier
 /// prevents callers from pairing a plan with evidence admitted for a different
@@ -27,9 +32,7 @@ pub fn build_verified_psi_optimization_unit(
     Ok(VerifiedPsiOptimizationUnit { input, unit })
 }
 
-fn source_checked_obligation_facts(
-    unit: &optimization_unit::PsiOptimizationUnit,
-) -> Vec<optimization_unit::AcceptedObligationFact> {
+fn source_checked_obligation_facts(unit: &PsiOptimizationUnit) -> Vec<AcceptedObligationFact> {
     let mut coordinates = BTreeSet::new();
     let mut facts = Vec::new();
     for function in &unit.functions {
@@ -43,7 +46,7 @@ fn source_checked_obligation_facts(
             };
             let owner = optimization_unit::PsiProvenance::Operation(*support);
             if coordinates.insert((function.machine, owner, *obligation)) {
-                let fact = optimization_unit::AcceptedObligationFact::new(
+                let fact = AcceptedObligationFact::new(
                     unit.psi,
                     [0; 32],
                     function.machine,
@@ -140,7 +143,7 @@ fn source_checked_obligation_facts(
                 {
                     let owner = optimization_unit::PsiProvenance::Edge(edge);
                     if coordinates.insert((function.machine, owner, obligation)) {
-                        facts.push(optimization_unit::AcceptedObligationFact::new(
+                        facts.push(AcceptedObligationFact::new(
                             unit.psi,
                             [0; 32],
                             function.machine,
@@ -165,16 +168,14 @@ fn source_checked_obligation_facts(
 /// optimizer-only input cannot grant native admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
-    pub(crate) scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
+    pub(crate) scalar_applications: Option<AdmittedScalarApplications>,
     pub(crate) selected_program_entry_call: Option<crate::SelectedProgramEntryCall>,
     pub(crate) plan: AbstractOperationPlan,
     pub(crate) context: VerifiedPsiOptimizationContext,
-    pub(crate) admitted_assumed_bindings:
-        Vec<installation_evidence::InstalledAssumedBindingEvidence>,
+    pub(crate) admitted_assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     pub(crate) admitted_native_callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
-    pub(crate) target_machine_selections:
-        Option<terminal_installation::AdmittedTargetMachineSelections>,
-    pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
+    pub(crate) target_machine_selections: Option<AdmittedTargetMachineSelections>,
+    pub(crate) target_layout_selections: Option<AdmittedTargetLayouts>,
     pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
     pub(crate) external_requirement_applications:
         Vec<effects::SelectedExternalRequirementApplication>,
@@ -185,18 +186,14 @@ pub struct VerifiedPsiOptimizationInput {
 
 impl VerifiedPsiOptimizationInput {
     /// Completed target-bound scalar judgment used to produce this plan.
-    pub fn scalar_applications(
-        &self,
-    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+    pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
         self.scalar_applications.as_ref()
     }
 
     pub fn selected_program_entry_call(&self) -> Option<&crate::SelectedProgramEntryCall> {
         self.selected_program_entry_call.as_ref()
     }
-    pub fn admitted_assumed_bindings(
-        &self,
-    ) -> &[installation_evidence::InstalledAssumedBindingEvidence] {
+    pub fn admitted_assumed_bindings(&self) -> &[InstalledAssumedBindingEvidence] {
         &self.admitted_assumed_bindings
     }
 
@@ -223,9 +220,7 @@ impl VerifiedPsiOptimizationInput {
 
     /// Invocation selection is catalog membership, never provider authority.
     /// Optimizer-only preparation retains no execution selection.
-    pub fn target_machine_selections(
-        &self,
-    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
+    pub fn target_machine_selections(&self) -> Option<&AdmittedTargetMachineSelections> {
         self.target_machine_selections.as_ref()
     }
 
@@ -242,9 +237,7 @@ impl VerifiedPsiOptimizationInput {
 
     /// Exact geometry closure retained separately from immutable canonical Psi.
     /// The executable plan uses only this receipt's selected declarations.
-    pub fn target_layout_selections(
-        &self,
-    ) -> Option<&terminal_installation::AdmittedTargetLayouts> {
+    pub fn target_layout_selections(&self) -> Option<&AdmittedTargetLayouts> {
         self.target_layout_selections.as_ref()
     }
 
@@ -285,7 +278,7 @@ impl VerifiedPsiOptimizationContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationUnit {
     pub(crate) input: VerifiedPsiOptimizationInput,
-    pub(crate) unit: optimization_unit::PsiOptimizationUnit,
+    pub(crate) unit: PsiOptimizationUnit,
 }
 
 impl VerifiedPsiOptimizationUnit {
@@ -293,16 +286,11 @@ impl VerifiedPsiOptimizationUnit {
         &self.input
     }
 
-    pub const fn unit(&self) -> &optimization_unit::PsiOptimizationUnit {
+    pub const fn unit(&self) -> &PsiOptimizationUnit {
         &self.unit
     }
 
-    pub fn into_parts(
-        self,
-    ) -> (
-        VerifiedPsiOptimizationInput,
-        optimization_unit::PsiOptimizationUnit,
-    ) {
+    pub fn into_parts(self) -> (VerifiedPsiOptimizationInput, PsiOptimizationUnit) {
         (self.input, self.unit)
     }
 }

@@ -2,6 +2,7 @@ use crate::capture::PackageReviewInput;
 use crate::capture::behavior::canonical_checked_invocation_targets;
 use crate::capture::semantics::facts::machine_invocation;
 use diagnostics::Diagnostic;
+use language_semantics::SynchronousInvocationInterface;
 
 pub(crate) fn validate_machine_invocations(
     compilation: &PackageReviewInput<'_>,
@@ -90,12 +91,8 @@ fn family_invocation_ceiling(
             ));
         }
         let effective = match checked.plan.interface {
-            language_semantics::SynchronousInvocationInterface::PublishedCeiling => {
-                &checked.published_targets
-            }
-            language_semantics::SynchronousInvocationInterface::InternalInferred => {
-                &checked.checked_inferred_targets
-            }
+            SynchronousInvocationInterface::PublishedCeiling => &checked.published_targets,
+            SynchronousInvocationInterface::InternalInferred => &checked.checked_inferred_targets,
         };
         for target in effective {
             if !union.contains(target) {
@@ -113,7 +110,7 @@ fn family_invocation_ceiling(
         machine.name.as_str(),
         "family head synchronous-invocation",
     )?;
-    if head.plan.interface != language_semantics::SynchronousInvocationInterface::PublishedCeiling
+    if head.plan.interface != SynchronousInvocationInterface::PublishedCeiling
         || head.checked_inferred_targets != union
     {
         return Err(rejected(

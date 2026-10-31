@@ -1,6 +1,7 @@
 //! A strict selected-arm comparison implies its non-strict counterpart only
 //! over the same substituted values. This is an identity judgment, not interval
 //! evaluation; the caller separately checks intervening operand writes.
+use super::super::prover::has_builtin_operators;
 use checked_trees::CheckFacts;
 use language_core::OperatorSpelling;
 use typed_trees::{
@@ -58,9 +59,7 @@ pub(super) fn proves(
         )?;
         // This proof preserves values, not merely storage identities. Reject
         // projected formal coercions and policy-bearing scalar shells here.
-        if !suffix.is_empty()
-            || !super::super::prover::has_builtin_operators(program, &facts.operators, actual)
-        {
+        if !suffix.is_empty() || !has_builtin_operators(program, &facts.operators, actual) {
             return None;
         }
         let actual_meaning = match meaning {
@@ -103,13 +102,7 @@ pub(super) fn proves(
             continue;
         };
         match binary.operator {
-            BinaryOperator::And
-                if super::super::prover::has_builtin_operators(
-                    program,
-                    &facts.operators,
-                    expression,
-                ) =>
-            {
+            BinaryOperator::And if has_builtin_operators(program, &facts.operators, expression) => {
                 pending.extend([binary.right, binary.left]);
             }
             BinaryOperator::Equal
@@ -166,7 +159,7 @@ fn builtin(
     };
     let operands = [binary.left, binary.right]
         .map(|operand| validation::declared_place_type_raw(program, machine, Some(state), operand));
-    super::super::prover::has_builtin_operators(program, &facts.operators, expression)
+    has_builtin_operators(program, &facts.operators, expression)
         && typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,
             machine.symbol,

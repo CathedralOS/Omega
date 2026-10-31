@@ -10,8 +10,10 @@ use super::failed;
 use crate::tables::expressions_of_mut;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 mod calls;
 mod demands;
+mod inference;
 use typed_trees::finite_family::FamilyProbe;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 use typed_trees::typed_trees::{ClosedConformanceApplication, StaticRequirementDispatch};
@@ -33,6 +35,7 @@ pub(crate) fn instantiate_requirement_applications(
                 "applied logical signatures: {message}"
             ))]
         })?;
+    inference::prepare(program)?;
     let demands = demands::collect(program);
     for demand in demands {
         let requirement = demand.requirement;
@@ -137,15 +140,15 @@ pub(crate) fn instantiate_requirement_applications(
             let mut open = false;
             for (parameter, argument) in parameters.iter().zip(&arguments) {
                 match parameter.kind {
-                    typed_trees::data::TypeParameterKind::Type
-                    | typed_trees::data::TypeParameterKind::Const { .. }
-                    | typed_trees::data::TypeParameterKind::Value { .. } => {
+                    TypeParameterKind::Type
+                    | TypeParameterKind::Const { .. }
+                    | TypeParameterKind::Value { .. } => {
                         let actual = program
                             .static_operand_type_reference_in_scope(argument, invocation.owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?;
                         open |= super::contextual_calls::operand_is_open(program, actual);
                     }
-                    typed_trees::data::TypeParameterKind::Machine { .. } => {
+                    TypeParameterKind::Machine { .. } => {
                         open |= program.symbols.get(argument.symbol).kind
                             == symbols::SymbolKind::MachineParameter;
                     }
@@ -232,13 +235,13 @@ pub(crate) fn invocation_bindings(
             Ok(StaticMachineBinding {
                 parameter: parameter.symbol,
                 value: match &parameter.kind {
-                    typed_trees::data::TypeParameterKind::Type => StaticMachineBindingValue::Type(
+                    TypeParameterKind::Type => StaticMachineBindingValue::Type(
                         program
                             .static_operand_type_reference_in_scope(argument, owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?,
                     ),
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => {
                         // A runtime subject is not a closed value. Retain the
                         // exact subject beside its declared carrier, the same
                         // representation candidate selection uses; its roster
@@ -250,17 +253,11 @@ pub(crate) fn invocation_bindings(
                             && program
                                 .data_type_parameter_by_symbol(argument.symbol)
                                 .is_some_and(|source| {
-                                    matches!(
-                                        source.kind,
-                                        typed_trees::data::TypeParameterKind::Value { .. }
-                                    )
+                                    matches!(source.kind, TypeParameterKind::Value { .. })
                                 });
-                        if matches!(
-                            parameter.kind,
-                            typed_trees::data::TypeParameterKind::Value { .. }
-                        ) && (super::const_arguments::is_runtime_value_subject(
-                            program, argument,
-                        ) || forwarded_value)
+                        if matches!(parameter.kind, TypeParameterKind::Value { .. })
+                            && (super::const_arguments::is_runtime_value_subject(program, argument)
+                                || forwarded_value)
                             && program.static_const_argument_identity(argument).is_none()
                         {
                             StaticMachineBindingValue::RuntimeValue {
@@ -294,7 +291,7 @@ pub(crate) fn invocation_bindings(
                             StaticMachineBindingValue::Const(actual)
                         }
                     }
-                    typed_trees::data::TypeParameterKind::Machine { .. } => {
+                    TypeParameterKind::Machine { .. } => {
                         StaticMachineBindingValue::Machine(argument.clone())
                     }
                     _ => {

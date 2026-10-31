@@ -2,9 +2,11 @@ mod scalar_values;
 mod stored_integers;
 
 use super::observations::ConstructionObservations;
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
@@ -17,18 +19,13 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 /// like a plain record; type, `const`, and machine parameters defer member
 /// types to instantiation.
 pub(crate) fn construction_members_are_concrete(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     data_definition: &DataDefinition,
 ) -> bool {
     program
         .data_type_parameters(data_definition)
         .iter()
-        .all(|parameter| {
-            matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Value { .. }
-            )
-        })
+        .all(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
 }
 
 /// Enforce a constructed field's value against its declared type: (1) the
@@ -42,7 +39,7 @@ pub(crate) fn construction_members_are_concrete(
 /// is accepted when its PROVEN interval (type ranges + the flow facts visible
 /// here) is within the field range -- e.g. copying a same-range field.
 pub(super) fn enforce_construction_field_obligations(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     observations: &ConstructionObservations<'_>,
@@ -288,7 +285,7 @@ pub(super) fn enforce_construction_field_obligations(
 /// destination. Each scalar consumes its own occurrence environment, just as
 /// a construction field does.
 pub(crate) fn validate_array_literal_elements(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -310,7 +307,7 @@ pub(crate) fn validate_array_literal_elements(
 }
 
 pub(crate) fn validate_array_literal_elements_for_shape(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
@@ -341,7 +338,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
 /// environments, shared with the enclosing construction checks. Reused across
 /// binding sites that know the array's expected type (assignment target, etc.).
 fn check_array_literal_elements(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     observations: &ConstructionObservations<'_>,
@@ -421,7 +418,7 @@ fn check_array_literal_elements(
 /// This is used by fixed write-only windows, whose destination width is
 /// `end - start` rather than the width of the containing array.
 fn check_array_literal_elements_for_shape(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     observations: &ConstructionObservations<'_>,
@@ -607,7 +604,7 @@ fn check_array_literal_elements_for_shape(
 /// the named variant) or a record/common struct field. (Also consumed by the
 /// literal-width gate in crate::value_custody::literals.)
 pub(crate) fn construction_field_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     data_definition: &DataDefinition,
     case_name: Option<&str>,
     field_name: &str,
@@ -630,7 +627,7 @@ pub(crate) fn construction_field_type(
 /// obligations would silently discard its case predicates and field bounds.
 /// Retained application custody joins the authored owner to that occurrence.
 pub(crate) fn construction_application(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> TypeReferenceHandle {
     let required = expression_table(program).construction_required_type_reference(expression);
@@ -662,7 +659,7 @@ pub(crate) fn construction_application(
 }
 
 pub fn selected_construction_definition<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
 ) -> Option<&'a DataDefinition> {
@@ -675,7 +672,7 @@ pub fn selected_construction_definition<'a>(
 }
 
 pub fn selected_construction_case<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
     definition: &'a DataDefinition,
@@ -698,7 +695,7 @@ pub fn selected_construction_case<'a>(
 /// of `literal` whose construction field type resolves — the peel the literal
 /// walk-downs share.
 pub(crate) fn each_selected_literal_field(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
     mut each: impl FnMut(ExpressionHandle, TypeReferenceHandle),
@@ -714,7 +711,7 @@ pub(crate) fn each_selected_literal_field(
 }
 
 pub fn selected_construction_field_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
     field: symbols::SymbolHandle,
@@ -724,7 +721,7 @@ pub fn selected_construction_field_type(
 }
 
 pub fn selected_construction_field<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     expression: ExpressionHandle,
     literal: &TableStructLiteral,
     field: symbols::SymbolHandle,
@@ -794,10 +791,7 @@ pub fn selected_construction_field<'a>(
 /// Read an integer-literal construction value (the parser folds a negative
 /// `-5` into `Integer(-5)`, so the bare `Integer` case suffices). `None` for any
 /// non-literal value -- those are conservatively rejected by the caller.
-fn construction_field_literal(
-    program: &dyn crate::CheckingInput,
-    value: ExpressionHandle,
-) -> Option<i64> {
+fn construction_field_literal(program: &dyn CheckingInput, value: ExpressionHandle) -> Option<i64> {
     match expression_table(program).expression(value) {
         ExpressionNode::Integer(literal) => literal.value_i64(),
         _ => None,

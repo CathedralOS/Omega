@@ -12,6 +12,7 @@
 use crate::build_time_evaluation::EvaluationDomain;
 use diagnostics::Diagnostic;
 use source::SourceSpan;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::MachineBodyStatus;
@@ -150,10 +151,8 @@ pub(crate) fn prepare_call_free_probe_typing(
         let (typing, _) = predecessor.append_deferred(extension)?;
         typing
     } else {
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
-            frontier.shared_trees(),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
+        lower_symbol_resolved_trees_to_seeded_base(frontier.shared_trees())
+            .map_err(|diagnostic| vec![diagnostic])?
     };
     Ok(typing.into_typed())
 }
@@ -249,10 +248,8 @@ fn prepare_evaluation_inputs_with_owners(
         frontier = rebased;
         typing
     } else {
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
-            frontier.shared_trees(),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
+        lower_symbol_resolved_trees_to_seeded_base(frontier.shared_trees())
+            .map_err(|diagnostic| vec![diagnostic])?
     };
     let mut execution = execution;
     validate_declaration_roots(typing.typed(), declaration_roots)?;

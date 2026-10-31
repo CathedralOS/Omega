@@ -1,19 +1,38 @@
 //! Payload evaluation for the shared selected-call custody walk.
-use validation::CanonicalPlace;
+use crate::values::CurrentIntegerBounds;
+use crate::values::LivePlaceIntervals;
+use crate::values::PlaceScalarValues;
+use crate::values::admitted_integer;
+use crate::values::evaluate_checked_scalar;
+use crate::values::integer_bounds_at_place;
+use crate::values::integer_magnitude;
+use crate::values::integer_type;
+use crate::values::scalar_value_at_place;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::PrimitiveType;
+use validation::{
+    CanonicalPlace, SelectedScalarIntervalSource, carrier_integer_range,
+    expression_type_reference_in_state, frozen_declared_integer_range, integer_range_contains,
+    selected_boolean_decision, selected_scalar_interval,
+};
 
 use super::ScalarValue;
 use super::conversions::{ConversionKind, SelectedConversion};
 
-use crate::flow::FlowBuildContext;
 use crate::flow::transfers::scalar_values::CallValues;
+use crate::flow::{FlowBuildContext, active_context_handles};
 use crate::places::place_at;
 use arena::HandleSpan;
-use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::expression::ExpressionNode;
-use checked_trees::{CheckedScalarExpression, CheckedStructuralPredicatePathSegment};
-use facts::FactPlan;
+use checked_trees::{
+    CheckedScalarExpression as ScalarExpression, CheckedStructuralPredicatePathSegment,
+};
+use checked_trees::{
+    CheckedScalarReadProjection, CheckedScalarSelector, CheckedStorageRoot, FlowSemanticContextRef,
+};
 use facts::IntegerRange;
+use facts::{FactContext, FactPlan};
 use symbols::SymbolHandle;
 
 pub(super) struct LiveValues<'a, 'plans> {
@@ -27,7 +46,7 @@ pub(super) struct LiveValues<'a, 'plans> {
 
 impl LiveValues<'_, '_> {
     /// Each active semantic context, resolved against the plan's arena.
-    fn active_contexts(&self) -> impl Iterator<Item = &facts::FactContext> + '_ {
+    fn active_contexts(&self) -> impl Iterator<Item = &FactContext> + '_ {
         self.context
             .semantic_context_views(self.semantic, self.active)
     }
@@ -38,23 +57,20 @@ pub(super) trait CapturedValue: Sized {
     fn literal(expression: &ExpressionNode) -> Option<Self>;
     fn at_place(place: &CanonicalPlace, live: &LiveValues<'_, '_>) -> Option<Self>;
     fn evaluate_live(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self>;
-    fn evaluate_local(
-        expression: &CheckedScalarExpression,
-        values: &mut CallValues<Self>,
-    ) -> Option<Self>;
-    fn boolean(expression: &CheckedScalarExpression, values: &mut CallValues<Self>)
-    -> Option<bool>;
+    fn evaluate_local(expression: &ScalarExpression, values: &mut CallValues<Self>)
+    -> Option<Self>;
+    fn boolean(expression: &ScalarExpression, values: &mut CallValues<Self>) -> Option<bool>;
     fn join(self, other: Self) -> Option<Self>;
     /// Fallback for an argument with no live snapshot: its runtime value must
     /// still satisfy the formal's declared scalar type, so that declaration —
     /// at worst the raw carrier — bounds the incoming value.
     fn formal_fallback(
         _program: &dyn ::validation::CheckingInput,
-        _parameter: &typed_trees::signature::StateParameter,
+        _parameter: &StateParameter,
     ) -> Option<Self> {
         None
     }
@@ -96,22 +112,17 @@ impl CapturedValue for ScalarValue {
     }
 
     fn at_place(place: &CanonicalPlace, live: &LiveValues<'_, '_>) -> Option<Self> {
-        crate::values::scalar_value_at_place(
-            live.program,
-            live.semantic,
-            live.active_contexts(),
-            place,
-        )
+        scalar_value_at_place(live.program, live.semantic, live.active_contexts(), place)
     }
 
     fn evaluate_live(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
-        crate::values::evaluate_checked_scalar(
+        evaluate_checked_scalar(
             expression,
-            &mut crate::values::PlaceScalarValues {
+            &mut PlaceScalarValues {
                 program: live.program,
                 parameters: live
                     .program
@@ -123,16 +134,13 @@ impl CapturedValue for ScalarValue {
     }
 
     fn evaluate_local(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
-        crate::values::evaluate_checked_scalar(expression, values)
+        evaluate_checked_scalar(expression, values)
     }
 
-    fn boolean(
-        expression: &CheckedScalarExpression,
-        values: &mut CallValues<Self>,
-    ) -> Option<bool> {
+    fn boolean(expression: &ScalarExpression, values: &mut CallValues<Self>) -> Option<bool> {
         match Self::evaluate_local(expression, values)? {
             Self::Boolean(value) => Some(value),
             _ => None,
@@ -162,12 +170,12 @@ impl CapturedValue for ScalarValue {
         if conversion.source == conversion.target {
             return Some(Self::Integer(value));
         }
-        let source = crate::values::integer_type(conversion.source)?;
-        let target = crate::values::integer_type(conversion.target)?;
+        let source = integer_type(conversion.source)?;
+        let target = integer_type(conversion.target)?;
         // The callee's declared carrier already constrained the captured
         // magnitude; admission failing here means the snapshot never denoted
         // a source value, so there is nothing to convert.
-        let admitted = crate::values::admitted_integer(source, &value)?;
+        let admitted = admitted_integer(source, &value)?;
         let converted = match &conversion.kind {
             ConversionKind::Widen => source.widen_value_to(target, admitted)?,
             ConversionKind::Exact(range) => {
@@ -180,7 +188,7 @@ impl CapturedValue for ScalarValue {
                 source.exact_cast_value_to(target, admitted)?
             }
         };
-        Some(Self::Integer(crate::values::integer_magnitude(converted)))
+        Some(Self::Integer(integer_magnitude(converted)))
     }
 }
 
@@ -198,23 +206,18 @@ impl CapturedValue for IntegerRange {
     }
 
     fn at_place(place: &CanonicalPlace, live: &LiveValues<'_, '_>) -> Option<Self> {
-        crate::values::integer_bounds_at_place(
-            live.program,
-            live.semantic,
-            live.active_contexts(),
-            place,
-        )
+        integer_bounds_at_place(live.program, live.semantic, live.active_contexts(), place)
     }
 
     fn evaluate_live(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
-        let contexts = crate::flow::active_context_handles(&live.context.contexts, live.active);
-        validation::selected_scalar_interval(
+        let contexts = active_context_handles(&live.context.contexts, live.active);
+        selected_scalar_interval(
             expression,
-            &mut crate::values::LivePlaceIntervals {
+            &mut LivePlaceIntervals {
                 program: live.program,
                 semantic: live.semantic,
                 contexts: &contexts,
@@ -223,7 +226,7 @@ impl CapturedValue for IntegerRange {
                     .state_parameters(live.program.state_by_symbol(live.state)?),
                 symbols,
                 state: live.state,
-                contents: crate::values::CurrentIntegerBounds::at_statement(
+                contents: CurrentIntegerBounds::at_statement(
                     live.program,
                     live.context.operators,
                     live.semantic,
@@ -236,20 +239,17 @@ impl CapturedValue for IntegerRange {
     }
 
     fn evaluate_local(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
-        validation::selected_scalar_interval(expression, values)
+        selected_scalar_interval(expression, values)
     }
 
-    fn boolean(
-        expression: &CheckedScalarExpression,
-        values: &mut CallValues<Self>,
-    ) -> Option<bool> {
-        let CheckedScalarExpression::Boolean(expression) = expression else {
+    fn boolean(expression: &ScalarExpression, values: &mut CallValues<Self>) -> Option<bool> {
+        let ScalarExpression::Boolean(expression) = expression else {
             return None;
         };
-        validation::selected_boolean_decision(expression, values)
+        selected_boolean_decision(expression, values)
     }
 
     fn join(self, other: Self) -> Option<Self> {
@@ -261,11 +261,11 @@ impl CapturedValue for IntegerRange {
 
     fn formal_fallback(
         program: &dyn ::validation::CheckingInput,
-        parameter: &typed_trees::signature::StateParameter,
+        parameter: &StateParameter,
     ) -> Option<Self> {
         let primitive = program.primitive_type_reference(parameter.type_reference)?;
-        validation::frozen_declared_integer_range(program, parameter.type_reference, primitive)
-            .or_else(|| validation::carrier_integer_range(primitive))
+        frozen_declared_integer_range(program, parameter.type_reference, primitive)
+            .or_else(|| carrier_integer_range(primitive))
     }
 
     fn operand(
@@ -278,22 +278,21 @@ impl CapturedValue for IntegerRange {
             return Some(value);
         }
         let place = place_at(program, live.state, statement_index, expression)?;
-        let primitive =
-            program.primitive_type_reference(validation::expression_type_reference_in_state(
-                program,
-                live.state,
-                statement_index,
-                expression,
-            )?)?;
-        let contexts = crate::flow::active_context_handles(&live.context.contexts, live.active);
-        crate::values::LivePlaceIntervals {
+        let primitive = program.primitive_type_reference(expression_type_reference_in_state(
+            program,
+            live.state,
+            statement_index,
+            expression,
+        )?)?;
+        let contexts = active_context_handles(&live.context.contexts, live.active);
+        LivePlaceIntervals {
             program,
             semantic: live.semantic,
             contexts: &contexts,
             parameters: program.state_parameters(program.state_by_symbol(live.state)?),
             symbols: &[],
             state: live.state,
-            contents: crate::values::CurrentIntegerBounds::at_statement(
+            contents: CurrentIntegerBounds::at_statement(
                 program,
                 live.context.operators,
                 live.semantic,
@@ -306,7 +305,7 @@ impl CapturedValue for IntegerRange {
     }
 
     fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
-        let carrier = validation::carrier_integer_range(conversion.target)?;
+        let carrier = carrier_integer_range(conversion.target)?;
         // Widening preserves the captured bounds. A partial conversion keeps
         // the meet with its proved spelling range, independently of the
         // arithmetic policy attached to its result.
@@ -319,24 +318,16 @@ impl CapturedValue for IntegerRange {
         };
         // A meet that cannot denote a normal-return value, and any interval
         // escaping the target carrier, fails the capture outright.
-        validation::integer_range_contains(&carrier, &bounds).then_some(bounds)
+        integer_range_contains(&carrier, &bounds).then_some(bounds)
     }
 }
 
-impl validation::SelectedScalarIntervalSource for CallValues<IntegerRange> {
-    fn binding(
-        &mut self,
-        position: usize,
-        _: typed_trees::types::PrimitiveType,
-    ) -> Option<IntegerRange> {
+impl SelectedScalarIntervalSource for CallValues<IntegerRange> {
+    fn binding(&mut self, position: usize, _: PrimitiveType) -> Option<IntegerRange> {
         self.bindings.get(position)?.clone()
     }
 
-    fn storage(
-        &mut self,
-        symbol: SymbolHandle,
-        _: typed_trees::types::PrimitiveType,
-    ) -> Option<IntegerRange> {
+    fn storage(&mut self, symbol: SymbolHandle, _: PrimitiveType) -> Option<IntegerRange> {
         self.storage
             .iter()
             .find(|(candidate, _)| *candidate == symbol)
@@ -358,11 +349,11 @@ impl validation::SelectedScalarIntervalSource for CallValues<IntegerRange> {
 
     fn indexed_read(
         &mut self,
-        _: checked_trees::CheckedStorageRoot,
+        _: CheckedStorageRoot,
         _: &[CheckedStructuralPredicatePathSegment],
-        _: &checked_trees::CheckedScalarSelector,
-        _: &[checked_trees::CheckedScalarReadProjection],
-        _: typed_trees::types::PrimitiveType,
+        _: &CheckedScalarSelector,
+        _: &[CheckedScalarReadProjection],
+        _: PrimitiveType,
     ) -> Option<IntegerRange> {
         None
     }

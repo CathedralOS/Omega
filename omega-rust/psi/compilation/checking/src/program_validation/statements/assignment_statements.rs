@@ -8,6 +8,7 @@ use crate::{
     value_custody::access_views, value_custody::atomic_operations, value_custody::expression_types,
     value_custody::places, value_custody::struct_literals,
 };
+use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::statement::StatementNode;
 
 pub(super) fn validate<'a, 'p>(
@@ -216,14 +217,11 @@ pub(super) fn validate<'a, 'p>(
                 current_state,
                 value,
                 target_primitive,
-                assignment_target_type_raw.map_or(
-                    numerics::arithmetic::ArithmeticDomain::Exact,
-                    |reference| {
-                        program.arithmetic_domain_for_type_reference(places::assignment_value_type(
-                            program, reference,
-                        ))
-                    },
-                ),
+                assignment_target_type_raw.map_or(ArithmeticDomain::Exact, |reference| {
+                    program.arithmetic_domain_for_type_reference(places::assignment_value_type(
+                        program, reference,
+                    ))
+                }),
                 value_environment,
                 &owner,
                 diagnostics,
@@ -252,7 +250,7 @@ pub(super) fn validate<'a, 'p>(
                     indexed.index,
                     value_environment,
                     None,
-                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    ArithmeticDomain::Exact,
                     &owner,
                     diagnostics,
                     arithmetic_decisions,
@@ -293,7 +291,7 @@ pub(super) fn validate<'a, 'p>(
     let first_checked_interval = arithmetic_decisions.expression_values.len();
     let assignment_target_domain = assignment_target_type
         .map(|handle| program.arithmetic_domain_for_type_reference(handle))
-        .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
+        .unwrap_or(ArithmeticDomain::Exact);
     let (interval, source_primitive, source_domain) = assignment_target_type_raw
         .and_then(|destination| {
             arithmetic_domains::validate_anonymous_integer_range(
@@ -327,7 +325,7 @@ pub(super) fn validate<'a, 'p>(
                 program, handle,
             ))
         })
-        .unwrap_or(numerics::arithmetic::ArithmeticDomain::Exact);
+        .unwrap_or(ArithmeticDomain::Exact);
     // Carrier compatibility is independent of arithmetic definedness: an
     // overflowing expression does not authorize an implicit conversion.
     let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(

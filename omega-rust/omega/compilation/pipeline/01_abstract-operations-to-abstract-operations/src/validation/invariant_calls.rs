@@ -17,6 +17,8 @@ use super::place_observations::{
     place_observation_root_visible,
 };
 use super::relocation_rewrites::scalar_case_result_contained;
+use crate::validation::relocation_rewrites::call_crash_continuations;
+use crate::validation::relocation_rewrites::structural_call_crash_continuations;
 use abstract_operations::{AbstractOperation as O, AbstractStructuralCallResult};
 use optimization_unit::{
     OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
@@ -24,6 +26,10 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{
+    ClaimTransfer, CrashRouteBucket, StructuralAccess, StructuralMultiplicity,
+    StructuralOperationResult,
+};
 
 /// The node-shape spine every admitted call shape shares: the node's own
 /// operation is its first provenance row, it uses exactly the spelled
@@ -45,10 +51,7 @@ fn call_shape_spine(
 
 /// The claim-custody event shape the structural-signature call variants
 /// carry: no spelled transfers and exactly one empty `ClaimTransfer` row.
-fn empty_claim_transfer_shape(
-    node: &OptimizationNode,
-    claim_transfers: &[terminal_psi::ClaimTransfer],
-) -> bool {
+fn empty_claim_transfer_shape(node: &OptimizationNode, claim_transfers: &[ClaimTransfer]) -> bool {
     claim_transfers.is_empty()
         && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())]
 }
@@ -62,7 +65,7 @@ fn empty_claim_transfer_shape(
 /// continuations it can re-express.
 fn scalar_call_shape(
     node: &OptimizationNode,
-) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
+) -> Option<(MachineId, &[ValueId], &[CrashRouteBucket])> {
     let O::Call {
         psi_operation,
         result,
@@ -141,7 +144,7 @@ pub(crate) fn admissible_invariant_crash_continuation_call(
 /// which continuations it can re-express.
 fn unit_call_shape(
     node: &OptimizationNode,
-) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
+) -> Option<(MachineId, &[ValueId], &[CrashRouteBucket])> {
     let O::CallStructural {
         psi_operation,
         callee: abstract_operations::AbstractCallTarget::Machine(callee),
@@ -227,7 +230,7 @@ pub(crate) fn admissible_invariant_crash_continuation_unit_call(
 /// lane then decides which continuations it can re-express.
 fn structural_scalar_call_shape(
     node: &OptimizationNode,
-) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
+) -> Option<(MachineId, &[ValueId], &[CrashRouteBucket])> {
     let O::CallStructural {
         psi_operation,
         result: AbstractStructuralCallResult::Scalar(result),
@@ -324,11 +327,7 @@ pub(crate) fn admissible_invariant_crash_continuation_structural_scalar_call(
 /// lane then decides which continuations it can re-express.
 fn structural_call_shape(
     node: &OptimizationNode,
-) -> Option<(
-    MachineId,
-    terminal_psi::StructuralOperationResult,
-    &[terminal_psi::CrashRouteBucket],
-)> {
+) -> Option<(MachineId, StructuralOperationResult, &[CrashRouteBucket])> {
     let O::CallStructural {
         psi_operation,
         result:
@@ -349,8 +348,7 @@ fn structural_call_shape(
         && node.definitions.is_empty()
         && matches!(
             result.multiplicity,
-            terminal_psi::StructuralMultiplicity::Affine
-                | terminal_psi::StructuralMultiplicity::Unrestricted
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
         )
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
@@ -398,7 +396,7 @@ fn structural_call_shape(
 /// separately by [`invariant_structural_call_admission`].
 pub(crate) fn admissible_invariant_structural_call(
     node: &OptimizationNode,
-) -> Option<(MachineId, terminal_psi::StructuralOperationResult)> {
+) -> Option<(MachineId, StructuralOperationResult)> {
     let (callee, result, crash_continuations) = structural_call_shape(node)?;
     crash_continuations.is_empty().then_some((callee, result))
 }
@@ -422,7 +420,7 @@ pub(crate) fn admissible_invariant_structural_call(
 /// reading a callee structural parameter stays inside.
 pub(crate) fn admissible_invariant_crash_continuation_structural_call(
     node: &OptimizationNode,
-) -> Option<(MachineId, terminal_psi::StructuralOperationResult)> {
+) -> Option<(MachineId, StructuralOperationResult)> {
     let (callee, result, crash_continuations) = structural_call_shape(node)?;
     (!crash_continuations.is_empty()).then_some((callee, result))
 }
@@ -587,10 +585,10 @@ pub(crate) fn invariant_structural_call_admission(run: &StructuralCallRun<'_>) -
 /// custody-free copy payload enters no discard roster.
 fn structural_call_result_tolerated(
     run: &StructuralCallRun<'_>,
-    result: &terminal_psi::StructuralOperationResult,
+    result: &StructuralOperationResult,
 ) -> Option<BTreeSet<PlaceId>> {
     let mut tolerated = run.relocating_roots.clone();
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
+    if result.multiplicity == StructuralMultiplicity::Affine {
         if !scalar_case_result_contained(run.function, run.component, result.place) {
             return None;
         }
@@ -674,7 +672,7 @@ pub(crate) fn invariant_crash_continuation_structural_call_admission(
 /// and `tolerated` member discards: the carried `crash_continuations` must
 /// be exactly what the callee's verifier-owned published contract derives
 /// at the source actuals
-/// ([`crate::validation::relocation_rewrites::structural_call_crash_continuations`]
+/// ([`structural_call_crash_continuations::structural_call_crash_continuations`]
 /// — `None` when no contract survives, when erased formals would substitute
 /// terms this lane does not track, or when a predicate reads structural
 /// evidence the optimizer-side reconstruction cannot replay), so a drifted
@@ -711,11 +709,7 @@ fn crash_continuation_borrow_call_admission(
         .functions
         .iter()
         .find(|candidate| candidate.machine == callee)?;
-    if crate::validation::relocation_rewrites::structural_call_crash_continuations(
-        callee_function,
-        arguments,
-    )? != *crash_continuations
-    {
+    if structural_call_crash_continuations(callee_function, arguments)? != *crash_continuations {
         // The carried roster must be exactly what the callee's contract
         // derives at the current arguments — evidence drift refuses, so the
         // moved node never inherits a roster the contract did not produce.
@@ -727,11 +721,7 @@ fn crash_continuation_borrow_call_admission(
         .iter()
         .map(|argument| substitution.get(argument).copied().unwrap_or(*argument))
         .collect::<Vec<_>>();
-    let continuations =
-        crate::validation::relocation_rewrites::structural_call_crash_continuations(
-            callee_function,
-            &moved_arguments,
-        )?;
+    let continuations = structural_call_crash_continuations(callee_function, &moved_arguments)?;
     let caller_contract = run.function.verified_contract.as_ref()?;
     crash_routes_cover(&caller_contract.crash_routes, &continuations)
         .then_some((substitution, rewrites))
@@ -857,15 +847,14 @@ fn borrow_call_evidence(
             // the root is not rebound here, because the callee writes
             // through the argument place it names and this admission never
             // substitutes a mutating argument's spelling.
-            terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
                 if !(run.relocating_roots.contains(&argument.place)
                     && member_root_producer_count(run.function, run.component, argument.place) == 1)
                 {
                     return None;
                 }
             }
-            terminal_psi::StructuralAccess::SharedBorrow => {
+            StructuralAccess::SharedBorrow => {
                 let resolved = call_argument_root_landing(
                     run.function,
                     run.component,
@@ -904,7 +893,7 @@ fn borrow_call_evidence(
             // traversal performed. An `Owned` argument over a linear or
             // claimed root, a projected `Owned` argument, or any other
             // produced kind keeps the refusal.
-            terminal_psi::StructuralAccess::Owned => {
+            StructuralAccess::Owned => {
                 if !argument.path.is_empty() {
                     return None;
                 }
@@ -1053,9 +1042,7 @@ pub(crate) fn invariant_crash_continuation_call_admission(
     let callee_function = functions
         .iter()
         .find(|candidate| candidate.machine == callee)?;
-    if crate::validation::relocation_rewrites::call_crash_continuations(callee_function, arguments)?
-        != *crash_continuations
-    {
+    if call_crash_continuations(callee_function, arguments)? != *crash_continuations {
         // The carried roster must be exactly what the callee's contract
         // derives at the current arguments — evidence drift refuses, so the
         // moved node never inherits a roster the contract did not produce.
@@ -1066,10 +1053,7 @@ pub(crate) fn invariant_crash_continuation_call_admission(
         .iter()
         .map(|argument| substitution.get(argument).copied().unwrap_or(*argument))
         .collect::<Vec<_>>();
-    let continuations = crate::validation::relocation_rewrites::call_crash_continuations(
-        callee_function,
-        &moved_arguments,
-    )?;
+    let continuations = call_crash_continuations(callee_function, &moved_arguments)?;
     let caller_contract = function.verified_contract.as_ref()?;
     crash_routes_cover(&caller_contract.crash_routes, &continuations).then_some(substitution)
 }
@@ -1082,10 +1066,7 @@ pub(crate) fn invariant_crash_continuation_call_admission(
 /// verifier's entry-requirement discharge is producer-side evidence this
 /// lane does not reconstruct, so a continuation covered only that way
 /// stays refused.
-fn crash_routes_cover(
-    published: &[terminal_psi::CrashRouteBucket],
-    continuations: &[terminal_psi::CrashRouteBucket],
-) -> bool {
+fn crash_routes_cover(published: &[CrashRouteBucket], continuations: &[CrashRouteBucket]) -> bool {
     continuations.iter().all(|continuation| {
         published.iter().any(|route| {
             route.cause == continuation.cause

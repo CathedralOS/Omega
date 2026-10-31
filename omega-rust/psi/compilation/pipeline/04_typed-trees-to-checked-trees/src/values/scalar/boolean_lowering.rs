@@ -1,6 +1,7 @@
 //! Lowering Boolean expressions and guards, including closed evaluation and
 //! integer comparisons.
 
+use super::scalar_lowering::scalar_storage_read;
 use crate::values::scalar::case_membership;
 use crate::values::scalar::constant_array_projection;
 use crate::values::scalar::expression_facts::{
@@ -13,8 +14,8 @@ use crate::values::scalar::scalar_lowering::{
 };
 use crate::values::scalar::structural_fields;
 use checked_trees::{
-    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedOperatorFacts,
-    CheckedScalarExpression,
+    CheckedBooleanExpression as BooleanExpression, CheckedIntegerComparisonKind as ComparisonKind,
+    CheckedOperatorFacts, CheckedScalarExpression as ScalarExpression,
 };
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
@@ -41,7 +42,7 @@ pub(crate) fn evaluate_closed_boolean_expression(
         exact_integer_casts,
     )?;
     let facts::ScalarValue::Boolean(value) = crate::values::evaluate_checked_scalar(
-        &CheckedScalarExpression::Boolean(Box::new(selected)),
+        &ScalarExpression::Boolean(Box::new(selected)),
         &mut |_| None,
     )?
     else {
@@ -61,7 +62,7 @@ macro_rules! lower_boolean_entry {
             parameter_types: &[PrimitiveType],
             locals: &[ScalarLocal],
             exact_integer_casts: &[validation::ExactIntegerCastFact],
-        ) -> Option<CheckedBooleanExpression> {
+        ) -> Option<BooleanExpression> {
             BooleanLowering::new(
                 program,
                 operators,
@@ -114,7 +115,7 @@ impl<'a> BooleanLowering<'a> {
 }
 
 impl BooleanLowering<'_> {
-    fn expression(&self, expression: ExpressionHandle) -> Option<CheckedBooleanExpression> {
+    fn expression(&self, expression: ExpressionHandle) -> Option<BooleanExpression> {
         if self
             .program
             .static_type_predicate_operands(expression)
@@ -123,9 +124,9 @@ impl BooleanLowering<'_> {
             return self
                 .program
                 .static_type_predicate_value(expression)
-                .map(CheckedBooleanExpression::Constant);
+                .map(BooleanExpression::Constant);
         }
-        if let Some(CheckedScalarExpression::Boolean(read)) = primitive_reference_read::lower(
+        if let Some(ScalarExpression::Boolean(read)) = primitive_reference_read::lower(
             self.program,
             self.authored_parameters,
             expression,
@@ -158,7 +159,7 @@ impl BooleanLowering<'_> {
             validation::closed_record_scalar_projection(self.program, expression)
         {
             let value = self.program.expression_table.boolean_node(leaf)?;
-            return Some(CheckedBooleanExpression::Constant(*value));
+            return Some(BooleanExpression::Constant(*value));
         }
         if let Some(leaf) = constant_array_projection::selected_leaf(
             self.program,
@@ -168,22 +169,20 @@ impl BooleanLowering<'_> {
         ) {
             return self.expression(leaf);
         }
-        if let Some((CheckedScalarExpression::Boolean(field), _)) =
-            super::scalar_lowering::scalar_storage_read(
-                self.program,
-                self.operators,
-                expression,
-                self.parameters,
-                self.authored_parameters,
-                self.parameter_types,
-                self.locals,
-                self.exact_integer_casts,
-            )
-        {
+        if let Some((ScalarExpression::Boolean(field), _)) = scalar_storage_read(
+            self.program,
+            self.operators,
+            expression,
+            self.parameters,
+            self.authored_parameters,
+            self.parameter_types,
+            self.locals,
+            self.exact_integer_casts,
+        ) {
             return Some(*field);
         }
         match self.program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
+            ExpressionNode::Boolean(value) => Some(BooleanExpression::Constant(*value)),
             ExpressionNode::Name(path) => {
                 if let Some(position) = parameter_position(self.program, path, self.parameters) {
                     let parameter = &self.parameters[position];
@@ -194,18 +193,18 @@ impl BooleanLowering<'_> {
                         ) == Some(PrimitiveType::Bool)
                             && path.symbol == parameter.symbol
                             && path.head_symbol == parameter.symbol)
-                            .then_some(CheckedBooleanExpression::StorageRead {
+                            .then_some(BooleanExpression::StorageRead {
                                 symbol: parameter.symbol,
                             });
                     }
                     return (self.parameter_types[position] == PrimitiveType::Bool)
-                        .then_some(CheckedBooleanExpression::Parameter { position });
+                        .then_some(BooleanExpression::Parameter { position });
                 }
                 let local_position = local_position(self.program, expression, path, self.locals)?;
                 let local = &self.locals[local_position];
                 if local.is_mutable || local.is_reference {
                     return (local.primitive_type == PrimitiveType::Bool).then_some(
-                        CheckedBooleanExpression::StorageRead {
+                        BooleanExpression::StorageRead {
                             symbol: local.symbol,
                         },
                     );
@@ -217,13 +216,13 @@ impl BooleanLowering<'_> {
                         .count(),
                 )?;
                 (self.locals[local_position].primitive_type == PrimitiveType::Bool)
-                    .then_some(CheckedBooleanExpression::Local { position })
+                    .then_some(BooleanExpression::Local { position })
             }
             ExpressionNode::Unary(unary)
                 if unary.operator == UnaryOperator::LogicalNot
                     && operator_is_builtin(self.operators, expression) =>
             {
-                Some(CheckedBooleanExpression::Not(Box::new(
+                Some(BooleanExpression::Not(Box::new(
                     self.expression(unary.operand)?,
                 )))
             }
@@ -267,17 +266,17 @@ impl BooleanLowering<'_> {
                         })
                 {
                     return Some(if binary.operator == BinaryOperator::NotEqual {
-                        CheckedBooleanExpression::Not(Box::new(equality))
+                        BooleanExpression::Not(Box::new(equality))
                     } else {
                         equality
                     });
                 }
-                let equality = CheckedBooleanExpression::Equal {
+                let equality = BooleanExpression::Equal {
                     left: Box::new(self.expression(binary.left)?),
                     right: Box::new(self.expression(binary.right)?),
                 };
                 Some(if binary.operator == BinaryOperator::NotEqual {
-                    CheckedBooleanExpression::Not(Box::new(equality))
+                    BooleanExpression::Not(Box::new(equality))
                 } else {
                     equality
                 })
@@ -289,16 +288,16 @@ impl BooleanLowering<'_> {
                 let left = Box::new(self.expression(binary.left)?);
                 let right = Box::new(self.expression(binary.right)?);
                 Some(if binary.operator == BinaryOperator::And {
-                    CheckedBooleanExpression::And { left, right }
+                    BooleanExpression::And { left, right }
                 } else {
-                    CheckedBooleanExpression::Or { left, right }
+                    BooleanExpression::Or { left, right }
                 })
             }
             _ => None,
         }
     }
 
-    fn guard(&self, expression: ExpressionHandle) -> Option<CheckedBooleanExpression> {
+    fn guard(&self, expression: ExpressionHandle) -> Option<BooleanExpression> {
         if let Some(value) =
             lower_closed_integer_literal_guard(self.program, self.operators, expression)
         {
@@ -342,7 +341,7 @@ fn byte_carrier_literal_equality(
     program: &dyn ::validation::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
     authored_parameters: &[StateParameter],
-) -> Option<CheckedBooleanExpression> {
+) -> Option<BooleanExpression> {
     for (carrier, literal) in [(binary.left, binary.right), (binary.right, binary.left)] {
         let Some(bytes) = typed_trees::byte_predicates::literal_bytes(program, literal) else {
             continue;
@@ -360,7 +359,7 @@ fn byte_carrier_literal_equality(
             ) => Some(capacity),
             _ => None,
         };
-        return CheckedBooleanExpression::byte_literal_equality_in_extent(
+        return BooleanExpression::byte_literal_equality_in_extent(
             root,
             path,
             &bytes,
@@ -378,7 +377,7 @@ fn byte_carrier_pair_equality(
     program: &dyn ::validation::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
     authored_parameters: &[StateParameter],
-) -> Option<CheckedBooleanExpression> {
+) -> Option<BooleanExpression> {
     let left = comparable_byte_carrier(program, authored_parameters, binary.left)?;
     let right = comparable_byte_carrier(program, authored_parameters, binary.right)?;
     let ((left_root, left_path, left_carrier), (right_root, right_path, right_carrier)) =
@@ -402,7 +401,7 @@ fn byte_carrier_pair_equality(
         // Runtime observations retain authored storage roots and order.
         // Entry facts separately require parameter provenance and canonicalize
         // their proposition; that namespace cannot restrict executable operands.
-        return Some(CheckedBooleanExpression::ByteSequenceEqual {
+        return Some(BooleanExpression::ByteSequenceEqual {
             left: checked_trees::CheckedByteSequenceOperand {
                 root: left_root,
                 path: left_path,
@@ -414,7 +413,7 @@ fn byte_carrier_pair_equality(
         });
     };
     let length = |root, path: &Vec<_>| {
-        Box::new(CheckedScalarExpression::StructuralSequenceLength {
+        Box::new(ScalarExpression::StructuralSequenceLength {
             root,
             path: path
                 .iter()
@@ -424,58 +423,56 @@ fn byte_carrier_pair_equality(
         })
     };
     let read = |root, path: &Vec<_>, index| {
-        Some(Box::new(
-            CheckedScalarExpression::StructuralParameterIndexedRead {
-                observation: ExpressionHandle::invalid(),
-                root,
-                path: path.clone(),
-                index: Box::new(checked_trees::CheckedScalarSelector {
-                    expression: integer_literal(index, PrimitiveType::U64)?,
-                    occurrence: ExpressionHandle::invalid(),
-                    entry_bound: None,
-                }),
-                element_path: Vec::new(),
-                primitive_type: PrimitiveType::U8,
-            },
-        ))
+        Some(Box::new(ScalarExpression::StructuralParameterIndexedRead {
+            observation: ExpressionHandle::invalid(),
+            root,
+            path: path.clone(),
+            index: Box::new(checked_trees::CheckedScalarSelector {
+                expression: integer_literal(index, PrimitiveType::U64)?,
+                occurrence: ExpressionHandle::invalid(),
+                entry_bound: None,
+            }),
+            element_path: Vec::new(),
+            primitive_type: PrimitiveType::U8,
+        }))
     };
     let mut remaining = None;
     for index in (0..left_capacity.min(right_capacity)).rev() {
-        let agreeing = CheckedBooleanExpression::And {
-            left: Box::new(CheckedBooleanExpression::IntegerComparison {
-                kind: CheckedIntegerComparisonKind::LessThan,
+        let agreeing = BooleanExpression::And {
+            left: Box::new(BooleanExpression::IntegerComparison {
+                kind: ComparisonKind::LessThan,
                 left: Box::new(integer_literal(index, PrimitiveType::U64)?),
                 right: length(right_root, &right_path),
             }),
-            right: Box::new(CheckedBooleanExpression::IntegerComparison {
-                kind: CheckedIntegerComparisonKind::Equal,
+            right: Box::new(BooleanExpression::IntegerComparison {
+                kind: ComparisonKind::Equal,
                 left: read(left_root, &left_path, index)?,
                 right: read(right_root, &right_path, index)?,
             }),
         };
         let continued = match remaining {
-            Some(remaining) => CheckedBooleanExpression::And {
+            Some(remaining) => BooleanExpression::And {
                 left: Box::new(agreeing),
                 right: Box::new(remaining),
             },
             None => agreeing,
         };
-        remaining = Some(CheckedBooleanExpression::Or {
-            left: Box::new(CheckedBooleanExpression::IntegerComparison {
-                kind: CheckedIntegerComparisonKind::LessOrEqual,
+        remaining = Some(BooleanExpression::Or {
+            left: Box::new(BooleanExpression::IntegerComparison {
+                kind: ComparisonKind::LessOrEqual,
                 left: length(left_root, &left_path),
                 right: Box::new(integer_literal(index, PrimitiveType::U64)?),
             }),
             right: Box::new(continued),
         });
     }
-    let lengths = CheckedBooleanExpression::IntegerComparison {
-        kind: CheckedIntegerComparisonKind::Equal,
+    let lengths = BooleanExpression::IntegerComparison {
+        kind: ComparisonKind::Equal,
         left: length(left_root, &left_path),
         right: length(right_root, &right_path),
     };
     Some(match remaining {
-        Some(remaining) => CheckedBooleanExpression::And {
+        Some(remaining) => BooleanExpression::And {
             left: Box::new(lengths),
             right: Box::new(remaining),
         },
@@ -504,7 +501,7 @@ pub(crate) fn comparable_byte_carrier(
     Some((root, path, carrier))
 }
 
-fn integer_literal(value: u64, primitive_type: PrimitiveType) -> Option<CheckedScalarExpression> {
+fn integer_literal(value: u64, primitive_type: PrimitiveType) -> Option<ScalarExpression> {
     facts::u64_integer_literal(value, primitive_type)
 }
 
@@ -512,9 +509,9 @@ fn integer_literal(value: u64, primitive_type: PrimitiveType) -> Option<CheckedS
 /// does not change the source operand evaluation order retained by the caller.
 pub(crate) fn construct_integer_comparison(
     operator: BinaryOperator,
-    mut left: CheckedScalarExpression,
-    mut right: CheckedScalarExpression,
-) -> Option<CheckedBooleanExpression> {
+    mut left: ScalarExpression,
+    mut right: ScalarExpression,
+) -> Option<BooleanExpression> {
     match (
         scalar_expression_type(&left),
         scalar_expression_type(&right),
@@ -538,27 +535,27 @@ pub(crate) fn construct_integer_comparison(
         return None;
     }
     let (kind, negated) = match operator {
-        BinaryOperator::Equal => (CheckedIntegerComparisonKind::Equal, false),
-        BinaryOperator::NotEqual => (CheckedIntegerComparisonKind::Equal, true),
-        BinaryOperator::Less => (CheckedIntegerComparisonKind::LessThan, false),
-        BinaryOperator::LessOrEqual => (CheckedIntegerComparisonKind::LessOrEqual, false),
+        BinaryOperator::Equal => (ComparisonKind::Equal, false),
+        BinaryOperator::NotEqual => (ComparisonKind::Equal, true),
+        BinaryOperator::Less => (ComparisonKind::LessThan, false),
+        BinaryOperator::LessOrEqual => (ComparisonKind::LessOrEqual, false),
         BinaryOperator::Greater => {
             std::mem::swap(&mut left, &mut right);
-            (CheckedIntegerComparisonKind::LessThan, false)
+            (ComparisonKind::LessThan, false)
         }
         BinaryOperator::GreaterOrEqual => {
             std::mem::swap(&mut left, &mut right);
-            (CheckedIntegerComparisonKind::LessOrEqual, false)
+            (ComparisonKind::LessOrEqual, false)
         }
         _ => return None,
     };
-    let comparison = CheckedBooleanExpression::IntegerComparison {
+    let comparison = BooleanExpression::IntegerComparison {
         kind,
         left: Box::new(left),
         right: Box::new(right),
     };
     Some(if negated {
-        CheckedBooleanExpression::Not(Box::new(comparison))
+        BooleanExpression::Not(Box::new(comparison))
     } else {
         comparison
     })

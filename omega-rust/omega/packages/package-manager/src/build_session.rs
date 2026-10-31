@@ -4,6 +4,8 @@
 //! fresh compilation attempt receives an explicitly sponsored empty directory;
 //! checked results retain immutable output custody after session disposal.
 
+use std::iter::empty;
+use std::process::id;
 mod bindings;
 mod order;
 pub use bindings::PackageSourceBindings;
@@ -84,10 +86,8 @@ impl PackageBuildSession {
 
         for _ in 0..128 {
             let sequence = PACKAGE_BUILD_SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let root = canonical_workspace.join(format!(
-                ".omega-package-build-{}-{sequence}",
-                std::process::id()
-            ));
+            let root =
+                canonical_workspace.join(format!(".omega-package-build-{}-{sequence}", id()));
             match FilesystemSponsor::create_private(
                 &root,
                 filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
@@ -185,11 +185,9 @@ impl PackageBuildSession {
             source_capture: Some(capture.clone()),
             build: package_compilation::BuildExecutionInputs {
                 profile: Some(profile),
-                snapshot: execution.snapshot.or_else(|| {
-                    Some(package_compilation::BuildSnapshotRequest::new(
-                        std::iter::empty(),
-                    ))
-                }),
+                snapshot: execution
+                    .snapshot
+                    .or_else(|| Some(package_compilation::BuildSnapshotRequest::new(empty()))),
                 directory: Some(directory),
                 filesystem_sponsor: execution
                     .filesystem_sponsor

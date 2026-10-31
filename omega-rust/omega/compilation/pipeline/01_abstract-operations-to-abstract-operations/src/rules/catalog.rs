@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use optimization::PsiOptimization;
 
+use crate::rules::PsiPassStep;
 use crate::rules::{
     control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering,
     proof_check_elision, representation_specialization_rule_registrations,
@@ -53,15 +54,13 @@ impl PsiPassCatalogEntry {
     }
 
     /// Resolve this catalog row to its scheduled pass step.
-    pub(crate) fn step(self) -> Result<crate::rules::PsiPassStep, RuleRegistryError> {
+    pub(crate) fn step(self) -> Result<PsiPassStep, RuleRegistryError> {
         match self.payload {
-            PsiPassCatalogPayload::RuleCatalog(rule_catalog) => {
-                Ok(crate::rules::PsiPassStep::RewriteRegistry(
-                    assemble_built_in_registry(rule_catalog())?,
-                ))
-            }
+            PsiPassCatalogPayload::RuleCatalog(rule_catalog) => Ok(PsiPassStep::RewriteRegistry(
+                assemble_built_in_registry(rule_catalog())?,
+            )),
             PsiPassCatalogPayload::LoopInvariantScalarMotion => {
-                Ok(crate::rules::PsiPassStep::LoopInvariantScalarMotion)
+                Ok(PsiPassStep::LoopInvariantScalarMotion)
             }
         }
     }

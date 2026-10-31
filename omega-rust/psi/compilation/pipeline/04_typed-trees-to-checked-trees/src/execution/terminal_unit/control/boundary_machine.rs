@@ -5,7 +5,10 @@
 //! custody; it does not recheck their source arrangement. Qualifying a result
 //! still requires its separately checked authorization route.
 
+use super::super::calls::free_structural_scalar_entry_signature_traced;
 use super::boundary_contracts::boundary_scalar_requires;
+use super::boundary_contracts::pending_recipe_requires;
+use super::call_results::checked_structural_result_type;
 
 use crate::execution::terminal_unit::calls::{
     free_structural_scalar_signature, parameter_signatures,
@@ -53,7 +56,7 @@ pub(crate) fn build_boundary_machine(
     // when no argument or result contained it. All boundary storage and
     // custody come from the explicit signature, exactly as for checked bodies.
     let signature = if machine.target_family_interface {
-        super::super::calls::free_structural_scalar_entry_signature_traced(
+        free_structural_scalar_entry_signature_traced(
             program,
             shapes,
             state,
@@ -99,7 +102,7 @@ pub(crate) fn build_boundary_machine(
     let (scalar_requires, pending_scalar_requires, pending_scalar_recipes) = match scalar_requires {
         Some(rows) => (rows, Vec::new(), Vec::new()),
         None => {
-            let (clauses, recipes) = super::boundary_contracts::pending_recipe_requires(
+            let (clauses, recipes) = pending_recipe_requires(
                 program,
                 program.machine_contracts(machine),
                 program.state_contracts(state),
@@ -932,12 +935,7 @@ pub(crate) fn boundary_result_plan(
     // nor authorizes a provider. Keep carrier classification independent of
     // which admitted implementation will satisfy the requirement.
     if is_reference(program, type_reference) {
-        let carrier = super::call_results::checked_structural_result_type(
-            program,
-            shapes,
-            type_reference,
-            binders,
-        )?;
+        let carrier = checked_structural_result_type(program, shapes, type_reference, binders)?;
         return Some(CheckedBoundaryMachineResultPlan::Structural {
             type_identity: carrier.type_identity,
             multiplicity: carrier.multiplicity,

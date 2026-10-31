@@ -5,8 +5,8 @@ use crate::record::{
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
     PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
-    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTraitParent,
-    PackageReviewTypeIdentity,
+    PackageReviewParameterQualification, PackageReviewSignatureParameter,
+    PackageReviewSynchronousInvocation, PackageReviewTraitParent, PackageReviewTypeIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,8 +38,7 @@ pub struct PackagePolicyTraitRequirement {
     pub(crate) blocks: bool,
     pub(crate) termination: PackagePolicyTermination,
     pub(crate) returned_borrow_origins: Vec<crate::record::PackageReviewReturnedBorrowOrigin>,
-    pub(crate) parameter_qualification_preconditions:
-        Vec<crate::record::PackageReviewParameterQualification>,
+    pub(crate) parameter_qualification_preconditions: Vec<PackageReviewParameterQualification>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

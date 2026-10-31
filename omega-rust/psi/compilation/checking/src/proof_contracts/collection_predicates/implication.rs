@@ -35,10 +35,12 @@ use crate::{
     scoped_arithmetic_comparisons_unsatisfiable,
 };
 use numerics::bignum::BigInt;
+use std::fs::OpenOptions;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::state::State;
 use typed_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
@@ -186,11 +188,7 @@ pub(super) fn proves(
     let proved = proof.theorem(entry, machine_position, goal);
     if let Some(trace) = std::env::var_os("OMEGA_COLLECTION_PROOF_TRACE") {
         use std::io::Write as _;
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(trace)
-        {
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(trace) {
             let _ = writeln!(
                 file,
                 "theorem={} goal={} elapsed_micros={} spent={} proved={proved}",
@@ -384,12 +382,7 @@ fn ordering_relations(
 const WORK_BUDGET: usize = 8192;
 
 impl Implication<'_> {
-    fn theorem(
-        &mut self,
-        entry: &typed_trees::state::State,
-        machine_position: usize,
-        goal: ExpressionHandle,
-    ) -> bool {
+    fn theorem(&mut self, entry: &State, machine_position: usize, goal: ExpressionHandle) -> bool {
         let program = self.program;
         let machine = self.context;
         let mut path = Path::default();

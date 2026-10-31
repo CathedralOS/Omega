@@ -12,6 +12,7 @@
 use super::scalar_predicates::{self, PredicateNode, ScalarValue};
 use arena::{Arena, Handle};
 use diagnostics::Diagnostic;
+use numerics::bignum::BigInt;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
 
@@ -382,9 +383,7 @@ mod tests {
             scalar_predicates::evaluate_nodes(
                 root,
                 &mut |reference| mapped.get(reference).cloned(),
-                &mut |leaf| Some(ScalarValue::Integer(numerics::bignum::BigInt::from_u64(
-                    leaf as u64
-                ))),
+                &mut |leaf| Some(ScalarValue::Integer(BigInt::from_u64(leaf as u64))),
                 &|_, _| true
             ),
             Some(ScalarValue::Boolean(false))

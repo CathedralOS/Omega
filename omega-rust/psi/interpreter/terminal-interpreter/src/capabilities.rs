@@ -16,11 +16,13 @@
 //! demands without following them as normal provider calls.
 
 use crate::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::program::AdmittedTerminalProgram;
 use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
 use std::collections::BTreeSet;
-use terminal_psi::{OperationKind, Terminator};
+use terminal_psi::{BoundaryCompletion, OperationKind, Terminator};
+use terminal_semantics::AccessRamOriginAnalysis;
+use terminal_semantics::descriptor_results::terminal_access_origin_graph;
 
 /// A precise implementation limitation on an otherwise admitted program.
 /// Driver task names and display diagnostics belong to the driver, not Psi.
@@ -97,7 +99,7 @@ pub(crate) fn check_with_private_entry_ram(
             || recipe.input().machine != entry
             || !program.catalogs.access_view_inputs.contains(recipe.input())
     }) {
-        return Err(crate::errors::malformed());
+        return Err(malformed());
     }
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
@@ -224,21 +226,17 @@ pub(crate) fn check_with_private_entry_ram(
                         interface, slot, ..
                     } => {
                         let catalog = &program.catalogs.dynamic_dispatch;
-                        let slot_index =
-                            usize::try_from(*slot).map_err(|_| crate::errors::malformed())?;
+                        let slot_index = usize::try_from(*slot).map_err(|_| malformed())?;
                         if catalog
                             .interface(*interface)
                             .and_then(|interface| interface.slots.get(slot_index))
                             .is_none()
                         {
-                            return Err(crate::errors::malformed());
+                            return Err(malformed());
                         }
                         for table in &catalog.tables {
                             if table.interface == *interface {
-                                let row = table
-                                    .rows
-                                    .get(slot_index)
-                                    .ok_or_else(crate::errors::malformed)?;
+                                let row = table.rows.get(slot_index).ok_or_else(malformed)?;
                                 pending.extend(*row);
                             }
                         }
@@ -274,9 +272,7 @@ pub(crate) fn check_with_private_entry_ram(
                         if crate::program::compiler_owns_boundary_execution(declaration) {
                             continue;
                         }
-                        if let terminal_psi::BoundaryCompletion::External(kind) =
-                            declaration.completion
-                        {
+                        if let BoundaryCompletion::External(kind) = declaration.completion {
                             if external_completion.is_none_or(|(found, _)| *boundary < found) {
                                 external_completion = Some((*boundary, kind));
                             }
@@ -393,22 +389,15 @@ pub(crate) fn check_with_private_entry_ram(
     // formation proof discharges the adapter obligation for an internal RAM
     // handler. Host, mixed and unresolved alternatives remain in the roster.
     if !access_candidates.is_empty() {
-        let graph = terminal_semantics::descriptor_results::terminal_access_origin_graph(
-            &program.catalogs,
-            &selected_calls,
-        );
+        let graph = terminal_access_origin_graph(&program.catalogs, &selected_calls);
         if let Some(graph) = graph {
-            let mut origins = terminal_semantics::AccessRamOriginAnalysis::new(
-                &program.catalogs,
-                &graph,
-                &visited,
-                entry,
-            )
-            .with_private_entry_roots(
-                private_entry_ram
-                    .iter()
-                    .map(|recipe| recipe.input().clone()),
-            );
+            let mut origins =
+                AccessRamOriginAnalysis::new(&program.catalogs, &graph, &visited, entry)
+                    .with_private_entry_roots(
+                        private_entry_ram
+                            .iter()
+                            .map(|recipe| recipe.input().clone()),
+                    );
             let mut internally_bound = BTreeSet::new();
             let mut unresolved = BTreeSet::new();
             for (machine, position, boundary, arguments) in access_candidates {
@@ -463,7 +452,7 @@ pub(crate) fn check_with_private_entry_ram(
             .ok()
             .and_then(|position| position.checked_add(1))
             .and_then(semantic_vocabulary::ScalarApplicationId::new)
-            .ok_or_else(crate::errors::malformed)?;
+            .ok_or_else(malformed)?;
         let subject = terminal_psi::ScalarConditionSubject::Application(application);
         if catalog.conditions.contains_subject(subject) {
             scalar_entry_conditions.push(application);
@@ -486,9 +475,11 @@ mod tests {
     use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
     use std::collections::BTreeMap;
     use terminal_psi::{
-        Block, Operation, OperationResult, StructuralAccess, StructuralArgument,
-        StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,
-        TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+        Block, BoundaryCompletion, MachineContract, NominalAffineCleanup,
+        NominalDeclarationIdentity, Operation, OperationResult, StructuralAccess,
+        StructuralArgument, StructuralMultiplicity, StructuralReferenceResultSource,
+        StructuralResultDeclaration, TerminalAffineCleanupAction, TerminalDynamicSlot,
+        TerminalMachine, TerminalMachineResult, TerminalModule,
     };
     fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> TerminalMachine {
         let result = if selected_origins == 0 {
@@ -568,9 +559,7 @@ mod tests {
             published_service_ceiling: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
-            contract: terminal_psi::MachineContract::empty(
-                semantic_vocabulary::ContractId::new(1).unwrap(),
-            ),
+            contract: MachineContract::empty(semantic_vocabulary::ContractId::new(1).unwrap()),
         }
     }
 
@@ -640,9 +629,7 @@ mod tests {
                 receiving_application: terminal_psi::TerminalIdentityIndex::default(),
                 receiving_region_arguments: Vec::new(),
                 provider_identity,
-                provider_declaration: terminal_psi::NominalDeclarationIdentity::new(
-                    provider_identity,
-                ),
+                provider_declaration: NominalDeclarationIdentity::new(provider_identity),
                 candidate_identity,
                 source_candidate_identity: candidate_identity,
                 source_candidate_package_identity: None,
@@ -664,13 +651,10 @@ mod tests {
             role: terminal_psi::BoundaryDeclarationRole::Callable,
             id: boundary,
             kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
-            completion: terminal_psi::BoundaryCompletion::NormalReturn,
+            completion: BoundaryCompletion::NormalReturn,
             unconditional_termination: false,
             identity: intern_identity(catalogs, "graph boundary"),
-            owner: terminal_psi::NominalDeclarationIdentity::new(intern_identity(
-                catalogs,
-                "graph schema",
-            )),
+            owner: NominalDeclarationIdentity::new(intern_identity(catalogs, "graph schema")),
             attachment: None,
             parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
@@ -714,7 +698,7 @@ mod tests {
             .iter_mut()
             .find(|declaration| declaration.id == boundary)
             .unwrap()
-            .completion = terminal_psi::BoundaryCompletion::External(kind);
+            .completion = BoundaryCompletion::External(kind);
     }
 
     fn boundary_call(boundary: BoundaryMachineId) -> OperationKind {
@@ -826,8 +810,7 @@ mod tests {
             .iter_mut()
             .find(|declaration| declaration.id == external)
             .unwrap()
-            .completion =
-            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+            .completion = BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
         set_machine(
             &mut program,
             MachineId::new(1).unwrap(),
@@ -904,19 +887,18 @@ mod tests {
     fn dynamic_program() -> AdmittedTerminalProgram<'static> {
         let mut program = program();
         let catalogs = program.fixture_module_mut();
-        let slot =
-            |catalogs: &mut terminal_psi::TerminalModule, slot| terminal_psi::TerminalDynamicSlot {
-                slot,
-                declaring_trait_identity: intern_identity(catalogs, "graph interface"),
-                requirement_identity: intern_identity(catalogs, &format!("requirement {slot}")),
-                family_tuple: Vec::new(),
-                scalar_parameters: Vec::new(),
-                structural_parameters: Vec::new(),
-                entry_claim_paths: Vec::new(),
-                result: terminal_psi::BoundaryMachineResult::Unit,
-                result_claim_paths: Vec::new(),
-                result_reference_regions: Vec::new(),
-            };
+        let slot = |catalogs: &mut terminal_psi::TerminalModule, slot| TerminalDynamicSlot {
+            slot,
+            declaring_trait_identity: intern_identity(catalogs, "graph interface"),
+            requirement_identity: intern_identity(catalogs, &format!("requirement {slot}")),
+            family_tuple: Vec::new(),
+            scalar_parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            entry_claim_paths: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+        };
         catalogs.dynamic_dispatch.interfaces = (0..2)
             .map(|id| terminal_psi::TerminalDynamicInterface {
                 id,
@@ -1032,7 +1014,7 @@ mod tests {
             .iter_mut()
             .find(|declaration| declaration.id == boundary)
             .unwrap()
-            .completion = terminal_psi::BoundaryCompletion::External(kind);
+            .completion = BoundaryCompletion::External(kind);
         let mut external = machine(0, Vec::new());
         external.blocks.first_mut().unwrap().terminator = Terminator::ExternalCompletion {
             edge: EdgeId::new(2).unwrap(),
@@ -1091,17 +1073,16 @@ mod tests {
                 }],
             ),
         );
-        let action =
-            TerminalAffineCleanupAction::InvokeNominal(terminal_psi::NominalAffineCleanup {
-                retains_descendants: false,
-                place: PlaceId::new(1).unwrap(),
-                path: Vec::new(),
-                structural_type: StructuralTypeId::new(1).unwrap(),
-                cleanup_machine,
-                consumed_claims: Vec::new(),
-                cleanup_receiver: None,
-                requirement_obligations: Vec::new(),
-            });
+        let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+            retains_descendants: false,
+            place: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            cleanup_machine,
+            consumed_claims: Vec::new(),
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
+        });
         (program, action)
     }
 

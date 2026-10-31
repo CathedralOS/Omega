@@ -6,6 +6,7 @@
 
 use std::collections::BTreeSet;
 
+use std::sync::atomic::Ordering;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use crate::errors::{TerminalInterpretError, malformed};
@@ -98,10 +99,8 @@ impl LocalStructuralIdentities {
 /// backings. This is an allocator, not an address-to-storage lookup registry.
 pub(crate) fn new_exposure_namespace() -> Option<u64> {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    NEXT.try_update(
-        std::sync::atomic::Ordering::Relaxed,
-        std::sync::atomic::Ordering::Relaxed,
-        |next| next.checked_add(1),
-    )
+    NEXT.try_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
+        next.checked_add(1)
+    })
     .ok()
 }

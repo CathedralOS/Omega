@@ -8,19 +8,19 @@
 //! declared carrier with `canonical_value` instead of trusting the
 //! materialized literal, so both sides of the receipt stay independent.
 
+use crate::BuildTimeValue;
+use crate::const_evaluation::const_generic_expressions::scalar_probe_destination;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
-use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableStructLiteral, TableStructLiteralField,
 };
 use syntax_trees::identifier::Identifier;
+use syntax_trees::{FloatSpelling, SyntaxTrees};
 use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
+use typed_trees::data::{DataMember, DataVariant};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
-
-use crate::BuildTimeValue;
 
 /// Rewrite one admitted structured value as authored literal syntax. Every
 /// constructor name re-resolves through `reference` to the exact selected
@@ -63,12 +63,7 @@ pub(super) fn literal(
             ExpressionNode::ArrayLiteral(elements)
         }
         TypeReferenceNode::Named { symbol, .. } => {
-            if let Some(primitive) =
-                crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
-                    program,
-                    destination,
-                )
-            {
+            if let Some(primitive) = scalar_probe_destination(program, destination) {
                 match (primitive, value) {
                     (
                         PrimitiveType::F32 | PrimitiveType::F64,
@@ -105,9 +100,7 @@ pub(super) fn literal(
                         let (format, bits) = floating_bits(primitive, *value)?;
                         let literal = numerics::literals::FloatLiteral::from_bits(format, bits)
                             .ok_or("invalid floating representation")?;
-                        ExpressionNode::Float(syntax_trees::FloatSpelling::materialized(
-                            literal, reference,
-                        ))
+                        ExpressionNode::Float(FloatSpelling::materialized(literal, reference))
                     }
                     _ => {
                         return Err(
@@ -320,12 +313,7 @@ pub(super) fn canonical_value(
             })
         }
         TypeReferenceNode::Named { symbol, .. } => {
-            if let Some(primitive) =
-                crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
-                    program,
-                    destination,
-                )
-            {
+            if let Some(primitive) = scalar_probe_destination(program, destination) {
                 match (primitive, value) {
                     (
                         PrimitiveType::F32 | PrimitiveType::F64,
@@ -512,10 +500,7 @@ fn floating_bits(
 }
 
 /// The declared variant member carrying `name`, when the owner lists one.
-fn variant_member_by_name<'m>(
-    members: &'m [DataMember],
-    name: &str,
-) -> Option<&'m typed_trees::data::DataVariant> {
+fn variant_member_by_name<'m>(members: &'m [DataMember], name: &str) -> Option<&'m DataVariant> {
     members.iter().find_map(|member| match member {
         DataMember::Variant(case) if case.name.as_str() == name => Some(case),
         _ => None,

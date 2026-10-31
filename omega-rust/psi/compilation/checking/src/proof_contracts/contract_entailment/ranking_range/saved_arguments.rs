@@ -17,9 +17,11 @@
 //! `let n = k` honest when `k` is reassigned before the call: `n` may claim
 //! the incoming value only while nothing can write it away.
 use super::{BigInt, Engine, ExpressionHandle, Machine, Polynomial, State, lengths, meanings};
+use crate::CheckingInput;
 use crate::StrictArithmeticExpressionBinding;
 use crate::frozen_program::expression_table;
 use language_semantics::declaration_selection::CollectionMeasure;
+use lengths::BindingObservation;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -30,7 +32,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// atoms -- because evaluating a stable name at the boundary cannot rewrite
 /// an installed caller fact.
 pub(super) fn actual(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
@@ -45,7 +47,7 @@ pub(super) fn actual(
 /// already-bound `a`. A local whose initializer leaves the strict arithmetic
 /// language, or reads a carrier that can change, simply never binds.
 pub(super) fn install(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     source_lengths: &[(SymbolHandle, String)],
@@ -65,7 +67,7 @@ pub(super) fn install(
                 program,
                 state,
                 local.symbol,
-                lengths::BindingObservation::WholeValue,
+                BindingObservation::WholeValue,
             )
             || !stable_references(program, state, local.initial_value)
         {
@@ -138,7 +140,7 @@ pub(super) fn install(
 /// hypotheses. The first bind can only see the entry carrier, so a subtraction
 /// that the label has already bounded stays an opaque residue until this read.
 pub(super) fn refresh_under_hypotheses(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     engine: &mut Engine<'_>,
@@ -213,7 +215,7 @@ pub(super) fn refresh_under_hypotheses(
 /// unbound there; downstream normalization fails closed on the unknown atom
 /// rather than substituting a different value.
 pub(super) fn saved<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::statement::TableLocalData> {
@@ -226,7 +228,7 @@ pub(super) fn saved<'a>(
 /// arrival candidates. Only captured value transport can supply an alias;
 /// arithmetic and metadata dependencies retain their separate value judgment.
 pub(super) fn captured_coordinate(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<super::RankSubjectCoordinate> {
@@ -258,10 +260,7 @@ pub(super) fn captured_coordinate(
 
 /// A plain name occurrence and the symbol it resolves to; member chains and
 /// path heads are deliberately not plain names.
-fn plain_name(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<SymbolHandle> {
+fn plain_name(program: &dyn CheckingInput, expression: ExpressionHandle) -> Option<SymbolHandle> {
     let path = expression_table(program).name_path_node(expression)?;
     (program.expression_table.name_path_is_single_member(path)).then_some(path.symbol)
 }
@@ -272,29 +271,21 @@ fn plain_name(
 /// later write replaces it, so written locals produce no observation;
 /// neither do ambiguous or formal names.
 fn saved_local<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::statement::TableLocalData> {
     let (_, local) = program.state_local_declaration(state, symbol)?;
     (local.ordinary_value_initializer().is_some()
         && !lengths::binding_is_exclusively_exposed(program, state, symbol)
-        && !lengths::binding_is_written(
-            program,
-            state,
-            symbol,
-            lengths::BindingObservation::WholeValue,
-        ))
+        && !lengths::binding_is_written(program, state, symbol, BindingObservation::WholeValue))
     .then_some(local)
 }
 
 /// Whether `type_reference` resolves to an exclusive (`&mut`/`&out`) borrow:
 /// writes through it replace the referent without touching the binding, so a
 /// saved read of the carrier would go stale silently.
-fn exclusive_referent(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-) -> bool {
+fn exclusive_referent(program: &dyn CheckingInput, mut reference: TypeReferenceHandle) -> bool {
     let mut visited = Vec::new();
     while reference.is_valid() && !visited.contains(&reference) {
         visited.push(reference);
@@ -313,7 +304,7 @@ fn exclusive_referent(
 /// A carrier that can change between the two would silently read the wrong
 /// value, so the observation is withheld entirely rather than approximated.
 fn stable_references(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
@@ -354,7 +345,7 @@ fn stable_references(
                     program,
                     state,
                     symbol,
-                    lengths::BindingObservation::WholeValue,
+                    BindingObservation::WholeValue,
                 )
         } else {
             saved_local(program, state, symbol)
@@ -367,7 +358,7 @@ fn stable_references(
 /// local collection: `let s = &[..]; let n = s.len`. Formal receivers bind
 /// through `lengths::install`; only a local receiver needs this pass.
 fn bind_local_lengths(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,

@@ -9,10 +9,13 @@
 
 use super::super::structural_terms::scalar_operand_is_observed;
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use crate::CheckingInput;
+use numerics::bignum::ExactFloat;
 use numerics::float_projection::FloatProjectionOperation;
 use numerics::float_semantics_catalog::{
     FloatSemanticComparison, FloatSemanticKernel, FloatSemanticPredicate,
 };
+use numerics::literals::FloatFormat;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 
@@ -393,7 +396,7 @@ impl StructuralJudge<'_> {
     fn float_projection<'term>(
         &self,
         term: &'term StructuralTerm,
-    ) -> Option<(numerics::literals::FloatFormat, &'term StructuralTerm)> {
+    ) -> Option<(FloatFormat, &'term StructuralTerm)> {
         let StructuralTerm::Application {
             target,
             result_type,
@@ -428,8 +431,8 @@ impl StructuralJudge<'_> {
             return None;
         }
         let format = match primitive {
-            PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
-            PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
+            PrimitiveType::F32 => FloatFormat::F32,
+            PrimitiveType::F64 => FloatFormat::F64,
             _ => return None,
         };
         // A previously landed literal cannot silently change format here.
@@ -441,13 +444,7 @@ impl StructuralJudge<'_> {
         Some((format, value))
     }
 
-    fn float_literal_endpoint(
-        &self,
-        term: &StructuralTerm,
-    ) -> Option<(
-        numerics::literals::FloatFormat,
-        numerics::bignum::ExactFloat,
-    )> {
+    fn float_literal_endpoint(&self, term: &StructuralTerm) -> Option<(FloatFormat, ExactFloat)> {
         // A completed literal already carries its format. Two such literals
         // compare by IEEE value here; a projection application is the other
         // way a sealed meaning supplies that same literal.
@@ -463,12 +460,8 @@ impl StructuralJudge<'_> {
         Some((
             format,
             match format {
-                numerics::literals::FloatFormat::F32 => {
-                    numerics::bignum::ExactFloat::from_f32(literal.value_f32())
-                }
-                numerics::literals::FloatFormat::F64 => {
-                    numerics::bignum::ExactFloat::from_f64(literal.value_f64())
-                }
+                FloatFormat::F32 => ExactFloat::from_f32(literal.value_f32()),
+                FloatFormat::F64 => ExactFloat::from_f64(literal.value_f64()),
             },
         ))
     }
@@ -739,7 +732,7 @@ pub(super) fn boolean_value(value: &StructuralTerm) -> Option<bool> {
 }
 
 fn projected_meaning(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     primitive: PrimitiveType,
     value: StructuralTerm,
 ) -> Option<StructuralTerm> {
@@ -770,10 +763,7 @@ fn projected_meaning(
     operator_application(program, operator, value)
 }
 
-fn nan_predicate(
-    program: &dyn crate::CheckingInput,
-    meaning: StructuralTerm,
-) -> Option<StructuralTerm> {
+fn nan_predicate(program: &dyn CheckingInput, meaning: StructuralTerm) -> Option<StructuralTerm> {
     let mut candidates = program.operators().iter().filter(|operator| {
         crate::proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract(program, operator)
             .is_some_and(|(row, _)| matches!(row.kernel(), FloatSemanticKernel::SinglePredicate(FloatSemanticPredicate::NaN)))
@@ -786,7 +776,7 @@ fn nan_predicate(
 }
 
 fn operator_application(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
     argument: StructuralTerm,
 ) -> Option<StructuralTerm> {

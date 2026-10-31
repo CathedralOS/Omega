@@ -16,6 +16,13 @@ use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{ProviderBindingRequest, SelectedExecution, prepare_selected_execution};
 use std::sync::Arc;
 
+/// One refusal as the diagnostic list every step in this module returns: each
+/// provider-inventory query answers once, so its single refusal is the whole
+/// list.
+fn one_refusal<T>(refused: Result<T, Diagnostic>) -> Result<T, Vec<Diagnostic>> {
+    refused.map_err(|error| vec![error])
+}
+
 /// One target's complete provider selection beside the shared source custody.
 /// Terminal production borrows this record to mint the target-neutral artifact.
 /// Selection and native declaration preparation are complete; no later
@@ -54,10 +61,7 @@ impl SelectedProductTarget {
         if let Some(inputs) = package_inputs.as_ref()
             && let Some(binding) =
                 provider_planning::program_entry::discover_explicit_entry_binding(
-                    source
-                        .provider_inventory
-                        .services_for(&source.program)
-                        .map_err(|error| vec![error])?,
+                    one_refusal(source.provider_inventory.services_for(&source.program))?,
                     &source.computed_build_config.config.root_bindings,
                     target,
                     &source.computed_build_config.config.provider_selections,
@@ -336,30 +340,32 @@ fn select_checked_providers(
         .x86_deployment_claim
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let services = one_refusal(source.provider_inventory.services_for(&source.program))?;
+    // Entry source issuance is independent of policy execution. Defer its
+    // refusal until after provider selection to preserve diagnostic precedence.
+    let entry = provider_planning::program_entry::prepare_compiler_program_entry(
+        services,
+        &build_config.root_bindings,
+        selected_target_profile,
+    );
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
         selected_provider_plan_facts,
         selected_provider_provenance,
     } = prepare_target_provider_selection(source, selected_target_profile, package_inputs)?;
-    let mut selected_program_entry =
-        provider_planning::program_entry::select_compiler_program_entry(
-            source
-                .provider_inventory
-                .services_for(&source.program)
-                .map_err(|error| vec![error])?,
-            &build_config.root_bindings,
-            selected_target_profile,
-            &providers.boundary_calling_plan_realizations,
-            package_inputs,
-        )?;
+    let mut selected_program_entry = entry?
+        .map(|entry| {
+            entry.settle_calling_plans(
+                &providers.boundary_calling_plan_realizations,
+                package_inputs,
+            )
+        })
+        .transpose()?;
     if let Some(entry) = &mut selected_program_entry {
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
     }
     provider_planning::target_machines::reject_reached_inert_sibling_calls(
-        source
-            .provider_inventory
-            .direct_calls_for(&source.program)
-            .map_err(|error| vec![error])?,
+        one_refusal(source.provider_inventory.direct_calls_for(&source.program))?,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
         selected_program_entry
             .as_ref()
@@ -405,10 +411,7 @@ fn prepare_target_provider_selection(
     let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &source.program,
-            source
-                .provider_inventory
-                .services_for(&source.program)
-                .map_err(|error| vec![error])?,
+            one_refusal(source.provider_inventory.services_for(&source.program))?,
             selected_target_profile.unwrap_or_else(target::TargetProfile::host),
             &build_config.opaque_representation_selections,
             package_inputs,
@@ -428,27 +431,15 @@ fn prepare_target_provider_selection(
         )?;
     }
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
-        source
-            .provider_inventory
-            .origins_for(&source.program)
-            .map_err(|error| vec![error])?,
+        one_refusal(source.provider_inventory.origins_for(&source.program))?,
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
     provider_planning::settle_checked_providers(
         &source.program,
-        source
-            .provider_inventory
-            .services_for(&source.program)
-            .map_err(|error| vec![error])?,
-        source
-            .provider_inventory
-            .uses_for(&source.program)
-            .map_err(|error| vec![error])?,
-        source
-            .provider_inventory
-            .direct_calls_for(&source.program)
-            .map_err(|error| vec![error])?,
+        one_refusal(source.provider_inventory.services_for(&source.program))?,
+        one_refusal(source.provider_inventory.uses_for(&source.program))?,
+        one_refusal(source.provider_inventory.direct_calls_for(&source.program))?,
         settled_target_machines,
         selected_target_profile,
         package_inputs,

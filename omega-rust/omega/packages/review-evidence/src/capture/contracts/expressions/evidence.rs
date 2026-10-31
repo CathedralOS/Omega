@@ -6,6 +6,7 @@ use crate::record::{
     PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
     PackageReviewContractKind,
 };
+use checked_trees::ContractProofFactOwner;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -132,17 +133,17 @@ fn exact_contract_target(
 }
 
 fn evidence_owner_visible_from(
-    term_owner: checked_trees::ContractProofFactOwner,
-    fact_owner: checked_trees::ContractProofFactOwner,
+    term_owner: ContractProofFactOwner,
+    fact_owner: ContractProofFactOwner,
 ) -> bool {
     term_owner == fact_owner
         || matches!(
             (term_owner, fact_owner),
             (
-                checked_trees::ContractProofFactOwner::Machine {
+                ContractProofFactOwner::Machine {
                     machine_symbol: term_machine,
                 },
-                checked_trees::ContractProofFactOwner::MachineState {
+                ContractProofFactOwner::MachineState {
                     machine_symbol: fact_machine,
                     ..
                 },
@@ -151,23 +152,23 @@ fn evidence_owner_visible_from(
 }
 
 fn evidence_owner_belongs_to_target(
-    owner: checked_trees::ContractProofFactOwner,
+    owner: ContractProofFactOwner,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
 ) -> bool {
     matches!(
         owner,
-        checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+        ContractProofFactOwner::Machine { machine_symbol }
             if machine_symbol == target_machine
     ) || matches!(
         owner,
-        checked_trees::ContractProofFactOwner::MachineState {
+        ContractProofFactOwner::MachineState {
             machine_symbol,
             state_symbol,
         } if machine_symbol == target_machine && state_symbol == target_state
     ) || matches!(
         owner,
-        checked_trees::ContractProofFactOwner::StateSignature {
+        ContractProofFactOwner::StateSignature {
             owner_symbol,
             state_symbol,
         } if owner_symbol == target_machine && state_symbol == target_state
@@ -179,21 +180,19 @@ fn project_term(
     term: &checked_trees::CheckedEvidenceTerm,
 ) -> Result<PackageReviewContractEvidenceTerm, Vec<Diagnostic>> {
     let owner = match term.owner {
-        checked_trees::ContractProofFactOwner::Machine { machine_symbol } => machine_symbol,
-        checked_trees::ContractProofFactOwner::MachineState { state_symbol, .. }
-        | checked_trees::ContractProofFactOwner::StateSignature { state_symbol, .. } => {
-            state_symbol
-        }
-        checked_trees::ContractProofFactOwner::OperatorDeclaration { operator_symbol }
-        | checked_trees::ContractProofFactOwner::OperatorUse {
+        ContractProofFactOwner::Machine { machine_symbol } => machine_symbol,
+        ContractProofFactOwner::MachineState { state_symbol, .. }
+        | ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,
+        ContractProofFactOwner::OperatorDeclaration { operator_symbol }
+        | ContractProofFactOwner::OperatorUse {
             operator_symbol, ..
         } => operator_symbol,
-        checked_trees::ContractProofFactOwner::CallSignature { .. } => {
+        ContractProofFactOwner::CallSignature { .. } => {
             return Err(vec![Diagnostic::error(
                 "invocation-owned evidence cannot be exported as a declaration-owned contract lane",
             )]);
         }
-        checked_trees::ContractProofFactOwner::Unknown => {
+        ContractProofFactOwner::Unknown => {
             return Err(vec![Diagnostic::error(
                 "checked evidence term has no stable semantic owner",
             )]);

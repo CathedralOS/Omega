@@ -1,5 +1,6 @@
 //! Checked direct-syscall argument-contract identity.
 
+use crate::digest_encoder::DomainDigestEncoder;
 use effects::{
     CheckedSyscallArgumentContractIdentity, SyscallTerminalMechanismIdentity,
     TerminalMechanismIdentity,
@@ -92,8 +93,7 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
         );
     }
 
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN);
+    let mut digest = DomainDigestEncoder::new(CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN);
     if !declaration.has_valid_parameter_order() {
         return Err("direct syscall parameter order does not cover its checked lanes".to_owned());
     }
@@ -152,10 +152,7 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
     Ok(SyscallTerminalMechanismIdentity::new(target, number, checked_argument_contract).into())
 }
 
-fn push_count(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
-    count: usize,
-) -> Result<(), String> {
+fn push_count(digest: &mut DomainDigestEncoder, count: usize) -> Result<(), String> {
     digest.raw(
         &u32::try_from(count)
             .map_err(|_| "checked syscall argument-contract count exceeds u32".to_owned())?
@@ -164,7 +161,7 @@ fn push_count(
     Ok(())
 }
 
-fn encode_scalar(digest: &mut crate::digest_encoder::DomainDigestEncoder, scalar: ScalarType) {
+fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ScalarType) {
     match scalar {
         ScalarType::Boolean => digest.byte(0),
         ScalarType::Integer(integer) => {

@@ -5,6 +5,8 @@ use super::{Collector, Context};
 use crate::build_time_evaluation::type_reference_table;
 use crate::unique::push_unique;
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::domain::ProofFact;
+use typed_trees::signature::SignatureContract;
 use typed_trees::{
     TypedTrees,
     expression::ExpressionHandle,
@@ -17,7 +19,7 @@ pub(super) enum Root<'program> {
     Type(TypeReferenceHandle),
     Expression(ExpressionHandle),
     Machine(&'program Machine),
-    Contracts(arena::HandleSpan<typed_trees::signature::SignatureContract>),
+    Contracts(arena::HandleSpan<SignatureContract>),
 }
 
 impl<'program> Collector<'program> {
@@ -113,11 +115,7 @@ struct TypeDependencies<'program> {
 }
 
 impl TypeDependencies<'_> {
-    fn contracts(
-        &mut self,
-        contracts: arena::HandleSpan<typed_trees::signature::SignatureContract>,
-        owner: SymbolHandle,
-    ) {
+    fn contracts(&mut self, contracts: arena::HandleSpan<SignatureContract>, owner: SymbolHandle) {
         let program = self.program;
         let clauses = program.tables.signature_contracts.span_or_empty(contracts);
         if clauses.len() != contracts.len() {
@@ -129,11 +127,7 @@ impl TypeDependencies<'_> {
         }
     }
 
-    fn contract_facts(
-        &mut self,
-        facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
-        owner: SymbolHandle,
-    ) {
+    fn contract_facts(&mut self, facts: arena::HandleSpan<ProofFact>, owner: SymbolHandle) {
         let program = self.program;
         let clauses = program.proof_facts.span_or_empty(facts);
         if clauses.len() != facts.len() {
@@ -218,7 +212,7 @@ impl TypedReferences for TypeDependencies<'_> {
         false
     }
 
-    fn proof_fact(&mut self, _: arena::Handle<typed_trees::domain::ProofFact>) -> bool {
+    fn proof_fact(&mut self, _: arena::Handle<ProofFact>) -> bool {
         false
     }
 }

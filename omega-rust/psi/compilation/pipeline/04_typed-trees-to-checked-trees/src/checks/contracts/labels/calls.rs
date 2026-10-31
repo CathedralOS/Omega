@@ -1,4 +1,6 @@
 use crate::flow::expressions;
+use crate::flow::reference_expression_storage_places_including_shared;
+use crate::flow::reference_route_source;
 use symbols::SymbolHandle;
 use typed_trees::proposition::ProofSubstitutions;
 
@@ -227,13 +229,8 @@ fn reference_actual_storage_label(
                 && expressions(program).name_path_members(path.members).len() == 1 =>
         {
             let statements = program.statement_table.statements(state.statement_nodes);
-            let source = crate::flow::reference_route_source(
-                program,
-                state,
-                statements,
-                statement_index,
-                path.symbol,
-            )?;
+            let source =
+                reference_route_source(program, state, statements, statement_index, path.symbol)?;
             referent_label(program, caller_state_symbol, statement_index, source)
         }
         typed_trees::expression::ExpressionNode::Call(_) => {
@@ -258,7 +255,7 @@ fn referent_label(
                 referent = cast.value;
             }
             typed_trees::expression::ExpressionNode::Call(_) => {
-                let places = crate::flow::reference_expression_storage_places_including_shared(
+                let places = reference_expression_storage_places_including_shared(
                     program,
                     caller_state_symbol,
                     statement_index,

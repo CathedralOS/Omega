@@ -2,6 +2,7 @@
 //! traits. Retain their exact occurrence, including phantom regions; neither
 //! the storage declaration nor its erased identity supplies those arguments.
 
+use super::project_type_reference;
 use super::{AppliedDeclarationRegionScope, AppliedTraitScope};
 use crate::TypedTrees;
 use crate::data::DataDefinition;
@@ -32,7 +33,7 @@ impl TypedTrees {
                     .map(|(parameter, argument)| (parameter.symbol, *argument)),
             );
         }
-        let mut applied = super::project_type_reference(self, reference, &substitutions, &starts);
+        let mut applied = project_type_reference(self, reference, &substitutions, &starts);
         let mut visited = Vec::new();
         loop {
             if !self.contains_type_reference(applied.reference)
@@ -55,12 +56,8 @@ impl TypedTrees {
             // Prepared nominal fields are storage copies. Their retained
             // origin rejoins the original declaration without reapplying its
             // frames to already-substituted field operands.
-            applied = super::project_type_reference(
-                self,
-                origin,
-                applied.substitutions,
-                applied.scope_starts,
-            );
+            applied =
+                project_type_reference(self, origin, applied.substitutions, applied.scope_starts);
         }
         Some((applied.reference, applied.scope_starts.len()))
     }

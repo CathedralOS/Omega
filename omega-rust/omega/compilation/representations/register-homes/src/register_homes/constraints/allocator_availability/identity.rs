@@ -1,3 +1,4 @@
+use crate::digest_encoder::content_identity;
 use crate::{
     AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
 };
@@ -8,9 +9,7 @@ pub fn allocator_availability_identity(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-allocator-availability.v1\0");
     bytes.extend_from_slice(&encode_terminal_allocator_availability_content(plan));
-    AllocatorAvailabilityIdentity::from_bytes(
-        crate::digest_encoder::content_identity(&bytes).into(),
-    )
+    AllocatorAvailabilityIdentity::from_bytes(content_identity(&bytes).into())
 }
 
 pub(crate) fn encode_terminal_allocator_availability_content(

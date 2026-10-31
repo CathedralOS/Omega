@@ -8,8 +8,9 @@
 use super::Execution;
 use arena::Handle;
 use checked_trees::{
-    CheckedReferenceOriginProjection, CheckedReferenceOriginRoot, CheckedUnitStructuralPathSegment,
-    FlowOperandFact, FlowOperandRetainedRegion, FlowOperandRetention,
+    CheckedReferenceOriginProjection as OriginProjection, CheckedReferenceOriginRoot,
+    CheckedUnitStructuralPathSegment, FlowOperandFact, FlowOperandRetainedRegion,
+    FlowOperandRetention,
 };
 use facts::PlaceSegment;
 use semantic_vocabulary::ReferenceOriginExtent;
@@ -73,9 +74,7 @@ impl Execution<'_, '_, '_> {
                     .filter(|projection| {
                         !matches!(
                             projection,
-                            CheckedReferenceOriginProjection::Exact(
-                                CheckedUnitStructuralPathSegment::Referent
-                            )
+                            OriginProjection::Exact(CheckedUnitStructuralPathSegment::Referent)
                         )
                     })
                     .cloned(),
@@ -187,7 +186,7 @@ fn region_sources<'program>(
         let output = output
             .into_iter()
             .map(|projection| match projection {
-                CheckedReferenceOriginProjection::Exact(segment) => Some(segment),
+                OriginProjection::Exact(segment) => Some(segment),
                 _ => None,
             })
             .collect::<Option<Vec<_>>>()?;
@@ -259,9 +258,9 @@ fn region_sources<'program>(
 fn region_descriptor_type(
     program: &dyn validation::CheckingInput,
     mut reference: TypeReferenceHandle,
-    path: &[CheckedReferenceOriginProjection],
+    path: &[OriginProjection],
 ) -> Option<TypeReferenceHandle> {
-    let project = |reference, pending: &[CheckedReferenceOriginProjection]| {
+    let project = |reference, pending: &[OriginProjection]| {
         let segments = validation::reference_result_custody::origin_place_segments(
             program,
             reference,
@@ -274,7 +273,7 @@ fn region_descriptor_type(
     for projection in path {
         if matches!(
             projection,
-            CheckedReferenceOriginProjection::Exact(CheckedUnitStructuralPathSegment::Referent)
+            OriginProjection::Exact(CheckedUnitStructuralPathSegment::Referent)
         ) {
             reference = project(reference, &pending)?;
             pending.clear();

@@ -7,8 +7,8 @@
 //! referee. Borrow admission still owns access, lineage and lifetime.
 
 use checked_trees::{
-    CheckedReferenceStorage, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckedReferenceStorage, CheckedStructuralAccess as StructuralAccess,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
 };
 use typed_trees::types::TypeReferenceHandle;
 
@@ -64,8 +64,8 @@ pub(crate) fn formed_reference_type(
         validation::expression_result_type_reference(program, machine, state, expression)?;
     let shell = validation::reference_shell(program, reference)?;
     let referee = shell.referee;
-    let access = CheckedStructuralAccess::from(shell.access);
-    (access == CheckedStructuralAccess::from(formation.access)
+    let access = StructuralAccess::from(shell.access);
+    (access == StructuralAccess::from(formation.access)
         && (!formation.view_type.is_valid()
             || program.normalized_type_identity(referee)
                 == program.normalized_type_identity(formation.view_type)))
@@ -113,8 +113,8 @@ pub(crate) fn capture_source(
     // using it here would erase a fixed-byte local's actual establishment.
     let shell = validation::reference_shell(program, reference)?;
     let referent = shell.referee;
-    let access = CheckedStructuralAccess::from(shell.access);
-    if CheckedStructuralAccess::from(formation.access) != access {
+    let access = StructuralAccess::from(shell.access);
+    if StructuralAccess::from(formation.access) != access {
         return None;
     }
     let is_view = formation.view_type.is_valid();
@@ -249,9 +249,7 @@ pub(crate) fn capture_source(
         // The value owner must establish this producer before lending it.
         // Its captured path and storage interpretation are otherwise the same
         // as a named home's; source spelling does not select another planner.
-        facts::PlaceRoot::Expression(expression) => {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
-        }
+        facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression { expression },
         facts::PlaceRoot::Symbol(root) => {
             if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
                 if parameter.is_const || parameter.relevance.is_erased() {
@@ -264,7 +262,7 @@ pub(crate) fn capture_source(
                     // Immutable scalar ingress can lend its one stable home. A
                     // mutable formal instead observes live storage established by
                     // its body; homing an ingress snapshot would miss later writes.
-                    if parameter.is_mutable || access != CheckedStructuralAccess::SharedBorrow {
+                    if parameter.is_mutable || access != StructuralAccess::SharedBorrow {
                         return None;
                     }
                     let position = program
@@ -278,7 +276,7 @@ pub(crate) fn capture_source(
                                     .is_some()
                         })
                         .position(|parameter| parameter.symbol == root)?;
-                    CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
+                    SourcePlan::ScalarParameter {
                         parameter_index: u32::try_from(position).ok()?,
                     }
                 } else {
@@ -293,7 +291,7 @@ pub(crate) fn capture_source(
                                     .is_none()
                         })
                         .position(|parameter| parameter.symbol == root)?;
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    SourcePlan::Parameter {
                         parameter_index: u32::try_from(position).ok()?,
                     }
                 }
@@ -314,26 +312,26 @@ pub(crate) fn capture_source(
                     // The owned binding is the selected storage, including
                     // when it stores a reference. Its inner access grants no
                     // permission to replace that binding or its referent.
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: root }
+                    SourcePlan::StructuralLocal { symbol: root }
                 } else if let Some(shell) =
                     validation::reference_shell(program, owner.type_reference)
                 {
-                    let supplied = CheckedStructuralAccess::from(shell.access);
+                    let supplied = StructuralAccess::from(shell.access);
                     if !matches!(
                         (supplied, access),
-                        (CheckedStructuralAccess::MutableBorrow, _)
+                        (StructuralAccess::MutableBorrow, _)
                             | (
-                                CheckedStructuralAccess::SharedBorrow,
-                                CheckedStructuralAccess::SharedBorrow
+                                StructuralAccess::SharedBorrow,
+                                StructuralAccess::SharedBorrow
                             )
                             | (
-                                CheckedStructuralAccess::WriteOnlyBorrow,
-                                CheckedStructuralAccess::WriteOnlyBorrow
+                                StructuralAccess::WriteOnlyBorrow,
+                                StructuralAccess::WriteOnlyBorrow
                             )
                     ) {
                         return None;
                     }
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+                    SourcePlan::StructuralLocalBorrow {
                         symbol: root,
                         root_type_identity: if place.segments.is_empty() {
                             // The requested address may be a descriptor slot.
@@ -361,9 +359,9 @@ pub(crate) fn capture_source(
                             .primitive_type_reference(owner.type_reference)
                             .is_some()
                     {
-                        CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol: root }
+                        SourcePlan::PrimitiveLocal { symbol: root }
                     } else {
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: root }
+                        SourcePlan::StructuralLocal { symbol: root }
                     }
                 }
             }
@@ -390,10 +388,10 @@ pub(crate) fn capture_source(
     })
 }
 
-fn access_can_supply(source: CheckedStructuralAccess, result: CheckedStructuralAccess) -> bool {
+fn access_can_supply(source: StructuralAccess, result: StructuralAccess) -> bool {
     source == result
         || matches!(
             source,
-            CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
+            StructuralAccess::Owned | StructuralAccess::MutableBorrow
         )
 }

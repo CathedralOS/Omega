@@ -109,7 +109,12 @@ class ProjectGateTests(unittest.TestCase):
         for result in (subprocess.CompletedProcess([], 1, "", "custody denied"),
                        subprocess.CompletedProcess([], 139, "", "index `4` is within length 4"), None):
             with self.subTest(result=result), patch.object(native_gate, "run", return_value=result):
-                self.assertIn(native_gate.measure("omega", str(directory), "linux_x86_64", 10)["state"], ("rejection-failed", "timeout"))
+                row = native_gate.measure("omega", str(directory), "linux_x86_64", 10)
+                self.assertIn(row["state"], ("rejection-failed", "timeout"))
+                if result is not None:
+                    self.assertEqual(row["diagnostic"], result.stderr)
+                else:
+                    self.assertNotIn("diagnostic", row)
         (directory / "expected.txt").unlink()
         with patch.object(native_gate, "run", return_value=subprocess.CompletedProcess([], 1, "", "any refusal")):
             row = native_gate.measure("omega", str(directory), "linux_x86_64", 10)

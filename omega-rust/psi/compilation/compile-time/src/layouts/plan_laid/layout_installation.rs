@@ -1,11 +1,15 @@
 use crate::build_time_evaluation::type_reference_table;
+use crate::machine_execution::admission::require_established_arguments;
+use checked_interpreter::BuildMachineEvaluationRequest;
 use diagnostics::Diagnostic;
 use layout_plans::LayoutPlacementReport;
+use typed_trees::references::collect_selected_program_type_occurrences;
 use typed_trees::{
     PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField,
     PlanLaidSchemaFieldKind, PlanLaidTargetLayout, TypedTrees,
 };
+use validation::conformance_applications::validate_data_evidence_application;
 
 struct FixedRepresentationRequest {
     application_name: String,
@@ -81,17 +85,11 @@ pub(crate) fn compute_plan_laid_layouts_in(
 ) -> Result<(), Vec<Diagnostic>> {
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     let mut requests = Vec::new();
-    for occurrence in
-        typed_trees::references::collect_selected_program_type_occurrences(typed, domain.work())
-    {
+    for occurrence in collect_selected_program_type_occurrences(typed, domain.work()) {
         let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
             continue;
         };
-        validation::conformance_applications::validate_data_evidence_application(
-            typed,
-            storage.application,
-            occurrence.lexical_owner,
-        )?;
+        validate_data_evidence_application(typed, storage.application, occurrence.lexical_owner)?;
         if let Some(known) = requests
             .iter_mut()
             .find(|known: &&mut ScopedRepresentationRequest| {
@@ -173,7 +171,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 }
                 continue;
             }
-            validation::conformance_applications::validate_data_evidence_application(
+            validate_data_evidence_application(
                 typed,
                 dependency.storage.application,
                 dependency.lexical_owner,
@@ -402,18 +400,10 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 schema_value.clone(),
                 build_time_values::BuildTimeValue::LayoutTarget(target.clone()),
             ];
-            crate::machine_execution::admission::require_established_arguments(
-                &execution,
-                machine,
-                &mut arguments,
-            )
-            .map_err(fail)?;
+            require_established_arguments(&execution, machine, &mut arguments).map_err(fail)?;
             let evaluation = match domain.accounting.evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(&execution),
-                checked_interpreter::BuildMachineEvaluationRequest::symbol(
-                    machine.symbol,
-                    arguments,
-                ),
+                BuildMachineEvaluationRequest::symbol(machine.symbol, arguments),
             ) {
                 Ok(evaluation) => evaluation,
                 Err(checked_interpreter::BuildMachineEvaluationError::StaticInputUnavailable(

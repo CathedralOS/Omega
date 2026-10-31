@@ -9,6 +9,7 @@ use super::super::super::{
     LoweringError, PlaceId, StructuralMultiplicity, lookup_type_id, unsupported,
 };
 use super::{Emission, ProjectionSource};
+use crate::expression_preparation::bindings::StructuralLocalBinding;
 use crate::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
@@ -212,14 +213,12 @@ impl Emission<'_, '_, '_> {
                 // exact expression binding, never the copied leaf's home.
                 crate::expression_preparation::bindings::retain_completed_structural_homes(
                     &mut self.evaluation.structural_locals,
-                    &[
-                        crate::expression_preparation::bindings::StructuralLocalBinding {
-                            result_binding_ordinal: None,
-                            root: facts::PlaceRoot::Expression(node.expression),
-                            argument: completed.argument.clone(),
-                            structural_type: root_type,
-                        },
-                    ],
+                    &[StructuralLocalBinding {
+                        result_binding_ordinal: None,
+                        root: facts::PlaceRoot::Expression(node.expression),
+                        argument: completed.argument.clone(),
+                        structural_type: root_type,
+                    }],
                 )?;
                 (completed.argument.place, root_type_identity)
             }

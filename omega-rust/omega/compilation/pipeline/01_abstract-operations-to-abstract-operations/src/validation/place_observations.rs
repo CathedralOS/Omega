@@ -14,6 +14,8 @@ use super::member_blocks::{
     MemberParameterResolution, member_scalar_operand_substitution, resolve_member_parameters,
     shared_entry_source, value_definition_sites,
 };
+use crate::validation::relocation_rewrites::scalar_case_result_consumed;
+use crate::validation::relocation_rewrites::scalar_case_result_contained;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
@@ -22,6 +24,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralAccess;
 
 /// Whether `component`'s member blocks perform no place mutation or custody
 /// movement visible to a member observation: no store, record establishment,
@@ -218,7 +221,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
             claim_transfers.is_empty()
                 && structural_arguments
                     .iter()
-                    .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow)
+                    .all(|argument| argument.access == StructuralAccess::SharedBorrow)
         }
         // A structural-result call binds its result's claims beside the
         // outgoing roster: a pure callee returning claims would spell a
@@ -234,7 +237,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
                 && result.claims.is_empty()
                 && structural_arguments
                     .iter()
-                    .all(|argument| argument.access == terminal_psi::StructuralAccess::SharedBorrow)
+                    .all(|argument| argument.access == StructuralAccess::SharedBorrow)
         }
         _ => false,
     }
@@ -297,9 +300,8 @@ fn exclusive_borrow_call_preserves_place_observations(
     let mut borrowed = BTreeSet::new();
     for argument in structural_arguments {
         match argument.access {
-            terminal_psi::StructuralAccess::SharedBorrow => {}
-            terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
+            StructuralAccess::SharedBorrow => {}
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
                 borrowed.insert(argument.place);
             }
             // An owned whole-root argument over a copyable unrestricted
@@ -313,7 +315,7 @@ fn exclusive_borrow_call_preserves_place_observations(
             // linear or claimed root, a projected owned argument, or a
             // produced kind outside the cyclic owned-argument fence's
             // admitted shapes moves or aliases custody outright.
-            terminal_psi::StructuralAccess::Owned => {
+            StructuralAccess::Owned => {
                 if !argument.path.is_empty()
                     || !(copyable_owned_argument_root(function, argument.place)
                         || consumed_owned_argument_root(function, component, argument.place))
@@ -620,7 +622,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
 /// collected: their callee cannot read the cell, so a staying write-only
 /// borrower keeps writing deterministic contents no member observes.
 pub(crate) fn mutable_borrow_roots(operation: &O) -> BTreeSet<PlaceId> {
-    structural_argument_roots(operation, terminal_psi::StructuralAccess::MutableBorrow)
+    structural_argument_roots(operation, StructuralAccess::MutableBorrow)
 }
 
 /// The place roots `operation` hands a callee through an `Owned` structural
@@ -636,7 +638,7 @@ pub(crate) fn mutable_borrow_roots(operation: &O) -> BTreeSet<PlaceId> {
 /// bound refuses that spelling on a verified seed, but the freeze replay
 /// runs on hand-moved units where no source grammar pruned it.
 pub(crate) fn owned_argument_roots(operation: &O) -> BTreeSet<PlaceId> {
-    structural_argument_roots(operation, terminal_psi::StructuralAccess::Owned)
+    structural_argument_roots(operation, StructuralAccess::Owned)
 }
 
 /// The number of member nodes that produce `root` inside `component`'s
@@ -699,7 +701,7 @@ pub(super) fn copyable_owned_argument_root(
         .chain(function.block_structural_parameters())
         .any(|parameter| {
             parameter.place == root
-                && parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.access == StructuralAccess::Owned
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
@@ -750,12 +752,8 @@ pub(super) fn consumed_owned_argument_root(
         && crate::validation::relocation_rewrites::restricted_member_produced_root(
             function, component, root,
         )
-        && crate::validation::relocation_rewrites::scalar_case_result_consumed(
-            function, component, root,
-        )
-        && crate::validation::relocation_rewrites::scalar_case_result_contained(
-            function, component, root,
-        )
+        && scalar_case_result_consumed(function, component, root)
+        && scalar_case_result_contained(function, component, root)
 }
 
 /// The complete invariant place-read admission shared by the proposal and the
@@ -1199,10 +1197,7 @@ pub(crate) fn invariant_member_place_parameters(
 
 /// The place roots `operation` hands a callee through a `structural`
 /// argument carrying `access`.
-fn structural_argument_roots(
-    operation: &O,
-    access: terminal_psi::StructuralAccess,
-) -> BTreeSet<PlaceId> {
+fn structural_argument_roots(operation: &O, access: StructuralAccess) -> BTreeSet<PlaceId> {
     let structural_arguments = match operation {
         abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
             structural_arguments

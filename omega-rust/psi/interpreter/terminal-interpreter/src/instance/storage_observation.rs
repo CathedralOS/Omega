@@ -5,14 +5,15 @@
 //! No observation conveys a qualification, reference or disposal permission.
 
 use super::TerminalInstance;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::structural_inputs::byte_arrays::byte_array_length;
 use crate::structural_storage::contents::{self, StorageLeafKind};
 use crate::values::{
     StructuralByteSequenceRuntimeField, StructuralFieldNamespace, TerminalStructuralValue,
 };
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, PlaceId};
-use terminal_psi::StructuralAccess;
+use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
 /// Plain observed contents, borrowing any byte payload from its real owner.
 /// No variant grants authority to construct, mutate or dispose guest storage.
@@ -87,7 +88,7 @@ impl TerminalInstance<'_, '_> {
                     .machine(execution.current_machine)?
                     .result
                     .structural()
-                    .ok_or_else(crate::errors::malformed)?
+                    .ok_or_else(malformed)?
                     .place;
                 observe_leaf(execution, source, &returned.value, path)
             }
@@ -146,10 +147,7 @@ fn observe_leaf<'storage>(
             destination,
             structural_type,
         } => {
-            if crate::structural_inputs::byte_arrays::byte_array_length(
-                &execution.structural_types(),
-                *structural_type,
-            ) == Some(0)
+            if byte_array_length(&execution.structural_types(), *structural_type) == Some(0)
                 && execution.initialized_empty_scalar_array(destination, *structural_type)?
             {
                 Ok(TerminalStorageObservationValue::Bytes(
@@ -180,7 +178,7 @@ fn observe_case(
     value: &crate::TerminalScalarAggregateValue,
     path: &[Path],
 ) -> Result<TerminalStorageObservationValue<'static>, TerminalStorageObservationError> {
-    let selected = value.result_case.ok_or_else(crate::errors::malformed)?;
+    let selected = value.result_case.ok_or_else(malformed)?;
     if path.is_empty() {
         return Ok(TerminalStorageObservationValue::Storage(
             crate::TerminalStorageContents::Case(selected),
@@ -199,12 +197,12 @@ fn observe_case(
         .map(|(_, scalar)| *scalar)
         .ok_or(TerminalStorageObservationError::UnknownPath)?;
     let declaration = execution.structural_declaration(value.structural_type)?;
-    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return Err(crate::errors::malformed().into());
+    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return Err(malformed().into());
     };
     let declaration = terminal_psi::find_structural_case(cases, selected)
         .and_then(|case| case.fields.iter().find(|candidate| candidate.id == *field))
-        .ok_or_else(crate::errors::malformed)?;
+        .ok_or_else(malformed)?;
     let stored_scalar = declaration
         .storage
         .as_ref()
@@ -231,42 +229,38 @@ fn observe_array(
             return Err(TerminalStorageObservationError::UnknownPath);
         };
         let declaration = execution.structural_declaration(structural_type)?;
-        let terminal_psi::StructuralTypeShape::FixedArray { element, length } = declaration.shape
-        else {
+        let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
             return Err(TerminalStorageObservationError::UnknownPath);
         };
-        let length = length.literal().ok_or_else(crate::errors::malformed)?;
+        let length = length.literal().ok_or_else(malformed)?;
         if *index >= length {
             return Err(TerminalStorageObservationError::UnknownPath);
         }
-        let length = usize::try_from(length).map_err(|_| crate::errors::malformed())?;
+        let length = usize::try_from(length).map_err(|_| malformed())?;
         if remaining.checked_rem(length) != Some(0) {
-            return Err(crate::errors::malformed().into());
+            return Err(malformed().into());
         }
         remaining /= length;
         offset = offset
             .checked_add(
                 usize::try_from(*index)
-                    .map_err(|_| crate::errors::malformed())?
+                    .map_err(|_| malformed())?
                     .checked_mul(remaining)
-                    .ok_or_else(crate::errors::malformed)?,
+                    .ok_or_else(malformed)?,
             )
-            .ok_or_else(crate::errors::malformed)?;
+            .ok_or_else(malformed)?;
         structural_type = element;
     }
     let declaration = execution.structural_declaration(structural_type)?;
-    let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) = declaration.shape else {
+    let StructuralTypeShape::PrimitiveScalar(scalar_type) = declaration.shape else {
         return Err(TerminalStorageObservationError::UnknownPath);
     };
     if remaining != 1 {
-        return Err(crate::errors::malformed().into());
+        return Err(malformed().into());
     }
-    let scalar = *value
-        .elements()
-        .get(offset)
-        .ok_or_else(crate::errors::malformed)?;
+    let scalar = *value.elements().get(offset).ok_or_else(malformed)?;
     if scalar.scalar_type() != scalar_type {
-        return Err(crate::errors::malformed().into());
+        return Err(malformed().into());
     }
     Ok(TerminalStorageObservationValue::Storage(
         crate::TerminalStorageContents::Scalar {

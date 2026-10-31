@@ -1,4 +1,5 @@
 use crate::lowerer::Lowerer;
+use crate::signatures::callable_signature::lower_state_signature;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -63,11 +64,9 @@ pub(crate) fn lower_type_parameter_kind(
                     typed::data::MachineParameterContract::RequirementIdentity
                 }
                 resolved::data::MachineParameterContract::Structural(signature) => {
-                    typed::data::MachineParameterContract::Structural(
-                        crate::signatures::callable_signature::lower_state_signature(
-                            lowerer, signature,
-                        )?,
-                    )
+                    typed::data::MachineParameterContract::Structural(lower_state_signature(
+                        lowerer, signature,
+                    )?)
                 }
                 resolved::data::MachineParameterContract::AuthoredNominal { .. } => {
                     return Err(Diagnostic::error(

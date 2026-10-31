@@ -9,8 +9,8 @@ use crate::lowering::statement::place_operand_capture::capture_address_operands;
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
 use symbol_resolved_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCastExpression,
-    TableMembershipExpression, TableRangeExpression, TableUnaryExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
+    TableCastExpression, TableMembershipExpression, TableRangeExpression, TableUnaryExpression,
 };
 use symbol_resolved_trees::statement::Statement;
 
@@ -214,10 +214,7 @@ fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle)
 /// reserved syntax is preserved without assigning it semantic authority. The
 /// later proof-only gate requires the exact builtin symbol and rejects both
 /// executable uses and any authored same-spelled replacement.
-pub(crate) fn is_integer_embedding_call(
-    lowerer: &Lowerer,
-    call: &symbol_resolved_trees::expression::TableCallExpression,
-) -> bool {
+pub(crate) fn is_integer_embedding_call(lowerer: &Lowerer, call: &TableCallExpression) -> bool {
     !call.receiver.is_valid()
         && call.target.as_str() == symbols::BuiltinFunction::IntegerEmbed.name()
         && (!call.target_symbol.is_valid()

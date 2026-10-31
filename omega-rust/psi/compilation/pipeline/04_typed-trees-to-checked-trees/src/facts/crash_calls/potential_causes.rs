@@ -4,8 +4,9 @@
 //! only inferred member causes need an additional unconditional permission.
 
 use super::private_summaries::{SummaryNode, needs_inferred_summary};
-use checked_trees::CrashCause;
-use symbols::SymbolHandle;
+use checked_trees::{CrashCause, CrashContractCapsule, MachineContractPlan};
+use symbols::{SymbolHandle, SymbolKeyMap};
+use validation::CheckingInput;
 
 struct CauseEquation {
     machine: SymbolHandle,
@@ -14,27 +15,24 @@ struct CauseEquation {
 }
 
 pub(super) fn infer(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     nodes: &[SummaryNode],
-    capsules: &[checked_trees::CrashContractCapsule],
-    plans: &[checked_trees::MachineContractPlan],
+    capsules: &[CrashContractCapsule],
+    plans: &[MachineContractPlan],
 ) -> Vec<(SymbolHandle, Vec<CrashCause>)> {
-    let mut plan_by_machine =
-        symbols::SymbolKeyMap::<SymbolHandle, &checked_trees::MachineContractPlan>::default();
+    let mut plan_by_machine = SymbolKeyMap::<SymbolHandle, &MachineContractPlan>::default();
     for plan in plans {
         plan_by_machine.entry(plan.machine).or_insert(plan);
     }
-    let mut capsule_by_target = symbols::SymbolKeyMap::<
-        (SymbolHandle, SymbolHandle),
-        &checked_trees::CrashContractCapsule,
-    >::default();
+    let mut capsule_by_target =
+        SymbolKeyMap::<(SymbolHandle, SymbolHandle), &CrashContractCapsule>::default();
     for capsule in capsules {
         capsule_by_target
             .entry((capsule.target_machine(), capsule.target_state()))
             .or_insert(capsule);
     }
     let mut equations = Vec::with_capacity(nodes.len());
-    let mut node_index_by_machine = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    let mut node_index_by_machine = SymbolKeyMap::<SymbolHandle, usize>::default();
     for (index, node) in nodes.iter().enumerate() {
         node_index_by_machine.entry(node.machine).or_insert(index);
         let plan = plan_by_machine

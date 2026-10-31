@@ -18,6 +18,7 @@ use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntri
 use typed_trees::AuthoredDeclarationSelectionKind;
 use typed_trees::AuthoredDeclarationSelectionTarget;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableBinaryExpression};
+use validation::has_exact_data_case_membership_meaning;
 
 pub(super) fn is_case_membership(
     compilation: &PackageReviewInput<'_>,
@@ -113,12 +114,7 @@ pub(super) fn checked_case_classifier(
             context.subject_name,
             "case-membership data owner",
         )?;
-        validation::has_exact_data_case_membership_meaning(
-            compilation.checking_input,
-            data,
-            expression,
-            binary,
-        )
+        has_exact_data_case_membership_meaning(compilation.checking_input, data, expression, binary)
     } else {
         let owner = match context.owner {
             ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,

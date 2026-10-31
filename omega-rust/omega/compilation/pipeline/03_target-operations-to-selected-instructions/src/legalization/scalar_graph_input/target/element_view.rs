@@ -1,5 +1,9 @@
 //! Independent custody correspondence for element descriptor derivations.
+use super::super::byte_views::descriptor_result;
 use super::Checker;
+use crate::structural_inputs::structural_reference_input::{
+    element_leaf_geometry, projected_collection, typed_collection_layout_matches,
+};
 use abstract_operations::AbstractOperation;
 use abstract_operations::control_flow::address_joins::is_address_join_in;
 use semantic_vocabulary::{PlaceId, ValueId};
@@ -53,11 +57,8 @@ impl Checker<'_> {
                 structural_type,
             } => {
                 *place == source
-                    && super::super::byte_views::descriptor_result(
-                        self.optimized,
-                        source,
-                        self.types,
-                    ) == Some((*psi_operation, *structural_type))
+                    && descriptor_result(self.optimized, source, self.types)
+                        == Some((*psi_operation, *structural_type))
             }
             TargetElementView::BlockParameter {
                 block,
@@ -456,11 +457,7 @@ impl Checker<'_> {
         // Replay the selected carrier and offset, not an invented standalone
         // type for an inline field. Copy presentation does not supply identity.
         let Some(projected) =
-            crate::structural_inputs::structural_reference_input::projected_collection(
-                root_structural_type,
-                collection_path,
-                self.types,
-            )
+            projected_collection(root_structural_type, collection_path, self.types)
         else {
             return false;
         };
@@ -480,10 +477,10 @@ impl Checker<'_> {
             return false;
         };
         if region == terminal_psi::ElementViewRegion::WholeCollection
-            && !crate::structural_inputs::structural_reference_input::typed_collection_layout_matches(
-                &collection, element, access, self.types,
-            )
-        { return false; }
+            && !typed_collection_layout_matches(&collection, element, access, self.types)
+        {
+            return false;
+        }
         let backing = match geometry {
             terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => backing,
             terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
@@ -497,13 +494,8 @@ impl Checker<'_> {
                             || u64::from(shape.alignment) != layout.alignment
                     })
                     || layout.leaves.iter().any(|leaf| {
-                        crate::structural_inputs::structural_reference_input::element_leaf_geometry(
-                            element,
-                            &leaf.path,
-                            leaf.scalar_type,
-                            self.types,
-                        )
-                        .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
+                        element_leaf_geometry(element, &leaf.path, leaf.scalar_type, self.types)
+                            .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
                     })
                 {
                     return false;

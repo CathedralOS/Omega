@@ -22,14 +22,18 @@
 //! synthesizing the generated data instance, substituting const parameters in
 //! member types with the folded literals, and rewriting the site to `Named`.
 
-use crate::build_time_evaluation::EvaluationDomain;
-use crate::build_time_evaluation::{expression_table, type_reference_table};
+use crate::build_time_evaluation::{EvaluationDomain, expression_table, type_reference_table};
+use crate::const_evaluation::const_generic_expressions::exact_probe_destination;
+use crate::const_evaluation::const_generic_expressions::value::evaluate_closed_const_argument;
+use crate::const_evaluation::range_endpoints::selected_endpoint_machine;
+use crate::machine_execution::admission::{expression_children, require_closed_expression_custody};
 use crate::unique::extend_unique;
-use std::collections::{HashMap, HashSet};
-
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_semantics::const_value::DecodedCanonicalConstValue;
+use std::collections::{HashMap, HashSet};
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::expression::ExpressionNode;
 use typed_trees::{
     TypedTrees,
     data::{DataMember, TypeParameterKind},
@@ -37,8 +41,6 @@ use typed_trees::{
     name::Identifier,
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
-
-use crate::machine_execution::admission::{expression_children, require_closed_expression_custody};
 
 /// One `ConstExpression` retained in a declared const-generic argument slot.
 pub(crate) struct PendingConstApplication {
@@ -402,8 +404,7 @@ fn direct_const_call(
     {
         return None;
     }
-    let (machine, static_application) =
-        crate::const_evaluation::range_endpoints::selected_endpoint_machine(typed, root)?;
+    let (machine, static_application) = selected_endpoint_machine(typed, root)?;
     if static_application || !machine.symbol.is_valid() {
         return None;
     }
@@ -914,11 +915,7 @@ fn evaluate_const_application(
     let destination = application
         .destination
         .ok_or("const-generic application has no declared const destination".to_owned())?;
-    let carrier = crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-        execution,
-        destination,
-    )
-    .ok_or(
+    let carrier = exact_probe_destination(execution, destination).ok_or(
         "const-generic application needs an unconstrained exact builtin integer or Boolean carrier"
             .to_owned(),
     )?;
@@ -929,21 +926,11 @@ fn evaluate_const_application(
         authority: selection_authority,
     };
     let (value, additions) =
-        crate::const_evaluation::const_generic_expressions::value::evaluate_closed_const_argument(
-            execution,
-            application.root,
-            carrier,
-            &invocation,
-        )?;
+        evaluate_closed_const_argument(execution, application.root, carrier, &invocation)?;
     extend_unique(warnings, additions);
     let spelling = match value.decode_encoding() {
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-            value,
-            ..
-        }) => value.to_string(),
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(_)) => {
-            value.atom()
-        }
+        Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
+        Some(DecodedCanonicalConstValue::Boolean(_)) => value.atom(),
         _ => {
             return Err("const application returned an unsupported canonical value".to_owned());
         }
@@ -1075,10 +1062,8 @@ fn visit_argument(
                 .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
                 && expression_subtree(typed, *root).iter().any(|expression| {
                     match typed.expression_table.expression(*expression) {
-                        typed_trees::expression::ExpressionNode::Borrow(_) => true,
-                        typed_trees::expression::ExpressionNode::Name(path)
-                            if path.symbol.is_valid() =>
-                        {
+                        ExpressionNode::Borrow(_) => true,
+                        ExpressionNode::Name(path) if path.symbol.is_valid() => {
                             matches!(
                                 typed.symbols.get(path.symbol).kind,
                                 SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Field
@@ -1098,9 +1083,7 @@ fn visit_argument(
             // application this machinery may finish. A boundary-operator
             // token or any other expression at the root is a malformed
             // argument shape that checking rejects on its own terms.
-            if crate::const_evaluation::range_endpoints::selected_endpoint_machine(typed, *root)
-                .is_none()
-            {
+            if selected_endpoint_machine(typed, *root).is_none() {
                 return;
             }
             let calls = collect_calls(typed, *root);
@@ -1113,10 +1096,7 @@ fn visit_argument(
                 destination,
             });
             plan.calls.extend(calls.into_iter().map(|call| {
-                let (machine, static_application) =
-                    crate::const_evaluation::range_endpoints::selected_endpoint_machine(
-                        typed, call,
-                    )
+                let (machine, static_application) = selected_endpoint_machine(typed, call)
                     .map(|(machine, static_application)| (machine.symbol, static_application))
                     .unwrap_or((SymbolHandle::invalid(), false));
                 PendingApplicationCall {
@@ -1177,7 +1157,7 @@ fn collect_calls(typed: &TypedTrees, root: ExpressionHandle) -> Vec<ExpressionHa
         visited.push(expression);
         if matches!(
             typed.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
+            ExpressionNode::Call(_)
         ) {
             calls.push(expression);
         }

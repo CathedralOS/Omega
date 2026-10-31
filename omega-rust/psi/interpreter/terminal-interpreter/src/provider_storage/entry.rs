@@ -4,11 +4,16 @@
 //! add a qualification or establish resident content.
 
 use super::{ProviderByteAllocation, ProviderStorageBinding, ProviderStorageSlot};
+use crate::custody::project_structural_value;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
+use crate::structural_inputs::case_membership::{
+    StructuralCaseContents, case_projection_in_value_is_active,
+};
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue};
 use access_plans::AdmittedResourceProfile;
 use extents::Extent;
+use std::iter::once;
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 
 /// Owned storage supplied by the embedding provider for an exact entry
@@ -51,7 +56,7 @@ impl TerminalExecution<'_> {
         if !self.call_stack.is_empty() || result.claims.is_empty() {
             return Err("provider storage handback requires returned ownership custody".into());
         }
-        if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+        if !case_projection_in_value_is_active(
             &self.structural_types(),
             &result.value,
             self.structural_cases.as_map(),
@@ -61,9 +66,8 @@ impl TerminalExecution<'_> {
         {
             return Err("provider storage result path is inactive".into());
         }
-        let value =
-            crate::custody::project_structural_value(&self.structural_types(), &result.value, path)
-                .map_err(|reason| format!("provider storage result path: {reason:?}"))?;
+        let value = project_structural_value(&self.structural_types(), &result.value, path)
+            .map_err(|reason| format!("provider storage result path: {reason:?}"))?;
         let storage = self
             .program
             .catalogs
@@ -156,28 +160,21 @@ impl TerminalExecution<'_> {
         self.call_stack
             .iter()
             .map(|frame| (&frame.live_claims, &frame.structural_values))
-            .chain(std::iter::once((
-                &self.live_claims,
-                &self.structural_values,
-            )))
+            .chain(once((&self.live_claims, &self.structural_values)))
             .any(|(claims, values)| {
                 claims.values().any(|claim| {
                     let Some(value) = claim.place.and_then(|place| values.get(&place)) else {
                         return false;
                     };
-                    crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+                    case_projection_in_value_is_active(
                         &self.structural_types(),
                         value,
                         self.structural_cases.as_map(),
                         &claim.path,
                     )
                     .is_ok_and(|active| active)
-                        && crate::custody::project_structural_value(
-                            &self.structural_types(),
-                            value,
-                            &claim.path,
-                        )
-                        .is_ok_and(|selected| StructuralRuntimePlace::from(&selected) == *home)
+                        && project_structural_value(&self.structural_types(), value, &claim.path)
+                            .is_ok_and(|selected| StructuralRuntimePlace::from(&selected) == *home)
                 })
             })
     }
@@ -317,7 +314,7 @@ impl TerminalExecution<'_> {
             .structural_values
             .get(&parameter.place)
             .ok_or("provider storage entry has no actual argument")?;
-        if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+        if !case_projection_in_value_is_active(
             &self.structural_types(),
             root,
             self.structural_cases.as_map(),
@@ -417,24 +414,16 @@ impl TerminalExecution<'_> {
 /// Logical case paths are resolved before comparing physical homes.
 fn returned_storage_claim(
     types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
-    cases: &std::collections::BTreeMap<
-        StructuralRuntimePlace,
-        crate::structural_inputs::case_membership::StructuralCaseContents,
-    >,
+    cases: &std::collections::BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
     result: &crate::results::TerminalStructuralResult,
     returned_claims: &[terminal_psi::StructuralResultClaimBinding],
     home: &StructuralRuntimePlace,
 ) -> Option<usize> {
     returned_claims.iter().position(|binding| {
         result.claims.contains(&binding.claim)
-            && crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                types,
-                &result.value,
-                cases,
-                &binding.path,
-            )
-            .is_ok_and(|active| active)
-            && crate::custody::project_structural_value(types, &result.value, &binding.path)
+            && case_projection_in_value_is_active(types, &result.value, cases, &binding.path)
+                .is_ok_and(|active| active)
+            && project_structural_value(types, &result.value, &binding.path)
                 .is_ok_and(|selected| StructuralRuntimePlace::from(&selected) == *home)
     })
 }

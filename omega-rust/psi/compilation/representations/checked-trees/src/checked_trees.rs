@@ -52,11 +52,11 @@ pub use facts::{
     CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle, CheckedRankArrivalEdge,
     CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
     CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
-    CheckedRankLocalCapture, CheckedRankObservation, CheckedRankPremiseRegime,
-    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRuntimeNaturalState,
-    CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
-    CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
-    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedRankLocalCapture, CheckedRankObservation, CheckedRankOperand, CheckedRankPremiseRegime,
+    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRuntimeIntegerRank,
+    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
+    CheckedRuntimeRankInput, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
 pub use facts::{
     CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,

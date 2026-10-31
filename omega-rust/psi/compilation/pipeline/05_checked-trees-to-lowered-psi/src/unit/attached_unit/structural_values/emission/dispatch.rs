@@ -8,6 +8,7 @@ use super::super::super::{
 };
 use super::{Emission, ValueContinuation, ValueOutcome};
 use crate::checked_facts::value_facts;
+use crate::emission::claim_bindings::selections::SelectedDecision;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 
 impl Emission<'_, '_, '_> {
@@ -163,24 +164,20 @@ impl Emission<'_, '_, '_> {
             // Births are attached to exact completed constructor nodes by
             // complete_construction; this route only chooses storage aliases.
             if position + 1 < arms.len() {
-                self.selection_route.push(
-                    crate::emission::claim_bindings::selections::SelectedDecision {
-                        expression,
-                        decision: position,
-                        selected: true,
-                    },
-                );
+                self.selection_route.push(SelectedDecision {
+                    expression,
+                    decision: position,
+                    selected: true,
+                });
             }
             let emitted = self.value(identities, arm.value, Some(&mut *continuation));
             self.selection_route.truncate(route_prefix + position);
             if position + 1 < arms.len() {
-                self.selection_route.push(
-                    crate::emission::claim_bindings::selections::SelectedDecision {
-                        expression,
-                        decision: position,
-                        selected: false,
-                    },
-                );
+                self.selection_route.push(SelectedDecision {
+                    expression,
+                    decision: position,
+                    selected: false,
+                });
             }
             match emitted? {
                 ValueOutcome::Normal(_) => normal_arrivals += 1,

@@ -1,24 +1,26 @@
 use omega::language::core::task;
 use omega::language::core::drop;
 
-// TR4 lifecycle conservation: the checked helper operations model the borrow
-// and consume shapes published by the bodyless runtime requirements. Exact
+// TR4 lifecycle conservation: the checked helper operations call the borrow
+// and consume requirements of `TaskLifecycle` from generic callers. Exact
 // generic provider coverage remains a separate installation/runtime rung.
 machine TaskOutcome::settle<T>(task_outcome: TaskOutcome<T>) {
     drop(task_outcome);
 }
 
-machine Task::observe_claim<T>(task: &Task<T>) {}
+machine observe_claim<T>(task: &Task<T>) {
+    TaskLifecycle::request_cancel<T>(task);
+}
 
-machine Task::settle_claim<T>(task: Task<T>) -> TaskOutcome<T> {
-    suspend block Task::finish(task)
+machine settle_claim<T>(task: Task<T>) -> TaskOutcome<T> {
+    suspend block TaskLifecycle::finish<T>(task)
 }
 
 data Main {}
 
 machine Main::settle(task: Task<i32>) {
-    Task::observe_claim(&task);
-    let outcome: TaskOutcome<i32> = suspend block Task::settle_claim(task);
+    observe_claim(&task);
+    let outcome: TaskOutcome<i32> = suspend block settle_claim(task);
     TaskOutcome::settle(outcome);
 }
 

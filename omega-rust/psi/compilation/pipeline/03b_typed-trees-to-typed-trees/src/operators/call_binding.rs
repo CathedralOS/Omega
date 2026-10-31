@@ -75,14 +75,20 @@ use numerics::literals::IntegerLiteral;
 use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::expression::TableBorrowExpression;
+use typed_trees::expression::TableMemberExpression;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableBinaryExpression,
     TableCallExpression, TableMatchArm, TableMatchExpression, TableRangeExpression,
 };
+use typed_trees::name::Identifier;
+use typed_trees::operator::bound_trait_operator_meanings;
+use typed_trees::operator::selected_trait_operator_meanings;
 use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use validation::expression_traversal::collect_expression_tree;
 use validation::expression_type_reference_for_origin;
+use validation::indexed_operand_types;
 
 /// Bind resolved token machines to calls, retaining
 /// canonical bodyless float comparisons on their selected-comparison route.
@@ -381,8 +387,7 @@ pub(crate) fn bind_selected_operator_calls(
         let arguments =
             expressions_of_mut(program).insert_expression_handles(operands.iter().copied());
         let receiver = if target.binder.is_valid() {
-            let binder_name =
-                typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
+            let binder_name = Identifier::generated(program.symbols.name(target.binder));
             insert_subject_name(expressions_of_mut(program), binder_name, target.binder)
         } else {
             ExpressionHandle::invalid()
@@ -507,8 +512,7 @@ fn rewrite_match_equality(
         let arguments =
             expressions_of_mut(program).insert_expression_handles([dispatch.subject, pattern]);
         let receiver = if target.binder.is_valid() {
-            let binder_name =
-                typed_trees::name::Identifier::generated(program.symbols.name(target.binder));
+            let binder_name = Identifier::generated(program.symbols.name(target.binder));
             insert_subject_name(expressions_of_mut(program), binder_name, target.binder)
         } else {
             ExpressionHandle::invalid()
@@ -554,7 +558,7 @@ fn rewrite_match_equality(
 /// explicit implementation. The binder is a namespace, never a data argument.
 struct SelectedOperatorCall {
     entry: SymbolHandle,
-    name: typed_trees::name::Identifier,
+    name: Identifier,
     binder: SymbolHandle,
     collection_parameter: TypeReferenceHandle,
     start_parameter: TypeReferenceHandle,
@@ -620,20 +624,13 @@ fn selected_call_target(
                 .map(|operand| expression_type_reference_for_origin(program, operand, origin))
                 .to_vec(),
         ),
-        ExpressionNode::Indexed(indexed) => {
-            Some(validation::indexed_operand_types(program, indexed, origin))
-        }
+        ExpressionNode::Indexed(indexed) => Some(indexed_operand_types(program, indexed, origin)),
         _ => None,
     };
     if let Some(operand_types) = operand_types
         && let Some(machine) = origin.machine_symbol()
     {
-        let bound = typed_trees::operator::bound_trait_operator_meanings(
-            program,
-            machine,
-            spelling,
-            &operand_types,
-        );
+        let bound = bound_trait_operator_meanings(program, machine, spelling, &operand_types);
         if let [meaning] = bound.as_slice() {
             let definition = program
                 .trait_definition_by_symbol(meaning.bound.trait_symbol)
@@ -678,12 +675,7 @@ fn selected_call_target(
                 "operator has multiple explicitly selected implementation meanings",
             ));
         }
-        let closed = typed_trees::operator::selected_trait_operator_meanings(
-            program,
-            machine,
-            spelling,
-            &operand_types,
-        );
+        let closed = selected_trait_operator_meanings(program, machine, spelling, &operand_types);
         if let [meaning] = closed.as_slice() {
             let entry = program
                 .state_by_symbol(meaning.row.realization_state)
@@ -775,12 +767,10 @@ fn indexed_collection_argument(
     if !access.is_readable() {
         return collection;
     }
-    expressions_of_mut(program).insert(ExpressionNode::Borrow(
-        typed_trees::expression::TableBorrowExpression {
-            target: collection,
-            access,
-        },
-    ))
+    expressions_of_mut(program).insert(ExpressionNode::Borrow(TableBorrowExpression {
+        target: collection,
+        access,
+    }))
 }
 
 /// The operand pair an authored range supplies to a `[..]` binding's start and
@@ -808,14 +798,12 @@ fn range_operands(
     let end = if range.end.is_valid() {
         range.end
     } else {
-        expressions_of_mut(program).insert(ExpressionNode::Member(
-            typed_trees::expression::TableMemberExpression {
-                receiver: collection,
-                member: typed_trees::name::Identifier::generated("len"),
-                member_symbol: SymbolHandle::invalid(),
-                case_variant: None,
-            },
-        ))
+        expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: collection,
+            member: Identifier::generated("len"),
+            member_symbol: SymbolHandle::invalid(),
+            case_variant: None,
+        }))
     };
     let start = if range.start.is_valid() {
         range.start

@@ -31,10 +31,11 @@ use super::{
     ArithmeticDomain, Diagnostic, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, State, ValueEnvironment, integer_ranges::literal_interval,
 };
+use checked_trees::IntegerRangeRecipe;
 
 /// The result of analysing an expression for the domain + overflow rules.
 pub(super) struct Analysis {
-    pub(super) recipe: Option<checked_trees::IntegerRangeRecipe>,
+    pub(super) recipe: Option<IntegerRangeRecipe>,
     /// The arithmetic domain (`None` = neutral: a literal or `bool` result).
     pub(super) domain: Option<ArithmeticDomain>,
     /// The value range, for the overflow proof obligation.
@@ -52,16 +53,13 @@ impl Analysis {
         program: &dyn crate::CheckingInput,
         owner: symbols::SymbolHandle,
         expression: ExpressionHandle,
-    ) -> Option<checked_trees::IntegerRangeRecipe> {
+    ) -> Option<IntegerRangeRecipe> {
         use numerics::bignum::BigInt;
         if let Some(recipe) = &self.recipe {
             return Some(recipe.clone());
         }
         if let Some(value) = program.closed_integer_expression_value_in(expression, owner) {
-            return Some(checked_trees::IntegerRangeRecipe::bounds(
-                value.clone(),
-                value,
-            ));
+            return Some(IntegerRangeRecipe::bounds(value.clone(), value));
         }
         let low = self.interval.low.map(BigInt::from_i64)?;
         let high = match self.interval.high {
@@ -69,7 +67,7 @@ impl Analysis {
             None if self.primitive == Some(PrimitiveType::U64) => BigInt::from_u64(u64::MAX),
             None => return None,
         };
-        Some(checked_trees::IntegerRangeRecipe::bounds(low, high))
+        Some(IntegerRangeRecipe::bounds(low, high))
     }
 }
 
@@ -127,7 +125,7 @@ impl ArithmeticDecisions {
 pub(crate) struct CheckedIntegerValue {
     pub(crate) expression: ExpressionHandle,
     pub(crate) interval: Interval,
-    pub(crate) recipe: Option<checked_trees::IntegerRangeRecipe>,
+    pub(crate) recipe: Option<IntegerRangeRecipe>,
 }
 
 impl ArithmeticDecisions {

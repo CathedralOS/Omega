@@ -4,6 +4,7 @@
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::synthesize_indexed_law_binder_labels;
 use crate::proof_contracts::contract_entailment::{StateSignature, TraitDefinition};
+use symbols::SymbolKind;
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
 /// The proposition endpoint one requirement contract application carries once
@@ -33,9 +34,7 @@ pub fn inherited_requirement_proposition_application(
     application: &typed_trees::proposition::PropositionApplication,
 ) -> Option<InheritedRequirementApplication> {
     let mut instantiated = application.clone();
-    if program.symbols.get(application.proposition).kind
-        == symbols::SymbolKind::PropositionParameter
-    {
+    if program.symbols.get(application.proposition).kind == SymbolKind::PropositionParameter {
         let parameter_index = typed_trees::data::type_parameter_position(
             program.trait_type_parameters(trait_definition),
             application.proposition,

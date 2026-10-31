@@ -6,6 +6,9 @@
 //! footprint nor a coincident address supplies a transfer.
 
 use super::super::FlowBuildContext;
+use super::super::append_constraint_ref;
+use super::super::reference_spans::filter_constraint_refs;
+use super::super::stored_values::invalidates_destination;
 use arena::HandleSpan;
 use checked_trees::{BorrowCallFact, BorrowFacts, FlowConstraintKind, FlowConstraintRef};
 
@@ -25,7 +28,7 @@ pub(in crate::flow) fn install_returned_reference_custody(
     else {
         return;
     };
-    *constraints = super::super::reference_spans::filter_constraint_refs(
+    *constraints = filter_constraint_refs(
         &mut build.contexts.constraint_refs,
         *constraints,
         |reference| match reference.kind {
@@ -41,7 +44,7 @@ pub(in crate::flow) fn install_returned_reference_custody(
     for loan in call.completed_reference_loans.handles() {
         let value = borrow.loans.get(loan);
         debug_assert_eq!(value.established_by_call, handle);
-        super::super::append_constraint_ref(
+        append_constraint_ref(
             &mut build.contexts.constraint_refs,
             constraints,
             FlowConstraintKind::BorrowLoan { loan },
@@ -86,11 +89,7 @@ fn incoming_reference_survives_call(
                 borrow.owner_segments.span_or_empty(incoming.owner_path),
             ),
         };
-        return !super::super::stored_values::invalidates_destination(
-            program,
-            Some(binding_writes),
-            &destination,
-        );
+        return !invalidates_destination(program, Some(binding_writes), &destination);
     }
     !borrow
         .reference_slot_effects
@@ -115,7 +114,7 @@ pub(in crate::flow) fn finish_statement_reference_custody(
     build: &mut FlowBuildContext<'_>,
     constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
-    *constraints = super::super::reference_spans::filter_constraint_refs(
+    *constraints = filter_constraint_refs(
         &mut build.contexts.constraint_refs,
         *constraints,
         |reference| match reference.kind {

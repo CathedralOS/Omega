@@ -2,9 +2,9 @@
 
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
-    AbstractStructuralCallResult, AbstractStructuralCaseSuccessor, AbstractSuccessor,
-    AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, IntegerArithmeticOperator,
-    ValueBinding,
+    AbstractStructuralBinding, AbstractStructuralCallResult, AbstractStructuralCaseSuccessor,
+    AbstractSuccessor, AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic,
+    IntegerArithmeticOperator, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -13,8 +13,9 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashRouteBucket, StructuralArgument,
-    StructuralOperationResult, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultClaimBinding, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    StructuralOperationResult as OperationResult, StructuralPathSegment,
+    StructuralPlaceDeclaration as PlaceDeclaration, StructuralResultClaimBinding,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction as CleanupAction,
 };
 
 /// Storage metadata established by one operation. Literal carriers publish a
@@ -48,7 +49,7 @@ pub enum AbstractOperation {
     /// in this operation's activation frame until that frame retires.
     EstablishActivationClaim {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         bound: u64,
         committed: ValueId,
         backing_type: semantic_vocabulary::StructuralTypeId,
@@ -62,7 +63,7 @@ pub enum AbstractOperation {
     },
     SplitActivationClaim {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: StructuralArgument,
         claim: ClaimId,
         bound_at: u64,
@@ -72,7 +73,7 @@ pub enum AbstractOperation {
     },
     MergeActivationClaim {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         lower: StructuralArgument,
         upper: StructuralArgument,
         lower_claim: ClaimId,
@@ -82,7 +83,7 @@ pub enum AbstractOperation {
     },
     EstablishNativeCodeLayout {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         machine: semantic_vocabulary::MachineId,
     },
     StorageAddress {
@@ -96,20 +97,20 @@ pub enum AbstractOperation {
     /// downstream, independently of this complete semantic payload.
     EstablishScalarArray {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         elements: Vec<ValueId>,
     },
     /// Bind completed structural elements in declared fixed-array order.
     /// Each source retains its exact access and selected subtree custody.
     EstablishStructuralArray {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         elements: Vec<StructuralArgument>,
     },
     /// Establish initialized activation-local primitive storage, not a scalar alias.
     EstablishPrimitiveLocal {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         value: AbstractResult,
         range_obligation: Option<semantic_vocabulary::ObligationId>,
     },
@@ -143,7 +144,7 @@ pub enum AbstractOperation {
     /// Establish an immutable view with the exact source, endpoints and two-leg bounds proof.
     ByteSequenceSubslice {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: StructuralArgument,
         start: ValueId,
         end: ValueId,
@@ -258,7 +259,7 @@ pub enum AbstractOperation {
     /// records whether the loan is shared or exclusive.
     EstablishElementView {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         destination: PlaceId,
         source: StructuralArgument,
         element: semantic_vocabulary::StructuralTypeId,
@@ -297,7 +298,7 @@ pub enum AbstractOperation {
     /// and two-leg bounds proof.
     ElementViewSubslice {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: StructuralArgument,
         start: ValueId,
         end: ValueId,
@@ -352,7 +353,7 @@ pub enum AbstractOperation {
     /// is a root window: the whole referent of the exclusive loan moves out.
     MoveStructuralField {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: super::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
         field: Option<semantic_vocabulary::StructuralFieldId>,
@@ -364,14 +365,14 @@ pub enum AbstractOperation {
     /// captures use StructuralLeafCopy and retain their supplying occurrence.
     MoveStructuralValue {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: StructuralArgument,
     },
     /// Explicit content custody transaction, retaining its proof relation and
     /// every parent operand even when payload realization is an ordinary move.
     TransformContent {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: StructuralArgument,
         parents: Vec<StructuralArgument>,
         derivations: Vec<terminal_psi::ContentTransformationDerivation>,
@@ -384,7 +385,7 @@ pub enum AbstractOperation {
     /// back into the borrowed root's custody.
     StructuralLeafCopy {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: PlaceId,
         path: super::StructuralCopyPath,
     },
@@ -430,7 +431,7 @@ pub enum AbstractOperation {
     /// optimizer's target-neutral semantic vocabulary.
     EstablishCase {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         result_case: StructuralCaseId,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
@@ -439,7 +440,7 @@ pub enum AbstractOperation {
     /// optimizers reconstruct the same authority after any graph rewrite.
     EstablishByteSequenceConcatenation {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         left: terminal_psi::control_flow::ByteSequenceOperand,
         right: terminal_psi::control_flow::ByteSequenceOperand,
         capacity_obligation: semantic_vocabulary::ObligationId,
@@ -449,7 +450,7 @@ pub enum AbstractOperation {
     /// realization chooses their physical code/data placement.
     EstablishByteSequenceLiteral {
         psi_operation: OperationId,
-        place: StructuralPlaceDeclaration,
+        place: PlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
         bytes: Vec<u8>,
         /// Domain memberships the literal mints onto its destination. They are
@@ -459,7 +460,7 @@ pub enum AbstractOperation {
     },
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,
-        place: StructuralPlaceDeclaration,
+        place: PlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
     /// Atomically establish an owned structural place whose every scalar leaf
@@ -467,7 +468,7 @@ pub enum AbstractOperation {
     /// operand roster exists. Target lowering assigns its physical home.
     EstablishZeroedStructural {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
     },
     /// Establish one declared structural local's home as this operation's
     /// structural result. The storage begins unwritten — member operations
@@ -475,14 +476,14 @@ pub enum AbstractOperation {
     /// applies. Target lowering assigns its physical home.
     EstablishStructuralLocal {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
     },
     /// Atomically establish a complete record from declaration-ordered scalar
     /// values and owned child records. The result retains exact semantic custody;
     /// target lowering assigns its physical home before use.
     EstablishRecord {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     /// Invoke one machine through the structural calling lane: exact
@@ -729,10 +730,10 @@ pub enum AbstractOperation {
         psi_edge: EdgeId,
         target: BlockId,
         bindings: Vec<ValueBinding>,
-        structural_bindings: Vec<crate::AbstractStructuralBinding>,
+        structural_bindings: Vec<AbstractStructuralBinding>,
         /// Exact selected-edge action order, after outgoing values are captured
         /// and before destination parameters are bound. Never regroup by kind.
-        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+        cleanup_actions: Vec<CleanupAction>,
     },
     Conditional {
         condition: ValueId,
@@ -754,12 +755,12 @@ pub enum AbstractOperation {
         scalar_type: ScalarType,
         /// Exact cleanup execution order retained from verified Psi. The
         /// scalar result is materialized before these actions execute.
-        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+        cleanup_actions: Vec<CleanupAction>,
     },
     ReturnUnit {
         psi_edge: EdgeId,
         /// Exact cleanup execution order retained from verified Psi.
-        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+        cleanup_actions: Vec<CleanupAction>,
     },
     /// Transfer one verified structural root and its complete live claim set
     /// into the function's declared structural result. Omega realization must
@@ -771,25 +772,21 @@ pub enum AbstractOperation {
         returned_claims: Vec<StructuralResultClaimBinding>,
         /// Exact typed no-ABI local declarations established before this
         /// return. They remain distinct from caller-supplied parameters.
-        trivial_affine_locals: Vec<(
-            OperationId,
-            StructuralPlaceDeclaration,
-            StructuralTypeDeclaration,
-        )>,
-        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+        trivial_affine_locals: Vec<(OperationId, PlaceDeclaration, StructuralTypeDeclaration)>,
+        cleanup_actions: Vec<CleanupAction>,
     },
     /// Establish one placed reference carrier. The source operand retains the
     /// loan's owner independently of address derivation: ordinary RAM lends its
     /// storage home, whereas a resident lends the backing named by its owner.
     EstablishAccessReference {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: StructuralArgument,
         correspondence: super::AccessReferenceBacking,
     },
     EstablishReference {
         psi_operation: OperationId,
-        result: StructuralOperationResult,
+        result: OperationResult,
         source: StructuralArgument,
         storage: Option<terminal_psi::ReferenceStorageView>,
     },
@@ -936,9 +933,7 @@ impl AbstractOperation {
 
     /// Cleanup belongs to a selected semantic edge, not to the containing
     /// block. Enumerating these rosters does not execute conditional siblings.
-    pub fn cleanup_rosters(
-        &self,
-    ) -> impl Iterator<Item = (EdgeId, &[TerminalAffineCleanupAction])> {
+    pub fn cleanup_rosters(&self) -> impl Iterator<Item = (EdgeId, &[CleanupAction])> {
         let (first, second, cases): (_, _, &[crate::AbstractStructuralCaseSuccessor]) = match self {
             Self::Jump {
                 psi_edge,
@@ -1004,10 +999,7 @@ impl AbstractOperation {
 
     /// The owned structural transfer through `edge`: the successor target
     /// and its bound structural arguments, independent of scalar payload capture.
-    pub fn owned_transfer(
-        &self,
-        edge: EdgeId,
-    ) -> Option<(BlockId, &[crate::AbstractStructuralBinding])> {
+    pub fn owned_transfer(&self, edge: EdgeId) -> Option<(BlockId, &[AbstractStructuralBinding])> {
         match self {
             Self::Jump {
                 psi_edge,
@@ -1036,9 +1028,7 @@ impl AbstractOperation {
     /// and cuts may instead remain SSA descriptor recipes; reserving a home
     /// for their eventual transport does not initialize descriptor words.
     /// This distinction describes storage, not authority over the backing.
-    pub fn materialized_structural_result(
-        &self,
-    ) -> Option<(OperationId, &StructuralOperationResult)> {
+    pub fn materialized_structural_result(&self) -> Option<(OperationId, &OperationResult)> {
         if matches!(
             self,
             Self::EstablishElementView { .. }
@@ -1080,7 +1070,7 @@ impl AbstractOperation {
     /// assertion that the value owns storage: views and primitive locals also
     /// produce structural declarations, and receiving storage owners decide
     /// which results need a physical home.
-    pub fn structural_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
+    pub fn structural_result(&self) -> Option<(OperationId, &OperationResult)> {
         let result = match self {
             Self::AtomicEvent {
                 event:
@@ -1256,7 +1246,7 @@ impl AbstractOperation {
         paths.extend(
             self.cleanup_rosters()
                 .into_iter()
-                .flat_map(|(_, actions)| actions.iter().map(TerminalAffineCleanupAction::path)),
+                .flat_map(|(_, actions)| actions.iter().map(CleanupAction::path)),
         );
         paths
     }

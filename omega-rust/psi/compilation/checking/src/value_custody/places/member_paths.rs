@@ -5,6 +5,7 @@
 use super::{declared_place_type_raw, unwrapped_type_reference};
 use crate::frozen_program::expression_table;
 use language_core::is_self_receiver;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -26,11 +27,7 @@ pub(crate) fn declared_member_path_type(
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == field_name =>
-                    {
-                        Some(field)
-                    }
+                    DataMember::Field(field) if field.name.as_str() == field_name => Some(field),
                     _ => None,
                 })?;
             field

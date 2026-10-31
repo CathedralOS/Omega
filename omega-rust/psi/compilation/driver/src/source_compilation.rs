@@ -115,6 +115,9 @@ impl SourceCompilationRequest {
         let retained_program = activation
             .as_ref()
             .map(|activation| activation.typing.typed().clone());
+        let retained_declaration_syntax = activation
+            .as_ref()
+            .map(|activation| Arc::clone(&activation.declaration_syntax));
         let (mut retained, mut pending_pre_checks) = match activation {
             Some(activation) => (Some(activation.typing), activation.pre_checks),
             None => (None, Vec::new()),
@@ -133,6 +136,7 @@ impl SourceCompilationRequest {
                     selection_authority: self.selection_authority,
                     predecessor: retained.clone(),
                     declaration_syntax: Some(&context.declaration_syntax),
+                    retained_declaration_syntax: retained_declaration_syntax.as_deref(),
                 },
             },
         )?;
@@ -528,6 +532,7 @@ impl CompletedSource {
                     selection_authority: Some(extension.selection_authority),
                     predecessor: Some(self.typing.clone()),
                     declaration_syntax: Some(&self.declaration_syntax),
+                    retained_declaration_syntax: None,
                 },
             )?;
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {

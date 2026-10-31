@@ -1,40 +1,82 @@
 //! Checked scalar arguments and projected argument paths: field and index
 //! paths, projected call support, contract mentions and crash expressions.
 
+use super::super::types::parameter_is_root;
+use super::boundary_admission::fixed_byte_array_view_is_admitted;
+use super::view_subslice::is_view_subslice;
+use crate::execution::terminal_unit::cleanup::machine_has_content_evidence;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
     base_type_identity, byte_sequence_type_identity, dense_scalar_parameter_index,
     structural_access_for_type_reference, terminal_field_identity,
 };
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, Multiplicity, SignatureContractKind, StateParameter,
-    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
+    CheckFacts, CheckedScalarExpressionRole as ExpressionRole,
+    CheckedStructuralAccess as StructuralAccess, CheckedStructuralScalarParameterPlan,
+    CheckedUnitCallCoordinate as CallCoordinate, CheckedUnitStructuralArgumentPlan as ArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment as PathSegment,
+    Multiplicity, SignatureContractKind, StateParameter, StatementNode, SymbolHandle,
+    TypeReferenceHandle, TypeReferenceNode,
 };
-use crate::flow::expressions;
+use crate::flow::{expressions, state_statements};
 use crate::places::place_at;
+use crate::values::lower_unit_scalar_argument;
+use crate::values::scalar_expression_type;
+use checked_trees::CheckedByteSequenceCarrier;
+use checked_trees::CheckedCallScalarArgument;
+use checked_trees::CheckedErasedProofParameterPlan;
+use checked_trees::CheckedMemberIdentity;
+use checked_trees::CheckedOperatorFacts;
+use checked_trees::CheckedProofTerm;
+use checked_trees::CheckedProofTermRole;
+use checked_trees::CheckedRuntimeIndex;
+use checked_trees::CheckedScalarExpression;
+use checked_trees::CheckedStructuralParameterField;
+use checked_trees::CheckedStructuralPredicatePathSegment;
+use checked_trees::CrashRouteGuard;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use language_semantics::ReferenceAccess;
+use typed_trees::data::DataMember;
+use typed_trees::domain::ProofMembershipFact;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::signature::state_parameter_position;
+use typed_trees::state::State;
+use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::FixedArrayLength;
+use typed_trees::types::PrimitiveType;
+use typed_trees::types::TypeConstraintNode;
+use validation::CanonicalPlace;
+use validation::canonical_place_from_expression;
+use validation::canonical_place_type_reference;
+use validation::expression_type_reference_in_state;
+use validation::field_domains::domain_constraint_symbols;
+use validation::field_domains::string_literal_expression_grants_domain;
+use validation::reference_shell;
+use validation::stored_structural_type_identity;
+use validation::stores_reference_shape;
+use validation::structural_storage_type;
+use validation::unwrapped_type_reference;
 
 pub(crate) fn checked_call_scalar_arguments(
     facts: &CheckFacts,
     caller_state: SymbolHandle,
-    coordinate: CheckedUnitCallCoordinate,
+    coordinate: CallCoordinate,
     parameters: &[CheckedStructuralScalarParameterPlan],
     boundary: bool,
-) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
+) -> Option<Vec<CheckedCallScalarArgument>> {
     parameters
         .iter()
         .enumerate()
         .map(|(argument_ordinal, parameter)| {
             let role = if boundary {
-                CheckedScalarExpressionRole::BoundaryCallArgument {
+                ExpressionRole::BoundaryCallArgument {
                     call_ordinal: coordinate.call_ordinal,
                     argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                 }
             } else {
-                CheckedScalarExpressionRole::UnitCallArgument {
+                ExpressionRole::UnitCallArgument {
                     call_ordinal: coordinate.call_ordinal,
                     argument_ordinal: u32::try_from(argument_ordinal).ok()?,
                 }
@@ -66,9 +108,7 @@ pub(crate) fn checked_call_scalar_arguments(
                 {
                     return None;
                 }
-                return Some(checked_trees::CheckedCallScalarArgument::Computation(
-                    root.root,
-                ));
+                return Some(CheckedCallScalarArgument::Computation(root.root));
             }
             if !roots.is_empty() {
                 return None;
@@ -78,8 +118,8 @@ pub(crate) fn checked_call_scalar_arguments(
                 coordinate.statement_index,
                 role,
             )?;
-            (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
-                .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
+            (scalar_expression_type(expression)? == parameter.primitive_type)
+                .then(|| CheckedCallScalarArgument::Pure(expression.clone()))
         })
         .collect()
 }
@@ -92,14 +132,14 @@ pub(crate) fn checked_call_erased_proof_arguments(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller_state: SymbolHandle,
-    coordinate: CheckedUnitCallCoordinate,
-    parameters: &[checked_trees::CheckedErasedProofParameterPlan],
-) -> Option<Vec<checked_trees::CheckedProofTerm>> {
+    coordinate: CallCoordinate,
+    parameters: &[CheckedErasedProofParameterPlan],
+) -> Option<Vec<CheckedProofTerm>> {
     parameters
         .iter()
         .enumerate()
         .map(|(erased_ordinal, parameter)| {
-            let role = checked_trees::CheckedProofTermRole::ErasedUnitCallArgument {
+            let role = CheckedProofTermRole::ErasedUnitCallArgument {
                 call_ordinal: coordinate.call_ordinal,
                 erased_ordinal: u32::try_from(erased_ordinal).ok()?,
             };
@@ -119,27 +159,27 @@ pub(crate) fn checked_call_erased_proof_arguments(
 fn proof_term_type_matches(
     program: &dyn ::validation::CheckingInput,
     caller_state: SymbolHandle,
-    term: &checked_trees::CheckedProofTerm,
-    type_identity: typed_trees::type_identity::TypeIdentityId,
+    term: &CheckedProofTerm,
+    type_identity: TypeIdentityId,
 ) -> bool {
     match term {
-        checked_trees::CheckedProofTerm::Mathematical {
+        CheckedProofTerm::Mathematical {
             type_identity: actual,
             ..
         }
-        | checked_trees::CheckedProofTerm::MathematicalApplication {
+        | CheckedProofTerm::MathematicalApplication {
             type_identity: actual,
             ..
         }
-        | checked_trees::CheckedProofTerm::Construction {
+        | CheckedProofTerm::Construction {
             type_identity: actual,
             ..
         }
-        | checked_trees::CheckedProofTerm::Array {
+        | CheckedProofTerm::Array {
             type_identity: actual,
             ..
         } => *actual == type_identity,
-        checked_trees::CheckedProofTerm::Formal { parameter_symbol } => {
+        CheckedProofTerm::Formal { parameter_symbol } => {
             program.state_by_symbol(caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol == *parameter_symbol
@@ -150,7 +190,7 @@ fn proof_term_type_matches(
         }
         // A bare scalar leaf never satisfies a proof-formal position: scalar
         // leaves only occur nested inside a construction.
-        checked_trees::CheckedProofTerm::Scalar(_) => false,
+        CheckedProofTerm::Scalar(_) => false,
     }
 }
 
@@ -160,14 +200,14 @@ fn proof_term_type_matches(
 pub(crate) fn checked_call_erased_scalar_arguments(
     facts: &CheckFacts,
     caller_state: SymbolHandle,
-    coordinate: CheckedUnitCallCoordinate,
+    coordinate: CallCoordinate,
     parameters: &[CheckedStructuralScalarParameterPlan],
-) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
+) -> Option<Vec<CheckedCallScalarArgument>> {
     parameters
         .iter()
         .enumerate()
         .map(|(erased_ordinal, parameter)| {
-            let role = CheckedScalarExpressionRole::ErasedUnitCallArgument {
+            let role = ExpressionRole::ErasedUnitCallArgument {
                 call_ordinal: coordinate.call_ordinal,
                 erased_ordinal: u32::try_from(erased_ordinal).ok()?,
             };
@@ -176,8 +216,8 @@ pub(crate) fn checked_call_erased_scalar_arguments(
                 coordinate.statement_index,
                 role,
             )?;
-            (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
-                .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
+            (scalar_expression_type(expression)? == parameter.primitive_type)
+                .then(|| CheckedCallScalarArgument::Pure(expression.clone()))
         })
         .collect()
 }
@@ -196,11 +236,8 @@ pub(crate) fn projected_borrowed_path(
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+    place: &CanonicalPlace,
+) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
     projected_argument_path(
         program,
         state_symbol,
@@ -218,14 +255,13 @@ pub(crate) fn projected_borrowed_path(
 pub(crate) fn borrowed_argument_endpoint(
     program: &dyn ::validation::CheckingInput,
     mut selected: TypeReferenceHandle,
-    mut path: Vec<CheckedUnitStructuralPathSegment>,
+    mut path: Vec<PathSegment>,
     formal: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
-    let Some(requested) = validation::reference_shell(program, formal) else {
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
+    let Some(requested) = reference_shell(program, formal) else {
         return Some((selected, path));
     };
-    let requested_storage =
-        validation::stored_structural_type_identity(program, requested.referee, &[], &[]);
+    let requested_storage = stored_structural_type_identity(program, requested.referee, &[], &[]);
     if !requested_storage.is_valid() {
         return None;
     }
@@ -233,26 +269,24 @@ pub(crate) fn borrowed_argument_endpoint(
         // The requested referent may itself be a descriptor. Stop before
         // loading it: lending a pointer slot and lending its backing are
         // different coordinates and different permission obligations.
-        let selected_storage =
-            validation::stored_structural_type_identity(program, selected, &[], &[]);
+        let selected_storage = stored_structural_type_identity(program, selected, &[], &[]);
         if !selected_storage.is_valid() {
             return None;
         }
         if selected_storage == requested_storage {
             return Some((selected, path));
         }
-        let Some(shell) = validation::reference_shell(program, selected)
-            .filter(|_| validation::stores_reference_shape(program, selected, &[]))
+        let Some(shell) = reference_shell(program, selected)
+            .filter(|_| stores_reference_shape(program, selected, &[]))
         else {
             return Some((selected, path));
         };
         if !shell.access.is_readable()
-            || (shell.access != requested.access
-                && shell.access != language_semantics::ReferenceAccess::Mutable)
+            || (shell.access != requested.access && shell.access != ReferenceAccess::Mutable)
         {
             return None;
         }
-        path.push(CheckedUnitStructuralPathSegment::Referent);
+        path.push(PathSegment::Referent);
         selected = shell.referee;
     }
     None
@@ -270,23 +304,18 @@ pub(crate) fn projected_selected_path(
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
+    place: &CanonicalPlace,
     local_selector: &dyn Fn(
         typed_trees::expression::ExpressionHandle,
-    ) -> Option<checked_trees::CheckedRuntimeIndex>,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+    ) -> Option<CheckedRuntimeIndex>,
+) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
     projected_argument_path(
         program,
         state_symbol,
         statement_index,
         place,
         Some(machine),
-        Some(&|expression| {
-            local_selector(expression).map(CheckedUnitStructuralPathSegment::RuntimeIndex)
-        }),
+        Some(&|expression| local_selector(expression).map(PathSegment::RuntimeIndex)),
     )
 }
 
@@ -299,14 +328,11 @@ pub(crate) fn projected_observed_path(
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
+    place: &CanonicalPlace,
     local_selector: &dyn Fn(
         typed_trees::expression::ExpressionHandle,
-    ) -> Option<checked_trees::CheckedRuntimeIndex>,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+    ) -> Option<CheckedRuntimeIndex>,
+) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
     let (mut projected, mut path) = projected_selected_path(
         program,
         machine,
@@ -315,28 +341,28 @@ pub(crate) fn projected_observed_path(
         place,
         local_selector,
     )?;
-    if let facts::PlaceRoot::Symbol(root) = place.root
+    if let PlaceRoot::Symbol(root) = place.root
         && let Some(state) = program.state_by_symbol(state_symbol)
         && let Some((ordinal, local)) = program.state_local_declaration(state, root)
         && ordinal < statement_index
     {
         let mut reference = local.type_reference;
         let mut crossings = Vec::new();
-        while let Some(shell) = validation::reference_shell(program, reference) {
-            if shell.access == language_semantics::ReferenceAccess::WriteOnly {
+        while let Some(shell) = reference_shell(program, reference) {
+            if shell.access == ReferenceAccess::WriteOnly {
                 return None;
             }
-            if !validation::stores_reference_shape(program, reference, &[]) {
+            if !stores_reference_shape(program, reference, &[]) {
                 break;
             }
-            crossings.push(CheckedUnitStructuralPathSegment::Referent);
+            crossings.push(PathSegment::Referent);
             reference = shell.referee;
         }
         crossings.append(&mut path);
         path = crossings;
     }
-    while let Some(shell) = validation::reference_shell(program, projected) {
-        if shell.access == language_semantics::ReferenceAccess::WriteOnly {
+    while let Some(shell) = reference_shell(program, projected) {
+        if shell.access == ReferenceAccess::WriteOnly {
             return None;
         }
         // The local root crossing above already reaches its direct referee.
@@ -344,9 +370,9 @@ pub(crate) fn projected_observed_path(
         if place
             .segments
             .iter()
-            .any(|segment| !matches!(segment, facts::PlaceSegment::Case { .. }))
+            .any(|segment| !matches!(segment, PlaceSegment::Case { .. }))
         {
-            path.push(CheckedUnitStructuralPathSegment::Referent);
+            path.push(PathSegment::Referent);
         }
         projected = shell.referee;
     }
@@ -360,13 +386,9 @@ pub(crate) fn projected_evaluated_path(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
-    place: &validation::CanonicalPlace,
-    selector: Option<
-        &dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<CheckedUnitStructuralPathSegment>,
-    >,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+    place: &CanonicalPlace,
+    selector: Option<&dyn Fn(typed_trees::expression::ExpressionHandle) -> Option<PathSegment>>,
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
     projected_argument_path(program, state, statement, place, Some(machine), selector)
 }
 
@@ -377,14 +399,14 @@ fn prefix_container_type_reference(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
+    place: &CanonicalPlace,
     position: usize,
 ) -> Option<TypeReferenceHandle> {
-    validation::canonical_place_type_reference(
+    canonical_place_type_reference(
         program,
         state_symbol,
         statement_index,
-        &validation::CanonicalPlace {
+        &CanonicalPlace {
             root: place.root,
             segments: place.segments[..position].to_vec(),
         },
@@ -395,17 +417,12 @@ pub(crate) fn projected_argument_path(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
+    place: &CanonicalPlace,
     runtime_index_machine: Option<SymbolHandle>,
     local_selector: Option<
-        &dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<CheckedUnitStructuralPathSegment>,
+        &dyn Fn(typed_trees::expression::ExpressionHandle) -> Option<PathSegment>,
     >,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
     let mut path = Vec::with_capacity(place.segments.len());
     // A borrowed root's own declared reference shells denote storage the
     // rooted subject already names — a `&`-parameter's member projection
@@ -415,18 +432,18 @@ pub(crate) fn projected_argument_path(
     // window descend has projected a new leaf type, any shell it carries
     // belongs to a stored reference the path actually crossed.
     let inherited_crossings = {
-        let mut reference = validation::canonical_place_type_reference(
+        let mut reference = canonical_place_type_reference(
             program,
             state_symbol,
             statement_index,
-            &validation::CanonicalPlace {
+            &CanonicalPlace {
                 root: place.root,
                 segments: Vec::new(),
             },
         )?;
         let mut count = 0usize;
-        while let Some(shell) = validation::reference_shell(program, reference)
-            && validation::stores_reference_shape(program, reference, &[])
+        while let Some(shell) = reference_shell(program, reference)
+            && stores_reference_shape(program, reference, &[])
         {
             count += 1;
             reference = shell.referee;
@@ -450,45 +467,43 @@ pub(crate) fn projected_argument_path(
         if position > 0
             && matches!(
                 segment,
-                facts::PlaceSegment::Field { .. }
-                    | facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
-                    | facts::PlaceSegment::Index { .. }
+                PlaceSegment::Field { .. }
+                    | PlaceSegment::Case { .. }
+                    | PlaceSegment::FixedIndex { .. }
+                    | PlaceSegment::Index { .. }
             )
         {
             let mut reference = prefix_container(position)?;
             let mut crossings = 0usize;
-            while let Some(shell) = validation::reference_shell(program, reference)
-                && validation::stores_reference_shape(program, reference, &[])
+            while let Some(shell) = reference_shell(program, reference)
+                && stores_reference_shape(program, reference, &[])
             {
                 crossings += 1;
                 reference = shell.referee;
             }
             for _ in 0..crossings.saturating_sub(consumed_carrier_crossings) {
-                path.push(CheckedUnitStructuralPathSegment::Referent);
+                path.push(PathSegment::Referent);
             }
             consumed_carrier_crossings = crossings;
         }
-        if !matches!(segment, facts::PlaceSegment::Case { .. }) {
+        if !matches!(segment, PlaceSegment::Case { .. }) {
             consumed_carrier_crossings = 0;
         }
         match segment {
-            facts::PlaceSegment::Field { symbol } => {
+            PlaceSegment::Field { symbol } => {
                 let identity = match payload_field.take() {
                     Some((expected, identity)) if expected == *symbol => identity,
                     Some(_) => return None,
                     None => terminal_field_identity(program, *symbol)?,
                 };
-                path.push(CheckedUnitStructuralPathSegment::Field(identity));
+                path.push(PathSegment::Field(identity));
             }
-            facts::PlaceSegment::FixedIndex { index } => {
+            PlaceSegment::FixedIndex { index } => {
                 let container = prefix_container(position)?;
                 fixed_index_within_extent(program, container, *index)?;
-                path.push(CheckedUnitStructuralPathSegment::FixedIndex(
-                    u64::try_from(*index).ok()?,
-                ));
+                path.push(PathSegment::FixedIndex(u64::try_from(*index).ok()?));
             }
-            facts::PlaceSegment::Index { expression } => {
+            PlaceSegment::Index { expression } => {
                 // An immutable local scalar initialized to a literal is a
                 // fixed index in every way that matters to this walk: the
                 // binding can never change, so the selected element is as
@@ -498,9 +513,7 @@ pub(crate) fn projected_argument_path(
                 if let Some(index) = constant_local_index(program, state_symbol, *expression) {
                     let container = prefix_container(position)?;
                     fixed_index_within_extent(program, container, index)?;
-                    path.push(CheckedUnitStructuralPathSegment::FixedIndex(
-                        u64::try_from(index).ok()?,
-                    ));
+                    path.push(PathSegment::FixedIndex(u64::try_from(index).ok()?));
                     continue;
                 }
                 // The runtime-selector route is admitted only in a machine
@@ -519,9 +532,7 @@ pub(crate) fn projected_argument_path(
                     .and_then(|resolve| resolve(*expression))
                     .or_else(|| {
                         runtime_index_parameter_position(program, state_symbol, *expression)
-                            .map(|position| checked_trees::CheckedRuntimeIndex::Parameter {
-                                position,
-                            })
+                            .map(|position| CheckedRuntimeIndex::Parameter { position })
                             .or_else(|| {
                                 runtime_index_field_selector(
                                     program,
@@ -530,12 +541,12 @@ pub(crate) fn projected_argument_path(
                                     *expression,
                                 )
                             })
-                            .map(CheckedUnitStructuralPathSegment::RuntimeIndex)
+                            .map(PathSegment::RuntimeIndex)
                     })?;
                 path.push(runtime_index);
             }
-            facts::PlaceSegment::OpaqueRange => return None,
-            facts::PlaceSegment::FixedRange { start, end } => {
+            PlaceSegment::OpaqueRange => return None,
+            PlaceSegment::FixedRange { start, end } => {
                 // A borrowed byte view's window is itself part of the place:
                 // `self.source[0..2]` lends the fixed byte range the view
                 // names. The container must be fixed byte-array backing whose
@@ -544,24 +555,24 @@ pub(crate) fn projected_argument_path(
                 // runtime bound evidence of its own.
                 let container = prefix_container(position)?;
                 fixed_byte_range_within_extent(program, container, *start, *end)?;
-                path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
+                path.push(PathSegment::FixedByteRange {
                     start: u64::try_from(*start).ok()?,
                     end: u64::try_from(*end).ok()?,
                 });
             }
-            facts::PlaceSegment::Case { variant } => {
+            PlaceSegment::Case { variant } => {
                 // Resolve the exact case and its following field together.
                 // The canonical type walker alone skips Case markers; it is
                 // not evidence that a payload belongs to the selected case.
                 let reference = prefix_container(position)?;
-                let reference = validation::unwrapped_type_reference(program, reference)?;
+                let reference = unwrapped_type_reference(program, reference)?;
                 let owner = program.closed_data_definition(reference)?;
                 let mut cases =
                     program
                         .data_members(owner)
                         .iter()
                         .filter_map(|member| match member {
-                            typed_trees::data::DataMember::Variant(case)
+                            DataMember::Variant(case)
                                 if variant.is_valid() && case.symbol == *variant =>
                             {
                                 Some(case)
@@ -569,8 +580,7 @@ pub(crate) fn projected_argument_path(
                             _ => None,
                         });
                 let case = cases.next()?;
-                let Some(facts::PlaceSegment::Field { symbol }) = place.segments.get(position + 1)
-                else {
+                let Some(PlaceSegment::Field { symbol }) = place.segments.get(position + 1) else {
                     return None;
                 };
                 let mut fields = program.data_payload_fields(case).iter().filter(|field| {
@@ -580,24 +590,19 @@ pub(crate) fn projected_argument_path(
                 if cases.next().is_some() || fields.next().is_some() {
                     return None;
                 }
-                path.push(CheckedUnitStructuralPathSegment::Case(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        case.identity,
-                        case.name.clone(),
-                    ),
-                ));
+                path.push(PathSegment::Case(CheckedMemberIdentity::of_member(
+                    case.identity,
+                    case.name.clone(),
+                )));
                 payload_field = Some((
                     *symbol,
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
             }
         }
     }
     let mut projected =
-        validation::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
+        canonical_place_type_reference(program, state_symbol, statement_index, place)?;
     // A whole parameter already denotes its ingress storage, just as the
     // root of a member/index path above does. Its declared reference is not
     // an extra stored descriptor to cross. Locals and completed values keep
@@ -605,15 +610,15 @@ pub(crate) fn projected_argument_path(
     // View carriers already contain their bounds and backing: only the common
     // stored-reference classification denotes a shell to peel here.
     if place.segments.is_empty()
-        && validation::stores_reference_shape(program, projected, &[])
+        && stores_reference_shape(program, projected, &[])
         && let Some(symbol) = place.root.as_symbol()
         && let Some(state) = program.state_by_symbol(state_symbol)
         && program
             .state_parameters(state)
             .iter()
-            .any(|parameter| super::super::types::parameter_is_root(parameter, symbol))
+            .any(|parameter| parameter_is_root(parameter, symbol))
     {
-        projected = validation::structural_storage_type(program, projected, &[]);
+        projected = structural_storage_type(program, projected, &[]);
         if !projected.is_valid() {
             return None;
         }
@@ -633,18 +638,14 @@ pub(crate) fn borrowed_index_segment(
     state: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitStructuralPathSegment> {
+) -> Option<PathSegment> {
     if let Some(index) = constant_local_index(program, state, expression) {
-        return Some(CheckedUnitStructuralPathSegment::FixedIndex(
-            u64::try_from(index).ok()?,
-        ));
+        return Some(PathSegment::FixedIndex(u64::try_from(index).ok()?));
     }
     let runtime_index = runtime_index_parameter_position(program, state, expression)
-        .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
+        .map(|position| CheckedRuntimeIndex::Parameter { position })
         .or_else(|| runtime_index_field_selector(program, state, statement_index, expression))?;
-    Some(CheckedUnitStructuralPathSegment::RuntimeIndex(
-        runtime_index,
-    ))
+    Some(PathSegment::RuntimeIndex(runtime_index))
 }
 
 /// A value projection consumes the same checked scalar operands as other
@@ -654,22 +655,18 @@ pub(crate) fn borrowed_index_segment(
 /// this program point; it never substitutes the declaration's initializer.
 pub(crate) fn value_index_segment(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
-    state: &typed_trees::state::State,
+    operators: &CheckedOperatorFacts,
+    state: &State,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<CheckedUnitStructuralPathSegment> {
-    let reference = validation::expression_type_reference_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        expression,
-    )?;
+) -> Option<PathSegment> {
+    let reference =
+        expression_type_reference_in_state(program, state.symbol, statement_index, expression)?;
     let primitive = program.primitive_type_reference(reference)?;
     if !primitive.is_fixed_integer() {
         return None;
     }
-    let operand = crate::values::lower_unit_scalar_argument(
+    let operand = lower_unit_scalar_argument(
         program,
         operators,
         state,
@@ -678,32 +675,26 @@ pub(crate) fn value_index_segment(
         primitive,
     )?;
     let runtime = match operand {
-        checked_trees::CheckedScalarExpression::StorageRead { symbol, .. } => {
-            checked_trees::CheckedRuntimeIndex::StorageRead { symbol }
+        CheckedScalarExpression::StorageRead { symbol, .. } => {
+            CheckedRuntimeIndex::StorageRead { symbol }
         }
-        checked_trees::CheckedScalarExpression::Parameter { position, .. } => {
-            checked_trees::CheckedRuntimeIndex::Parameter {
-                position: u32::try_from(position).ok()?,
-            }
-        }
-        checked_trees::CheckedScalarExpression::Local { position, .. } => {
-            checked_trees::CheckedRuntimeIndex::Local {
-                position: u32::try_from(position).ok()?,
-            }
-        }
-        checked_trees::CheckedScalarExpression::StructuralParameterField {
+        CheckedScalarExpression::Parameter { position, .. } => CheckedRuntimeIndex::Parameter {
+            position: u32::try_from(position).ok()?,
+        },
+        CheckedScalarExpression::Local { position, .. } => CheckedRuntimeIndex::Local {
+            position: u32::try_from(position).ok()?,
+        },
+        CheckedScalarExpression::StructuralParameterField {
             parameter_position,
             path,
             ..
-        } => checked_trees::CheckedRuntimeIndex::StructuralField(
-            checked_trees::CheckedStructuralParameterField {
-                parameter_position,
-                path,
-            },
-        ),
+        } => CheckedRuntimeIndex::StructuralField(CheckedStructuralParameterField {
+            parameter_position,
+            path,
+        }),
         _ => return None,
     };
-    Some(CheckedUnitStructuralPathSegment::RuntimeIndex(runtime))
+    Some(PathSegment::RuntimeIndex(runtime))
 }
 
 /// The literal index an immutable local scalar names: `let i: u64 = 2`
@@ -718,7 +709,7 @@ fn constant_local_index(
 ) -> Option<usize> {
     let name = program.expression_table.name_path_node(expression)?;
     let source_state = program.state_by_symbol(state_symbol)?;
-    let local = crate::flow::state_statements(program, source_state.statement_nodes)
+    let local = state_statements(program, source_state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) if local.symbol == name.symbol && !local.is_mutable => {
@@ -758,14 +749,14 @@ fn runtime_index_parameter_position(
         || !matches!(
             program.primitive_type_reference(parameter.type_reference),
             Some(
-                typed_trees::types::PrimitiveType::U8
-                    | typed_trees::types::PrimitiveType::U16
-                    | typed_trees::types::PrimitiveType::U32
-                    | typed_trees::types::PrimitiveType::U64
-                    | typed_trees::types::PrimitiveType::I8
-                    | typed_trees::types::PrimitiveType::I16
-                    | typed_trees::types::PrimitiveType::I32
-                    | typed_trees::types::PrimitiveType::I64
+                PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+                    | PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
             )
         )
     {
@@ -790,11 +781,11 @@ fn runtime_index_field_selector(
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<checked_trees::CheckedRuntimeIndex> {
-    let place = validation::canonical_place_from_expression(program, expression)?;
+) -> Option<CheckedRuntimeIndex> {
+    let place = canonical_place_from_expression(program, expression)?;
     let root = place.root.as_symbol()?;
     let parameters = program.state_parameters(program.state_by_symbol(state_symbol)?);
-    let parameter_position = typed_trees::signature::state_parameter_position(parameters, root)?;
+    let parameter_position = state_parameter_position(parameters, root)?;
     if place.segments.is_empty() {
         // A bare parameter selector is the `Parameter` coordinate, never a
         // field snapshot.
@@ -802,32 +793,31 @@ fn runtime_index_field_selector(
     }
     let mut path = Vec::with_capacity(place.segments.len());
     for segment in &place.segments {
-        let facts::PlaceSegment::Field { symbol } = segment else {
+        let PlaceSegment::Field { symbol } = segment else {
             return None;
         };
-        path.push(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+        path.push(CheckedStructuralPredicatePathSegment::Field(
             terminal_field_identity(program, *symbol)?,
         ));
     }
-    let leaf =
-        validation::canonical_place_type_reference(program, state_symbol, statement_index, &place)?;
+    let leaf = canonical_place_type_reference(program, state_symbol, statement_index, &place)?;
     if !matches!(
         program.primitive_type_reference(leaf),
         Some(
-            typed_trees::types::PrimitiveType::U8
-                | typed_trees::types::PrimitiveType::U16
-                | typed_trees::types::PrimitiveType::U32
-                | typed_trees::types::PrimitiveType::U64
-                | typed_trees::types::PrimitiveType::I8
-                | typed_trees::types::PrimitiveType::I16
-                | typed_trees::types::PrimitiveType::I32
-                | typed_trees::types::PrimitiveType::I64
+            PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64
+                | PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
         )
     ) {
         return None;
     }
-    Some(checked_trees::CheckedRuntimeIndex::StructuralField(
-        checked_trees::CheckedStructuralParameterField {
+    Some(CheckedRuntimeIndex::StructuralField(
+        CheckedStructuralParameterField {
             parameter_position: u32::try_from(parameter_position).ok()?,
             path,
         },
@@ -865,17 +855,15 @@ pub(crate) fn fixed_byte_range_within_extent(
     start: usize,
     end: usize,
 ) -> Option<()> {
-    let container = validation::unwrapped_type_reference(program, container)?;
+    let container = unwrapped_type_reference(program, container)?;
     let TypeReferenceNode::FixedArray {
         element_type,
-        length: typed_trees::types::FixedArrayLength::Literal(length),
+        length: FixedArrayLength::Literal(length),
     } = program.type_reference_table.type_reference(container)
     else {
         return None;
     };
-    if program.primitive_type_reference(*element_type)
-        != Some(typed_trees::types::PrimitiveType::U8)
-    {
+    if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
         return None;
     }
     (start <= end && end <= usize::try_from(*length).ok()?).then_some(())
@@ -887,7 +875,7 @@ fn slice_type_reference(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    validation::unwrapped_type_reference(program, type_reference).is_some_and(|type_reference| {
+    unwrapped_type_reference(program, type_reference).is_some_and(|type_reference| {
         matches!(
             program.type_reference_table.type_reference(type_reference),
             TypeReferenceNode::Slice { .. }
@@ -899,9 +887,9 @@ fn fixed_array_literal_length(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<usize> {
-    let type_reference = validation::unwrapped_type_reference(program, type_reference)?;
+    let type_reference = unwrapped_type_reference(program, type_reference)?;
     let TypeReferenceNode::FixedArray {
-        length: typed_trees::types::FixedArrayLength::Literal(length),
+        length: FixedArrayLength::Literal(length),
         ..
     } = program.type_reference_table.type_reference(type_reference)
     else {
@@ -918,11 +906,10 @@ pub(crate) fn fixed_byte_array_range_path(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
+    place: &CanonicalPlace,
     target: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
-    let (facts::PlaceSegment::FixedRange { start, end }, fields) = place.segments.split_last()?
-    else {
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
+    let (PlaceSegment::FixedRange { start, end }, fields) = place.segments.split_last()? else {
         return None;
     };
     byte_array_range_path(
@@ -948,10 +935,10 @@ pub(crate) fn open_byte_range_path(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
+    place: &CanonicalPlace,
     target: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
-    let (facts::PlaceSegment::Index { expression }, fields) = place.segments.split_last()? else {
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
+    let (PlaceSegment::Index { expression }, fields) = place.segments.split_last()? else {
         return None;
     };
     let range = program.expression_table.range_node(*expression)?;
@@ -979,19 +966,19 @@ fn byte_array_range_path(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
-    fields: &[facts::PlaceSegment],
+    place: &CanonicalPlace,
+    fields: &[PlaceSegment],
     start: usize,
     end: Option<usize>,
     target: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
     if !fields
         .iter()
-        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+        .all(|segment| matches!(segment, PlaceSegment::Field { .. }))
     {
         return None;
     }
-    let backing = validation::CanonicalPlace {
+    let backing = CanonicalPlace {
         root: place.root,
         segments: fields.to_vec(),
     };
@@ -1003,15 +990,11 @@ fn byte_array_range_path(
     if extent == 0
         || start > end
         || end > extent
-        || !super::boundary_admission::fixed_byte_array_view_is_admitted(
-            program,
-            backing_type,
-            target,
-        )
+        || !fixed_byte_array_view_is_admitted(program, backing_type, target)
     {
         return None;
     }
-    path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
+    path.push(PathSegment::FixedByteRange {
         start: u64::try_from(start).ok()?,
         end: u64::try_from(end).ok()?,
     });
@@ -1026,15 +1009,14 @@ fn byte_array_range_path(
 pub(crate) fn projected_call_contracts_are_represented(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    caller_machine: &typed_trees::machine::Machine,
-    caller_state: &typed_trees::state::State,
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
-    arguments: &[CheckedUnitStructuralArgumentPlan],
+    caller_machine: &Machine,
+    caller_state: &State,
+    target_machine: &Machine,
+    target_state: &State,
+    arguments: &[ArgumentPlan],
 ) -> bool {
-    let projected = |argument: &CheckedUnitStructuralArgumentPlan| {
-        !argument.path.is_empty() && !super::view_subslice::is_view_subslice(argument)
-    };
+    let projected =
+        |argument: &ArgumentPlan| !argument.path.is_empty() && !is_view_subslice(argument);
     if !arguments.iter().any(projected) {
         return true;
     }
@@ -1051,11 +1033,7 @@ pub(crate) fn projected_call_contracts_are_represented(
     if parameters.len() != arguments.len() || !target_machine.supplies_checked_body() {
         return false;
     }
-    let has_content_evidence = |machine, state| {
-        crate::execution::terminal_unit::cleanup::machine_has_content_evidence(
-            facts, machine, state,
-        )
-    };
+    let has_content_evidence = |machine, state| machine_has_content_evidence(facts, machine, state);
     let content_evidence = has_content_evidence(caller_machine.symbol, caller_state.symbol)
         || has_content_evidence(target_machine.symbol, target_state.symbol);
     arguments
@@ -1070,7 +1048,7 @@ pub(crate) fn projected_call_contracts_are_represented(
             let retained_loan = argument
                 .source_structural_result_binding_ordinal()
                 .is_some()
-                && argument.access != CheckedStructuralAccess::Owned;
+                && argument.access != StructuralAccess::Owned;
             structural_access_for_type_reference(program, parameter.type_reference)
                 == Some(argument.access)
                 && (retained_loan
@@ -1088,8 +1066,8 @@ pub(crate) fn projected_call_contracts_are_represented(
 pub(crate) fn target_contract_mentions_projected_parameter(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
+    target_machine: &Machine,
+    target_state: &State,
     parameter: &StateParameter,
 ) -> bool {
     let expected_root = parameter.symbol;
@@ -1127,8 +1105,8 @@ pub(crate) fn target_contract_mentions_projected_parameter(
                 return false;
             };
             place_at(program, target_state.symbol, 0, membership.value).is_some_and(|place| {
-                (place.root == facts::PlaceRoot::Symbol(expected_root)
-                    || place.root == facts::PlaceRoot::Symbol(parameter.symbol))
+                (place.root == PlaceRoot::Symbol(expected_root)
+                    || place.root == PlaceRoot::Symbol(parameter.symbol))
                     && !(requires
                         && place.segments.is_empty()
                         && parameter_qualification_carries_membership(
@@ -1146,8 +1124,8 @@ pub(crate) fn target_contract_mentions_projected_parameter(
         .is_some_and(|contract| {
             contract.crash.published().iter().any(|bucket| {
                 bucket.alternative_guards().iter().any(|guard| match guard {
-                    checked_trees::CrashRouteGuard::Truth => false,
-                    checked_trees::CrashRouteGuard::Predicate(predicate) => {
+                    CrashRouteGuard::Truth => false,
+                    CrashRouteGuard::Predicate(predicate) => {
                         // Checked predicates retain every formal and typed
                         // projection. Terminal substitution rebases those
                         // roots onto the actuals; source member spelling and
@@ -1169,7 +1147,7 @@ pub(crate) fn target_contract_mentions_projected_parameter(
 fn parameter_qualification_carries_membership(
     program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
-    membership: &typed_trees::domain::ProofMembershipFact,
+    membership: &ProofMembershipFact,
 ) -> bool {
     if !membership.semantic_domain.is_valid()
         || program
@@ -1191,7 +1169,7 @@ fn parameter_qualification_carries_membership(
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| {
-                        matches!(constraint, typed_trees::types::TypeConstraintNode::Domain(domain)
+                        matches!(constraint, TypeConstraintNode::Domain(domain)
                         if domain.symbol == membership.domain_symbol
                             && domain.semantic_id == membership.semantic_domain)
                     })
@@ -1209,31 +1187,22 @@ pub(crate) fn byte_sequence_literal_argument(
     program: &dyn ::validation::CheckingInput,
     parameter_type: TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitStructuralArgumentPlan> {
+) -> Option<ArgumentPlan> {
     let bytes = program.expression_table.string_node(expression)?;
     let access = structural_access_for_type_reference(program, parameter_type)?;
     match (byte_sequence_carrier(program, parameter_type, &[])?, access) {
-        (
-            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
-            CheckedStructuralAccess::SharedBorrow,
-        ) => {}
-        (
-            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity },
-            CheckedStructuralAccess::Owned,
-        ) if program.type_multiplicity(parameter_type) == Multiplicity::Unrestricted
-            && u64::try_from(bytes.len()).ok()? <= capacity =>
+        (CheckedByteSequenceCarrier::BorrowedView { .. }, StructuralAccess::SharedBorrow) => {}
+        (CheckedByteSequenceCarrier::BoundedOwned { capacity }, StructuralAccess::Owned)
+            if program.type_multiplicity(parameter_type) == Multiplicity::Unrestricted
+                && u64::try_from(bytes.len()).ok()? <= capacity =>
         {
             // This is construction at the formal, not ownership of immutable
             // image storage. Lowering must establish fresh bounded backing.
-            for symbol in
-                validation::field_domains::domain_constraint_symbols(program, parameter_type)
-            {
+            for symbol in domain_constraint_symbols(program, parameter_type) {
                 let domain = program.domain_definition(symbol)?;
                 if !domain.establishment_routes.is_empty()
                     || domain.semantic_roles != Default::default()
-                    || !validation::field_domains::string_literal_expression_grants_domain(
-                        program, expression, symbol,
-                    )
+                    || !string_literal_expression_grants_domain(program, expression, symbol)
                 {
                     return None;
                 }
@@ -1241,7 +1210,7 @@ pub(crate) fn byte_sequence_literal_argument(
         }
         _ => return None,
     }
-    Some(CheckedUnitStructuralArgumentPlan {
+    Some(ArgumentPlan {
         projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
             bytes: bytes.to_vec(),

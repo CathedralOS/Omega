@@ -9,6 +9,7 @@ use super::structural_judgment::StructuralTerm;
 use super::structural_prefix::{
     PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
 };
+use crate::ScopedArithmeticValue;
 use crate::machine_calls::calls::CallSite;
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
@@ -82,7 +83,7 @@ pub fn captured_call_index_value(
     parameters: &[StateParameter],
     owner: SymbolHandle,
     argument: typed_trees::types::TypeReferenceHandle,
-) -> Option<crate::ScopedArithmeticValue> {
+) -> Option<ScopedArithmeticValue> {
     match capture_projection(
         program,
         caller_state,
@@ -151,7 +152,7 @@ enum ProjectionRequest {
 enum ProjectionValue {
     Equality(bool),
     Identity(String),
-    Scalar(crate::ScopedArithmeticValue),
+    Scalar(ScopedArithmeticValue),
 }
 
 fn capture_projection(
@@ -504,12 +505,10 @@ fn completed_index_value(
     value: &StructuralTerm,
     state: SymbolHandle,
     unsigned: Option<bool>,
-) -> Option<crate::ScopedArithmeticValue> {
+) -> Option<ScopedArithmeticValue> {
     use typed_trees::expression::BinaryOperator;
     match value.semantic_value() {
-        StructuralTerm::Integer(integer) => {
-            Some(crate::ScopedArithmeticValue::Integer(integer.clone()))
-        }
+        StructuralTerm::Integer(integer) => Some(ScopedArithmeticValue::Integer(integer.clone())),
         StructuralTerm::MathematicalBinary {
             operator,
             left,
@@ -519,13 +518,13 @@ fn completed_index_value(
             BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
         ) =>
         {
-            Some(crate::ScopedArithmeticValue::IntegerOperation {
+            Some(ScopedArithmeticValue::IntegerOperation {
                 operator: *operator,
                 left: Box::new(completed_index_value(left, state, unsigned)?),
                 right: Box::new(completed_index_value(right, state, unsigned)?),
             })
         }
-        _ => Some(crate::ScopedArithmeticValue::Atom {
+        _ => Some(ScopedArithmeticValue::Atom {
             identity: format!(
                 "state:{state:?}:completed-index:{}",
                 value.observation_identity_key()?

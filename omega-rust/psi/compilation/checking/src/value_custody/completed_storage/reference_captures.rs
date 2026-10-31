@@ -4,6 +4,7 @@
 //! scalar store summary. Authored children keep their earlier operand epochs.
 use super::{StoredCapture, StoredObservation, StoredOperand};
 use arena::Handle;
+use checked_trees::FlowOperandCompletion;
 use checked_trees::{FlowControlFacts, FlowOperandFact, FlowStorageSnapshot};
 use facts::PlaceSegment;
 
@@ -156,7 +157,7 @@ impl Resolver<'_> {
         if !capture.type_reference.is_valid() {
             return Selection::Unavailable;
         }
-        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+        if let FlowOperandCompletion::Selected(alternatives) = capture.completion {
             let Some(rows) = self.control.operand_alternatives.span(alternatives) else {
                 return Selection::Unavailable;
             };
@@ -172,9 +173,7 @@ impl Resolver<'_> {
             );
         }
         let view = crate::reference_shell(self.program, capture.type_reference).is_some();
-        if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } =
-            capture.completion
-        {
+        if let FlowOperandCompletion::Copied { copy, path: prefix } = capture.completion {
             if !self.control.copied_values.is_valid(copy) {
                 return Selection::Unavailable;
             }

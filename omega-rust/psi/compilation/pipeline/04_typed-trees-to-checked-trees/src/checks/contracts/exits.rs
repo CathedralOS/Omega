@@ -30,6 +30,7 @@
 //! to the nominal input and field write checks, and domain queries used by
 //! flow facts, fact construction, content checks and proof.
 
+use crate::checks::content::proves_composed_exit;
 use crate::flow::active_context_handles;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -286,12 +287,7 @@ pub(super) fn check_exit_ensures(
                             if expression == source.source_expression)
                         && available_content.contains(&source.plan)
                 }) || (missing_origins.is_empty()
-                    && crate::checks::content::proves_composed_exit(
-                        facts,
-                        exit_flow,
-                        fact,
-                        content_plans,
-                    ))
+                    && proves_composed_exit(facts, exit_flow, fact, content_plans))
             } else {
                 (missing_origins.is_empty()
                 && (is_proved()
@@ -311,7 +307,7 @@ pub(super) fn check_exit_ensures(
                         content_plans,
                         available_content,
                     )
-                    || crate::checks::content::proves_composed_exit(
+                    || proves_composed_exit(
                         facts, exit_flow, fact, content_plans,
                     )
                     || super::integer_embeddings::proves_exit_equality(

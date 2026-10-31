@@ -5,7 +5,10 @@
 //! Ordinary body lowering shares the local declaration constructor; symbol
 //! assignment shares its preceding-local scope and append-only allocation.
 
+use crate::lowering::expression::lower_private_expression_into_table;
 use crate::lowering::type_reference::lower_type_reference_handle;
+use crate::preparation::generic_data::statement_call_inputs;
+use crate::preparation::generic_data::statement_type_inputs;
 use crate::resolution::lowerer::Lowerer;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -81,9 +84,7 @@ pub(crate) fn lower_state_lexical_inputs(
                 syntax::statement::StatementNode::LocalData(local) => Some(local),
                 _ => None,
             };
-            for reference in
-                crate::preparation::generic_data::statement_type_inputs(syntax, statement)
-            {
+            for reference in statement_type_inputs(syntax, statement) {
                 if local.is_some_and(|local| local.type_reference == reference) {
                     continue;
                 }
@@ -93,14 +94,10 @@ pub(crate) fn lower_state_lexical_inputs(
                 ));
             }
             if matches!(demand, LexicalInputDemand::CallResults) {
-                for expression in
-                    crate::preparation::generic_data::statement_call_inputs(syntax, statement)
-                {
+                for expression in statement_call_inputs(syntax, statement) {
                     inputs.calls.push((
                         inputs.locals.len(),
-                        crate::lowering::expression::lower_private_expression_into_table(
-                            lowerer, syntax, expression,
-                        )?,
+                        lower_private_expression_into_table(lowerer, syntax, expression)?,
                     ));
                 }
             }

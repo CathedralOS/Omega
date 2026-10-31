@@ -1,5 +1,6 @@
 use register_model::encode_constraint_key;
 
+use crate::codec_bytes::push_encoded;
 use crate::{
     MachineAlternativeApplicability, MachineAlternativeFamily, MachineBarrier,
     MachineEffectCatalog, MachineEffectCatalogIdentity, MachineEncodedControlEffect,
@@ -7,6 +8,7 @@ use crate::{
     MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineSemanticKind, MachineSizeKnowledge,
     SaturatingCarrier, SaturatingOperation,
 };
+use register_model::RegisterUnitId;
 
 /// The sink a canonical machine identity encoding writes its bytes into.
 ///
@@ -146,10 +148,7 @@ pub fn machine_effect_catalog_identity(
                 pre_call_stack_alignment,
             } => {
                 bytes.push(4);
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    pre_call_stack_alignment.to_le_bytes(),
-                );
+                push_encoded(&mut bytes, pre_call_stack_alignment.to_le_bytes());
             }
             crate::MachineCallEffect::NoneV1 => bytes.push(0),
             crate::MachineCallEffect::SupervisorNormalReturnV1 => bytes.push(3),
@@ -157,19 +156,13 @@ pub fn machine_effect_catalog_identity(
                 pre_call_stack_alignment,
             } => {
                 bytes.push(1);
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    pre_call_stack_alignment.to_le_bytes(),
-                );
+                push_encoded(&mut bytes, pre_call_stack_alignment.to_le_bytes());
             }
             crate::MachineCallEffect::ExternalNormalReturnV1 {
                 pre_call_stack_alignment,
             } => {
                 bytes.push(2);
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    pre_call_stack_alignment.to_le_bytes(),
-                );
+                push_encoded(&mut bytes, pre_call_stack_alignment.to_le_bytes());
             }
         }
         bytes.push(match declaration.cleanup {
@@ -506,10 +499,7 @@ fn encode_u16s<Sink: MachineIdentityBytes + ?Sized>(bytes: &mut Sink, values: &[
     }
 }
 
-fn encode_units<Sink: MachineIdentityBytes + ?Sized>(
-    bytes: &mut Sink,
-    units: &[register_model::RegisterUnitId],
-) {
+fn encode_units<Sink: MachineIdentityBytes + ?Sized>(bytes: &mut Sink, units: &[RegisterUnitId]) {
     encode_len(bytes, units.len());
     for unit in units {
         bytes.identity_bytes(&unit.0.to_le_bytes());

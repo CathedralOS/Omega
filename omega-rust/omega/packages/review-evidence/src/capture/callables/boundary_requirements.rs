@@ -8,6 +8,9 @@ use super::external_supply::external_binding_matches_provider_binding;
 use crate::capture::PackageReviewInput;
 use crate::record::{PackageReviewConformanceBound, PackageReviewExternalBinding};
 use diagnostics::Diagnostic;
+use language_semantics::MachineSupplyMode;
+use provider_planning::ProviderPlanningContext;
+use provider_planning::ProviderSchemaDeclaration;
 
 pub(super) fn project_checked_requirement_realization(
     compilation: &PackageReviewInput<'_>,
@@ -15,9 +18,7 @@ pub(super) fn project_checked_requirement_realization(
     conformance: &typed_trees::machine::TraitConformance,
     requirement: &typed_trees::machine::Machine,
 ) -> Result<crate::record::PackageReviewRequirementRealization, Vec<Diagnostic>> {
-    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !machine.body_is_present
-    {
+    if machine.supply_mode != MachineSupplyMode::CheckedBody || !machine.body_is_present {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{}` realizes top-level requirement `{}` without one checked implementation body",
             machine.name, requirement.name,
@@ -95,9 +96,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         .zip(provenance)
         .filter(|(_plan, retained)| {
             retained.provider.schema
-                == provider_planning::ProviderSchemaDeclaration::BoundaryRequirement(
-                    requirement.symbol,
-                )
+                == ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol)
                 && retained
                     .provider
                     .row_realizations
@@ -109,10 +108,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         return Ok(());
     }
     let Some(expected_schema) = provider_planning::service_schema::from_typed_boundary_requirement(
-        provider_planning::ProviderPlanningContext::new(
-            compilation.checking_input,
-            source::DependencyScope::Product,
-        ),
+        ProviderPlanningContext::new(compilation.checking_input, source::DependencyScope::Product),
         requirement,
     ) else {
         return Err(vec![Diagnostic::error(format!(

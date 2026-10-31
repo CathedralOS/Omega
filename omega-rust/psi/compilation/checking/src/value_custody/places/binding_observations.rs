@@ -4,6 +4,7 @@
 //! exposing its home retires that relationship. These queries never replay an
 //! initializer and never supply current referent contents.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -16,7 +17,7 @@ use typed_trees::statement::StatementNode;
 /// Indexed descriptors retain their selector/replacement dependencies.
 /// Mutable backing is allowed: this preserves metadata, never element contents.
 pub fn stable_slice_descriptor_place(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     symbol: SymbolHandle,
     segments: &[facts::PlaceSegment],
@@ -56,7 +57,7 @@ pub fn stable_slice_descriptor_place(
 /// formation source. Access factory views interpret separate backing, not the
 /// source owner's descriptor bytes.
 pub(crate) fn binding_is_exclusively_exposed(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> bool {
@@ -64,7 +65,7 @@ pub(crate) fn binding_is_exclusively_exposed(
 }
 
 fn binding_has_exclusive_exposure(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     symbol: SymbolHandle,
     observation: BindingObservation,
@@ -92,7 +93,7 @@ fn binding_has_exclusive_exposure(
 /// path lends contents under a new descriptor; the root's own descriptor stays
 /// where the declaration left it.
 fn selects_collection_contents(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     mut expression: ExpressionHandle,
 ) -> bool {
     let mut visited = 0;
@@ -109,7 +110,7 @@ fn selects_collection_contents(
 }
 
 fn selects_builtin_collection_contents(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
@@ -141,7 +142,7 @@ pub(crate) enum BindingObservation {
 /// name cannot be an actual afterwards. The scan is state-wide for the same
 /// reason as the borrow scan: obligation order is not statement order.
 pub(crate) fn binding_is_written(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     symbol: SymbolHandle,
     observation: BindingObservation,
@@ -172,7 +173,7 @@ pub(crate) fn binding_is_written(
 /// its own direct stores without mistaking these effects for those stores.
 /// Explicit exclusive borrows remain a separate exposure observation.
 pub(crate) fn binding_has_write_effects(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     symbol: SymbolHandle,
     observation: BindingObservation,
@@ -220,19 +221,13 @@ pub(crate) fn binding_has_write_effects(
 
 /// Unknown callees conservatively invalidate a receiver observation. Resolved
 /// static calls carry every writable place through their explicit arguments.
-fn call_receiver_is_mutable(
-    program: &dyn crate::CheckingInput,
-    target_symbol: SymbolHandle,
-) -> bool {
+fn call_receiver_is_mutable(program: &dyn CheckingInput, target_symbol: SymbolHandle) -> bool {
     crate::machine_calls::calls::machine_state_by_symbol(program, target_symbol).is_none()
 }
 
 /// Every expression root a statement of `state` can carry: the channels a
 /// nested borrow or receiver call could reach an observed carrier through.
-fn statement_expression_roots(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-) -> Vec<ExpressionHandle> {
+fn statement_expression_roots(program: &dyn CheckingInput, state: &State) -> Vec<ExpressionHandle> {
     program
         .statement_table
         .statements(state.statement_nodes)
@@ -245,7 +240,7 @@ fn statement_expression_roots(
 /// The root symbol a borrowable place path descends from: `view`, `view.field`,
 /// or `view[i]` all root at `view`'s local symbol.
 fn borrow_root_symbol(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     mut expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let mut visited = 0;
@@ -267,7 +262,7 @@ fn borrow_root_symbol(
 /// builtin element can change this value and therefore retires the identity.
 /// This conservative bar is independent of proof/call obligation order.
 pub(crate) fn binding_is_unchanged_value(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     symbol: SymbolHandle,
 ) -> bool {
@@ -282,7 +277,7 @@ pub(crate) fn binding_is_unchanged_value(
 /// admits a logical observation. Calls and computed selectors must first be
 /// captured by their ordinary evaluation owner; this query never repeats them.
 pub fn place_has_immutable_denotation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &State,
     before: usize,
@@ -352,7 +347,7 @@ pub fn place_has_immutable_denotation(
 /// Calls and constructors remain produced expressions for the consumer to
 /// judge; the query never imports their guarantees or executes them again.
 pub(crate) fn immutable_value_origin(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     state: &State,
     mut before: usize,
     mut expression: ExpressionHandle,

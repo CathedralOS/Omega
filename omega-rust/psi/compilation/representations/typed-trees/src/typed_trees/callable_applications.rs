@@ -21,6 +21,8 @@ mod trait_scopes;
 
 pub use requirement_instances::ClosedRequirementApplication;
 
+use crate::static_applications::StaticMachineLifetimeBinding;
+use crate::type_identity::lifetime_parameter_identity;
 use crate::{TypedTrees, data, signature, types};
 use symbols::SymbolHandle;
 
@@ -213,14 +215,12 @@ enum AppliedCallableOwner {
         required: signature::StateSignature,
         source_required: signature::StateSignature,
         caller_operands: arena::HandleSpan<CallableSubstitution>,
-        caller_lifetimes:
-            arena::HandleSpan<crate::static_applications::StaticMachineLifetimeBinding>,
+        caller_lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
         caller_lifetime_declaration: SymbolHandle,
         caller_lifetime_owner: SymbolHandle,
         provider_lifetime_declaration: SymbolHandle,
         provider_lifetime_owner: SymbolHandle,
-        provider_lifetimes:
-            arena::HandleSpan<crate::static_applications::StaticMachineLifetimeBinding>,
+        provider_lifetimes: arena::HandleSpan<StaticMachineLifetimeBinding>,
     },
 }
 
@@ -244,7 +244,7 @@ pub struct AppliedMachineCallable<'a> {
     pub selected: &'a signature::StateSignature,
     pub source_required: &'a signature::StateSignature,
     pub caller_operands: &'a [CallableSubstitution],
-    pub caller_lifetimes: &'a [crate::static_applications::StaticMachineLifetimeBinding],
+    pub caller_lifetimes: &'a [StaticMachineLifetimeBinding],
 }
 
 #[derive(Default)]
@@ -307,11 +307,8 @@ impl CallableApplication {
             // Only this exact local binder can be replaced by the invocation.
             // A local mask with the same spelling cannot rewrite an outer slot.
             if let Some(binding) = self.lifetimes.iter().rev().find(|binding| {
-                crate::type_identity::lifetime_parameter_identity(
-                    program,
-                    self.region_scope,
-                    binding.parameter.as_str(),
-                ) == Some(region)
+                lifetime_parameter_identity(program, self.region_scope, binding.parameter.as_str())
+                    == Some(region)
             }) {
                 return Ok(ScopedCallableLifetime {
                     name: binding.argument.clone(),
@@ -528,7 +525,7 @@ impl TypedTrees {
             .static_application_lifetimes_for_declaration(application, declaration)?
             .iter()
             .map(|binding| {
-                let region = crate::type_identity::lifetime_parameter_identity(
+                let region = lifetime_parameter_identity(
                     self,
                     source.lexical_owner,
                     binding.argument.as_str(),
@@ -565,12 +562,8 @@ impl TypedTrees {
             lifetimes: local_lifetimes
                 .iter()
                 .map(|name| {
-                    let region = crate::type_identity::lifetime_parameter_identity(
-                        self,
-                        declaration,
-                        name.as_str(),
-                    )
-                    .ok_or("captured callable type lost a declared local region")?;
+                    let region = lifetime_parameter_identity(self, declaration, name.as_str())
+                        .ok_or("captured callable type lost a declared local region")?;
                     Ok(CallableLifetimeBinding {
                         parameter: name.clone(),
                         argument: name.clone(),

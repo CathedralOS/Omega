@@ -2,7 +2,9 @@
 //! The namespace is exact toolchain data; ordinary same-named calls keep their
 //! normal path. Final Product admission owns declaration visibility and roles.
 
+use super::expression::lower_static_machine_argument;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, ProductDeclarationOperand, ProductDeclarationRequest,
     ProductOperandRole,
@@ -12,10 +14,8 @@ use symbols::JoinedPath;
 pub(crate) fn request(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
     typed: &mut typed_trees::TypedTrees,
-    exposure: Option<
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    >,
-    occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
+    exposure: Option<declaration_selection::AuthoredDeclarationSelectionExposure>,
+    occurrences: &[declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
     namespace: symbols::SymbolHandle,
     target: symbols::SymbolHandle,
     name: &str,
@@ -103,12 +103,7 @@ pub(crate) fn request(
         .with_source_span(span));
     }
     let requirement = if operation == BuildOperation::ProviderReadiness {
-        let operand = super::expression::lower_static_machine_argument(
-            Some(source),
-            typed,
-            exposure,
-            &operands[0],
-        )?;
+        let operand = lower_static_machine_argument(Some(source), typed, exposure, &operands[0])?;
         let reference = typed
             .static_operand_type_reference(&operand)
             .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
@@ -150,7 +145,7 @@ pub(crate) fn request(
     }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
     if let Some(requirement) = requirement {
         return Ok(Some(BuildSelectionRequest::ProviderReadiness(
-            language_semantics::declaration_selection::ProviderReadinessRequest {
+            declaration_selection::ProviderReadinessRequest {
                 source_span: span,
                 requirement,
                 backing: operands[0].clone(),

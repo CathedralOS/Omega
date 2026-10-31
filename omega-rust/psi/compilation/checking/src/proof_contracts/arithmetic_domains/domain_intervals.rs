@@ -5,6 +5,7 @@
 //! `range_constraint_interval`. A bound stated as a domain must reach both, or
 //! moving it off the revoked bracketed suffix silently loses the fact.
 use crate::frozen_program::expression_table;
+use typed_trees::expression::ExpressionNode;
 
 /// The closed integer interval a DECLARED domain's predicates guarantee for any
 /// value in it, or `None` when none is recognizable.
@@ -198,9 +199,7 @@ fn self_predicate_bounds(
     if !crate::has_builtin_domain_decomposed_guard_meaning(program, definition, expression) {
         return false;
     }
-    let typed_trees::expression::ExpressionNode::Binary(binary) =
-        expression_table(program).expression(expression)
-    else {
+    let ExpressionNode::Binary(binary) = expression_table(program).expression(expression) else {
         return false;
     };
     if binary.operator == BinaryOperator::And {
@@ -219,9 +218,7 @@ fn self_predicate_bounds(
         _ => return false,
     };
     let Some(value) = crate::closed_integer_range_bound(program, literal).or_else(|| {
-        let typed_trees::expression::ExpressionNode::Name(path) =
-            expression_table(program).expression(literal)
-        else {
+        let ExpressionNode::Name(path) = expression_table(program).expression(literal) else {
             return None;
         };
         (expression_table(program)

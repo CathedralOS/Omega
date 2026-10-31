@@ -15,10 +15,12 @@ use super::{
     terminal_scalar_type, unsupported,
 };
 use crate::proofs::contract_predicates::PredicateTerms;
+use crate::proofs::contract_predicates::validate_math_namespace;
 use crate::proofs::crash_routes::{
     checked_boolean_scalar_term, checked_scalar_term, lower_sequence_extent_term,
     lower_structural_member_term,
 };
+use crate::scalar_lowering::contracts::validate_indexed_operands;
 
 mod source;
 pub(crate) use source::validate_runtime_memberships;
@@ -58,14 +60,8 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
             validate_namespace(right)
         }
         CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
-            crate::proofs::contract_predicates::validate_math_namespace(
-                left,
-                &validate_integer_namespace,
-            )?;
-            crate::proofs::contract_predicates::validate_math_namespace(
-                right,
-                &validate_integer_namespace,
-            )
+            validate_math_namespace(left, &validate_integer_namespace)?;
+            validate_math_namespace(right, &validate_integer_namespace)
         }
         CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             validate_integer_namespace(left)?;
@@ -84,10 +80,7 @@ fn validate_float_namespace(expression: &CheckedScalarExpression) -> Result<(), 
         CheckedScalarExpression::StructuralParameterIndexedRead { primitive_type, .. }
             if matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) =>
         {
-            crate::scalar_lowering::contracts::validate_indexed_operands(
-                expression,
-                &validate_integer_namespace,
-            )
+            validate_indexed_operands(expression, &validate_integer_namespace)
         }
 
         CheckedScalarExpression::Parameter { primitive_type, .. }
@@ -107,10 +100,7 @@ fn validate_float_namespace(expression: &CheckedScalarExpression) -> Result<(), 
 fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
         CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
-            crate::scalar_lowering::contracts::validate_indexed_operands(
-                expression,
-                &validate_integer_namespace,
-            )
+            validate_indexed_operands(expression, &validate_integer_namespace)
         }
 
         CheckedScalarExpression::Parameter { primitive_type, .. }

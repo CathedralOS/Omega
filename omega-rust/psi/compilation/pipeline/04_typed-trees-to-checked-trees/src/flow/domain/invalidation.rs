@@ -1,10 +1,14 @@
+use arena::HandleSpan;
+use arena::PagedArenaSet;
 use validation::CanonicalPlace;
 
 use crate::flow::append_place_segments;
 use checked_trees::{
     DomainFacts, FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef,
 };
-use facts::{FactPayload, FactPlan};
+use facts::{
+    Fact, FactContextHandle, FactHandle, FactPayload, FactPlan, PlaceHandle, PlaceSegment,
+};
 mod matching;
 
 pub(in crate::flow) use self::matching::matching_mutation_for_fact_place;
@@ -15,7 +19,7 @@ pub(crate) fn context_survives_place_mutations(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     domain_dependencies: &DomainFacts,
-    context: facts::FactContextHandle,
+    context: FactContextHandle,
     mutated_places: &[CanonicalPlace],
 ) -> bool {
     if mutated_places.is_empty() {
@@ -40,15 +44,12 @@ pub(crate) fn context_survives_place_mutations(
 
 fn visit_context_invalidations<'mutation, 'dependency>(
     semantic: &FactPlan,
-    context: facts::FactContextHandle,
+    context: FactContextHandle,
     matching_mutation: &impl Fn(
-        &facts::Fact,
-        facts::PlaceHandle,
-    ) -> Option<(
-        &'mutation CanonicalPlace,
-        &'dependency [facts::PlaceSegment],
-    )>,
-    invalidated: &mut impl FnMut(facts::FactHandle, &CanonicalPlace, &[facts::PlaceSegment]),
+        &Fact,
+        PlaceHandle,
+    ) -> Option<(&'mutation CanonicalPlace, &'dependency [PlaceSegment])>,
+    invalidated: &mut impl FnMut(FactHandle, &CanonicalPlace, &[PlaceSegment]),
 ) -> bool {
     let mut invalidated_any = false;
     for fact_ref in semantic
@@ -74,13 +75,13 @@ pub(crate) fn filter_contexts_after_place_mutations(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     domain_dependencies: &DomainFacts,
-    semantic_context_refs: &mut arena::PagedArenaSet<FlowSemanticContextRef>,
-    invalidation_segments: &mut arena::PagedArenaSet<facts::PlaceSegment>,
-    invalidations: &mut arena::PagedArenaSet<FlowInvalidationFact>,
-    source: arena::HandleSpan<FlowSemanticContextRef>,
+    semantic_context_refs: &mut PagedArenaSet<FlowSemanticContextRef>,
+    invalidation_segments: &mut PagedArenaSet<PlaceSegment>,
+    invalidations: &mut PagedArenaSet<FlowInvalidationFact>,
+    source: HandleSpan<FlowSemanticContextRef>,
     mutated_places: &[CanonicalPlace],
     invalidation_source: FlowInvalidationSource,
-) -> arena::HandleSpan<FlowSemanticContextRef> {
+) -> HandleSpan<FlowSemanticContextRef> {
     if mutated_places.is_empty() {
         return source;
     }
@@ -108,21 +109,18 @@ pub(crate) fn filter_contexts_after_place_mutations(
 /// one law for declared storage and separately authorized content.
 pub(in crate::flow) fn filter_contexts_after_mutations<'mutation, 'dependency>(
     semantic: &mut FactPlan,
-    semantic_context_refs: &mut arena::PagedArenaSet<FlowSemanticContextRef>,
-    invalidation_segments: &mut arena::PagedArenaSet<facts::PlaceSegment>,
-    invalidations: &mut arena::PagedArenaSet<FlowInvalidationFact>,
-    source: arena::HandleSpan<FlowSemanticContextRef>,
+    semantic_context_refs: &mut PagedArenaSet<FlowSemanticContextRef>,
+    invalidation_segments: &mut PagedArenaSet<PlaceSegment>,
+    invalidations: &mut PagedArenaSet<FlowInvalidationFact>,
+    source: HandleSpan<FlowSemanticContextRef>,
     invalidation_source: FlowInvalidationSource,
     matching_mutation: impl Fn(
         &FactPlan,
-        &facts::Fact,
-        facts::PlaceHandle,
-    ) -> Option<(
-        &'mutation CanonicalPlace,
-        &'dependency [facts::PlaceSegment],
-    )>,
-) -> arena::HandleSpan<FlowSemanticContextRef> {
-    let mut filtered = arena::HandleSpan::empty();
+        &Fact,
+        PlaceHandle,
+    ) -> Option<(&'mutation CanonicalPlace, &'dependency [PlaceSegment])>,
+) -> HandleSpan<FlowSemanticContextRef> {
+    let mut filtered = HandleSpan::empty();
     for source_handle in source.handles() {
         let reference = *semantic_context_refs.get(source_handle);
         let survival = context_survival(
@@ -153,7 +151,7 @@ pub(in crate::flow) fn filter_contexts_after_mutations<'mutation, 'dependency>(
             ContextSurvival::Dropped => {}
             ContextSurvival::Reduced(retained) => {
                 let point = semantic.contexts.get(reference.context).point;
-                let mut refs = arena::HandleSpan::empty();
+                let mut refs = HandleSpan::empty();
                 for fact in retained {
                     semantic.append_ref(&mut refs, fact);
                 }
@@ -169,7 +167,7 @@ pub(in crate::flow) fn filter_contexts_after_mutations<'mutation, 'dependency>(
 enum ContextSurvival {
     Unchanged,
     Dropped,
-    Reduced(Vec<facts::FactHandle>),
+    Reduced(Vec<FactHandle>),
 }
 
 /// Facts that overlap the write leave the context. A storage dependency and
@@ -177,16 +175,13 @@ enum ContextSurvival {
 /// independent field domains are not one proposition.
 fn context_survival<'mutation, 'dependency>(
     semantic: &FactPlan,
-    context: facts::FactContextHandle,
+    context: FactContextHandle,
     matching_mutation: &impl Fn(
         &FactPlan,
-        &facts::Fact,
-        facts::PlaceHandle,
-    ) -> Option<(
-        &'mutation CanonicalPlace,
-        &'dependency [facts::PlaceSegment],
-    )>,
-    invalidated: &mut impl FnMut(facts::FactHandle, &CanonicalPlace, &[facts::PlaceSegment]),
+        &Fact,
+        PlaceHandle,
+    ) -> Option<(&'mutation CanonicalPlace, &'dependency [PlaceSegment])>,
+    invalidated: &mut impl FnMut(FactHandle, &CanonicalPlace, &[PlaceSegment]),
 ) -> ContextSurvival {
     let fact_refs = semantic
         .refs
@@ -253,8 +248,8 @@ fn context_survival<'mutation, 'dependency>(
 /// own place overlaps: `main.pause` does not change `main.name`.
 fn dependency_is_strict_prefix_of_dependent(
     semantic: &FactPlan,
-    dependency: facts::PlaceHandle,
-    dependent: facts::FactHandle,
+    dependency: PlaceHandle,
+    dependent: FactHandle,
 ) -> bool {
     let Some(dependent) = semantic.facts.get(dependent).place.as_place() else {
         return false;

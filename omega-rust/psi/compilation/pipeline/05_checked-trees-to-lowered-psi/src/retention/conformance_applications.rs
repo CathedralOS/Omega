@@ -17,6 +17,7 @@ use terminal_psi::{
 };
 
 use super::LoweringError;
+use crate::machine_lowering::declarations::semantic_identity;
 
 pub(crate) fn lower_closed_conformance_applications(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -470,12 +471,7 @@ fn collect_closed_conformance_applications<'checked>(
                         .transpose()?;
                 rows.push(ClosedConformanceRow {
                     requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
-                        crate::machine_lowering::declarations::semantic_identity(
-                            identities,
-                            checked,
-                            row.requirement,
-                        )
-                        .map_err(|_| {
+                        semantic_identity(identities, checked, row.requirement).map_err(|_| {
                             LoweringError::Unsupported(
                                 "conformance requirement lost its declaration owner",
                             )

@@ -2,12 +2,14 @@ use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
+use crate::capture::contracts::memberships::require_declaration_membership;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewContractFact, PackageReviewNominalIdentity};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
+use typed_trees::domain::ProofFact;
 
 pub(crate) fn project_domain_predicate_facts(
     compilation: &PackageReviewInput<'_>,
@@ -50,7 +52,7 @@ pub(crate) fn project_definition_contract_fact(
     compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
-    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
+    fact_handle: arena::Handle<ProofFact>,
     reviewed_package: PackageKeyIdentity,
 ) -> Result<PackageReviewContractFact, Vec<Diagnostic>> {
     use typed_trees::domain::ProofFact;
@@ -67,10 +69,7 @@ pub(crate) fn project_definition_contract_fact(
             )?,
         )),
         ProofFact::Membership(membership) => {
-            crate::capture::contracts::memberships::require_declaration_membership(
-                compilation.checking_input,
-                membership,
-            )?;
+            require_declaration_membership(compilation.checking_input, membership)?;
             let domain = compilation
                 .domain_definition(membership.domain_symbol)
                 .or_evidence(format!(
@@ -113,7 +112,7 @@ pub(crate) fn project_definition_contract_fact(
 pub(crate) fn require_exact_checked_domain_fact(
     compilation: &PackageReviewInput<'_>,
     domain_symbol: SymbolHandle,
-    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
+    fact_handle: arena::Handle<ProofFact>,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
     require_exact_checked_fact(
@@ -147,19 +146,13 @@ pub(crate) fn require_exact_checked_fact<'a, R: 'a>(
     typed: &typed_trees::TypedTrees,
     semantic_facts: &facts::evidence::FactTable,
     symbol: SymbolHandle,
-    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
+    fact_handle: arena::Handle<ProofFact>,
     identity: &PackageReviewNominalIdentity,
     kind: &'static str,
     noun: &'static str,
     origin: impl Fn(SymbolHandle) -> facts::FactOrigin,
     retained_facts: impl Iterator<Item = &'a R>,
-    record_fields: impl Fn(
-        &R,
-    ) -> (
-        SymbolHandle,
-        arena::Handle<typed_trees::domain::ProofFact>,
-        facts::FactHandle,
-    ),
+    record_fields: impl Fn(&R) -> (SymbolHandle, arena::Handle<ProofFact>, facts::FactHandle),
 ) -> Result<(), Vec<Diagnostic>> {
     let point = facts::ProgramPoint::Definition { symbol };
     let matching_rows = semantic_facts
@@ -203,7 +196,7 @@ pub(crate) fn require_exact_checked_fact<'a, R: 'a>(
 pub(crate) fn semantic_fact_matches_definition_fact(
     typed: &typed_trees::TypedTrees,
     semantic_fact: &facts::Fact,
-    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
+    fact_handle: arena::Handle<ProofFact>,
 ) -> bool {
     use facts::FactPayload;
     use typed_trees::domain::ProofFact;

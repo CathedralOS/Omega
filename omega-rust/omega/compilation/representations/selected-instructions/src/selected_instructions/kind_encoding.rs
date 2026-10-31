@@ -8,6 +8,7 @@
 //! envelope spells a kind's payload once and no codec can drift from another.
 
 use crate::SelectedInstructionKind;
+use legalized_operations::encode_integer;
 
 /// Appends `tag` and the exact operand payload `kind` carries. Each caller owns
 /// its tag table; none authors the payload separately.
@@ -68,9 +69,7 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
         crate::hosted_slot_quad_pattern!(slot, ..) => slot.encode_identity(bytes),
-        SelectedInstructionKind::MaterializeI64 { value } => {
-            legalized_operations::encode_integer(bytes, value)
-        }
+        SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::WrappingRemainderI64 {
             obligation,
             accepted_fact,
@@ -133,12 +132,12 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         crate::exact_add_or_sub_pair_pattern!(immediate, obligation, accepted_fact, ..) => {
-            legalized_operations::encode_integer(bytes, immediate);
+            encode_integer(bytes, immediate);
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
-            legalized_operations::encode_integer(bytes, immediate)
+            encode_integer(bytes, immediate)
         }
         // Every float form shares one tag; its dense ordinal follows.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {

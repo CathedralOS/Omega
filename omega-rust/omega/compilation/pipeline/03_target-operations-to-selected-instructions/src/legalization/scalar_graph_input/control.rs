@@ -5,6 +5,7 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::value_type;
+use terminal_semantics::descriptor_results::is_descriptor;
 pub(super) fn validate(
     node: &OptimizationNode,
     _body: &[OptimizationNode],
@@ -31,10 +32,7 @@ pub(super) fn validate(
             },
             AbstractFunctionResult::Structural(declared),
         ) => {
-            if terminal_semantics::descriptor_results::is_descriptor(
-                structural_types.iter(),
-                declared.structural_type,
-            ) {
+            if is_descriptor(structural_types.iter(), declared.structural_type) {
                 if !super::byte_views::descriptor_return(function, *source, structural_types)
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()

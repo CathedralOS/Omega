@@ -29,6 +29,8 @@ use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use installation_evidence::ProviderInstallationEvidence;
+use installed_provider_calls::validate_installed_provider_calls;
+use settlement_roster::validate_settlement_roster;
 use std::collections::BTreeMap;
 use target::NativeTarget;
 use target_operations::{BoundarySettlementBinding, TargetFunction, TargetOperationPlan};
@@ -103,14 +105,10 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     let boundary_calls = installed_provider_calls::index_boundary_calls(plan);
     let native_callbacks_by_operation =
         native_callbacks::bind_native_callback_arguments(plan, target, native_callbacks)?;
-    installed_provider_calls::validate_installed_provider_calls(
-        plan,
-        &installed_by_call,
-        &boundary_calls,
-    )?;
+    validate_installed_provider_calls(plan, &installed_by_call, &boundary_calls)?;
     let installed_by_call =
         super::selected_boundary_calls::index(plan, installed_by_call, verified_input)?;
-    settlement_roster::validate_settlement_roster(
+    validate_settlement_roster(
         &settlements_by_boundary,
         &installed_by_call,
         &boundary_calls,

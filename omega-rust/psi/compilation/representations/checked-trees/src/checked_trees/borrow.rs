@@ -3,6 +3,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
 use crate::checked_trees::keyed_rows::KeyedRows;
+use facts::PlaceRoot::Expression;
+use facts::PlaceRoot::InvocationOutput;
+use facts::PlaceRoot::Symbol;
 
 /// One exact structural place captured for compatibility checking.
 ///
@@ -76,15 +79,9 @@ impl IncomingReferenceIdentity {
     pub fn place_root(&self) -> facts::PlaceRoot {
         match self.origin {
             IncomingReferenceOrigin::Parameter { symbol }
-            | IncomingReferenceOrigin::ParameterReferent { symbol } => {
-                facts::PlaceRoot::Symbol(symbol)
-            }
-            IncomingReferenceOrigin::Invocation { expression, .. } => {
-                facts::PlaceRoot::Expression(expression)
-            }
-            IncomingReferenceOrigin::Output { identity } => {
-                facts::PlaceRoot::InvocationOutput(identity)
-            }
+            | IncomingReferenceOrigin::ParameterReferent { symbol } => Symbol(symbol),
+            IncomingReferenceOrigin::Invocation { expression, .. } => Expression(expression),
+            IncomingReferenceOrigin::Output { identity } => InvocationOutput(identity),
         }
     }
 
@@ -910,7 +907,7 @@ impl BorrowFacts {
         };
         if !identity.is_valid()
             || incoming.state_symbol != identity.state_symbol
-            || loan.root != facts::PlaceRoot::InvocationOutput(identity)
+            || loan.root != InvocationOutput(identity)
             || loan.statement_index != identity.statement_index
             || !incoming.carrier_type.is_valid()
             || self.owner_segments.span(incoming.owner_path).is_none()
@@ -1013,7 +1010,7 @@ impl BorrowFacts {
         owner: SymbolHandle,
         statement_index: usize,
     ) -> Option<HandleSpan<BorrowLoanFact>> {
-        self.storage_loans(state, facts::PlaceRoot::Symbol(owner), statement_index)
+        self.storage_loans(state, Symbol(owner), statement_index)
     }
 
     /// One storage occurrence owns its descriptor roster independently of the

@@ -3,8 +3,12 @@
 //! call. Native replay must retain that call's operand and declaration while
 //! reconstructing backing, current extent location and placement, not demand
 //! that the owner and descriptor have the same type or predicate roster.
+use super::super::target::control_flow::sources::{call_indices, dominates};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::structural_case;
+use crate::structural_inputs::structural_reference_input::{
+    bounded_byte_view, fixed_byte_array_view,
+};
 use abstract_operations::AbstractOperationPlan;
 use calling_conventions::{CallPlan, ValueShape};
 use optimization_unit::PsiOptimizationFunction;
@@ -15,6 +19,7 @@ use target_operations::{
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
 };
+use terminal_semantics::descriptor_results::is_shared_descriptor;
 
 pub(super) fn argument(
     actual: &StructuralArgument,
@@ -35,10 +40,7 @@ pub(super) fn argument(
             )
         })
         || formal.access != actual.access
-        || !terminal_semantics::descriptor_results::is_shared_descriptor(
-            plan.structural_types.iter(),
-            formal.structural_type,
-        )
+        || !is_shared_descriptor(plan.structural_types.iter(), formal.structural_type)
     {
         return Ok(None);
     }
@@ -71,11 +73,7 @@ pub(super) fn argument(
                 parameter.placement.clone().into()
             }
             StructuralPlaceKind::BlockParameter { block, .. } => {
-                if block != after.0
-                    && !super::super::target::control_flow::sources::dominates(
-                        caller, block, after.0,
-                    )
-                {
+                if block != after.0 && !dominates(caller, block, after.0) {
                     return Err(LegalizationError::custody());
                 }
                 TargetStructuralArgumentSource::BlockParameter {
@@ -102,8 +100,7 @@ pub(super) fn argument(
         };
         if results.next().is_some()
             || (block == after.0 && position >= after.1)
-            || (block != after.0
-                && !super::super::target::control_flow::sources::dominates(caller, block, after.0))
+            || (block != after.0 && !dominates(caller, block, after.0))
             || !structural_case::records_operation_result(caller, producer, result)
         {
             return Err(LegalizationError::custody());
@@ -132,27 +129,23 @@ pub(super) fn argument(
             .is_some_and(|(_, identity)| identity == formal.structural_type)
     {
         (0, None, Vec::new())
-    } else if let Some((offset, length)) =
-        crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
-            &root,
-            actual,
-            formal.structural_type,
-            &plan.structural_types,
-        )
-    {
+    } else if let Some((offset, length)) = fixed_byte_array_view(
+        &root,
+        actual,
+        formal.structural_type,
+        &plan.structural_types,
+    ) {
         // Reconstruct the static extent from the exact source declaration.
         // A bounded view carries a pointer, not an inline array or a dynamic
         // descriptor; the existing geometry owner authenticates that window.
         (offset, Some(length), Vec::new())
     } else {
-        let Some(geometry) =
-            crate::structural_inputs::structural_reference_input::bounded_byte_view(
-                &root,
-                actual,
-                formal.structural_type,
-                &plan.structural_types,
-            )
-        else {
+        let Some(geometry) = bounded_byte_view(
+            &root,
+            actual,
+            formal.structural_type,
+            &plan.structural_types,
+        ) else {
             return Ok(None);
         };
         (geometry.offset, None, geometry.elements)
@@ -179,7 +172,7 @@ pub(super) fn argument(
         source_byte_offset: offset,
         fixed_array_length,
         element_stride: fixed_array_length.map(|_| 1),
-        indices: super::super::target::control_flow::sources::call_indices(
+        indices: call_indices(
             native,
             caller,
             target_operations::CallSiteOwner::from(call_operation),

@@ -8,10 +8,11 @@ use crate::execution::terminal_unit::types::{
     substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
-    CarryPolicy, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan,
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, StateParameter, SymbolHandle, strips_erased_parameter,
+    CarryPolicy, CheckFacts, CheckedStructuralAccess as StructuralAccess,
+    CheckedStructuralScalarParameterPlan as ParameterPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan, Multiplicity,
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    StateParameter, SymbolHandle, strips_erased_parameter,
 };
 
 /// The qualified structural signature of a state without scalar
@@ -34,13 +35,13 @@ fn scalar_parameter_signature(
     program: &dyn ::validation::CheckingInput,
     position: usize,
     parameter: &StateParameter,
-) -> Option<CheckedStructuralScalarParameterPlan> {
+) -> Option<ParameterPlan> {
     // Binding mutability changes the state-local value namespace, not the
     // incoming scalar carrier. The body initializes its current-value slot.
     if parameter.is_const {
         return None;
     }
-    Some(CheckedStructuralScalarParameterPlan {
+    Some(ParameterPlan {
         source_position: u32::try_from(position).ok()?,
         primitive_type: program.primitive_type_reference(parameter.type_reference)?,
     })
@@ -60,7 +61,7 @@ fn structural_signature_for_partial_affine(
 ) -> Option<(
     Option<typed_trees::type_identity::TypeIdentityId>,
     Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
+    Vec<ParameterPlan>,
 )> {
     let parameters = program.state_parameters(state);
     let attachment = None::<(typed_trees::type_identity::TypeIdentityId, Multiplicity)>;
@@ -85,7 +86,7 @@ fn structural_signature_for_partial_affine(
             if !allow_scalar_parameters || parameter.is_mutable {
                 return None;
             }
-            scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+            scalar_parameters.push(ParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 primitive_type,
             });
@@ -135,7 +136,7 @@ fn structural_signature_for_partial_affine(
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
         // Owned formals transfer stored carriers, including each descriptor
         // inside an aggregate. Borrowed formals expose referent access instead.
-        let multiplicity = if access == CheckedStructuralAccess::Owned {
+        let multiplicity = if access == StructuralAccess::Owned {
             validation::reference_result_custody::result_multiplicity(
                 program,
                 parameter.type_reference,
@@ -145,7 +146,7 @@ fn structural_signature_for_partial_affine(
         };
         if binding_carrier.is_some()
             && (!service_parameter_access_matches(multiplicity, access)
-                || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)
+                || parameter.is_mutable != (access == StructuralAccess::MutableBorrow)
                 || !qualifications.is_empty())
         {
             return None;
@@ -156,9 +157,9 @@ fn structural_signature_for_partial_affine(
         // whether the callee may read through it.
         let primitive_access_is_admitted = matches!(
             access,
-            CheckedStructuralAccess::MutableBorrow
-                | CheckedStructuralAccess::WriteOnlyBorrow
-                | CheckedStructuralAccess::SharedBorrow
+            StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+                | StructuralAccess::SharedBorrow
         );
         // The registered referent retains its complete scalar receiving
         // restriction. Nominal qualifications travel on the same exact
@@ -208,16 +209,13 @@ fn structural_signature_for_partial_affine(
 /// Borrowed parameters lend an existing affine carrier; the reference itself
 /// does not own that carrier. Keep access separate from value multiplicity so
 /// erasure cannot turn a loan into an owned service argument.
-fn service_parameter_access_matches(
-    multiplicity: Multiplicity,
-    access: CheckedStructuralAccess,
-) -> bool {
+fn service_parameter_access_matches(multiplicity: Multiplicity, access: StructuralAccess) -> bool {
     match access {
-        CheckedStructuralAccess::Owned => multiplicity == Multiplicity::Affine,
+        StructuralAccess::Owned => multiplicity == Multiplicity::Affine,
         checked_trees::checked_borrowed_access_pair_pattern!() => {
             multiplicity == Multiplicity::Unrestricted
         }
-        CheckedStructuralAccess::WriteOnlyBorrow => false,
+        StructuralAccess::WriteOnlyBorrow => false,
     }
 }
 
@@ -234,7 +232,7 @@ pub(crate) fn structural_scalar_signature_traced(
 ) -> Option<(
     Option<typed_trees::type_identity::TypeIdentityId>,
     Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
+    Vec<ParameterPlan>,
 )> {
     // Static qualification supplies identity, never implicit storage.
     let (structural_parameters, scalar_parameters) =
@@ -248,7 +246,7 @@ pub(crate) fn ambient_self_scalar_signature(
     state: &typed_trees::state::State,
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
+    Vec<ParameterPlan>,
     Vec<CheckedUnitStructuralTypePlan>,
 )> {
     let mut shapes = ShapeCollector::new(program);
@@ -267,10 +265,7 @@ pub(crate) fn free_structural_scalar_signature(
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
+) -> Option<(Vec<CheckedUnitStructuralParameterPlan>, Vec<ParameterPlan>)> {
     free_structural_scalar_signature_traced(
         program,
         shapes,
@@ -288,10 +283,7 @@ pub(crate) fn free_structural_scalar_signature_traced(
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     trace: &LocalConstructionTrace,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
+) -> Option<(Vec<CheckedUnitStructuralParameterPlan>, Vec<ParameterPlan>)> {
     // Static binders do not themselves occupy runtime slots. Classify the
     // actual formals: an unresolved carrier still declines in the shape
     // collector, while a concrete telescope stays concrete even when the
@@ -308,10 +300,7 @@ pub(crate) fn free_structural_scalar_entry_signature_traced(
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     trace: &LocalConstructionTrace,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
+) -> Option<(Vec<CheckedUnitStructuralParameterPlan>, Vec<ParameterPlan>)> {
     let (mut structural, scalar) =
         free_structural_scalar_signature_traced(program, shapes, state, binders, trace)?;
     // The published invocation and its composed body share the authored
@@ -326,10 +315,7 @@ fn scalar_and_structural_parameters(
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     trace: &LocalConstructionTrace,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
+) -> Option<(Vec<CheckedUnitStructuralParameterPlan>, Vec<ParameterPlan>)> {
     let (mut structural, scalar) = parameter_signatures(
         program,
         shapes,
@@ -358,10 +344,7 @@ pub(crate) fn parameter_signatures(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     trace: &LocalConstructionTrace,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
+) -> Option<(Vec<CheckedUnitStructuralParameterPlan>, Vec<ParameterPlan>)> {
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
     for (position, parameter) in parameters.iter().enumerate() {
@@ -416,14 +399,14 @@ pub(crate) fn parameter_signatures(
         let qualifications = parameter_qualifications(program, shapes, parameter_type, binders)?;
         trace.phase("state graph: state signature: parameter signature: parameter access");
         let access = structural_access_for_type_reference(program, parameter_type)?;
-        let multiplicity = if access == CheckedStructuralAccess::Owned {
+        let multiplicity = if access == StructuralAccess::Owned {
             validation::reference_result_custody::result_multiplicity(program, parameter_type)
         } else {
             crate::checks::type_multiplicity(program, parameter_type)
         };
         if binding_carrier.is_some()
             && (!service_parameter_access_matches(multiplicity, access)
-                || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)
+                || parameter.is_mutable != (access == StructuralAccess::MutableBorrow)
                 || !qualifications.is_empty())
         {
             return None;

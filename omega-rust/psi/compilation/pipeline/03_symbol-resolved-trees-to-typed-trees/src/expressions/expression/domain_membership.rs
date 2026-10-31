@@ -1,9 +1,12 @@
 use super::lower_expression_handle_from_table_with_symbol_substitution;
+use crate::expressions::exhaustiveness::data_definition_index;
 use crate::lowerer::name::lower_name;
-use crate::tables::expression_table;
-use crate::tables::expression_table_mut;
+use crate::tables::{expression_table, expression_table_mut};
+use crate::type_reference::domain_aliases::expand_domain_reference;
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use symbols::SymbolHandle;
 use typed_trees as typed;
 
 /// `value in Type::Case` is the tag test (frozen decision 11): it lowers to
@@ -21,9 +24,9 @@ pub(super) fn lower_case_membership_expression(
     source: &resolved::expression::ExpressionTable,
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
-    domain: arena::HandleSpan<resolved::name::DiagnosticName>,
-    type_symbol: symbols::SymbolHandle,
-    case_symbol: symbols::SymbolHandle,
+    domain: HandleSpan<resolved::name::DiagnosticName>,
+    type_symbol: SymbolHandle,
+    case_symbol: SymbolHandle,
 ) -> Option<typed::expression::ExpressionHandle> {
     lower_case_membership_expression_from_members(
         program,
@@ -40,8 +43,8 @@ fn lower_case_membership_expression_from_members(
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain_members: &[resolved::name::DiagnosticName],
-    type_symbol: symbols::SymbolHandle,
-    case_symbol: symbols::SymbolHandle,
+    type_symbol: SymbolHandle,
+    case_symbol: SymbolHandle,
 ) -> Option<typed::expression::ExpressionHandle> {
     case_membership_test(
         program,
@@ -68,8 +71,8 @@ fn replayed_case_membership_test(
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain_members: &[resolved::name::DiagnosticName],
-    type_symbol: symbols::SymbolHandle,
-    case_symbol: symbols::SymbolHandle,
+    type_symbol: SymbolHandle,
+    case_symbol: SymbolHandle,
 ) -> Option<typed::expression::ExpressionHandle> {
     case_membership_test(
         program,
@@ -87,8 +90,8 @@ fn case_membership_test(
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain_members: &[resolved::name::DiagnosticName],
-    type_symbol: symbols::SymbolHandle,
-    case_symbol: symbols::SymbolHandle,
+    type_symbol: SymbolHandle,
+    case_symbol: SymbolHandle,
     operator: typed::expression::BinaryOperator,
 ) -> Option<typed::expression::ExpressionHandle> {
     let [.., type_name, case_name] = domain_members else {
@@ -109,14 +112,14 @@ fn case_membership_test(
 
     // The case reference must carry its symbols: the backend's guard tag
     // clamp keys the tag-only compare off a symbol-stamped `Type::Case` path.
-    let mut members = arena::HandleSpan::empty();
+    let mut members = HandleSpan::empty();
     // The authored selection ledger keeps the full source path. This generated
     // tag operand has exactly two semantic owners: the selected data and case.
     // Namespace/package spellings must not become extra runtime path segments.
     for member in [type_name, case_name] {
         expression_table_mut(target).push_name_path_member(&mut members, lower_name(member));
     }
-    let mut member_symbols = arena::HandleSpan::empty();
+    let mut member_symbols = HandleSpan::empty();
     expression_table_mut(target).push_name_path_member_symbol(&mut member_symbols, type_symbol);
     expression_table_mut(target).push_name_path_member_symbol(&mut member_symbols, case_symbol);
     let case_reference = expression_table_mut(target).insert(
@@ -141,7 +144,7 @@ fn case_membership_test(
 
 fn domain_definition<'p>(
     program: &'p resolved::SymbolResolvedTrees,
-    domain_symbol: symbols::SymbolHandle,
+    domain_symbol: SymbolHandle,
 ) -> Result<&'p resolved::domain::DomainDefinition, Diagnostic> {
     program
         .domain_definition_by_symbol(domain_symbol)
@@ -195,7 +198,7 @@ pub(super) fn lower_domain_membership_expression(
     program: &resolved::SymbolResolvedTrees,
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
-    domain_symbol: symbols::SymbolHandle,
+    domain_symbol: SymbolHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
     let domain_definition = domain_definition(program, domain_symbol)?;
     if is_pending_data_subject(program, target, value) {
@@ -203,11 +206,8 @@ pub(super) fn lower_domain_membership_expression(
             "cannot form named-domain membership: the logical data subject's own default domain is still pending admission",
         ).with_source_span(target.expression_table.source_span(value)));
     }
-    let expanded = crate::type_reference::domain_aliases::expand_domain_reference(
-        program,
-        domain_symbol,
-        vec![domain_definition.name.clone()],
-    )?;
+    let expanded =
+        expand_domain_reference(program, domain_symbol, vec![domain_definition.name.clone()])?;
     let mut lowered = Vec::with_capacity(expanded.len());
     for atom in expanded {
         lowered.push(lower_atomic_domain_membership_expression(
@@ -224,7 +224,7 @@ fn lower_atomic_domain_membership_expression(
     program: &resolved::SymbolResolvedTrees,
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
-    domain_symbol: symbols::SymbolHandle,
+    domain_symbol: SymbolHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
     let domain_definition = domain_definition(program, domain_symbol)?;
     let source = &program.tables.bodies.expressions;
@@ -328,21 +328,13 @@ fn lower_atomic_domain_membership_expression(
 
 fn case_symbols_for_domain_fact(
     program: &resolved::SymbolResolvedTrees,
-    domain: arena::HandleSpan<resolved::name::DiagnosticName>,
-) -> (symbols::SymbolHandle, symbols::SymbolHandle) {
+    domain: HandleSpan<resolved::name::DiagnosticName>,
+) -> (SymbolHandle, SymbolHandle) {
     let [type_name, case_name] = program.domain_path_members(domain) else {
-        return (
-            symbols::SymbolHandle::invalid(),
-            symbols::SymbolHandle::invalid(),
-        );
+        return (SymbolHandle::invalid(), SymbolHandle::invalid());
     };
-    let Some(data_index) =
-        crate::expressions::exhaustiveness::data_definition_index(program, type_name)
-    else {
-        return (
-            symbols::SymbolHandle::invalid(),
-            symbols::SymbolHandle::invalid(),
-        );
+    let Some(data_index) = data_definition_index(program, type_name) else {
+        return (SymbolHandle::invalid(), SymbolHandle::invalid());
     };
     let data = &program.data_definitions[data_index];
     let case_symbol = program
@@ -356,7 +348,7 @@ fn case_symbols_for_domain_fact(
             }
             _ => None,
         })
-        .unwrap_or_else(symbols::SymbolHandle::invalid);
+        .unwrap_or_else(SymbolHandle::invalid);
     (data.symbol, case_symbol)
 }
 

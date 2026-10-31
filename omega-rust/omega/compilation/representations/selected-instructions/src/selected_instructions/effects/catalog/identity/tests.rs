@@ -16,6 +16,7 @@ use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
 };
+use semantic_vocabulary::IntegerSign::{Signed, Unsigned};
 use target::NativeTarget;
 
 const fn instruction(variant: u32) -> RegisterConstraintKey {
@@ -935,16 +936,12 @@ const PINNED_TRAPPING_FAMILY_TAGS: [(TrappingOperation, SaturatingCarrier, u16);
     (TrappingOperation::Remainder, SaturatingCarrier::I64, 157),
     (TrappingOperation::ShiftLeft, SaturatingCarrier::U8, 166),
     (
-        TrappingOperation::Convert {
-            source: semantic_vocabulary::IntegerSign::Signed,
-        },
+        TrappingOperation::Convert { source: Signed },
         SaturatingCarrier::I8,
         178,
     ),
     (
-        TrappingOperation::Convert {
-            source: semantic_vocabulary::IntegerSign::Unsigned,
-        },
+        TrappingOperation::Convert { source: Unsigned },
         SaturatingCarrier::U64,
         193,
     ),

@@ -70,7 +70,10 @@ fn encode_subject_to(
     } else {
         8
     });
-    encode_target_profile(encoder, target_profile, limits)?;
+    encoder.bytes_bounded(
+        target_profile.identity().as_str().as_bytes(),
+        limits.maximum_identity_bytes,
+    )?;
     encode_root_selection(encoder, root, limits)?;
     encoder.count(packages.len())?;
     for ((source, navigation), projection) in packages
@@ -110,17 +113,6 @@ fn encode_subject_to(
         }
     }
     encoder.check()
-}
-
-fn encode_target_profile(
-    encoder: &mut Encoder,
-    profile: TargetProfile,
-    limits: CanonicalSourceClosureSubjectLimits,
-) -> Result<(), CanonicalSourceClosureSubjectError> {
-    encoder.bytes_bounded(
-        profile.identity().as_str().as_bytes(),
-        limits.maximum_identity_bytes,
-    )
 }
 
 fn encode_dependency_projection(

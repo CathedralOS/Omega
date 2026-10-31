@@ -1,7 +1,7 @@
 //! Destination compatibility consumes finalized operator selection. Operand
 //! formats describe a builtin result only after selection retained that builtin.
 
-use crate::flow::indexed_statements;
+use crate::flow::{indexed_statements, resolved_operator_statement_symbol};
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -29,8 +29,7 @@ pub(super) fn check(
                 };
                 match statement {
                     StatementNode::Call(call) => {
-                        if let Some(symbol) =
-                            crate::flow::resolved_operator_statement_symbol(program, call)
+                        if let Some(symbol) = resolved_operator_statement_symbol(program, call)
                             && let Some(operator) =
                                 typed_trees::operator::declaration_by_symbol(program, symbol)
                         {

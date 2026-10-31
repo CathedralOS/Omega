@@ -1,6 +1,8 @@
 //! Closed storage reach of a fresh owned value, without nominal-name rules.
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::{
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 pub(super) fn contains_only_scalars<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
@@ -109,7 +111,7 @@ mod tests {
     fn may_alias(
         declaration: &StructuralTypeDeclaration,
         fresh: bool,
-        path: &[terminal_psi::StructuralPathSegment],
+        path: &[StructuralPathSegment],
     ) -> bool {
         let query = PlaceId::new(1).unwrap();
         let value = PlaceId::new(2).unwrap();
@@ -158,11 +160,7 @@ mod tests {
             "a mere parameter name proves no fresh storage"
         );
         assert!(
-            may_alias(
-                &declaration,
-                true,
-                &[terminal_psi::StructuralPathSegment::Referent]
-            ),
+            may_alias(&declaration, true, &[StructuralPathSegment::Referent]),
             "crossing a descriptor is never the scalar home"
         );
     }
@@ -233,7 +231,7 @@ mod tests {
         );
         child.shape = StructuralTypeShape::FixedArray {
             element: outer.id,
-            length: 1,
+            length: terminal_psi::ArrayExtent::Literal(1),
         };
         assert!(
             !contains_only_scalars([&outer, &child].into_iter(), outer.id),

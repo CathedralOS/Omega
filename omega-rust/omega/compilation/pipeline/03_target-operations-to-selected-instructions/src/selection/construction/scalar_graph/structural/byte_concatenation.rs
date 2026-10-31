@@ -1,5 +1,6 @@
 //! Copy two live spans into fresh activation storage, then publish their sum.
 //! Capacity bounds writable backing; it never supplies a readable extent.
+use super::byte_field_read::payload_pointer;
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
@@ -10,6 +11,7 @@ use super::{
     transport_register,
 };
 use crate::SelectedInstructionError;
+use crate::selection::byte_concatenation_input::field_offset;
 use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ScalarType, ValueId};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
@@ -146,14 +148,7 @@ pub(super) fn operand_pointer(
             let geometry =
                 crate::selection::field_bytes::FieldBytes::resolve(function, source, *field, &[])
                     .ok_or(invalid())?;
-            super::byte_field_read::payload_pointer(
-                function,
-                builder,
-                row,
-                source.place,
-                geometry,
-                &[],
-            )
+            payload_pointer(function, builder, row, source.place, geometry, &[])
         }
     }
 }
@@ -167,10 +162,7 @@ pub(super) fn operand_span(
     operand: &ByteSequenceOperand,
 ) -> Result<(u32, Vec<(PlaceId, ValueId)>), SelectedInstructionError> {
     let offset = match operand {
-        ByteSequenceOperand::Field { .. } => {
-            crate::selection::byte_concatenation_input::field_offset(function, operand)
-                .ok_or(invalid())?
-        }
+        ByteSequenceOperand::Field { .. } => field_offset(function, operand).ok_or(invalid())?,
         ByteSequenceOperand::Whole { source, .. } => {
             let (geometry, shape) =
                 super::descriptor_operands::source_geometry(function, source).ok_or(invalid())?;

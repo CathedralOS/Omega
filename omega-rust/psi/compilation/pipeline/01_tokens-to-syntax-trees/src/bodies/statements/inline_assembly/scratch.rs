@@ -9,6 +9,7 @@ use syntax_trees::types::TypeReferenceNode;
 
 pub(super) use language_core::inline_assembly::ASM_SCRATCH_NAMES as NAMES;
 use language_core::inline_assembly::{ASM_SCRATCH_SLOT_COUNT, ASM_ZERO_FLAG_SLOT};
+use numerics::literals::IntegerRadix;
 
 pub(super) fn name(trees: &mut SyntaxTrees, value: &str) -> ExpressionHandle {
     let member = trees
@@ -367,12 +368,8 @@ pub(super) fn observe_environment(
 }
 pub(super) fn snapshot(trees: &mut SyntaxTrees) -> Vec<StatementHandle> {
     let all = trees.expressions.insert(ExpressionNode::Integer(
-        IntegerLiteral::from_parts(
-            false,
-            numerics::literals::IntegerRadix::Hexadecimal,
-            "ffffffffffffffff",
-        )
-        .expect("compiler-owned flag mask"),
+        IntegerLiteral::from_parts(false, IntegerRadix::Hexadecimal, "ffffffffffffffff")
+            .expect("compiler-owned flag mask"),
     ));
     let target_type = wide_type(trees);
     let all = trees

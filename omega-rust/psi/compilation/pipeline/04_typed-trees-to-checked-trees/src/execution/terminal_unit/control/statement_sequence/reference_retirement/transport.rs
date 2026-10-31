@@ -7,7 +7,13 @@ use super::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, Results,
     SymbolHandle,
 };
-use checked_trees::BorrowLoanFact;
+use arena::Handle;
+use checked_trees::{BorrowLoanFact, CheckedUnitLocalBindingPlan};
+use facts::PlaceRoot;
+use typed_trees::state::State;
+use validation::reference_result_custody::StoredCarrierSource;
+use validation::reference_result_custody::storage_owner_type_reference;
+use validation::reference_result_custody::stored_carrier_sources;
 
 pub(super) use crate::borrow::{carrier_path, named_carrier_path};
 
@@ -15,7 +21,7 @@ pub(super) use crate::borrow::{carrier_path, named_carrier_path};
 /// move retain the supplying occurrence's immediate parents; neither makes
 /// the supplying descriptor itself a parent of the receiving descriptor.
 pub(in crate::execution::terminal_unit::control::statement_sequence) type TransportedLoans =
-    Vec<(arena::Handle<BorrowLoanFact>, arena::Handle<BorrowLoanFact>)>;
+    Vec<(Handle<BorrowLoanFact>, Handle<BorrowLoanFact>)>;
 
 /// Rejoin each receiving loan leaf through its retained construction graph.
 /// The relation is prepared once for statement scheduling and remains valid
@@ -24,7 +30,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
-    state: &typed_trees::state::State,
+    state: &State,
     results: &Results,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<TransportedLoans> {
@@ -59,7 +65,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
         let (owner, formation) =
             if let Some((result, _)) = operation.discardable_structural_result() {
                 let mut registered = results.iter().filter(|(binding, _)| binding == result);
-                let Some((_, facts::PlaceRoot::Symbol(owner))) = registered.next() else {
+                let Some((_, PlaceRoot::Symbol(owner))) = registered.next() else {
                     continue;
                 };
                 if registered.next().is_some() {
@@ -73,20 +79,18 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
             } else {
                 continue;
             };
-        let reference = validation::reference_result_custody::storage_owner_type_reference(
-            program, state, owner, formation,
-        )?;
+        let reference = storage_owner_type_reference(program, state, owner, formation)?;
         for (receiver, loan) in
             facts
                 .borrow
                 .statement_resource_loans(borrowing)?
                 .filter(|(_, loan)| {
-                    loan.storage_owner == facts::PlaceRoot::Symbol(owner)
+                    loan.storage_owner == PlaceRoot::Symbol(owner)
                         && loan.statement_index == formation as usize
                 })
         {
             let CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
+                CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
             ) = operation
             else {
                 continue;
@@ -98,13 +102,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 reference,
                 facts.borrow.loan_owner_path(loan),
             )?;
-            let sources = validation::reference_result_custody::stored_carrier_sources(
-                program, facts, *value, &path,
-            )?;
+            let sources = stored_carrier_sources(program, facts, *value, &path)?;
             for source in sources {
-                let validation::reference_result_custody::StoredCarrierSource::Place(source) =
-                    source
-                else {
+                let StoredCarrierSource::Place(source) = source else {
                     // Borrowed calls form their own descriptor. Owned carrier
                     // operands retain the producer's supplying occurrence
                     // above; neither route invents historical correspondence.
@@ -117,7 +117,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                         let mut holders = results
                             .iter()
                             .filter(|(binding, _)| binding.binding_ordinal == binding_ordinal);
-                        let (binding, facts::PlaceRoot::Symbol(owner)) = holders.next()? else {
+                        let (binding, PlaceRoot::Symbol(owner)) = holders.next()? else {
                             return None;
                         };
                         if holders.next().is_some() {
@@ -131,12 +131,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                     },
                 };
                 let Some(supplying_type) =
-                    validation::reference_result_custody::storage_owner_type_reference(
-                        program,
-                        state,
-                        source_owner,
-                        formation,
-                    )
+                    storage_owner_type_reference(program, state, source_owner, formation)
                 else {
                     continue;
                 };
@@ -146,7 +141,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                         .borrow
                         .statement_resource_loans(borrowing)?
                         .filter(|(_, candidate)| {
-                            candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
+                            candidate.storage_owner == PlaceRoot::Symbol(source_owner)
                                 && order.precedes(candidate.statement_index, loan.statement_index)
                                 && source_formation
                                     .is_none_or(|formation| candidate.statement_index == formation)
@@ -192,8 +187,8 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
 /// owed; reachability itself neither disposes a supplier nor grants access.
 pub(super) fn supplies(
     transported: &TransportedLoans,
-    supplier: arena::Handle<BorrowLoanFact>,
-    receiver: arena::Handle<BorrowLoanFact>,
+    supplier: Handle<BorrowLoanFact>,
+    receiver: Handle<BorrowLoanFact>,
 ) -> bool {
     let mut pending = vec![receiver];
     let mut visited = Vec::new();

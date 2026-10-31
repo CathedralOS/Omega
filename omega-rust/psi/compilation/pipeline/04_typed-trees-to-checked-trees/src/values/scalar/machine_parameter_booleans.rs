@@ -10,6 +10,7 @@ pub(crate) mod structural_equality;
 mod structural_paths;
 
 use crate::values::scalar::boolean_lowering::lower_boolean_expression;
+use crate::values::scalar::scalar_parameter_roster;
 use checked_trees::{CheckedBooleanExpression, CheckedOperatorFacts};
 use typed_trees::expression::ExpressionHandle;
 
@@ -44,8 +45,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
     // dense retained-scalar roster; `[erased]` and structural bindings must
     // stay out of it so their references fall through to the erased/structural
     // branches that still see the authored roster.
-    let (scalar_parameters, parameter_types) =
-        crate::values::scalar::scalar_parameter_roster(program, parameters)?;
+    let (scalar_parameters, parameter_types) = scalar_parameter_roster(program, parameters)?;
     lower_boolean_expression(
         program,
         operators,
@@ -74,8 +74,7 @@ pub(crate) fn lower_parameter_boolean_expression(
     ) {
         return None;
     }
-    let (scalar_parameters, parameter_types) =
-        crate::values::scalar::scalar_parameter_roster(program, parameters)?;
+    let (scalar_parameters, parameter_types) = scalar_parameter_roster(program, parameters)?;
     lower_boolean_expression(
         program,
         operators,
@@ -104,8 +103,7 @@ pub(crate) fn lower_parameter_scalar_expression(
     ) {
         return None;
     }
-    let (scalar_parameters, parameter_types) =
-        crate::values::scalar::scalar_parameter_roster(program, parameters)?;
+    let (scalar_parameters, parameter_types) = scalar_parameter_roster(program, parameters)?;
     super::scalar_lowering::lower_return_expression(
         program,
         operators,

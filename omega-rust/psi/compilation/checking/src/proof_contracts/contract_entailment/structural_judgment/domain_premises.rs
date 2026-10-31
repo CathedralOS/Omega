@@ -8,10 +8,13 @@
 
 use super::{StructuralJudge, StructuralTerm};
 use crate::frozen_program::expression_table;
+use language_semantics::content::ContentPlaceVersion;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameter;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::signature::{SignatureContractKind, StateParameter};
+use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
@@ -318,7 +321,9 @@ impl StructuralJudge<'_> {
         // can bridge the entry fence; normal-result admission below must still
         // establish this exact value's nominal validity.
         let current = self
-            .stored_value_observation(self.runtime_declaration_scope(), expression)
+            .stored_value_observation(self.runtime_declaration_scope(), expression, |selector| {
+                self.declaration_term(selector)
+            })
             .and_then(|value| value.observation_identity_key());
         if self.storage_observation_invalidated(expression) && current.as_ref() != Some(&identity) {
             return false;
@@ -390,10 +395,7 @@ impl StructuralJudge<'_> {
             && crate::field_domains::readable_nominal_definition(program, projected_type).is_some()
             && same_application(projected_type)
             && let Some(captured) = self
-                .captured_place_projection(
-                    place,
-                    language_semantics::content::ContentPlaceVersion::Entry,
-                )
+                .captured_place_projection(place, ContentPlaceVersion::Entry)
                 .or_else(|| {
                     // Invocation admission establishes a readable formal's referent
                     // domain too, without making the reference an owned value.
@@ -473,13 +475,7 @@ impl StructuralJudge<'_> {
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         environment: &[(String, StructuralTerm)],
-    ) -> Option<
-        Vec<(
-            typed_trees::data::TypeParameter,
-            typed_trees::data::DataField,
-            StructuralTerm,
-        )>,
-    > {
+    ) -> Option<Vec<(TypeParameter, typed_trees::data::DataField, StructuralTerm)>> {
         use typed_trees::types::TypeReferenceNode;
         let program = self.program;
         let binders = program.data_type_parameters(definition);
@@ -592,7 +588,7 @@ impl StructuralJudge<'_> {
                 self.captured_parameter_projection(
                     parameter.symbol,
                     &[],
-                    language_semantics::content::ContentPlaceVersion::Entry,
+                    ContentPlaceVersion::Entry,
                 )
                 .map(|value| (parameter.symbol, value))
             })
@@ -784,10 +780,7 @@ impl StructuralJudge<'_> {
     fn intake_observed_integer_bound(
         &mut self,
         reference: TypeReferenceHandle,
-        meaning: (
-            typed_trees::types::PrimitiveType,
-            numerics::arithmetic::ArithmeticDomain,
-        ),
+        meaning: (PrimitiveType, numerics::arithmetic::ArithmeticDomain),
         value: &StructuralTerm,
         operator: BinaryOperator,
         bound: numerics::bignum::BigInt,
@@ -1305,5 +1298,161 @@ impl StructuralJudge<'_> {
             let term = Self::substitute_call_term(&term, bindings, &[]);
             self.intake_equation(term, super::value_predicates::boolean_term(true), 0);
         }
+    }
+}
+
+impl StructuralJudge<'_> {
+    /// Collection predicates observe admitted entry storage. Their checked-body
+    /// explorer supplies necessary relations, without mathematical denotation of
+    /// a borrowed runtime argument or an unchecked predicate decomposition.
+    pub(super) fn intake_entry_collection_predicate(&mut self, fact: ExpressionHandle) {
+        if !self.requires_value_preservation() || self.storage_write_sequence != 0 {
+            return;
+        }
+        let Some((owner, _)) = self.declaration_scope() else {
+            return;
+        };
+        let Some(application) =
+            crate::proof_contracts::collection_predicates::predicate_application(
+                self.program,
+                owner,
+                fact,
+            )
+        else {
+            return;
+        };
+        let predicate = &self.program.machines()[application.machine];
+        if !crate::machine_calls::contract_dependencies::independent_application(
+            self.program,
+            self.machine_symbol,
+            predicate.symbol,
+            &[],
+        ) {
+            return;
+        }
+        let consequences =
+            crate::proof_contracts::collection_predicates::application_ordering_consequences(
+                self.program,
+                &application,
+            );
+        let elements = crate::proof_contracts::collection_predicates::argument_element_consequences(
+            self.program,
+            &application,
+        );
+        for consequence in consequences.into_iter().chain(elements) {
+            let (Some(left), Some(right)) = (
+                self.entry_predicate_integer_operand(&consequence.left),
+                self.entry_predicate_integer_operand(&consequence.right),
+            ) else {
+                continue;
+            };
+            self.intake_equation(
+                StructuralTerm::MathematicalBinary {
+                    operator: consequence.operator,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                super::value_predicates::boolean_term(true),
+                0,
+            );
+        }
+    }
+
+    fn entry_predicate_integer_operand(
+        &self,
+        operand: &crate::proof_contracts::collection_predicates::PredicateIntegerOperand,
+    ) -> Option<StructuralTerm> {
+        use crate::proof_contracts::collection_predicates::PredicateIntegerOperand;
+        let (reference, value) = match operand {
+            PredicateIntegerOperand::Integer(value) => {
+                return Some(StructuralTerm::Integer(
+                    numerics::bignum::BigInt::from_i128(*value),
+                ));
+            }
+            PredicateIntegerOperand::Argument(subject) => {
+                let reference = self.declaration_expression_type(subject.expression)?;
+                let mut value = self.declaration_term(subject.expression)?;
+                let projected = crate::value_custody::places::project_type_reference_from_segments(
+                    self.program,
+                    reference,
+                    &subject.projection,
+                )?;
+                for (position, segment) in subject.projection.iter().enumerate() {
+                    let current =
+                        crate::value_custody::places::project_type_reference_from_segments(
+                            self.program,
+                            reference,
+                            &subject.projection[..position],
+                        )?;
+                    value = if let facts::PlaceSegment::FixedIndex { index } = segment {
+                        // The checked explorer selected an in-bounds fixed
+                        // element. Use the ordinary typed observation reader;
+                        // a reference descriptor alone still supplies no contents.
+                        super::super::observed_projections::project_index(
+                            self.program,
+                            current,
+                            value,
+                            StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
+                                u64::try_from(*index).ok()?,
+                            )),
+                        )?
+                    } else {
+                        super::super::observed_projections::project_observed_value_in_scope(
+                            self.program,
+                            self,
+                            current,
+                            value,
+                            std::slice::from_ref(segment),
+                        )?
+                    };
+                }
+                (projected, value)
+            }
+            PredicateIntegerOperand::Read(read) => {
+                let machine = self
+                    .program
+                    .machine_by_own_or_state_symbol(read.predicate)?;
+                let state = self.program.machine_states(machine).first()?;
+                let parameters = self.program.state_parameters(state);
+                if parameters.len() != read.arguments.len() {
+                    return None;
+                }
+                let bindings = parameters
+                    .iter()
+                    .zip(&read.arguments)
+                    .map(|(parameter, argument)| {
+                        Some((parameter.symbol, self.declaration_term(*argument)?))
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let reference = crate::parameter_expression_result_type_reference(
+                    self.program,
+                    machine.symbol,
+                    parameters,
+                    read.expression,
+                )?;
+                let value = self.bound_contract_term(
+                    read.expression,
+                    machine.symbol,
+                    parameters,
+                    machine.symbol,
+                    &bindings,
+                    &[],
+                    None,
+                    0,
+                )?;
+                (reference, value)
+            }
+        };
+        let (primitive, _) = super::super::structural_terms::scalar_operand_meaning(
+            self.program,
+            reference,
+            &value,
+        )?;
+        primitive
+            .is_fixed_integer()
+            .then(|| StructuralTerm::IntegerEmbedding {
+                reference,
+                value: Box::new(value),
+            })
     }
 }

@@ -4,6 +4,7 @@
 
 use super::{BinaryOperator, Engine, OpaqueTerm, Polynomial};
 use crate::frozen_program::expression_table;
+use std::sync::atomic::Ordering;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
@@ -80,11 +81,9 @@ impl Engine<'_> {
         }) { return Some(Polynomial::atom(atom.clone())); }
         let identity = self
             .denotation_identities
-            .try_update(
-                std::sync::atomic::Ordering::Relaxed,
-                std::sync::atomic::Ordering::Relaxed,
-                |current| current.checked_add(1),
-            )
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
             .ok()?;
         let atom = format!("\0declared-application:{identity}");
         self.register_opaque_term(

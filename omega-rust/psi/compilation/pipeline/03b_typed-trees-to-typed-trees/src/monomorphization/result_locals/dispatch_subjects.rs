@@ -22,6 +22,7 @@ use typed_trees::expression::{
 use typed_trees::statement::{StatementNode, StatementRootRole};
 use typed_trees::types::TypeReferenceNode;
 use validation::expression_traversal::collect_expression_tree;
+use validation::has_anonymous_operator_meaning;
 
 pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<SymbolHandle> {
     let mut pending = Vec::new();
@@ -54,9 +55,7 @@ pub(in crate::monomorphization) fn materialize(program: &mut TypedTrees) -> Vec<
                         program,
                         local.initial_value,
                         &[],
-                        |expression| {
-                            validation::has_anonymous_operator_meaning(program, expression)
-                        },
+                        |expression| has_anonymous_operator_meaning(program, expression),
                     )
                     .is_some()
                 {

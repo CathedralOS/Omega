@@ -8,6 +8,7 @@ use diagnostics::Diagnostic;
 use facts::{FactPlan, PlaceSegment};
 use semantic_vocabulary::{IntegerSign, IntegerType};
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -331,11 +332,7 @@ fn typed_storage_projection(
                         .data_members(data)
                         .iter()
                         .find_map(|member| match member {
-                            typed_trees::data::DataMember::Variant(variant)
-                                if variant.symbol == case =>
-                            {
-                                Some(variant)
-                            }
+                            DataMember::Variant(variant) if variant.symbol == case => Some(variant),
                             _ => None,
                         })
                         .ok_or(())?;
@@ -345,11 +342,7 @@ fn typed_storage_projection(
                         .data_members(data)
                         .iter()
                         .find_map(|member| match member {
-                            typed_trees::data::DataMember::Field(field)
-                                if field.symbol == *symbol =>
-                            {
-                                Some(field)
-                            }
+                            DataMember::Field(field) if field.symbol == *symbol => Some(field),
                             _ => None,
                         })
                 }

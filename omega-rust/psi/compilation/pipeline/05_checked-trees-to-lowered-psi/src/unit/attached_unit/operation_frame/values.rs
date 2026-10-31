@@ -11,6 +11,8 @@ use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
+use crate::reference_custody::result_multiplicity;
 use crate::terminal_identities::stored_structural_identity;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, StructuralTypeId, ValueDeclaration,
@@ -57,10 +59,7 @@ impl OperationFrame<'_, '_> {
                 destination: structural_values::ValueDestination::Evaluation,
                 statement: *statement_index,
                 structural_type,
-                multiplicity: crate::reference_custody::result_multiplicity(
-                    checked,
-                    node.type_reference,
-                ),
+                multiplicity: result_multiplicity(checked, node.type_reference),
                 binding_type_reference: Default::default(),
                 access: terminal_psi::StructuralAccess::Owned,
                 selection: Default::default(),
@@ -145,9 +144,7 @@ impl OperationFrame<'_, '_> {
                 structural_type: lookup_type_id(type_ids, &result.type_identity)?,
                 multiplicity: result.multiplicity,
                 binding_type_reference: result.local.declared_type,
-                access: crate::expression_preparation::bindings::structural_paths::terminal_access(
-                    result.local.access,
-                ),
+                access: terminal_access(result.local.access),
                 selection: flow_facts(checked)
                     .ownership
                     .owned_selection_for_expression(
@@ -274,10 +271,7 @@ impl OperationEnvironment<'_> {
                     destination: structural_values::ValueDestination::Operand,
                     statement: node.statement_index,
                     structural_type,
-                    multiplicity: crate::reference_custody::result_multiplicity(
-                        checked,
-                        root.type_reference,
-                    ),
+                    multiplicity: result_multiplicity(checked, root.type_reference),
                     binding_type_reference: root.type_reference,
                     access: terminal_psi::StructuralAccess::Owned,
                     selection,

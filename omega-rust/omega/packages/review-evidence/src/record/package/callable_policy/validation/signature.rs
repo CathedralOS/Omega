@@ -4,6 +4,7 @@ use super::{
     signature_contracts as contracts, signature_expressions as expressions,
     signature_parameters as parameters,
 };
+use crate::record::public_policy::validation::scope;
 use crate::record::{
     PackagePolicyCallable, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
     PackageReviewContractExpression, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
@@ -11,6 +12,7 @@ use crate::record::{
     PackageReviewPropositionParameterSignature, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
+use language_semantics::type_identity::normalize_requirement_lifetime_partition;
 
 pub(in crate::record) type Result = std::result::Result<(), &'static str>;
 
@@ -96,10 +98,7 @@ fn callable_scope(callable: &PackagePolicyCallable) -> Scope<'_> {
     Scope {
         parameters: callable.parameters.len(),
         result: callable.return_type.is_some(),
-        ..crate::record::public_policy::validation::scope(
-            &callable.type_parameters,
-            callable.lifetime_parameter_count,
-        )
+        ..scope(&callable.type_parameters, callable.lifetime_parameter_count)
     }
 }
 
@@ -148,9 +147,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
         }
         lifetimes(&conformance.trait_lifetime_arguments, &scope)?;
         if conformance.requirement_lifetime_partition
-            != language_semantics::type_identity::normalize_requirement_lifetime_partition(
-                &conformance.trait_lifetime_arguments,
-            )
+            != normalize_requirement_lifetime_partition(&conformance.trait_lifetime_arguments)
         {
             return Err(
                 "requirement lifetime partition differs from its actual selected lifetimes",

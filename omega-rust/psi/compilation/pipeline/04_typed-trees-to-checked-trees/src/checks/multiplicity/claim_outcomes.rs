@@ -8,6 +8,9 @@
 //! correspondence. A result binding is not new resource authority.
 
 mod joins;
+use crate::collections::push_unique;
+use crate::collections::unique_in_order;
+use crate::flow::literal_expression_projections;
 pub(super) use joins::preserved_inactive_place;
 pub(crate) use joins::{CallClaimJoinFailure, publish_call_claim_joins, validate_call_claim_joins};
 
@@ -93,7 +96,7 @@ impl ClaimOutcomePreparation {
         let Some(target) = validation::call_target_state(program, call.target_symbol) else {
             return;
         };
-        crate::collections::push_unique(&mut self.dependencies, target.symbol);
+        push_unique(&mut self.dependencies, target.symbol);
         if let Some(map) = self
             .maps
             .iter()
@@ -261,10 +264,10 @@ fn derive_claim_outcome_hypothesis(
             },
         ))
         .collect::<Vec<_>>();
-    let mut entries = crate::collections::unique_in_order(return_entries.iter().flatten().cloned());
+    let mut entries = unique_in_order(return_entries.iter().flatten().cloned());
     entries.retain(|entry| expected_paths.contains(&entry.output_path));
     for path in &expected_paths {
-        let sources = crate::collections::unique_in_order(
+        let sources = unique_in_order(
             entries
                 .iter()
                 .filter(|entry| entry.output_path == *path)
@@ -995,7 +998,7 @@ fn claim_outcomes_for_owned_selection(
                 output_path,
                 source,
             };
-            crate::collections::push_unique(&mut entries, entry);
+            push_unique(&mut entries, entry);
         }
     }
     if entries.is_empty() {
@@ -1076,7 +1079,7 @@ fn claim_origin_for_source(
             parameter_symbol,
             path,
         } => {
-            let origins = crate::collections::unique_in_order(
+            let origins = unique_in_order(
                 permission_events
                     .iter()
                     .filter(|event| {
@@ -1145,13 +1148,8 @@ fn bind_claim_outcome_source_at_arguments(
     let parameter = parameter_for_symbol(program, target_state, *parameter_symbol)?;
     // Constructor operands already name the transferred claims. Resolve the
     // exact typed projection instead of inventing storage below a literal.
-    let mut projections = crate::flow::literal_expression_projections(
-        program,
-        argument,
-        parameter.type_reference,
-        path,
-        false,
-    )?;
+    let mut projections =
+        literal_expression_projections(program, argument, parameter.type_reference, path, false)?;
     let projection = projections.pop()?;
     if !projections.is_empty() {
         return None;
@@ -1163,7 +1161,7 @@ fn bind_claim_outcome_source_at_arguments(
         projection.expression,
     )?;
     place.segments.extend_from_slice(&projection.remaining);
-    let sources = crate::collections::unique_in_order(
+    let sources = unique_in_order(
         permission_events
             .iter()
             .filter(|event| {
@@ -1276,7 +1274,7 @@ fn call_result_origin_rewrite(
     let map = maps
         .iter()
         .find(|map| map.state_symbol == target_state.symbol)?;
-    let matching = crate::collections::unique_in_order(
+    let matching = unique_in_order(
         map.entries
             .iter()
             .filter(|entry| entry.output_path == receiving_path)

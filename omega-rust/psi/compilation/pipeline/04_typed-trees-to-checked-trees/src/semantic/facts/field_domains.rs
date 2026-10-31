@@ -33,6 +33,8 @@
 //! transport that promise into ordinary operand captures. They are not new
 //! domain-membership obligations and cannot restore a fact after a mutation.
 
+use crate::checks::type_multiplicity;
+use crate::values::float_predicates::declared_type_predicates;
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
     QualificationEvidence,
@@ -317,11 +319,7 @@ pub(super) fn append_state_parameter_domain_facts(
                     continue;
                 }
                 let mut predicates = Vec::new();
-                crate::values::float_predicates::declared_type_predicates(
-                    program,
-                    parameter.type_reference,
-                    &mut predicates,
-                );
+                declared_type_predicates(program, parameter.type_reference, &mut predicates);
                 if !predicates.is_empty() {
                     let place = facts.append_symbol_place(parameter.symbol);
                     for predicate in predicates {
@@ -415,8 +413,7 @@ fn state_parameter_domain_is_resource_claim(
     type_reference: typed_trees::types::TypeReferenceHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    crate::checks::type_multiplicity(program, type_reference)
-        == language_semantics::Multiplicity::Linear
+    type_multiplicity(program, type_reference) == language_semantics::Multiplicity::Linear
         && program
             .domain_definition(domain_symbol)
             .is_some_and(|domain| {

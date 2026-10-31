@@ -36,6 +36,7 @@
 //! zero beneath the loan's pointer. A captured mutable carrier retains its
 //! actual live owned or exclusive-ingress backing; descriptor ownership is
 //! not permission to write the referent.
+use super::references::{window_projection, window_storage};
 use super::{LiveDefinitions, RowSite};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -233,13 +234,7 @@ pub(super) fn store_field(
         custody_path = full;
     }
     let (storage, custody_path) = if super::references::contains_reference(types, field_type) {
-        super::references::window_storage(
-            function,
-            types,
-            live,
-            destination.place(),
-            &custody_path,
-        )?
+        window_storage(function, types, live, destination.place(), &custody_path)?
     } else {
         (destination.place(), custody_path)
     };
@@ -297,15 +292,8 @@ pub(super) fn window_referent(
     if !path.contains(&StructuralPathSegment::Referent) {
         return Ok(None);
     }
-    let referent = super::references::window_projection(
-        function,
-        live,
-        types,
-        root.place(),
-        path,
-        required_access,
-    )
-    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let referent = window_projection(function, live, types, root.place(), path, required_access)
+        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if referent.carrier_type != root.structural_type() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

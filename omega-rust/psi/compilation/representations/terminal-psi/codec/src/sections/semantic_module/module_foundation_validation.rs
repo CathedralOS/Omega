@@ -28,6 +28,7 @@ mod storage_foundations;
 mod structural_type_foundations;
 mod target_layouts;
 mod task_activation;
+mod unoptimized_behavior;
 mod value_foundations;
 
 use super::wire::strictly_increasing;
@@ -257,6 +258,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             }
         }
     }
+    unoptimized_behavior::validate(module)?;
+    declaration_foundations::validate_calling_signatures(module)?;
     for boundary in &module.boundary_machines {
         declaration_foundations::validate_boundary_machine(module, boundary)?;
     }

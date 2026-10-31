@@ -1,6 +1,7 @@
 use super::tokens::{Tokens, decoded, nibble};
 use crate::encoding::encode::encoder::text::{HEADER, MAXIMUM_MARKUP_DEPTH, label};
 use crate::encoding::{PackagePolicyRecoveryError as Error, PackagePolicyRecoveryLimits};
+use std::str::FromStr;
 
 /// The generic grammar reconstructs the existing canonical scalar stream.
 /// Names and container shape are subsequently checked by exact policy rerender;
@@ -70,9 +71,7 @@ impl Reader<'_> {
         Ok(())
     }
 
-    pub(in crate::encoding::recovery) fn number<T: std::str::FromStr>(
-        &mut self,
-    ) -> Result<T, Error> {
+    pub(in crate::encoding::recovery) fn number<T: FromStr>(&mut self) -> Result<T, Error> {
         self.tokens.atom()?.parse().map_err(|_| Error::InvalidValue)
     }
 

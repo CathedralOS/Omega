@@ -7,6 +7,7 @@
 //! atomic carrier for an operation admitted by its access plan. Ordinary
 //! assignment never becomes an atomic store implicitly.
 
+use crate::CheckingInput;
 use access_plans::{AccessExposure, AtomicPermissions, FieldAccess};
 use diagnostics::Diagnostic;
 use language_core::atomic::AtomicOrderingPlan;
@@ -14,22 +15,21 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableAssignment};
+use typed_trees::typed_trees::AccessFieldPlan;
+use typed_trees::typed_trees::AccessViewPlan;
 
 mod access_custody;
 mod checked_atomic_resident;
 mod plan_replay;
 pub use checked_atomic_resident::access_atomic_observing_results;
 
-pub(crate) fn validate_plans(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+pub(crate) fn validate_plans(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     plan_replay::validate_plans(program, diagnostics);
     access_custody::validate_agreements(program, diagnostics);
 }
 
 pub(crate) fn validate_statement(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
@@ -56,7 +56,7 @@ pub(crate) fn validate_statement(
 /// [`validate_assignment`]; direct ordinary assignment is deliberately not
 /// exempt.
 pub(crate) fn assignment_is_access_atomic_operation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -70,7 +70,7 @@ pub(crate) fn assignment_is_access_atomic_operation(
 }
 
 fn validate_assignment(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
@@ -121,7 +121,7 @@ fn validate_assignment(
 }
 
 fn validate_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -259,24 +259,21 @@ fn validate_expression(
 }
 
 fn access_atomic_field_for_place<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     machine: &Machine,
     state: &State,
     place: ExpressionHandle,
-) -> Option<&'program typed_trees::typed_trees::AccessFieldPlan> {
+) -> Option<&'program AccessFieldPlan> {
     let (_, field) = access_view_field_for_place(program, machine, state, place)?;
     matches!(&field.access, FieldAccess::Atomic { .. }).then_some(field)
 }
 
 fn access_view_field_for_place<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     machine: &Machine,
     state: &State,
     place: ExpressionHandle,
-) -> Option<(
-    &'program typed_trees::typed_trees::AccessViewPlan,
-    &'program typed_trees::typed_trees::AccessFieldPlan,
-)> {
+) -> Option<(&'program AccessViewPlan, &'program AccessFieldPlan)> {
     if program.access_view_plans.is_empty() {
         return None;
     }
@@ -286,12 +283,9 @@ fn access_view_field_for_place<'program>(
 }
 
 fn access_view_field_for_call_target(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: symbols::SymbolHandle,
-) -> Option<(
-    &typed_trees::typed_trees::AccessViewPlan,
-    &typed_trees::typed_trees::AccessFieldPlan,
-)> {
+) -> Option<(&AccessViewPlan, &AccessFieldPlan)> {
     if !target.is_valid() || program.access_view_plans.is_empty() {
         return None;
     }
@@ -309,14 +303,11 @@ fn access_view_field_for_call_target(
 }
 
 fn access_view_field_for_statement_call<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::statement::TableCall,
-) -> Option<(
-    &'program typed_trees::typed_trees::AccessViewPlan,
-    &'program typed_trees::typed_trees::AccessFieldPlan,
-)> {
+) -> Option<(&'program AccessViewPlan, &'program AccessFieldPlan)> {
     access_view_field_for_call_target(program, call.target_symbol).or_else(|| {
         let receiver = crate::machine_calls::calls::signature_queries::call_receiver_member_names(
             program, call,
@@ -336,7 +327,7 @@ fn access_view_field_for_statement_call<'program>(
 /// already carry ordinary resolved targets; statement calls retain a member
 /// path and need this typed late-binding pass.
 pub(crate) fn statement_call_target(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     call: &typed_trees::statement::TableCall,
@@ -354,10 +345,10 @@ pub(crate) fn statement_call_target(
 }
 
 fn validate_binding_private_use(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
-    view: &typed_trees::typed_trees::AccessViewPlan,
-    field: &typed_trees::typed_trees::AccessFieldPlan,
+    view: &AccessViewPlan,
+    field: &AccessFieldPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if access_exposure(&field.access) != Some(AccessExposure::BindingPrivate)
@@ -383,7 +374,7 @@ fn access_exposure(access: &FieldAccess) -> Option<AccessExposure> {
     }
 }
 
-fn permissions(field: &typed_trees::typed_trees::AccessFieldPlan) -> AtomicPermissions {
+fn permissions(field: &AccessFieldPlan) -> AtomicPermissions {
     match &field.access {
         FieldAccess::Atomic { operations, .. } => *operations,
         _ => AtomicPermissions::default(),
@@ -406,7 +397,7 @@ fn observing_compare_exchange_permission(
 }
 
 fn fetch_operation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&'static str> {
     let Some(binary) = program.expression_table.binary_node(expression) else {
@@ -423,7 +414,7 @@ fn fetch_operation(
 }
 
 fn report_unauthorized(
-    field: &typed_trees::typed_trees::AccessFieldPlan,
+    field: &AccessFieldPlan,
     operation: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -434,7 +425,7 @@ fn report_unauthorized(
 }
 
 pub(crate) fn statement_expression_roots(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     statement: &StatementNode,
     include_assignment_targets: bool,
 ) -> Vec<ExpressionHandle> {

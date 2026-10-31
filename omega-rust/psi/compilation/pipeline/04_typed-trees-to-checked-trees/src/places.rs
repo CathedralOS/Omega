@@ -6,6 +6,8 @@
 
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use validation::CanonicalPlace;
+use validation::canonical_place_from_expression_in_state;
 
 /// The canonical place `expression` denotes in `state_symbol` at
 /// `statement_index`, when it denotes one at all.
@@ -14,11 +16,6 @@ pub(crate) fn place_at(
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
-) -> Option<validation::CanonicalPlace> {
-    validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    )
+) -> Option<CanonicalPlace> {
+    canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)
 }

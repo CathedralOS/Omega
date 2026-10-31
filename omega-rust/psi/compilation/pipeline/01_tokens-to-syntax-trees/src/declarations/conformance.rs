@@ -1,11 +1,13 @@
 use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::declarations::machines::parse_machine;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::parameters::contracts::validate_machine_parameter_contracts;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{ConformanceMember, Item, State};
+use syntax_trees::item::{ConformanceMember, Item, Machine, State};
 use tokens::{KeywordKind, PunctuationKind};
 
 /// `Name<binders> satisfies Trait<Args> { rows }`. The name identifies a
@@ -27,16 +29,9 @@ pub(super) fn parse_conformance<'tokens, 'source>(
     let rest = rest.take_contextual("satisfies")?;
     let ((trait_name, trait_lifetime_arguments, trait_arguments), rest) =
         parse_conformance_trait_application(syntax_trees, rest)?;
-    let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        generic_parameters.type_parameters,
-        rest,
-    )?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        generic_parameters.type_parameters,
-        rest,
-    )?;
+    let ((), rest) =
+        parse_machine_parameter_contracts(syntax_trees, generic_parameters.type_parameters, rest)?;
+    validate_machine_parameter_contracts(syntax_trees, generic_parameters.type_parameters, rest)?;
     if !rest.at_punctuation(PunctuationKind::LeftBrace) {
         return Err(rest.error_here(
             "a named implementation owns one complete closed map; add `{ ... }` binding every requirement after the selected trait application",
@@ -125,10 +120,7 @@ fn parse_conformance_members<'tokens, 'source>(
     Ok((members.finish(), input))
 }
 
-fn normalize_conformance_machine_entry(
-    syntax_trees: &mut SyntaxTrees,
-    machine: &mut syntax_trees::item::Machine,
-) {
+fn normalize_conformance_machine_entry(syntax_trees: &mut SyntaxTrees, machine: &mut Machine) {
     let requirement_name = machine.name.clone();
     let state_handles = syntax_trees.items.state_handles(machine.states).to_vec();
     if let Some(first) = state_handles.first().copied() {

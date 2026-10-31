@@ -6,10 +6,16 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
 };
+use calling_conventions::{CallingPolicy, evaluate_call_plan};
+use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
+use std::collections::BTreeMap;
+use target_operations::{BoundarySettlementBinding, TargetStructuralReturnSource};
 use target_operations::{TargetBooleanExpression, TargetScalarExpression, TerminalPsiProvenance};
 use target_operations::{TargetControlSuccessor, TargetControlTerminator};
+use terminal_psi::BoundaryMachineDeclaration;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
+use terminal_semantics::descriptor_results::is_descriptor;
 
 /// A materialized descriptor owns its carrier, not the borrowed backing.
 /// A live descriptor comes from an operation or a block arrival. Rejoin its
@@ -252,14 +258,8 @@ pub(super) fn lower_terminator(
     live: &mut LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
     target: target::NativeTarget,
-    boundary_machines: &std::collections::BTreeMap<
-        semantic_vocabulary::BoundaryMachineId,
-        &terminal_psi::BoundaryMachineDeclaration,
-    >,
-    settlements: &std::collections::BTreeMap<
-        semantic_vocabulary::BoundaryMachineId,
-        target_operations::BoundarySettlementBinding,
-    >,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &BoundaryMachineDeclaration>,
+    settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
@@ -333,11 +333,8 @@ pub(super) fn lower_terminator(
             // exact ABI. Native defaults cannot replace the admitted entry plan
             // (notably supervisor entries and explicitly selected foreign ABIs).
             let native_plan = || {
-                calling_conventions::evaluate_call_plan(
-                    calling_conventions::CallingPolicy::native_for_target(target),
-                    &signature,
-                )
-                .map_err(LoweringError::AbiPlan)
+                evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
+                    .map_err(LoweringError::AbiPlan)
             };
             let key = (
                 function.machine,
@@ -436,10 +433,7 @@ pub(super) fn lower_terminator(
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             plain_home_cleanup(function, live, structural_types, cleanup_actions)?;
             let cleanup_actions = cleanup_actions.clone();
-            if terminal_semantics::descriptor_results::is_descriptor(
-                structural_types.values().copied(),
-                result.structural_type,
-            ) {
+            if is_descriptor(structural_types.values().copied(), result.structural_type) {
                 // Descriptor storage is not backing ownership. Every established
                 // view uses the same value-result ABI, including a literal whose
                 // octets live in the image rather than an operation-result home.
@@ -572,9 +566,7 @@ pub(super) fn lower_terminator(
                 provenance.edges.push(*psi_edge);
                 return Ok(TargetControlTerminator::ReturnStructural {
                     psi_edge: *psi_edge,
-                    source: target_operations::TargetStructuralReturnSource::Parameter(
-                        actual.clone(),
-                    ),
+                    source: TargetStructuralReturnSource::Parameter(actual.clone()),
                     cleanup_actions,
                 });
             }

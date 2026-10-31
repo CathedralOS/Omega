@@ -588,6 +588,9 @@ impl<'artifact> TerminalExecution<'artifact> {
         crate::effects::boundary_predicates::validate_input_requirements(
             boundary_declaration,
             &scalar_arguments,
+            self,
+            structural_arguments,
+            &boundary_arguments.values,
         )?;
         self.preflight_boundary_result(boundary_declaration, &operation.result)?;
         let remaining_claims = complete_claims(

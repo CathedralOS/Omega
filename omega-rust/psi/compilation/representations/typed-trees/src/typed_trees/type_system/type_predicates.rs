@@ -1,5 +1,8 @@
 //! Static equality consumes exact normalized types, never stored values.
 
+use crate::domain::index_argument_is_closed;
+use crate::domain::index_argument_is_closed_with_substitutions;
+use crate::expression::UnaryOperator;
 use crate::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
@@ -40,15 +43,9 @@ impl TypedTrees {
         substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     ) -> Option<bool> {
         if let Some((left, right, negate)) = self.static_type_predicate_operands(expression) {
-            if !crate::domain::index_argument_is_closed_with_substitutions(
-                self,
-                left,
-                substitutions,
-            ) || !crate::domain::index_argument_is_closed_with_substitutions(
-                self,
-                right,
-                substitutions,
-            ) {
+            if !index_argument_is_closed_with_substitutions(self, left, substitutions)
+                || !index_argument_is_closed_with_substitutions(self, right, substitutions)
+            {
                 return None;
             }
             let identity = |reference| {
@@ -73,12 +70,9 @@ impl TypedTrees {
                     left || right
                 })
             }
-            ExpressionNode::Unary(unary)
-                if unary.operator == crate::expression::UnaryOperator::LogicalNot =>
-            {
-                self.applied_static_type_predicate_value(unary.operand, substitutions)
-                    .map(|value| !value)
-            }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => self
+                .applied_static_type_predicate_value(unary.operand, substitutions)
+                .map(|value| !value),
             _ => None,
         }
     }
@@ -100,8 +94,8 @@ impl TypedTrees {
         let right = self.statically_refined_type_reference(context, right);
         if !self.type_reference_table.contains_type_reference(left)
             || !self.type_reference_table.contains_type_reference(right)
-            || !crate::domain::index_argument_is_closed(self, left)
-            || !crate::domain::index_argument_is_closed(self, right)
+            || !index_argument_is_closed(self, left)
+            || !index_argument_is_closed(self, right)
         {
             return None;
         }
@@ -243,9 +237,7 @@ impl TypeWorld {
         } else if let Some(symbol) = binder(right) {
             (symbol, left)
         } else {
-            if crate::domain::index_argument_is_closed(program, left)
-                && crate::domain::index_argument_is_closed(program, right)
-            {
+            if index_argument_is_closed(program, left) && index_argument_is_closed(program, right) {
                 return (!equal).then_some(self);
             }
             // An open structural comparison remains undecided, never false merely
@@ -303,9 +295,7 @@ fn contains_type_predicate(
             contains_type_predicate(program, binary.left, active)
                 || contains_type_predicate(program, binary.right, active)
         }
-        ExpressionNode::Unary(unary)
-            if unary.operator == crate::expression::UnaryOperator::LogicalNot =>
-        {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             contains_type_predicate(program, unary.operand, active)
         }
         ExpressionNode::Name(path)
@@ -399,9 +389,7 @@ fn condition_inner(
                 Vec::new()
             }
         }
-        ExpressionNode::Unary(unary)
-            if unary.operator == crate::expression::UnaryOperator::LogicalNot =>
-        {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             condition_inner(program, worlds, unary.operand, !holds)
         }
         ExpressionNode::Binary(binary)
@@ -766,12 +754,9 @@ impl TypedTrees {
                 }
                 self.static_boolean_value_inner(local.ordinary_value_initializer()?, active)
             }
-            ExpressionNode::Unary(unary)
-                if unary.operator == crate::expression::UnaryOperator::LogicalNot =>
-            {
-                self.static_boolean_value_inner(unary.operand, active)
-                    .map(|value| !value)
-            }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => self
+                .static_boolean_value_inner(unary.operand, active)
+                .map(|value| !value),
             ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
                 if self.static_boolean_value_inner(binary.left, active)? {
                     self.static_boolean_value_inner(binary.right, active)

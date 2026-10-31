@@ -4,6 +4,13 @@
 
 use super::{BoundObservation, CanonicalPlace, CheckFacts, FlowOperandFact};
 use crate::flow::{CapturedValue, CapturedValueChoice};
+use facts::BooleanPredicateOperand;
+use typed_trees::types::TypeReferenceHandle;
+use validation::CheckingInput;
+use validation::canonical_place_type_reference;
+use validation::owned_projection_type_reference;
+use validation::project_type_reference_from_segments;
+use validation::reference_shell;
 
 pub(in crate::checks::contracts) struct Alias<'facts> {
     pub place: CanonicalPlace,
@@ -39,7 +46,7 @@ impl<'facts> CapturedBinding<'facts> {
 }
 
 pub(in crate::checks::contracts) fn retain_bindings<'facts>(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &'facts CheckFacts,
     captured: &CapturedValue<'facts>,
     epoch: &'facts FlowOperandFact,
@@ -66,38 +73,28 @@ pub(in crate::checks::contracts) fn retain_bindings<'facts>(
 }
 
 fn producer_alias<'facts>(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &'facts CheckFacts,
     captured: &CapturedValue<'facts>,
     epoch: &'facts FlowOperandFact,
     binding: &BoundObservation,
-) -> Option<(
-    CanonicalPlace,
-    Alias<'facts>,
-    typed_trees::types::TypeReferenceHandle,
-)> {
+) -> Option<(CanonicalPlace, Alias<'facts>, TypeReferenceHandle)> {
     let stable_copy = |reference, projection: &crate::flow::LiteralExpressionProjection| {
         match &binding.operand {
-            facts::BooleanPredicateOperand::Scalar(_) => {
-                validation::project_type_reference_from_segments(
-                    program,
-                    reference,
-                    &projection.remaining,
-                )
-                .is_some_and(|selected| crate::flow::operand_binds_stable_copy(program, selected))
+            BooleanPredicateOperand::Scalar(_) => {
+                project_type_reference_from_segments(program, reference, &projection.remaining)
+                    .is_some_and(|selected| {
+                        crate::flow::operand_binds_stable_copy(program, selected)
+                    })
             }
-            facts::BooleanPredicateOperand::CaseSubject(_) => {
+            BooleanPredicateOperand::CaseSubject(_) => {
                 // A tag is part of the owned carrier even when its payload
                 // contains live views. Never cross a reference to freeze it.
-                validation::owned_projection_type_reference(
-                    program,
-                    reference,
-                    &projection.remaining,
-                )
-                .is_some_and(|selected| {
-                    validation::reference_shell(program, selected).is_none()
-                        && program.closed_data_definition(selected).is_some()
-                })
+                owned_projection_type_reference(program, reference, &projection.remaining)
+                    .is_some_and(|selected| {
+                        reference_shell(program, selected).is_none()
+                            && program.closed_data_definition(selected).is_some()
+                    })
             }
         }
     };
@@ -171,7 +168,7 @@ fn producer_alias<'facts>(
     }) {
         return None;
     }
-    let Some(source_type) = validation::canonical_place_type_reference(
+    let Some(source_type) = canonical_place_type_reference(
         program,
         captured.operand.state_symbol,
         captured.operand.statement_index,

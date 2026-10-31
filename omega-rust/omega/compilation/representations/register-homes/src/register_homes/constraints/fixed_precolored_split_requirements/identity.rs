@@ -1,5 +1,7 @@
 use crate::identity::encode_fixed_constraint_site_identity;
 
+use crate::FunctionFixedPrecoloredSplitRequirements;
+use crate::digest_encoder::content_identity;
 use crate::{
     FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
     FixedPrecoloredSplitRequirementPlanIdentity, FixedPrecoloredSplitRequirementPolicy,
@@ -24,15 +26,10 @@ pub fn fixed_precolored_split_requirement_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    FixedPrecoloredSplitRequirementPlanIdentity(
-        crate::digest_encoder::content_identity(&bytes).into(),
-    )
+    FixedPrecoloredSplitRequirementPlanIdentity(content_identity(&bytes).into())
 }
 
-fn encode_family(
-    bytes: &mut Vec<u8>,
-    functions: &[crate::FunctionFixedPrecoloredSplitRequirements],
-) {
+fn encode_family(bytes: &mut Vec<u8>, functions: &[FunctionFixedPrecoloredSplitRequirements]) {
     length(bytes, functions.len());
     for function in functions {
         crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());

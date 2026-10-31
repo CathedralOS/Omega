@@ -15,6 +15,7 @@ use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::graph::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
 
+use crate::resolution::source::PackageSourceNavigation;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[cfg(test)]
@@ -54,13 +55,8 @@ struct SourceClosureTraversal {
     // Acquisition identity exists before the Build-produced package name.
     // Executed-source adapters reuse their invocation's first capture; graph
     // reconciliation still validates every alias, role, edge and cycle.
-    acquired: BTreeMap<
-        (
-            package_source::SourceLineage,
-            crate::resolution::source::PackageSourceNavigation,
-        ),
-        PackageSourceCustody,
-    >,
+    acquired:
+        BTreeMap<(package_source::SourceLineage, PackageSourceNavigation), PackageSourceCustody>,
     observed: BTreeMap<PackageKey, Vec<ObservedCustody>>,
     dependencies: BTreeMap<PackageKey, Vec<ResolvedDependency>>,
     depths: BTreeMap<PackageKey, usize>,
@@ -141,7 +137,7 @@ impl PendingSourceResolution {
     pub(crate) fn acquired_source(
         &self,
         lineage: &package_source::SourceLineage,
-        navigation: &crate::resolution::source::PackageSourceNavigation,
+        navigation: &PackageSourceNavigation,
     ) -> Option<&PackageSourceCustody> {
         self.owner
             .traversal

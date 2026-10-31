@@ -1,3 +1,5 @@
+use super::expressions::ensured_call_result_bounds;
+use super::expressions::expression_integer_value;
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, TableIndexedExpression};
 use typed_trees::machine::Machine;
@@ -125,15 +127,9 @@ impl ExpressionTransferSink for IndexChecks<'_, '_, '_> {
                     let low = interval.low?;
                     (interval.high == Some(low)).then_some(low)
                 })
+                .or_else(|| expression_integer_value(self.transfer.program, facts, indexed.index))
                 .or_else(|| {
-                    super::expressions::expression_integer_value(
-                        self.transfer.program,
-                        facts,
-                        indexed.index,
-                    )
-                })
-                .or_else(|| {
-                    let (low, high) = super::expressions::ensured_call_result_bounds(
+                    let (low, high) = ensured_call_result_bounds(
                         self.transfer.program,
                         self.transfer.machine.symbol,
                         indexed.index,

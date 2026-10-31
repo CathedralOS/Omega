@@ -10,9 +10,12 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteralField};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::expression_traversal::inert_value_tree_with_operations;
 use validation::expression_traversal::{
     collect_expression_tree, collect_statement_expression_trees,
 };
+use validation::has_builtin_binary_expression_meaning;
+use validation::land_owned_fixed_byte_literal;
 
 type Substitutions = Vec<(SymbolHandle, ExpressionHandle)>;
 
@@ -29,10 +32,8 @@ impl CallerEffects {
         if !self.track_effects {
             return true;
         }
-        validation::expression_traversal::inert_value_tree_with_operations(
-            program,
-            expression,
-            |operation| match expressions_of(program).expression(operation) {
+        inert_value_tree_with_operations(program, expression, |operation| {
+            match expressions_of(program).expression(operation) {
                 ExpressionNode::Call(_) => self
                     .no_write_calls
                     .binary_search_by_key(
@@ -44,14 +45,12 @@ impl CallerEffects {
                     program
                         .machine_by_symbol(self.machine)
                         .is_some_and(|machine| {
-                            validation::has_builtin_binary_expression_meaning(
-                                program, machine, None, operation,
-                            )
+                            has_builtin_binary_expression_meaning(program, machine, None, operation)
                         })
                 }
                 _ => false,
-            },
-        )
+            }
+        })
     }
 }
 
@@ -230,7 +229,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                         frames.declaration_expression_has_empty_write_frame(
                             expression,
                             &|operation| {
-                                validation::has_builtin_binary_expression_meaning(
+                                has_builtin_binary_expression_meaning(
                                     program, machine, None, operation,
                                 )
                             },
@@ -387,9 +386,7 @@ fn fill(
     }
     match expressions_of(program).expression(expression).clone() {
         ExpressionNode::String(_) => {
-            if let Err(error) =
-                validation::land_owned_fixed_byte_literal(program, expression, reference)
-            {
+            if let Err(error) = land_owned_fixed_byte_literal(program, expression, reference) {
                 diagnostics.push(error);
             }
         }

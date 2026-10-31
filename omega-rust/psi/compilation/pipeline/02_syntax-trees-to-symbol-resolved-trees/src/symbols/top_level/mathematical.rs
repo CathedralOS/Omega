@@ -2,6 +2,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolKind, SymbolTable};
 
 use super::super::top_level::next_child_of_kind;
+use symbol_resolved_trees::data::TypeParameterKind;
 
 /// Write back the allocated top-level symbol for each mathematical
 /// `let`/`boundary let`, then its binder and parameter children in the same
@@ -21,9 +22,7 @@ pub(super) fn assign_mathematical_symbols(
             .flatten();
         for binder in binders.span_mut_or_empty(definition.binders) {
             let kind = match binder.kind {
-                symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-                    SymbolKind::MachineParameter
-                }
+                TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
                 _ => SymbolKind::TypeParameter,
             };
             binder.symbol = next_child_of_kind(&mut children, symbols, kind);

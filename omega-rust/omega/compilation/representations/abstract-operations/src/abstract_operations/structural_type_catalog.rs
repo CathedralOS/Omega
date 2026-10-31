@@ -7,9 +7,10 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use semantic_vocabulary::StructuralTypeId;
+use terminal_codec::CodecError;
 use terminal_psi::{
     StructuralReferentIdentity, StructuralTypeDeclaration, TerminalAccessViewInput,
-    TerminalAccessViewPlan,
+    TerminalAccessViewPlan, TerminalQuotientCatalog,
 };
 
 /// Immutable shared structural declarations at native compilation boundaries.
@@ -36,15 +37,14 @@ struct RetainedAccessLifecycles {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RetainedQuotients {
-    catalog: terminal_psi::TerminalQuotientCatalog,
+    catalog: TerminalQuotientCatalog,
     canonical: Vec<u8>,
 }
-static EMPTY_QUOTIENTS: terminal_psi::TerminalQuotientCatalog =
-    terminal_psi::TerminalQuotientCatalog {
-        representations: Vec::new(),
-        operations: Vec::new(),
-        adaptations: Vec::new(),
-    };
+static EMPTY_QUOTIENTS: TerminalQuotientCatalog = TerminalQuotientCatalog {
+    representations: Vec::new(),
+    operations: Vec::new(),
+    adaptations: Vec::new(),
+};
 impl StructuralTypeCatalog {
     /// Fast allocation-sharing check across all retained catalog slices.
     pub fn ptr_eq(&self, other: &Self) -> bool {
@@ -71,7 +71,7 @@ impl StructuralTypeCatalog {
     pub fn with_access_lifecycles(
         mut self,
         plans: Vec<terminal_psi::TerminalAccessLifecyclePlan>,
-    ) -> Result<Self, terminal_codec::CodecError> {
+    ) -> Result<Self, CodecError> {
         self.5 = if plans.is_empty() {
             None
         } else {
@@ -95,10 +95,7 @@ impl StructuralTypeCatalog {
 
     /// Retain exact immutable metadata and its canonical encoding together.
     /// This checks serialization, not theorem admission.
-    pub fn with_quotients(
-        mut self,
-        catalog: terminal_psi::TerminalQuotientCatalog,
-    ) -> Result<Self, terminal_codec::CodecError> {
+    pub fn with_quotients(mut self, catalog: TerminalQuotientCatalog) -> Result<Self, CodecError> {
         self.4 = if catalog == EMPTY_QUOTIENTS {
             None
         } else {
@@ -107,7 +104,7 @@ impl StructuralTypeCatalog {
         };
         Ok(self)
     }
-    pub fn quotients(&self) -> &terminal_psi::TerminalQuotientCatalog {
+    pub fn quotients(&self) -> &TerminalQuotientCatalog {
         self.4.as_ref().map_or(&EMPTY_QUOTIENTS, |row| &row.catalog)
     }
     pub fn quotient_identity_bytes(&self) -> &[u8] {

@@ -3,7 +3,7 @@
 //! the exact fixed-array referent. Its language type and native ABI stay fixed
 //! arrays; the companion is interpreter storage custody, not a new source view.
 
-use crate::custody::project_structural_value;
+use crate::custody::{project_structural_value, resolve_structural_path_type};
 use crate::element_views::{ElementView, ElementViewHome};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -12,7 +12,7 @@ use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeShape,
+    StructuralPathSegment, StructuralTypeShape, nonlinear_multiplicity_pair_pattern,
 };
 
 /// Captured backing retains its actual memberships before a receiving contract
@@ -159,10 +159,7 @@ impl TerminalExecution<'_> {
         let root_type = self.live_structural_type(argument.place)?;
         let source_access = if let Some(source) = machine.structural_parameter(argument.place) {
             if source.structural_type != root_type
-                || !matches!(
-                    source.multiplicity,
-                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                )
+                || !matches!(source.multiplicity, nonlinear_multiplicity_pair_pattern!())
                 || (source.access != StructuralAccess::Owned
                     && source.multiplicity != StructuralMultiplicity::Unrestricted)
             {
@@ -177,10 +174,7 @@ impl TerminalExecution<'_> {
             if declared != root_type
                 || source.place != argument.place
                 || source.structural_type != root_type
-                || !matches!(
-                    source.multiplicity,
-                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                )
+                || !matches!(source.multiplicity, nonlinear_multiplicity_pair_pattern!())
                 || !source.claims.is_empty()
             {
                 return Err(malformed());
@@ -194,9 +188,7 @@ impl TerminalExecution<'_> {
         // requested access must still fit the actual source, including when
         // forwarding a write-only loan or attenuating mutable access.
         if !argument.access.admits(source_access)
-            || (!argument
-                .path
-                .contains(&terminal_psi::StructuralPathSegment::Referent)
+            || (!argument.path.contains(&StructuralPathSegment::Referent)
                 && self
                     .live_affine_frontier
                     .iter()
@@ -323,8 +315,7 @@ impl TerminalExecution<'_> {
             StructuralTypeShape::ElementView { element, .. } => {
                 let root_type = self.live_structural_type(argument.place).ok()?;
                 let collection_type =
-                    crate::custody::resolve_structural_path_type(&types, root_type, &argument.path)
-                        .ok()?;
+                    resolve_structural_path_type(&types, root_type, &argument.path).ok()?;
                 matches!(
                     types.get(&collection_type)?.shape,
                     StructuralTypeShape::FixedArray { element: source, .. } if source == element

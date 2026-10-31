@@ -5,6 +5,7 @@ use crate::capture::semantics::declarations::{
 };
 use crate::record::{PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentRoute};
 use diagnostics::Diagnostic;
+use language_semantics::CarryPermission;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
@@ -47,12 +48,9 @@ pub(crate) fn project_domain_alias_expansion(
                 .domain_path_members(constituent.domain)
                 .joined_path();
             if !constituent.domain_symbol.is_valid() && label == "Carry::Portable" {
-                atoms.extend(
-                    language_semantics::CarryPermission::ALL
-                        .map(PackageReviewDomainAliasAtom::Carry),
-                );
+                atoms.extend(CarryPermission::ALL.map(PackageReviewDomainAliasAtom::Carry));
             } else if !constituent.domain_symbol.is_valid()
-                && let Some(permission) = language_semantics::CarryPermission::from_name(&label)
+                && let Some(permission) = CarryPermission::from_name(&label)
             {
                 atoms.push(PackageReviewDomainAliasAtom::Carry(permission));
             } else {

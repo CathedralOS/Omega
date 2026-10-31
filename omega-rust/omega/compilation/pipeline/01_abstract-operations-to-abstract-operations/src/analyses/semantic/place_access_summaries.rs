@@ -33,8 +33,8 @@ use semantic_vocabulary::{
     StructuralPlaceKind,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralPathSegment, TerminalAffineCleanupAction,
-    control_flow::ByteSequenceOperand,
+    ReferenceOriginProjection, StructuralAccess, StructuralArgument, StructuralPathSegment,
+    StructuralReferenceOrigin, TerminalAffineCleanupAction, control_flow::ByteSequenceOperand,
 };
 
 use super::semantically_reachable_blocks;
@@ -1089,8 +1089,7 @@ pub(in crate::analyses) fn place_access_summaries(
                             .sources
                             .iter()
                             .flat_map(|candidate| {
-                                let terminal_psi::StructuralReferenceOrigin::Parameter(candidate) =
-                                    candidate
+                                let StructuralReferenceOrigin::Parameter(candidate) = candidate
                                 else {
                                     return vec![ResolvedAccess::External {
                                         root: result.place,
@@ -1103,10 +1102,10 @@ pub(in crate::analyses) fn place_access_summaries(
                                         .path
                                         .iter()
                                         .map(|projection| match projection {
-                                            terminal_psi::ReferenceOriginProjection::Exact(
-                                                segment,
-                                            ) => PlaceAccessStep::Runtime(segment.clone()),
-                                            terminal_psi::ReferenceOriginProjection::Element => {
+                                            ReferenceOriginProjection::Exact(segment) => {
+                                                PlaceAccessStep::Runtime(segment.clone())
+                                            }
+                                            ReferenceOriginProjection::Element => {
                                                 PlaceAccessStep::Element
                                             }
                                         })

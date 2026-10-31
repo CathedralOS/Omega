@@ -7,6 +7,7 @@ use super::super::super::{PlaceId, ValueDeclaration, terminal_scalar_type, unsup
 use super::super::{LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
+use crate::terminal_identities::fresh_field_snapshot;
 
 pub(super) struct PreparedCase<'a> {
     pub outcome: &'a checked_trees::CheckedClosedSumCaseOutcomePlan,
@@ -113,12 +114,7 @@ pub(super) fn prepare<'a>(
                 fields.push(field.id);
                 values.push((
                     payload.target_scalar_parameter_index,
-                    crate::terminal_identities::fresh_field_snapshot(
-                        next_value,
-                        scalar_type,
-                        field.id,
-                        qualifications,
-                    )?,
+                    fresh_field_snapshot(next_value, scalar_type, field.id, qualifications)?,
                 ));
             }
             // A wildcard returning arm shared by several cases cannot name
@@ -159,12 +155,7 @@ pub(super) fn prepare<'a>(
                 fields.push(field.id);
                 values.push((
                     u32::MAX,
-                    crate::terminal_identities::fresh_field_snapshot(
-                        next_value,
-                        scalar_type,
-                        field.id,
-                        qualifications,
-                    )?,
+                    fresh_field_snapshot(next_value, scalar_type, field.id, qualifications)?,
                 ));
             }
             Ok(PreparedCase {

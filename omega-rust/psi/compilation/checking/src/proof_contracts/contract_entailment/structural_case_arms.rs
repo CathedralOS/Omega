@@ -248,6 +248,50 @@ pub(crate) fn recognize_structural_case_arms<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: Option<&mut dyn StructuralPrefixVisitor>,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    if path_counting_enabled() {
+        let site = requirement
+            .as_deref()
+            .map(|visitor| {
+                let site = visitor.site();
+                let state_name = crate::machine_calls::calls::machine_state_by_symbol(
+                    program, site.state,
+                )
+                .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
+                .unwrap_or_else(|| format!("{:?}", site.state));
+                format!(
+                    "{}.{}.{}",
+                    state_name, site.statement_index, site.in_transition_target
+                )
+            })
+            .unwrap_or_else(|| "none".to_owned());
+        static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let driver = format!("{:?}", std::backtrace::Backtrace::force_capture());
+        if COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 400 {
+            eprintln!("[bt]\n{}", driver);
+        }
+        let driver = driver
+            .split("fn: \"")
+            .skip(1)
+            .filter_map(|segment| {
+                let name = segment.split('"').next()?;
+                (name.starts_with("validation::")
+                    && !name.contains("structural_case_arms")
+                    && !name.contains("structural_prefix"))
+                .then(|| {
+                    name.trim_start_matches("validation::")
+                        .split("::")
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                })
+            })
+            .next()
+            .unwrap_or_else(|| "?".to_owned());
+        eprintln!(
+            "[walk] case_arms machine={} site={} via={}",
+            machine.name, site, driver
+        );
+    }
     let states = program.machine_states(machine);
     let root = states.first()?;
     let parameter_names: Vec<String> = program
@@ -296,6 +340,38 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    if path_counting_enabled() {
+        let site = requirement.site();
+        let state_name = crate::machine_calls::calls::machine_state_by_symbol(
+            program, site.state,
+        )
+        .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
+        .unwrap_or_else(|| format!("{:?}", site.state));
+        let driver = format!("{:?}", std::backtrace::Backtrace::force_capture());
+        let driver = driver
+            .split("fn: \"")
+            .skip(1)
+            .filter_map(|segment| {
+                let name = segment.split('"').next()?;
+                (name.starts_with("validation::")
+                    && !name.contains("structural_case_arms")
+                    && !name.contains("structural_prefix"))
+                .then(|| {
+                    name.trim_start_matches("validation::")
+                        .split("::")
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .join(".")
+                })
+            })
+            .next()
+            .unwrap_or_else(|| "?".to_owned());
+        eprintln!(
+            "[walk] prefix machine={} site={}.{}.{} via={}",
+            machine.name, state_name, site.statement_index, site.in_transition_target,
+            driver
+        );
+    }
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
         .iter()
@@ -609,6 +685,9 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             && active_paths
                 .first()
                 .is_some_and(|path| path.judge.requires_value_preservation())
+            && !active_paths[0]
+                .judge
+                .statement_has_runtime_completion(machine, call)
         {
             let Some(frames) = active_paths[0].judge.frame_resolver() else {
                 return valid;
@@ -630,6 +709,29 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
         };
         let mut next_paths = Vec::new();
         for mut path in active_paths {
+            if let StatementNode::Call(call) = statement
+                && path.judge.has_runtime_body_values()
+                && path.judge.statement_has_runtime_completion(machine, call)
+            {
+                let Some(outcomes) = path.judge.normal_statement_completion_paths(
+                    call,
+                    statement_index,
+                    &path.environment,
+                    (machine, state, state.return_type),
+                ) else {
+                    return valid;
+                };
+                for judge in outcomes {
+                    next_paths.push(ActiveStatePrefixPath {
+                        judge,
+                        environment: path.environment.clone(),
+                        established_guarantees: path.established_guarantees.clone(),
+                        checked_contradiction_state: path.checked_contradiction_state,
+                    });
+                }
+                continue;
+            }
+
             let mut citation_preserves_values = true;
             if let Some((complete, ref writes)) = call_write_frame {
                 citation_preserves_values = complete && writes.is_empty();
@@ -756,6 +858,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 .rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
                             rejoined.capture_sequence += 1;
                             let captured = StructuralTerm::CapturedValue {
+                                statement: arena::Handle::invalid(),
                                 expression: local.initial_value,
                                 callable: SymbolHandle::invalid(),
                                 occurrence: rejoined.capture_sequence,
@@ -1235,6 +1338,45 @@ fn recognize_structural_state_leaves_from<'a>(
                     &established_guarantees,
                 )?;
             }
+            if judge.has_runtime_body_values()
+                && let StatementNode::Call(call) = statement
+                && judge.statement_has_runtime_completion(invocation, call)
+            {
+                let outcomes = judge.normal_statement_completion_paths(
+                    call,
+                    statement_index,
+                    &environment,
+                    (invocation, state, state.return_type),
+                )?;
+                let next_statement = execution
+                    .get(execution_position + 1)
+                    .copied()
+                    .unwrap_or(statements.len());
+                let mut leaves = Vec::new();
+                for completed in outcomes {
+                    leaves.extend(recognize_structural_state_leaves_from(
+                        program,
+                        machine,
+                        &completed,
+                        classification,
+                        diagnostics,
+                        states,
+                        state,
+                        parameter_names,
+                        environment.clone(),
+                        case_hypotheses.clone(),
+                        case_equations.clone(),
+                        pending_citations.clone(),
+                        collect_citations,
+                        path,
+                        fresh,
+                        requirement,
+                        established_guarantees.clone(),
+                        next_statement,
+                    )?);
+                }
+                return Some(leaves);
+            }
             // Statement calls and their operands own separate write frames.
             // Retire affected storage without discarding unrelated captures.
             // Legacy citation substitution has no post-state argument model,
@@ -1408,6 +1550,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 judge.rejoin_pure_outcomes(&judge_refs, Some(local.initial_value));
                             rejoined.capture_sequence += 1;
                             let captured = StructuralTerm::CapturedValue {
+                                statement: arena::Handle::invalid(),
                                 expression: local.initial_value,
                                 callable: SymbolHandle::invalid(),
                                 occurrence: rejoined.capture_sequence,
@@ -2018,11 +2161,12 @@ fn recognize_structural_state_leaves_from<'a>(
                                 format!("{:?}", term.semantic_value()).hash(&mut env_hash);
                             }
                             eprintln!(
-                                "[envhash] depth={} state={:?} env={:016x} judge={:016x}",
+                                "[envhash] depth={} state={:?} env={:016x} judge={:016x} {}",
                                 path.len(),
                                 target_state.symbol,
                                 env_hash.finish(),
                                 captured.path_fingerprint(),
+                                captured.field_size_report(),
                             );
                         }
                         if let Some(observer) = requirement.as_deref_mut() {

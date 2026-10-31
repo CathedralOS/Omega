@@ -1,5 +1,6 @@
 //! Observe a sum tag without disturbing its payload or ownership.
 use super::super::IntegerValue;
+use super::runtime_address::{cross_references, projection_origin, scale};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     ScalarType, SelectedInstructionKind, VirtualRegisterId,
@@ -40,7 +41,7 @@ pub(in crate::selection) fn observe(
     let place = *place;
     let tag = transport_register(builder, place, *tag_byte_offset)?;
     let provenance = operation_provenance(row, vec![result.value]);
-    let (pointer, pointer_slots) = super::runtime_address::projection_origin(
+    let (pointer, pointer_slots) = projection_origin(
         source,
         builder,
         row,
@@ -52,17 +53,10 @@ pub(in crate::selection) fn observe(
         // A runtime element joins the place pointer before the tag load
         // (`runtime_address`), and its footprint names the element's
         // certificate; a static tag reads its exact place extent.
-        let (pointer, leaf_index) = super::runtime_address::cross_references(
-            builder,
-            row,
-            place,
-            pointer,
-            indices,
-            pointer_slots,
-        )?;
+        let (pointer, leaf_index) =
+            cross_references(builder, row, place, pointer, indices, pointer_slots)?;
         let indices = indices.get(leaf_index..).ok_or(invalid())?;
-        let pointer =
-            super::runtime_address::scale(builder, row, place, *tag_byte_offset, pointer, indices)?;
+        let pointer = scale(builder, row, place, *tag_byte_offset, pointer, indices)?;
         // A tag deep inside a large home lies past the target's direct
         // displacement; the address step precedes the recorded footprint so
         // that footprint still names the load.

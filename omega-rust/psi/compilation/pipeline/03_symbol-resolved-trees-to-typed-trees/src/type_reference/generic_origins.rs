@@ -7,8 +7,11 @@
 //! operator which vetoes builtin arithmetic. Final replay uses original operands,
 //! not the syntax producer's interval observations or its synthetic names.
 use super::{Diagnostic, resolved, typed};
+use crate::expressions::expression::lower_expression_handle_from_table;
 use crate::tables::type_constraints;
 use arena::{Handle, HandleSpan};
+use numerics::bignum::BigInt;
+use resolved::name::DiagnosticName;
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -130,10 +133,7 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
 }
 
-fn use_key(
-    name: &resolved::name::DiagnosticName,
-    symbol: SymbolHandle,
-) -> ((u32, u32), usize, usize, usize) {
+fn use_key(name: &DiagnosticName, symbol: SymbolHandle) -> ((u32, u32), usize, usize, usize) {
     let span = name.source_span();
     (
         symbol_key(symbol),
@@ -198,7 +198,7 @@ fn with_generic_origin_index<R>(
 pub(super) fn application<'source>(
     source: &'source resolved::SymbolResolvedTrees,
     mut typed: Option<&mut typed::TypedTrees>,
-    name: &resolved::name::DiagnosticName,
+    name: &DiagnosticName,
     symbol: SymbolHandle,
 ) -> Result<Option<&'source TypeReference>, Diagnostic> {
     if with_generic_origin_index(source, |index| index.malformed) {
@@ -274,7 +274,7 @@ pub(super) fn application<'source>(
 fn application_scanned<'source>(
     source: &'source resolved::SymbolResolvedTrees,
     mut typed: Option<&mut typed::TypedTrees>,
-    name: &resolved::name::DiagnosticName,
+    name: &DiagnosticName,
     symbol: SymbolHandle,
 ) -> Result<Option<&'source TypeReference>, Diagnostic> {
     let mut selected = None;
@@ -354,7 +354,7 @@ impl<'typed> ReplayTyped<'typed> {
 fn validate_origin<'source>(
     source: &'source resolved::SymbolResolvedTrees,
     mut typed: Option<ReplayTyped<'_>>,
-    name: &resolved::name::DiagnosticName,
+    name: &DiagnosticName,
     origin: &resolved::types::GenericApplicationOrigin,
     definition: &'source resolved::data::DataDefinition,
     selected: Option<&TypeReference>,
@@ -412,7 +412,7 @@ fn validate_origin<'source>(
 fn instance_identity_matches(
     instance: &TypeReference,
     symbol: SymbolHandle,
-    name: &resolved::name::DiagnosticName,
+    name: &DiagnosticName,
 ) -> Result<bool, Diagnostic> {
     let (instance_symbol, instance_name) = match instance {
         TypeReference::Named { symbol, name, .. } => (*symbol, name),
@@ -422,7 +422,7 @@ fn instance_identity_matches(
     Ok(instance_symbol == symbol && instance_name.source_span() == name.source_span())
 }
 
-fn mismatch(name: &resolved::name::DiagnosticName) -> Diagnostic {
+fn mismatch(name: &DiagnosticName) -> Diagnostic {
     Diagnostic::error(
         "generated generic application does not match its exact retained instance origin",
     )
@@ -433,8 +433,8 @@ struct Equality<'source, 'typed> {
     source: &'source resolved::SymbolResolvedTrees,
     typed: Option<ReplayTyped<'typed>>,
     active: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
-    canonical_lifetimes: &'source [resolved::name::DiagnosticName],
-    actual_lifetimes: &'source [resolved::name::DiagnosticName],
+    canonical_lifetimes: &'source [DiagnosticName],
+    actual_lifetimes: &'source [DiagnosticName],
 }
 
 impl Equality<'_, '_> {
@@ -623,21 +623,11 @@ impl Equality<'_, '_> {
         minimum: resolved::expression::ExpressionHandle,
         maximum: resolved::expression::ExpressionHandle,
         end_inclusive: bool,
-    ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    ) -> Option<(BigInt, BigInt)> {
         let expressions = &self.source.tables.bodies.expressions;
         let typed = self.typed.as_mut()?.get_mut();
-        let minimum = crate::expressions::expression::lower_expression_handle_from_table(
-            expressions,
-            typed,
-            minimum,
-        )
-        .ok()?;
-        let maximum = crate::expressions::expression::lower_expression_handle_from_table(
-            expressions,
-            typed,
-            maximum,
-        )
-        .ok()?;
+        let minimum = lower_expression_handle_from_table(expressions, typed, minimum).ok()?;
+        let maximum = lower_expression_handle_from_table(expressions, typed, maximum).ok()?;
         Some((
             typed.closed_integer_expression_value(minimum)?,
             typed.closed_integer_range_endpoint(maximum, end_inclusive)?,
@@ -647,11 +637,7 @@ impl Equality<'_, '_> {
     // The shared carrier binds regions positionally; the use retains the
     // actual lexical region arguments. This rejoin preserves the mapping
     // without treating erased layout identity as semantic lifetime equality.
-    fn lifetime(
-        &self,
-        actual: &resolved::name::DiagnosticName,
-        canonical: &resolved::name::DiagnosticName,
-    ) -> bool {
+    fn lifetime(&self, actual: &DiagnosticName, canonical: &DiagnosticName) -> bool {
         self.canonical_lifetimes
             .iter()
             .position(|parameter| parameter.as_str() == canonical.as_str())
@@ -668,7 +654,7 @@ impl Equality<'_, '_> {
 
     fn domain(
         &self,
-        name: &resolved::name::DiagnosticName,
+        name: &DiagnosticName,
         carrier: Handle<TypeReference>,
     ) -> Option<SymbolHandle> {
         let TypeReference::Named {
