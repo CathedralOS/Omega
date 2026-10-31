@@ -128,6 +128,8 @@ impl Evaluation {
     fn scalar_case_dispatch(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
         guard_statement_ordinal: u32,
         destination: &CheckedScalarBranchDestination,
@@ -186,8 +188,6 @@ impl Evaluation {
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
-        checked: &CheckedTrees,
-        state: symbols::SymbolHandle,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
         source_types: &[QualifiedScalarType],
         result_type: QualifiedScalarType,
