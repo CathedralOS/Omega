@@ -45,8 +45,7 @@ impl<'program> Evaluator<'program> {
                 "build logging requires one byte-string argument".to_owned(),
             ));
         };
-        let bytes =
-            self.eval_byte_data_operand(*text, frame, "build log text", "build log text")?;
+        let bytes = self.eval_byte_data_operand(*text, frame, "build log text")?;
         let appended = bytes
             .len()
             .checked_add(1)
