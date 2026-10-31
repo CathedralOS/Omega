@@ -19,6 +19,9 @@ use symbols::SymbolHandle;
 
 mod match_dispatch;
 
+#[cfg(test)]
+mod argument_roles_tests;
+
 #[derive(Default)]
 pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) storage_value_indices: bool,
@@ -467,11 +470,7 @@ fn generic_reference_identity<'program>(
     // The declaration's telescope owns argument roles for code selections as
     // well as data applications. A const in a nested implementation must use
     // the same index grammar before and after caller-side substitution.
-    let parameters = if context.invalid_application.is_some() || context.storage_value_indices {
-        program.declaration_type_parameters(symbol)
-    } else {
-        &[]
-    };
+    let parameters = program.declaration_type_parameters(symbol);
     generic_type_identity(
         program,
         symbol,
@@ -513,10 +512,9 @@ fn generic_reference_identity<'program>(
                         Err(_) => substitution::rejected(context),
                     };
                 }
-                let is_index = context.invalid_application.is_some()
-                    && parameters
-                        .get(ordinal)
-                        .is_some_and(|parameter| parameter.kind.is_const_or_value());
+                let is_index = parameters
+                    .get(ordinal)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value());
                 if is_index {
                     substitution::index_argument(
                         program,
