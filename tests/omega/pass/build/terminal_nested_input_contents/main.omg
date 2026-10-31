@@ -1,0 +1,84 @@
+// Expected exit: 0
+// Complete entry contents retain every nested tag and scalar, including
+// neighboring fields and both dimensions of a primitive array.
+data Kind [copy] { case Scalar; case Pair(left: u64, right: u64); }
+data Shape [copy] { class: Kind; bytes: u64; alignment: u64; }
+data Signature [copy] {
+    before: u64;
+    has_result: bool;
+    shapes: [Shape; 2];
+    matrix: [[u32; 2]; 2];
+    bytes: [u8; 3];
+    empty: [u32; 0];
+    after: u64;
+}
+data ErasedInput { value: u64; evidence [erased]: u64; }
+data ReferenceInput { value: u64; reference: &u64; }
+machine inspect_erased(input: ErasedInput) -> u64 { input.value }
+machine inspect_reference(input: ReferenceInput) -> u64 { input.value }
+
+machine weight(kind: Kind) -> u64 {
+    match kind {
+        Kind::Scalar -> 17,
+        Kind::Pair { left, right } -> (((left as u64 in Wrapping) * 3)
+            + (right as u64 in Wrapping)) as u64,
+    }
+}
+machine inspect(signature: Signature) -> u64 {
+    transition signature.before == 19 && signature.after == 29 && signature.has_result
+        && weight(signature.shapes[0].class) == 32 && weight(signature.shapes[1].class) == 17
+        && signature.shapes[0].bytes == 23 && signature.shapes[1].bytes == 31
+        && signature.shapes[0].alignment == 8 && signature.shapes[1].alignment == 16
+        && signature.matrix[0][0] == 37 && signature.matrix[0][1] == 41
+        && signature.matrix[1][0] == 43 && signature.matrix[1][1] == 47
+        && signature.bytes[0] == 3 && signature.bytes[1] == 5 && signature.bytes[2] == 7
+        && signature.empty.len == 0 {
+        true -> 343
+        false -> other(signature)
+    }
+    machine other(signature: Signature) -> u64 {
+        transition signature.before == 53 && signature.after == 89 && !signature.has_result
+            && weight(signature.shapes[0].class) == 17 && weight(signature.shapes[1].class) == 100
+            && signature.shapes[0].bytes == 59 && signature.shapes[1].bytes == 67
+            && signature.shapes[0].alignment == 4 && signature.shapes[1].alignment == 32
+            && signature.matrix[0][0] == 71 && signature.matrix[0][1] == 73
+            && signature.matrix[1][0] == 79 && signature.matrix[1][1] == 83
+            && signature.bytes[0] == 11 && signature.bytes[1] == 13 && signature.bytes[2] == 17
+            && signature.empty.len == 0 {
+            true -> 727
+            false -> 3
+        }
+    }
+}
+machine first() -> Signature {
+    Signature {
+        before: 19,
+        has_result: true,
+        shapes: [Shape { class: Kind::Pair { left: 7, right: 11 }, bytes: 23, alignment: 8 },
+                 Shape { class: Kind::Scalar, bytes: 31, alignment: 16 }],
+        matrix: [[37, 41], [43, 47]],
+        bytes: [3, 5, 7],
+        empty: [],
+        after: 29,
+    }
+}
+machine second() -> Signature {
+    Signature {
+        before: 53,
+        has_result: false,
+        shapes: [Shape { class: Kind::Scalar, bytes: 59, alignment: 4 },
+                 Shape { class: Kind::Pair { left: 13, right: 61 }, bytes: 67, alignment: 32 }],
+        matrix: [[71, 73], [79, 83]],
+        bytes: [11, 13, 17],
+        empty: [],
+        after: 89,
+    }
+}
+machine main() crashes Trap {
+    transition inspect(first()) == 343 && inspect(second()) == 727 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -162,7 +162,7 @@ pub(super) fn observe(
 
 // The authored oracle resolves labels once against the artifact's own table.
 // The SDK receives declaration IDs; it never interprets these test labels.
-fn resolve_path(
+pub(super) fn resolve_path(
     program: &TerminalProgram<'_>,
     root: Option<StructuralTypeId>,
     text: &str,
@@ -223,6 +223,47 @@ fn case_name<'program>(
     path: &[Path],
     selected: semantic_vocabulary::StructuralCaseId,
 ) -> Result<&'program str, String> {
+    let declaration = case_declaration(program, root, path)?;
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &declaration.shape
+    else {
+        return Err("observed case is not a sum".into());
+    };
+    let case = cases
+        .iter()
+        .find(|case| case.id == selected)
+        .ok_or("observed case is not declared")?;
+    program
+        .module()
+        .identities
+        .text(case.identity)
+        .ok_or_else(|| "case name is absent".into())
+}
+
+pub(super) fn case_id(
+    program: &TerminalProgram<'_>,
+    root: StructuralTypeId,
+    path: &[Path],
+    name: &str,
+) -> Result<semantic_vocabulary::StructuralCaseId, String> {
+    let declaration = case_declaration(program, Some(root), path)?;
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &declaration.shape
+    else {
+        return Err("input case is not a sum".into());
+    };
+    cases
+        .iter()
+        .find(|case| program.module().identities.text(case.identity) == Some(name))
+        .map(|case| case.id)
+        .ok_or_else(|| "input case is not declared".into())
+}
+
+fn case_declaration<'program>(
+    program: &'program TerminalProgram<'_>,
+    root: Option<StructuralTypeId>,
+    path: &[Path],
+) -> Result<&'program terminal_psi::StructuralTypeDeclaration, String> {
     let mut declaration = program
         .structural_type(root.ok_or("case requires structural result")?)
         .ok_or("oracle case type is absent")?;
@@ -272,18 +313,5 @@ fn case_name<'program>(
             _ => return Err("unexpected case oracle path".into()),
         }
     }
-    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-        &declaration.shape
-    else {
-        return Err("observed case is not a sum".into());
-    };
-    let case = cases
-        .iter()
-        .find(|case| case.id == selected)
-        .ok_or("observed case is not declared")?;
-    program
-        .module()
-        .identities
-        .text(case.identity)
-        .ok_or_else(|| "case name is absent".into())
+    Ok(declaration)
 }

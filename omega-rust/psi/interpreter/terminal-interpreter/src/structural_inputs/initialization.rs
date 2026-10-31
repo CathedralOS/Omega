@@ -1,5 +1,5 @@
-//! Explicit zero-backed host roots: reject duplicate establishments and any
-//! overlapping explicit initialization before binding invocation storage.
+//! Complete host initializers cannot overlap one another or a partial input.
+//! Validate that relationship before allocating any invocation backing.
 
 use crate::errors::TerminalInterpretError;
 use crate::structural_inputs::TerminalStructuralInputs;
@@ -17,13 +17,30 @@ pub(crate) fn validate(inputs: TerminalStructuralInputs<'_>) -> Result<(), Termi
             });
         }
     }
-    for (position, argument_index) in inputs
-        .zero_initialized_arguments
-        .iter()
-        .copied()
-        .enumerate()
-    {
-        let invalid = || TerminalInterpretError::ZeroInitializedArgumentInvalid { argument_index };
+    let initializers = || {
+        inputs
+            .zero_initialized_arguments
+            .iter()
+            .copied()
+            .map(|argument_index| (argument_index, true))
+            .chain(
+                inputs
+                    .contents
+                    .iter()
+                    .map(|contents| (contents.argument_index, false)),
+            )
+    };
+    for (position, (argument_index, zeroed)) in initializers().enumerate() {
+        let invalid = || {
+            if zeroed {
+                TerminalInterpretError::ZeroInitializedArgumentInvalid { argument_index }
+            } else {
+                TerminalInterpretError::StructuralContentsArgumentInvalid {
+                    argument_index,
+                    reason: "complete contents overlap another initializer or name no argument",
+                }
+            }
+        };
         let root = inputs
             .arguments
             .get(argument_index as usize)
@@ -41,9 +58,9 @@ pub(crate) fn validate(inputs: TerminalStructuralInputs<'_>) -> Result<(), Termi
                     terminal_semantics::structural_paths_may_overlap(&root.path, &other_path)
                 })
         };
-        if inputs.zero_initialized_arguments[..position]
-            .iter()
-            .any(|other| overlaps(*other, &[]))
+        if initializers()
+            .take(position)
+            .any(|(other, _)| overlaps(other, &[]))
             || inputs
                 .scalar_fields
                 .iter()

@@ -11,8 +11,9 @@
 pub(crate) mod access_views;
 pub(crate) mod byte_arrays;
 pub(crate) mod case_membership;
+pub(crate) mod contents;
+pub(crate) mod initialization;
 pub(crate) mod scalar_fields;
-pub(crate) mod zero_initialized;
 
 use crate::structural_inputs::access_views::TerminalAccessViewEstablishment;
 use crate::structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
@@ -39,6 +40,9 @@ pub struct TerminalEstablishedErasedField {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TerminalStructuralInputs<'input> {
     pub arguments: &'input [TerminalStructuralValue],
+    /// Complete scalar/case contents of existing argument carriers. This lane
+    /// initializes backing, never claims, qualifications or reference custody.
+    pub contents: &'input [contents::TerminalStructuralContents],
     /// Dense positions whose supplied backing the host actually established
     /// with zero contents. A type declaration alone never initializes backing.
     /// Identities and qualifications still come from the supplied carriers;

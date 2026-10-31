@@ -19,12 +19,9 @@ use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::runtime_rows::RuntimeRows;
 use crate::structural_identities::LocalStructuralIdentities;
-use crate::structural_inputs::access_views::{
-    AccessViewOccurrence, TerminalAccessViewEstablishment, establish_access_view_inputs,
-};
+use crate::structural_inputs::access_views::{AccessViewOccurrence, establish_access_view_inputs};
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::structural_inputs::scalar_fields;
-use crate::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 use crate::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
 };
@@ -535,13 +532,7 @@ impl<'artifact> TerminalExecution<'artifact> {
     pub(crate) fn start_with_program(
         program: std::sync::Arc<crate::program::AdmittedTerminalProgram<'artifact>>,
         scalar_arguments: &[TerminalScalarValue],
-        structural_arguments: &[TerminalStructuralValue],
-        structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
-        structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
-        access_view_establishments: &[TerminalAccessViewEstablishment],
-        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
-        zero_initialized_arguments: &[u32],
-        established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
+        inputs: crate::structural_inputs::TerminalStructuralInputs<'_>,
         installation: Option<&TerminalRuntimeSupplies>,
         account: Option<EvaluationInvocationAccount>,
     ) -> Result<Self, TerminalInterpretError> {
@@ -574,15 +565,17 @@ impl<'artifact> TerminalExecution<'artifact> {
         let access_view_occurrences = establish_access_view_inputs(
             &program.catalogs,
             current_machine,
-            access_view_establishments,
-            structural_arguments,
+            inputs.access_view_establishments,
+            inputs.arguments,
         )?;
         // Descriptor homes and their separately established backing are both
         // live identities. Local allocations must not collide with either.
-        let identity_roots = structural_arguments
+        let identity_roots = inputs
+            .arguments
             .iter()
             .chain(
-                access_view_establishments
+                inputs
+                    .access_view_establishments
                     .iter()
                     .map(|establishment| &establishment.referent),
             )
@@ -610,7 +603,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let values = bind_arguments(&machine.parameters, scalar_arguments, account.as_ref())?;
         let structural_values = bind_structural_arguments(
             &machine.structural_parameters,
-            structural_arguments,
+            inputs.arguments,
             account.as_ref(),
         )?;
         let live_affine_frontier = bind_affine_frontier(
@@ -628,7 +621,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         for (index, (parameter, value)) in machine
             .structural_parameters
             .iter()
-            .zip(structural_arguments)
+            .zip(inputs.arguments)
             .enumerate()
         {
             if parameter.access == terminal_psi::StructuralAccess::Owned {
@@ -708,14 +701,14 @@ impl<'artifact> TerminalExecution<'artifact> {
             external_demands: Vec::new(),
             external_bindings: BTreeMap::new(),
             process_domain: None,
-            established_erased_fields: established_erased_fields.to_vec(),
+            established_erased_fields: inputs.established_erased_fields.to_vec(),
             effects: Vec::new(),
             failed_call_result: None,
             failed_return: None,
             _frame_storage: frame_storage,
             account,
         };
-        for argument_index in zero_initialized_arguments {
+        for argument_index in inputs.zero_initialized_arguments {
             let parameter = machine
                 .structural_parameters
                 .get(*argument_index as usize)
@@ -732,7 +725,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             // anything the producer never interned is malformed input, not
             // a fresh identity.
             let identities = &program.catalogs.identities;
-            let established_fields = established_erased_fields
+            let established_fields = inputs
+                .established_erased_fields
                 .iter()
                 .filter(|field| field.argument_index == *argument_index)
                 .map(|field| -> Result<_, TerminalInterpretError> {
@@ -756,14 +750,28 @@ impl<'artifact> TerminalExecution<'artifact> {
                 &established_fields,
             )?;
         }
+        execution.bind_structural_contents(inputs.contents)?;
+        // Both complete initializers have authenticated their actual backing.
+        // Partial legacy lanes may initialize other arguments, never these.
+        let initialized_arguments = inputs
+            .zero_initialized_arguments
+            .iter()
+            .copied()
+            .chain(
+                inputs
+                    .contents
+                    .iter()
+                    .map(|contents| contents.argument_index),
+            )
+            .collect::<Vec<_>>();
         let primitive_storage = execution.structural_primitive_storage.take();
         let (storage, entry_places) = bind_structural_primitive_values(
             machine,
             &program.structural_types(),
             &execution.structural_values,
-            structural_primitive_value_arguments,
+            inputs.primitive_values,
             primitive_storage,
-            zero_initialized_arguments,
+            &initialized_arguments,
             execution.account.as_ref(),
         )?;
         execution.structural_primitive_storage = storage;
@@ -773,11 +781,14 @@ impl<'artifact> TerminalExecution<'artifact> {
             machine,
             &program.structural_types(),
             &execution.structural_values,
-            structural_scalar_field_arguments,
+            inputs.scalar_fields,
             scalar_fields,
-            zero_initialized_arguments,
+            &initialized_arguments,
         )?;
-        execution.establish_private_entry_ram(private_entry_ram, access_view_establishments)?;
+        execution.establish_private_entry_ram(
+            inputs.private_entry_ram,
+            inputs.access_view_establishments,
+        )?;
         Ok(execution)
     }
 
@@ -808,9 +819,13 @@ impl<'artifact> TerminalExecution<'artifact> {
             // Classify each actual root, including partial materialization.
             // A type shape or another argument's contents cannot supply cells.
             let materialized = inputs
-                .scalar_fields
+                .contents
                 .iter()
-                .any(|field| field.argument_index == index)
+                .any(|contents| contents.argument_index == index)
+                || inputs
+                    .scalar_fields
+                    .iter()
+                    .any(|field| field.argument_index == index)
                 || inputs
                     .boolean_fields
                     .iter()

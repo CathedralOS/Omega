@@ -80,13 +80,7 @@ fn host_byte_results_require_exact_shared_carrier_and_real_storage() {
             let mut execution = TerminalExecution::start_with_program(
                 program,
                 &[],
-                &[],
-                &[],
-                &[],
-                &[],
-                &[],
-                &[],
-                &[],
+                crate::TerminalStructuralInputs::default(),
                 None,
                 None,
             )

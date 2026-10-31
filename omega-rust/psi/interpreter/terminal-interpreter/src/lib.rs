@@ -94,8 +94,7 @@ pub use effects::results::{TerminalByteSequenceValue, TerminalEffectResult};
 pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use effects::storage_inputs::{
     TerminalBoundaryByteViewBuffer, TerminalBoundaryReferenceSelection,
-    TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer,
-    TerminalStorageContents,
+    TerminalBoundaryStorageBuffer, TerminalBoundaryStructuralBuffer,
 };
 pub use effects::{
     AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
@@ -131,8 +130,10 @@ pub use scalar_storage::TerminalScalarBacking;
 pub use structural_inputs::access_views::TerminalAccessViewEstablishment;
 pub use structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
 pub use structural_inputs::case_membership::TerminalStructuralCaseValue;
+pub use structural_inputs::contents::TerminalStructuralContents;
 pub use structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 pub use structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};
+pub use structural_storage::contents::{TerminalBoundaryStorageValue, TerminalStorageContents};
 pub use terminal_installation::{
     AdmittedProviderSelections, admit_provider_installation,
     admit_provider_installation_from_artifact,
