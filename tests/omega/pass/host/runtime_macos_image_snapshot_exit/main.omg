@@ -24,6 +24,8 @@ public boundary trait ImageReadback {
     machine provider(image: u64) -> u64 reaches;
     machine width(image: u64) -> u64 reaches;
     machine height(image: u64) -> u64 reaches;
+    machine interpolates(image: u64) -> bool reaches;
+    machine intent(image: u64) -> u32 reaches;
     machine copy_data(provider: u64) -> u64 reaches;
     machine length(data: u64) -> i64 reaches;
     // Exactly one whole output allocation is lent, never its first byte.
@@ -108,17 +110,34 @@ machine inspect(image: u64) -> bool invokes ImageReadback {
 machine main() reaches Console invokes Console invokes ImageReadback invokes MacosImageData invokes MacosImageObjects {
     let space: u64 = cg_color_space_rgb();
     let image: u64 = snapshot(space);
-    cg_color_space_release(space);
     transition image != 0 {
-        true -> inspect_image(image)
-        _ -> failed()
+        true -> configure(image, space)
+        _ -> failed_creation(space)
+    }
+    machine failed_creation(space: u64) {
+        cg_color_space_release(space);
+        failed();
+    }
+    machine configure(image: u64, space: u64) {
+        let provider: u64 = ImageReadback::provider(image);
+        // Nondefault values expose Darwin's compact bool/u32 stack lanes.
+        let configured: u64 = MacosImageObjects::create(3, 2, 8, 32, 12,
+            space, 0x2006, provider, 0, true, 3);
+        cg_image_release(image);
+        cg_color_space_release(space);
+        transition configured != 0 {
+            true -> inspect_image(configured)
+            _ -> failed()
+        }
     }
     machine inspect_image(image: u64) {
         let width: u64 = ImageReadback::width(image);
         let height: u64 = ImageReadback::height(image);
+        let interpolates: bool = ImageReadback::interpolates(image);
+        let intent: u32 = ImageReadback::intent(image);
         let correct: bool = inspect(image);
         cg_image_release(image);
-        transition correct && width == 3 && height == 2 {
+        transition correct && width == 3 && height == 2 && interpolates && intent == 3 {
             true -> passed()
             _ -> failed()
         }

@@ -1,0 +1,249 @@
+// Fixed, nonvariadic Darwin ARM64 C calls with scalar arguments only.
+// Apple packs stack arguments at their natural alignment, without an eight-byte
+// minimum slot. The complete outgoing stack still has sixteen-byte alignment.
+// Registers and results admit 32/64-bit integers; narrow stack lanes remain
+// exact. Narrow register scalars need separate caller-extension evidence.
+// https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms
+use calling;
+
+public DarwinArm64ScalarCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan = darwin_arm64_entry();
+        let accepted: bool = darwin_arm64_scalar_signature(&signature, &mut plan);
+        transition accepted {
+            true -> BoundaryPlanResult::Accepted { plan: plan }
+            _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
+                reason: "expected at most 32 fixed integer or sized-reference parameters, Unit or 32/64-bit integer result, at least 32-bit register scalars, and no callbacks"
+            } }
+        }
+    }
+}
+
+machine darwin_arm64_scalar_signature(signature: &BoundarySignature,
+    plan: &mut BoundaryEntryPlan) -> bool {
+    transition signature.parameter_count == signature.native_parameter_count
+        && signature.parameter_count <= 32 && signature.callback_binder_count == 0
+        && signature.callback_demand_count == 0 {
+        true -> result(signature, plan)
+        _ -> false
+    }
+    machine result(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool {
+        plan.call.parameter_count = signature.parameter_count;
+        transition signature.has_result {
+            true -> result_index(signature, plan)
+            _ -> darwin_arm64_scalar_parameters(signature, plan, 0, 0, 32)
+        }
+    }
+    machine result_index(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool {
+        transition signature.result < signature.shape_count && signature.result < 256 {
+            true -> result_shape(signature, plan, &signature.shapes[signature.result])
+            _ -> false
+        }
+    }
+    machine result_shape(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        shape: &ValueShape) -> bool {
+        transition shape.class {
+            ValueClass::Integer -> result_integer(signature, plan, shape)
+            _ -> false
+        }
+    }
+    machine result_integer(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        shape: &ValueShape) -> bool {
+        transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
+            true -> result_place(signature, plan, shape)
+            _ -> false
+        }
+    }
+    machine result_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        shape: &ValueShape) -> bool {
+        plan.call.has_result = true;
+        plan.call.result.shape = AbiValueShape {
+            class: AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment
+        };
+        plan.call.result.location_count = 1;
+        plan.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: shape.byte_size
+        };
+        darwin_arm64_scalar_parameters(signature, plan, 0, 0, 32)
+    }
+}
+
+machine darwin_arm64_integer_shape(shape: &ValueShape) -> bool {
+    (shape.byte_size == 1 || shape.byte_size == 2 || shape.byte_size == 4
+        || shape.byte_size == 8) && shape.alignment == shape.byte_size
+}
+
+machine darwin_arm64_scalar_parameters(signature: &BoundarySignature,
+    plan: &mut BoundaryEntryPlan, ordinal: u64, stack: u64, remaining: u64) -> bool
+requires stack <= 256
+terminates by remaining
+{
+    let next_stack: u64 = darwin_arm64_scalar_parameter(signature, plan, ordinal, stack);
+    transition {
+        ordinal == signature.parameter_count -> (next_stack <= 256)
+        ordinal < 32 && remaining > 0 && next_stack <= 256 ->
+            darwin_arm64_scalar_parameters(signature, plan, ordinal + 1, next_stack, remaining - 1)
+        _ -> false
+    }
+}
+
+// 257 is a rejected-shape sentinel; accepted stack extents stay bounded by
+// 32 * 8 bytes. No rejected partial plan escapes the policy's result.
+machine darwin_arm64_scalar_parameter(signature: &BoundarySignature,
+    plan: &mut BoundaryEntryPlan, ordinal: u64, stack: u64) -> u64
+requires stack <= 256
+{
+    transition {
+        ordinal == signature.parameter_count -> stack
+        ordinal < signature.parameter_count && ordinal < 32 ->
+            root(signature, plan, ordinal, stack, signature.parameters[ordinal])
+        _ -> 257
+    }
+    machine root(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        ordinal: u64, stack: u64, root: u64) -> u64
+    requires ordinal < 32, stack <= 256
+    {
+        transition root < signature.shape_count && root < 256 {
+            true -> shape(plan, ordinal, stack, &signature.shapes[root])
+            _ -> 257
+        }
+    }
+    machine shape(plan: &mut BoundaryEntryPlan, ordinal: u64,
+        stack: u64, shape: &ValueShape) -> u64
+    requires ordinal < 32, stack <= 256
+    {
+        transition shape.class {
+            ValueClass::Integer -> integer(plan, ordinal, stack, shape)
+            ValueClass::Reference -> reference(plan, ordinal, stack, shape)
+            _ -> 257
+        }
+    }
+    machine integer(plan: &mut BoundaryEntryPlan, ordinal: u64,
+        stack: u64, shape: &ValueShape) -> u64
+    requires ordinal < 32, stack <= 256
+    {
+        transition darwin_arm64_integer_shape(shape) {
+            true -> place(plan, ordinal, stack, shape)
+            _ -> 257
+        }
+    }
+    machine reference(plan: &mut BoundaryEntryPlan, ordinal: u64,
+        stack: u64, shape: &ValueShape) -> u64
+    requires ordinal < 32, stack <= 256
+    {
+        transition shape.byte_size == 8 && shape.alignment == 8 {
+            true -> place(plan, ordinal, stack, shape)
+            _ -> 257
+        }
+    }
+    machine place(plan: &mut BoundaryEntryPlan, ordinal: u64,
+        stack: u64, shape: &ValueShape) -> u64
+    requires ordinal < 32, stack <= 256
+    {
+        plan.call.parameters[ordinal].shape = AbiValueShape {
+            class: AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment
+        };
+        plan.call.parameters[ordinal].location_count = 1;
+        transition ordinal < 8 {
+            true -> register_shape(plan, ordinal, stack, shape)
+            _ -> stack_shape(plan, ordinal, stack, shape)
+        }
+    }
+    machine register_shape(plan: &mut BoundaryEntryPlan, ordinal: u64,
+        stack: u64, shape: &ValueShape) -> u64
+    requires ordinal < 8
+    {
+        transition shape.byte_size == 4 || shape.byte_size == 8 {
+            true -> register(plan, ordinal, stack, shape.byte_size)
+            _ -> 257
+        }
+    }
+    machine register(plan: &mut BoundaryEntryPlan, ordinal: u64,
+        stack: u64, size: u64) -> u64
+    requires ordinal < 8
+    {
+        plan.call.parameters[ordinal].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: ordinal }, value_byte_offset: 0, byte_size: size
+        };
+        stack
+    }
+    machine stack_shape(plan: &mut BoundaryEntryPlan, ordinal: u64,
+        stack: u64, shape: &ValueShape) -> u64
+    requires ordinal < 32, stack <= 256
+    {
+        transition shape.alignment > 0 && shape.alignment <= 8 && shape.byte_size <= 8 {
+            true -> stack_place(plan, ordinal, stack, shape.byte_size, shape.alignment)
+            _ -> 257
+        }
+    }
+    machine stack_place(plan: &mut BoundaryEntryPlan, ordinal: u64,
+        stack: u64, size: u64, alignment: u64) -> u64
+    requires ordinal < 32, stack <= 256, alignment > 0 && alignment <= 8, size <= 8
+    {
+        let offset: u64 = ((stack + alignment - 1) / alignment) * alignment;
+        plan.call.parameters[ordinal].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: offset, value_byte_offset: 0, byte_size: size, alignment: alignment
+        };
+        offset + size
+    }
+}
+
+// Shared ordinary Darwin entry and clobber promise, unchanged from the byte-view
+// policy. Each policy fills only its own parameter and result placements.
+public machine darwin_arm64_entry() -> BoundaryEntryPlan
+{
+    let mut plan: BoundaryEntryPlan;
+    plan.call.convention = CallingConvention::Aapcs64;
+    plan.call.stack_alignment = 16;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::Aarch64X { index: 0 };
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::Aarch64X { index: 1 };
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::Aarch64X { index: 2 };
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::Aarch64X { index: 3 };
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::Aarch64X { index: 4 };
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::Aarch64X { index: 5 };
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::Aarch64X { index: 6 };
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::Aarch64X { index: 7 };
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::Aarch64X { index: 8 };
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::Aarch64X { index: 9 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::Aarch64X { index: 10 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::Aarch64X { index: 11 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::Aarch64X { index: 12 };
+    plan.call.ordinary_clobbers.registers[13] = MachineRegister::Aarch64X { index: 13 };
+    plan.call.ordinary_clobbers.registers[14] = MachineRegister::Aarch64X { index: 14 };
+    plan.call.ordinary_clobbers.registers[15] = MachineRegister::Aarch64X { index: 15 };
+    plan.call.ordinary_clobbers.registers[16] = MachineRegister::Aarch64X { index: 16 };
+    plan.call.ordinary_clobbers.registers[17] = MachineRegister::Aarch64X { index: 17 };
+    plan.call.ordinary_clobbers.registers[18] = MachineRegister::Aarch64V { index: 0 };
+    plan.call.ordinary_clobbers.registers[19] = MachineRegister::Aarch64V { index: 1 };
+    plan.call.ordinary_clobbers.registers[20] = MachineRegister::Aarch64V { index: 2 };
+    plan.call.ordinary_clobbers.registers[21] = MachineRegister::Aarch64V { index: 3 };
+    plan.call.ordinary_clobbers.registers[22] = MachineRegister::Aarch64V { index: 4 };
+    plan.call.ordinary_clobbers.registers[23] = MachineRegister::Aarch64V { index: 5 };
+    plan.call.ordinary_clobbers.registers[24] = MachineRegister::Aarch64V { index: 6 };
+    plan.call.ordinary_clobbers.registers[25] = MachineRegister::Aarch64V { index: 7 };
+    plan.call.ordinary_clobbers.registers[26] = MachineRegister::Aarch64V { index: 16 };
+    plan.call.ordinary_clobbers.registers[27] = MachineRegister::Aarch64V { index: 17 };
+    plan.call.ordinary_clobbers.registers[28] = MachineRegister::Aarch64V { index: 18 };
+    plan.call.ordinary_clobbers.registers[29] = MachineRegister::Aarch64V { index: 19 };
+    plan.call.ordinary_clobbers.registers[30] = MachineRegister::Aarch64V { index: 20 };
+    plan.call.ordinary_clobbers.registers[31] = MachineRegister::Aarch64V { index: 21 };
+    plan.call.ordinary_clobbers.registers[32] = MachineRegister::Aarch64V { index: 22 };
+    plan.call.ordinary_clobbers.registers[33] = MachineRegister::Aarch64V { index: 23 };
+    plan.call.ordinary_clobbers.registers[34] = MachineRegister::Aarch64V { index: 24 };
+    plan.call.ordinary_clobbers.registers[35] = MachineRegister::Aarch64V { index: 25 };
+    plan.call.ordinary_clobbers.registers[36] = MachineRegister::Aarch64V { index: 26 };
+    plan.call.ordinary_clobbers.registers[37] = MachineRegister::Aarch64V { index: 27 };
+    plan.call.ordinary_clobbers.registers[38] = MachineRegister::Aarch64V { index: 28 };
+    plan.call.ordinary_clobbers.registers[39] = MachineRegister::Aarch64V { index: 29 };
+    plan.call.ordinary_clobbers.registers[40] = MachineRegister::Aarch64V { index: 30 };
+    plan.call.ordinary_clobbers.registers[41] = MachineRegister::Aarch64V { index: 31 };
+    plan.call.ordinary_clobbers.register_count = 42;
+    plan
+}

@@ -47,6 +47,14 @@ pub enum LoweringError {
     AmbiguousMachineName(String),
     /// A closure names storage absent from its retained type catalog.
     MissingUnitStructuralType(String),
+    /// An observation must resolve one live home, never an inferred backing.
+    ObservationHomeCountMismatch {
+        root: checked_trees::CheckedStorageRoot,
+        matching_homes: usize,
+        parameter_positions: Vec<u32>,
+        local_symbols: Vec<symbols::SymbolHandle>,
+        view_symbols: Vec<symbols::SymbolHandle>,
+    },
     /// A demanded domain has no retained theory for any selected carrier.
     MissingUnitDomainPlan {
         domain: language_semantics::SemanticDomainId,

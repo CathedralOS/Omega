@@ -43,4 +43,14 @@ machine build(builder: &mut Build) {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memset"
         }
     });
+    Build::bind<ImageReadback::interpolates>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", symbol: "_CGImageGetShouldInterpolate"
+        }
+    });
+    Build::bind<ImageReadback::intent>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", symbol: "_CGImageGetRenderingIntent"
+        }
+    });
 }

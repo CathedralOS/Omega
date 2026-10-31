@@ -1,5 +1,6 @@
 // Offscreen images own copied native storage. No image retains an Omega loan.
 use calling;
+use darwin_calling;
 use posix_byte_view_calling;
 
 // CFDataCreate has three C arguments: allocator, byte pointer and CFIndex.
@@ -12,10 +13,10 @@ public boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling> {
     reaches;
 }
 
-// These ordinary C calls have no borrowed Omega storage. A provider retains its
-// CFData and an image retains its provider. Releases drop only our owned native
+// These ordinary C calls have no borrowed Omega storage. A provider preserves
+// its CFData backing independently, and an image retains its provider. Releases drop only our owned native
 // references; the successful image owns the surviving graph independently.
-public boundary trait MacosImageObjects {
+public boundary trait MacosImageObjects: Calling<DarwinArm64ScalarCalling> {
     machine provider(data: u64) -> u64
     requires data != 0
     reaches;
