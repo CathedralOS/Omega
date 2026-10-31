@@ -17,6 +17,11 @@ use crate::encoding::{
     PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION, PackagePolicyRecoveryLimits,
     PackageReviewEncodingError,
 };
+use declarations::encode_dangerous_authority;
+use declarations::encode_dangerous_authority_slack;
+use declarations::semantic_dependency_kind_tag;
+use selected_providers::encode_binding;
+use selected_providers::encode_service_method;
 use values::identity::encode_nominal;
 
 impl PackagePolicyBaseline {
@@ -67,16 +72,10 @@ pub(in crate::encoding) fn policy(
         encoder.sequence(&value.external_supplies, values::external_policy::policy)
     })?;
     encoder.field("dangerous_capabilities", |encoder| {
-        encoder.sequence(
-            &value.dangerous_capabilities,
-            declarations::encode_dangerous_authority,
-        )
+        encoder.sequence(&value.dangerous_capabilities, encode_dangerous_authority)
     })?;
     encoder.field("slack_uses", |encoder| {
-        encoder.sequence(
-            &value.slack_uses,
-            declarations::encode_dangerous_authority_slack,
-        )
+        encoder.sequence(&value.slack_uses, encode_dangerous_authority_slack)
     })?;
     encoder.field("semantic_dependencies", |encoder| {
         encoder.sequence(&value.semantic_dependencies, semantic_dependency)
@@ -124,10 +123,7 @@ pub(super) fn semantic_dependency(
                 "automatic_cleanup_machine"
             }
         };
-        encoder.tag(
-            name,
-            declarations::semantic_dependency_kind_tag(dependency.kind),
-        );
+        encoder.tag(name, semantic_dependency_kind_tag(dependency.kind));
         Ok(())
     })?;
     encoder.field("exposure", |encoder| {
@@ -147,14 +143,6 @@ pub(super) fn native_binding(
     encoder: &mut Encoder,
     value: &crate::record::PackagePolicyNativeBinding,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field_by(
-        "requirement",
-        &value.method,
-        selected_providers::encode_service_method,
-    )?;
-    encoder.field_by(
-        "binding",
-        &value.binding,
-        selected_providers::encode_binding,
-    )
+    encoder.field_by("requirement", &value.method, encode_service_method)?;
+    encoder.field_by("binding", &value.binding, encode_binding)
 }

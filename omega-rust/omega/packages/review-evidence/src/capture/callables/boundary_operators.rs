@@ -2,6 +2,8 @@ use super::external_supply::external_binding_matches_provider_binding;
 use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewExternalBinding;
 use diagnostics::Diagnostic;
+use provider_planning::ProviderRowRealization;
+use provider_planning::ProviderSchemaDeclaration;
 use typed_trees::operator::boundary_operator_requirement_identity;
 
 /// The singleton members a boundary-operator plan must carry: exactly one
@@ -43,9 +45,7 @@ fn boundary_operator_plan_singletons<'plan>(
             plan.name,
         ))]);
     };
-    let provider_planning::ProviderRowRealization::Authored(realization_symbol) =
-        realization_symbol
-    else {
+    let ProviderRowRealization::Authored(realization_symbol) = realization_symbol else {
         return Err(vec![Diagnostic::error(
             "boundary operator callable requires its exact authored realization",
         )]);
@@ -81,9 +81,7 @@ fn selected_boundary_operator_plans<'a>(
                 .identity_text(plan.schema.declaration.trait_name)
                 == slot
                 && retained.provider.schema
-                    == provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
-                        operator.symbol,
-                    )
+                    == ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
         })
         .collect();
     Ok((slot, matches))

@@ -1,6 +1,7 @@
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 use numerics::arithmetic::ArithmeticDomain;
+use terminal_psi::TerminalAccessLifecycleOperation;
 
 pub(crate) fn encode_compiler_intrinsic_execution(
     encoder: &mut Encoder,
@@ -11,13 +12,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             encoder.tag("access_lifecycle", 11);
             encoder.field("operation", |encoder| {
                 match operation {
-                    terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
-                        encoder.tag("initialize", 0)
-                    }
-                    terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
-                        encoder.tag("move_out", 1)
-                    }
-                    terminal_psi::TerminalAccessLifecycleOperation::View => encoder.tag("view", 2),
+                    TerminalAccessLifecycleOperation::Initialize => encoder.tag("initialize", 0),
+                    TerminalAccessLifecycleOperation::MoveOut => encoder.tag("move_out", 1),
+                    TerminalAccessLifecycleOperation::View => encoder.tag("view", 2),
                 }
                 Ok(())
             })?;

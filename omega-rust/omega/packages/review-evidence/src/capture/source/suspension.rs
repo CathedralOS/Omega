@@ -3,6 +3,7 @@ use crate::capture::semantics::facts::exactly_one;
 use crate::capture::source::locations::canonical_source_span_location;
 use crate::record::PackageReviewSourceLocationRole;
 use diagnostics::Diagnostic;
+use language_semantics::SuspensionPlan;
 
 pub(crate) fn validate_machine_operational(
     compilation: &PackageReviewInput<'_>,
@@ -74,13 +75,7 @@ fn validate_authored_keywords(
 fn operational_plans(
     program: &checked_trees::CheckedTrees,
     machine: &typed_trees::machine::Machine,
-) -> Result<
-    (
-        language_semantics::SuspensionPlan,
-        language_semantics::BlockingPlan,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<(SuspensionPlan, language_semantics::BlockingPlan), Vec<Diagnostic>> {
     let suspension = exactly_one(
         program
             .facts
@@ -106,7 +101,7 @@ fn operational_plans(
 
 fn validate_machine_operational_interfaces(
     machine: &typed_trees::machine::Machine,
-    suspension: language_semantics::SuspensionPlan,
+    suspension: SuspensionPlan,
     blocking: language_semantics::BlockingPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let publishes = machine.is_public

@@ -2,11 +2,13 @@ use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractExpression;
+use checked_trees::ContractProofFactOwner;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
+use validation::reserved_result_owner;
 
 mod aliases;
 mod points;
@@ -228,21 +230,17 @@ pub(crate) fn contract_member_path_root(
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::PlaceRoot> {
-    if let Some((owner, _)) =
-        validation::reserved_result_owner(compilation.checking_input, expression)
-    {
+    if let Some((owner, _)) = reserved_result_owner(compilation.checking_input, expression) {
         // The result has no parameter symbol. Rejoin the exact authored
         // postcondition owner before matching its retained semantic place rows.
         // A public trait requirement owns its `result` through the signature
         // symbol: the review context carries it as `StateSignature`.
         return (match context.owner {
-            checked_trees::ContractProofFactOwner::Machine { machine_symbol }
-            | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } => {
+            ContractProofFactOwner::Machine { machine_symbol }
+            | ContractProofFactOwner::MachineState { machine_symbol, .. } => {
                 machine_symbol == owner
             }
-            checked_trees::ContractProofFactOwner::StateSignature { state_symbol, .. } => {
-                state_symbol == owner
-            }
+            ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol == owner,
             _ => false,
         })
         .then_some(facts::PlaceRoot::Expression(expression));

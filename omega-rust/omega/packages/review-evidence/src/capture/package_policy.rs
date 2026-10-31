@@ -14,6 +14,7 @@ use super::providers::project_checked_boundary_application_policy;
 use crate::capture::PackageReviewInput;
 use crate::capture::refusal;
 use crate::record::PackagePolicyBaseline;
+use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
@@ -27,10 +28,7 @@ struct PolicyCheckingContexts<'program> {
 }
 
 impl<'program> PolicyCheckingContexts<'program> {
-    fn new(
-        candidate: &'program checked_trees::CheckedTrees,
-        custody: &'program checked_trees::CheckedTrees,
-    ) -> Self {
+    fn new(candidate: &'program CheckedTrees, custody: &'program CheckedTrees) -> Self {
         Self {
             candidate: validation::CheckingContext::new(&candidate.typed)
                 .with_authored_declaration_selections(candidate.authored_declaration_selections()),

@@ -11,6 +11,7 @@ use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::name::Identifier;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::validate_exact_const_value_encoding;
 
 refusal!(pub(super) reason, "conformance policy cannot retain {reason}");
 
@@ -41,12 +42,13 @@ pub(crate) fn argument_type_reference(
             .filter(|primitive| primitive.accepts_integer_literal())
             .ok_or_else(|| rejected("an integer literal without its exact integer carrier"))?;
         let identity = CanonicalConstIdentity::integer(primitive.name(), integer);
-        validation::validate_exact_const_value_encoding(program, carrier, &identity.encoding)
-            .map_err(|reason| {
+        validate_exact_const_value_encoding(program, carrier, &identity.encoding).map_err(
+            |reason| {
                 rejected(&format!(
                     "a literal with invalid carrier agreement: {reason}"
                 ))
-            })?;
+            },
+        )?;
         let value = CanonicalConstValue::new(
             program.normalized_type_identity_text(carrier),
             identity.encoding,
@@ -237,16 +239,12 @@ pub(crate) fn argument_type_reference(
                 .as_ref()
                 .and_then(|value| value.encoding())
                 .ok_or_else(|| rejected("a named const without a checked value"))?;
-            validation::validate_exact_const_value_encoding(
-                program,
-                declaration.declared_type,
-                encoding,
-            )
-            .map_err(|reason| {
-                rejected(&format!(
-                    "a named const with invalid carrier agreement: {reason}"
-                ))
-            })?;
+            validate_exact_const_value_encoding(program, declaration.declared_type, encoding)
+                .map_err(|reason| {
+                    rejected(&format!(
+                        "a named const with invalid carrier agreement: {reason}"
+                    ))
+                })?;
             let value = CanonicalConstValue::new(
                 program.normalized_type_identity_text(declaration.declared_type),
                 encoding,

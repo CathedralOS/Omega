@@ -7,6 +7,7 @@ use crate::capture::{
 };
 use crate::record::{PackagePolicyExternalRequirement, PackageReviewExternalBinding};
 use diagnostics::Diagnostic;
+use provider_planning::IntrinsicRequirement;
 use symbols::SymbolHandle;
 use typed_trees::machine::{
     Machine, SatisfiedDeclaration, TraitConformance, resolve_satisfied_declaration,
@@ -105,14 +106,11 @@ pub(super) fn project(
             // here. See `IntrinsicRequirement::closed_float_execution`.
             if operator.spelling.is_some()
                 && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
-                    || provider_planning::IntrinsicRequirement::from_operator(
-                        compilation.checking_input,
-                        operator,
-                    )
-                    .and_then(|requirement| {
-                        requirement.closed_float_execution(compilation.checking_input)
-                    })
-                    .is_none())
+                    || IntrinsicRequirement::from_operator(compilation.checking_input, operator)
+                        .and_then(|requirement| {
+                            requirement.closed_float_execution(compilation.checking_input)
+                        })
+                        .is_none())
             {
                 return Err(rejected(
                     "fixed-token external operator has no closed intrinsic execution",

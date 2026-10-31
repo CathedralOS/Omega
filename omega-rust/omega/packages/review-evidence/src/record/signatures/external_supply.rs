@@ -1,6 +1,7 @@
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
+use target::ForeignLocatorCandidate;
 
 /// Closed structural identity of executable code supplied outside Omega.
 /// String fields are foreign ABI identifiers, not package-authored policy or
@@ -56,19 +57,17 @@ impl PackageReviewForeignLocator {
     /// The review-record locator for one provider-plan candidate: a
     /// byte-for-byte carry of the candidate's coordinates into the review
     /// vocabulary.
-    pub(crate) fn from_candidate(candidate: &target::ForeignLocatorCandidate) -> Self {
+    pub(crate) fn from_candidate(candidate: &ForeignLocatorCandidate) -> Self {
         match candidate {
-            target::ForeignLocatorCandidate::PeByName { library, export } => Self::PeByName {
+            ForeignLocatorCandidate::PeByName { library, export } => Self::PeByName {
                 library: library.clone(),
                 export: export.clone(),
             },
-            target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-                Self::PeByOrdinal {
-                    library: library.clone(),
-                    ordinal: *ordinal,
-                }
-            }
-            target::ForeignLocatorCandidate::ElfVersioned {
+            ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => Self::PeByOrdinal {
+                library: library.clone(),
+                ordinal: *ordinal,
+            },
+            ForeignLocatorCandidate::ElfVersioned {
                 object,
                 symbol,
                 version,
@@ -77,7 +76,7 @@ impl PackageReviewForeignLocator {
                 symbol: symbol.clone(),
                 version: version.clone(),
             },
-            target::ForeignLocatorCandidate::MachODylibSymbol {
+            ForeignLocatorCandidate::MachODylibSymbol {
                 install_name,
                 symbol,
             } => Self::MachODylibSymbol {

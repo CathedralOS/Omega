@@ -9,6 +9,7 @@ use crate::record::{
 
 use super::contracts::encode_contract_fact;
 use super::identity::encode_nominal;
+use language_core::OperatorSpelling;
 
 pub(crate) fn encode_proposition_shape(
     encoder: &mut Encoder,
@@ -54,41 +55,39 @@ pub(crate) fn encode_operator_coordinate(
     encoder.string_field("result_dispatch", &coordinate.result_dispatch)
 }
 
-pub(crate) const fn operator_spelling_tag(spelling: language_core::OperatorSpelling) -> u8 {
+pub(crate) const fn operator_spelling_tag(spelling: OperatorSpelling) -> u8 {
     match spelling {
-        language_core::OperatorSpelling::Add => 0,
-        language_core::OperatorSpelling::Subtract => 1,
-        language_core::OperatorSpelling::Multiply => 2,
-        language_core::OperatorSpelling::Divide => 3,
-        language_core::OperatorSpelling::Modulo => 4,
-        language_core::OperatorSpelling::Equal => 5,
-        language_core::OperatorSpelling::NotEqual => 6,
-        language_core::OperatorSpelling::Less => 7,
-        language_core::OperatorSpelling::LessEqual => 8,
-        language_core::OperatorSpelling::Greater => 9,
-        language_core::OperatorSpelling::GreaterEqual => 10,
-        language_core::OperatorSpelling::Index => 11,
-        language_core::OperatorSpelling::Range => 12,
+        OperatorSpelling::Add => 0,
+        OperatorSpelling::Subtract => 1,
+        OperatorSpelling::Multiply => 2,
+        OperatorSpelling::Divide => 3,
+        OperatorSpelling::Modulo => 4,
+        OperatorSpelling::Equal => 5,
+        OperatorSpelling::NotEqual => 6,
+        OperatorSpelling::Less => 7,
+        OperatorSpelling::LessEqual => 8,
+        OperatorSpelling::Greater => 9,
+        OperatorSpelling::GreaterEqual => 10,
+        OperatorSpelling::Index => 11,
+        OperatorSpelling::Range => 12,
     }
 }
 
-pub(crate) const fn operator_spelling_name(
-    spelling: language_core::OperatorSpelling,
-) -> &'static str {
+pub(crate) const fn operator_spelling_name(spelling: OperatorSpelling) -> &'static str {
     match spelling {
-        language_core::OperatorSpelling::Add => "add",
-        language_core::OperatorSpelling::Subtract => "subtract",
-        language_core::OperatorSpelling::Multiply => "multiply",
-        language_core::OperatorSpelling::Divide => "divide",
-        language_core::OperatorSpelling::Modulo => "modulo",
-        language_core::OperatorSpelling::Equal => "equal",
-        language_core::OperatorSpelling::NotEqual => "not_equal",
-        language_core::OperatorSpelling::Less => "less",
-        language_core::OperatorSpelling::LessEqual => "less_equal",
-        language_core::OperatorSpelling::Greater => "greater",
-        language_core::OperatorSpelling::GreaterEqual => "greater_equal",
-        language_core::OperatorSpelling::Index => "index",
-        language_core::OperatorSpelling::Range => "range",
+        OperatorSpelling::Add => "add",
+        OperatorSpelling::Subtract => "subtract",
+        OperatorSpelling::Multiply => "multiply",
+        OperatorSpelling::Divide => "divide",
+        OperatorSpelling::Modulo => "modulo",
+        OperatorSpelling::Equal => "equal",
+        OperatorSpelling::NotEqual => "not_equal",
+        OperatorSpelling::Less => "less",
+        OperatorSpelling::LessEqual => "less_equal",
+        OperatorSpelling::Greater => "greater",
+        OperatorSpelling::GreaterEqual => "greater_equal",
+        OperatorSpelling::Index => "index",
+        OperatorSpelling::Range => "range",
     }
 }
 

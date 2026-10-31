@@ -4,7 +4,9 @@ use checked_trees::CheckedTrees;
 use checked_trees::typed_trees::service_declarations::PreparedServiceCatalog;
 use compilation_products::CheckedCompilation;
 use language_semantics::declaration_selection::AuthoredDeclarationSelection;
+use provider_planning::ProviderPlanningContext;
 use provider_planning::service_declarations::ServiceDeclarations;
+use psi_terminal_production::ExternalProviderDeclarations;
 use typed_trees::machine::Machine;
 use validation::expression_owners::OwnerEnvironmentIndex;
 
@@ -28,8 +30,7 @@ pub struct PackageReviewInput<'a> {
     /// Scratch for one immutable callable-projection batch, never custody.
     pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>,
     pub(crate) service_declarations: Option<&'a ServiceDeclarations>,
-    pub(crate) external_providers:
-        Option<&'a psi_terminal_production::ExternalProviderDeclarations>,
+    pub(crate) external_providers: Option<&'a ExternalProviderDeclarations>,
 }
 
 impl<'a> PackageReviewInput<'a> {
@@ -80,8 +81,7 @@ impl<'a> PackageReviewInput<'a> {
     /// already owns its projection from checked-provider binding.
     pub(super) fn project_external_providers(
         &self,
-    ) -> Result<psi_terminal_production::ExternalProviderDeclarations, Vec<diagnostics::Diagnostic>>
-    {
+    ) -> Result<ExternalProviderDeclarations, Vec<diagnostics::Diagnostic>> {
         psi_terminal_production::project_external_provider_declarations(
             self.program,
             self.custody.sources().exact_toolchain_sources(),
@@ -98,10 +98,8 @@ impl<'a> PackageReviewInput<'a> {
     pub(super) fn project_service_declarations(
         &self,
     ) -> Result<ServiceDeclarations, Vec<diagnostics::Diagnostic>> {
-        let context = provider_planning::ProviderPlanningContext::new(
-            self.checking_input,
-            source::DependencyScope::Product,
-        );
+        let context =
+            ProviderPlanningContext::new(self.checking_input, source::DependencyScope::Product);
         // The supplied candidate is independent source, never the custody's
         // source-coordinate catalog. Keep the borrowed owner unchanged here.
         let catalog = PreparedServiceCatalog::prepare(context);

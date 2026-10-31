@@ -14,8 +14,13 @@ use crate::record::{
     PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
     PackageReviewRepresentationTargetProfile, PackageReviewSystemVEightbyteClass,
 };
+use calling_conventions::CallingPolicy;
+use calling_conventions::MachineRegister;
+use calling_conventions::SystemVEightbyteClass;
+use calling_conventions::ValueClass;
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::BoundaryValueClass;
+use target::TargetProfile;
 
 pub(crate) fn project_representation_origin(
     origin: representation_planning::OpaqueRepresentationApplicationOrigin,
@@ -79,25 +84,19 @@ pub(crate) fn project_representation_target(
     }
     Ok(PackageReviewRepresentationTarget {
         profile: match profile {
-            target::TargetProfile::LinuxArm64 => {
-                PackageReviewRepresentationTargetProfile::LinuxArm64
-            }
-            target::TargetProfile::LinuxX64 => PackageReviewRepresentationTargetProfile::LinuxX64,
-            target::TargetProfile::MacosArm64 => {
-                PackageReviewRepresentationTargetProfile::MacosArm64
-            }
-            target::TargetProfile::MacosX64 => PackageReviewRepresentationTargetProfile::MacosX64,
-            target::TargetProfile::WindowsX64 => {
-                PackageReviewRepresentationTargetProfile::WindowsX64
-            }
-            target::TargetProfile::UefiX64 => PackageReviewRepresentationTargetProfile::UefiX64,
-            target::TargetProfile::CrossPlatformCli => {
+            TargetProfile::LinuxArm64 => PackageReviewRepresentationTargetProfile::LinuxArm64,
+            TargetProfile::LinuxX64 => PackageReviewRepresentationTargetProfile::LinuxX64,
+            TargetProfile::MacosArm64 => PackageReviewRepresentationTargetProfile::MacosArm64,
+            TargetProfile::MacosX64 => PackageReviewRepresentationTargetProfile::MacosX64,
+            TargetProfile::WindowsX64 => PackageReviewRepresentationTargetProfile::WindowsX64,
+            TargetProfile::UefiX64 => PackageReviewRepresentationTargetProfile::UefiX64,
+            TargetProfile::CrossPlatformCli => {
                 PackageReviewRepresentationTargetProfile::CrossPlatformCli
             }
-            target::TargetProfile::LocalUnchecked => {
+            TargetProfile::LocalUnchecked => {
                 PackageReviewRepresentationTargetProfile::LocalUnchecked
             }
-            target::TargetProfile::AlphaBootstrap => {
+            TargetProfile::AlphaBootstrap => {
                 unreachable!("alpha_bootstrap is rejected before realization capture")
             }
         },
@@ -163,21 +162,13 @@ pub(crate) fn project_boundary_shape_graph(
     }
 }
 
-pub(crate) fn project_calling_policy(
-    policy: calling_conventions::CallingPolicy,
-) -> PackageReviewBoundaryCallingPolicy {
+pub(crate) fn project_calling_policy(policy: CallingPolicy) -> PackageReviewBoundaryCallingPolicy {
     match policy {
-        calling_conventions::CallingPolicy::MicrosoftX64 => {
-            PackageReviewBoundaryCallingPolicy::MicrosoftX64
-        }
-        calling_conventions::CallingPolicy::SystemVAMD64 => {
-            PackageReviewBoundaryCallingPolicy::SystemVAMD64
-        }
-        calling_conventions::CallingPolicy::Aapcs64 => PackageReviewBoundaryCallingPolicy::Aapcs64,
-        calling_conventions::CallingPolicy::LinuxSyscallX86_64 => {
-            PackageReviewBoundaryCallingPolicy::LinuxSyscallX86_64
-        }
-        calling_conventions::CallingPolicy::LinuxSyscallAarch64 => {
+        CallingPolicy::MicrosoftX64 => PackageReviewBoundaryCallingPolicy::MicrosoftX64,
+        CallingPolicy::SystemVAMD64 => PackageReviewBoundaryCallingPolicy::SystemVAMD64,
+        CallingPolicy::Aapcs64 => PackageReviewBoundaryCallingPolicy::Aapcs64,
+        CallingPolicy::LinuxSyscallX86_64 => PackageReviewBoundaryCallingPolicy::LinuxSyscallX86_64,
+        CallingPolicy::LinuxSyscallAarch64 => {
             PackageReviewBoundaryCallingPolicy::LinuxSyscallAarch64
         }
     }
@@ -189,20 +180,16 @@ pub(crate) fn project_value_placement(
     PackageReviewBoundaryValuePlacement {
         shape: PackageReviewBoundaryValueShape {
             class: match placement.shape.class {
-                calling_conventions::ValueClass::Integer => {
-                    PackageReviewBoundaryValueClass::Integer
-                }
-                calling_conventions::ValueClass::Float => PackageReviewBoundaryValueClass::Float,
-                calling_conventions::ValueClass::BorrowedReference => {
-                    PackageReviewBoundaryValueClass::BorrowedReference
-                }
-                calling_conventions::ValueClass::BorrowedScalarReference => {
+                ValueClass::Integer => PackageReviewBoundaryValueClass::Integer,
+                ValueClass::Float => PackageReviewBoundaryValueClass::Float,
+                ValueClass::BorrowedReference => PackageReviewBoundaryValueClass::BorrowedReference,
+                ValueClass::BorrowedScalarReference => {
                     PackageReviewBoundaryValueClass::BorrowedScalarReference
                 }
-                calling_conventions::ValueClass::HomogeneousFloatAggregate { members } => {
+                ValueClass::HomogeneousFloatAggregate { members } => {
                     PackageReviewBoundaryValueClass::HomogeneousFloatAggregate { members }
                 }
-                calling_conventions::ValueClass::SystemVAggregate { first, second } => {
+                ValueClass::SystemVAggregate { first, second } => {
                     PackageReviewBoundaryValueClass::SystemVAggregate {
                         first: project_system_v_class(first),
                         second: project_system_v_class(second),
@@ -265,45 +252,33 @@ pub(crate) fn project_value_placement(
     }
 }
 
-fn project_system_v_class(
-    class: calling_conventions::SystemVEightbyteClass,
-) -> PackageReviewSystemVEightbyteClass {
+fn project_system_v_class(class: SystemVEightbyteClass) -> PackageReviewSystemVEightbyteClass {
     match class {
-        calling_conventions::SystemVEightbyteClass::Integer => {
-            PackageReviewSystemVEightbyteClass::Integer
-        }
-        calling_conventions::SystemVEightbyteClass::Sse => PackageReviewSystemVEightbyteClass::Sse,
+        SystemVEightbyteClass::Integer => PackageReviewSystemVEightbyteClass::Integer,
+        SystemVEightbyteClass::Sse => PackageReviewSystemVEightbyteClass::Sse,
     }
 }
 
-pub(crate) fn project_machine_register(
-    register: calling_conventions::MachineRegister,
-) -> PackageReviewMachineRegister {
+pub(crate) fn project_machine_register(register: MachineRegister) -> PackageReviewMachineRegister {
     match register {
-        calling_conventions::MachineRegister::X86Rax => PackageReviewMachineRegister::X86Rax,
-        calling_conventions::MachineRegister::X86Rcx => PackageReviewMachineRegister::X86Rcx,
-        calling_conventions::MachineRegister::X86Rdx => PackageReviewMachineRegister::X86Rdx,
-        calling_conventions::MachineRegister::X86Rbx => PackageReviewMachineRegister::X86Rbx,
-        calling_conventions::MachineRegister::X86Rsp => PackageReviewMachineRegister::X86Rsp,
-        calling_conventions::MachineRegister::X86Rbp => PackageReviewMachineRegister::X86Rbp,
-        calling_conventions::MachineRegister::X86Rsi => PackageReviewMachineRegister::X86Rsi,
-        calling_conventions::MachineRegister::X86Rdi => PackageReviewMachineRegister::X86Rdi,
-        calling_conventions::MachineRegister::X86R8 => PackageReviewMachineRegister::X86R8,
-        calling_conventions::MachineRegister::X86R9 => PackageReviewMachineRegister::X86R9,
-        calling_conventions::MachineRegister::X86R10 => PackageReviewMachineRegister::X86R10,
-        calling_conventions::MachineRegister::X86R11 => PackageReviewMachineRegister::X86R11,
-        calling_conventions::MachineRegister::X86R12 => PackageReviewMachineRegister::X86R12,
-        calling_conventions::MachineRegister::X86R13 => PackageReviewMachineRegister::X86R13,
-        calling_conventions::MachineRegister::X86R14 => PackageReviewMachineRegister::X86R14,
-        calling_conventions::MachineRegister::X86R15 => PackageReviewMachineRegister::X86R15,
-        calling_conventions::MachineRegister::X86Xmm(index) => {
-            PackageReviewMachineRegister::X86Xmm(index)
-        }
-        calling_conventions::MachineRegister::Aarch64X(index) => {
-            PackageReviewMachineRegister::Aarch64X(index)
-        }
-        calling_conventions::MachineRegister::Aarch64V(index) => {
-            PackageReviewMachineRegister::Aarch64V(index)
-        }
+        MachineRegister::X86Rax => PackageReviewMachineRegister::X86Rax,
+        MachineRegister::X86Rcx => PackageReviewMachineRegister::X86Rcx,
+        MachineRegister::X86Rdx => PackageReviewMachineRegister::X86Rdx,
+        MachineRegister::X86Rbx => PackageReviewMachineRegister::X86Rbx,
+        MachineRegister::X86Rsp => PackageReviewMachineRegister::X86Rsp,
+        MachineRegister::X86Rbp => PackageReviewMachineRegister::X86Rbp,
+        MachineRegister::X86Rsi => PackageReviewMachineRegister::X86Rsi,
+        MachineRegister::X86Rdi => PackageReviewMachineRegister::X86Rdi,
+        MachineRegister::X86R8 => PackageReviewMachineRegister::X86R8,
+        MachineRegister::X86R9 => PackageReviewMachineRegister::X86R9,
+        MachineRegister::X86R10 => PackageReviewMachineRegister::X86R10,
+        MachineRegister::X86R11 => PackageReviewMachineRegister::X86R11,
+        MachineRegister::X86R12 => PackageReviewMachineRegister::X86R12,
+        MachineRegister::X86R13 => PackageReviewMachineRegister::X86R13,
+        MachineRegister::X86R14 => PackageReviewMachineRegister::X86R14,
+        MachineRegister::X86R15 => PackageReviewMachineRegister::X86R15,
+        MachineRegister::X86Xmm(index) => PackageReviewMachineRegister::X86Xmm(index),
+        MachineRegister::Aarch64X(index) => PackageReviewMachineRegister::Aarch64X(index),
+        MachineRegister::Aarch64V(index) => PackageReviewMachineRegister::Aarch64V(index),
     }
 }

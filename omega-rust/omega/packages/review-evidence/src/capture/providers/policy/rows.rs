@@ -9,7 +9,9 @@ use crate::capture::semantics::declarations::{
 use crate::record::PackagePolicyProviderRow;
 use diagnostics::Diagnostic;
 use language_semantics::type_identity::normalize_requirement_lifetime_partition;
-use provider_planning::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
+use provider_planning::{
+    ProviderPlanningContext, ProviderSchemaDeclaration, SelectedProviderReviewProvenance,
+};
 use symbols::SymbolHandle;
 use target::TargetProfile;
 
@@ -139,10 +141,7 @@ fn validate_lifetime_partition(
         ));
     };
     let application = provider_planning::provider_trait_application(
-        provider_planning::ProviderPlanningContext::new(
-            compilation.checking_input,
-            source::DependencyScope::Product,
-        ),
+        ProviderPlanningContext::new(compilation.checking_input, source::DependencyScope::Product),
         plan,
         row,
         machine,

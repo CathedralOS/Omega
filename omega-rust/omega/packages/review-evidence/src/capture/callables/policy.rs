@@ -16,6 +16,7 @@ use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
+use typed_trees_to_checked_trees::infer_checked_crash_causes;
 
 /// Capture semantics only; this neither accepts assumptions nor reconstitutes
 /// compiler certificates, build replay, or native authority.
@@ -51,10 +52,8 @@ pub(crate) fn project_checked_callable_policy<'a>(
     let operational = validation::infer_operational_may(compilation.checking_input);
     let service_reaches =
         validation::infer_service_reaches(compilation.checking_input, &operational);
-    let inferred_crash_causes = typed_trees_to_checked_trees::infer_checked_crash_causes(
-        compilation.checking_input,
-        &compilation.facts,
-    );
+    let inferred_crash_causes =
+        infer_checked_crash_causes(compilation.checking_input, &compilation.facts);
     let capability_projection = behavior::CapabilityFlowProjection::new(compilation);
     for machine in compilation.machines() {
         if Some(machine.symbol) != build

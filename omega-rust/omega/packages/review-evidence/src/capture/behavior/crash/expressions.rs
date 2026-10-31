@@ -14,8 +14,12 @@ use crate::record::{
     PackageReviewRuntimeIndex, PackageReviewScalarExpression,
     PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
+use checked_trees::CheckedIntegerComparisonKind;
+use checked_trees::CheckedRuntimeIndex;
+use checked_trees::CheckedScalarReadProjection;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::LandedIntegerType;
+use semantic_vocabulary::IeeeFloatValue;
 use typed_trees::types::PrimitiveType;
 
 pub(in crate::capture::behavior) fn project_boolean_expression(
@@ -127,9 +131,7 @@ fn project_scalar_expression(
         CheckedScalarExpression::StructuralSequenceLength { root, path } => {
             PackageReviewScalarExpression::StructuralParameterByteLength {
                 parameter_position: root.parameter()?,
-                path: project_structural_path(
-                    &checked_trees::CheckedScalarReadProjection::static_path(path)?,
-                )?,
+                path: project_structural_path(&CheckedScalarReadProjection::static_path(path)?)?,
             }
         }
         CheckedScalarExpression::StructuralParameterIndexedRead {
@@ -145,18 +147,12 @@ fn project_scalar_expression(
             // members need a public coordinate. Never export source occurrences.
             let prefix_count = element_path
                 .iter()
-                .take_while(|step| {
-                    matches!(
-                        step,
-                        checked_trees::CheckedScalarReadProjection::RuntimeIndex(_)
-                    )
-                })
+                .take_while(|step| matches!(step, CheckedScalarReadProjection::RuntimeIndex(_)))
                 .count();
             let inner_indexes = element_path[..prefix_count]
                 .iter()
                 .map(|step| {
-                    let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step
-                    else {
+                    let CheckedScalarReadProjection::RuntimeIndex(selector) = step else {
                         return None;
                     };
                     project_scalar_expression(&selector.expression)
@@ -165,10 +161,10 @@ fn project_scalar_expression(
             let element_path = element_path[prefix_count..]
                 .iter()
                 .map(|step| match step {
-                    checked_trees::CheckedScalarReadProjection::Static(segment) => {
+                    CheckedScalarReadProjection::Static(segment) => {
                         project_structural_path(std::slice::from_ref(segment))?.pop()
                     }
-                    checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                    CheckedScalarReadProjection::RuntimeIndex(selector) => {
                         let coordinate = match &selector.expression {
                             CheckedScalarExpression::Parameter { position, .. } => {
                                 PackageReviewRuntimeIndex::Parameter {
@@ -243,12 +239,8 @@ fn project_scalar_expression(
             })
         }
         CheckedScalarExpression::IeeeFloatLiteral { value } => match value {
-            semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
-                PackageReviewScalarExpression::Float32Literal(*bits)
-            }
-            semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
-                PackageReviewScalarExpression::Float64Literal(*bits)
-            }
+            IeeeFloatValue::Binary32(bits) => PackageReviewScalarExpression::Float32Literal(*bits),
+            IeeeFloatValue::Binary64(bits) => PackageReviewScalarExpression::Float64Literal(*bits),
         },
         CheckedScalarExpression::IntegerBinary {
             kind,
@@ -339,27 +331,21 @@ fn project_structural_path(
         .collect()
 }
 
-fn project_runtime_index(
-    index: &checked_trees::CheckedRuntimeIndex,
-) -> Option<PackageReviewRuntimeIndex> {
+fn project_runtime_index(index: &CheckedRuntimeIndex) -> Option<PackageReviewRuntimeIndex> {
     Some(match index {
-        checked_trees::CheckedRuntimeIndex::StorageRead { .. } => return None,
-        checked_trees::CheckedRuntimeIndex::Parameter { position } => {
-            PackageReviewRuntimeIndex::Parameter {
-                position: *position,
-            }
-        }
-        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => {
+        CheckedRuntimeIndex::StorageRead { .. } => return None,
+        CheckedRuntimeIndex::Parameter { position } => PackageReviewRuntimeIndex::Parameter {
+            position: *position,
+        },
+        CheckedRuntimeIndex::AssignmentIndex { depth } => {
             PackageReviewRuntimeIndex::AssignmentIndex { depth: *depth }
         }
-        checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+        CheckedRuntimeIndex::StructuralField(field) => {
             PackageReviewRuntimeIndex::StructuralField(project_structural_field(field)?)
         }
-        checked_trees::CheckedRuntimeIndex::Local { position } => {
-            PackageReviewRuntimeIndex::Local {
-                position: *position,
-            }
-        }
+        CheckedRuntimeIndex::Local { position } => PackageReviewRuntimeIndex::Local {
+            position: *position,
+        },
     })
 }
 
@@ -428,16 +414,12 @@ const fn project_ieee_float_comparison_kind(
 }
 
 const fn project_integer_comparison_kind(
-    kind: checked_trees::CheckedIntegerComparisonKind,
+    kind: CheckedIntegerComparisonKind,
 ) -> PackageReviewIntegerComparisonKind {
     match kind {
-        checked_trees::CheckedIntegerComparisonKind::Equal => {
-            PackageReviewIntegerComparisonKind::Equal
-        }
-        checked_trees::CheckedIntegerComparisonKind::LessThan => {
-            PackageReviewIntegerComparisonKind::LessThan
-        }
-        checked_trees::CheckedIntegerComparisonKind::LessOrEqual => {
+        CheckedIntegerComparisonKind::Equal => PackageReviewIntegerComparisonKind::Equal,
+        CheckedIntegerComparisonKind::LessThan => PackageReviewIntegerComparisonKind::LessThan,
+        CheckedIntegerComparisonKind::LessOrEqual => {
             PackageReviewIntegerComparisonKind::LessOrEqual
         }
     }

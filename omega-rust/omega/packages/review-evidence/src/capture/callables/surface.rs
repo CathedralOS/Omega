@@ -21,7 +21,10 @@ use crate::record::{
     PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
 };
 use diagnostics::Diagnostic;
+use language_semantics::BlockingInterface;
 use language_semantics::MachineSupplyMode;
+use language_semantics::ServiceReachInterface;
+use language_semantics::SuspensionInterface;
 use symbols::SymbolHandle;
 
 pub(super) struct CallableSurface {
@@ -190,38 +193,28 @@ pub(super) fn project<'a>(
         );
     let authored_service_reach = authored_machine_service_reach(compilation, machine)?;
     let declared_service_reach = match service_reach.interface {
-        language_semantics::ServiceReachInterface::PublishedCeiling(row)
+        ServiceReachInterface::PublishedCeiling(row)
             if authored_service_reach.is_some() || !has_checked_body =>
         {
             Some(project_service_row(compilation, row)?)
         }
-        language_semantics::ServiceReachInterface::PublishedCeiling(_) => None,
-        language_semantics::ServiceReachInterface::InternalInferred
-            if role == PackageReviewCallableRole::Build =>
-        {
-            None
-        }
-        language_semantics::ServiceReachInterface::InternalInferred => {
+        ServiceReachInterface::PublishedCeiling(_) => None,
+        ServiceReachInterface::InternalInferred if role == PackageReviewCallableRole::Build => None,
+        ServiceReachInterface::InternalInferred => {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed callable `{subject}` has no published service-reach ceiling"
             ))]);
         }
     };
     if role != PackageReviewCallableRole::Build
-        && matches!(
-            suspension.interface,
-            language_semantics::SuspensionInterface::InternalInferred
-        )
+        && matches!(suspension.interface, SuspensionInterface::InternalInferred)
     {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{subject}` has no published suspension ceiling"
         ))]);
     }
     if role != PackageReviewCallableRole::Build
-        && matches!(
-            blocking.interface,
-            language_semantics::BlockingInterface::InternalInferred
-        )
+        && matches!(blocking.interface, BlockingInterface::InternalInferred)
     {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{subject}` has no published blocking ceiling"
@@ -330,14 +323,12 @@ pub(super) fn project<'a>(
             checked_may_suspend: realized.checked_may_suspend,
             checked_may_block: realized.checked_may_block,
             declared_may_suspend: match suspension.interface {
-                language_semantics::SuspensionInterface::PublishedMaySuspend(ceiling) => {
-                    Some(ceiling)
-                }
-                language_semantics::SuspensionInterface::InternalInferred => None,
+                SuspensionInterface::PublishedMaySuspend(ceiling) => Some(ceiling),
+                SuspensionInterface::InternalInferred => None,
             },
             declared_may_block: match blocking.interface {
-                language_semantics::BlockingInterface::PublishedMayBlock(ceiling) => Some(ceiling),
-                language_semantics::BlockingInterface::InternalInferred => None,
+                BlockingInterface::PublishedMayBlock(ceiling) => Some(ceiling),
+                BlockingInterface::InternalInferred => None,
             },
         },
         binders,

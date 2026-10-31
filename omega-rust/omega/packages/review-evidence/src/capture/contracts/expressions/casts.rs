@@ -7,6 +7,7 @@ use crate::record::{
     PackageReviewReferenceAccess,
 };
 use diagnostics::Diagnostic;
+use language_core::ReferenceAccess;
 use language_core::cast_form::CastForm;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -57,11 +58,9 @@ pub(crate) fn project_contract_cast(
         form: match cast.form {
             CastForm::Value => PackageReviewCastForm::Value,
             CastForm::Recast(access) => PackageReviewCastForm::Recast(match access {
-                language_core::ReferenceAccess::Shared => PackageReviewReferenceAccess::Shared,
-                language_core::ReferenceAccess::Mutable => PackageReviewReferenceAccess::Mutable,
-                language_core::ReferenceAccess::WriteOnly => {
-                    PackageReviewReferenceAccess::WriteOnly
-                }
+                ReferenceAccess::Shared => PackageReviewReferenceAccess::Shared,
+                ReferenceAccess::Mutable => PackageReviewReferenceAccess::Mutable,
+                ReferenceAccess::WriteOnly => PackageReviewReferenceAccess::WriteOnly,
             }),
         },
     })
