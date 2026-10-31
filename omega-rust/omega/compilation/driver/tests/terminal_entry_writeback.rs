@@ -639,6 +639,53 @@ fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
     }
 }
 
+// Build project requests and designated binding operands have distinct source
+// issuers. Route only through the exact captured roster; sending every slot to
+// the binding host correctly refuses an ordinary Build::application effect.
+fn bind_build_hosts(
+    instance: &mut terminal_interpreter::TerminalInstance<'_, '_>,
+    produced: &psi_compiler::ProducedTerminalProgram,
+    original: &TerminalStructuralValue,
+    binding: &std::sync::Arc<build_evaluation::terminal_bindings::TerminalBuildBindingHost>,
+) {
+    let artifact = produced.artifact().expect("portable inspection");
+    let project = build_evaluation::terminal_requests::TerminalBuildRequestHost::new(
+        artifact.view().into(),
+        produced.build_requests(),
+        original.clone(),
+        None,
+    )
+    .expect("original project-request custody");
+    let requests = produced
+        .build_requests()
+        .calls_for(artifact.view().into())
+        .unwrap();
+    let bindings = produced
+        .build_bindings()
+        .calls_for(artifact.view().into())
+        .unwrap();
+    for boundary in instance.unbound_imports().collect::<Vec<_>>() {
+        let declaration = artifact
+            .semantic_module()
+            .boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == boundary)
+            .unwrap();
+        match (
+            requests.iter().any(|call| call.boundary == boundary),
+            bindings.iter().any(|call| call.boundary == boundary),
+        ) {
+            (true, false) => instance
+                .bind_import(boundary, project.adapter(declaration.into()))
+                .unwrap(),
+            (false, true) => instance
+                .bind_import(boundary, binding.adapter(declaration.into()))
+                .unwrap(),
+            _ => panic!("Build import must have exactly one source-issued host roster"),
+        }
+    }
+}
+
 #[test]
 fn build_settings_use_the_existing_validator_after_terminal_execution() {
     for (machine, rejection) in [
@@ -678,17 +725,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
             )
             .unwrap();
             let mut instance = zeroed_instance(&program, &arguments);
-            for boundary in instance.unbound_imports().collect::<Vec<_>>() {
-                let declaration = artifact
-                    .semantic_module()
-                    .boundary_machines
-                    .iter()
-                    .find(|declaration| declaration.id == boundary)
-                    .unwrap();
-                instance
-                    .bind_import(boundary, host.adapter(declaration.into()))
-                    .unwrap();
-            }
+            bind_build_hosts(&mut instance, &produced, &arguments[0], &host);
             assert!(
                 build_evaluation::terminal_settings::extract(&instance, admission, &initial)
                     .unwrap_err()
@@ -844,17 +881,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         .unwrap();
         let arguments = [original];
         let mut instance = zeroed_instance(&program, &arguments);
-        for boundary in instance.unbound_imports().collect::<Vec<_>>() {
-            let declaration = artifact
-                .semantic_module()
-                .boundary_machines
-                .iter()
-                .find(|declaration| declaration.id == boundary)
-                .unwrap();
-            instance
-                .bind_import(boundary, host.adapter(declaration.into()))
-                .unwrap();
-        }
+        bind_build_hosts(&mut instance, &produced, &arguments[0], &host);
         let result = instance.invoke(meter);
         if completes {
             assert_eq!(
@@ -892,7 +919,8 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
                 "refusal must not replay effects"
             );
         }
-        assert_eq!(instance.effects().len(), 8);
+        // The authored application request precedes four binding prepare/commit pairs.
+        assert_eq!(instance.effects().len(), 1 + 4 * 2);
         drop(instance);
         assert_eq!(host.into_executed().unwrap().len(), 4);
     };
@@ -976,17 +1004,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
                 ..Default::default()
             })
             .unwrap();
-        for boundary in instance.unbound_imports().collect::<Vec<_>>() {
-            let declaration = artifact
-                .semantic_module()
-                .boundary_machines
-                .iter()
-                .find(|declaration| declaration.id == boundary)
-                .unwrap();
-            instance
-                .bind_import(boundary, host.adapter(declaration.into()))
-                .unwrap();
-        }
+        bind_build_hosts(&mut instance, &produced, &arguments[0], &host);
         let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
         let result = loop {
             match instance.invoke(&mut meter) {
@@ -1031,7 +1049,8 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
                 settings.application_identifier,
                 Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())
             );
-            assert_eq!(instance.effects().len(), 8);
+            // The authored application request precedes four binding prepare/commit pairs.
+            assert_eq!(instance.effects().len(), 1 + 4 * 2);
             assert!(
                 sponsor.live_payload_bytes() > 0,
                 "readback retains the original backing"

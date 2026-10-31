@@ -109,7 +109,7 @@ pub(super) fn observe(
                                 .map(|offset| bytes.read(offset))
                                 .collect::<Result<Vec<_>, _>>()
                                 .map_err(describe)?;
-                            if actual != expected[6..].as_bytes() {
+                            if actual != expected.as_bytes()[6..] {
                                 return Err(format!("{oracle}: observed bytes {actual:?}"));
                             }
                         }

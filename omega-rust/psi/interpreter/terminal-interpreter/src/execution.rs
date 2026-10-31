@@ -5,7 +5,6 @@
 //! `call_operations`, `structural_operations` and the earlier owners), then
 //! settles the block terminator through its `settle_*` method (`terminators`).
 
-use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::{
     bind_affine_frontier, bind_arguments, bind_entry_claims, bind_structural_arguments,
