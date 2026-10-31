@@ -16,16 +16,24 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate,
+    DominatingScalarCommonSubexpressionRewrite, LocalScalarCommonSubexpressionRewrite,
+    NodeLocation, OptimizationFact, PhiTranslatedScalarGvnRewrite, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate, ValueDefinition,
+    ValueDefinitionSite,
 };
 use semantic_vocabulary::OperationId;
 
 use expression_keys::{ScalarExpressionKey, ScalarExpressionRow};
 use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
 
-use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::{AnalysisProduct, EffectSummaryAnalysis, RuleProposalError};
+use crate::{
+    EffectKnowledge, RuleProposalError,
+    analyses::block_dominates,
+    rules::{GLOBAL_VALUE_NUMBERING_PASS_NAME, accepted_obligation_fact, standard_rule_contract},
+};
+use abstract_operations::AbstractOperation;
 
 mod dominating_scalar_gvn;
 mod expression_keys;
@@ -81,7 +89,7 @@ pub(super) fn same_block_contract(
     rule_name: &'static [u8],
     safety: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
-    crate::rules::standard_rule_contract(
+    standard_rule_contract(
         rule_name,
         GLOBAL_VALUE_NUMBERING_PASS_NAME,
         1,
@@ -95,7 +103,7 @@ pub(super) fn dominating_contract(
     rule_name: &'static [u8],
     safety: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
-    crate::rules::standard_rule_contract(
+    standard_rule_contract(
         rule_name,
         GLOBAL_VALUE_NUMBERING_PASS_NAME,
         1,
@@ -130,10 +138,10 @@ pub(super) fn exact_pure_scalar_effect(
             && row.block == block
             && row.node == node
             && row.class == crate::EffectClass::PureScalar
-            && row.observable == crate::EffectKnowledge::No
-            && row.structural_state == crate::EffectKnowledge::No
-            && row.crash == crate::EffectKnowledge::No
-            && row.suspension == crate::EffectKnowledge::No
+            && row.observable == EffectKnowledge::No
+            && row.structural_state == EffectKnowledge::No
+            && row.crash == EffectKnowledge::No
+            && row.suspension == EffectKnowledge::No
     })
 }
 
@@ -167,9 +175,9 @@ fn function_value_types(function: &PsiOptimizationFunction) -> BTreeMap<ValueId,
 /// ones.
 pub(super) struct SameBlockScalarCseMatch<E> {
     pub affected_blocks: Vec<BlockId>,
-    pub provenance: Vec<optimization_unit::ProvenanceRewrite>,
+    pub provenance: Vec<ProvenanceRewrite>,
     pub extras: E,
-    pub patch: optimization_unit::LocalScalarCommonSubexpressionRewrite,
+    pub patch: LocalScalarCommonSubexpressionRewrite,
 }
 
 /// The shared same-block scalar CSE proposal: per block the first eligible
@@ -188,16 +196,16 @@ pub(super) fn propose_same_block_scalar_cse<K, E>(
         &ScalarCseValueTypes,
         &PsiOptimizationUnit,
         &PsiOptimizationFunction,
-        &abstract_operations::AbstractOperation,
+        &AbstractOperation,
     ) -> Option<ScalarExpressionRow<K>>,
     redundant: impl Fn(
         &ScalarCseValueTypes,
         &PsiOptimizationUnit,
         &PsiOptimizationFunction,
-        &abstract_operations::AbstractOperation,
+        &AbstractOperation,
     ) -> Option<(ScalarExpressionRow<K>, E)>,
-    emit: impl Fn(SameBlockScalarCseMatch<E>) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
-) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+    emit: impl Fn(SameBlockScalarCseMatch<E>) -> Result<PsiRewriteCandidate, RuleProposalError>,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError>
 where
     K: Ord,
     E: Copy,
@@ -276,7 +284,7 @@ where
                     affected_blocks,
                     provenance,
                     extras,
-                    patch: optimization_unit::LocalScalarCommonSubexpressionRewrite {
+                    patch: LocalScalarCommonSubexpressionRewrite {
                         leader: leader_location,
                         redundant: redundant_location,
                         leader_operation,
@@ -298,9 +306,9 @@ where
 /// the accepted obligation fact for the proof-certified one.
 pub(super) struct DominatingScalarGvnMatch<E> {
     pub affected_blocks: Vec<BlockId>,
-    pub provenance: Vec<optimization_unit::ProvenanceRewrite>,
+    pub provenance: Vec<ProvenanceRewrite>,
     pub extras: E,
-    pub patch: optimization_unit::DominatingScalarCommonSubexpressionRewrite,
+    pub patch: DominatingScalarCommonSubexpressionRewrite,
 }
 
 /// The shared dominating-leader GVN proposal: gather each function's
@@ -319,16 +327,16 @@ pub(super) fn propose_dominating_scalar_gvn<K, E>(
         &ScalarCseValueTypes,
         &PsiOptimizationUnit,
         &PsiOptimizationFunction,
-        &abstract_operations::AbstractOperation,
+        &AbstractOperation,
     ) -> Option<ScalarExpressionRow<K>>,
     redundant: impl Fn(
         &ScalarCseValueTypes,
         &PsiOptimizationUnit,
         &PsiOptimizationFunction,
-        &abstract_operations::AbstractOperation,
+        &AbstractOperation,
     ) -> Option<(ScalarExpressionRow<K>, E)>,
-    emit: impl Fn(DominatingScalarGvnMatch<E>) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
-) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+    emit: impl Fn(DominatingScalarGvnMatch<E>) -> Result<PsiRewriteCandidate, RuleProposalError>,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError>
 where
     K: Ord,
     E: Copy,
@@ -399,11 +407,7 @@ where
                     candidate_key == key
                         && *candidate_type == *scalar_type
                         && location.block != redundant.block
-                        && crate::analyses::block_dominates(
-                            machine_dominators,
-                            location.block,
-                            redundant.block,
-                        )
+                        && block_dominates(machine_dominators, location.block, redundant.block)
                 })
                 .min_by_key(|(_, location, _, _, _)| {
                     let depth = machine_dominators
@@ -415,10 +419,10 @@ where
             let Some((_, leader, leader_operation, leader_result, _)) = leader else {
                 continue;
             };
-            let replacement_definition = optimization_unit::ValueDefinition {
+            let replacement_definition = ValueDefinition {
                 value: *leader_result,
                 scalar_type: *scalar_type,
-                site: optimization_unit::ValueDefinitionSite::Node {
+                site: ValueDefinitionSite::Node {
                     block: leader.block,
                     node: leader.node,
                 },
@@ -430,13 +434,11 @@ where
                     *machine == function.machine && use_site.value == *redundant_result
                 })
                 .all(|(_, use_site)| match replacement_definition.site {
-                    optimization_unit::ValueDefinitionSite::Node { block, node }
-                        if block == use_site.block =>
-                    {
+                    ValueDefinitionSite::Node { block, node } if block == use_site.block => {
                         node < use_site.node
                     }
-                    optimization_unit::ValueDefinitionSite::Node { block, .. } => {
-                        crate::analyses::block_dominates(machine_dominators, block, use_site.block)
+                    ValueDefinitionSite::Node { block, .. } => {
+                        block_dominates(machine_dominators, block, use_site.block)
                     }
                     _ => false,
                 })
@@ -452,7 +454,7 @@ where
                 affected_blocks,
                 provenance,
                 extras: *extras,
-                patch: optimization_unit::DominatingScalarCommonSubexpressionRewrite {
+                patch: DominatingScalarCommonSubexpressionRewrite {
                     leader: *leader,
                     redundant: *redundant,
                     leader_operation: *leader_operation,
@@ -480,9 +482,9 @@ pub(super) type PhiTranslatedScalarGvnRows<K, E> = (
 /// rule's own candidate constructor consumes.
 pub(super) struct PhiTranslatedScalarGvnMatch<E> {
     pub affected_blocks: Vec<BlockId>,
-    pub provenance: Vec<optimization_unit::ProvenanceRewrite>,
+    pub provenance: Vec<ProvenanceRewrite>,
     pub extras: E,
-    pub patch: optimization_unit::PhiTranslatedScalarGvnRewrite,
+    pub patch: PhiTranslatedScalarGvnRewrite,
 }
 
 /// The shared phi-translated scalar CSE proposal: per function each rule
@@ -501,10 +503,8 @@ pub(super) fn propose_phi_translated_scalar_gvn<K, E>(
         &EffectSummaryAnalysis,
         &BTreeMap<ValueId, ScalarType>,
     ) -> PhiTranslatedScalarGvnRows<K, E>,
-    emit: impl Fn(
-        PhiTranslatedScalarGvnMatch<E>,
-    ) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
-) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+    emit: impl Fn(PhiTranslatedScalarGvnMatch<E>) -> Result<PsiRewriteCandidate, RuleProposalError>,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError>
 where
     K: ScalarExpressionKey + Ord,
     E: Copy,
@@ -540,7 +540,7 @@ where
                 affected_blocks,
                 provenance,
                 extras,
-                patch: optimization_unit::PhiTranslatedScalarGvnRewrite {
+                patch: PhiTranslatedScalarGvnRewrite {
                     redundant,
                     redundant_operation,
                     redundant_result,
@@ -566,8 +566,8 @@ pub(super) fn collect_scalar_rows<K, E>(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     effects: &EffectSummaryAnalysis,
-    leader: impl Fn(&abstract_operations::AbstractOperation) -> Option<ScalarExpressionRow<K>>,
-    redundant: impl Fn(&abstract_operations::AbstractOperation) -> Option<(ScalarExpressionRow<K>, E)>,
+    leader: impl Fn(&AbstractOperation) -> Option<ScalarExpressionRow<K>>,
+    redundant: impl Fn(&AbstractOperation) -> Option<(ScalarExpressionRow<K>, E)>,
 ) -> PhiTranslatedScalarGvnRows<K, E> {
     let mut leaders = Vec::new();
     let mut redundants = Vec::new();
@@ -612,13 +612,13 @@ pub(super) struct ScalarCseKeys<K> {
         &ScalarCseValueTypes,
         &PsiOptimizationUnit,
         &PsiOptimizationFunction,
-        &abstract_operations::AbstractOperation,
+        &AbstractOperation,
     ) -> Option<ScalarExpressionRow<K>>,
     pub redundant: fn(
         &ScalarCseValueTypes,
         &PsiOptimizationUnit,
         &PsiOptimizationFunction,
-        &abstract_operations::AbstractOperation,
+        &AbstractOperation,
     ) -> Option<(ScalarExpressionRow<K>, ScalarCsePayload)>,
 }
 
@@ -642,18 +642,12 @@ pub(super) const PROOF_CERTIFIED_CSE_KEYS: ScalarCseKeys<
 > = ScalarCseKeys {
     leader: |_value_types, unit, function, operation| {
         let row = expression_keys::proof_certified_scalar_expression(operation)?;
-        crate::rules::accepted_obligations::accepted_obligation_fact(unit, function.machine, row.1)
-            .ok()?;
+        accepted_obligation_fact(unit, function.machine, row.1).ok()?;
         Some(row)
     },
     redundant: |_value_types, unit, function, operation| {
         let row = expression_keys::proof_certified_scalar_expression(operation)?;
-        let fact = crate::rules::accepted_obligations::accepted_obligation_fact(
-            unit,
-            function.machine,
-            row.1,
-        )
-        .ok()?;
+        let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
         Some((row, Some(fact)))
     },
 };
@@ -666,7 +660,7 @@ pub(super) const COMPATIBLE_POLICY_CSE_KEYS: ScalarCseKeys<
     leader: |_value_types, _unit, function, operation| {
         let row = expression_keys::compatible_policy_scalar_leader(operation)?;
         if function.facts.iter().any(|fact| {
-            matches!(fact, optimization_unit::OptimizationFact::OperationObligationReference { support, .. }
+            matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
                 if *support == row.1)
         }) {
             return None;
@@ -675,12 +669,7 @@ pub(super) const COMPATIBLE_POLICY_CSE_KEYS: ScalarCseKeys<
     },
     redundant: |_value_types, unit, function, operation| {
         let row = expression_keys::compatible_policy_scalar_redundant(operation)?;
-        let fact = crate::rules::accepted_obligations::accepted_obligation_fact(
-            unit,
-            function.machine,
-            row.1,
-        )
-        .ok()?;
+        let fact = accepted_obligation_fact(unit, function.machine, row.1).ok()?;
         Some((row, Some(fact)))
     },
 };
@@ -692,7 +681,7 @@ pub(super) fn propose_same_block<K>(
     analyses: crate::RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
     keys: ScalarCseKeys<K>,
-) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError>
 where
     K: Ord,
 {
@@ -718,7 +707,7 @@ where
                 same.patch,
             ),
         }
-        .map_err(crate::RuleProposalError::InvalidCandidate)
+        .map_err(RuleProposalError::InvalidCandidate)
     })
 }
 
@@ -728,7 +717,7 @@ pub(super) fn propose_dominating<K>(
     analyses: crate::RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
     keys: ScalarCseKeys<K>,
-) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError>
 where
     K: Ord,
 {
@@ -754,7 +743,7 @@ where
                 same.patch,
             ),
         }
-        .map_err(crate::RuleProposalError::InvalidCandidate)
+        .map_err(RuleProposalError::InvalidCandidate)
     })
 }
 
@@ -769,7 +758,7 @@ pub(super) fn propose_phi_translated<K>(
         &EffectSummaryAnalysis,
         &ScalarCseValueTypes,
     ) -> PhiTranslatedScalarGvnRows<K, ScalarCsePayload>,
-) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError>
 where
     K: ScalarExpressionKey + Ord,
 {
@@ -795,7 +784,7 @@ where
                 found.patch,
             ),
         }
-        .map_err(crate::RuleProposalError::InvalidCandidate)
+        .map_err(RuleProposalError::InvalidCandidate)
     })
 }
 
