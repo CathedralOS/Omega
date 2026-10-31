@@ -11,6 +11,7 @@ use typed_trees::dependent_ranges::DependentBoundClass;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
+use typed_trees::statement::TransitionTargetNode;
 
 /// The single dependent-maximum atom of a constraint set (R1a mints at most
 /// one: the declared range's own bound).
@@ -219,12 +220,12 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
             if (row.target.is_valid()
                 && matches!(
                     program.statement_table.transition_target(row.target),
-                    typed_trees::statement::TransitionTargetNode::Value(_)
+                    TransitionTargetNode::Value(_)
                 ))
                 || (row.continuation.is_valid()
                     && matches!(
                         program.statement_table.transition_target(row.continuation),
-                        typed_trees::statement::TransitionTargetNode::Value(_)
+                        TransitionTargetNode::Value(_)
                     ))
             {
                 return false;
@@ -267,9 +268,7 @@ fn target_enters_state(
         return false;
     }
     match proof_plan.program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
-            path.symbol == state.symbol
-        }
+        TransitionTargetNode::Named { path, .. } => path.symbol == state.symbol,
         _ => false,
     }
 }
