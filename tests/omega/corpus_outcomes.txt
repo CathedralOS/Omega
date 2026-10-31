@@ -510,6 +510,42 @@ fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/refuted_case_arm_through_call_result_rejected rejected 2689ms expected @26e42f25f623
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/refuted_case_arm_through_const_name_rejected rejected 2689ms expected @26e42f25f623
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/refuted_case_arm_through_field_rejected rejected 2949ms expected @26e42f25f623
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/refuted_case_arm_through_local_rejected rejected 2949ms expected @26e42f25f623
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/refuted_case_arm_through_match_join_rejected rejected 2027ms expected @26e42f25f623
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/refuted_case_arm_through_other_machine_rejected rejected 2024ms expected @26e42f25f623
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/refuted_case_arm_through_other_state_rejected rejected 2008ms expected @26e42f25f623
+	data `Value` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/refuted_case_arm_through_parameter_rejected rejected 2004ms expected @26e42f25f623
+	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/refuted_case_arm_through_target_body_rejected rejected 1996ms expected @26e42f25f623
+	data `Value` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expected @45fb2a705c96
@@ -1860,6 +1896,7 @@ pass/cases/mid_arm_value_return checked 3543ms @ccdb99ca2214
 pass/cases/mixed_record_cases checked 3082ms @ccdb99ca2214
 pass/cases/ordered_underscore_arms checked 3417ms @ccdb99ca2214
 pass/cases/param_case_payload_return checked 3064ms @ccdb99ca2214
+pass/cases/refuted_case_transition_arm_exit checked 5681ms check-target:macos_arm64 @26e42f25f623
 pass/cases/runtime_borrowed_case_subject_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
 pass/cases/runtime_call_result_case_membership_exit checked 3303ms check-target:macos_arm64 @ccdb99ca2214
 pass/cases/runtime_case_payload_policy_cast_exit checked 4102ms check-target:macos_arm64 @ccdb99ca2214
@@ -8012,6 +8049,15 @@ pass/facts/reference_recast_backing_footprint_through_other_machine_exit checked
 pass/facts/reference_recast_backing_footprint_through_other_state_exit checked 3637ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_recast_backing_footprint_through_parameter_exit checked 3134ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_recast_backing_footprint_through_target_body_exit checked 3292ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/refuted_case_arm_through_call_result_exit checked 6743ms check-target:macos_arm64 @26e42f25f623
+pass/facts/refuted_case_arm_through_const_name_exit checked 5680ms check-target:macos_arm64 @26e42f25f623
+pass/facts/refuted_case_arm_through_field_exit checked 6765ms check-target:macos_arm64 @26e42f25f623
+pass/facts/refuted_case_arm_through_local_exit checked 5682ms check-target:macos_arm64 @26e42f25f623
+pass/facts/refuted_case_arm_through_match_join_exit checked 5685ms check-target:macos_arm64 @26e42f25f623
+pass/facts/refuted_case_arm_through_other_machine_exit checked 5787ms check-target:macos_arm64 @26e42f25f623
+pass/facts/refuted_case_arm_through_other_state_exit checked 6722ms check-target:macos_arm64 @26e42f25f623
+pass/facts/refuted_case_arm_through_parameter_exit checked 6636ms check-target:macos_arm64 @26e42f25f623
+pass/facts/refuted_case_arm_through_target_body_exit checked 5680ms check-target:macos_arm64 @26e42f25f623
 pass/facts/register_stack_arg_calling_plan_through_call_result_exit checked 3712ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/register_stack_arg_calling_plan_through_const_name_exit checked 3244ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/register_stack_arg_calling_plan_through_field_exit checked 4145ms check-target:macos_arm64 @ccdb99ca2214
