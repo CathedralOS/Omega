@@ -66,7 +66,11 @@ pub(super) fn retain_applied_results(
                 continue;
             }
             let symbol = if argument.type_reference.is_valid() {
-                match resolved.child_type_reference(argument.type_reference) {
+                let mut reference = resolved.child_type_reference(argument.type_reference);
+                while let TypeReference::AliasUse { expansion, .. } = reference {
+                    reference = expansion;
+                }
+                match reference {
                     TypeReference::Named { symbol, .. } => *symbol,
                     _ => continue,
                 }
@@ -110,6 +114,10 @@ fn selected_nominal(
     substitutions: &[(SymbolHandle, SymbolHandle, source::SourceSpan)],
     invocation: source::SourceSpan,
 ) -> Option<(SymbolHandle, source::SourceSpan)> {
+    let mut reference = reference;
+    while let TypeReference::AliasUse { expansion, .. } = reference {
+        reference = expansion;
+    }
     let TypeReference::Named { symbol, .. } = reference else {
         return None;
     };
@@ -143,6 +151,7 @@ fn retain_result(
         };
     }
     match result {
+        TypeReference::AliasUse { expansion, .. } => retain_child!(expansion)?,
         TypeReference::Reference(reference) => {
             retain_child!(resolved.child_type_reference(reference.referee))?
         }
