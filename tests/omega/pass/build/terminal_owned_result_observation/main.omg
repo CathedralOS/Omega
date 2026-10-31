@@ -26,7 +26,7 @@ machine scalar_case() -> Item { Item::Number { value: 73 } }
 machine empty_case() -> Item { Item::Empty }
 machine scalar_array() -> [[u32; 2]; 2] { [[7, 19], [23, 31]] }
 machine number() -> u32 { 73 }
-machine crashing() -> Reply crashes Trap { crash Trap; }
+machine crashing() crashes Trap { crash Trap; }
 
 machine item_value(item: Item) -> u32 {
     match item { Item::Number { value } -> value, Item::Empty -> 29 }

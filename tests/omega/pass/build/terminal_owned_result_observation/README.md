@@ -20,3 +20,10 @@ change invocation accounting. These are SDK transport controls, not static
 source reject twins. No observation carries claims, qualifications, a reference,
 or guest-storage construction authority. Calling-policy input transport and
 canonical calling/opaque/callback publication remain unfinished.
+
+The crash control returns no value: normal-completion gating is independent of
+the result carrier. An initial unused `crashing() -> Reply` declaration passed
+ordinary guest checking, but selecting it as an inspection entry hit the existing
+unimplemented reference-result-origin header for a wholly nonreturning body.
+That is not SDK execution evidence. The Unit crash control isolates the same
+completion obligation without adding a reference-origin compiler task here.
