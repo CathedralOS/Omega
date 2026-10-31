@@ -148,7 +148,7 @@ blocking, and the reference satisfies its loan/carry requirements:
 
 ```omega
 machine finish_read(storage: &mut Storage) -> u32
-suspends;
+suspends
 {
     transition {
         _ -> suspend Storage::read(&mut storage)
