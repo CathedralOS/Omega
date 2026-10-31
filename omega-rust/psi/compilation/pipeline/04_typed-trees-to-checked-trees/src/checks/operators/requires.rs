@@ -673,7 +673,8 @@ fn contexts_prove_boolean_expression(
             parameters,
             operand_labels,
             expression,
-        ) || instantiated_leaf_is_closed_true(program, operators, parameters, operands, expression)
+        ) || (closed_clause_value(program, parameters, operands, expression) == Some(true)
+            && closed_operators_are_builtin(program, operators, expression))
             || crate::checks::float_implications::contexts_prove_comparison(
                 program,
                 semantic,
@@ -893,17 +894,6 @@ fn reflexive_comparison_holds(
     declared
         .and_then(|reference| program.type_reference_table.primitive_type(reference))
         .is_some_and(|primitive| !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))
-}
-
-fn instantiated_leaf_is_closed_true(
-    program: &dyn ::validation::CheckingInput,
-    operators: &CheckedOperatorFacts,
-    parameters: &[StateParameter],
-    operands: &[ExpressionHandle],
-    expression: ExpressionHandle,
-) -> bool {
-    closed_clause_value(program, parameters, operands, expression) == Some(true)
-        && closed_operators_are_builtin(program, operators, expression)
 }
 
 /// Evaluate a contract-side Boolean leaf (or its Boolean structure) to a
