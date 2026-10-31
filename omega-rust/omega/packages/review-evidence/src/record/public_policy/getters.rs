@@ -28,6 +28,16 @@ impl PackagePolicyTraitRequirement {
     field_projection_accessors!(copied has_default_realization: bool);
 
     crate::record::accessors::package_policy_callable_signature_accessors!();
+
+    pub fn returned_borrow_origins(&self) -> &[crate::record::PackageReviewReturnedBorrowOrigin] {
+        &self.returned_borrow_origins
+    }
+
+    pub fn parameter_qualification_preconditions(
+        &self,
+    ) -> &[crate::record::PackageReviewParameterQualification] {
+        &self.parameter_qualification_preconditions
+    }
 }
 impl PackagePolicyConformanceShape {
     field_projection_accessors!(borrowed identity: &PackageReviewNominalIdentity);

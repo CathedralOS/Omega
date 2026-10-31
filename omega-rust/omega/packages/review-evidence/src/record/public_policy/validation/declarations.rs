@@ -75,6 +75,16 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
             &scope,
             0,
         )?;
+        ordered(&requirement.returned_borrow_origins)?;
+        for origin in &requirement.returned_borrow_origins {
+            if let Some(carrier) = origin.invocation_carrier() {
+                value_type(carrier)?;
+            }
+        }
+        ordered(&requirement.parameter_qualification_preconditions)?;
+        for qualification in &requirement.parameter_qualification_preconditions {
+            qualification.domain().validate_resolved()?;
+        }
     }
     Ok(())
 }

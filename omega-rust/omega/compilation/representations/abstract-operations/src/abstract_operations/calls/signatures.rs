@@ -48,7 +48,7 @@ impl<'declaration> From<&'declaration TerminalDynamicStructuralFormal>
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
             access: parameter.access,
-            qualifications: &[],
+            qualifications: &parameter.qualifications,
             projected_qualifications: &[],
         }
     }

@@ -470,22 +470,34 @@ fn lower_slot(
             if parameter.position == 0 {
                 return unsupported("dynamic slot structural formal precedes its selector");
             }
+            let structural_type =
+                crate::terminal_identities::lookup_type_id(type_ids, &parameter.type_identity)?;
+            let qualifications = parameter
+                .qualifications
+                .iter()
+                .map(|domain| {
+                    crate::terminal_identities::lookup_domain_id_for_carrier(
+                        domain_ids,
+                        *domain,
+                        structural_type,
+                    )
+                    .or_else(|_| crate::terminal_identities::lookup_domain_id(domain_ids, *domain))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(TerminalDynamicStructuralFormal {
                 position: u32::try_from(position).map_err(|_| {
                     LoweringError::Unsupported(
                         "dynamic slot structural parameter count exceeds u32",
                     )
                 })?,
-                structural_type: crate::terminal_identities::lookup_type_id(
-                    type_ids,
-                    &parameter.type_identity,
-                )?,
+                structural_type,
                 access: crate::expression_preparation::bindings::structural_paths::terminal_access(
                     parameter.access,
                 ),
                 multiplicity: crate::terminal_identities::structural_multiplicity(
                     parameter.multiplicity,
                 ),
+                qualifications,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

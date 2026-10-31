@@ -28,6 +28,10 @@ pub(crate) use signature_vocabulary::{
     PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
 
+pub use traits::{
+    PackageReviewBorrowOrigin, PackageReviewParameterQualification,
+    PackageReviewReturnedBorrowOrigin,
+};
 pub(crate) use traits::{
     PackageReviewConformanceShape, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
     PackageReviewTraitRequirement, PackageReviewTraitShape,
