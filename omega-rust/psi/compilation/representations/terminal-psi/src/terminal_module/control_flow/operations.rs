@@ -307,7 +307,7 @@ pub enum OperationKind {
     /// nor a caller-supplied profile can establish this interpretation.
     /// Actual backing range, base congruence and the captured loan remain
     /// execution obligations, independently of catalog correspondence.
-    EstablishPlacedReference {
+    EstablishAccessReference {
         source: StructuralArgument,
         /// Absence interprets the source's own declared RAM. A resident source
         /// instead lends its separately retained content; descriptor bytes are
@@ -1250,7 +1250,7 @@ impl OperationKind {
             }
             // Runtime selectors were mapped through the shared source path
             // inventory above; placement contributes no scalar operands.
-            Self::EstablishPlacedReference { .. } | Self::StorageAddress { .. } => {}
+            Self::EstablishAccessReference { .. } | Self::StorageAddress { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 left.remap_length(map);
                 right.remap_length(map);

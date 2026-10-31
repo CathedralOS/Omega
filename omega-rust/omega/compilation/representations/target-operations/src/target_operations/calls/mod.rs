@@ -5,7 +5,7 @@
 
 mod inputs;
 pub use inputs::{
-    TargetNativeCallbackArgument, TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput,
+    TargetAccessViewInput, TargetNativeCallbackArgument, TargetOperationPlanWithAccessViewInputs,
 };
 mod abi;
 pub use abi::{MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi};
@@ -18,7 +18,7 @@ pub use results::{TargetCallResult, TargetStructuralResultContract};
 mod targets;
 pub use targets::{NativeCallTarget, selector_carrier_type};
 
-mod placed_bindings;
-pub use placed_bindings::{
-    TargetPlacedCallAssociation, TargetPlacedCallBinding, TargetPlacedInterpretation,
+mod access_bindings;
+pub use access_bindings::{
+    TargetAccessCallAssociation, TargetAccessCallBinding, TargetAccessInterpretation,
 };

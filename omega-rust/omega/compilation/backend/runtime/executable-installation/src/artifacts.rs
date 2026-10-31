@@ -10,8 +10,8 @@ use crate::artifacts::container::DecodedArtifactRelocation;
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::NonAuthoritativeContainerFingerprint64;
 use crate::authority_digests::{
-    AdmissionReceiptId, ArtifactContentDigest, ArtifactId, EntrySetId, MachineContractSetId,
-    MachineFootprintId, PlacementPlanId, RelocationSetId,
+    AccessPlanId, AdmissionReceiptId, ArtifactContentDigest, ArtifactId, EntrySetId,
+    MachineContractSetId, MachineFootprintId, RelocationSetId,
 };
 use crate::installation::InstallationDiagnostic;
 use layout_plans::{EntryStubId, PlacementConstraints, RelocationTarget};
@@ -28,7 +28,7 @@ pub(crate) struct ArtifactRecord {
     pub(crate) code: Vec<u8>,
     pub(crate) contracts: MachineContractSetId,
     pub(crate) declared_footprint: MachineFootprintId,
-    pub(crate) placement_plan: PlacementPlanId,
+    pub(crate) access_plan: AccessPlanId,
     pub(crate) placement_constraints: PlacementConstraints,
     pub(crate) entry_set: EntrySetId,
     pub(crate) entries: Vec<ArtifactEntry>,

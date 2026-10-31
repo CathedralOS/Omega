@@ -1,4 +1,4 @@
-// Ordinary RAM Placed interprets the owner's bytes, not a separate Extent.
+// An ordinary-RAM access view interprets the owner's bytes, not a separate Extent.
 // Its External accessor must not preserve either the routed qualification or
 // the old content predicate after overwriting those bytes.
 use omega::language::core::layout;
@@ -14,22 +14,22 @@ ensures result in Registered
     words
 }
 
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut fields: [FieldEntry; 64];
-    fields[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    fields[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: fields, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 };
     let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan { entries: fields, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 },
-        access: AccessPlan::with(AccessPlan::inaccessible(&schema), schema.fields[0].key,
+    AccessPlan::with_reach(
+        AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
             FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported }),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 machine corrupt(words: &mut Words)
 requires words in Registered, words.entries[1] == 41
 ensures words in Registered, words.entries[1] == 41
 {
-    let view: &mut Placed<WordPlacement, Words> = Placed::view_mut<WordPlacement, Words>(words);
-    placed_write(&mut view.entries[1], 73u64);
+    let view: &mut Access<WordPlacement, Words> = Access::view_mut<WordPlacement, Words>(words);
+    write(&mut view.entries[1], 73u64);
 }

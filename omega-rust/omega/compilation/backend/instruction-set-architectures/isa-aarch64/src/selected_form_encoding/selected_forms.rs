@@ -134,8 +134,8 @@ fn family_and_operand_count(
     kind: SelectedInstructionKind,
 ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
     Ok(match kind {
-        SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
-            (MachineAlternativeFamily::PlacedScalarAccess(form), 2)
+        SelectedInstructionKind::AccessorScalarAccess { form, .. } => {
+            (MachineAlternativeFamily::AccessorScalarAccess(form), 2)
         }
         SelectedInstructionKind::AtomicAccess { form } => (
             MachineAlternativeFamily::AtomicAccess(form),
@@ -474,7 +474,7 @@ fn encode_unchecked(
         };
     }
     match kind {
-        SelectedInstructionKind::PlacedScalarAccess { .. } => {
+        SelectedInstructionKind::AccessorScalarAccess { .. } => {
             return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
         }
         SelectedInstructionKind::AtomicAccess { form } => {

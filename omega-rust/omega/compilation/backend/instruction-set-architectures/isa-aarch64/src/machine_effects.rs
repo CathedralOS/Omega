@@ -232,8 +232,8 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             atomic_fence: Some(crate::AARCH64_ATOMIC_FENCE),
             // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
             // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
-            placed_read: Some(crate::AARCH64_PLACED_READ),
-            placed_write: Some(crate::AARCH64_PLACED_WRITE),
+            access_read: Some(crate::AARCH64_ACCESSOR_READ),
+            access_write: Some(crate::AARCH64_ACCESSOR_WRITE),
             atomic_load: (target == NativeTarget::macos_arm64())
                 .then_some(crate::AARCH64_ATOMIC_LOAD),
             atomic_store: (target == NativeTarget::macos_arm64())
@@ -403,7 +403,7 @@ fn declaration(
         constraint: keys
             .for_semantic(semantic)
             .expect("required AArch64 machine semantic has a constraint"),
-        memory: if let MachineSemanticKind::PlacedScalarAccess(form) = semantic {
+        memory: if let MachineSemanticKind::AccessorScalarAccess(form) = semantic {
             if form.write {
                 MachineMemoryEffect::WritePointerV1
             } else {
@@ -443,7 +443,7 @@ fn declaration(
         },
         trap: if matches!(
             semantic,
-            MachineSemanticKind::PlacedScalarAccess(_)
+            MachineSemanticKind::AccessorScalarAccess(_)
                 | MachineSemanticKind::CopyBytes
                 | MachineSemanticKind::ZeroBytes
                 | MachineSemanticKind::Load8
@@ -467,7 +467,7 @@ fn declaration(
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if matches!(semantic, MachineSemanticKind::PlacedScalarAccess(_)) {
+        barrier: if matches!(semantic, MachineSemanticKind::AccessorScalarAccess(_)) {
             MachineBarrier::ExternalEffect
         } else if matches!(
             semantic,
@@ -507,7 +507,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .id
     };
     let (reads, writes) = match semantic {
-        MachineSemanticKind::PlacedScalarAccess(form) => {
+        MachineSemanticKind::AccessorScalarAccess(form) => {
             if form.write {
                 (vec![0, 1], vec![])
             } else {
@@ -730,7 +730,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 target: view("x30"),
             },
         ),
-        MachineSemanticKind::PlacedScalarAccess(_)
+        MachineSemanticKind::AccessorScalarAccess(_)
         | MachineSemanticKind::Load8
         | MachineSemanticKind::Load16
         | MachineSemanticKind::Load32
@@ -782,7 +782,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         } else {
             vec![]
         },
-        memory: if let MachineSemanticKind::PlacedScalarAccess(form) = semantic {
+        memory: if let MachineSemanticKind::AccessorScalarAccess(form) = semantic {
             if form.write {
                 MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
             } else {

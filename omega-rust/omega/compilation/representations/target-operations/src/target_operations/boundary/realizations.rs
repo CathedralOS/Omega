@@ -487,12 +487,12 @@ macro_rules! boundary_realization_conversion {
 pub enum BoundaryRealization {
     /// Whole-value operation using the immutable lifecycle catalog retained
     /// with this native program's structural declarations.
-    PlacementLifecycle {
+    AccessLifecycle {
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
     /// Numeric-only observation of the selected image's retained entry suffix.
     ProgramImageRetainedSuffixStart,
-    PlacedScalarAccess(PlacedScalarAccessRealization),
+    AccessorScalarAccess(AccessorScalarAccessRealization),
     MetadataOnlyPort(MetadataOnlyPortRealization),
     DirectPortReadU8(DirectPortReadU8Realization),
     LinuxWriteLine(LinuxWriteLineRealization),
@@ -505,9 +505,9 @@ pub enum BoundaryRealization {
 
 /// A selected scalar operation on a sealed placed declaration, with no backing grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PlacedScalarAccessRealization {
+pub struct AccessorScalarAccessRealization {
     pub contract: [u8; 32],
-    pub demand: terminal_psi::PlacedScalarBoundaryDemand,
+    pub demand: terminal_psi::AccessorScalarBoundaryDemand,
 }
 
 boundary_realization_conversion!(
@@ -521,4 +521,4 @@ boundary_realization_conversion!(HostedReadByte, HostedReadByteRealization);
 boundary_realization_conversion!(HostedWriteByteI32, HostedWriteByteI32Realization);
 boundary_realization_conversion!(LinuxWriteLine, LinuxWriteLineRealization);
 boundary_realization_conversion!(ClaimCompletionOnly, ClaimCompletionOnlyRealization);
-boundary_realization_conversion!(PlacedScalarAccess, PlacedScalarAccessRealization);
+boundary_realization_conversion!(AccessorScalarAccess, AccessorScalarAccessRealization);

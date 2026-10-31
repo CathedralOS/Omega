@@ -163,8 +163,8 @@ pub(super) fn validate<'declaration>(
                     StructuralTypeShape::Record { fields, storage } => {
                         if matches!(
                             storage,
-                            StructuralRecordStorage::PlacedView(_)
-                                | StructuralRecordStorage::PlacedAccessor(_)
+                            StructuralRecordStorage::AccessView(_)
+                                | StructuralRecordStorage::Accessor(_)
                                 | StructuralRecordStorage::TargetLayout(_)
                         ) {
                             return Err(rejection(

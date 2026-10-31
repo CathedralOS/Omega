@@ -19,12 +19,12 @@
 //! revision and `current_value_ranges` validates its value-range facts;
 //! `error` is the failure vocabulary.
 
+pub mod access_references;
 mod candidates;
 mod current_ownership;
 mod current_value_ranges;
 pub mod descriptor_results;
 mod error;
-pub mod placed_references;
 mod unit_validation;
 
 pub use error::{OperationSite, OptimizationUnitValidationError};

@@ -1260,7 +1260,7 @@ fn parse_domain_facts(
 fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
     let (parsed, facts) = parse_domain_facts(
         r#"
-        domain Extent::Placed
+        domain Extent::Access
         requires
             self in Granted & Resident<SlotPlacement, Slot>
         "#,
@@ -1299,7 +1299,7 @@ fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
 fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
     let tokens = Lexer::new(
         r#"
-        domain Extent::Placed
+        domain Extent::Access
         requires
             self in Granted | Resident<SlotPlacement, Slot>
         "#,
@@ -1317,7 +1317,7 @@ fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
 fn proof_fact_carry_permission_rejects_index_arguments() {
     let tokens = Lexer::new(
         r#"
-        domain Extent::Placed
+        domain Extent::Access
         requires
             self in Carry::AnyCpu<SlotPlacement>
         "#,

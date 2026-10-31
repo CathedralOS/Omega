@@ -97,7 +97,7 @@
       "omega-rust/psi/compilation/checking/src/value_custody/struct_literals/construction_bounds.rs",
       "omega-rust/psi/compilation/checking/src/value_custody/type_references/const_predicates.rs",
       "omega-rust/psi/compilation/checking/src/value_custody/write_only_borrows.rs",
-      "omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs",
+      "omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs",
       "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs",
       "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/tests/items_and_selections.rs",
       "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/Cargo.toml",

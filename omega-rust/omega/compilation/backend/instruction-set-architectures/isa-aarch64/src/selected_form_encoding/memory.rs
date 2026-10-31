@@ -37,7 +37,7 @@ pub fn encode_aarch64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    let (kind, alternative) = placed_scalar_ordinary(kind, alternative)?;
+    let (kind, alternative) = accessor_scalar_ordinary(kind, alternative)?;
     if matches!(
         kind,
         SelectedInstructionKind::SaveFloatingControl { .. }
@@ -105,7 +105,7 @@ pub fn validate_aarch64_selected_memory_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    let (kind, alternative) = placed_scalar_ordinary(kind, alternative)?;
+    let (kind, alternative) = accessor_scalar_ordinary(kind, alternative)?;
     if matches!(
         kind,
         SelectedInstructionKind::SaveFloatingControl { .. }
@@ -198,17 +198,17 @@ pub fn validate_aarch64_selected_memory_form(
 }
 
 /// Rewrites a placed-scalar access into the ordinary memory form it encodes as.
-fn placed_scalar_ordinary(
+fn accessor_scalar_ordinary(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
 ) -> Result<(SelectedInstructionKind, MachineAlternativeKey), Aarch64SelectedFormEncodingError> {
-    let SelectedInstructionKind::PlacedScalarAccess {
+    let SelectedInstructionKind::AccessorScalarAccess {
         form, byte_offset, ..
     } = kind
     else {
         return Ok((kind, alternative));
     };
-    if alternative.family != MachineAlternativeFamily::PlacedScalarAccess(form)
+    if alternative.family != MachineAlternativeFamily::AccessorScalarAccess(form)
         || alternative.variant != 0
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);

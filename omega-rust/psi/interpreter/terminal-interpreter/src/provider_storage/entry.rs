@@ -67,7 +67,7 @@ impl TerminalExecution<'_> {
         let storage = self
             .program
             .catalogs
-            .placement_lifecycle_plans
+            .access_lifecycle_plans
             .iter()
             .find(|plan| {
                 plan.storage.carrier == value.structural_type
@@ -185,7 +185,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn provider_storage_geometry_matches(
         &self,
         home: &StructuralRuntimePlace,
-        storage: &terminal_psi::TerminalPlacementStorage,
+        storage: &terminal_psi::TerminalAccessStorage,
         base: u64,
         length: u64,
     ) -> Result<bool, TerminalInterpretError> {
@@ -340,7 +340,7 @@ impl TerminalExecution<'_> {
         let mut roles = self
             .program
             .catalogs
-            .placement_lifecycle_plans
+            .access_lifecycle_plans
             .iter()
             .map(|plan| &plan.storage)
             .filter(|storage| storage.carrier == value.structural_type);

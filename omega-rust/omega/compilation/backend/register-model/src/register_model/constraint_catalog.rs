@@ -96,8 +96,8 @@ pub fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
 /// environment. Named fields prevent positional key drift in its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
-    pub placed_read: Option<RegisterConstraintKey>,
-    pub placed_write: Option<RegisterConstraintKey>,
+    pub access_read: Option<RegisterConstraintKey>,
+    pub access_write: Option<RegisterConstraintKey>,
     pub port_write: Option<RegisterConstraintKey>,
     pub system_register_read: Option<RegisterConstraintKey>,
     pub system_register_write: Option<RegisterConstraintKey>,

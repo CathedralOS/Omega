@@ -134,7 +134,7 @@ impl DescriptorLoans {
                             terminal_semantics::descriptor_results::DescriptorCallOrigin::Invocation { .. }
                             | terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty
                             | terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal { .. }
-                            | terminal_semantics::descriptor_results::DescriptorCallOrigin::PlacedFormation { .. } => None,
+                            | terminal_semantics::descriptor_results::DescriptorCallOrigin::AccessFormation { .. } => None,
                         }));
                     } else if matches!(node.operation, O::StructuralLeafCopy { .. })
                         && terminal_semantics::descriptor_results::is_shared_descriptor(
@@ -720,7 +720,7 @@ fn operation_observations(
             }
         }
         O::EstablishReference { source, .. }
-        | O::EstablishPlacedReference { source, .. }
+        | O::EstablishAccessReference { source, .. }
         | O::EstablishElementView { source, .. } => {
             retain(source.place, projected(source.place, &source.path, None));
         }

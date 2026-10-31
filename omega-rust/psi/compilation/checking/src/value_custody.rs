@@ -1,5 +1,5 @@
 //! Validating values and their custody: literals, constants, data and
-//! struct literals, places and placed views, recasts, borrows, locals,
+//! struct literals, places and access views, recasts, borrows, locals,
 //! cleanup, expression and reference types, wire and intrinsic boundaries.
 
 pub(crate) mod activation_storage;
@@ -24,6 +24,7 @@ pub use executable_value_occurrences::{
     collect_executable_value_origins, visit_executable_value_occurrences,
     visit_statement_value_occurrences,
 };
+pub(crate) mod access_views;
 pub(crate) mod intrinsic_boundaries;
 pub(crate) mod literals;
 pub(crate) mod locals;
@@ -31,8 +32,7 @@ pub(crate) mod logical_matches;
 pub(crate) mod owned_value_source;
 pub(crate) mod partial_affine_residuals;
 pub(crate) mod permission_provenance;
-pub(crate) mod placed_views;
-pub use placed_views::placed_atomic_observing_results;
+pub use access_views::access_atomic_observing_results;
 pub(crate) mod places;
 pub(crate) mod plan_laid;
 pub(crate) mod qualification_casts;

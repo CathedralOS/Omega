@@ -3,10 +3,10 @@ use super::{
     expect_exact_atomic_rejection, field_key, primitive_request_snapshot, uart_extent_with_lineage,
 };
 use crate::{
-    AccessOperation, AtomicAccessOperation, EffectiveSupplyKind, ObservationModel,
-    PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId,
-    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
-    StableDeviceInstanceId, admit_placement, bind_schema_correspondence_to_placement, place,
+    AccessAdmissionId, AccessOperation, AccessPlanId, AtomicAccessOperation, EffectiveSupplyKind,
+    ObservationModel, ResourceProfileReceiptId, SchemaCorrespondenceProviderId,
+    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant, StableDeviceInstanceId,
+    admit_access, bind_schema_correspondence_to_access_plan, place,
 };
 use language_core::atomic::MemoryOrdering;
 
@@ -16,10 +16,10 @@ fn atomic_primitive_specialization_retains_all_ten_families_and_orderings() {
     let extent = uart_extent_with_lineage(0xc000, 4, 156);
     let loan = extent.loan(0, 4).expect("shared Atomic loan");
     let resources = atomic_word_profile(&loan);
-    let admission_id = PlacementAdmissionId::from_normalized_identity(157).expect("admission");
-    let admission = admit_placement(admission_id, loan, &plan, &resources)
-        .expect("all-family Atomic admission");
-    let view = place(admission).expect("Atomic placed-view establishment");
+    let admission_id = AccessAdmissionId::from_normalized_identity(157).expect("admission");
+    let admission =
+        admit_access(admission_id, loan, &plan, &resources).expect("all-family Atomic admission");
+    let view = place(admission).expect("Atomic access-view establishment");
     let head = view
         .project(field_key(plan.access(), "head"))
         .expect("Atomic head projection");
@@ -106,14 +106,14 @@ fn atomic_primitive_lowering_replays_authority_and_ordering_without_attempt() {
     let extent = uart_extent_with_lineage(0xc080, 4, 234);
     let loan = extent.loan(0, 4).expect("shared Atomic loan");
     let resources = atomic_word_profile(&loan);
-    let admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(235).expect("admission"),
+    let admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(235).expect("admission"),
         loan,
         &plan,
         &resources,
     )
     .expect("all-family Atomic admission");
-    let view = place(admission).expect("Atomic placed-view establishment");
+    let view = place(admission).expect("Atomic access-view establishment");
     let head = view
         .project(field_key(plan.access(), "head"))
         .expect("Atomic head projection");
@@ -132,7 +132,7 @@ fn atomic_primitive_lowering_replays_authority_and_ordering_without_attempt() {
     let diagnostic = atomic
         .validate_for_lowering()
         .expect_err("outward preflight must reject copied receipt drift");
-    assert!(diagnostic.0.contains("retained placement authority"));
+    assert!(diagnostic.0.contains("retained access authority"));
     atomic.request.profile_receipt = profile_receipt;
 
     atomic.request.operation =
@@ -182,13 +182,13 @@ fn provider_atomic_preflight_requires_and_retains_exact_correspondence() {
     let extent = uart_extent_with_lineage(0xc0c0, 4, 262);
     let loan = extent.loan(0, 4).expect("shared Atomic loan");
     let profile = atomic_word_profile(&loan);
-    let admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(263).expect("admission"),
+    let admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(263).expect("admission"),
         loan,
         &plan,
         &profile,
     )
-    .expect("Atomic placement admission");
+    .expect("Atomic access admission");
     let provider = SchemaCorrespondenceProviderId::from_normalized_identity(264)
         .expect("correspondence provider");
     let device = StableDeviceInstanceId::from_normalized_identity(265).expect("stable device");
@@ -203,7 +203,7 @@ fn provider_atomic_preflight_requires_and_retains_exact_correspondence() {
     .expect("provider correspondence grant")
     .admit(&plan, &profile)
     .expect("schema correspondence admission");
-    let view = bind_schema_correspondence_to_placement(admission, correspondence)
+    let view = bind_schema_correspondence_to_access_plan(admission, correspondence)
         .expect("correspondence placement binding")
         .establish_view()
         .expect("corresponded view establishment");
@@ -247,10 +247,10 @@ fn provider_atomic_preflight_requires_and_retains_exact_correspondence() {
 
     crate::tests::assert_rejects_alternate_correspondence!(corresponded, alternate_correspondence);
 
-    corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
+    corresponded.replace_request_plan_for_test(AccessPlanId(plan.identity().0 ^ 1));
     let diagnostic = corresponded
         .validate_for_provider_lowering()
-        .expect_err("provider/device Atomic preflight must replay placement authority");
+        .expect_err("provider/device Atomic preflight must replay access authority");
     assert!(diagnostic.0.contains("copied plan"));
     corresponded.replace_request_plan_for_test(plan.identity());
     corresponded
@@ -267,13 +267,13 @@ fn provider_atomic_preflight_requires_and_retains_exact_correspondence() {
         .expect("ordinary shared Atomic loan");
     let ordinary_profile = atomic_word_profile(&ordinary_loan);
     let ordinary = place(
-        admit_placement(
-            PlacementAdmissionId::from_normalized_identity(271).expect("ordinary admission"),
+        admit_access(
+            AccessAdmissionId::from_normalized_identity(271).expect("ordinary admission"),
             ordinary_loan,
             &plan,
             &ordinary_profile,
         )
-        .expect("ordinary Atomic placement admission"),
+        .expect("ordinary Atomic access admission"),
     )
     .expect("ordinary Atomic view establishment");
     let ordinary_projection = ordinary
@@ -307,14 +307,14 @@ fn atomic_specialization_rejects_same_identity_different_checked_placement_struc
     let extent = uart_extent_with_lineage(0xc0f0, 4, 274);
     let loan = extent.loan(0, 4).expect("shared Atomic loan");
     let resources = atomic_word_profile(&loan);
-    let admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(275).expect("admission"),
+    let admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(275).expect("admission"),
         loan,
         &plan,
         &resources,
     )
     .expect("Atomic admission");
-    let view = place(admission).expect("Atomic placed-view establishment");
+    let view = place(admission).expect("Atomic access-view establishment");
     let projection = view
         .project(field_key(plan.access(), "head"))
         .expect("Atomic projection");
@@ -326,7 +326,7 @@ fn atomic_specialization_rejects_same_identity_different_checked_placement_struc
         .expect("Atomic specialization");
 
     atomic
-        .validate_against_checked_placement(&plan)
+        .validate_against_checked_access_plan(&plan)
         .expect("exact retained and checked placement structures match");
 
     // Compact normalized identities are evidence rather than authority. This
@@ -338,7 +338,7 @@ fn atomic_specialization_rejects_same_identity_different_checked_placement_struc
     assert_eq!(substituted.identity(), plan.identity());
     assert_ne!(substituted, plan);
     let diagnostic = atomic
-        .validate_against_checked_placement(&substituted)
+        .validate_against_checked_access_plan(&substituted)
         .expect_err("same-ID placement structure substitution must reject");
     assert!(diagnostic.0.contains("placement structure differs"));
 }
@@ -349,14 +349,14 @@ fn atomic_specialization_fails_closed_and_returns_exact_request() {
     let extent = uart_extent_with_lineage(0xc100, 4, 158);
     let loan = extent.loan(0, 4).expect("shared Atomic loan");
     let resources = atomic_word_profile(&loan);
-    let admission = admit_placement(
-        PlacementAdmissionId::from_normalized_identity(159).expect("admission"),
+    let admission = admit_access(
+        AccessAdmissionId::from_normalized_identity(159).expect("admission"),
         loan,
         &plan,
         &resources,
     )
     .expect("all-family Atomic admission");
-    let view = place(admission).expect("Atomic placed-view establishment");
+    let view = place(admission).expect("Atomic access-view establishment");
     let head = view
         .project(field_key(plan.access(), "head"))
         .expect("Atomic head projection");

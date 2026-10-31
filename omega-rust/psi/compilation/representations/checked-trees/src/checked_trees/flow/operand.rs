@@ -87,7 +87,7 @@ pub struct FlowOperandRetention {
     /// permission ancestry or value transfer. Empty means unavailable.
     pub possible_storage: HandleSpan<FlowOperandReferent>,
     /// Checked pre-interpretation storage enclosing this pointer. Recasts and
-    /// ordinary placed views retain the completed source capture, not its later
+    /// ordinary access views retain the completed source capture, not its later
     /// descriptor home. This is a conservative compatibility footprint only:
     /// no scalar identity, pointee contents, access or ancestry follows from it.
     /// Zero withholds enclosure evidence. Reference-valued children need their

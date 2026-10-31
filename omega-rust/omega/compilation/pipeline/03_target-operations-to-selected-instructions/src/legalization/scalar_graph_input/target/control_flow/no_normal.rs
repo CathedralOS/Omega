@@ -26,7 +26,7 @@ pub(super) fn validate(
         call_plan,
         scalar_arguments,
         arguments,
-        placed_bindings,
+        access_bindings,
         claim_transfers,
         requirement_obligations,
         crash_continuations,
@@ -70,14 +70,14 @@ pub(super) fn validate(
     {
         return Err(LegalizationError::custody());
     }
-    let expected_bindings = reference_custody::placed_call_custody(
+    let expected_bindings = reference_custody::access_call_custody(
         caller,
         declaration,
         &plan.structural_types,
         invocation.structural_arguments,
         custody,
     )?;
-    if placed_bindings != &expected_bindings {
+    if access_bindings != &expected_bindings {
         return Err(LegalizationError::custody());
     }
     for (position, (argument, semantic)) in arguments

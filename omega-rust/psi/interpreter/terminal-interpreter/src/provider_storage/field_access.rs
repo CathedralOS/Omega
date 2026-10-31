@@ -23,13 +23,13 @@ use layout_plans::{
     AggregateFieldSchema, ByteOrder, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalPlacedAccessorKind,
-    TerminalPlacedFieldPlan, TerminalPlacedViewPlan,
+    StructuralAccess, StructuralPathSegment, StructuralTypeShape, TerminalAccessFieldPlan,
+    TerminalAccessViewPlan, TerminalAccessorKind,
 };
 
 pub(crate) enum ProviderFieldContent<'view> {
     Resident,
-    Borrowed(&'view access_plans::PlacementResourceCompatibility),
+    Borrowed(&'view access_plans::AccessResourceCompatibility),
 }
 
 impl TerminalExecution<'_> {
@@ -37,10 +37,10 @@ impl TerminalExecution<'_> {
         &mut self,
         binding: ProviderStorageBinding,
         content: ProviderFieldContent<'_>,
-        plan: &TerminalPlacedViewPlan,
-        field: &TerminalPlacedFieldPlan,
+        plan: &TerminalAccessViewPlan,
+        field: &TerminalAccessFieldPlan,
         projection: &[StructuralPathSegment],
-        kind: TerminalPlacedAccessorKind,
+        kind: TerminalAccessorKind,
         source_access: StructuralAccess,
         arguments: &[TerminalScalarValue],
     ) -> Result<TerminalEffectResult, TerminalInterpretError> {
@@ -56,9 +56,9 @@ impl TerminalExecution<'_> {
             .get(field.access_slot as usize)
             .ok_or_else(malformed)?;
         let operation = match kind {
-            TerminalPlacedAccessorKind::Read => AccessOperation::Read,
-            TerminalPlacedAccessorKind::Write => AccessOperation::Write,
-            TerminalPlacedAccessorKind::Take => {
+            TerminalAccessorKind::Read => AccessOperation::Read,
+            TerminalAccessorKind::Write => AccessOperation::Write,
+            TerminalAccessorKind::Take => {
                 return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "resident take requires partial custody transfer",
                 ));
@@ -71,13 +71,13 @@ impl TerminalExecution<'_> {
         };
         let projected = if access.field_region(entry.key()).is_some() {
             Some(
-                terminal_semantics::placed_region_projection(
+                terminal_semantics::access_region_projection(
                     &self.program.catalogs.structural_types,
                     plan,
                     field,
                     projection,
                 )
-                .map_err(TerminalInterpretError::PlacedReference)?,
+                .map_err(TerminalInterpretError::AccessReference)?,
             )
         } else {
             if !projection.is_empty() {
@@ -105,7 +105,7 @@ impl TerminalExecution<'_> {
                 operation,
             )
         }
-        .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+        .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
         let descriptor = authorized.descriptor();
         if matches!(content, ProviderFieldContent::Resident)
             && descriptor.observation() != ObservationModel::Stable
@@ -191,8 +191,8 @@ impl TerminalExecution<'_> {
         let width =
             terminal_semantics::reference_storage_byte_width(scalar).ok_or_else(malformed)?;
         let write = match (kind, arguments) {
-            (TerminalPlacedAccessorKind::Read, []) => None,
-            (TerminalPlacedAccessorKind::Write, [value])
+            (TerminalAccessorKind::Read, []) => None,
+            (TerminalAccessorKind::Write, [value])
                 if value.scalar_type() == scalar && value.satisfies_field(&value_type) =>
             {
                 Some(*value)
@@ -236,10 +236,10 @@ impl TerminalExecution<'_> {
         let loan = allocation
             .extent
             .loan(binding.offset, binding.length)
-            .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+            .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
         let actual = profile
             .restrict_to_loan(&loan)
-            .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+            .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
         // Resident mutation still requires Stable supply. External views use
         // the separately captured complete plan/profile compatibility and may
         // not synthesize a read-patch-write operation from a write permission.
@@ -253,7 +253,7 @@ impl TerminalExecution<'_> {
                 plan.placement.reach(),
                 "resident field event",
             )
-            .map_err(|reason| TerminalInterpretError::PlacedReference(reason.to_string()))?;
+            .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
         } else if write.is_some() && needs_read {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "external field write cannot synthesize an unadmitted read-patch-write",

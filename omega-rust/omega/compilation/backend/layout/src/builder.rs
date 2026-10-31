@@ -347,9 +347,9 @@ impl<'program> LayoutBuilder<'program> {
         Ok(layout)
     }
 
-    fn is_compiler_placed_accessor_definition(&self, definition: &DataDefinition) -> bool {
+    fn is_compiler_accessor_definition(&self, definition: &DataDefinition) -> bool {
         self.program
-            .placed_view_plans
+            .access_view_plans
             .iter()
             .flat_map(|view| &view.fields)
             .any(|field| field.accessor_data_symbol == definition.symbol)

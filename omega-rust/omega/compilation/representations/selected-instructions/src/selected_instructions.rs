@@ -15,9 +15,9 @@
 //! roster and shares unchanged functions instead of duplicating their blocks,
 //! instructions and register tables. Wire identities still describe contents.
 
+mod accessor_scalar;
 mod atomic;
-mod placed_scalar;
-pub use placed_scalar::PlacedScalarForm;
+pub use accessor_scalar::AccessorScalarForm;
 pub mod calls;
 mod float_result_policy;
 mod ieee_float_arithmetic;

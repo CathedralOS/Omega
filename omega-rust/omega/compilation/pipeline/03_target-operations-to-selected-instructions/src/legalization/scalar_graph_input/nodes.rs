@@ -86,7 +86,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::EstablishNativeCodeLayout { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishReference { psi_operation, .. }
-    | AbstractOperation::EstablishPlacedReference { psi_operation, .. }
+    | AbstractOperation::EstablishAccessReference { psi_operation, .. }
     | AbstractOperation::ReleaseReference { psi_operation, .. }
     | AbstractOperation::EstablishCase { psi_operation, .. }
     | AbstractOperation::CallStructural {
@@ -766,7 +766,7 @@ pub(super) fn validate(
                 | AbstractOperation::EstablishNativeCodeLayout { .. }
                 | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishReference { .. }
-                | AbstractOperation::EstablishPlacedReference { .. }
+                | AbstractOperation::EstablishAccessReference { .. }
                 | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishStructuralArray { .. }
                 | AbstractOperation::EstablishScalarArray { .. }

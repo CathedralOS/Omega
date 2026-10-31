@@ -296,7 +296,7 @@ pub(crate) fn map_obligations(
                 *obligation = map(*obligation);
             }
         }
-        OperationKind::EstablishPlacedReference { .. }
+        OperationKind::EstablishAccessReference { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }
         | OperationKind::EstablishScalarArray { .. }

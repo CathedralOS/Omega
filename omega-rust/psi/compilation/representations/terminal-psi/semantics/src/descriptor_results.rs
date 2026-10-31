@@ -98,7 +98,7 @@ pub enum DescriptorCallOrigin {
     },
     /// Provenance token used only by the placed-loan analysis. This names a
     /// checked formation, never physical storage or permission to access it.
-    PlacedFormation {
+    AccessFormation {
         machine: MachineId,
         operation: semantic_vocabulary::OperationId,
         place: PlaceId,
@@ -815,15 +815,15 @@ pub fn terminal_residence_rules(
     terminal_flow::residence_rules(module, machine)
 }
 
-/// Placed-loan provenance uses the same exact descriptor transport graph,
+/// Access-loan provenance uses the same exact descriptor transport graph,
 /// retaining formation tokens separately from ordinary backing addresses.
 /// Selected checked callees are supplied by the execution owner, never inferred
 /// from a family spelling or from whichever member happens to have a body.
-pub fn terminal_placed_origin_graph(
+pub fn terminal_access_origin_graph(
     module: &TerminalModule,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<Vec<DescriptorMachine>> {
-    terminal_graph_for(module, DescriptorSlotKind::PlacedOrigins, selected_calls)
+    terminal_graph_for(module, DescriptorSlotKind::AccessOrigins, selected_calls)
 }
 
 fn terminal_graph_for(

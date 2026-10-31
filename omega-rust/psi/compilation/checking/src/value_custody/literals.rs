@@ -154,9 +154,9 @@ pub use constant_arrays::builtin_constant_array_projection_type;
 pub use constant_arrays::declared_constant_array_type;
 pub(crate) use constant_arrays::validate_constant_projection_destination;
 pub use constant_arrays::{
-    ScalarArrayElement, ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
-    closed_literal_array_elements, is_closed_primitive_array_type, peel_arithmetic_policy,
-    scalar_array_elements, scalar_array_preserves_memberships,
+    ScalarArrayElement, ScalarArrayElements, closed_array_store_type,
+    closed_constant_array_elements, closed_literal_array_elements, is_closed_primitive_array_type,
+    peel_arithmetic_policy, scalar_array_elements, scalar_array_preserves_memberships,
 };
 pub(crate) use record_projection::closed_record_integer_projection;
 pub use record_projection::{closed_record_scalar_projection, closed_scalar_place_projection};

@@ -55,7 +55,7 @@ pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalA
         // Reference establishment/release are compile-time custody markers;
         // they carry no call, boundary, or physical edge of their own.
         | AbstractOperation::EstablishReference { .. }
-        | AbstractOperation::EstablishPlacedReference { .. }
+        | AbstractOperation::EstablishAccessReference { .. }
         | AbstractOperation::ReleaseReference { .. }
         // Restoration-window extraction and repair are structural custody
         // events on the borrowed root; they carry no call, boundary, or

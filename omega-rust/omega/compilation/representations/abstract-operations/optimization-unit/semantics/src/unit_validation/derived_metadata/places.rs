@@ -55,7 +55,7 @@ pub(crate) fn reconstruct_declared_places(
             | O::EstablishZeroedStructural { result, .. }
             | O::EstablishStructuralLocal { result, .. }
             | O::EstablishReference { result, .. }
-            | O::EstablishPlacedReference { result, .. }
+            | O::EstablishAccessReference { result, .. }
             // The extraction's moved subtree is a declared operation
             // result place like any establishment's.
             | O::MoveStructuralField { result, .. }
@@ -166,7 +166,7 @@ pub(crate) fn validate_operation_places(
         }
         abstract_operations::byte_literal_establish_pair_pattern!(..) => {}
         O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
-        O::EstablishReference { source, .. } | O::EstablishPlacedReference { source, .. } => {
+        O::EstablishReference { source, .. } | O::EstablishAccessReference { source, .. } => {
             require(source.place, known)?
         }
         O::MoveStructuralValue { source, .. } => require(source.place, known)?,

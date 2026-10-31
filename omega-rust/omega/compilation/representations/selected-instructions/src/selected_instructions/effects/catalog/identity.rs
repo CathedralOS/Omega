@@ -50,8 +50,8 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.port_write,
         catalog.selected_keys.atomic_fence,
         catalog.selected_keys.atomic_load,
-        catalog.selected_keys.placed_read,
-        catalog.selected_keys.placed_write,
+        catalog.selected_keys.access_read,
+        catalog.selected_keys.access_write,
         catalog.selected_keys.atomic_store,
         catalog.selected_keys.atomic_update,
         catalog.selected_keys.atomic_compare_exchange,
@@ -634,7 +634,7 @@ macro_rules! effect_tag_arms {
 
             $enum::AtomicFence => 238,
             $enum::AtomicAccess(form) => form.machine_tag() as u16,
-            $enum::PlacedScalarAccess(form) => form.machine_tag() as u16,
+            $enum::AccessorScalarAccess(form) => form.machine_tag() as u16,
             $enum::NearestIeeeFloatArithmetic(form) => form.machine_tag() as u16,
             $enum::FloatResultPolicy(form) => form.machine_tag() as u16,
         }
@@ -647,7 +647,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u16 {
 
 pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u8> {
     match kind {
-        MachineSemanticKind::PlacedScalarAccess(form) => Some(form.machine_payload()),
+        MachineSemanticKind::AccessorScalarAccess(form) => Some(form.machine_payload()),
         MachineSemanticKind::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineSemanticKind::FloatResultPolicy(form) => Some(form.machine_payload()),
         _ => None,
@@ -660,7 +660,7 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u16 {
 
 pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily) -> Option<u8> {
     match family {
-        MachineAlternativeFamily::PlacedScalarAccess(form) => Some(form.machine_payload()),
+        MachineAlternativeFamily::AccessorScalarAccess(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::FloatResultPolicy(form) => Some(form.machine_payload()),
         _ => None,

@@ -75,30 +75,30 @@ pub enum TerminalInterpretError {
     /// A projection cannot be represented exactly by the interpreter's current
     /// path-aware structural model, so execution fails closed.
     AffineProjectionNotRepresentable,
-    /// A direct-entry placed-view input was not established by any supplied
-    /// `TerminalPlacedViewEstablishment`, or an ordinary actual names no live
+    /// A direct-entry access-view input was not established by any supplied
+    /// `TerminalAccessViewEstablishment`, or an ordinary actual names no live
     /// compatible placed occurrence. Neither type nor pointer identity alone
     /// grants custody for a declared input.
-    PlacedViewInputsRequireCustody,
+    AccessViewInputsRequireCustody,
     /// Static correspondence or live backing for a local placed interpretation.
-    PlacedReference(String),
+    AccessReference(String),
     /// Two supplied establishments name the same roster row.
-    PlacedViewInputEstablishmentDuplicate {
+    AccessViewInputEstablishmentDuplicate {
         machine: MachineId,
         position: u32,
     },
     /// A supplied establishment names no declared entry roster row: custody
     /// the artifact never demanded cannot be bound at its input boundary.
-    PlacedViewInputEstablishmentUnexpected {
+    AccessViewInputEstablishmentUnexpected {
         machine: MachineId,
         position: u32,
     },
-    /// An established referent overlaps another placed-view establishment's
+    /// An established referent overlaps another access-view establishment's
     /// referent or a structural argument under exclusive access.
-    PlacedViewInputEstablishmentAliasing(u64),
+    AccessViewInputEstablishmentAliasing(u64),
     /// Runtime backing does not rejoin the verified artifact's declarations.
-    PlacedViewReferent(terminal_semantics::PlacedViewReferentError),
-    PlacedViewInput(terminal_semantics::PlacedViewInputError),
+    AccessViewReferent(terminal_semantics::AccessViewReferentError),
+    AccessViewInput(terminal_semantics::AccessViewInputError),
     ArgumentCount {
         expected: usize,
         actual: usize,

@@ -1650,10 +1650,10 @@ pub struct NativeCodeLayoutRequest {
 /// Checking must join the applied signature and exact source borrow before
 /// this declaration can become a placed-reference establishment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub struct PlacedBorrowOperationRequest {
+pub struct AccessBorrowOperationRequest {
     pub factory: SymbolHandle,
     pub access: language_core::ReferenceAccess,
-    pub backing: PlacedBorrowBacking,
+    pub backing: AccessBorrowBacking,
 }
 
 /// The source loan always belongs to the captured argument. Its storage
@@ -1661,7 +1661,7 @@ pub struct PlacedBorrowOperationRequest {
 /// encoded value's allocation. Exact declaration identities survive factory
 /// specialization so checking never guesses this distinction from a type name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub enum PlacedBorrowBacking {
+pub enum AccessBorrowBacking {
     Ordinary,
     Resident {
         extent: SymbolHandle,

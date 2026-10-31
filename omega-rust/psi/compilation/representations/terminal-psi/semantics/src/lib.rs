@@ -31,30 +31,30 @@ mod collection_backing;
 pub mod control_graph;
 pub mod descriptor_results;
 pub(crate) use optimization::digest_encoder;
+mod access_ram_correspondence;
 pub mod nominal_cleanup;
 pub mod owned_structure;
 mod partial_affine;
-mod placed_ram_correspondence;
 mod resident_references;
 pub use resident_references::{resident_reference_plan, validate_resident_owner_fields};
-mod placed_scalar_boundaries;
-mod placed_view_plans;
-mod placement_lifecycles;
-pub use placed_ram_correspondence::{
-    PlacedRamCorrespondence, PlacedRamFieldCorrespondence, placed_ram_correspondence,
-    placed_ram_plan_correspondence, placed_reference_correspondence,
+mod access_lifecycles;
+mod access_view_plans;
+mod accessor_scalar_boundaries;
+pub use access_lifecycles::{
+    AccessResultContract, access_result_contract, access_view_reference_slot,
+    validate_access_lifecycle_plans, validate_access_view_content,
 };
-pub use placed_scalar_boundaries::{
-    PlacedScalarBoundaryDemand, placed_region_projection, placed_scalar_boundary_demand,
+pub use access_ram_correspondence::{
+    AccessRamCorrespondence, AccessRamFieldCorrespondence, access_ram_correspondence,
+    access_ram_plan_correspondence, access_reference_correspondence,
 };
-pub use placement_lifecycles::{
-    PlacementResultContract, placement_result_contract, placement_view_reference_slot,
-    validate_placement_lifecycle_plans, validate_placement_view_content,
+pub use accessor_scalar_boundaries::{
+    AccessorScalarBoundaryDemand, access_region_projection, accessor_scalar_boundary_demand,
 };
-mod placed_view_referent;
-pub use placed_view_plans::{
-    PlacedPlanError, contains_placed_carrier, contains_placed_carrier_in_catalog,
-    validate_placed_view_catalog, validate_placed_view_plans,
+mod access_view_referent;
+pub use access_view_plans::{
+    AccessViewPlanError, contains_access_carrier, contains_access_carrier_in_catalog,
+    validate_access_view_catalog, validate_access_view_plans,
 };
 pub mod content_transformations;
 mod domain_preservation;
@@ -118,6 +118,10 @@ pub mod substitution;
 mod zero_valid_storage;
 mod zeroed_structural;
 
+pub use access_view_referent::{
+    AccessViewInputError, AccessViewReferentError, access_view_input_parameter,
+    validate_access_view_referent,
+};
 pub use arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
     borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
@@ -155,10 +159,6 @@ pub use collection_backing::{
     collection_backing, collection_view_descriptor,
 };
 pub use partial_affine::partial_affine_residuals;
-pub use placed_view_referent::{
-    PlacedViewInputError, PlacedViewReferentError, placed_view_input_parameter,
-    validate_placed_view_referent,
-};
 pub use primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
     byte_carrier_field_declaration, byte_carrier_geometry_matches, canonical_primitive_path,
@@ -276,9 +276,9 @@ pub use structural_effect::{ElementViewLeaf, element_view_leaf, element_view_wri
 mod scalar_observations;
 pub use scalar_observations::structural_read_scalar_type;
 
-mod placed_ram_origins;
+mod access_ram_origins;
 pub mod quotients;
-pub use placed_ram_origins::{PlacedRamFormation, PlacedRamOrigin, PlacedRamOriginAnalysis};
+pub use access_ram_origins::{AccessRamFormation, AccessRamOrigin, AccessRamOriginAnalysis};
 
 mod primitive_store_memberships;
 pub use primitive_store_memberships::{

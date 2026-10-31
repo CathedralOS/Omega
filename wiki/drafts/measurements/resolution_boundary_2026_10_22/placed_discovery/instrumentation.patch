@@ -78,10 +78,10 @@ index defe6c21053..d9926a959b1 100644
      let mut pending = syntax.type_references.generic_nodes();
      for (_, expression) in syntax.expressions.iter_expressions() {
          if let ExpressionNode::Call(call) = expression {
-diff --git a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs
+diff --git a/omega-rust/psi/compilation/compile-time/src/layouts/access_views.rs b/omega-rust/psi/compilation/compile-time/src/layouts/access_views.rs
 index 308cb49921b..f3650a8db9b 100644
---- a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs
-+++ b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views.rs
+--- a/omega-rust/psi/compilation/compile-time/src/layouts/access_views.rs
++++ b/omega-rust/psi/compilation/compile-time/src/layouts/access_views.rs
 @@ -232,6 +232,14 @@ pub fn desugar_placed_views(
          &selected_arguments,
          &selected_owners,
@@ -97,10 +97,10 @@ index 308cb49921b..f3650a8db9b 100644
      if applications.is_empty() {
          // The generic boundary templates exist only as compiler input for
          // cloning exact accessor machines. Leaving them active when a program
-diff --git a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
+diff --git a/omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs b/omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs
 index d84630abd5e..412f1df06d1 100644
---- a/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
-+++ b/omega-rust/psi/compilation/compile-time/src/layouts/placed_views/applied_results.rs
+--- a/omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs
++++ b/omega-rust/psi/compilation/compile-time/src/layouts/access_views/applied_results.rs
 @@ -22,6 +22,12 @@ pub(super) fn retain_applied_results(
      sources: Option<Arc<source::SourceMap>>,
      bindings: &[symbols::SourceScopedTopLevelBinding],

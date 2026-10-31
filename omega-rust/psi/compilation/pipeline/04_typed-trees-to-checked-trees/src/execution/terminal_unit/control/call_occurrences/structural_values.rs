@@ -35,13 +35,13 @@ pub(super) fn collect<'facts>(
         if matches!(
             node.kind,
             checked_trees::CheckedStructuralValueKind::Reference {
-                storage: checked_trees::CheckedReferenceStorage::Placed
-                    | checked_trees::CheckedReferenceStorage::ResidentPlaced { .. },
+                storage: checked_trees::CheckedReferenceStorage::Access
+                    | checked_trees::CheckedReferenceStorage::ResidentAccess { .. },
                 ..
             }
         ) {
             let formation = validation::reference_formation_source(program, node.expression)?;
-            if !formation.interpretation.is_placed() {
+            if !formation.interpretation.is_access_view() {
                 return None;
             }
             let authored = program.expression_table.call_node(node.expression)?;

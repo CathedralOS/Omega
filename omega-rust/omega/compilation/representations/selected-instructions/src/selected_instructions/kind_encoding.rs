@@ -144,7 +144,7 @@ pub fn encode_kind(bytes: &mut Vec<u8>, tag: u8, kind: SelectedInstructionKind) 
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             bytes.push(form.machine_payload())
         }
-        SelectedInstructionKind::PlacedScalarAccess {
+        SelectedInstructionKind::AccessorScalarAccess {
             form,
             contract,
             byte_offset,

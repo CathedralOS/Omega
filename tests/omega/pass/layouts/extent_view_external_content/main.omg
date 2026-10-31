@@ -11,24 +11,24 @@ data TestMemory {}
 public data Words { entries: [u64; 2]; }
 public data WordPlacement {}
 
-machine WordPlacement::plan(schema: Schema) -> PlacementPlan {
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
     let mut fields: [FieldEntry; 64];
-    fields[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    fields[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: fields, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 };
     let services: [u64; 32];
-    PlacementPlan {
-        layout: Plan { entries: fields, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 },
-        access: AccessPlan::with(AccessPlan::inaccessible(&schema), schema.fields[0].key,
+    AccessPlan::with_reach(
+        AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
             FieldAccess::External { read: ExternalRead::Read, write: false, exposure: Exposure::Exported }),
-        reach: BoundaryReach { services: services, service_count: 0 },
-    }
+        BoundaryReach { services: services, service_count: 0 }
+    )
 }
 
 machine read_existing(storage: &Extent in Granted) -> u64
 reaches ResourceProfileSupply
 {
-    transition Placed::view_extent<WordPlacement, Words, TestMemory>(storage) {
-        PlacementOutcome::Ready { view } -> (placed_read(&view.entries[1]))
-        PlacementOutcome::Rejected { returned, reason } -> 0
+    transition Access::view_extent<WordPlacement, Words, TestMemory>(storage) {
+        AccessOutcome::Ready { view } -> (read(&view.entries[1]))
+        AccessOutcome::Rejected { returned, reason } -> 0
     }
 }
 
@@ -37,12 +37,12 @@ machine forward<T>(value: T) -> T { value }
 machine read_stored(storage: &Extent in Granted) -> u64
 reaches ResourceProfileSupply
 {
-    let outcome: PlacementOutcome<&Placed<WordPlacement, Words>, PlacementBorrowReturn, PlacementInitializationFailure> =
-        Placed::view_extent<WordPlacement, Words, TestMemory>(storage);
-    let forwarded: PlacementOutcome<&Placed<WordPlacement, Words>, PlacementBorrowReturn, PlacementInitializationFailure> = forward(outcome);
+    let outcome: AccessOutcome<&Access<WordPlacement, Words>, AccessBorrowReturn, AccessInitializationFailure> =
+        Access::view_extent<WordPlacement, Words, TestMemory>(storage);
+    let forwarded: AccessOutcome<&Access<WordPlacement, Words>, AccessBorrowReturn, AccessInitializationFailure> = forward(outcome);
     transition forwarded {
-        PlacementOutcome::Ready { view } -> (placed_read(&view.entries[1]))
-        PlacementOutcome::Rejected { returned, reason } -> 0
+        AccessOutcome::Ready { view } -> (read(&view.entries[1]))
+        AccessOutcome::Rejected { returned, reason } -> 0
     }
 }
 

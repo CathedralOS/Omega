@@ -100,7 +100,7 @@ pub fn validate_native_program_entry_settlement(
         physical_calling_application: program_entry.physical_calling_application.cloned(),
         storage_entry: program_entry.storage_entry.cloned(),
         // Executable input supplies these loans, not declaration settlement.
-        placed_view_establishments: Vec::new(),
+        access_view_establishments: Vec::new(),
         private_entry_ram: Vec::new(),
     })
 }

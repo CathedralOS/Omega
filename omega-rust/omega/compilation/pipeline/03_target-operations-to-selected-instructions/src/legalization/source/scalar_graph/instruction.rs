@@ -37,7 +37,7 @@ where
         target_operations::TargetUnitOperation::Call { .. }
     ) {
         call_instructions::project_call(optimized, unit, targeted, call_descriptor_origins)?
-    } else if let target_operations::TargetUnitOperation::PlacementLifecycle {
+    } else if let target_operations::TargetUnitOperation::AccessLifecycle {
         boundary,
         operands,
         result_home,
@@ -59,7 +59,7 @@ where
                 &unit.structural_types,
             )?);
         }
-        LegalizedScalarInstructionKind::PlacementLifecycle {
+        LegalizedScalarInstructionKind::AccessLifecycle {
             boundary: *boundary,
             operands: operands.clone(),
             indices,
@@ -71,7 +71,7 @@ where
         LegalizedScalarInstructionKind::ProgramImageAddress {
             boundary: *boundary,
         }
-    } else if let target_operations::TargetUnitOperation::PlacedScalarAccess {
+    } else if let target_operations::TargetUnitOperation::AccessorScalarAccess {
         boundary,
         realization,
         location,
@@ -101,7 +101,7 @@ where
             operation,
             &geometry.elements,
         )?;
-        LegalizedScalarInstructionKind::PlacedScalarAccess {
+        LegalizedScalarInstructionKind::AccessorScalarAccess {
             boundary: *boundary,
             realization: *realization,
             location: location.clone(),
@@ -240,12 +240,12 @@ where
                 left: *left,
                 right: *right,
             },
-            AbstractOperation::EstablishPlacedReference {
+            AbstractOperation::EstablishAccessReference {
                 psi_operation,
                 result,
                 source,
                 correspondence,
-            } => LegalizedScalarInstructionKind::EstablishPlacedReference {
+            } => LegalizedScalarInstructionKind::EstablishAccessReference {
                 result: result.clone(),
                 source: source.clone(),
                 correspondence: correspondence.clone(),

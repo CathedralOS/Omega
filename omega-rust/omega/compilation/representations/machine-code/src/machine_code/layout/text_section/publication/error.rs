@@ -10,7 +10,7 @@ pub enum FunctionFragmentTextSectionManifestDecodeError {
     UnknownObjectFormat(u8),
     TargetLayoutOverflow,
     InvalidSemanticEntry,
-    UnknownPlacementPolicy(u8),
+    UnknownAccessPolicy(u8),
     UnknownRelocationRequirements(u8),
     UnknownUnavailableStatus,
     IdentityMismatch,

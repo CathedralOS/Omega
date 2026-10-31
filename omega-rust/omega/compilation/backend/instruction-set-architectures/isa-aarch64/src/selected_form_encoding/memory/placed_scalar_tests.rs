@@ -1,31 +1,31 @@
 //! Source-free ISA readers reject pointer, width, polarity and address substitutions.
 use crate::test_support::reject_every_bit_flip;
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEncodedMemoryEffect,
-    MachineSemanticKind, PlacedScalarForm, SelectedInstructionKind,
+    AccessorScalarForm, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEncodedMemoryEffect, MachineSemanticKind, SelectedInstructionKind,
 };
 
 /// The exact request one placed-scalar form encodes. The substitution pins
 /// rebuild both halves from a changed form through this owner rather than
 /// re-spelling the request.
-fn placed_scalar_request(
-    form: PlacedScalarForm,
+fn accessor_scalar_request(
+    form: AccessorScalarForm,
 ) -> (SelectedInstructionKind, MachineAlternativeKey) {
     (
-        SelectedInstructionKind::PlacedScalarAccess {
+        SelectedInstructionKind::AccessorScalarAccess {
             form,
             contract: [3; 32],
             byte_offset: 8,
         },
         MachineAlternativeKey {
-            family: MachineAlternativeFamily::PlacedScalarAccess(form),
+            family: MachineAlternativeFamily::AccessorScalarAccess(form),
             variant: 0,
         },
     )
 }
 
 #[test]
-fn placed_scalar_forms_decode_one_exact_width_transfer() {
+fn accessor_scalar_forms_decode_one_exact_width_transfer() {
     let physical =
         register_model::validate_physical_register_model(crate::aarch64_physical_register_model())
             .unwrap();
@@ -43,11 +43,11 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
     .unwrap();
     let base = physical.model().view_named("x1").unwrap().id;
     let data = physical.model().view_named("x2").unwrap().id;
-    for form in PlacedScalarForm::ALL {
-        let (kind, alternative) = placed_scalar_request(form);
+    for form in AccessorScalarForm::ALL {
+        let (kind, alternative) = accessor_scalar_request(form);
         let declaration = catalog
             .catalog()
-            .declaration_by_semantic(MachineSemanticKind::PlacedScalarAccess(form))
+            .declaration_by_semantic(MachineSemanticKind::AccessorScalarAccess(form))
             .unwrap();
         assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
         let encoded = super::encode_aarch64_selected_memory_form(
@@ -96,17 +96,17 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
         let mut appended = encoded.bytes().to_vec();
         appended.extend_from_slice(encoded.bytes());
         assert!(verify(kind, alternative, &[base, data], 8, &appended).is_err());
-        let changed = PlacedScalarForm {
+        let changed = AccessorScalarForm {
             write: !form.write,
             bytes: form.bytes,
         };
-        let (changed_kind, changed_alternative) = placed_scalar_request(changed);
+        let (changed_kind, changed_alternative) = accessor_scalar_request(changed);
         assert!(verify_request(changed_kind, changed_alternative).is_err());
-        let changed = PlacedScalarForm {
+        let changed = AccessorScalarForm {
             write: form.write,
             bytes: if form.bytes == 8 { 4 } else { 8 },
         };
-        let (changed_kind, changed_alternative) = placed_scalar_request(changed);
+        let (changed_kind, changed_alternative) = accessor_scalar_request(changed);
         assert!(verify_request(changed_kind, changed_alternative).is_err());
         let undeclared = MachineAlternativeKey {
             family: alternative.family,

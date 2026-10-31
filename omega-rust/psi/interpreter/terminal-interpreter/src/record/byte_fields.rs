@@ -24,7 +24,7 @@ impl TerminalExecution<'_> {
         let Some(carrier) = declaration.field_type.byte_sequence_carrier() else {
             return Ok(None);
         };
-        let ConstructorValue::Placed(child) = child else {
+        let ConstructorValue::Access(child) = child else {
             return Err(malformed());
         };
         let binding = self.byte_sequence_values.require(&argument.place)?;

@@ -2,7 +2,7 @@
 //! capabilities each normalized region supplies, and the validated profile
 //! with its restriction to a child interval.
 
-use crate::access_plan::diagnostic::reject_when;
+use crate::access_fields::diagnostic::reject_when;
 use crate::validate_resource_profile;
 use crate::{AccessPlanDiagnostic, AtomicPermissions, BoundaryReach};
 
