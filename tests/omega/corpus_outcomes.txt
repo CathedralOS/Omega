@@ -147,6 +147,46 @@ fail/facts/build_activation_borrow/parameter rejected 648ms expected @3a020eca64
 	root binding requires a compiler-issued &mut Build receiver
 fail/facts/build_activation_borrow/target_body rejected 548ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
+fail/facts/case_type_equation_recovery_through_call_result_rejected rejected 3011ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_through_const_name_rejected rejected 3011ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_through_field_rejected rejected 3165ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_through_local_rejected rejected 5042ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_through_match_join_rejected rejected 3325ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_through_other_machine_rejected rejected 3325ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_through_other_state_rejected rejected 2448ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_through_parameter_rejected rejected 1952ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_through_target_body_rejected rejected 2157ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	match arms produce incompatible values
+	machine `extract$specialized$f7f6e43c477d7198$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+fail/facts/case_type_equation_recovery_transition_rows_rejected rejected 2156ms expected @0402685c2f27+wt
+	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+	machine `extract_rows` state `entry` return value expects `T`, but the value is delivered as `bool`
+	machine `extract_rows$specialized$b86e4653a744cd38$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -4073,6 +4113,16 @@ pass/facts/case_tag_discriminant_layout_through_other_machine_exit checked 3846m
 pass/facts/case_tag_discriminant_layout_through_other_state_exit checked 3356ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_tag_discriminant_layout_through_parameter_exit checked 4099ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_tag_discriminant_layout_through_target_body_exit checked 3296ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/case_type_equation_recovery_through_call_result_exit checked 6021ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_const_name_exit checked 10272ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_field_exit checked 10963ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_local_exit checked 6021ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_match_join_exit checked 9359ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_other_machine_exit checked 10300ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_other_state_exit checked 9984ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_parameter_exit checked 8643ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_target_body_exit checked 9533ms check-target:macos_arm64 @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_transition_rows_exit checked 8873ms check-target:macos_arm64 @0402685c2f27+wt
 pass/facts/case_value_binder_payload_compile rejected 948ms regressed-from:checked @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/facts/case_where_equality_data_predicate_direct_exit checked 3801ms check-target:macos_arm64 @ccdb99ca2214
