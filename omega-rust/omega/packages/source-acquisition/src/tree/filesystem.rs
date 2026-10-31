@@ -20,6 +20,7 @@ use cap_std::{
 
 use crate::SourceResolveError;
 use crate::error::local_source_changed;
+use source::read_accounting::record_source_file_read;
 
 pub(crate) fn open_canonical_source_root(
     canonical_root: &Path,
@@ -103,11 +104,7 @@ pub(crate) fn read_capability_file_bounded(
     let mut file = directory.open_with(name, &options).at(display_path)?;
     let metadata = file.metadata().at(display_path)?;
     let bytes = read_opened_file_bounded(&mut file, &metadata, display_path, remaining, limit)?;
-    source::read_accounting::record_source_file_read(
-        "tree_capture",
-        display_path,
-        bytes.len() as u64,
-    );
+    record_source_file_read("tree_capture", display_path, bytes.len() as u64);
     // Resolve the final name through the retained parent, never the diagnostic
     // path: the parent may have been renamed since acquisition.
     let final_entry = directory.symlink_metadata(name).at(display_path)?;
