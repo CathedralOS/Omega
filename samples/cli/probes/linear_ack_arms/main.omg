@@ -1,11 +1,11 @@
-// Linear values consumed through `boundary requirement` — a named
+// Linear values consumed through a boundary-trait requirement — a named
 // consuming sink with no provider — and decision-21 branch
 // reconciliation: either transition arm may transfer the same linear
 // receipt into a consuming state; the arms are alternatives, not
 // sequential copies.
 //
 //   * `data Receipt [linear]` — must be consumed exactly once.
-//   * `boundary requirement Receipt::ack(receipt: Receipt)` — the
+//   * `ReceiptAck::ack(receipt: Receipt)` — the
 //     sink; no provider body needed.
 //   * `Main::run -> i32` — value-returning machine; the entry
 //     (`ProgramEntry` can't return) reads the result into `hits`.
@@ -15,7 +15,9 @@
 // provider.
 
 data Receipt [linear] { code: i32; }
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 data Main { choose_first: bool; hits: i32 in Wrapping; }
 
@@ -27,12 +29,12 @@ machine Main::run(main: &mut Main) -> i32 {
     }
 
     machine consume_first(receipt: Receipt) -> i32 {
-        Receipt::ack(receipt);
+        ReceiptAck::ack(receipt);
         70
     }
 
     machine consume_second(receipt: Receipt) -> i32 {
-        Receipt::ack(receipt);
+        ReceiptAck::ack(receipt);
         71
     }
 }
