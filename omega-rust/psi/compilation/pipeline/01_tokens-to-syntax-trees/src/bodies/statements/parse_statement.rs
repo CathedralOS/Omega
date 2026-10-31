@@ -24,6 +24,7 @@ use crate::bodies::statements::statement_tables::{
     expression_handle_to_statement_call, root_binding_declaration,
 };
 use crate::bodies::transitions::parse_transition::parse_transition_block_handles;
+use crate::declarations::parse_declaration::starts_machine_declaration;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
 use arena::HandleSpan;
@@ -231,9 +232,7 @@ fn parse_statement_handle<'tokens, 'source>(
         );
     }
 
-    if input.at_punctuation(PunctuationKind::RightBrace)
-        || crate::declarations::parse_declaration::starts_machine_declaration(input)
-    {
+    if input.at_punctuation(PunctuationKind::RightBrace) || starts_machine_declaration(input) {
         // A final value completes the invocation, just like an unconditional
         // value arm. Retain that control-flow fact at its source rather than
         // asking call, custody and lowering consumers to rediscover it.
