@@ -6,11 +6,10 @@ use super::{
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
     ValidatedSelectedInstructions, VirtualRegisterId, target_register_environment_identity,
 };
-use crate::FixedViewCopyError;
-use crate::FixedViewCopyPolicy;
-use crate::ValidatedAllocationLegality;
-use crate::ValidatedLiveRanges;
 use crate::rewrites::block_edges::{block_instruction_ids, virtual_register_ids_are_dense};
+use crate::{
+    FixedViewCopyError, FixedViewCopyPolicy, ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 use selected_instructions::terminator_instruction;
 
 pub(super) fn validate_roots(

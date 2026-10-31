@@ -7,10 +7,9 @@ mod compute;
 
 use crate::WorkDefect;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
-use register_homes::FixedPrecoloredIntervalPolicy;
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlan,
-    FixedPrecoloredIntervalPlanIdentity,
+    FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::LiveRangeIdentity;

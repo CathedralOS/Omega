@@ -2,14 +2,11 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::analyses::liveness::LivenessError;
-use register_model::RegisterOperandAccess;
-use register_model::RegisterUnitId;
+use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,
-    LivenessPosition, OperandPosition, SuccessorLiveness,
-};
-use selected_instructions::{
-    SelectedBlock, SelectedFunction, SelectedInstruction, VirtualRegisterId,
+    LivenessPosition, OperandPosition, SelectedBlock, SelectedFunction, SelectedInstruction,
+    SuccessorLiveness, VirtualRegisterId,
 };
 
 mod control;

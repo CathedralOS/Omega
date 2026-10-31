@@ -3,23 +3,18 @@ use super::{
     OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     RecoveryClassificationPolicy, SpillChoicePolicy, ValidatedSelectedAnalysis,
 };
-use crate::LiteralFoldPolicy;
-use crate::OptimizedLiteralFoldCustodyError;
-use crate::StagedOptimizedAllocationLegality;
-use crate::StagedOptimizedLiteralFoldAttempt;
-use crate::StagedOptimizedLiteralFoldStep;
-use crate::StagedSelectedLoweringOptimizationCustodyReceipt;
-use crate::StagedSelectedLoweringOptimizationRun;
-use crate::ValidatedAllocationLegality;
-use crate::ValidatedLiveRanges;
 use crate::analyses::validated_machine_effect_catalog;
-use crate::analyze_allocation_legality;
-use crate::analyze_live_ranges;
-use crate::analyze_liveness;
-use crate::choose_spill_victims;
-use crate::classify_pressure_recovery;
-use crate::resolve_selected_lowering_rules;
 use crate::rewrites::fold_selected_incoming_literal;
+use crate::{
+    LiteralFoldPolicy, OptimizedLiteralFoldCustodyError, StagedOptimizedAllocationLegality,
+    StagedOptimizedLiteralFoldAttempt, StagedOptimizedLiteralFoldStep,
+    StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
+use crate::{
+    analyze_allocation_legality, analyze_live_ranges, analyze_liveness, choose_spill_victims,
+    classify_pressure_recovery, resolve_selected_lowering_rules,
+};
 
 use super::accounting::{
     add_usage, applied_action_count, attempt_usage, ensure_selected_lowering_budget,

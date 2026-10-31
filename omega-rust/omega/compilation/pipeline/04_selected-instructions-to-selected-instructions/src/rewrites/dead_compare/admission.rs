@@ -24,8 +24,7 @@ use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::RegisterOperandAccess;
-use register_model::RegisterUnitId;
+use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
     SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,

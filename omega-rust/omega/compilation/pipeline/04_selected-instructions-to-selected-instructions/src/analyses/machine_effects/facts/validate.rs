@@ -1,5 +1,4 @@
-use super::receipt;
-use super::{MachineEffectError, ValidatedPreAllocationMachineEffects};
+use super::{MachineEffectError, ValidatedPreAllocationMachineEffects, receipt};
 use selected_instructions::PreAllocationMachineEffectPlan;
 
 #[allow(clippy::too_many_arguments)]
