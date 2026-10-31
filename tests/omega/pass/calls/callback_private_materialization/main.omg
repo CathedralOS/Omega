@@ -4,10 +4,14 @@ use omega::language::core::external_binding;
 
 public data CallbackPolicies { }
 public PointCalling satisfies CallingPolicy {
-    CallingPolicy::plan = CallbackPolicies::point;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        CallbackPolicies::point(signature)
+    }
 }
 public LineCalling satisfies CallingPolicy {
-    CallingPolicy::plan = CallbackPolicies::line;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        CallbackPolicies::line(signature)
+    }
 }
 
 machine CallbackPolicies::point(signature: BoundarySignature) -> BoundaryPlanResult
