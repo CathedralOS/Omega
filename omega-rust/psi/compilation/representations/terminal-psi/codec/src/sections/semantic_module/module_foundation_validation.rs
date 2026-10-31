@@ -269,10 +269,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     // Replay custody only after types, the finite by-value graph, and every
     // operation/place relationship are checked. Malformed constructor loops
     // must reject before they can grow an unbounded abstract carrier path.
-    for machine in &module.machines {
-        terminal_semantics::activation_storage::validate_machine(module, machine)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
-    }
+    terminal_semantics::activation_storage::validate_module(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     storage_foundations::validate_reference_memberships(module)?;
     terminal_semantics::validate_runtime_evidence_inputs(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;

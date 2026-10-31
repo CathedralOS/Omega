@@ -16,15 +16,11 @@ pub fn finalize_terminal_program(
     // obligation on the final pre-Terminal graph before either consumer can
     // execute it. Artifact encoding deliberately trusts producer foundations;
     // external decode and optional target optimization are not this admission.
-    for machine in &module.machines {
-        terminal_semantics::activation_storage::validate_machine(&module, machine).map_err(
-            |reason| {
-                terminal_codec::CanonicalTerminalArtifactError::Semantic(
-                    terminal_codec::CodecError::MalformedStructuralFoundation(reason),
-                )
-            },
-        )?;
-    }
+    terminal_semantics::activation_storage::validate_module(&module).map_err(|reason| {
+        terminal_codec::CanonicalTerminalArtifactError::Semantic(
+            terminal_codec::CodecError::MalformedStructuralFoundation(reason),
+        )
+    })?;
     match publication {
         terminal_codec::TerminalPublication::Portable => {
             let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(
