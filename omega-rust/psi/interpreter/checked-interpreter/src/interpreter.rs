@@ -327,16 +327,12 @@ fn evaluate_const_on_current_thread(
             usage.record_result_custody(1, 0);
             Ok(MeasuredEvaluation::new(value, usage))
         }
-        Err(halt) => Err(value_return_halt_error(halt)),
+        Err(halt) => Err(structured_return_halt_error(halt).to_string()),
     }
 }
 
 /// The value-returning evaluation's halt text: an explicit exit reports its
 /// code against the value expectation; every other halt carries its message.
-fn value_return_halt_error(halt: Halt) -> String {
-    structured_return_halt_error(halt).to_string()
-}
-
 fn structured_return_halt_error(halt: Halt) -> BuildMachineEvaluationError {
     match halt {
         Halt::Exit(code) => BuildMachineEvaluationError::Rejected(format!(
