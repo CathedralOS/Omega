@@ -96,6 +96,28 @@ pub(super) fn close(
     close_with_shared_requirements::<Proposition>(types, domains, contract, &[], None);
 }
 
+/// A negative answer proves closure cannot modify this row: no domain passes
+/// its exact introduction gate, and final sort/dedup is already a no-op.
+/// A positive answer still runs the complete existing proof and normalization.
+pub(super) fn closure_may_change(
+    types: &[StructuralTypeDeclaration],
+    domains: &[StructuralDomainDeclaration],
+    contract: &PayloadMembershipContract,
+) -> bool {
+    contract
+        .qualifications
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+        || domains.iter().any(|domain| {
+            domain.carrier == contract.carrier
+                && domain.content_projection.is_none()
+                && domain.establishment_routes.is_empty()
+                && !contract.qualifications.contains(&domain.id)
+                && introduction_predicate(types, domains, domain, &contract.qualifications)
+                    .is_some()
+        })
+}
+
 /// Most payloads have no eligible byte predicate. Keep the state's shared
 /// theory borrowed until a predicate actually reads it; that reader still
 /// receives the complete ordered premises for its context, equations and goal.
