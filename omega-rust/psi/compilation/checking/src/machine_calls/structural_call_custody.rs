@@ -32,6 +32,8 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 mod declaration_predicates;
+#[cfg(test)]
+mod state_selection_tests;
 
 pub use declaration_predicates::{
     DeclarationPredicateRow, declaration_facts_carried, machine_declaration_predicates,
@@ -1314,6 +1316,26 @@ fn structural_authored_arguments<'program>(
     Ok(authored_arguments)
 }
 
+fn semantic_caller_state(
+    control: &checked_trees::FlowControlFacts,
+    caller_machine: SymbolHandle,
+    caller_state: SymbolHandle,
+) -> Result<&checked_trees::FlowStateFact, &'static str> {
+    let mut states = control
+        .machine_states(caller_machine)
+        .into_iter()
+        .filter(|state| {
+            state.machine_symbol == caller_machine && state.state_symbol == caller_state
+        });
+    let state = states
+        .next()
+        .ok_or("structural call has no semantic state")?;
+    if states.next().is_some() {
+        return Err("structural call has ambiguous semantic states");
+    }
+    Ok(state)
+}
+
 pub fn structural_call_custody(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
@@ -1431,21 +1453,7 @@ pub fn structural_call_custody(
     } else {
         structural_result_qualifications(program, return_type)?
     };
-    let mut states = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .filter(|state| {
-            state.machine_symbol == caller_machine && state.state_symbol == caller_state
-        });
-    let state = states
-        .next()
-        .ok_or("structural call has no semantic state")?;
-    if states.next().is_some() {
-        return Err("structural call has ambiguous semantic states");
-    }
+    let state = semantic_caller_state(&facts.flow.control, caller_machine, caller_state)?;
     let retained_calls = facts.flow.control.calls.span_or_empty(state.calls);
     if retained_calls.len() != state.calls.len() {
         return Err("structural call semantic occurrence span is stale");

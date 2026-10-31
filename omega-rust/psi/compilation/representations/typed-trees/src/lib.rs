@@ -14,6 +14,7 @@
 pub mod references;
 pub mod typed_trees;
 
+pub use typed_trees::SpelledDeclarationTable;
 pub use typed_trees::calls::{
     boundary, dynamic_traits, finite_family, service, signature, static_applications,
 };
@@ -46,7 +47,7 @@ pub use typed_trees::{
     PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation, PlanLaidBitField,
     PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField,
-    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, ProgramIdentity, SpelledDeclarationTable,
-    TypedTreeRoots, TypedTreeTables, TypedTrees, closed_conformance_applications_of,
+    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, ProgramIdentity, TypedTreeRoots,
+    TypedTreeTables, TypedTrees, closed_conformance_applications_of,
     machine_specialization_matches_template_identity,
 };
