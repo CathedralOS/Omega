@@ -13,13 +13,31 @@ use typed_trees::types::PrimitiveType;
 
 /// The caller supplies exact captured values and previously established facts.
 /// Neither the proposed result nor its desired interval is an input premise.
-pub fn scoped_integer_expression_is_formed(
+pub fn scoped_declared_integer_application_is_formed(
     program: &dyn crate::CheckingInput,
     context_machine: &Machine,
     hypotheses: &[ScopedArithmeticHypothesis],
     expression: &ScopedArithmeticExpression,
     result: PrimitiveType,
 ) -> bool {
+    let Some(declaration) = program
+        .measures()
+        .iter()
+        .find(|definition| definition.symbol == expression.owner)
+    else {
+        return false;
+    };
+    let Some(formal) = declaration.parameter.as_ref() else {
+        return false;
+    };
+    if program
+        .expression_table
+        .expression_handles(declaration.body)
+        != [expression.expression]
+        || program.primitive_type_reference(declaration.return_type) != Some(result)
+    {
+        return false;
+    }
     let mut calls = calls::ScopedCalls::new(program, context_machine);
     let Some(expression) = calls.expression(expression) else {
         return false;
@@ -34,8 +52,14 @@ pub fn scoped_integer_expression_is_formed(
     {
         return false;
     }
+    let Some(input) = engine.strict_symbol_value(formal.symbol) else {
+        return false;
+    };
+    if !formed_type(&mut engine, program, formal.type_reference, &input) {
+        return false;
+    }
     formed_value(&mut engine, program, expression.expression, 0)
-        .is_some_and(|value| engine.integer_value_lands(result, &value))
+        .is_some_and(|value| formed_type(&mut engine, program, declaration.return_type, &value))
 }
 
 fn formed_value(
@@ -105,4 +129,59 @@ fn formed_value(
             engine.normalize(expression)
         }
     }
+}
+
+// A declaration's input and output bounds constrain different values. Prove
+// both under the actual roster; neither constraint is installed as a premise.
+fn formed_type(
+    engine: &mut Engine<'_>,
+    program: &dyn crate::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+    value: &Polynomial,
+) -> bool {
+    use numerics::bignum::BigInt;
+    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                return false;
+            };
+            let Some(minimum) = formed_value(engine, program, *minimum, 0) else {
+                return false;
+            };
+            let Some(maximum) = formed_value(engine, program, *maximum, 0) else {
+                return false;
+            };
+            if !engine.prove_at_least(&value.sub(&minimum), &BigInt::zero())
+                || !engine.prove_at_least(
+                    &maximum.sub(value),
+                    &BigInt::from_i64(if *end_inclusive { 0 } else { 1 }),
+                )
+            {
+                return false;
+            }
+        }
+        reference = *base_type;
+    }
+    // Qualification kinds outside this selected unsigned scalar-view owner
+    // require their own application judgment; erasing them is not formation.
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return false;
+    };
+    program
+        .symbols
+        .builtin_type_atom(*symbol)
+        .and_then(PrimitiveType::from_builtin_atom)
+        .is_some_and(|primitive| engine.integer_value_lands(primitive, value))
 }

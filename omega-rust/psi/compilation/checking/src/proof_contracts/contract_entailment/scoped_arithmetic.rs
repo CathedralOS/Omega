@@ -18,7 +18,7 @@
 
 pub(super) mod calls;
 mod formation;
-pub use formation::scoped_integer_expression_is_formed;
+pub use formation::scoped_declared_integer_application_is_formed;
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 

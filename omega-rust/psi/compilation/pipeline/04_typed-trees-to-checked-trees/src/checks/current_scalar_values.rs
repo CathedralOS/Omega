@@ -1046,13 +1046,13 @@ impl<'program> CurrentScalarValues<'program> {
         values
     }
 
-    pub(crate) fn forms_integer_expression(
+    pub(crate) fn forms_declared_integer_application(
         &self,
         machine: &Machine,
         expression: &ScopedArithmeticExpression,
         result: PrimitiveType,
     ) -> bool {
-        validation::scoped_integer_expression_is_formed(
+        validation::scoped_declared_integer_application_is_formed(
             self.program,
             machine,
             &self.hypotheses,

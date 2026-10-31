@@ -132,7 +132,11 @@ pub(super) fn prepare(
                 ));
             }
             let expression = application.expression(selected.entry_value.clone());
-            if !values.forms_integer_expression(machine, &expression, application.primitive) {
+            if !values.forms_declared_integer_application(
+                machine,
+                &expression,
+                application.primitive,
+            ) {
                 return Some(Err(
                     "a computed natural rank application has no independent entry formation",
                 ));
@@ -175,7 +179,7 @@ pub(super) fn prepare(
             if order == Order::Descending {
                 let entry_value = if let Some(application) = application {
                     let expression = application.expression(coordinate.entry_value.clone());
-                    if !entry_values[position].forms_integer_expression(
+                    if !entry_values[position].forms_declared_integer_application(
                         machine,
                         &expression,
                         application.primitive,

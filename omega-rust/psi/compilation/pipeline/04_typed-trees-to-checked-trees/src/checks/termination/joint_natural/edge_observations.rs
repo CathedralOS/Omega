@@ -101,7 +101,7 @@ pub(super) fn compare(
     )?;
     let next = if let Some(application) = destination.application {
         let expression = application.expression(next);
-        if !edge.values.forms_integer_expression(
+        if !edge.values.forms_declared_integer_application(
             machines[edge.source],
             &expression,
             application.primitive,

@@ -210,7 +210,7 @@ pub(crate) fn admit_machine_rankings(
         let observations = if local_terminates && !joint_observations.is_empty() {
             admitted.observations.insert_many(joint_observations)
         } else if local_terminates && witness.is_some() {
-            ranking::prepare_natural_observations(program, machine, &mut admitted)
+            ranking::prepare_natural_observations(program, machine, &mut admitted, call_frames)
                 .map(|observations| admitted.observations.insert_many(observations))
                 .unwrap_or_default()
         } else {
