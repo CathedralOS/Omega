@@ -1170,6 +1170,12 @@ impl Execution<'_, '_, '_> {
         constraints: HandleSpan<checked_trees::FlowConstraintRef>,
         referents: HandleSpan<FlowOperandReferent>,
     ) -> HandleSpan<FlowOperandReferent> {
+        // An unknown descriptor forms nothing. The read that loaded it owns
+        // its case obligation; a second record naming no source place would
+        // only restate that read as unprovable.
+        if referents.is_empty() {
+            return referents;
+        }
         let access = self.record_case_access_places(expression, constraints, referents);
         if !access.is_valid() {
             return referents;
