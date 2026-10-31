@@ -920,6 +920,55 @@ fn boundary_value_layout_consumes_source_free_recipes() {
 }
 
 #[test]
+fn calling_materialization_consumes_prepared_psi_telescopes() {
+    let signatures = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs"
+    );
+    let materialization = signatures
+        .split("pub(crate) fn materialize_prepared_signature(")
+        .nth(1)
+        .unwrap()
+        .split("pub(crate) fn exact_boundary_layout_root_symbol(")
+        .next()
+        .unwrap();
+    assert_absent(
+        &[materialization],
+        "calling materialization rebuilds source telescope",
+        &[
+            "state_signature_parameters",
+            "state_signature_type_parameters",
+            "MachineParameterContract",
+            "native_callback_parameters",
+            "nominal_callback_native_parameter_id",
+            "callback_nominal_report_fingerprint",
+        ],
+    );
+    assert!(materialization.contains("declaration.projection"));
+    assert!(materialization.contains("telescope.parameters"));
+    let computation = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"
+    );
+    let defaults = computation
+        .split("pub(crate) fn evaluate_default_calling_application(")
+        .nth(1)
+        .unwrap()
+        .split("pub fn compute_boundary_calling_plans(")
+        .next()
+        .unwrap();
+    assert_absent(
+        &[defaults],
+        "default calling selection rescans source",
+        &[".traits()", ".machines()", "trait_machine_signatures"],
+    );
+    assert!(defaults.contains("declaration.default_eligible"));
+    assert!(computation.contains("std::ptr::eq(&checked.typed, services.context().typed)"));
+    let catalog = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/catalog.rs"
+    );
+    assert!(catalog.contains("PreparedBoundarySignatures::prepare(context)"));
+}
+
+#[test]
 fn provider_derivation_consumes_the_prepared_service_census() {
     let inventory = include_str!(
         "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
