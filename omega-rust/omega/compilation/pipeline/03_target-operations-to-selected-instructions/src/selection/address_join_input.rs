@@ -10,6 +10,7 @@
 //! own transport state; neither trusts the other's choice.
 
 use crate::selection::place_declaration::{arrivals, declares_block_parameter};
+use abstract_operations::control_flow::address_joins::is_address_join_in;
 
 use calling_conventions::ValueShape;
 use legalized_operations::LegalizedScalarFunction;
@@ -30,10 +31,7 @@ pub(crate) fn join(
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != source.entry_block
-        && abstract_operations::control_flow::address_joins::is_address_join_in(
-            parameter,
-            &signature.structural_types,
-        )
+        && is_address_join_in(parameter, &signature.structural_types)
         && declares_block_parameter(signature, place, block, parameter.position))
     .then_some((block, parameter))
 }

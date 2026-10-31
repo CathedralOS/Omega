@@ -1,6 +1,7 @@
 //! Independent custody correspondence for element descriptor derivations.
 use super::Checker;
 use abstract_operations::AbstractOperation;
+use abstract_operations::control_flow::address_joins::is_address_join_in;
 use semantic_vocabulary::{PlaceId, ValueId};
 use target_operations::{TargetElementView, TargetStructuralArgumentSource};
 use terminal_psi::StructuralTypeShape;
@@ -344,9 +345,7 @@ impl Checker<'_> {
             terminal_semantics::view_descriptor_parameter(parameter, self.types.iter());
         let backing = parameter.access == terminal_psi::StructuralAccess::Owned
             || (block != self.optimized.entry
-                && (abstract_operations::control_flow::address_joins::is_address_join_in(
-                    parameter, self.types,
-                ) || descriptor_carrier)
+                && (is_address_join_in(parameter, self.types) || descriptor_carrier)
                 && matches!(
                     (parameter.access, requested),
                     (
