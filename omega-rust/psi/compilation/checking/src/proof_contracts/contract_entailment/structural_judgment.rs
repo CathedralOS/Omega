@@ -2939,7 +2939,9 @@ impl<'program> StructuralJudge<'program> {
                 let value = child_term!(cast.value)?;
                 if super::structural_terms::denotation_preserving_conversion(program, cast, source)
                 {
-                    Some(value)
+                    Some(super::structural_terms::exact_conversion_term(
+                        program, cast, source, value,
+                    ))
                 } else {
                     super::structural_terms::scalar_representation_term(
                         program, cast, source, value,
