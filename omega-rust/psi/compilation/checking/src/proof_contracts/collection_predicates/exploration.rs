@@ -159,6 +159,36 @@ pub(crate) fn value_shape(
     None
 }
 
+/// This interpreter binds only ordinary integer/Boolean carriers and readable
+/// integer collections. A declaration call has no checked caller admission:
+/// neither a legacy range nor a domain qualification may disappear when its
+/// formal is viewed through `value_shape`'s representation-only projection.
+fn has_only_carrier_parameters(program: &dyn crate::CheckingInput, entry: &State) -> bool {
+    program.state_parameters(entry).iter().all(|parameter| {
+        let mut reference = parameter.type_reference;
+        for _ in 0..8 {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference {
+                    referee,
+                    access: language_core::ReferenceAccess::Shared,
+                    ..
+                } => reference = *referee,
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => {
+                    return super::bare_integer_parameter_type(program, *element_type).is_some();
+                }
+                TypeReferenceNode::Named { .. } => {
+                    return super::bare_integer_parameter_type(program, reference).is_some()
+                        || program.primitive_type_reference(reference)
+                            == Some(PrimitiveType::Bool);
+                }
+                _ => return false,
+            }
+        }
+        false
+    })
+}
+
 /// The index of a free predicate machine the explorer may enter, selected by
 /// its machine symbol or its entry state symbol. `entered_by_call` admits
 /// arrival requirements, which the caller's checked body already proved.
@@ -196,16 +226,17 @@ pub(crate) fn admitted_predicate_machine(
     // constrain admission just like authored machine requires; stripping a
     // qualified formal to its carrier cannot discharge either roster.
     let unconditional = entered_by_call
-        || program
-            .machine_contracts(machine)
-            .iter()
-            .chain(program.state_contracts(entry))
-            .all(|contract| {
-                !matches!(
-                    contract.kind,
-                    typed_trees::signature::SignatureContractKind::Requires
-                )
-            });
+        || (has_only_carrier_parameters(program, entry)
+            && program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(entry))
+                .all(|contract| {
+                    !matches!(
+                        contract.kind,
+                        typed_trees::signature::SignatureContractKind::Requires
+                    )
+                }));
     let parameters_readable = program.machine_states(machine).iter().all(|state| {
         program
             .state_parameters(state)
