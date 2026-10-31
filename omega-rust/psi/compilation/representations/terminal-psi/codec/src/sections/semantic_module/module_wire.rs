@@ -15,6 +15,7 @@
 mod borrow_wire;
 mod boundary_application_wire;
 mod callback_application_wire;
+mod calling_signature_wire;
 mod carry_and_suspension_wire;
 pub(crate) mod quotient_wire;
 mod recursive_component_wire;
@@ -151,6 +152,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         encode_reborrow_restored_call_use,
     )?;
     c!("boundary machines" => &module.boundary_machines => encode_boundary_machine)?;
+    c!("calling signatures" => &module.calling_signatures => calling_signature_wire::encode)?;
     writer.counted(
         "external provider conformances",
         &module.external_providers,
@@ -339,6 +341,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let access_view_inputs = decode_counted(reader, access_view_wire::decode_access_view_input)?;
     let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
+    let calling_signatures = decode_counted(reader, calling_signature_wire::decode)?;
     let external_providers = decode_counted(reader, external_provider_wire::decode)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let dynamic_dispatch = dynamic_dispatch_wire::decode_dynamic_dispatch(reader)?;
@@ -404,6 +407,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         access_lifecycle_plans,
         reborrow_restored_call_uses,
         boundary_machines,
+        calling_signatures,
         external_providers,
         provider_candidates,
         dynamic_dispatch,

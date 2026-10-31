@@ -48,22 +48,25 @@ impl MaterializedBoundarySignature {
     /// its dedicated catalog owner before that surface can enter this route.
     pub fn from_terminal(
         module: &terminal_psi::TerminalModule,
-        signature: &terminal_psi::CallingSignatureDeclaration,
+        boundary: semantic_vocabulary::BoundaryMachineId,
         target: target::TargetProfile,
     ) -> Result<Self, String> {
+        let signature = module
+            .calling_signatures
+            .iter()
+            .find(|signature| signature.boundary == boundary)
+            .ok_or("boundary has no retained calling signature declaration")?;
         let declaration = module
-            .boundary_machine(signature.boundary)
+            .boundary_machine(boundary)
             .ok_or("calling signature lost its exact boundary declaration")?;
-        if signature.requirement_identity != declaration.identity {
-            return Err("calling signature substitutes another requirement identity".into());
-        }
-        if !signature.binders.is_empty() || !signature.direct_callbacks.is_empty() {
+        let telescope = signature.telescope.as_ref().map_err(Clone::clone)?;
+        if !telescope.binders.is_empty() || !telescope.direct_callbacks.is_empty() {
             return Err(
                 "Terminal calling signature still requires private callback geometry closure"
                     .into(),
             );
         }
-        if declaration.parameter_order.len() != signature.parameters.len() {
+        if declaration.parameter_order.len() != telescope.parameters.len() {
             return Err(
                 "calling telescope differs from its exact boundary parameter roster".into(),
             );
@@ -71,14 +74,14 @@ impl MaterializedBoundarySignature {
         let mut recipes = layout::TerminalBoundaryRecipes::new(module, target.target_name());
         let layout_target = layout::LayoutTarget::for_profile(target)?;
         let mut values = BoundaryValueLayout::new(layout_target, &[]);
-        let mut parameters = Vec::with_capacity(signature.parameters.len());
-        let mut native_parameters = Vec::with_capacity(signature.parameters.len());
+        let mut parameters = Vec::with_capacity(telescope.parameters.len());
+        let mut native_parameters = Vec::with_capacity(telescope.parameters.len());
         let mut scalars = declaration.scalar_parameters.iter();
         let mut structural = declaration.structural_parameters.iter();
         for (formal_ordinal, (kind, formal)) in declaration
             .parameter_order
             .iter()
-            .zip(&signature.parameters)
+            .zip(&telescope.parameters)
             .enumerate()
         {
             let recipe = match kind {

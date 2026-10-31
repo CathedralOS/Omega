@@ -20,6 +20,9 @@ pub struct TerminalProductionRequest<'a> {
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     /// Reuse the declaration product already owned by this exact checked input.
     pub external_declarations: Option<&'a crate::PreparedExternalProviderDeclarations>,
+    /// The completed Product owner's prepared declaration census. Early Build
+    /// jobs have no Product inventory and publish no Product calling telescope.
+    pub provider_inventory: Option<&'a checked_trees::PreparedProviderInventory>,
     pub machine: TerminalMachineSelection<'a>,
     /// Complete callable/interface roots requested by the owning product.
     /// These retain bodies/declarations without granting execution authority.
@@ -39,6 +42,7 @@ impl<'a> TerminalProductionRequest<'a> {
             checked,
             exact_toolchain_sources,
             external_declarations: None,
+            provider_inventory: None,
             machine,
             roots: crate::TerminalProgramRoots::default(),
             optimization_selections: optimization::PsiOptimizationSelections::default(),
@@ -67,7 +71,7 @@ impl<'a> TerminalProductionRequest<'a> {
             &declaration_requests,
         )
         .map_err(TerminalArtifactProductionError::BuildContext)?;
-        let lowered = observer
+        let mut lowered = observer
             .record_result(PsiCompilationStage::Lowering, || {
                 lower_machine(
                     self.checked,
@@ -79,6 +83,10 @@ impl<'a> TerminalProductionRequest<'a> {
                 )
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
+        if let Some(inventory) = self.provider_inventory {
+            crate::calling_signatures::capture(checked, inventory, &mut lowered.semantic_module)
+                .map_err(TerminalArtifactProductionError::BuildContext)?;
+        }
         // Every consumer observes the same unoptimized composition. A target's
         // refusal cannot erase behavior or reject an independently admitted one.
         let admissions: Vec<_> = applications

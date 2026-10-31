@@ -147,6 +147,10 @@ pub struct TerminalModule {
     pub reborrow_restored_call_uses: Vec<TerminalReborrowRestoredCallUse>,
     /// Bodyless target-neutral Unit machines callable from terminal Psi.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
+    /// Source-issued native formals associated with exact opaque declarations.
+    /// Shapes and contracts remain on those declarations, not in a second type
+    /// graph. These rows select no calling policy or provider implementation.
+    pub calling_signatures: Vec<crate::CallingSignatureDeclaration>,
     /// Exact external satisfaction edges, including demands lowered without calls.
     pub external_providers: Vec<ExternalProviderConformance>,
     /// Every checked, target-neutral provider candidate eligible to realize a
@@ -303,6 +307,7 @@ impl TerminalModule {
             access_lifecycle_plans: Vec::new(),
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
+            calling_signatures: Vec::new(),
             external_providers: Vec::new(),
             provider_candidates: Vec::new(),
             boundary_application_candidates: Vec::new(),
