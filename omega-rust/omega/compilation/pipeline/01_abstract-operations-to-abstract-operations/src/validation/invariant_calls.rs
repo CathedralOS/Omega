@@ -17,8 +17,8 @@ use super::place_observations::{
     place_observation_root_visible,
 };
 use super::relocation_rewrites::scalar_case_result_contained;
-use crate::validation::relocation_rewrites as call_crash_continuations;
-use crate::validation::relocation_rewrites as structural_call_crash_continuations;
+use crate::validation::relocation_rewrites::call_crash_continuations;
+use crate::validation::relocation_rewrites::structural_call_crash_continuations;
 use abstract_operations::{AbstractOperation as O, AbstractStructuralCallResult};
 use optimization_unit::{
     OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
@@ -710,11 +710,7 @@ fn crash_continuation_borrow_call_admission(
         .functions
         .iter()
         .find(|candidate| candidate.machine == callee)?;
-    if structural_call_crash_continuations::structural_call_crash_continuations(
-        callee_function,
-        arguments,
-    )? != *crash_continuations
-    {
+    if structural_call_crash_continuations(callee_function, arguments)? != *crash_continuations {
         // The carried roster must be exactly what the callee's contract
         // derives at the current arguments — evidence drift refuses, so the
         // moved node never inherits a roster the contract did not produce.
@@ -726,10 +722,7 @@ fn crash_continuation_borrow_call_admission(
         .iter()
         .map(|argument| substitution.get(argument).copied().unwrap_or(*argument))
         .collect::<Vec<_>>();
-    let continuations = structural_call_crash_continuations::structural_call_crash_continuations(
-        callee_function,
-        &moved_arguments,
-    )?;
+    let continuations = structural_call_crash_continuations(callee_function, &moved_arguments)?;
     let caller_contract = run.function.verified_contract.as_ref()?;
     crash_routes_cover(&caller_contract.crash_routes, &continuations)
         .then_some((substitution, rewrites))
@@ -1050,9 +1043,7 @@ pub(crate) fn invariant_crash_continuation_call_admission(
     let callee_function = functions
         .iter()
         .find(|candidate| candidate.machine == callee)?;
-    if call_crash_continuations::call_crash_continuations(callee_function, arguments)?
-        != *crash_continuations
-    {
+    if call_crash_continuations(callee_function, arguments)? != *crash_continuations {
         // The carried roster must be exactly what the callee's contract
         // derives at the current arguments — evidence drift refuses, so the
         // moved node never inherits a roster the contract did not produce.
@@ -1063,8 +1054,7 @@ pub(crate) fn invariant_crash_continuation_call_admission(
         .iter()
         .map(|argument| substitution.get(argument).copied().unwrap_or(*argument))
         .collect::<Vec<_>>();
-    let continuations =
-        call_crash_continuations::call_crash_continuations(callee_function, &moved_arguments)?;
+    let continuations = call_crash_continuations(callee_function, &moved_arguments)?;
     let caller_contract = function.verified_contract.as_ref()?;
     crash_routes_cover(&caller_contract.crash_routes, &continuations).then_some(substitution)
 }

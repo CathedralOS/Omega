@@ -14,8 +14,8 @@ use super::member_blocks::{
     MemberParameterResolution, member_scalar_operand_substitution, resolve_member_parameters,
     shared_entry_source, value_definition_sites,
 };
-use crate::validation::relocation_rewrites as scalar_case_result_consumed;
-use crate::validation::relocation_rewrites as scalar_case_result_contained;
+use crate::validation::relocation_rewrites::scalar_case_result_consumed;
+use crate::validation::relocation_rewrites::scalar_case_result_contained;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
@@ -752,8 +752,8 @@ pub(super) fn consumed_owned_argument_root(
         && crate::validation::relocation_rewrites::restricted_member_produced_root(
             function, component, root,
         )
-        && scalar_case_result_consumed::scalar_case_result_consumed(function, component, root)
-        && scalar_case_result_contained::scalar_case_result_contained(function, component, root)
+        && scalar_case_result_consumed(function, component, root)
+        && scalar_case_result_contained(function, component, root)
 }
 
 /// The complete invariant place-read admission shared by the proposal and the

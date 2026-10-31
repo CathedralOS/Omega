@@ -5,7 +5,7 @@ use super::super::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use crate::validation::member_blocks as shared_entry_source;
+use crate::validation::member_blocks::shared_entry_source;
 use crate::validation::relocation_rewrites as relocations;
 use abstract_operations::{
     AbstractCallTarget, AbstractOperation as O, AbstractStructuralCallResult,
@@ -159,7 +159,7 @@ pub(crate) fn realize(
             Ok(node)
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
-    let Some(preheader_source) = shared_entry_source::shared_entry_source(component) else {
+    let Some(preheader_source) = shared_entry_source(component) else {
         return Err(LoopInvariantScalarMotionError::CandidateMismatch);
     };
     let preheader = function.block_mut(preheader_source).ok_or(
