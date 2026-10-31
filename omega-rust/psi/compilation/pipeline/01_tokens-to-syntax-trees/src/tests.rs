@@ -44,6 +44,14 @@ fn parse_source_unwrap(source: &str) -> syntax_trees::SyntaxTrees {
     crate::parser::parse_syntax_trees(&tokens).unwrap()
 }
 
+/// One call argument's spelled path, member by member.
+fn argument_path<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    path: &'p [syntax_trees::identifier::Identifier],
+) -> Vec<&'p str> {
+    path.iter().map(|member| member.as_str(parsed)).collect()
+}
+
 macro_rules! root_item {
     ($name:ident -> $variant:ident ($binding:ident): $ty:ident ;) => {
         fn $name<'p>(

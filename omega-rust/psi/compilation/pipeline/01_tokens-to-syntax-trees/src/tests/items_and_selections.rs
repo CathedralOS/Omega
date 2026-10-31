@@ -526,19 +526,11 @@ fn provider_selection_retains_two_structural_type_paths() {
 
     assert_eq!(call.machine_arguments.len(), 2);
     assert_eq!(
-        call.machine_arguments[0]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[0].path),
         ["host", "Console"]
     );
     assert_eq!(
-        call.machine_arguments[1]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[1].path),
         ["application", "ConsoleProvider"]
     );
     assert!(!call.target.as_str(&parsed).contains('#'));
@@ -569,11 +561,7 @@ fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
 
     assert_eq!(call.machine_arguments.len(), 1);
     assert_eq!(
-        call.machine_arguments[0]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[0].path),
         ["host", "Console"]
     );
     assert!(call.machine_arguments[0].application.is_none());
@@ -775,19 +763,11 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
 
     assert_eq!(call.machine_arguments.len(), 2);
     assert_eq!(
-        call.machine_arguments[0]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[0].path),
         ["interrupt", "Ack"]
     );
     assert_eq!(
-        call.machine_arguments[1]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[1].path),
         ["platform", "AckRepresentation"]
     );
 }

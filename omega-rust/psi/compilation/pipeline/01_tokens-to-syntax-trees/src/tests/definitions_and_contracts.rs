@@ -1040,11 +1040,7 @@ fn parses_static_machine_symbol_call_argument() {
         .expect("generic call expression");
     assert_eq!(call.machine_arguments.len(), 1);
     assert_eq!(
-        call.machine_arguments[0]
-            .path
-            .iter()
-            .map(|member| member.as_str(&parsed))
-            .collect::<Vec<_>>(),
+        super::argument_path(&parsed, &call.machine_arguments[0].path),
         vec!["Card", "power"]
     );
 }
