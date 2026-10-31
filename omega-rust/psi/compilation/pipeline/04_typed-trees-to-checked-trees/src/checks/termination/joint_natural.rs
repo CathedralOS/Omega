@@ -5,6 +5,7 @@
 
 use validation::ValidatedRuntimeNaturalComponent;
 
+mod applications;
 mod candidate_selection;
 mod coordinate_assignment;
 mod coordinates;

@@ -21,29 +21,7 @@ impl Order {
 /// Source selection and produced numeric observation are separate. A declared
 /// identity or field projection may normalize to its exact value coordinate;
 /// selecting it still retains the declaration's identity through admission.
-#[derive(Clone, Copy)]
-pub(super) struct Application {
-    pub(super) measure: symbols::SymbolHandle,
-    pub(super) parameter: symbols::SymbolHandle,
-    pub(super) body: typed_trees::expression::ExpressionHandle,
-    pub(super) primitive: typed_trees::types::PrimitiveType,
-}
-
-impl Application {
-    pub(super) fn expression(
-        self,
-        input: validation::ScopedArithmeticValue,
-    ) -> validation::ScopedArithmeticExpression {
-        validation::ScopedArithmeticExpression {
-            owner: self.measure,
-            expression: self.body,
-            bindings: vec![validation::ScopedArithmeticBinding {
-                binder: validation::ScopedArithmeticBinder::Symbol(self.parameter),
-                value: input,
-            }],
-        }
-    }
-}
+use super::applications::Application;
 
 pub(super) struct SelectedView {
     pub(super) application: Option<Application>,

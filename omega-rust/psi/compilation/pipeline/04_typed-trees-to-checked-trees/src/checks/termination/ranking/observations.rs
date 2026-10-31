@@ -105,17 +105,30 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 if inputs.is_empty() {
                     return None;
                 }
-                let paths = inputs
-                    .iter()
-                    .map(|input| input.destination.path.clone())
-                    .collect::<Vec<_>>();
-                let execution = program
-                    .statement_table
-                    .admitted_execution_order(state.statement_nodes);
-                let first = *execution.indices().first()?;
-                let values = crate::checks::current_scalar_values::CurrentScalarValues::at_observing_projections(
-                    program, machine, state, first, Default::default(), frames, &paths,
-                )?;
+                // Named/aggregate prefixes need no selector receipt. Only an
+                // indexed destination asks the entry projection owner for its
+                // exact state-local bounds, before executable observation.
+                let has_index = |coordinate: &validation::RankSubjectCoordinate| {
+                    coordinate
+                        .path
+                        .iter()
+                        .any(|step| matches!(step, facts::PlaceSegment::Index { .. }))
+                };
+                let values = if inputs.iter().any(|input| has_index(&input.destination)) {
+                    let paths = inputs
+                        .iter()
+                        .map(|input| input.destination.path.clone())
+                        .collect::<Vec<_>>();
+                    let execution = program
+                        .statement_table
+                        .admitted_execution_order(state.statement_nodes);
+                    let first = *execution.indices().first()?;
+                    Some(crate::checks::current_scalar_values::CurrentScalarValues::at_observing_projections(
+                        program, machine, state, first, Default::default(), frames, &paths,
+                    )?)
+                } else {
+                    None
+                };
                 let bindings = inputs
                     .into_iter()
                     .map(|binding| {
@@ -130,10 +143,11 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                                 })
                         };
                         let entry = retain(binding.entry);
-                        let destination = if binding.destination.path.is_empty() {
+                        let destination = if !has_index(&binding.destination) {
                             retain(binding.destination)
                         } else {
                             let (_, _, _, indexes) = values
+                                .as_ref()?
                                 .entry_scalar_field_observations(binding.destination.parameter)
                                 .find(|(path, _, _, _)| *path == binding.destination.path)?;
                             let path = admitted.path_segments.insert_many(binding.destination.path);

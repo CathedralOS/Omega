@@ -100,15 +100,7 @@ pub(super) fn compare(
         edge.arguments,
     )?;
     let next = if let Some(application) = destination.application {
-        let expression = application.expression(next);
-        if !edge.values.forms_declared_integer_application(
-            machines[edge.source],
-            &expression,
-            application.primitive,
-        ) {
-            return None;
-        }
-        ScopedArithmeticValue::Term(expression)
+        application.observe(&edge.values, machines[edge.source], next)?
     } else {
         next
     };

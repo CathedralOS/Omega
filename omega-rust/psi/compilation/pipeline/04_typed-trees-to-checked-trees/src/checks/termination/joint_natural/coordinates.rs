@@ -32,7 +32,7 @@ pub(super) enum Bound {
 pub(super) struct Rank {
     pub(super) coordinate: Coordinate,
     pub(super) bound: Option<Bound>,
-    pub(super) application: Option<super::views::Application>,
+    pub(super) application: Option<super::applications::Application>,
     pub(super) entry_value: ScopedArithmeticValue,
 }
 

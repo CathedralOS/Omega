@@ -131,17 +131,13 @@ pub(super) fn prepare(
                     "a computed natural rank has incompatible input and result carriers",
                 ));
             }
-            let expression = application.expression(selected.entry_value.clone());
-            if !values.forms_declared_integer_application(
-                machine,
-                &expression,
-                application.primitive,
-            ) {
+            let Some(value) = application.observe(values, machine, selected.entry_value.clone())
+            else {
                 return Some(Err(
                     "a computed natural rank application has no independent entry formation",
                 ));
-            }
-            ScopedArithmeticValue::Term(expression)
+            };
+            value
         } else {
             selected.entry_value.clone()
         };
@@ -178,15 +174,14 @@ pub(super) fn prepare(
         {
             if order == Order::Descending {
                 let entry_value = if let Some(application) = application {
-                    let expression = application.expression(coordinate.entry_value.clone());
-                    if !entry_values[position].forms_declared_integer_application(
+                    let Some(value) = application.observe(
+                        &entry_values[position],
                         machine,
-                        &expression,
-                        application.primitive,
-                    ) {
+                        coordinate.entry_value.clone(),
+                    ) else {
                         continue;
-                    }
-                    ScopedArithmeticValue::Term(expression)
+                    };
+                    value
                 } else {
                     coordinate.entry_value.clone()
                 };
