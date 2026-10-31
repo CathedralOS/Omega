@@ -2,6 +2,7 @@ use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle,
     ExpressionNode, FixedArrayLength, Frame, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
     Value, expression_table, integer_primitive_byte_width, primitive_is_unsigned64, trap,
+    type_reference_table,
 };
 impl<'program> Evaluator<'program> {
     /// Evaluate and capture one operand at its declared parameter type before
@@ -48,11 +49,7 @@ impl<'program> Evaluator<'program> {
         mut destination: TypeReferenceHandle,
     ) -> bool {
         loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(destination)
-            {
+            match type_reference_table(self.program).type_reference(destination) {
                 TypeReferenceNode::Constrained { base_type, .. } => destination = *base_type,
                 TypeReferenceNode::Reference { .. } => return true,
                 _ => return false,
@@ -111,11 +108,7 @@ impl<'program> Evaluator<'program> {
         member_name: &str,
     ) -> Option<TypeReferenceHandle> {
         loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
-            {
+            match type_reference_table(self.program).type_reference(type_reference) {
                 TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
                 TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
                 TypeReferenceNode::Named { symbol, .. } => {
@@ -131,11 +124,7 @@ impl<'program> Evaluator<'program> {
         mut type_reference: TypeReferenceHandle,
     ) -> Option<TypeReferenceHandle> {
         loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
-            {
+            match type_reference_table(self.program).type_reference(type_reference) {
                 TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
                 TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
                 TypeReferenceNode::FixedArray { element_type, .. }
@@ -150,9 +139,7 @@ impl<'program> Evaluator<'program> {
         value: Value,
         target_type: TypeReferenceHandle,
     ) -> EvalResult<Value> {
-        let target = self
-            .program
-            .type_reference_table
+        let target = type_reference_table(self.program)
             .type_reference(target_type)
             .clone();
         match target {

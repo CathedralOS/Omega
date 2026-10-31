@@ -4,7 +4,7 @@ use crate::interpreter::evaluator::{
     PrimitiveType, Reference, ReferenceProjection, ReferenceProjectionStep, ReferenceStorage,
     SemanticFloatFormat, SymbolHandle, TableNamePath, TypeReferenceHandle, TypeReferenceNode,
     Value, apply_arithmetic_domain, expression_table, interpreter_f32_from_bits,
-    interpreter_f32_to_bits, trap, unsupported,
+    interpreter_f32_to_bits, trap, type_reference_table, unsupported,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 use language_semantics::declaration_selection::CollectionMeasure;
@@ -128,11 +128,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Option<(Cell, ReferenceStorage)>> {
         loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(destination)
-            {
+            match type_reference_table(self.program).type_reference(destination) {
                 TypeReferenceNode::Constrained { base_type, .. } => destination = *base_type,
                 TypeReferenceNode::Reference { .. } => break,
                 _ => return Ok(None),
@@ -739,11 +735,7 @@ impl<'program> Evaluator<'program> {
         if !type_reference.is_valid() {
             return false;
         }
-        match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
+        match type_reference_table(self.program).type_reference(type_reference) {
             typed_trees::types::TypeReferenceNode::FixedArray { .. } => true,
             typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 self.declared_type_is_fixed_array(*base_type)
@@ -763,11 +755,7 @@ impl<'program> Evaluator<'program> {
         if !type_reference.is_valid() {
             return None;
         }
-        match self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
+        match type_reference_table(self.program).type_reference(type_reference) {
             typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
                 Some(*element_type)
             }

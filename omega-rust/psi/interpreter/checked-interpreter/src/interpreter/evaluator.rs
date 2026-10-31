@@ -54,7 +54,9 @@ use typed_trees::state::State;
 use typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
 };
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+};
 use typed_trees::{TypedTreeTables, TypedTrees};
 
 // Program and values, beneath the coordinator that names them.
@@ -526,4 +528,9 @@ impl Evaluator<'_> {
 /// receivers all reach the one call.
 pub(crate) fn expression_table(tables: &TypedTreeTables) -> &ExpressionTable {
     &tables.expression_table
+}
+
+/// The type-reference table of the typed program whose tables these are.
+pub(crate) fn type_reference_table(tables: &TypedTreeTables) -> &TypeReferenceTable {
+    &tables.type_reference_table
 }
