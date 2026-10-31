@@ -1,6 +1,11 @@
+// Value::read is a one-member boundary trait with an empty reach. The
+// guarded call returns 70 on the matching arm and 71 on the fallback.
+// Expected exit: 70.
 use omega_language_std::console;
-public data Value {}
-public boundary requirement Value::read(value: i32) -> i32;
+public boundary trait Value {
+    machine read(value: i32) -> i32
+    reaches;
+}
 data ValueProvider {}
 machine ValueProvider::read(value: i32) -> i32 satisfies Value::read { (value) }
 machine forward(value: i32) -> i32 {
