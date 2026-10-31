@@ -9,6 +9,7 @@ use typed_trees::{
     TypedTrees, expression::StaticMachineArgument, references::StaticArgumentCall,
     trait_definition::AppliedTraitScope, types::TypeReferenceHandle,
 };
+use validation::expression_traversal::collect_expression_tree;
 
 use super::super::failed;
 use super::selected_applications;
@@ -383,11 +384,7 @@ fn source_expression_roster(
                 .unwrap_or(package.statement_index)
                 == position
         {
-            validation::expression_traversal::collect_expression_tree(
-                program,
-                package.call,
-                &mut expressions,
-            );
+            collect_expression_tree(program, package.call, &mut expressions);
         }
     }
     expressions

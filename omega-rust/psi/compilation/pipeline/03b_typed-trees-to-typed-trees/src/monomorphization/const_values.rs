@@ -17,6 +17,7 @@ use numerics::literals::{IntegerLanding, IntegerLiteral};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use validation::expression_traversal::collect_expression_tree;
 
 pub(super) fn substitute(
     program: &mut TypedTrees,
@@ -40,9 +41,7 @@ pub(super) fn substitute(
         if candidate.runtime_value_bindings[index].is_some() {
             let stray = runtime_expression_roots.iter().any(|root| {
                 let mut tree = Vec::new();
-                validation::expression_traversal::collect_expression_tree(
-                    program, *root, &mut tree,
-                );
+                collect_expression_tree(program, *root, &mut tree);
                 tree.into_iter().any(|handle| {
                     matches!(
                         expressions_of(program).expression(handle),

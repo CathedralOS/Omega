@@ -71,6 +71,7 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use numerics::literals::IntegerLiteral;
+use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
@@ -79,8 +80,7 @@ use typed_trees::expression::{
 };
 use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-
-use std::collections::HashSet;
+use validation::expression_traversal::collect_expression_tree;
 use validation::expression_type_reference_for_origin;
 
 /// Bind resolved token machines to calls, retaining
@@ -143,11 +143,7 @@ pub(crate) fn bind_selected_operator_calls(
         .filter(|(_, value)| value.origin.machine_symbol().is_some())
     {
         expressions.clear();
-        validation::expression_traversal::collect_expression_tree(
-            program,
-            value.expression,
-            &mut expressions,
-        );
+        collect_expression_tree(program, value.expression, &mut expressions);
         for expression in expressions.iter().copied() {
             let Some(binary) = expressions_of(program).binary_node(expression) else {
                 continue;
@@ -236,11 +232,7 @@ pub(crate) fn bind_selected_operator_calls(
         let mut seen_named = HashSet::with_hasher(symbols::BuildSymbolHasher);
         for (_, value) in values.values.iter() {
             expressions.clear();
-            validation::expression_traversal::collect_expression_tree(
-                program,
-                value.expression,
-                &mut expressions,
-            );
+            collect_expression_tree(program, value.expression, &mut expressions);
             for expression in expressions.iter().copied() {
                 let Some(call) = expressions_of(program).call_node(expression) else {
                     continue;
