@@ -36,3 +36,20 @@ Requirement evidence:
 - **Encoding/native image:** direct macOS arm64 execution agrees with Terminal Psi. Other hosted targets are authored but have not been executed by this run.
 
 The compiler repair is shared arithmetic normalization and child-first application formation, not a measure-body recognizer. Other declared forms and qualifications, general proof-only scalar views, nonscalar orders, dependent distances and the parent migration remain open. Focused regression qualification, independent review and publication are recorded with the PR.
+
+The same row also applies the body `(~(value as u8)) as u64`. This keeps
+the input in `4..=7`, produces rank `251..=248`, and owes the partial narrowing
+conversion before complement and explicit widening. The requested rank range
+`248..=251` is no premise for forming that conversion. The source checker
+previously accepted this application while checked lowering lost its conversion
+decision and could not produce an executable rank observation. Formation now
+retains the actual child decision with the exact machine body, state, selected
+measure body and complete input bindings. It authorizes only that application.
+
+Each place has a `narrowed/main.omg` and `narrowed/invalid/main.omg` beside
+the plain witnesses linked above. The narrowed twin changes only the root
+member's input upper bound from `7` to `u64::MAX`, keeping the forward member's
+contract and desired range unchanged. It must reject the independently unproved
+application instead of borrowing the forward member's bound or its edge guard.
+Both the narrowed positives and twins are pinned as
+`nested_machine_joint_rank_complement_narrowed_*` fixtures.
