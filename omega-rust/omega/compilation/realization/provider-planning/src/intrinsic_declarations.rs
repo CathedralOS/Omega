@@ -4,6 +4,7 @@
 //! Catalog eligibility and accepted public-plan authority remain independent;
 //! deferred shape failures are demanded only after the original ownership gate.
 
+use crate::provider_planning::type_reference_node;
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::types::TypeReferenceNode;
 use diagnostics::Diagnostic;
@@ -823,9 +824,7 @@ fn exact_boundary_signature(
                     typed.state_signature_contracts(signature),
                 )
                 && matches!(
-                    typed
-                        .type_reference_table
-                        .type_reference(signature.return_type),
+                    type_reference_node(typed, signature.return_type),
                     TypeReferenceNode::Unit
                 )
         }
@@ -841,9 +840,7 @@ fn exact_boundary_signature(
             !signature.blocks
                 && exact_i32_parameter(typed, typed.state_signature_parameters(signature))
                 && matches!(
-                    typed
-                        .type_reference_table
-                        .type_reference(signature.return_type),
+                    type_reference_node(typed, signature.return_type),
                     TypeReferenceNode::Unit
                 )
         }
@@ -899,7 +896,7 @@ fn exact_boundary_state(
                 typed.state_parameters(state),
                 typed.state_contracts(state),
             ) && matches!(
-                typed.type_reference_table.type_reference(state.return_type),
+                type_reference_node(typed, state.return_type),
                 TypeReferenceNode::Unit
             )
         }
@@ -909,7 +906,7 @@ fn exact_boundary_state(
         BoundaryIntrinsicShape::I32ToUnit => {
             exact_i32_parameter(typed, typed.state_parameters(state))
                 && matches!(
-                    typed.type_reference_table.type_reference(state.return_type),
+                    type_reference_node(typed, state.return_type),
                     TypeReferenceNode::Unit
                 )
         }
@@ -948,9 +945,8 @@ fn canonical_storage_parameters(
             {
                 return false;
             }
-            let TypeReferenceNode::Constrained { constraints, .. } = typed
-                .type_reference_table
-                .type_reference(parameter.type_reference)
+            let TypeReferenceNode::Constrained { constraints, .. } =
+                type_reference_node(typed, parameter.type_reference)
             else {
                 return false;
             };
@@ -986,7 +982,7 @@ fn exact_address_type(
     typed: &checked_trees::typed_trees::TypedTrees,
     reference: checked_trees::typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    matches!(typed.type_reference_table.type_reference(reference),
+    matches!(type_reference_node(typed, reference),
         TypeReferenceNode::Named { symbol, .. }
         if typed.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::Address))
 }
@@ -996,8 +992,7 @@ fn exact_byte_read_type(
     type_reference: checked_trees::typed_trees::types::TypeReferenceHandle,
     trait_symbol: SymbolHandle,
 ) -> bool {
-    let TypeReferenceNode::Named { symbol, name } =
-        typed.type_reference_table.type_reference(type_reference)
+    let TypeReferenceNode::Named { symbol, name } = type_reference_node(typed, type_reference)
     else {
         return false;
     };
@@ -1026,9 +1021,8 @@ fn exact_i32_parameter(
     if parameter.is_const || parameter.is_mutable {
         return false;
     }
-    let TypeReferenceNode::Named { symbol, name } = typed
-        .type_reference_table
-        .type_reference(parameter.type_reference)
+    let TypeReferenceNode::Named { symbol, name } =
+        type_reference_node(typed, parameter.type_reference)
     else {
         return false;
     };

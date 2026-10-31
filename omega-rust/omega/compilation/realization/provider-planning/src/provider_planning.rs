@@ -52,6 +52,7 @@ pub use source_provider_selections::{
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
 use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
 /// PRV4c: select one fully covering provider type per applicable boundary
@@ -99,4 +100,13 @@ pub use provenance_replay::ProviderRowRealization;
 /// name the schema twice in one expression names it here once.
 pub(crate) fn trait_name_text(schema: &ServiceSchema) -> &str {
     schema.identity_text(schema.declaration.trait_name)
+}
+
+/// One type reference node from the typed tree's reference table. A reader
+/// that would otherwise spell the table inside a scrutinee names it here once.
+pub(crate) fn type_reference_node(
+    typed: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> &TypeReferenceNode {
+    typed.type_reference_table.type_reference(handle)
 }

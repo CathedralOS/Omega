@@ -3,6 +3,7 @@
 //! require its exact referent, then resolve the field within that declaration.
 //! Neither a same-spelled foreign record nor a numeric slot can supply it.
 
+use crate::provider_planning::type_reference_node;
 use checked_trees::typed_trees::{
     TypedTrees,
     data::DataMember,
@@ -39,13 +40,13 @@ pub(super) fn field_offset(
         .ok_or("table leaf requires a dispatch table as its first parameter")?;
     let mut parameter_type = first.type_reference;
     while let TypeReferenceNode::Constrained { base_type, .. } =
-        typed.type_reference_table.type_reference(parameter_type)
+        type_reference_node(typed, parameter_type)
     {
         parameter_type = *base_type;
     }
     let TypeReferenceNode::Reference {
         referee, access, ..
-    } = typed.type_reference_table.type_reference(parameter_type)
+    } = type_reference_node(typed, parameter_type)
     else {
         return Err("first table parameter must borrow the attached table".into());
     };
@@ -54,16 +55,11 @@ pub(super) fn field_offset(
     }
     let mut table_type = *referee;
     while let TypeReferenceNode::Constrained { base_type, .. } =
-        typed.type_reference_table.type_reference(table_type)
+        type_reference_node(typed, table_type)
     {
         table_type = *base_type;
     }
-    if typed
-        .type_reference_table
-        .type_reference(table_type)
-        .as_named_symbol()
-        != Some(table)
-    {
+    if type_reference_node(typed, table_type).as_named_symbol() != Some(table) {
         return Err("first table parameter does not borrow the exact attached table type".into());
     }
     let fields = typed
