@@ -6,7 +6,7 @@ use crate::capture::contracts::{
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{
     PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
-    PackagePolicyInferredCrash, PackageReviewCrashInterface,
+    PackagePolicyInferredCrash, PackageReviewCrashCause, PackageReviewCrashInterface,
 };
 use checked_trees::RealizedMachineContractEnvelope;
 use diagnostics::Diagnostic;
@@ -109,12 +109,8 @@ pub(crate) fn crash(
                 causes: causes
                     .iter()
                     .map(|cause| match cause {
-                        checked_trees::CrashCause::Trap => {
-                            crate::record::PackageReviewCrashCause::Trap
-                        }
-                        checked_trees::CrashCause::Abort => {
-                            crate::record::PackageReviewCrashCause::Abort
-                        }
+                        checked_trees::CrashCause::Trap => PackageReviewCrashCause::Trap,
+                        checked_trees::CrashCause::Abort => PackageReviewCrashCause::Abort,
                     })
                     .collect(),
             }

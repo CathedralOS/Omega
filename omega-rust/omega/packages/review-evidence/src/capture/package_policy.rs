@@ -10,6 +10,7 @@ mod native_bindings;
 mod restricted_build;
 mod semantic_dependencies;
 
+use super::providers::project_checked_boundary_application_policy;
 use crate::capture::PackageReviewInput;
 use crate::capture::refusal;
 use crate::record::PackagePolicyBaseline;
@@ -74,11 +75,8 @@ pub fn project_checked_package_policy<'a>(
     let external_supplies = external::project(compilation, package)?;
     let (dangerous_capabilities, slack_uses) = authority::project(compilation, &callables)?;
     let semantic_dependencies = semantic_dependencies::project(compilation, package, &callables)?;
-    let boundary_applications = super::providers::project_checked_boundary_application_policy(
-        compilation,
-        package,
-        &provider_indices,
-    )?;
+    let boundary_applications =
+        project_checked_boundary_application_policy(compilation, package, &provider_indices)?;
     let mut policy = PackagePolicyBaseline {
         package,
         target,

@@ -1,5 +1,6 @@
 //! Capture private and unused native choices as explicit acceptance/audit rows.
 use crate::capture::EvidenceOption;
+use crate::capture::providers::policy::bindings::project_native;
 use crate::capture::{PackageReviewInput, semantics::services};
 use crate::record::PackagePolicyNativeBinding;
 use diagnostics::Diagnostic;
@@ -55,11 +56,7 @@ pub(super) fn project(
                         equivalents: Vec::new(),
                     },
                 };
-                let binding = crate::capture::providers::policy::bindings::project_native(
-                    input,
-                    &occurrence,
-                    &row.binding,
-                )?;
+                let binding = project_native(input, &occurrence, &row.binding)?;
                 rows.push(PackagePolicyNativeBinding {
                     method: method.clone(),
                     binding,

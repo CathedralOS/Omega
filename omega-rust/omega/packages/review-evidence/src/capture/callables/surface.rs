@@ -12,6 +12,7 @@ use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
+use crate::capture::source::service_reach::authored_machine_service_reach;
 use crate::record::{
     PackagePolicyCallableConformance, PackagePolicyExternalRequirement, PackagePolicyTypeParameter,
     PackageReviewCallableContract, PackageReviewCallableRole, PackageReviewCallableSupply,
@@ -187,11 +188,7 @@ pub(super) fn project<'a>(
             machine.supply_mode,
             MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
         );
-    let authored_service_reach =
-        crate::capture::source::service_reach::authored_machine_service_reach(
-            compilation,
-            machine,
-        )?;
+    let authored_service_reach = authored_machine_service_reach(compilation, machine)?;
     let declared_service_reach = match service_reach.interface {
         language_semantics::ServiceReachInterface::PublishedCeiling(row)
             if authored_service_reach.is_some() || !has_checked_body =>

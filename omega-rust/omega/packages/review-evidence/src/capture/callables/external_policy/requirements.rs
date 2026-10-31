@@ -1,5 +1,6 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
+use crate::capture::callables::conformances::callable_conformance;
 use crate::capture::{
     api::operators::project_operator_coordinate,
     semantics::declarations::top_level_requirement_identity,
@@ -48,17 +49,15 @@ pub(super) fn project(
                     "external trait application has incomplete lifetime or declaring owner coordinates",
                 ));
             }
-            PackagePolicyExternalRequirement::Trait(
-                crate::capture::callables::conformances::callable_conformance(
-                    compilation,
-                    definition,
-                    requirement,
-                    conformance,
-                    binders,
-                    lifetime_parameters,
-                    alias,
-                )?,
-            )
+            PackagePolicyExternalRequirement::Trait(callable_conformance(
+                compilation,
+                definition,
+                requirement,
+                conformance,
+                binders,
+                lifetime_parameters,
+                alias,
+            )?)
         }
         SatisfiedDeclaration::TopLevelRequirement(requirement) => {
             if conformance.symbol != requirement.symbol {

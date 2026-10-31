@@ -2,6 +2,7 @@ use super::evidence::{
     checked_contract_fact, checked_outcome_specific_guarantee, validate_checked_contract_evidence,
     validate_checked_contract_evidence_components,
 };
+use super::memberships::require_declaration_membership;
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
@@ -175,10 +176,7 @@ pub(crate) fn project_contracts(
                     )?)
                 }
                 ProofFact::Membership(membership) => {
-                    super::memberships::require_declaration_membership(
-                        compilation.checking_input,
-                        membership,
-                    )?;
+                    require_declaration_membership(compilation.checking_input, membership)?;
                     // Typing expands Carry aliases to one closed compiler
                     // permission. Such a fact has no nominal domain symbol;
                     // inventing one would lose its meaning and ownership.

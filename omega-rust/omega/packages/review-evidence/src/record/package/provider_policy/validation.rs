@@ -1,4 +1,5 @@
 //! Structural associations for inert provider policy, never compiler replay.
+use super::binding_validation::matches_owner;
 use crate::record::PackagePolicyProviderPlan;
 use crate::record::PackagePolicySelectedProviders;
 use crate::record::package::callable_policy::validation::nominal_set;
@@ -64,10 +65,7 @@ impl PackagePolicySelectedProviders {
                 match &row.realization {
                     Some(realization) => {
                         realization.validate_resolved()?;
-                        if !super::binding_validation::matches_owner(
-                            realization.owner,
-                            plan.realizing_package,
-                        ) {
+                        if !matches_owner(realization.owner, plan.realizing_package) {
                             return Err(
                                 "provider realization disagrees with its plan's realizing owner",
                             );
@@ -78,10 +76,7 @@ impl PackagePolicySelectedProviders {
                     None if row.native_build.as_ref().is_some_and(|producer| {
                         producer.package == plan.realizing_package
                             && producer.package.is_some()
-                            && super::binding_validation::matches_owner(
-                                producer.declaration.owner,
-                                producer.package,
-                            )
+                            && matches_owner(producer.declaration.owner, producer.package)
                     }) => {}
                     // A toolchain-settled row names no authored machine.
                     None if plan.realizing_package.is_none() && row.native_build.is_none() => {}

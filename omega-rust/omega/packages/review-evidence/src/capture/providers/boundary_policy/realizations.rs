@@ -1,3 +1,4 @@
+use super::super::application_realizations::project_boundary_application_realizations;
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
@@ -17,11 +18,7 @@ pub(super) fn project(
     package: PackageKeyIdentity,
     original_indices: &[usize],
 ) -> Result<Vec<PackagePolicyBoundaryApplicationRealization>, Vec<Diagnostic>> {
-    let checked =
-        super::super::application_realizations::project_boundary_application_realizations(
-            compilation,
-            package,
-        )?;
+    let checked = project_boundary_application_realizations(compilation, package)?;
     let mut rows = Vec::new();
     for checked in checked {
         let matches = compilation

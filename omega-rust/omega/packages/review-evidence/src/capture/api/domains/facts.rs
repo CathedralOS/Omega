@@ -2,6 +2,7 @@ use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
+use crate::capture::contracts::memberships::require_declaration_membership;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewContractFact, PackageReviewNominalIdentity};
@@ -68,10 +69,7 @@ pub(crate) fn project_definition_contract_fact(
             )?,
         )),
         ProofFact::Membership(membership) => {
-            crate::capture::contracts::memberships::require_declaration_membership(
-                compilation.checking_input,
-                membership,
-            )?;
+            require_declaration_membership(compilation.checking_input, membership)?;
             let domain = compilation
                 .domain_definition(membership.domain_symbol)
                 .or_evidence(format!(

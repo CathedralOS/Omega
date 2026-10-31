@@ -1,5 +1,7 @@
 //! Reify retained resolved arguments without parsing their display paths.
 
+use super::super::encoding::canonical_digest_label;
+use super::super::encoding::framed_identity;
 use crate::capture::PackageReviewInput;
 use crate::capture::refusal;
 use diagnostics::Diagnostic;
@@ -316,13 +318,10 @@ pub(super) fn argument_context(
                 let nominal = super::policy_callables::caller_binder_identity(compilation, symbol)?;
                 let owner = match nominal.owner {
                     crate::record::PackageReviewNominalOwner::Package(package) => {
-                        super::super::encoding::canonical_digest_label("package", package.digest())
+                        canonical_digest_label("package", package.digest())
                     }
                     crate::record::PackageReviewNominalOwner::ToolchainSource(source) => {
-                        super::super::encoding::canonical_digest_label(
-                            "toolchain-source",
-                            source.digest(),
-                        )
+                        canonical_digest_label("toolchain-source", source.digest())
                     }
                     crate::record::PackageReviewNominalOwner::Unresolved => {
                         return Err(rejected("an unowned caller binder"));
@@ -330,10 +329,7 @@ pub(super) fn argument_context(
                 };
                 binders.push((
                     symbol,
-                    super::super::encoding::framed_identity(
-                        "conformance-caller-binder",
-                        &[owner, nominal.path],
-                    ),
+                    framed_identity("conformance-caller-binder", &[owner, nominal.path]),
                 ));
             }
         }

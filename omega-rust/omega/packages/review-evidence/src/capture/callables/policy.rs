@@ -3,9 +3,11 @@
 use super::surface;
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::policy as behavior;
+use crate::capture::input::ContractOwnerQueries;
 use crate::capture::refusal;
 use crate::capture::semantics::conformances::policy_callable_identity;
 use crate::capture::semantics::declarations::{is_checked_source_instance, nominal_identity};
+use crate::capture::source::service_reach::validate_machine_service_reach;
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableRole, PackagePolicyCallables,
     PackageReviewCallableRole, PackageReviewNominalOwner,
@@ -32,10 +34,7 @@ pub(crate) fn project_checked_callable_policy<'a>(
             "package or target differs from the checked root activation",
         ));
     }
-    let owner_queries = crate::capture::input::ContractOwnerQueries::new(
-        compilation.checking_input,
-        &compilation.facts,
-    );
+    let owner_queries = ContractOwnerQueries::new(compilation.checking_input, &compilation.facts);
     let compilation = &PackageReviewInput {
         contract_owner_queries: Some(&owner_queries),
         ..input
@@ -100,11 +99,7 @@ pub(crate) fn project_checked_callable_policy<'a>(
             }
         };
         let identity = policy_callable_identity(compilation, machine.symbol)?;
-        crate::capture::source::service_reach::validate_machine_service_reach(
-            compilation,
-            machine,
-            &service_reaches,
-        )?;
+        validate_machine_service_reach(compilation, machine, &service_reaches)?;
         let projected = surface::project(compilation, machine, review_role, identity)?;
         let capability_flows = behavior::capability_flows(compilation, projected.realized)?;
         let reachable_capability_flows =

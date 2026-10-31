@@ -4,6 +4,7 @@ use super::{
     signature_contracts as contracts, signature_expressions as expressions,
     signature_parameters as parameters,
 };
+use crate::record::public_policy::validation::scope;
 use crate::record::{
     PackagePolicyCallable, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
     PackageReviewContractExpression, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
@@ -97,10 +98,7 @@ fn callable_scope(callable: &PackagePolicyCallable) -> Scope<'_> {
     Scope {
         parameters: callable.parameters.len(),
         result: callable.return_type.is_some(),
-        ..crate::record::public_policy::validation::scope(
-            &callable.type_parameters,
-            callable.lifetime_parameter_count,
-        )
+        ..scope(&callable.type_parameters, callable.lifetime_parameter_count)
     }
 }
 
