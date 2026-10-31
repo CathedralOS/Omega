@@ -35,9 +35,16 @@ pub mod type_system;
 pub mod values;
 
 use crate::constant::ConstDeclaration;
+use crate::data::{DataDefinition, TypeParameter};
+use crate::domain::{DomainDefinition, ProofFact};
 use crate::machine::{Machine, OwnedData};
+use crate::mathematical::{MathematicalType, MathematicalTypeHandle};
 use crate::name::DiagnosticName;
+use crate::signature::StateParameter;
+use crate::state::State;
+use crate::statement::Statement;
 use crate::trait_definition::{TraitDefinition, TraitRequirement};
+use crate::types::TypeReference;
 use crate::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
@@ -51,8 +58,7 @@ use language_semantics::declaration_selection::{
 };
 use source::SourceSpan;
 use std::ops::{Deref, DerefMut};
-use symbols::JoinedPath;
-use symbols::SymbolTable;
+use symbols::{JoinedPath, SymbolHandle, SymbolTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedTrees {
@@ -250,20 +256,14 @@ impl SymbolResolvedTrees {
     }
 
     /// The domain definition keyed `symbol`, when the trees declare it.
-    pub fn domain_definition_by_symbol(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&crate::domain::DomainDefinition> {
+    pub fn domain_definition_by_symbol(&self, symbol: SymbolHandle) -> Option<&DomainDefinition> {
         self.domain_definitions
             .iter()
             .find(|definition| definition.symbol == symbol)
     }
 
     /// The data definition keyed `symbol`, when the trees declare it.
-    pub fn data_definition_by_symbol(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    pub fn data_definition_by_symbol(&self, symbol: SymbolHandle) -> Option<&DataDefinition> {
         self.data_definitions
             .iter()
             .find(|definition| definition.symbol == symbol)
@@ -646,10 +646,7 @@ impl SymbolResolvedTrees {
         self.declarations().data_payload_fields.span_or_empty(span)
     }
 
-    pub fn data_type_parameters(
-        &self,
-        span: HandleSpan<data::TypeParameter>,
-    ) -> &[data::TypeParameter] {
+    pub fn data_type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
         self.declarations().data_type_parameters.span_or_empty(span)
     }
 
@@ -659,10 +656,7 @@ impl SymbolResolvedTrees {
 
     /// One resolved mathematical type node (`Ordinary`/`Arrow`/`Application`)
     /// in a `let`/`boundary let` declaration's signature surface.
-    pub fn mathematical_type(
-        &self,
-        handle: mathematical::MathematicalTypeHandle,
-    ) -> &mathematical::MathematicalType {
+    pub fn mathematical_type(&self, handle: MathematicalTypeHandle) -> &MathematicalType {
         self.declarations().mathematical_types.get(handle)
     }
 
@@ -676,10 +670,7 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn proof_fact_source_span(
-        &self,
-        handle: Handle<domain::ProofFact>,
-    ) -> Option<source::SourceSpan> {
+    pub fn proof_fact_source_span(&self, handle: Handle<ProofFact>) -> Option<SourceSpan> {
         self.declarations()
             .proof_fact_source_spans
             .get(proof_fact_source_span_index(handle))
@@ -766,10 +757,7 @@ impl SymbolResolvedTrees {
         }
     }
 
-    pub fn trait_type_parameters(
-        &self,
-        trait_definition: &TraitDefinition,
-    ) -> &[data::TypeParameter] {
+    pub fn trait_type_parameters(&self, trait_definition: &TraitDefinition) -> &[TypeParameter] {
         self.data_type_parameters(trait_definition.type_parameters)
     }
 
@@ -777,10 +765,7 @@ impl SymbolResolvedTrees {
         self.declarations().trait_requirements.span_or_empty(span)
     }
 
-    pub fn state_parameters(
-        &self,
-        span: HandleSpan<signature::StateParameter>,
-    ) -> &[signature::StateParameter] {
+    pub fn state_parameters(&self, span: HandleSpan<StateParameter>) -> &[StateParameter] {
         self.declarations().state_parameters.span_or_empty(span)
     }
 
@@ -839,10 +824,7 @@ impl SymbolResolvedTrees {
         self.signature_contracts(machine.contracts)
     }
 
-    pub fn machine_state_handles(
-        &self,
-        span: HandleSpan<Handle<state::State>>,
-    ) -> &[Handle<state::State>] {
+    pub fn machine_state_handles(&self, span: HandleSpan<Handle<State>>) -> &[Handle<State>] {
         self.declarations()
             .machine_state_handles
             .span_or_empty(span)
@@ -865,26 +847,17 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn state_statements(
-        &self,
-        span: HandleSpan<statement::Statement>,
-    ) -> &[statement::Statement] {
+    pub fn state_statements(&self, span: HandleSpan<Statement>) -> &[Statement] {
         self.declarations().state_statements.span_or_empty(span)
     }
 
-    pub fn child_type_references(
-        &self,
-        span: HandleSpan<types::TypeReference>,
-    ) -> &[types::TypeReference] {
+    pub fn child_type_references(&self, span: HandleSpan<TypeReference>) -> &[TypeReference] {
         self.declarations()
             .child_type_references
             .span_or_empty(span)
     }
 
-    pub fn child_type_reference(
-        &self,
-        handle: Handle<types::TypeReference>,
-    ) -> &types::TypeReference {
+    pub fn child_type_reference(&self, handle: Handle<TypeReference>) -> &TypeReference {
         self.declarations().child_type_references.get(handle)
     }
 
@@ -1065,7 +1038,9 @@ mod tests {
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
         AuthoredDeclarationSelectionOccurrenceId, AuthoredSelectionExtensionRebaseError,
         AuthoredSelectionOccurrenceStore, SymbolResolvedTrees, domain, expression,
-        name::DiagnosticName, statement,
+        name::DiagnosticName,
+        statement,
+        statement::{Statement, TransitionTarget},
     };
     use arena::HandleSpan;
     use source::{SourceId, SourceSpan, Span};
@@ -1151,9 +1126,7 @@ mod tests {
         })
     }
 
-    fn named_target(
-        occurrence: AuthoredDeclarationSelectionOccurrenceId,
-    ) -> statement::TransitionTarget {
+    fn named_target(occurrence: AuthoredDeclarationSelectionOccurrenceId) -> TransitionTarget {
         statement::TransitionTarget::Named(statement::NamedTransitionTarget {
             receiver_symbol: Default::default(),
             head_symbol: SymbolHandle::from_arena_index(8),
@@ -1165,9 +1138,7 @@ mod tests {
         })
     }
 
-    fn tree_transition(
-        occurrence: AuthoredDeclarationSelectionOccurrenceId,
-    ) -> statement::Statement {
+    fn tree_transition(occurrence: AuthoredDeclarationSelectionOccurrenceId) -> Statement {
         statement::Statement::Transition(statement::Transition {
             target: named_target(occurrence),
             continuation: Some(named_target(occurrence)),
