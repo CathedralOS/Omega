@@ -57,10 +57,6 @@ impl DerivationId {
             generation: handle.generation(),
         }
     }
-
-    fn handle<D>(self) -> Handle<Option<D>> {
-        Handle::from_parts(self.arena_index, self.generation)
-    }
 }
 
 /// The store refused a derivation because it already holds `capacity`
@@ -195,7 +191,8 @@ impl<D> DerivationStore<D> {
     /// The derivation `id` names, or `None` when `id` is stale or never
     /// issued by this store.
     pub fn derivation(&self, id: DerivationId) -> Option<&D> {
-        self.derivations.get(id.handle()).as_ref()
+        let handle = Handle::from_parts(id.arena_index, id.generation);
+        self.derivations.get(handle).as_ref()
     }
 
     /// Drop every derivation retained under `key`; returns how many entries
