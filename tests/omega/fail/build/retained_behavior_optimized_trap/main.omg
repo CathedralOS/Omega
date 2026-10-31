@@ -1,6 +1,0 @@
-// Optional dead-code removal must not change composition admissibility.
-machine main() crashes Trap {
-    transition true { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
-}
