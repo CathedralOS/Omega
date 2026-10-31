@@ -1,5 +1,5 @@
-//! Form a dispatch in authored order over one completed subject. Selected
-//! predicates remain on their branches; the enclosing engine receives only
+//! Form Boolean paths for declared dispatches and call requirements in authored
+//! order. Selected predicates remain on their branches; a dispatch exports only
 //! operation definitions and an exact guarded value, never branch hypotheses.
 
 use super::super::conditional_values::{Comparison, ConditionalValueArm};
@@ -42,6 +42,29 @@ impl Path<'_> {
 enum Subject {
     Integer(Polynomial),
     Boolean(bool),
+}
+
+/// Form the complete requirement and prove every feasible result true before
+/// the call can publish its result. The same selective-path operation used by
+/// dispatches handles negation and short-circuit operands, including partial
+/// arithmetic on the right. Neither those local premises nor calls formed only
+/// inside a requirement become facts in the enclosing application.
+pub(super) fn require_condition(
+    engine: &Engine<'_>,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<()> {
+    engine.charge_conditional_work()?;
+    let paths = condition_paths(
+        Path {
+            engine: engine.clone(),
+            conditions: Vec::new(),
+        },
+        expression,
+        depth,
+        &mut ApplicationDecisions::default(),
+    )?;
+    paths.iter().all(|(holds, _)| *holds).then_some(())
 }
 
 pub(super) fn form(

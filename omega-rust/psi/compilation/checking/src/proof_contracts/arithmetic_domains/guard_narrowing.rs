@@ -737,12 +737,15 @@ pub(super) fn narrow_environment_by_comparison(
     } else {
         return;
     };
-    // A negative arm narrows by the NEGATED comparison. A negated EQUALITY
+    // A negative arm narrows by the NEGATED comparison. Disequality
     // is a point exclusion: it tightens an interval only when an END sits
     // exactly on the excluded literal (`n == 0` refuted with `n: u64` gives
     // n >= 1), handled below after the type/declared intersection.
-    let negated_equality = !positive && comparison.operator == BinaryOperator::Equal;
-    let operator = if positive || negated_equality {
+    let point_exclusion = matches!(
+        (comparison.operator, positive),
+        (BinaryOperator::Equal, false) | (BinaryOperator::NotEqual, true)
+    );
+    let operator = if positive || point_exclusion {
         comparison.operator
     } else {
         let Some(negated) = negate_comparison(comparison.operator) else {
@@ -757,17 +760,25 @@ pub(super) fn narrow_environment_by_comparison(
     else {
         return;
     };
-    if negated_equality {
+    if point_exclusion {
+        // Adjacency belongs to integer storage, never an IEEE value between
+        // two integer endpoints. Retain only current bounds: the environment
+        // already withdraws them after overlapping writes and unknown effects.
+        if declared_place_type_raw(program, machine, state, place_expr)
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .and_then(primitive_range)
+            .is_none()
+        {
+            return;
+        }
         // A point exclusion needs a single excluded value.
         let Some(literal) = bound.low.filter(|low| bound.high == Some(*low)) else {
             return;
         };
-        // Start from the full line; the intersection below brings in the
-        // type + declared ranges, then the point exclusion bumps an end.
-        let mut interval = Interval {
-            low: None,
-            high: None,
-        };
+        // Earlier conjuncts may establish an endpoint not present in the
+        // declared type (4 <= value followed by value != 4). Exclude it from
+        // that live interval before projecting the resulting operand range.
+        let mut interval = environment.get(&name).unwrap_or(Interval::UNBOUNDED);
         intersect_declared_place_ranges(program, machine, state, place_expr, &mut interval);
         if interval.low == Some(literal) {
             interval.low = literal.checked_add(1);
