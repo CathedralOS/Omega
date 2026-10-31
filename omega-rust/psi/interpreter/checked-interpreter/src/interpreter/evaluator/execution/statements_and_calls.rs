@@ -1,7 +1,7 @@
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, FrameLocal, Halt,
     Machine, Reference, State, StatementNode, SymbolHandle, TableCall, TableTransition,
-    TransitionDecision, TransitionGuardNode, TransitionTargetNode, Value,
+    TransitionDecision, TransitionGuardNode, TransitionTargetNode, Value, statement_table,
 };
 use typed_trees::statement::TransitionExit;
 
@@ -152,9 +152,7 @@ impl<'program> Evaluator<'program> {
             }
         }
 
-        let target = self
-            .program
-            .statement_table
+        let target = statement_table(self.program)
             .transition_target(target_handle)
             .clone();
         let decision = self.resolve_transition_target(&target, frame)?;
@@ -248,18 +246,14 @@ impl<'program> Evaluator<'program> {
         if let Some(dispatch) = &call.static_requirement_dispatch {
             return self.run_selected_realization(
                 dispatch.realization_state,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
+                statement_table(self.program).expression_handles(call.arguments),
                 frame,
             );
         }
         if let Some(slot) = self.program.dynamic_slot_by_symbol(call.target_symbol) {
             return self.run_dynamic_slot(
                 slot,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
+                statement_table(self.program).expression_handles(call.arguments),
                 frame,
             );
         }
@@ -267,9 +261,7 @@ impl<'program> Evaluator<'program> {
             call.receiver_symbol,
             call.target_symbol,
             &call.machine_arguments,
-            self.program
-                .statement_table
-                .expression_handles(call.arguments),
+            statement_table(self.program).expression_handles(call.arguments),
             frame,
         )? {
             return Ok(value);
@@ -289,10 +281,7 @@ impl<'program> Evaluator<'program> {
         // POPFQ restores arithmetic flag bits into the supplied environment;
         // without one the restore has no honest meaning.
         if call.target.as_str() == "asm#popfq" {
-            let arguments = self
-                .program
-                .statement_table
-                .expression_handles(call.arguments);
+            let arguments = statement_table(self.program).expression_handles(call.arguments);
             let [image] = arguments else {
                 return Err(Halt::Unsupported(
                     "popfq requires one image operand".to_owned(),
@@ -338,9 +327,7 @@ impl<'program> Evaluator<'program> {
         if self
             .try_build_facet_routes(
                 call.target_symbol,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
+                statement_table(self.program).expression_handles(call.arguments),
                 call.source_span,
                 frame,
             )?
@@ -363,9 +350,7 @@ impl<'program> Evaluator<'program> {
 
         let arguments = self.eval_state_arguments(
             state,
-            self.program
-                .statement_table
-                .expression_handles(call.arguments),
+            statement_table(self.program).expression_handles(call.arguments),
             frame,
         )?;
 

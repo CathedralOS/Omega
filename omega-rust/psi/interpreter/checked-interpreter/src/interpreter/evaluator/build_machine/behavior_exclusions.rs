@@ -12,7 +12,7 @@
 //! or silently dropping.
 use crate::interpreter::evaluator::{
     EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall, Value,
-    expression_table, trap,
+    expression_table, statement_table, trap,
 };
 use crate::{
     ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
@@ -34,17 +34,12 @@ impl<'program> Evaluator<'program> {
             && !call.target_symbol.is_valid()
         {
             self.evaluate_service_exclusion(
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
+                statement_table(self.program).expression_handles(call.arguments),
                 frame,
             )?;
             ExecutedBehaviorExclusionKind::Service
         } else {
-            let arguments = self
-                .program
-                .statement_table
-                .expression_handles(call.arguments);
+            let arguments = statement_table(self.program).expression_handles(call.arguments);
             let Some(kind) = self.evaluate_enum_exclusion(call.target_symbol, arguments, frame)?
             else {
                 return Ok(None);

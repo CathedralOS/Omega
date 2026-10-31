@@ -52,7 +52,8 @@ use typed_trees::expression::{
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{
-    StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
+    StatementNode, StatementTable, TableCall, TableTransition, TransitionGuardNode,
+    TransitionTargetNode,
 };
 use typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
@@ -533,4 +534,9 @@ pub(crate) fn expression_table(tables: &TypedTreeTables) -> &ExpressionTable {
 /// The type-reference table of the typed program whose tables these are.
 pub(crate) fn type_reference_table(tables: &TypedTreeTables) -> &TypeReferenceTable {
     &tables.type_reference_table
+}
+
+/// The statement table of the typed program whose tables these are.
+pub(crate) fn statement_table(tables: &TypedTreeTables) -> &StatementTable {
+    &tables.statement_table
 }

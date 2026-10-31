@@ -4,8 +4,8 @@ use crate::interpreter::evaluator::{
     DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
     FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, FrameLocal, Halt, Machine,
     PrimitiveType, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
-    TypedTrees, Value, ambient_step_budget, expression_table, trap, type_reference_table,
-    unsupported, wrap_to_width,
+    TypedTrees, Value, ambient_step_budget, expression_table, statement_table, trap,
+    type_reference_table, unsupported, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn new_build(
@@ -856,16 +856,12 @@ impl<'program> Evaluator<'program> {
             let mut tail_value: Option<Value> = None;
             let mut exit = checked_trees::FlowClaimJoinExit {
                 state_symbol: state.symbol,
-                statement_index: self
-                    .program
-                    .statement_table
+                statement_index: statement_table(self.program)
                     .statements(state.statement_nodes)
                     .len(),
                 kind: checked_trees::FlowClaimJoinExitKind::FinalExpression,
             };
-            let order = self
-                .program
-                .statement_table
+            let order = statement_table(self.program)
                 .finite_execution_order(state.statement_nodes)
                 .map_err(Halt::Trap)?;
             let Some(order) = order else {
@@ -897,9 +893,7 @@ impl<'program> Evaluator<'program> {
                         }
 
                         if statement_index + 1
-                            == self
-                                .program
-                                .statement_table
+                            == statement_table(self.program)
                                 .statements(state.statement_nodes)
                                 .len()
                         {

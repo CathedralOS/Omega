@@ -1,6 +1,6 @@
 use crate::interpreter::evaluator::{
     DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall,
-    Value, expression_table, trap, unsupported,
+    Value, expression_table, statement_table, trap, unsupported,
 };
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
@@ -86,9 +86,7 @@ impl<'program> Evaluator<'program> {
         self.try_host_invocation(
             call.target_symbol,
             call.target.as_str(),
-            self.program
-                .statement_table
-                .expression_handles(call.arguments),
+            statement_table(self.program).expression_handles(call.arguments),
             frame,
         )
     }
