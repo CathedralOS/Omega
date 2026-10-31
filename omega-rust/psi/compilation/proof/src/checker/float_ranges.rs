@@ -16,6 +16,7 @@
 //! excludes it, including when that evidence follows a negated conjunct. Guard
 //! effects and crossed writes must preserve the argument being constrained.
 
+use super::assignment_stability::{collect_read_place_paths, resolved_writes_overlap_reads};
 use crate::checker::guards::unwrap_true_guard_condition;
 use crate::checker::integer_ranges::type_constraints;
 use crate::obligations::{
@@ -28,6 +29,12 @@ use arena::HandleSpan;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 use typed_trees::types::PrimitiveType;
+use validation::{
+    CallFrameResolver, CheckingInput, canonical_place_from_expression, declared_place_type_raw,
+    expression_result_type_reference, frame_paths_overlap, has_builtin_bound_expression_meaning,
+    has_builtin_decomposed_guard_meaning, index_place_segment, is_single_segment_name_path,
+    place_has_builtin_coordinates, sealed_float_comparison,
+};
 
 macro_rules! float_range_for {
     ($name:ident, $obligation:ty, $expression:ident, $constraints:ident) => {
@@ -100,7 +107,7 @@ fn float_range(
 }
 
 fn float_statement_preserves(
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     machine: &typed_trees::machine::Machine,
     statement: &StatementNode,
     preserves: &impl Fn(Option<Vec<String>>) -> bool,
@@ -135,8 +142,7 @@ fn float_range_at(
     let program = proof_plan.program;
     let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
     let identity = resolved_place_identity(program, expression)?;
-    let place_type =
-        validation::declared_place_type_raw(program, machine, Some(state), expression)?;
+    let place_type = declared_place_type_raw(program, machine, Some(state), expression)?;
     let primitive = program.primitive_type_reference(place_type)?;
     let format = match primitive {
         PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
@@ -144,7 +150,7 @@ fn float_range_at(
         _ => return None,
     };
     let path = super::assignment_stability::written_place_path(proof_plan, expression)?.join(".");
-    let frames = validation::CallFrameResolver::new(program)?;
+    let frames = CallFrameResolver::new(program)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let current = statements.get(statement_index)?;
     let root = *identity.first()?;
@@ -179,7 +185,7 @@ fn float_range_at(
         written.is_some_and(|written| {
             written
                 .iter()
-                .all(|written| !validation::frame_paths_overlap(&path, written))
+                .all(|written| !frame_paths_overlap(&path, written))
         })
     };
     if !preserves(frames.statement_value_may_write_paths(machine, current)) {
@@ -212,12 +218,8 @@ fn float_range_at(
             {
                 return None;
             }
-            let target_type = validation::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                assignment.target,
-            )?;
+            let target_type =
+                declared_place_type_raw(program, machine, Some(state), assignment.target)?;
             if program.primitive_type_reference(target_type) != Some(primitive) {
                 return None;
             }
@@ -239,11 +241,11 @@ fn float_range_at(
 }
 
 fn resolved_place_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Vec<symbols::SymbolHandle>> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) if validation::is_single_segment_name_path(program, path) => {
+        ExpressionNode::Name(path) if is_single_segment_name_path(program, path) => {
             Some(vec![path.symbol])
         }
         ExpressionNode::Member(member) if member.member_symbol.is_valid() => {
@@ -271,22 +273,16 @@ pub(crate) fn guarded_float_range_for_transition_argument(
         program.machine_state(obligation.machine_symbol, obligation.state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let current = statements.get(obligation.statement_index)?;
-    let frames = validation::CallFrameResolver::new(program)?;
+    let frames = CallFrameResolver::new(program)?;
     let mut reads = Vec::new();
-    super::assignment_stability::collect_read_place_paths(
-        proof_plan,
-        obligation.argument,
-        &mut reads,
-    );
-    super::assignment_stability::collect_read_place_paths(
+    collect_read_place_paths(proof_plan, obligation.argument, &mut reads);
+    collect_read_place_paths(
         proof_plan,
         dehoisted_operand(program, state, obligation.argument),
         &mut reads,
     );
     let preserves = |written: Option<Vec<String>>| {
-        written.is_some_and(|written| {
-            !super::assignment_stability::resolved_writes_overlap_reads(&written, &reads)
-        })
+        written.is_some_and(|written| !resolved_writes_overlap_reads(&written, &reads))
     };
     // The guard and all sibling operands precede consumption. A complete,
     // disjoint frame permits useful effectful guards; an aliasing write does
@@ -459,18 +455,9 @@ fn apply_float_condition(
     else {
         return range;
     };
-    if !validation::has_builtin_bound_expression_meaning(
-        proof_plan.program,
-        machine,
-        Some(state),
-        condition,
-    ) && !validation::sealed_float_comparison(
-        proof_plan.program,
-        machine,
-        Some(state),
-        condition,
-        binary,
-    ) {
+    if !has_builtin_bound_expression_meaning(proof_plan.program, machine, Some(state), condition)
+        && !sealed_float_comparison(proof_plan.program, machine, Some(state), condition, binary)
+    {
         return range;
     }
     apply_float_comparison(
@@ -633,7 +620,7 @@ fn dehoisted_guard_condition(
     loop {
         let unwrapped = unwrap_true_guard_condition(proof_plan, condition);
         if unwrapped != condition {
-            if !validation::has_builtin_decomposed_guard_meaning(
+            if !has_builtin_decomposed_guard_meaning(
                 proof_plan.program,
                 machine,
                 Some(state),
@@ -711,13 +698,11 @@ fn stable_initializer(
         return None;
     }
     let mut reads = Vec::new();
-    super::assignment_stability::collect_read_place_paths(proof_plan, expression, &mut reads);
-    super::assignment_stability::collect_read_place_paths(proof_plan, initializer, &mut reads);
-    let frames = validation::CallFrameResolver::new(program)?;
+    collect_read_place_paths(proof_plan, expression, &mut reads);
+    collect_read_place_paths(proof_plan, initializer, &mut reads);
+    let frames = CallFrameResolver::new(program)?;
     let preserves = |written: Option<Vec<String>>| {
-        written.is_some_and(|written| {
-            !super::assignment_stability::resolved_writes_overlap_reads(&written, &reads)
-        })
+        written.is_some_and(|written| !resolved_writes_overlap_reads(&written, &reads))
     };
     let statements = program.statement_table.statements(state.statement_nodes);
     for statement in statements.get(declaration + 1..=statement_index)? {
@@ -743,10 +728,8 @@ fn same_float_place(
     // Canonical storage identity erases borrow recasts. Its bytes are not
     // proof that an integer view and a float view denote the same value.
     let observed_primitive = |expression| {
-        validation::expression_result_type_reference(program, machine, state, expression)
-            .or_else(|| {
-                validation::declared_place_type_raw(program, machine, Some(state), expression)
-            })
+        expression_result_type_reference(program, machine, state, expression)
+            .or_else(|| declared_place_type_raw(program, machine, Some(state), expression))
             .and_then(|reference| program.primitive_type_reference(reference))
     };
     let left_primitive = observed_primitive(left);
@@ -760,15 +743,15 @@ fn same_float_place(
     let canonical = |expression| {
         // Authenticate the original coordinates before canonicalization can
         // fold a selector's spelling (such as authored `0 + 0`) into an index.
-        if !validation::place_has_builtin_coordinates(program, machine, Some(state), expression) {
+        if !place_has_builtin_coordinates(program, machine, Some(state), expression) {
             return None;
         }
-        let mut place = validation::canonical_place_from_expression(program, expression)?;
+        let mut place = canonical_place_from_expression(program, expression)?;
         for segment in &mut place.segments {
             if let facts::PlaceSegment::Index { expression } = segment {
                 let operand =
                     stable_scalar_operand(proof_plan, machine, state, statement_index, *expression);
-                *segment = validation::index_place_segment(program, operand);
+                *segment = index_place_segment(program, operand);
             }
         }
         Some(place)
@@ -787,17 +770,14 @@ fn same_float_place(
                     facts::PlaceSegment::Index { expression: left },
                     facts::PlaceSegment::Index { expression: right },
                 ) => {
-                    validation::has_builtin_bound_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        *left,
-                    ) && validation::has_builtin_bound_expression_meaning(
-                        program,
-                        machine,
-                        Some(state),
-                        *right,
-                    ) && expression_table(program).expressions_structurally_equal(*left, *right)
+                    has_builtin_bound_expression_meaning(program, machine, Some(state), *left)
+                        && has_builtin_bound_expression_meaning(
+                            program,
+                            machine,
+                            Some(state),
+                            *right,
+                        )
+                        && expression_table(program).expressions_structurally_equal(*left, *right)
                 }
                 _ => left == right,
             })
