@@ -29,37 +29,30 @@ InlineValue satisfies DeferredValue {
     }
 }
 
-windows_x86_64 machine invoke(selected: dyn DeferredValue) -> u64
+boundary trait SelectedInvoke {
+    machine invoke(selected: dyn DeferredValue) -> u64 reaches
 ensures result == 100u64
-suspends; {
+suspends;
+}
+CheckedInvoke satisfies SelectedInvoke {
+    machine invoke(selected: dyn DeferredValue) -> u64
+ensures result == 100u64
+suspends;
+{
     let observed: u64 = suspend DeferredValue::get(selected, 99u64);
     observed
+}
 }
 
-linux_x86_64 machine invoke(selected: dyn DeferredValue) -> u64
-ensures result == 100u64
-suspends; {
-    let observed: u64 = suspend DeferredValue::get(selected, 99u64);
-    observed
-}
 
-macos_arm64 machine invoke(selected: dyn DeferredValue) -> u64
-ensures result == 100u64
-suspends; {
-    let observed: u64 = suspend DeferredValue::get(selected, 99u64);
-    observed
-}
 
-linux_arm64 machine invoke(selected: dyn DeferredValue) -> u64
-ensures result == 100u64
-suspends; {
-    let observed: u64 = suspend DeferredValue::get(selected, 99u64);
-    observed
-}
+
+
+
 
 machine main() crashes Trap {
     let selected: dyn DeferredValue = InlineValue as dyn DeferredValue;
-    let observed: u64 = suspend invoke(selected);
+    let observed: u64 = suspend SelectedInvoke::invoke(selected);
     let difference: u64 = observed - 100u64;
     transition difference == 0u64 {
         true -> done()

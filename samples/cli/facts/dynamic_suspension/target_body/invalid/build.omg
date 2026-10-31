@@ -1,6 +1,14 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedInvoke, CheckedInvoke>(builder, windows_x86_64);
+    Build::select_provider<SelectedInvoke, CheckedInvoke>(builder, linux_x86_64);
+    Build::select_provider<SelectedInvoke, CheckedInvoke>(builder, macos_arm64);
+    Build::select_provider<SelectedInvoke, CheckedInvoke>(builder, linux_arm64);
+
     Build::application(builder, "dynamic_suspension_target_body_invalid");
-    Build::select_provider<Scheduler, InlineScheduler>(builder);
+    Build::select_provider<Scheduler, InlineScheduler>(builder, windows_x86_64);
+    Build::select_provider<Scheduler, InlineScheduler>(builder, linux_x86_64);
+    Build::select_provider<Scheduler, InlineScheduler>(builder, macos_arm64);
+    Build::select_provider<Scheduler, InlineScheduler>(builder, linux_arm64);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
