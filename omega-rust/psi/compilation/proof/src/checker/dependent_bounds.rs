@@ -7,7 +7,7 @@ use crate::obligations::{
 use crate::typed_expressions::statement_table;
 use language_core::{place_field, place_label};
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::dependent_ranges::DependentBoundClass;
+use typed_trees::dependent_ranges::{DependentBoundClass, dependent_bound_class};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
@@ -93,7 +93,7 @@ fn guard_conjunct_proves_dependent_upper(
         return false;
     }
     let Some(DependentBoundClass::SelfField(bound)) =
-        typed_trees::dependent_ranges::dependent_bound_class(&proof_plan.program, bound_side)
+        dependent_bound_class(&proof_plan.program, bound_side)
     else {
         return false;
     };
@@ -576,18 +576,17 @@ fn sibling_conjunct_proves(
     if expression_display_name(proof_plan, argument_side) != argument_label {
         return false;
     }
-    let Some(bound) =
-        typed_trees::dependent_ranges::dependent_bound_class(&proof_plan.program, bound_side)
-            .and_then(|class| match class {
-                DependentBoundClass::SiblingLen(bound) => Some((bound.sibling, bound.offset)),
-                _ => None,
-            })
-            .or_else(|| {
-                // The guard names the CALLER's expression (`self.buf.len`), not the
-                // callee's param -- recognize `<expr>.len + k` with the RECEIVER
-                // display-matched below instead of the bare-name rule.
-                len_of_expression_bound(proof_plan, bound_side)
-            })
+    let Some(bound) = dependent_bound_class(&proof_plan.program, bound_side)
+        .and_then(|class| match class {
+            DependentBoundClass::SiblingLen(bound) => Some((bound.sibling, bound.offset)),
+            _ => None,
+        })
+        .or_else(|| {
+            // The guard names the CALLER's expression (`self.buf.len`), not the
+            // callee's param -- recognize `<expr>.len + k` with the RECEIVER
+            // display-matched below instead of the bare-name rule.
+            len_of_expression_bound(proof_plan, bound_side)
+        })
     else {
         return false;
     };
