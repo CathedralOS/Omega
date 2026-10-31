@@ -1,5 +1,6 @@
 //! Exact referent substitution for supplied Boolean field facts at call entry.
 
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use facts::{FactPlan, PlaceRoot};
@@ -52,12 +53,7 @@ pub(super) fn proves(
     if !matches!(raw_actual.root, PlaceRoot::Symbol(_)) {
         return None;
     }
-    let Some(mut actual) = validation::canonical_place_from_expression_in_state(
-        program,
-        caller_state,
-        statement_index,
-        argument,
-    ) else {
+    let Some(mut actual) = place_at(program, caller_state, statement_index, argument) else {
         return Some(false);
     };
     actual.segments.append(&mut required.segments);

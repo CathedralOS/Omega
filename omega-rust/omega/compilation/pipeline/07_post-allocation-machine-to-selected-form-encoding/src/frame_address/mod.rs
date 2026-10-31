@@ -131,6 +131,17 @@ pub(super) fn validate_frame_root(
     Ok(())
 }
 
+/// The one roster entry the predicate admits. A second match, or none,
+/// contradicts the slot or function the caller is resolving.
+fn unique<'a, T>(entries: &'a [T], admits: impl Fn(&T) -> bool) -> Result<&'a T, Error> {
+    let mut found = entries.iter().filter(|entry| admits(entry));
+    let only = found.next().ok_or(Error::ArtifactMismatch)?;
+    if found.next().is_some() {
+        return Err(Error::ArtifactMismatch);
+    }
+    Ok(only)
+}
+
 /// Resolve only the retained slot roster; this does not derive address arithmetic.
 fn slot_region(
     function: &PostAllocationMachineFunction,
@@ -140,14 +151,7 @@ fn slot_region(
     match slot {
         FrameStorageSlotId::Incoming { .. } => Err(Error::ArtifactMismatch),
         FrameStorageSlotId::Outgoing(id) => {
-            let mut entries = function
-                .outgoing_arguments
-                .iter()
-                .filter(|entry| entry.id == id);
-            let entry = entries.next().ok_or(Error::ArtifactMismatch)?;
-            if entries.next().is_some() {
-                return Err(Error::ArtifactMismatch);
-            }
+            let entry = unique(&function.outgoing_arguments, |entry| entry.id == id)?;
             Ok((
                 u64::from(entry.abi_stack_byte_offset),
                 entry.byte_size,
@@ -156,19 +160,9 @@ fn slot_region(
             ))
         }
         FrameStorageSlotId::Local(id) => {
-            let mut entries = function
-                .local_storage_slots
-                .iter()
-                .filter(|entry| entry.id == id);
-            let entry = entries.next().ok_or(Error::ArtifactMismatch)?;
-            let mut placed = geometry
-                .local_storage_slots
-                .iter()
-                .filter(|entry| entry.id == id);
-            let position = placed.next().ok_or(Error::ArtifactMismatch)?;
-            if entries.next().is_some()
-                || placed.next().is_some()
-                || entry.byte_size != position.size_bytes
+            let entry = unique(&function.local_storage_slots, |entry| entry.id == id)?;
+            let position = unique(&geometry.local_storage_slots, |entry| entry.id == id)?;
+            if entry.byte_size != position.size_bytes
                 || entry.alignment != position.alignment_bytes
                 || position.frame_offset_bytes < geometry.outgoing_abi_area.byte_size
             {
@@ -188,16 +182,8 @@ fn function_geometry<'frame>(
     function: &PostAllocationMachineFunction,
     frame: Option<&'frame TargetFrameLayoutPlan>,
 ) -> Result<&'frame FunctionTargetFrameLayout, Error> {
-    let mut rows = frame
-        .ok_or(Error::ArtifactMismatch)?
-        .functions
-        .iter()
-        .filter(|row| row.machine == function.machine);
-    let row = rows.next().ok_or(Error::ArtifactMismatch)?;
-    if rows.next().is_some() {
-        return Err(Error::ArtifactMismatch);
-    }
-    Ok(row)
+    let rows = &frame.ok_or(Error::ArtifactMismatch)?.functions;
+    unique(rows, |row| row.machine == function.machine)
 }
 
 /// The reserved home owns absolute alignment; its member displacement is

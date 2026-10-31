@@ -157,8 +157,9 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    computed or nonscalar declared views or dependent distances without ambient
-    parent entry facts).
+    authored computed measures over indexed storage, non-polynomial or
+    non-monotone declared bodies, nonscalar orders, or dependent distances
+    without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
@@ -203,10 +204,6 @@ retired-syntax deletions to completion.
 - **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
-  - Repair nested/inherited scalar domain result establishment, including
-    qualified constant destinations. Apply a data declaration's own generic
-    arguments to `requires self` in the Omega-written producer when the subject
-    is a generic carrier.
   - Carry one general predicate representation through formation, construction,
     calls, matching, coverage, writes, and erasure so case membership plus the
     established domain recovers type equality and guarded payload bounds while
@@ -302,9 +299,6 @@ retired-syntax deletions to completion.
       all nine places).
     - Complete remaining operational envelope refinement for suspending
       dynamic requirements beyond suspension and blocking.
-    - Extend public slot metadata with returned-borrow origins and parameter
-      qualification preconditions, consume the new records in package review,
-      and implement `source/psi/` and `source/omega/` producer/consumer parity.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including
@@ -399,7 +393,7 @@ retired-syntax deletions to completion.
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
   - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
-    plus 76 test files to boundary traits with explicit reach clauses, lift stage
+    plus 70 test files to boundary traits with explicit reach clauses, lift stage
     04's template-dependent result borrow-elision fence for `core/task.omg`'s
     generic `request_cancel` and `finish`, and preserve source-selected trait
     tokens (`samples/cli/probes/operator_requires_effects`).
@@ -419,8 +413,6 @@ retired-syntax deletions to completion.
   - Admit complete machine-valued static callable tuples through generic dispatch.
   - Preserve exact cross-module const-alias selection in callable/evidence arguments.
   - Admit open-Const callable families through their declaration-owned scopes.
-  - Complete declaration-owned call formation for receiver/projection terms.
-  - Complete citation/induction call guarantees with their transitive assumptions.
   - Extend `OpenIndexOperationSelection` in
     `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
     with distributivity and zero/one law evidence surviving
@@ -446,10 +438,12 @@ retired-syntax deletions to completion.
   `omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`
   with its interpreter and native consumers.
   - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
-    in maintained pass fixtures and samples (**SAMPLE-CORPUS**) to explicit
+    in samples (**SAMPLE-CORPUS**) and in maintained pass fixtures outside
+    `tests/omega/pass/arithmetic` and `tests/omega/pass/core` to explicit
     conversions (`as` requires unchanged denotation and representability;
-    wrapping/clamping use `core/numeric_conversion.omg`), producing one
-    actionable diagnostic per authored conversion error.
+    wrapping/clamping use
+    `core/numeric_conversion.omg`), producing one actionable diagnostic per
+    authored conversion error.
   Acceptance: comparisons, conversions, and policy-explicit stores agree between
   the interpreter and matching-host native execution across all six relations,
   operand orientations, widths, signedness, and extrema above `i64::MAX`
@@ -792,10 +786,13 @@ helper that passes does not close an item.
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
     enclosing declaration's requirements and guarantees, including higher-order
-    and logical-evidence requirements. The single-semicolon boundary between
-    nested and enclosing operational clauses is **OWNER-BLOCKED** on the narrow
-    punctuation question in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md); explicit
-    distinct terminators and the other requirement forms remain engineering work.
+    and logical-evidence requirements. Apply the settled
+    [machine header delimiters](wiki/spec/language/state_contracts.md#machine-header-delimiters):
+    no clause-ending semicolons, including termination and operational clauses;
+    one final semicolon closes each bodyless callable. Remove the parser's
+    termination-clause semicolon requirement; reject extra same-level terminators
+    rather than treating them as a workaround. Keep distinct terminators for
+    genuinely nested declarations.
   - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
     after `asm`, including headers without predicates. Preserve label scopes,
     incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
@@ -813,6 +810,11 @@ helper that passes does not close an item.
   twins retain native/Terminal agreement (`omega run --both`). Exercise repeated
   predicates, mixed generic/call-entry constraints, nested callable contracts
   followed by outer clauses, and assembly with and without entry predicates.
+  Pin callbacks with combined `suspends blocks terminates`, termination followed
+  by another clause or a body, and correctly closed higher-order requirements;
+  reject clause separators and extra same-level terminators. Migrate both
+  producers' parsers, source examples and diagnostic expectations without
+  changing which callable owns each obligation.
   Reject each retired `where` form, unsatisfied predicates, wrong callable scope
   or kind, unjustified static specialization, invalid default-domain formation,
   and unproved assembly assertions or incorrect clobbers. No old parser mode or
@@ -887,6 +889,14 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
+    The unqualified [nested-reference descriptor witness](https://github.com/CathedralOS/Omega/blob/ac343388cae3444d9eda04a548139f2ec8a9dd9c/samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
+    remains follow-on acceptance: preserve its value 7 and pointee 43 checks,
+    with the original 256-width and mismatched-policy-argument reject controls.
+    Its exact source and unfinished repairs are retained at that checkpoint;
+    the completed storage/bit rows do not establish this composition.
+    [Phantom-region forwarding through implementation arguments](https://github.com/CathedralOS/Omega/blob/ee2c8a1fceffff32a4533f83bb46d38010735a47/tests/omega/pass/traits/implementation_value_mapped_region_identity/main.omg)
+    also remains unqualified: preserve its distinct environment/storage regions
+    and the same constant index through the original forwarding call.
   - Supply a library C-layout family and migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
@@ -1523,7 +1533,48 @@ defines the complete product bar.
   missing/ambiguous supply, non-ZII state, invalid backing/alignment,
   overlapping partition, and unauthorized exit controls reject.
 
-## P2 - Materialization and placed access
+## P2 - Materialization and access policies
+
+- **ACCESS-POLICY-VOCABULARY.** Migrate the core/compiler surface to the
+  ratified [access-policy contract](wiki/spec/resources/access.md), without a
+  parallel legacy API or changed authority model. This smaller surface migration
+  follows the board's existing blast-radius ordering; it does not promote itself
+  above the broader language migrations.
+  - Migrate `source/library/core/{layout,extent}.omg` and all `.omg` consumers:
+    `Plan` to `LayoutPlan`, composite `PlacementPlan` to
+    `AccessPlan { layout, fields, reach }`, policy `Placement` to `AccessPolicy`,
+    `Placed<P, T>` to `Access<P, T>`, `PlacedField<T>` to `Accessor<T>`, and
+    `placed_read`/`placed_write` to `read`/`write`. Rename the seven access
+    lifecycle/result `Placement*` carriers to `Access*` and
+    `FieldEntry.placement` to `representation`; retain the distinct
+    `view`/`view_mut`/`view_resident_mut` routes.
+  - Implement the layout-seeded inaccessible decisions (distinct field keys,
+    empty required reach), checked updates, and independent final schema/layout/
+    access validation. Remove the two-argument `Access::plan(schema, layout)`
+    trait, migrating `access_plan_inaccessible_seed` and `layout_access_plan`
+    to ordinary policy/helper composition. Reject jointly omitted layout/access
+    fields, foreign/erased keys and invalid operations; fragmentation still gets
+    one decision per field. Pin ordinary name resolution with a local `Access`
+    declaration/import collision control.
+  - Carry the vocabulary through compile-time layout evaluation, typed-tree
+    access plans, both foundations and their headers, interpreter reference/
+    provider storage, Omega establishment/legalization/selection, and diagnostics.
+    Rename Terminal access identifiers (including `TerminalPlacedViewPlan` and
+    `PlacedOccurrenceId`); audit serialized tags and canonical commitments
+    separately rather than changing encoding identity merely for a Rust rename.
+    Leave physical materialization `placement/` and installation terminology alone.
+  - Migrate layout/borrow/atomic/build fixtures, probes, and the existing
+    `samples/cli/facts/placed_stable_write` row with its reject twins. If paths
+    change, update corpus rows and references in the same change; update diagnostic
+    expectations without weakening their asserted obligations.
+  Acceptance: retired source-facing spellings and the two-argument trait are
+  absent; the migrated nine-place fact row and executable positive fixtures run
+  `omega run --both` with their authored results; compile-time probes retain their
+  appropriate checks; affected crate tests and filtered corpus pass. Reject
+  controls `placed_shared_write_rejected`, `placed_helper_exclusive_alias_rejected`,
+  `placed_atomic_load_denied`, `placed_atomic_store_denied`,
+  `placed_external_array_denied_read`, and `placed_factory_*` still reject the
+  same semantic obligations under the new names, not merely any diagnostic.
 
 - **DEFERRED-RECAST-ESTABLISHMENT.** Implement the ratified
   [exclusive storage-cast window](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
@@ -1548,7 +1599,7 @@ defines the complete product bar.
 - **PLAN-LAID-VIEWS.** Complete externally established placed-view entry
   lending, subordinate placed-input reborrowing, and retirement end to end (`Psi
   04–07` and `Omega 00–09`) under
-  [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement).
+  [placed access](wiki/spec/resources/access.md#establishment-and-retirement).
   - Reuse `add_placed_accessor_attachment` in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/establishment.rs`,

@@ -1,4 +1,16 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
+    Build::bind<NativeFill::fill>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memset"
+        }
+    });
+    Build::bind<NativeFill::check>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcmp"
+        }
+    });
+
     Build::application(builder, "native_array_window");
     Build::bind(builder, macos_arm64::ProgramEntry, main);
 }

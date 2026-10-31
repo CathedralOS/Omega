@@ -20,6 +20,12 @@ impl TypeIdentityId {
         self.0 != 0
     }
 
+    /// Coordinate for invocation-owned scratch indexed by this program's
+    /// append-only identity table. It carries no identity across programs.
+    pub fn storage_index(self) -> Option<usize> {
+        self.slot()
+    }
+
     fn slot(self) -> Option<usize> {
         (self.0 != 0).then(|| self.0 as usize - 1)
     }

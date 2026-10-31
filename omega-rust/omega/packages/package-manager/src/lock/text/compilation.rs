@@ -265,6 +265,16 @@ mod tests {
         )
     }
 
+    /// A compilation record names exactly one occurrence: a different package,
+    /// purpose, target or execution profile must refuse to decode it.
+    fn refuses_occurrence(text: &str, key: PackageKeyIdentity, context: PackageCheckedContext) {
+        let mut budget = Budget::new(PackageLockRecoveryLimits::default());
+        assert_eq!(
+            read(text, key, context, &mut budget),
+            Err(Error::OccurrenceCoverage)
+        );
+    }
+
     #[test]
     fn exact_compilation_bindings_and_permissions_roundtrip() {
         let original = sample();
@@ -303,15 +313,7 @@ mod tests {
     fn compilation_inputs_cannot_move_between_occurrences_or_contexts() {
         let text = write(&sample(), package(), context()).unwrap();
         let other_package = PackageKeyIdentity::from_digest([8; 32]).unwrap();
-        assert_eq!(
-            read(
-                &text,
-                other_package,
-                context(),
-                &mut Budget::new(PackageLockRecoveryLimits::default())
-            ),
-            Err(Error::OccurrenceCoverage)
-        );
+        refuses_occurrence(&text, other_package, context());
         assert_eq!(
             recover(&text.replace("purpose product", "purpose build")),
             Err(Error::OccurrenceCoverage)
@@ -321,15 +323,7 @@ mod tests {
             context().target(),
             context().build_execution_profile(),
         );
-        assert_eq!(
-            read(
-                &text,
-                package(),
-                build,
-                &mut Budget::new(PackageLockRecoveryLimits::default())
-            ),
-            Err(Error::OccurrenceCoverage)
-        );
+        refuses_occurrence(&text, package(), build);
         let other_target = TargetProfile::ALL
             .into_iter()
             .find(|target| *target != context().target())
@@ -339,26 +333,10 @@ mod tests {
             other_target,
             context().build_execution_profile(),
         );
-        assert_eq!(
-            read(
-                &text,
-                package(),
-                other_target,
-                &mut Budget::new(PackageLockRecoveryLimits::default())
-            ),
-            Err(Error::OccurrenceCoverage)
-        );
+        refuses_occurrence(&text, package(), other_target);
         let other_execution =
             PackageCheckedContext::new(DependencyPurpose::Product, context().target(), None);
-        assert_eq!(
-            read(
-                &text,
-                package(),
-                other_execution,
-                &mut Budget::new(PackageLockRecoveryLimits::default())
-            ),
-            Err(Error::OccurrenceCoverage)
-        );
+        refuses_occurrence(&text, package(), other_execution);
     }
 
     #[test]

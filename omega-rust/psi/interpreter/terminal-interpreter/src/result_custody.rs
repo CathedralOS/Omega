@@ -117,9 +117,18 @@ impl<'storage> ResultCustody<'storage> {
         &mut self,
         endpoint: &'storage crate::primitive_storage::PrimitiveStorageEndpoint,
     ) -> Result<(), TerminalInterpretError> {
-        if let crate::primitive_storage::PrimitiveStorageEndpoint::ViewByte { bytes, .. } = endpoint
-        {
-            self.bytes(bytes)?;
+        match endpoint {
+            crate::primitive_storage::PrimitiveStorageEndpoint::ViewByte { bytes, .. } => {
+                self.bytes(bytes)?
+            }
+            crate::primitive_storage::PrimitiveStorageEndpoint::Projection {
+                fragments, ..
+            } => {
+                for fragment in fragments {
+                    self.endpoint(&fragment.storage.endpoint)?;
+                }
+            }
+            _ => {}
         }
         Ok(())
     }

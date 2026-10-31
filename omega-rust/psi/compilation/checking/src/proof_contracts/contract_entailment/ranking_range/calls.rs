@@ -337,14 +337,22 @@ pub(crate) fn prove_ranking_range_call(
         }
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
-    let rank = match source_measure {
+    let rank_value = match source_measure {
         RankingRangeMeasure::SliceLength(subject) => match &slice_ranks {
-            Some(slice) => slice.value()?,
-            None => length_coordinate(program, entry, subject, &length_bindings)?,
+            Some(slice) => super::RankValue::scalar(slice.value()?),
+            None => super::RankValue::scalar(length_coordinate(
+                program,
+                entry,
+                subject,
+                &length_bindings,
+            )?),
         },
-        RankingRangeMeasure::Field { .. } => field_ranks.as_ref()?.value()?,
+        RankingRangeMeasure::Field { .. } => {
+            super::RankValue::scalar(field_ranks.as_ref()?.value()?)
+        }
         _ => rank_coordinate(program, caller.machine, &mut engine, source_measure)?,
     };
+    let rank = rank_value.value.clone();
     let view_bound = match source_measure {
         RankingRangeMeasure::IncreasingTo { limit, .. }
         | RankingRangeMeasure::Distance { upper: limit, .. } => Some(engine.normalize(limit)?),
@@ -401,6 +409,12 @@ pub(crate) fn prove_ranking_range_call(
                 return None;
             }
         }
+    }
+    // Capture source meaning before recursive callee formals are rebound.
+    // Its arrival invariant is established by the member's independent entry
+    // and complete-arrival formation checks.
+    if !engine.requires_unsatisfiable && !rank_value.forms(&mut engine) {
+        return None;
     }
     let parameters = program.state_parameters(destination).iter();
     if parameters.clone().count() != arguments.len() {
@@ -579,10 +593,11 @@ pub(crate) fn prove_ranking_range_call(
             return None;
         }
     }
-    let next_rank = match captured_destination_rank {
-        Some(rank) => rank,
-        None => rank_coordinate(program, caller.machine, &mut engine, destination_measure)?,
+    let next_rank_value = match captured_destination_rank {
+        Some(rank) => super::RankValue::scalar(rank),
+        None => rank_coordinate(program, callee.machine, &mut engine, destination_measure)?,
     };
+    let next_rank = next_rank_value.value.clone();
     let pinned_view_bound = match (view_bound, destination_measure) {
         (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. })
         | (Some(bound), RankingRangeMeasure::Distance { upper: limit, .. }) => {
@@ -628,7 +643,8 @@ pub(crate) fn prove_ranking_range_call(
     }
     // A computed rank is a carrier value only while its body forms there,
     // on both sides of the call, from the caller's own hypotheses.
-    if !forms_in_carrier(&engine, source_measure, &rank)
+    if !next_rank_value.forms(&mut engine)
+        || !forms_in_carrier(&engine, source_measure, &rank)
         || !forms_in_carrier(&engine, destination_measure, &next_rank)
     {
         return None;
@@ -992,23 +1008,25 @@ pub(super) fn rank_coordinate(
     machine: &Machine,
     engine: &mut Engine<'_>,
     measure: RankingRangeMeasure,
-) -> Option<Polynomial> {
+) -> Option<super::RankValue> {
     match measure {
-        RankingRangeMeasure::Single(subject) => engine.normalize(subject),
+        RankingRangeMeasure::Single(subject) => {
+            engine.normalize(subject).map(super::RankValue::scalar)
+        }
         RankingRangeMeasure::Computed {
             subject,
             parameter,
             body,
             ..
-        } => super::computed_rank(program, machine, engine, subject, parameter, body),
+        } => super::RankValue::computed(program, machine, engine, subject, parameter, body),
         // Keep the raw coordinate polynomial; the call-owned membership and
         // comparison predicates interpret its max(0,d) normalization.
-        RankingRangeMeasure::IncreasingTo { subject, limit } => {
-            Some(engine.normalize(limit)?.sub(&engine.normalize(subject)?))
-        }
-        RankingRangeMeasure::Distance { lower, upper } => {
-            Some(engine.normalize(upper)?.sub(&engine.normalize(lower)?))
-        }
+        RankingRangeMeasure::IncreasingTo { subject, limit } => Some(super::RankValue::scalar(
+            engine.normalize(limit)?.sub(&engine.normalize(subject)?),
+        )),
+        RankingRangeMeasure::Distance { lower, upper } => Some(super::RankValue::scalar(
+            engine.normalize(upper)?.sub(&engine.normalize(lower)?),
+        )),
         _ => None,
     }
 }

@@ -4,9 +4,9 @@
 use omega_language_std::console;
 use omega::language::core::layout;
 
-data SpreadRecordArray { }
 
-machine SpreadRecordArray::plan(schema: Schema) -> Plan {
+SpreadRecordArray satisfies FixedLayout<RecordArray> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -24,6 +24,7 @@ machine SpreadRecordArray::plan(schema: Schema) -> Plan {
         align: 8,
     }
 }
+}
 
 data Pair {
     low: u16;
@@ -35,7 +36,7 @@ data RecordArray {
     marker: u8;
 }
 
-data RecordArrayView { value: SpreadRecordArray<RecordArray>; }
+data RecordArrayView { value: LayoutStorage<RecordArray, SpreadRecordArray>; }
 
 data Main {
     bytes: [u8; 32];

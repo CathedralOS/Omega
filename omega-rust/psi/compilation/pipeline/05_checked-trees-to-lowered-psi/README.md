@@ -53,7 +53,7 @@ The plan families beneath the coordinator are concept-owned modules beside
   and scalar bodies, with the call-operand source custody it replays.
 - [`retention`](src/retention/mod.rs): checked custody installed on the assembled
   module: reach and conformance applications, reborrow handoffs, retained
-  borrows, suspension plans and placed view inputs.
+  borrows, suspension plans and access view inputs.
 - [`proofs`](src/proofs/mod.rs): propositions, contracts, certificates and
   evidence artifacts.
 

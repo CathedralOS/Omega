@@ -1,1 +1,0 @@
-data `Identity` case `Some` literal violates the case constraint

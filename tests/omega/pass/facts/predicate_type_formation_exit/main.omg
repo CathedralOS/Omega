@@ -1,0 +1,24 @@
+// Case membership Boolean plus the formed default domain recovers T == bool, so the Boolean payload is a bool.
+// Expected exit: 0.
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+machine payload(formed: Value<bool>) -> bool {
+    match formed {
+        Value::Boolean { value } -> value
+    }
+}
+machine main() crashes Trap {
+    let formed: Value<bool> = Value::Boolean { value: true };
+    let other: Value<bool> = Value::Boolean { value: false };
+    transition payload(formed) == true && payload(other) == false {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

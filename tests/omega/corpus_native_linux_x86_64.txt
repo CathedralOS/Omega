@@ -3309,6 +3309,15 @@ pass/facts/indexed_storage_address_identity_through_other_machine_exit built 265
 pass/facts/indexed_storage_address_identity_through_other_state_exit built 3325ms exit:0 @a92f16431042
 pass/facts/indexed_storage_address_identity_through_parameter_exit built 2771ms exit:0 @a92f16431042
 pass/facts/indexed_storage_address_identity_through_target_body_exit built 2381ms exit:0 @a92f16431042
+pass/facts/induction_call_guarantee_through_call_result_exit built 3149ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_const_name_exit built 2724ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_field_exit built 2697ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_local_exit built 3125ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_match_join_exit built 2579ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_other_machine_exit built 2735ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_other_state_exit built 2736ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_parameter_exit built 2734ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_target_body_exit built 1936ms exit:0 @961147032a93+wt
 pass/facts/inferred_array_equation_call_through_call_result_exit built 2636ms exit:0 @a92f16431042
 pass/facts/inferred_array_equation_call_through_const_name_exit built 3390ms exit:0 @a92f16431042
 pass/facts/inferred_array_equation_call_through_field_exit built 2953ms exit:0 @a92f16431042
@@ -4590,6 +4599,15 @@ pass/facts/projection_call_premise_through_other_machine_exit built 2903ms exit:
 pass/facts/projection_call_premise_through_other_state_exit built 2958ms exit:0 @a92f16431042
 pass/facts/projection_call_premise_through_parameter_exit built 2411ms exit:0 @a92f16431042
 pass/facts/projection_call_premise_through_target_body_exit built 2763ms exit:0 @a92f16431042
+pass/facts/projection_receiver_call_through_call_result_exit built 2918ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_const_name_exit built 2513ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_field_exit built 2549ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_local_exit built 2964ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_match_join_exit built 2643ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_machine_exit built 2635ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_state_exit built 2669ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_parameter_exit built 2682ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_target_body_exit built 1770ms exit:0 @73c70115c79e+wt
 pass/facts/qualified_borrowed_join_exit built 2841ms exit:0 @a92f16431042
 pass/facts/qualified_field_capacity_through_call_result_exit built 3222ms exit:0 @a92f16431042
 pass/facts/qualified_field_capacity_through_const_name_exit built 3250ms exit:0 @a92f16431042
@@ -7340,7 +7358,6 @@ pass/layouts/runtime_target_layout_queries_exit built 3635ms exit:0 @a92f1643104
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1819ms regressed-from:built+exit:0 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_identity_payload_within_predicate checked 1334ms @a92f16431042
 pass/layouts/single_bool_array_layout_compile checked 1431ms @a92f16431042
 pass/layouts/single_byte_member_layout_compile checked 1379ms @a92f16431042
 pass/layouts/single_float_member_layout_compile checked 4134ms @a92f16431042

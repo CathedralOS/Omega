@@ -14,6 +14,9 @@ pub struct CheckFacts {
     pub declaration_descriptions: crate::CheckedDeclarationDescriptions,
     /// Conditional proof scope retained independently of the selected body roster.
     pub proof_applications: crate::ProofApplicationPlan,
+    /// Exact physical applications retained before target policy evaluation.
+    /// They establish no geometry and cannot cross the Terminal boundary.
+    pub deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
     pub quotient_formations: Vec<super::CheckedQuotientFormation>,
     pub quotient_operations: Vec<super::CheckedQuotientOperation>,
     /// Portable specialization identities derived from checked machine contracts.

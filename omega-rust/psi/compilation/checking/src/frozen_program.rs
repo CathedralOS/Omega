@@ -40,6 +40,12 @@ mod sealed {
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
 
+    /// Preliminary source work cannot settle a pending representation's
+    /// physical judgments. Strict checks and bare trees never defer them.
+    fn defers_pending_layout_geometry(&self) -> bool {
+        false
+    }
+
     /// Checked declaration dependencies constrain loan flow even when their
     /// carrier has no runtime reference field. Bare trees grant no such row.
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
@@ -112,6 +118,7 @@ impl Deref for dyn CheckingInput + '_ {
 impl PartialEq for dyn CheckingInput + '_ {
     fn eq(&self, other: &Self) -> bool {
         self.layout_target() == other.layout_target()
+            && self.defers_pending_layout_geometry() == other.defers_pending_layout_geometry()
             && self.typed_program() == other.typed_program()
     }
 }
@@ -173,6 +180,7 @@ impl CheckingInput for checked_trees::CheckedTrees {
 /// Borrows one immutable program and owns invocation-local query state. Moving
 /// or nesting contexts preserves memos without installing ambient state.
 pub struct CheckingContext<'program> {
+    defer_layout_geometry: bool,
     program: &'program TypedTrees,
     retained_borrows: Arc<[checked_trees::RetainedBorrowCustodyFact]>,
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
@@ -208,8 +216,19 @@ impl<'program> CheckingContext<'program> {
         self
     }
 
+    /// This is the preparation owner's pending-input checkpoint. It grants no
+    /// geometry or access evidence and cannot be retained as a strict judgment.
+    pub fn with_pending_layout_geometry(mut self, defer: bool) -> Self {
+        if self.defer_layout_geometry != defer {
+            self.defer_layout_geometry = defer;
+            self.reset_context_sensitive_memos();
+        }
+        self
+    }
+
     pub fn new(program: &'program TypedTrees) -> Self {
         Self {
+            defer_layout_geometry: false,
             program,
             retained_borrows: Arc::from([]),
             finalized_selections: None,
@@ -267,6 +286,7 @@ impl<'program> CheckingContext<'program> {
             Arc::new(self.memos.clone_typed_tree_memos())
         };
         CheckingContext {
+            defer_layout_geometry: self.defer_layout_geometry,
             program: self.program,
             retained_borrows: self.retained_borrows.clone(),
             finalized_selections: self.finalized_selections,
@@ -320,6 +340,9 @@ impl Deref for CheckingContext<'_> {
 }
 
 impl CheckingInput for CheckingContext<'_> {
+    fn defers_pending_layout_geometry(&self) -> bool {
+        self.defer_layout_geometry
+    }
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
         &self.retained_borrows
     }
@@ -396,6 +419,12 @@ impl<'input> CheckingProjection<'input> {
             projected
         })
     }
+
+    /// Frozen memos describe only the input the checker was handed, never a
+    /// private mutation copy, so they answer while this view is unprojected.
+    fn memo_source(&self) -> Option<&'input dyn CheckingInput> {
+        self.projected.is_none().then_some(self.original)
+    }
 }
 
 impl Deref for CheckingProjection<'_> {
@@ -407,6 +436,9 @@ impl Deref for CheckingProjection<'_> {
 }
 
 impl CheckingInput for CheckingProjection<'_> {
+    fn defers_pending_layout_geometry(&self) -> bool {
+        self.original.defers_pending_layout_geometry()
+    }
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
         self.original.retained_borrow_custodies()
     }
@@ -436,33 +468,21 @@ impl CheckingInput for CheckingProjection<'_> {
     }
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
-        match self.projected {
-            Some(_) => None,
-            None => self.original.checking_memos(),
-        }
+        self.memo_source()?.checking_memos()
     }
 
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
-        match self.projected {
-            Some(_) => None,
-            None => self.original.prepared_effect_plans(),
-        }
+        self.memo_source()?.prepared_effect_plans()
     }
 
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
-        match self.projected {
-            Some(_) => None,
-            None => self.original.call_frame_tables(),
-        }
+        self.memo_source()?.call_frame_tables()
     }
 
     fn prepared_mathematics(
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
-        match self.projected {
-            Some(_) => None,
-            None => self.original.prepared_mathematics(),
-        }
+        self.memo_source()?.prepared_mathematics()
     }
 
     fn opaque_representation_selections(&self) -> &[OpaqueRepresentationSelection] {
@@ -521,15 +541,6 @@ pub struct CheckingMemos {
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
     pub(crate) content_conservation: OnceLock<Arc<ContentConservationInputs>>,
-    /// Exact ordered roots to a complete target roster. Rows are retained
-    /// as positions in this immutable program's target-layout storage, not
-    /// borrowed strings or a selected deployment target.
-    pub(crate) layout_target_rosters: Mutex<
-        symbols::SymbolKeyMap<
-            Vec<typed_trees::types::TypeReferenceHandle>,
-            Result<Vec<Option<usize>>, ()>,
-        >,
-    >,
     /// Concrete body inference consumes exact captured integer intervals, not
     /// caller places. Recipe-bearing arguments use ordinary inference. Retain
     /// the complete result recipe and negative results; immutable actuals and

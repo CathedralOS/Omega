@@ -1,6 +1,6 @@
 # Device custody and ordering
 
-[Extents](extents.md) supply authority; [placed access](placed_access.md) defines
+[Extents](extents.md) supply authority; [access policies](access.md) defines
 primitive observation. Device protocols, DMA queues, and IPC ownership remain
 consumer/provider code. They are not new clauses on every boundary or additions
 to the service-reach vocabulary.

@@ -30,7 +30,12 @@ pub(crate) fn check_product_source(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();
+    let layout_scopes = layout_target_scopes(&typed, build)?;
     let source_admission = psi_compiler::SourceAdmission {
+        layout_scopes: &layout_scopes,
+        layout_selection_authority: package_inputs.map(|inputs| {
+            Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+        }),
         completion: match package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(
                 package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
@@ -142,4 +147,109 @@ pub(crate) fn check_product_source(
         },
         product_selection,
     })
+}
+
+/// Source geometry checks every declared body under its explicit target scope.
+/// Build contributes checking profiles, without pruning implementation bodies;
+/// reusable source receives the explicit target catalog, never the build host.
+fn layout_target_scopes(
+    typed: &typed_trees::TypedTrees,
+    build: &compilation_products::BuildConfig,
+) -> Result<Vec<build_time_evaluation::FixedLayoutTargetScope>, Vec<Diagnostic>> {
+    if !typed_trees::references::collect_program_type_occurrences(typed)
+        .into_iter()
+        .any(|occurrence| {
+            typed
+                .layout_storage_arguments(occurrence.reference)
+                .is_some()
+        })
+    {
+        return Ok(Vec::new());
+    }
+    let choices = build
+        .provider_selections
+        .iter()
+        .chain(&build.package_provider_selections)
+        .collect::<Vec<_>>();
+    let mut profiles = Vec::new();
+    for binding in &build.root_bindings {
+        let (owner, _) = binding.slot.rsplit_once("::").ok_or_else(|| {
+            vec![Diagnostic::error(
+                "fixed representation scope has an invalid Build root slot",
+            )]
+        })?;
+        let profile =
+            target::TargetProfile::from_root_slot_owner(owner).map_err(|error| vec![error])?;
+        if !profiles.contains(&profile) {
+            profiles.push(profile);
+        }
+    }
+    for choice in &choices {
+        if let Some(target) = choice.target {
+            let profile =
+                target::TargetProfile::from_canonical_target_name(target.canonical_name())
+                    .map_err(|error| vec![error])?;
+            if !profiles.contains(&profile) {
+                profiles.push(profile);
+            }
+        }
+    }
+    let reusable = profiles.is_empty();
+    if reusable {
+        profiles.extend(
+            target::TargetProfile::ALL
+                .into_iter()
+                .filter(|profile| profile.layout_target_facts().is_some()),
+        );
+    }
+    // A body is checked even when no Build root or selected provider invokes
+    // it. Preserve its authored target context independently of deployment.
+    for machine in typed.machines() {
+        for target in [
+            typed.machine_authored_target(machine),
+            typed.source_target_context(machine),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let profile = target::TargetProfile::from_canonical_target_name(target)
+                .map_err(|error| vec![error])?;
+            if !profiles.contains(&profile) {
+                profiles.push(profile);
+            }
+        }
+    }
+    let mut scopes = Vec::new();
+    for profile in profiles {
+        let mut entries = Vec::new();
+        for binding in &build.root_bindings {
+            let (owner, _) = binding
+                .slot
+                .rsplit_once("::")
+                .expect("root slots were validated above");
+            let declared =
+                target::TargetProfile::from_root_slot_owner(owner).map_err(|error| vec![error])?;
+            if declared == profile && !entries.contains(&binding.implementation_symbol) {
+                entries.push(binding.implementation_symbol);
+            }
+        }
+        // Every supplied declaration is a checking candidate. Root/package
+        // precedence and eventual invocation belong to provider settlement.
+        let providers = choices
+            .iter()
+            .filter(|choice| {
+                choice
+                    .target
+                    .is_none_or(|target| target.canonical_name() == profile.target_name())
+            })
+            .map(|choice| (*choice).clone())
+            .collect();
+        scopes.push(build_time_evaluation::FixedLayoutTargetScope {
+            target: profile.target_name().to_owned(),
+            facts: profile.layout_target_facts(),
+            entry_declarations: (!reusable).then_some(entries),
+            provider_declarations: providers,
+        });
+    }
+    Ok(scopes)
 }

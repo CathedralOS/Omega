@@ -3,12 +3,12 @@
 //! binder position to the exact static selection instead. Ordinary runtime-call
 //! readers keep their no-machine-arguments fence; this reader separately checks
 //! the complete const roster before using the shared call/guarantee custody.
-use validation::canonical_place_from_expression_in_state;
 
 use super::{ExpressionHandle, ScalarValue};
 use crate::checks::contracts::exits::scalars::ExitScalars;
 use crate::checks::contracts::exits::scalars::stable_segments;
 use crate::checks::contracts::prover::evaluate_scalar;
+use crate::places::place_at;
 
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::{BinaryOperator, ExpressionNode, StaticMachineArgument};
@@ -45,7 +45,7 @@ impl ExitScalars<'_, '_> {
         ) {
             expression
         } else {
-            let place = canonical_place_from_expression_in_state(
+            let place = place_at(
                 self.program,
                 self.exit.state_symbol,
                 self.exit.statement_index,

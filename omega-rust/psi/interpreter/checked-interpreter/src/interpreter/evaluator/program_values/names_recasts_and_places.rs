@@ -710,6 +710,15 @@ impl<'program> Evaluator<'program> {
         let head = members[0].as_str();
         let mut cell = if let Some(local) = frame.local_cell(path.head_symbol) {
             local
+        } else if path.head_symbol.is_valid()
+            && self.program.symbols.get(path.head_symbol).kind == symbols::SymbolKind::TypeParameter
+        {
+            return Err(Halt::StaticInputUnavailable(
+                crate::interpreter::UnavailableStaticInput::Binding {
+                    symbol: path.head_symbol,
+                    display: head.to_owned(),
+                },
+            ));
         } else if self.is_declaration_namespace(path.head_symbol) {
             // A head resolved to a declaration (`Worker` in `Worker::write`)
             // names no storage. Reading it as an implicit field would let a

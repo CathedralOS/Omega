@@ -791,8 +791,15 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
             let mut logical = carrier.path;
             logical.push(StructuralPathSegment::Field(member.identity));
-            let (storage, scalar_type, _) =
-                self.aggregate_view_primitive_access(&parent, view, &logical)?;
+            let (storage, scalar_type, _) = self.aggregate_view_primitive_access(
+                &parent,
+                view,
+                &logical,
+                self.aggregate_argument_backings
+                    .get(&destination)
+                    .and_then(|backing| backing.collection_home.as_ref()),
+                true,
+            )?;
             self.store_primitive_storage(destination, storage, scalar_type, source)?;
             return Ok(OperationFlow::Advance);
         }
@@ -2080,7 +2087,10 @@ impl TerminalExecution<'_> {
             Some(crate::reference::AggregateViewTip::Aggregate { view, .. }) => {
                 view.structural_type
             }
-            Some(crate::reference::AggregateViewTip::Scalar { .. }) => return Err(malformed()),
+            Some(
+                crate::reference::AggregateViewTip::Scalar { .. }
+                | crate::reference::AggregateViewTip::ScalarRegion { .. },
+            ) => return Err(malformed()),
             None => structural_value.structural_type,
         };
         let declaration = terminal_semantics::observed_field_declaration(
@@ -2116,8 +2126,15 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
             let mut logical = carrier.path;
             logical.push(StructuralPathSegment::Field(declaration.identity));
-            let (storage, logical_scalar, shared_view) =
-                self.aggregate_view_primitive_access(&structural_value, view, &logical)?;
+            let (storage, logical_scalar, shared_view) = self.aggregate_view_primitive_access(
+                &structural_value,
+                view,
+                &logical,
+                self.aggregate_argument_backings
+                    .get(&source)
+                    .and_then(|backing| backing.collection_home.as_ref()),
+                false,
+            )?;
             return self.read_primitive_storage(
                 source,
                 storage,

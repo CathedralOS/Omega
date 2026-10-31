@@ -4,7 +4,10 @@ use validation::CanonicalPlace;
 use super::{callee_values::*, leaf_arrivals::*};
 
 use super::FlowStateFact;
+use crate::flow::expressions;
+use crate::flow::state_statements;
 use crate::flow::{self};
+use crate::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -149,9 +152,7 @@ where
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
     let typed_state = program.state_by_symbol(state.state_symbol)?;
-    let statements = program
-        .statement_table
-        .statements(typed_state.statement_nodes);
+    let statements = state_statements(program, typed_state.statement_nodes);
     let mut demanded = place.clone();
     let mut cursor = bound;
     for _ in 0..REFERENCE_BOUNDARY_HOPS {
@@ -337,12 +338,7 @@ where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
-    let mut candidate = validation::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        index,
-        value,
-    )?;
+    let mut candidate = place_at(program, state.state_symbol, index, value)?;
     candidate.segments.extend_from_slice(extra);
     match candidate.root {
         PlaceRoot::Symbol(root) => {
@@ -458,8 +454,7 @@ where
                 else {
                     return None;
                 };
-                let element = *program
-                    .expression_table
+                let element = *expressions(program)
                     .expression_handles(*elements)
                     .get(*selected)?;
                 reference_bound_operand_place_segments(
@@ -502,17 +497,12 @@ pub(super) fn shared_bound_operand_root_symbols_agree(
             ExpressionNode::Name(path) => {
                 // `path.symbol` names the root on a single-member spelling;
                 // on a dotted path it may name the leaf instead.
-                let single_member = program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 1;
+                let single_member = expressions(program).name_path_members(path.members).len() == 1;
                 return [Some(path.head_symbol), single_member.then_some(path.symbol)]
                     .into_iter()
                     .flatten()
                     .chain(
-                        program
-                            .expression_table
+                        expressions(program)
                             .name_path_member_symbols(path.member_symbols)
                             .first()
                             .copied(),

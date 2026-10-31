@@ -156,6 +156,7 @@ pub(super) fn plan(
                 produced.type_identity.clone(),
                 CheckedStructuralAccess::Owned,
             ),
+            trace,
         )?;
         *structural_count = structural_count.checked_add(1 + replacement.displaced_bindings())?;
         operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
@@ -460,5 +461,6 @@ fn completed_value_replacement(
             result.type_identity.clone(),
             CheckedStructuralAccess::Owned,
         ),
+        trace,
     )
 }

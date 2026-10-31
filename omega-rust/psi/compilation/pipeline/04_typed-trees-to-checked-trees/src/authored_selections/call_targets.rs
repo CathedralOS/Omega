@@ -1,6 +1,9 @@
 //! Checked call, conformance and name-path targets.
 
 use crate::authored_selections::contract_resolution;
+use crate::flow::expressions;
+use crate::flow::state_statements;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
@@ -192,12 +195,7 @@ pub(crate) fn checked_name_path_segment_target(
                 let Some(validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(root),
                     ..
-                }) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    expression,
-                )
+                }) = place_at(program, state.symbol, statement_index, expression)
                 else {
                     return Some(());
                 };
@@ -222,8 +220,7 @@ pub(crate) fn checked_name_path_segment_target(
     if target_index == 0 {
         return selected;
     }
-    for member in program
-        .expression_table
+    for member in expressions(program)
         .name_path_members(path.members)
         .iter()
         .skip(1)
@@ -284,9 +281,7 @@ fn authored_contextual_root(
             .map_or(selected, |parameter| parameter.symbol);
     }
 
-    let template_statements = program
-        .statement_table
-        .statements(template_state.statement_nodes);
+    let template_statements = state_statements(program, template_state.statement_nodes);
     if let Some((ordinal, _)) = program
         .state_local_declaration(state, selected)
         .filter(|&(ordinal, _)| ordinal < statement_index)

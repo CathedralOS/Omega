@@ -143,7 +143,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // selective evaluation. Structural case edges also retain simultaneous bindings.
 // This union differs from both upstream 204 and the scalar-only 211 format.
 // Callback uses retain missing entry admission as an explicit native obligation.
-pub(crate) const FORMAT_MARKER: u16 = 213;
+// Fixed representation applications retain exact semantic and policy inputs.
+// Schema ABI3 retains every target input and retired field identity.
+pub(crate) const FORMAT_MARKER: u16 = 221;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

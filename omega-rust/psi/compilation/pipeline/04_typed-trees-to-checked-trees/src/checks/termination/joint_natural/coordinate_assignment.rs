@@ -100,6 +100,11 @@ fn search(
         .map(|(position, machine)| {
             let coordinate = &candidates[position][chosen[position]].coordinate;
             Some(validation::ValidatedRuntimeNaturalState {
+                measure: candidates[position][chosen[position]]
+                    .application
+                    .map_or(symbols::SymbolHandle::invalid(), |application| {
+                        application.measure
+                    }),
                 state: program.machine_states(machine)[0].symbol,
                 parameter: coordinate.parameter,
                 coordinate: validation::RankSubjectCoordinate {

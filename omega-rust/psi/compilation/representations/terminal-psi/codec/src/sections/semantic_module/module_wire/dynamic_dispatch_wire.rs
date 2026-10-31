@@ -47,6 +47,13 @@ pub(super) fn encode_dynamic_dispatch(
                 writer.id(formal.structural_type);
                 encode_structural_access(writer, formal.access);
                 encode_multiplicity(writer, formal.multiplicity);
+                writer.len(
+                    "dynamic slot formal qualifications",
+                    formal.qualifications.len(),
+                )?;
+                for domain in &formal.qualifications {
+                    writer.id(*domain);
+                }
             }
             writer.len(
                 "dynamic slot entry claim paths",
@@ -121,6 +128,9 @@ pub(super) fn decode_dynamic_dispatch(
                             structural_type: reader.id("StructuralTypeId")?,
                             access: decode_structural_access(reader)?,
                             multiplicity: decode_multiplicity(reader)?,
+                            qualifications: decode_counted(reader, |reader| {
+                                reader.id("StructuralDomainId")
+                            })?,
                         })
                     })?,
                     entry_claim_paths: decode_counted(reader, |reader| {

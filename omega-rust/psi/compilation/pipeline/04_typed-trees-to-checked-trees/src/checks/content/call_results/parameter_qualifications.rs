@@ -8,6 +8,7 @@
 //! still needs the same readable-exclusive formal and exact entry membership:
 //! an annotation, issuer name or prepared subject cannot introduce authority.
 
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact};
 use facts::{FactPlace, PlaceRoot, PlaceSegment, ProgramPoint, QualificationEvidence};
 use language_semantics::{QualificationEvidenceOrigin, SemanticDomainId};
@@ -135,14 +136,9 @@ impl<'program> ParameterQualificationJoin<'program> {
                     })
                     .collect::<Vec<_>>()
             } else {
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    arguments[position],
-                )
-                .into_iter()
-                .collect()
+                place_at(program, state_symbol, statement_index, arguments[position])
+                    .into_iter()
+                    .collect()
             };
             for storage in storage {
                 for (path, domain, instance) in &promised {

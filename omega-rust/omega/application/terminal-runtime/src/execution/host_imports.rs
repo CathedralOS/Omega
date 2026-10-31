@@ -21,6 +21,20 @@ macro_rules! import_signature_via_clone {
     };
 }
 
+/// Every buffer-aware adapter refuses a bare effect the same way: its exact
+/// dispatch needs the result and storage the constructor admitted it for. One
+/// row per adapter names its own refusal, so each keeps its own vocabulary.
+macro_rules! handle_effect_requires_dispatch {
+    ($message:literal) => {
+        handle_effect_requires_dispatch!(TerminalEffectRejection::new($message));
+    };
+    ($rejection:expr) => {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Err($rejection)
+        }
+    };
+}
+
 mod absolute_value;
 mod affine_transform;
 mod allocation;
@@ -45,8 +59,11 @@ use native_artifact::TerminalRuntimeHostProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
 use target::TargetProfile;
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
-use terminal_interpreter::{TerminalImportSignature, TerminalInstance, TerminalProgram};
-use terminal_psi::BoundaryCompletion;
+use terminal_interpreter::{
+    TerminalEffect, TerminalEffectRejection, TerminalImportSignature, TerminalInstance,
+    TerminalProgram, TerminalScalarValue, TerminalStructuralValue,
+};
+use terminal_psi::{BoundaryCompletion, BoundaryMachineResult};
 
 use super::TerminalRuntimeError;
 
@@ -124,6 +141,57 @@ pub(super) fn admit_exact_foreign_call(
         )
     })?;
     Ok(())
+}
+
+/// The operands one boundary call carries. Every adapter reads them through
+/// this shape so the effect variant is destructured once, in `call_operands`,
+/// instead of once per adapter; each adapter still decides which fields its
+/// operation authenticates and refuses everything else.
+pub(super) struct CallOperands<'effect> {
+    pub(super) boundary: &'effect BoundaryMachineId,
+    pub(super) arguments: &'effect [TerminalScalarValue],
+    pub(super) structural_arguments: &'effect [TerminalStructuralValue],
+    pub(super) byte_sequence_arguments: &'effect [Option<Vec<u8>>],
+    pub(super) result: &'effect BoundaryMachineResult,
+}
+
+/// The operands of a boundary call, or the adapter's own refusal for any other
+/// effect. `refuse` is borrowed so a caller keeps its rejection constructor.
+pub(super) fn call_operands<'effect, E>(
+    effect: &'effect TerminalEffect,
+    refuse: impl FnOnce() -> E,
+) -> Result<CallOperands<'effect>, E> {
+    let TerminalEffect::BoundaryCall {
+        boundary,
+        arguments,
+        structural_arguments,
+        byte_sequence_arguments,
+        result,
+        ..
+    } = effect
+    else {
+        return Err(refuse());
+    };
+    Ok(CallOperands {
+        boundary,
+        arguments,
+        structural_arguments,
+        byte_sequence_arguments,
+        result,
+    })
+}
+
+/// The refusal one adapter raises for its own operand mismatches: a fresh
+/// rejection carrying the message that adapter owns. Naming the shape once
+/// keeps each adapter to its message instead of re-spelling the closure.
+pub(super) fn refusal(message: &'static str) -> impl Fn() -> TerminalEffectRejection + Copy {
+    move || TerminalEffectRejection::new(message)
+}
+
+/// The admission-time counterpart: an adapter that cannot be offered at all
+/// reports through the runtime error rather than an effect rejection.
+pub(super) fn unprovisioned(message: &'static str) -> impl Fn() -> TerminalRuntimeError + Copy {
+    move || TerminalRuntimeError::InvalidProvision(message)
 }
 
 /// Whether this host actually supplies the selected target's runtime: another

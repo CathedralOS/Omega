@@ -75,7 +75,13 @@ pub fn parameter_domain_constraints(
                 type_reference = *selected;
                 substitutions = &[];
             }
-            _ => break,
+            _ => {
+                if let Some(storage) = program.layout_storage_arguments(type_reference) {
+                    type_reference = storage.semantic_type;
+                } else {
+                    break;
+                }
+            }
         }
     }
     domains

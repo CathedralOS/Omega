@@ -1,3 +1,4 @@
+use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 
 mod table_dispatch;
@@ -12,35 +13,28 @@ mod table_dispatch;
 pub(crate) fn extract_native_external_binding_rows(
     selected_target: Option<&str>,
     native_target: target::NativeTarget,
-    selected_plans: &[effects::provider_plan::ProviderPlan],
     sources: &[&crate::DerivedProviderPlan],
     boundary_calling_plan_realizations: &[
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
-    typed: &checked_trees::typed_trees::TypedTrees,
+    services: ServiceCatalog<'_>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     let context = ExternalBindingContext {
         selected_target,
         native_target,
         boundary_calling_plan_realizations,
-        typed,
+        services,
         opaque_representation_selections,
     };
     let mut rows = Vec::new();
-    // The original plan and row coordinate own table provenance. A direct-call
-    // projection borrows this same operation before changing its demand identity.
-    for plan in selected_plans {
+    // Each complete source retains its plan and original row coordinates.
+    // A direct-call projection borrows this same operation before changing
+    // its demand identity; no loose plan rediscovers its source owner.
+    for source in sources {
+        let plan = &source.plan;
         for row_index in 0..plan.rows.len() {
-            let provenance = match plan.rows[row_index].binding {
-                effects::provider_plan::ProviderBinding::VtableField { .. }
-                | effects::provider_plan::ProviderBinding::TableFunction { .. } => sources
-                    .iter()
-                    .find(|source| source.plan == *plan)
-                    .map(|source| &source.provenance),
-                _ => None,
-            };
-            if let Some(row) = context.row(plan, row_index, provenance)? {
+            if let Some(row) = context.row(plan, row_index, &source.provenance)? {
                 rows.push(row);
             }
         }
@@ -55,17 +49,54 @@ pub(crate) struct ExternalBindingContext<'a> {
     pub native_target: target::NativeTarget,
     pub boundary_calling_plan_realizations:
         &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    pub typed: &'a checked_trees::typed_trees::TypedTrees,
+    pub services: ServiceCatalog<'a>,
     pub opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
 }
 
 impl ExternalBindingContext<'_> {
+    /// Portable plans inherit the selected scope; scoped plans must name it.
+    /// Preparing an outside-scope candidate retains this refusal as review
+    /// content, while selected row extraction requires a successful binding.
+    fn layout_target(
+        &self,
+        plan: &effects::provider_plan::ProviderPlan,
+    ) -> Result<layout::LayoutTarget, Vec<Diagnostic>> {
+        let name = if plan.target.is_empty() {
+            self.selected_target
+        } else {
+            if self
+                .selected_target
+                .is_some_and(|selected| selected != plan.target)
+            {
+                return Err(vec![Diagnostic::error(
+                    "external ABI plan is outside the selected deployment scope",
+                )]);
+            }
+            Some(plan.target.as_str())
+        };
+        let layout_target = match name {
+            Some(name) => {
+                let profile = target::TargetProfile::from_canonical_target_name(name)
+                    .map_err(|error| vec![error])?;
+                layout::LayoutTarget::for_profile(profile)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+            }
+            None => self.native_target.into(),
+        };
+        if layout_target.native_target() != self.native_target {
+            return Err(vec![Diagnostic::error(
+                "external ABI layout names another selected native target",
+            )]);
+        }
+        Ok(layout_target)
+    }
+
     pub(crate) fn row(
         &self,
         plan: &effects::provider_plan::ProviderPlan,
         row_index: usize,
-        provenance: Option<&crate::ProviderPlanProvenance>,
+        provenance: &crate::ProviderPlanProvenance,
     ) -> Result<Option<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
         use crate::calling_policy_plans::selected_source_calling_application;
         use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
@@ -74,32 +105,35 @@ impl ExternalBindingContext<'_> {
             selected_target,
             native_target,
             boundary_calling_plan_realizations,
-            typed,
+            services,
             opaque_representation_selections,
         } = *self;
+        let typed = services.context().typed;
         let row = plan.rows.get(row_index).ok_or_else(|| {
             vec![Diagnostic::error(
                 "external binding lost its original provider row",
             )]
         })?;
-        let binding = match &row.binding {
-            ProviderBinding::Import { evaluated } => ExternalBindingKind::Import {
-                // The selected plan already commits the atomic evaluation
-                // receipt; this ABI-facing row owns only physical locator
-                // coordinates.
-                locator: evaluated.locator().clone(),
-            },
-            ProviderBinding::Syscall { number } => ExternalBindingKind::Syscall { number: *number },
+        let (binding, layout_target) = match &row.binding {
+            ProviderBinding::Import { evaluated } => (
+                ExternalBindingKind::Import {
+                    // The selected plan already commits the atomic evaluation
+                    // receipt; this ABI-facing row owns only physical locator
+                    // coordinates.
+                    locator: evaluated.locator().clone(),
+                },
+                self.layout_target(plan)?,
+            ),
+            ProviderBinding::Syscall { number } => (
+                ExternalBindingKind::Syscall { number: *number },
+                self.layout_target(plan)?,
+            ),
             ProviderBinding::VtableField { field, .. }
             | ProviderBinding::TableFunction { field, .. } => {
-                let provenance = provenance.ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected table binding has no source provenance",
-                    )]
-                })?;
+                let layout_target = self.layout_target(plan)?;
                 let byte_offset = table_dispatch::field_offset(
                     typed,
-                    native_target,
+                    layout_target,
                     provenance,
                     row_index,
                     field,
@@ -111,7 +145,7 @@ impl ExternalBindingContext<'_> {
                         row.method
                     ))]
                 })?;
-                match row.binding {
+                let binding = match row.binding {
                     ProviderBinding::VtableField { .. } => ExternalBindingKind::VtableField {
                         field: field.clone(),
                         byte_offset,
@@ -120,20 +154,19 @@ impl ExternalBindingContext<'_> {
                         field: field.clone(),
                         byte_offset,
                     },
-                }
+                };
+                (binding, layout_target)
             }
             ProviderBinding::CompilerIntrinsic { .. }
             | ProviderBinding::VtableSlot { .. }
             | ProviderBinding::CheckedAdapter { .. } => return Ok(None),
         };
         let calling_application = selected_source_calling_application(
-            typed,
+            services,
             boundary_calling_plan_realizations,
             plan,
-            plan.schema
-                .identity_text(plan.schema.declaration.trait_name),
-            &row.method,
-            plan.identities.text(row.requirement_identity),
+            provenance,
+            row_index,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let compatibility_policy = match &binding {
@@ -147,7 +180,7 @@ impl ExternalBindingContext<'_> {
             (None, Some(policy)) => {
                 crate::calling_policy_plans::evaluate_default_calling_application(
                     typed,
-                    native_target,
+                    layout_target,
                     plan.schema
                         .identity_text(plan.schema.declaration.trait_name),
                     plan.schema.declaration.trait_package_identity,

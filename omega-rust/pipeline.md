@@ -215,9 +215,27 @@ custody query those records without projecting source schemas again. Candidate
 eligibility and capture coalescing remain separate operations; catalog presence
 grants neither selection nor execution. Independent package-review candidates
 prepare their own source census rather than borrowing custody coordinates.
-Other source-schema consumers, selected-calling replay, default ABI signature
-materialization and canonical Terminal publication of the full catalog remain
-unfinished source dependencies.
+Selected physical calling consumes the exact provider schema and ordered row
+correspondence rather than searching source declarations by rendered names.
+Psi retains declaring-owner eligibility as deferred per-method data: an ordinary
+inherited trait does not become a boundary owner, and an unused such method does
+not make census preparation fail. Foreign extraction and component ABI preparation
+retain the complete provider/provenance relationship; toolchain settlement emits
+the same derived-plan carrier instead of a separate plan-plus-symbol record.
+Target calling-plan validation and commitment checks remain separate from this
+source correspondence. Native Build supply and canonical-host settlement attach
+calling evidence to the same prepared Product declarations instead of projecting
+neutral schemas per target. Canonical-host admission still requires the exact
+accepted package, path and complete target-augmented schema digest. Native
+supplies retain exact declared-signature checks and validate every authored
+target's locator before narrowing realization; neither catalog presence nor a
+Product row supplies Build-host authority. Entry-role nomination, physical-entry
+planning and deferred Build adapter lookup use those prepared declarations too;
+their existing source-shape, source-custody and checked-body admission remain
+explicit. Reference dispatch no longer carries retired `Binding<R>` receiver
+applications or calling-plan inputs used only by them. Other source-schema
+consumers, default ABI signature materialization and canonical Terminal publication
+of the full catalog remain unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;
@@ -426,7 +444,7 @@ not synthesized service fields on an application record. Provider roots come fro
 actual calls and callback demand. Selected entries, private native derivation
 records and runtime provisions carry no synthetic field-establishment roster;
 older private records reject at their schema boundary. Ordinary provider
-admission, placed-view inputs and physical entry adapters remain independent.
+admission, access-view inputs and physical entry adapters remain independent.
 
 Component publication prepares its exported calling applications before Terminal
 production. The retained product carries those complete applications to the

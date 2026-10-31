@@ -397,6 +397,14 @@ impl Engine<'_> {
             };
             admitted.integer_policy_value(result, policy, candidate)?
         };
+        if operator == BinaryOperator::Multiply
+            && Self::integer_operation_meaning(operator, meaning)
+        {
+            // Operand intervals are established before result formation. Their
+            // mathematical product bounds remain valid after polynomial
+            // expansion; the result carrier supplies no premise here.
+            admitted.install_exact_product_interval(left, right, &value);
+        }
         if !admitted.integer_value_lands(result, &value) {
             return None;
         }

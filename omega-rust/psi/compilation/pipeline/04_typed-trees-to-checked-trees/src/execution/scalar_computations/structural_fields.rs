@@ -9,6 +9,7 @@ use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode,
 };
+use crate::places::place_at;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
@@ -372,7 +373,7 @@ impl Builder<'_, '_> {
                 continue;
             }
             let captured = self.flow.control.operands.get(subject.source);
-            let source_place = validation::canonical_place_from_expression_in_state(
+            let source_place = place_at(
                 self.program,
                 captured.state_symbol,
                 captured.statement_index,

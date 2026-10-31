@@ -11,7 +11,8 @@ use super::super::{
 use super::signatures::type_parameter;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
-    PackagePolicyTraitShape,
+    PackagePolicyTraitShape, PackageReviewBorrowOrigin, PackageReviewParameterQualification,
+    PackageReviewReturnedBorrowOrigin,
 };
 
 pub(in crate::encoding::recovery) fn trait_shape(
@@ -47,6 +48,28 @@ pub(in crate::encoding::recovery) fn trait_requirement(
         suspends: reader.boolean()?,
         blocks: reader.boolean()?,
         termination: termination(reader)?,
+        returned_borrow_origins: reader.sequence(5, returned_borrow_origin)?,
+        parameter_qualification_preconditions: reader.sequence(5, parameter_qualification)?,
+    })
+}
+
+fn returned_borrow_origin(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewReturnedBorrowOrigin, Error> {
+    Ok(PackageReviewReturnedBorrowOrigin {
+        origin: super::super::tag!(reader => {
+            1 => PackageReviewBorrowOrigin::Parameter { index: reader.u32()? },
+            2 => PackageReviewBorrowOrigin::Invocation { carrier: type_identity(reader)? },
+        }),
+    })
+}
+
+fn parameter_qualification(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewParameterQualification, Error> {
+    Ok(PackageReviewParameterQualification {
+        structural_index: reader.u32()?,
+        domain: nominal(reader)?,
     })
 }
 

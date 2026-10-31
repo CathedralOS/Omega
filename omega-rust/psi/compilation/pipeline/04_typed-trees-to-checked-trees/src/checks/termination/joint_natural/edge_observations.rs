@@ -2,6 +2,7 @@
 
 use super::{coordinates::Rank, views::Order};
 use crate::checks::current_scalar_values::CurrentScalarValues;
+use crate::flow::indexed_statements;
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use validation::ScopedArithmeticValue;
@@ -24,10 +25,7 @@ pub(super) fn collect<'program>(
     let mut edges = Vec::new();
     for (source, machine) in machines.iter().enumerate() {
         let entry = &program.machine_states(machine)[0];
-        for (statement, _) in program
-            .statement_table
-            .indexed_statements(entry.statement_nodes)
-        {
+        for (statement, _) in indexed_statements(program, entry.statement_nodes) {
             for (ordinal, call) in
                 validation::collect_call_sites_in_statement(program, machine, entry, statement)
                     .into_iter()
@@ -92,13 +90,18 @@ pub(super) fn compare(
     order: Order,
 ) -> Option<bool> {
     let actual = *edge.arguments.get(destination.coordinate.position)?;
-    let initial = &source.coordinate.entry_value;
+    let initial = &source.entry_value;
     let next = destination.coordinate.current(
         &edge.values,
         actual,
         machines[edge.destination],
         edge.arguments,
     )?;
+    let next = if let Some(application) = destination.application {
+        application.observe(&edge.values, machines[edge.source], next)?
+    } else {
+        next
+    };
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
         edge.values

@@ -11,7 +11,7 @@ use checked_trees::typed_trees::{
 
 pub(super) fn field_offset(
     typed: &TypedTrees,
-    target: target::NativeTarget,
+    target: layout::LayoutTarget,
     provenance: &crate::ProviderPlanProvenance,
     row: usize,
     field_name: &str,

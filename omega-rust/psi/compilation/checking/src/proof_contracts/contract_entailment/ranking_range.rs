@@ -48,11 +48,13 @@ pub use requirements::{
     prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
 };
 mod identity_views;
+mod rank_value;
 pub use identity_views::{
     ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
     ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
     identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
 };
+use rank_value::RankValue;
 
 pub(crate) use calls::{
     RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
@@ -1289,16 +1291,16 @@ fn prove_edge(
         Some(range) => engine.normalize(range.end)?,
         None => Polynomial::default(),
     };
-    let rank = match measure {
-        RankingRangeMeasure::Single(subject) => engine.normalize(subject)?,
+    let rank_value = match measure {
+        RankingRangeMeasure::Single(subject) => RankValue::scalar(engine.normalize(subject)?),
         RankingRangeMeasure::Computed {
             subject,
             parameter,
             body,
             ..
-        } => computed_rank(program, machine, &mut engine, subject, parameter, body)?,
-        RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
-        RankingRangeMeasure::SliceLength(subject) => match &slice_rank {
+        } => RankValue::computed(program, machine, &mut engine, subject, parameter, body)?,
+        RankingRangeMeasure::Field { .. } => RankValue::scalar(field_rank.as_ref()?.value()?),
+        RankingRangeMeasure::SliceLength(subject) => RankValue::scalar(match &slice_rank {
             // A slice reached through a member chain reads its projected
             // coordinate; a bare slice formal reads its parameter binding.
             Some(slice) => slice.value()?,
@@ -1309,13 +1311,14 @@ fn prove_edge(
                     .find(|(symbol, _)| *symbol == parameter.symbol)?;
                 Polynomial::atom(identity.clone())
             }
-        },
+        }),
         RankingRangeMeasure::Distance { lower, upper }
         | RankingRangeMeasure::IncreasingTo {
             subject: lower,
             limit: upper,
-        } => engine.normalize(upper)?.sub(&engine.normalize(lower)?),
+        } => RankValue::scalar(engine.normalize(upper)?.sub(&engine.normalize(lower)?)),
     };
+    let rank = rank_value.value.clone();
     let clamped = matches!(measure, RankingRangeMeasure::IncreasingTo { .. });
     if arguments.is_some() {
         // Consume precisely the produced-value invariant established at each
@@ -1365,6 +1368,12 @@ fn prove_edge(
         collect_guard(&mut engine, guard, holds, &mut guard_facts, 0)?;
     }
     if !engine.install_hypotheses(guard_facts) {
+        return None;
+    }
+    // Independent entry/guard facts are now installed. On a subsequent
+    // arrival the source invariant was established, including formation, by
+    // the entry and every arriving edge; it is not the destination goal.
+    if !engine.requires_unsatisfiable && !rank_value.forms(&mut engine) {
         return None;
     }
     // For distance views raw subtraction represents the produced natural rank
@@ -1524,7 +1533,8 @@ fn prove_edge(
     // completely re-mints under both transported operands. An operand leaf the
     // loop above did not cover keeps its atom unmapped and fails closed here.
     engine.extend_argument_map_over_opaque_terms(&mut substitutions);
-    let next_rank = inductive_judgment::apply_argument_map(&rank, &substitutions)?;
+    let next_rank_value = rank_value.after_arrival(&substitutions)?;
+    let next_rank = next_rank_value.value.clone();
     let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
     let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;
     let pinned_view_bound = match measure {
@@ -1559,6 +1569,11 @@ fn prove_edge(
             strictly_decreases: true,
             non_increasing: true,
         });
+    }
+    // The same complete simultaneous map transports the application's input,
+    // not only its simplified result. No destination membership is assumed.
+    if !next_rank_value.forms(&mut engine) {
+        return None;
     }
     // Normalization may cancel an undefined destination operation. A proved
     // interval alone cannot supply formation, so replay every node
@@ -1664,25 +1679,6 @@ pub(super) fn hypothesis_landed_endpoints(
         }
     }
     Some(())
-}
-
-pub(super) fn computed_rank(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    engine: &mut Engine<'_>,
-    subject: ExpressionHandle,
-    parameter: symbols::SymbolHandle,
-    body: ExpressionHandle,
-) -> Option<Polynomial> {
-    let subject = engine.normalize(subject)?;
-    let body = identity_views::computed_measure_polynomial(program, machine, parameter, body)?;
-    inductive_judgment::apply_argument_map(
-        &body,
-        &BTreeMap::from([(
-            identity_views::COMPUTATION_PARAMETER_ATOM.to_owned(),
-            subject,
-        )]),
-    )
 }
 
 /// The greatest value of an unsigned carrier, as the formation ceiling of a
@@ -2022,13 +2018,20 @@ pub(super) fn collect_guard(
     }
     match engine.program.expression_table.expression(expression) {
         ExpressionNode::Name(name) if name.symbol == name.head_symbol => {
-            let Some(observation) = engine.saved_conditions.iter().find(|observation| {
-                observation.symbol == name.symbol && observation.holds == holds
-            }) else {
-                return Some(false);
-            };
-            comparisons.extend(observation.comparisons.iter().cloned());
-            Some(observation.fully_visible)
+            if let Some(observation) = engine
+                .saved_conditions
+                .iter()
+                .find(|observation| observation.symbol == name.symbol && observation.holds == holds)
+            {
+                comparisons.extend(observation.comparisons.iter().cloned());
+                return Some(observation.fully_visible);
+            }
+            // A dispatch subject is an immutable local. Its initializer is the
+            // comparison the arm assumes; the generated name is not a fact.
+            if let Some(initializer) = engine.immutable_local_initializer(name.symbol) {
+                return collect_guard(engine, initializer, holds, comparisons, depth + 1);
+            }
+            Some(false)
         }
         ExpressionNode::Unary(unary)
             if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>

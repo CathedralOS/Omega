@@ -1,6 +1,5 @@
-use validation::{
-    canonical_place_from_expression_in_state, expression_type_symbol, symbol_type_symbol,
-};
+use crate::places::place_at;
+use validation::{expression_type_symbol, symbol_type_symbol};
 
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, NamePath};
@@ -14,12 +13,7 @@ pub(crate) fn canonical_place_to_fact_place_in_state(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<facts::PlaceHandle> {
-    let canonical = canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    )?;
+    let canonical = place_at(program, state_symbol, statement_index, expression)?;
     Some(append_place(facts, canonical.root, &canonical.segments))
 }
 

@@ -11,79 +11,15 @@ use typed_trees::TypedTrees;
 pub(crate) struct BoundaryField {
     pub(crate) symbol: symbols::SymbolHandle,
     pub(crate) trait_symbol: symbols::SymbolHandle,
-    /// The full source application and one selected whole plan for Binding
-    /// receivers. A plain nominal/top-level receiver carries neither.
-    pub(crate) application: Option<typed_trees::trait_definition::TraitApplicationEnvironment>,
-    pub(crate) provider_plan_digest: Option<[u8; 32]>,
 }
 
 impl BoundaryField {
     fn owns_call_target(&self, typed: &TypedTrees, target: symbols::SymbolHandle) -> bool {
-        if self.application.is_none() {
-            return field_owns_target(typed, self.trait_symbol, target);
-        }
-        let Some(scope) = self
-            .application
-            .as_ref()
-            .and_then(|application| application.scope(typed))
-        else {
-            return false;
-        };
-        if typed.closed_requirement_application(target).is_some() {
-            return typed.requirement_application_matches_scope(target, &scope);
-        }
-        typed
-            .trait_machine_signature(target)
-            .is_some_and(|(owner, _)| {
-                typed.trait_type_parameters(owner).is_empty()
-                    && owner.lifetime_parameters.is_empty()
-                    && scope.declaring_scope(typed, owner.symbol).is_some()
-            })
+        field_owns_target(typed, self.trait_symbol, target)
     }
 
-    pub(crate) fn supplies_adapter(&self, typed: &TypedTrees, adapter: &AdapterRow) -> bool {
-        self.supplies_requirement(
-            typed,
-            adapter.provider_plan_digest,
-            adapter.receiver_trait,
-            adapter.requirement_symbol,
-        )
-    }
-
-    pub(crate) fn supplies_requirement(
-        &self,
-        typed: &TypedTrees,
-        plan_digest: [u8; 32],
-        receiver_trait: symbols::SymbolHandle,
-        requirement: symbols::SymbolHandle,
-    ) -> bool {
-        let Some(plan) = self.provider_plan_digest else {
-            return receiver_trait == self.trait_symbol;
-        };
-        if plan != plan_digest {
-            return false;
-        }
-        // The receiver supplies its complete original telescope. Rebuilding
-        // from a field type with an absent owner erases captured/phantom regions.
-        let Some(scope) = self
-            .application
-            .as_ref()
-            .and_then(|application| application.scope(typed))
-        else {
-            return false;
-        };
-        if scope.declaration.symbol != self.trait_symbol {
-            return false;
-        }
-        if typed.closed_requirement_application(requirement).is_some() {
-            return typed.requirement_application_matches_scope(requirement, &scope);
-        }
-        typed
-            .trait_machine_signature(requirement)
-            .is_some_and(|(owner, _)| {
-                typed.trait_type_parameters(owner).is_empty()
-                    && scope.declaring_scope(typed, owner.symbol).is_some()
-            })
+    pub(crate) fn supplies_adapter(&self, adapter: &AdapterRow) -> bool {
+        self.trait_symbol == adapter.receiver_trait
     }
 }
 
@@ -207,7 +143,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
     let matches = adapters
         .iter()
         .filter(|adapter| {
-            field.supplies_adapter(typed, adapter) && adapter.requirement_symbol == target_symbol
+            field.supplies_adapter(adapter) && adapter.requirement_symbol == target_symbol
         })
         .collect::<Vec<_>>();
     // A family requirement's rows are tuple-keyed: the call's static machine
@@ -240,12 +176,8 @@ pub(crate) fn resolve_adapter_call<'adapter>(
             // A generic requirement supplies no row: a call to it would
             // silently reach the unbound template at every width.
             if let Some(requirement) = generic_requirements.iter().find(|requirement| {
-                field.supplies_requirement(
-                    typed,
-                    requirement.provider_plan_digest,
-                    requirement.receiver_trait,
-                    requirement.requirement_symbol,
-                ) && requirement.requirement_symbol == template
+                field.trait_symbol == requirement.receiver_trait
+                    && requirement.requirement_symbol == template
             }) {
                 return Err(Diagnostic::error(format!(
                     "boundary call `{target_name}` selects generic requirement `{}`, which supplies no executable dispatch row: {}",
@@ -255,7 +187,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
             // The requirement is a declared family with settled rows, but
             // this call's tuple matched none of them.
             if let Some(family) = adapters.iter().find(|adapter| {
-                field.supplies_adapter(typed, adapter)
+                field.supplies_adapter(adapter)
                     && adapter.requirement_symbol == target_symbol
                     && !adapter.family_tuple.is_empty()
             }) {
@@ -267,7 +199,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
             let readable = adapters
                 .iter()
                 .filter(|adapter| {
-                    field.supplies_adapter(typed, adapter) && adapter.requirement == target_name
+                    field.supplies_adapter(adapter) && adapter.requirement == target_name
                 })
                 .count();
             if readable == 0 {
@@ -277,7 +209,7 @@ pub(crate) fn resolve_adapter_call<'adapter>(
                 "boundary call `{}`::`{target_name}` matches {readable} selected checked-adapter rows by display name but not exact target symbol {:?}",
                 adapters
                     .iter()
-                    .find(|adapter| field.supplies_adapter(typed, adapter))
+                    .find(|adapter| field.supplies_adapter(adapter))
                     .map(|adapter| adapter.receiver_trait_name.as_str())
                     .unwrap_or("<unknown>"),
                 target_symbol,

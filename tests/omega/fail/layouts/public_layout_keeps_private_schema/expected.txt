@@ -1,1 +1,1 @@
-public interface selects private data `LayoutPolicy<HiddenSchema>`
+public interface selects private data `HiddenSchema`

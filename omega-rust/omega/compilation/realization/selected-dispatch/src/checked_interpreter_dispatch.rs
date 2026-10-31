@@ -20,7 +20,6 @@ pub struct CheckedInterpreterDispatch {
 /// Errors refuse reference execution; they never fall back to another engine.
 pub fn prepare_checked_interpreter_dispatch(
     execution: &SelectedExecution,
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
 ) -> Result<CheckedInterpreterDispatch, Vec<Diagnostic>> {
     let checked = execution.provider_source.program();
     let selected_instances = execution.provider_source.project_instances()?;
@@ -37,7 +36,6 @@ pub fn prepare_checked_interpreter_dispatch(
     }
     let boundary_adapters = boundary_dispatch::settle_selected_boundary_adapter_dispatch(
         checked,
-        calling_plans,
         selected_provider_plans,
     )?;
     let float_comparisons = crate::selected_dispatch::float_comparisons::selected_executions(

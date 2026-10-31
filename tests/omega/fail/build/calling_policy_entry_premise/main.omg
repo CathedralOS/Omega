@@ -5,11 +5,15 @@ use omega_language_std::calling;
 
 data LocalPolicy {}
 LocalCalling satisfies CallingPolicy {
-    CallingPolicy::plan = LocalPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        LocalPolicy::plan(signature)
+    }
 }
 
 machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
 requires 0 == 0
+
+    satisfies CallingPolicy::plan
 {
     BoundaryPlanResult::Rejected {
         reason: CallingPolicyRejection { reason: "entry premise was ignored" },

@@ -18,32 +18,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
 use crate::borrow::accesses::is_image_storage_root;
-
-fn arguments_name_call(
-    program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
-    call: &checked_trees::FlowCallFact,
-    target: SymbolHandle,
-    arguments: &[ExpressionHandle],
-) -> bool {
-    let authored = facts
-        .flow
-        .control
-        .call_arguments
-        .span(call.authored_arguments);
-    if call.authored_target == target && authored == Some(arguments) {
-        return true;
-    }
-    // A one-implementation selector tail is a jump to that entry. The flow
-    // call still names the slot and leads with the selector.
-    let Some(slot) = program.dynamic_slot_by_symbol(call.authored_target) else {
-        return false;
-    };
-    let Some(entry) = validation::unique_dispatched_entry(program, slot) else {
-        return false;
-    };
-    entry.symbol == target && authored.is_some_and(|authored| authored.get(1..) == Some(arguments))
-}
+use crate::places::place_at;
 
 fn selected_call(
     program: &dyn validation::CheckingInput,
@@ -69,6 +44,32 @@ fn selected_call(
     });
     let call = calls.next()?;
     calls.next().is_none().then_some(call)
+}
+
+fn arguments_name_call(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    call: &checked_trees::FlowCallFact,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
+) -> bool {
+    let authored = facts
+        .flow
+        .control
+        .call_arguments
+        .span(call.authored_arguments);
+    if call.authored_target == target && authored == Some(arguments) {
+        return true;
+    }
+    // A one-implementation selector tail is a jump to that entry. The flow
+    // call still names the slot and leads with the selector.
+    let Some(slot) = program.dynamic_slot_by_symbol(call.authored_target) else {
+        return false;
+    };
+    let Some(entry) = validation::unique_dispatched_entry(program, slot) else {
+        return false;
+    };
+    entry.symbol == target && authored.is_some_and(|authored| authored.get(1..) == Some(arguments))
 }
 
 /// Rejoin captured permission to its state-local storage occurrence. The
@@ -791,7 +792,7 @@ fn unchanged_ingress_capture(
     path: &[facts::PlaceSegment],
     ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
 ) -> bool {
-    let Some(mut source) = validation::canonical_place_from_expression_in_state(
+    let Some(mut source) = place_at(
         program,
         capture.state_symbol,
         capture.statement_index,

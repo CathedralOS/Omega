@@ -789,6 +789,7 @@ fn composed_value_established(
             root.map(|place| place.symbols.as_slice()).unwrap_or(&[]),
             root.map(|place| place.measures.as_slice()).unwrap_or(&[]),
             root.is_some_and(|place| place.born_zero),
+            root.and_then(|place| place.active_case),
             *expression,
         )
         .is_some_and(|value| value != 0)

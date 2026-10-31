@@ -57,6 +57,8 @@ pub enum ItemSnapshot {
         type_parameters: Vec<TypeParameterSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
         generic_instance: Option<TypeReferenceSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
         properties: DataPropertiesSnapshot,
         #[serde(skip_serializing_if = "Option::is_none")]
         quotient: Option<QuotientSnapshot>,
@@ -491,6 +493,11 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .type_parameters(value.type_parameters)
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+                .collect(),
+            conformance_bounds: value
+                .conformance_bounds
+                .iter()
+                .map(|bound| snapshot_generic_conformance_bound(syntax_trees, bound))
                 .collect(),
             generic_instance: value
                 .generic_instance

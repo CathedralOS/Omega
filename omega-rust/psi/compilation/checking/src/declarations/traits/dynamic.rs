@@ -23,6 +23,9 @@
 //! This pass resolves qualified/dynamic applications without manufacturing,
 //! capturing or removing a source routing operand.
 
+mod row_descriptions;
+pub use row_descriptions::{describe_dynamic_conformances, normalized_dynamic_row_identities};
+
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};

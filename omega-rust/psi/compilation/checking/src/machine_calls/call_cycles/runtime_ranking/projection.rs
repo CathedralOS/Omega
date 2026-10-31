@@ -617,6 +617,7 @@ pub(super) fn natural_component(
                 return None;
             }
             states.push(super::ValidatedRuntimeNaturalState {
+                measure: SymbolHandle::invalid(),
                 state: state.symbol,
                 parameter: parameter.symbol,
                 coordinate,

@@ -1,0 +1,10 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "psi_slot_records");
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::depend_as(builder, "psi", Source::Path {
+        location: "../../../source/psi"
+    });
+}

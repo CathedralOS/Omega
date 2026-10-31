@@ -1056,6 +1056,9 @@ fn generic_type_parameters(
     if let Some(machine) = typed.machine(base_symbol) {
         return Some(typed.machine_type_parameters(machine));
     }
+    if let Some(declaration) = typed.conformance_by_symbol(base_symbol) {
+        return Some(typed.conformance_type_parameters(declaration));
+    }
     if let Some(trait_definition) = typed.trait_definition_by_symbol(base_symbol) {
         return Some(typed.trait_type_parameters(trait_definition));
     }

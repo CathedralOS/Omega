@@ -3466,6 +3466,15 @@ pass/facts/indexed_storage_address_identity_through_other_machine_exit built 218
 pass/facts/indexed_storage_address_identity_through_other_state_exit built 1685ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/indexed_storage_address_identity_through_parameter_exit built 1820ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/indexed_storage_address_identity_through_target_body_exit built 1788ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/induction_call_guarantee_through_call_result_exit built 2819ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
+pass/facts/induction_call_guarantee_through_const_name_exit built 2747ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
+pass/facts/induction_call_guarantee_through_field_exit built 2978ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
+pass/facts/induction_call_guarantee_through_local_exit built 2817ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
+pass/facts/induction_call_guarantee_through_match_join_exit built 2587ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
+pass/facts/induction_call_guarantee_through_other_machine_exit built 2466ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
+pass/facts/induction_call_guarantee_through_other_state_exit built 2911ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
+pass/facts/induction_call_guarantee_through_parameter_exit built 2752ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
+pass/facts/induction_call_guarantee_through_target_body_exit built 1907ms exit:0 interpreter-exit:0 interpreter:agrees @961147032a93+wt
 pass/facts/inferred_array_equation_call_through_call_result_exit built 1772ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/inferred_array_equation_call_through_const_name_exit built 1859ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/inferred_array_equation_call_through_field_exit built 1796ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -4780,6 +4789,15 @@ pass/facts/projection_call_premise_through_other_machine_exit built 1974ms exit:
 pass/facts/projection_call_premise_through_other_state_exit built 2156ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/projection_call_premise_through_parameter_exit built 2819ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/projection_call_premise_through_target_body_exit built 2805ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/projection_receiver_call_through_call_result_exit built 2540ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_const_name_exit built 2911ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_field_exit built 2573ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_local_exit built 2575ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_match_join_exit built 2860ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_machine_exit built 2169ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_state_exit built 2769ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_parameter_exit built 2678ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_target_body_exit built 1928ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
 pass/facts/provider_descriptor_poststate_through_call_result_exit built 4074ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
 pass/facts/provider_descriptor_poststate_through_const_name_exit built 3722ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
 pass/facts/provider_descriptor_poststate_through_field_exit built 4225ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
@@ -7636,7 +7654,6 @@ pass/layouts/runtime_target_layout_queries_exit built 2873ms exit:0 interpreter-
 pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1381ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/schema_identity_payload_within_predicate checked 1364ms @a92f16431042
 pass/layouts/single_bool_array_layout_compile checked 1688ms @a92f16431042
 pass/layouts/single_byte_member_layout_compile checked 1332ms @a92f16431042
 pass/layouts/single_float_member_layout_compile checked 4143ms @a92f16431042
@@ -9157,6 +9174,7 @@ pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit built 6529ms 
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit built 5833ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_selector_crash_refined_exit built 2788ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit built 5855ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/traits/runtime_dyn_slot_metadata_exit built 1969ms exit:0 interpreter-exit:0 interpreter:agrees @e7be0895dec5+wt
 pass/traits/runtime_dyn_stored_byte_input rejected 1131ms interpreter:unchecked @a92f16431042
 	machine `Header::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 	machine `Trailer::window` state `window` does not satisfy trait `Payload` machine `window`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete

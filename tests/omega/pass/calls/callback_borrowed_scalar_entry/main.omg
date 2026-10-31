@@ -4,13 +4,19 @@ use omega::language::core::external_binding;
 
 public data SortPolicies { }
 public ComparatorCalling satisfies CallingPolicy {
-    CallingPolicy::plan = SortPolicies::comparator;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        SortPolicies::comparator(signature)
+    }
 }
 public SortCalling satisfies CallingPolicy {
-    CallingPolicy::plan = SortPolicies::sort;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        SortPolicies::sort(signature)
+    }
 }
 
 macos_arm64 machine SortPolicies::comparator(signature: BoundarySignature) -> BoundaryPlanResult
+
+    satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 2 && signature.has_result {
         true -> accept()
@@ -33,6 +39,8 @@ macos_arm64 machine SortPolicies::comparator(signature: BoundarySignature) -> Bo
 }
 
 macos_arm64 machine SortPolicies::sort(signature: BoundarySignature) -> BoundaryPlanResult
+
+    satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 3 && !signature.has_result
         && (signature.native_parameter_count == 3 || signature.native_parameter_count == 4)

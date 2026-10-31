@@ -313,6 +313,7 @@ fn expression_places_resolve_attached_data_members() {
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
+        conformance_bounds: Vec::new(),
         generic_instance: None,
         members: HandleSpan::empty(),
     });
@@ -331,6 +332,7 @@ fn expression_places_resolve_attached_data_members() {
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
+        conformance_bounds: Vec::new(),
         generic_instance: None,
         members: HandleSpan::empty(),
     };

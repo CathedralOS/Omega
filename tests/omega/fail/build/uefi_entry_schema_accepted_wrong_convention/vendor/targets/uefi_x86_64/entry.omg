@@ -24,7 +24,9 @@ boundary trait UefiPhysicalEntry {
 
 data SystemVUefi { }
 SystemVUefiCallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = SystemVUefi::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        SystemVUefi::plan(signature)
+    }
 }
 
 machine SystemVUefi::plan(

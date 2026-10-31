@@ -5,7 +5,11 @@ use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 data ScalarResultPolicies {}
 data LinuxScalarResultPolicies {}
-SnapshotCalling satisfies CallingPolicy { CallingPolicy::plan = snapshot_plan; }
+SnapshotCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        snapshot_plan(signature)
+    }
+}
 boundary trait SnapshotU8: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 1], count: u64) -> u8 reaches requires count == 1;
 }
@@ -83,7 +87,9 @@ linux_x86_64 machine snapshot_Bool(value: &[bool; 1], count: u64) -> bool
 satisfies SnapshotBool::copy via snapshot_binding()
 requires count == 1;
 NativeSnapshotBool satisfies SnapshotBool { SnapshotBool::copy = snapshot_Bool; }
-machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult {
+machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult 
+    satisfies CallingPolicy::plan
+{
     transition signature.parameter_count == 2 && signature.has_result {
         true -> select_result(signature, signature.result)
         _ -> reject()

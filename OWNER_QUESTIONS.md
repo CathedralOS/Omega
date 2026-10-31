@@ -67,40 +67,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1. Which callable owns an operational clause after one semicolon?
-
-The bundled task and blocking-executor APIs need callbacks with several
-independent operational axes, such as `Target(...) -> T suspends; blocks;`.
-An enclosing forwarding machine may independently declare its own crash or
-blocking ceiling. This is a language scope question for those public contracts,
-not a request to approve an implementation technique.
-
-[Requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
-say that a nested callable's terminating semicolon closes its contract before
-subsequent clauses resume the enclosing declaration.
-[Termination](wiki/spec/language/termination.md) also requires the termination
-clause's own semicolon even before another header clause, and permits that
-semicolon to terminate a bodyless declaration. Neither passage specifies which
-role wins when the next operational clause could belong to either callable:
-
-```omega
-machine invoke<machine Step>() -> u64
-requires machine Step() -> u64 terminates;
-crashes Trap
-{ Step() }
-```
-
-Does the single semicolon close `Step`, leaving `crashes Trap` on `invoke`, or
-continue `Step`'s operational contract so that an explicit additional semicolon
-is required to resume `invoke`? The rule must also express a callback with both
-`suspends` and `blocks` without silently moving either ceiling to its enclosing
-machine. An explicit operational terminator followed by a distinct callable
-terminator (`terminates;; crashes Trap`) is unambiguous and remains engineering
-work; its current parser refusal is not owner-blocked.
-
-The original single-semicolon refusal and separate explicit-terminator refusal
-are retained under `build/content-provider/callback/parser-review92ee/` at
-producer `b7b9c993509eb8aec4d8e49b90e121cb47cd477a`. No acceptance or new
-punctuation default is inferred from those observations. Only the ambiguous
-single-semicolon boundary in `REQUIRES-UNIFICATION` is owner-blocked; explicit
-termination, other requirement forms and the callback migration continue.
+None.

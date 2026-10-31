@@ -90,25 +90,18 @@ import_signature_via_clone!(BufferedOutput);
 
 impl TerminalEffectHandler for BufferedOutput {
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            byte_sequence_arguments,
-            ..
-        } = effect
-        else {
-            return Err(TerminalEffectRejection::new(
-                "buffered output received a non-boundary operation",
-            ));
-        };
-        if arguments.len() != self.signature.scalar_parameters.len()
-            || !arguments
+        let call = super::call_operands(effect, || {
+            TerminalEffectRejection::new("buffered output received a non-boundary operation")
+        })?;
+        if call.arguments.len() != self.signature.scalar_parameters.len()
+            || !call
+                .arguments
                 .iter()
                 .zip(&self.signature.scalar_parameters)
                 .all(|(value, expected)| value.scalar_type() == *expected)
-            || structural_arguments.len() != self.signature.structural_parameters.len()
-            || byte_sequence_arguments.len() != structural_arguments.len()
-            || byte_sequence_arguments.iter().any(Option::is_none)
+            || call.structural_arguments.len() != self.signature.structural_parameters.len()
+            || call.byte_sequence_arguments.len() != call.structural_arguments.len()
+            || call.byte_sequence_arguments.iter().any(Option::is_none)
         {
             return Err(TerminalEffectRejection::new(
                 "buffered output operands differ from its bound contract",
@@ -116,7 +109,7 @@ impl TerminalEffectHandler for BufferedOutput {
         }
         match self.kind {
             OutputKind::Line => {
-                let [Some(bytes)] = byte_sequence_arguments.as_slice() else {
+                let [Some(bytes)] = call.byte_sequence_arguments else {
                     return Err(TerminalEffectRejection::new(
                         "line output has no exact byte payload",
                     ));
@@ -130,7 +123,7 @@ impl TerminalEffectHandler for BufferedOutput {
                         value: IntegerValue::Signed(value),
                         ..
                     },
-                ] = arguments.as_slice()
+                ] = call.arguments
                 else {
                     return Err(TerminalEffectRejection::new(
                         "byte output has no signed integer argument",

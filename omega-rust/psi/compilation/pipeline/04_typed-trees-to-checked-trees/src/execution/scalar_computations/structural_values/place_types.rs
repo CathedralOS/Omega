@@ -7,6 +7,7 @@
 //! retirement separately retain each stored carrier's custody.
 
 use super::super::{ExpressionHandle, ExpressionNode, SymbolHandle};
+use crate::places::place_at;
 use typed_trees::types::TypeReferenceHandle;
 
 /// The place shape a shared-borrow arm target must canonicalize to: a named
@@ -157,12 +158,7 @@ pub(in crate::execution::scalar_computations) fn needs_copied_place_root(
     if !copied_place_type(program, expected) {
         return false;
     }
-    let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        statement_index,
-        expression,
-    ) else {
+    let Some(place) = place_at(program, state, statement_index, expression) else {
         return false;
     };
     if !canonical_place_is_copyable(&place) {

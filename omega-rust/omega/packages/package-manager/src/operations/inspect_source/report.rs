@@ -15,41 +15,22 @@ impl PackageSourceInspection {
     pub fn to_text(&self) -> String {
         let mut report = String::new();
         report.push_str("package source inspection\n");
-        report.push_str("source kind: ");
-        report.push_str(&self.source_kind);
-        report.push('\n');
-        report.push_str("locator: ");
-        report.push_str(&self.locator);
-        report.push('\n');
-        if let Some(transport_profile) = &self.transport_profile {
-            report.push_str("transport profile: ");
-            report.push_str(transport_profile);
-            report.push('\n');
-        }
-        if let Some(rev) = &self.requested_rev {
-            report.push_str("requested rev: ");
-            report.push_str(rev);
-            report.push('\n');
-        }
-        if let Some(commit) = &self.resolved_commit {
-            report.push_str("resolved commit: ");
-            report.push_str(commit);
-            report.push('\n');
-        }
-        if let Some(tree) = &self.resolved_tree {
-            report.push_str("resolved tree: ");
-            report.push_str(tree);
-            report.push('\n');
-        }
-        report.push_str("content identity: ");
-        report.push_str(&self.content_identity);
-        report.push('\n');
-        report.push_str("files: ");
-        report.push_str(&self.file_count.to_string());
-        report.push('\n');
-        report.push_str("bytes: ");
-        report.push_str(&self.byte_count.to_string());
-        report.push('\n');
+        let mut row = |label: &str, value: Option<&str>| {
+            if let Some(value) = value {
+                report.push_str(label);
+                report.push_str(value);
+                report.push('\n');
+            }
+        };
+        row("source kind: ", Some(self.source_kind.as_str()));
+        row("locator: ", Some(self.locator.as_str()));
+        row("transport profile: ", self.transport_profile.as_deref());
+        row("requested rev: ", self.requested_rev.as_deref());
+        row("resolved commit: ", self.resolved_commit.as_deref());
+        row("resolved tree: ", self.resolved_tree.as_deref());
+        row("content identity: ", Some(self.content_identity.as_str()));
+        row("files: ", Some(self.file_count.to_string().as_str()));
+        row("bytes: ", Some(self.byte_count.to_string().as_str()));
         report
     }
 }

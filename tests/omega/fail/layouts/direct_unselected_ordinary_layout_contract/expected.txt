@@ -1,0 +1,2 @@
+requires contract for call demand_four from LinuxX8664LayoutDemandLayout::demand_layout
+size_of() == 4

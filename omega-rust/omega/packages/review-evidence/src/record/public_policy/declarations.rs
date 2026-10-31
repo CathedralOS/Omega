@@ -37,6 +37,9 @@ pub struct PackagePolicyTraitRequirement {
     pub(crate) suspends: bool,
     pub(crate) blocks: bool,
     pub(crate) termination: PackagePolicyTermination,
+    pub(crate) returned_borrow_origins: Vec<crate::record::PackageReviewReturnedBorrowOrigin>,
+    pub(crate) parameter_qualification_preconditions:
+        Vec<crate::record::PackageReviewParameterQualification>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

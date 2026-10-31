@@ -51,6 +51,7 @@ use super::borrowed_windows::place_spelling;
 use super::linear_obligations::type_reference_is_reference;
 use super::owned_selection::place_paths_overlap;
 use crate::checks::ownership_occurrences::{EvaluationBranch, routes_compatible};
+use crate::places::place_at;
 
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
@@ -202,12 +203,8 @@ impl ConsumedOwners {
         if self.consumed.is_empty() {
             return;
         }
-        let Some(target) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            assignment.target,
-        ) else {
+        let Some(target) = place_at(program, state.symbol, statement_index, assignment.target)
+        else {
             return;
         };
         let target = storage_place(program, machine, state, &target);

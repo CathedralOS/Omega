@@ -3,6 +3,7 @@
 
 use validation::CanonicalPlace;
 
+use crate::flow::expressions;
 use crate::flow::{canonical_place_from_semantic_place, relative_place_segments_from_expression};
 use facts::{FactContextHandle, FactPayload, FactPlan, PlaceHandle};
 use symbols::SymbolHandle;
@@ -528,8 +529,7 @@ impl AssignedValues<'_> {
             &mut |expression| {
                 // Preserve this domain prover's existing pure constant vocabulary.
                 // The shared evaluator itself never picks an arithmetic domain.
-                self.program
-                    .expression_table
+                expressions(self.program)
                     .constant_integer_value(expression)
                     .map(|value| ScalarValue::Integer(numerics::bignum::BigInt::from_i64(value)))
                     .or_else(|| {

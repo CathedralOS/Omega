@@ -182,6 +182,9 @@ pub enum CheckedNaturalRankMeasure {
     /// reside in the common scalar computation graph.
     DeclaredMeasure {
         measure: SymbolHandle,
+        /// Complete admitted formal-relative inputs; execution never reopens
+        /// an owner's source witness to discover the application arguments.
+        bindings: arena::HandleSpan<crate::CheckedRankCoordinateBinding>,
         primitive_type: PrimitiveType,
     },
     /// `Slice::Length`: exact admitted arrival coordinate. Private participants

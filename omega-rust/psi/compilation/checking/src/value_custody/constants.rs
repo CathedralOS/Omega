@@ -138,6 +138,17 @@ fn eligible_type(
     reference: TypeReferenceHandle,
     active: &mut Vec<TypeReferenceHandle>,
 ) -> bool {
+    // A representation stores T's value, not its proof-static policy operand.
+    // Copy permission and every cleanup obligation still belong to the complete
+    // semantic type. The typed owner authenticates the exact Core application;
+    // ordinary opaque data never acquires this storage relationship by name.
+    if !matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Constrained { .. }
+    ) && let Some(storage) = program.layout_storage_arguments(reference)
+    {
+        return eligible(program, storage.semantic_type, active);
+    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Unit => true,
         // A selector contains code selection only: copying it neither captures

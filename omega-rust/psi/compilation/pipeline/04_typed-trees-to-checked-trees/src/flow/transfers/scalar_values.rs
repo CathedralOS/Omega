@@ -3,6 +3,7 @@
 use validation::CanonicalPlace;
 
 use crate::flow::FlowBuildContext;
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::CheckedStructuralPredicatePathSegment;
@@ -265,12 +266,7 @@ pub(super) fn capture_bounds(
             // facts; assignment adds only its admitted conversion, not another
             // declaration-only shortcut or a read of the mutated actuals.
             let selected = selected_call(program, context.exact_integer_casts, source)?;
-            let place = validation::canonical_place_from_expression_in_state(
-                program,
-                state,
-                statement_index,
-                selected.expression,
-            )?;
+            let place = place_at(program, state, statement_index, selected.expression)?;
             selected.convert(crate::values::integer_bounds_at_place(
                 program,
                 semantic,

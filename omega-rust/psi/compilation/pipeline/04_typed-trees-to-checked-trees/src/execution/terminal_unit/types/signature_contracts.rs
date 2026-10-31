@@ -2,6 +2,7 @@
 //! or result carries, and the domain requirements boundary machines publish.
 
 use super::*;
+use crate::places::place_at;
 
 /// Invocation clauses retain their own represented erased lanes. Their
 /// presence is independent of a scalar body's result operation. Internal
@@ -97,12 +98,7 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_has_plan
         .iter()
         .all(|fact| match (&contract.kind, fact) {
             (SignatureContractKind::Requires, ProofFact::Membership(membership)) => {
-                let Some(place) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    0,
-                    membership.value,
-                ) else {
+                let Some(place) = place_at(program, state.symbol, 0, membership.value) else {
                     return false;
                 };
                 if let Some(valid) =
@@ -215,6 +211,10 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
     )
     .then_some(type_reference);
     let mut output = Vec::new();
+    // A representation retains T's logical qualifications, but their runtime
+    // subject is this exact represented storage. Register the same checked
+    // theory on that carrier; this neither converts storage nor proves it.
+    let mut represented_carrier = None;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained {
@@ -269,7 +269,7 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
                             // scalar presentation. This registers no membership.
                             type_reference
                         } else {
-                            borrowed_view.unwrap_or(*base_type)
+                            represented_carrier.or(borrowed_view).unwrap_or(*base_type)
                         };
                     // Name the declaration typing selected for this exact
                     // carrier, whether its receiving restriction remains or
@@ -282,7 +282,14 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
                 type_reference = *base_type;
             }
             TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            _ => break,
+            _ => {
+                if let Some(storage) = program.layout_storage_arguments(type_reference) {
+                    represented_carrier.get_or_insert(type_reference);
+                    type_reference = storage.semantic_type;
+                } else {
+                    break;
+                }
+            }
         }
     }
     Some(output)

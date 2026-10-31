@@ -1,6 +1,6 @@
-# Placed scalar access to original RAM
+# Access scalar access to original RAM
 
-`omega run --both main.omg` exercises initialized ordinary RAM through the explicit `Placed::view_mut` factory. Status is a readonly u32 at byte 0; transmit is a write-only u8 at byte 4. Every access uses the generated sealed accessor.
+`omega run --both main.omg` exercises initialized ordinary RAM through the explicit `Access::view_mut` factory. Status is a readonly u32 at byte 0; transmit is a write-only u8 at byte 4. Every access uses the generated sealed accessor.
 
 The frozen output files cover capture retirement, helper calls, whole returned views, direct reads and writes, descriptor capture, one evaluated array selector, stored whole views, forwarding, state transitions and Unit-returning writers. Each final 4109 line means the read observed 41 and the original transmit byte was 9 after loan retirement.
 

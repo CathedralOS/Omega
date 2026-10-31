@@ -21,7 +21,9 @@ boundary trait UefiPhysicalEntry {
 
 data WrongUefiPolicy { }
 WrongUefiPolicyCallingPolicy satisfies CallingPolicy {
-    CallingPolicy::plan = WrongUefiPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        WrongUefiPolicy::plan(signature)
+    }
 }
 
 machine WrongUefiPolicy::plan(

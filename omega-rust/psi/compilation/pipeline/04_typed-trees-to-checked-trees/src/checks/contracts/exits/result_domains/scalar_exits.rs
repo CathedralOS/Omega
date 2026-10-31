@@ -1,10 +1,11 @@
 //! scalar exits slice of result_domains.
 
-use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
+use validation::CanonicalPlace;
 
 use super::super::super::return_values::{exit_return_call, exit_return_expression};
 use super::proofs::*;
 use crate::flow::{active_context_handles, canonical_place_from_semantic_place};
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact};
 use diagnostics::Diagnostic;
 use facts::FactContextHandle;
@@ -62,7 +63,7 @@ pub(crate) fn scalar_result_domains(
 pub(in crate::checks::contracts) fn check_scalar_result_domains(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    state_flow: &checked_trees::FlowStateFact,
+    _state_flow: &checked_trees::FlowStateFact,
     exit: &FlowExitFact,
     decisions: &mut Vec<checked_trees::CheckedScalarReturnQualification>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -78,14 +79,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
     let contexts = active_context_handles(&facts.flow.contexts, exit.entry_semantic_contexts);
     let subject = returned
         .is_valid()
-        .then(|| {
-            canonical_place_from_expression_in_state(
-                program,
-                exit.state_symbol,
-                exit.statement_index,
-                returned,
-            )
-        })
+        .then(|| place_at(program, exit.state_symbol, exit.statement_index, returned))
         .flatten();
     if subject.as_ref().is_some_and(|subject| {
         !crate::flow::place_cases_are_selected(
@@ -149,30 +143,17 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
                     )
                     };
                 // A qualified constant returns its initializer through this probe.
-                // Use the same predicate judgment a local initializer uses, including
-                // nested membership and an inherited parent chain.
-                let qualified_value = if returned.is_valid() {
-                    returned
-                } else if facts.flow.control.operands.is_valid(exit.returned_value) {
-                    facts
-                        .flow
-                        .control
-                        .operands
-                        .get(exit.returned_value)
-                        .expression
-                } else {
-                    typed_trees::expression::ExpressionHandle::default()
-                };
-                if qualified_value.is_valid()
-                    && super::super::super::writes::initializer_satisfies_predicate_domain(
+                // Judge that integer in the destination domain, including a
+                // parent chain reached by `self in Parent`.
+                if let Some(validation::StrictArithmeticImplicationJudgment::Proven) =
+                    literal_result_domain_judgment(
                         program,
                         facts,
-                        state_flow,
-                        exit.statement_index,
-                        qualified_value,
+                        exit,
+                        returned,
                         domain_symbol,
-                        &mut Vec::new(),
-                        None,
+                        semantic_domain,
+                        &constraint.arguments,
                     )
                 {
                     return Some(origin);
@@ -198,15 +179,27 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
                 domain: domain_symbol,
                 origin,
             });
-        } else if program.domain_definition(domain_symbol).is_some_and(|domain| {
-            matches!(
-                establishes_scalar_predicates(
-                    program, facts, exit, &contexts, domain, constraint,
-                ),
-                ScalarPredicateJudgment::Refuted,
-            )
-        }) && crate::labels::machine_name(program, exit.machine_symbol)
-            .starts_with("@const-qualification-")
+        } else if (program
+            .domain_definition(domain_symbol)
+            .is_some_and(|domain| {
+                matches!(
+                    establishes_scalar_predicates(
+                        program, facts, exit, &contexts, domain, constraint,
+                    ),
+                    ScalarPredicateJudgment::Refuted,
+                )
+            })
+            || literal_result_domain_judgment(
+                program,
+                facts,
+                exit,
+                returned,
+                domain_symbol,
+                semantic_domain,
+                &constraint.arguments,
+            ) == Some(validation::StrictArithmeticImplicationJudgment::Refuted))
+            && crate::labels::machine_name(program, exit.machine_symbol)
+                .starts_with("@const-qualification-")
         {
             let full = crate::labels::symbol_name(program, domain_symbol);
             let short = full
@@ -344,6 +337,59 @@ pub(super) fn call_result_has_domain(
                         && provided.semantic_id == required.semantic_id
                 })
     })
+}
+
+/// An integer literal returned into a scalar domain. Inherited membership
+/// reuses this same integer, so `3` in `Nested::Inherited` is `3 < 5` and
+/// `9` is not.
+fn literal_result_domain_judgment(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    exit: &FlowExitFact,
+    returned: typed_trees::expression::ExpressionHandle,
+    domain_symbol: symbols::SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+    arguments: &[typed_trees::types::TypeReferenceHandle],
+) -> Option<validation::StrictArithmeticImplicationJudgment> {
+    let expression = if returned.is_valid() {
+        returned
+    } else if facts.flow.control.operands.is_valid(exit.returned_value) {
+        facts
+            .flow
+            .control
+            .operands
+            .get(exit.returned_value)
+            .expression
+    } else {
+        return None;
+    };
+    let integer = integer_result_leaf(program, expression)?;
+    Some(validation::integer_domain_membership(
+        program,
+        domain_symbol,
+        arguments,
+        semantic_domain,
+        &validation::ScopedArithmeticValue::Integer(integer),
+    ))
+}
+
+/// The integer a qualified return actually denotes. A destination cast keeps
+/// the same number; the domain judgment still has to prove that number.
+fn integer_result_leaf(
+    program: &dyn ::validation::CheckingInput,
+    mut expression: typed_trees::expression::ExpressionHandle,
+) -> Option<numerics::bignum::BigInt> {
+    for _ in 0..8 {
+        if let Some(literal) = program.expression_table.integer_node(expression) {
+            return literal.decimal_value_bignum();
+        }
+        let cast = program.expression_table.cast_node(expression)?;
+        if cast.form.is_recast() || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact {
+            return None;
+        }
+        expression = cast.value;
+    }
+    None
 }
 
 pub(crate) fn exact_scalar_membership(

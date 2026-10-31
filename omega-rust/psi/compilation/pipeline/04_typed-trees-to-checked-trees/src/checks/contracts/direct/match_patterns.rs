@@ -2,6 +2,7 @@
 //! Substitution maps formal leaves to caller operands; display labels never
 //! establish equality between different symbols or mutable storage locations.
 
+use crate::flow::expressions;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 #[allow(clippy::too_many_arguments)]
@@ -53,11 +54,7 @@ fn proves_scoped(
     {
         return false;
     }
-    let equal = |left, right| {
-        program
-            .expression_table
-            .expressions_structurally_equal(left, right)
-    };
+    let equal = |left, right| expressions(program).expressions_structurally_equal(left, right);
     if let ExpressionNode::Boolean(value) = program.expression_table.expression(pattern)
         && equal(subject, required)
     {

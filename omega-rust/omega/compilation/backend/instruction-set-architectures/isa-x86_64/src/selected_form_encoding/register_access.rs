@@ -14,6 +14,7 @@ use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
     X86_64SelectedFormFootprint,
 };
+use crate::register_model::units_of;
 use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::ControlRegister;
 use selected_instructions::SystemRegister;
@@ -108,21 +109,8 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
         return MachineEncodedEffects::catalog_fence_v1();
     }
     let physical = crate::x86_64_physical_register_model_ref();
-    let mut clobbers = scratch(operation)
-        .iter()
-        .flat_map(|name| {
-            physical
-                .view_named(name)
-                .expect("canonical x86 scratch")
-                .units
-                .iter()
-                .copied()
-        })
-        .collect::<Vec<_>>();
-    clobbers.sort_unstable();
-    clobbers.dedup();
     let mut encoded = MachineEncodedEffects {
-        implicit_unit_clobbers: clobbers,
+        implicit_unit_clobbers: units_of(scratch(operation)),
         trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ..MachineEncodedEffects::fallthrough_v1(
             (0..operation.input_carriers().len() as u16).collect(),

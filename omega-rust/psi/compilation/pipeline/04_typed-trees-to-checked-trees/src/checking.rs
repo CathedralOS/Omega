@@ -194,6 +194,7 @@ pub fn lower_typed_trees_reusing(
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
     let (
         admits_pending_inputs,
+        deferred_layout_applications,
         mathematics,
         opaque_property_receipts,
         opaque_representation_selections,
@@ -201,19 +202,20 @@ pub fn lower_typed_trees_reusing(
     let (checked, dependency_bodies, frozen_dependency_bodies) = check_program(
         program,
         admits_pending_inputs,
+        &deferred_layout_applications,
         mathematics,
         opaque_property_receipts,
         opaque_representation_selections,
         prior_dependency_bodies,
         prior_frozen_bodies,
-        retain && !admits_pending_inputs,
+        retain && !admits_pending_inputs && deferred_layout_applications.is_empty(),
     )?;
     let checked = std::sync::Arc::new(checked);
     let retained = retained_input.map(|(preparation_input, preparation_admission)| RetainedCheck {
         dependency_judgments_admitted: true,
         preparation_input,
         preparation_admission,
-        admits_pending_inputs,
+        admits_pending_inputs: admits_pending_inputs || !deferred_layout_applications.is_empty(),
         checked: checked.clone(),
         frozen_dependency_bodies,
         dependency_bodies,
@@ -250,6 +252,7 @@ fn admit_declaration_authority(
 fn check_program(
     program: typed_trees::FrozenTypedTrees,
     admits_pending_inputs: bool,
+    deferred_layout_applications: &[typed_trees::types::TypeReferenceHandle],
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
@@ -269,6 +272,9 @@ fn check_program(
     // by thread or address. Metadata publication waits until checking ends.
     let typed_program = program;
     let program = validation::CheckingContext::new(&typed_program)
+        .with_pending_layout_geometry(
+            admits_pending_inputs || !deferred_layout_applications.is_empty(),
+        )
         .with_opaque_representation_selections(&opaque_representation_selections)
         .with_prepared_mathematics(mathematics.prepared_view());
     validation::validate_selected_attached_method_bounds(&program)?;
@@ -326,6 +332,7 @@ fn check_program(
         )
     })?;
     let program = program.with_prepared_effect_plans(&prepared_effects);
+    facts.deferred_layout_applications = deferred_layout_applications.to_vec();
     facts.integer_range_obligations = integer_range_obligations;
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The

@@ -1,1 +1,1 @@
-plan-laid value type `Spread<ForeignRecord>`
+for a different exact fixed-layout implementation application

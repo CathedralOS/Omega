@@ -17,6 +17,7 @@ use psi::checking::places;
 use psi::checking::qualification;
 use psi::checking::references;
 use psi::checking::ranking;
+use psi::checking::slots;
 use psi::checking::snapshots;
 use psi::checking::supply;
 use psi::checking::termination;
@@ -211,7 +212,7 @@ crashes Trap
     machine next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, resolution, typing, index)
-            _ -> settle(checker, syntax, resolution)
+            _ -> settle(checker, syntax, resolution, typing)
         }
     }
 
@@ -231,10 +232,11 @@ crashes Trap
     // A body that rejected may have stopped before some of its crash sites;
     // its routes are then a subset of what it derives, so settling them
     // finds no cause that a whole walk would not.
-    machine settle(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution) {
+    machine settle(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
         Checker::settle_routes(checker, syntax);
         Checker::settle_termination(checker, syntax, resolution);
         Checker::check_supply(checker, syntax, resolution);
+        Checker::project_slots(checker, syntax, typing);
     }
 }
 
@@ -246,6 +248,7 @@ crashes Trap
     checker.output.machine_accepted = true;
     checker.output.diagnostic_count = 0;
     checker.output.obligation_count = 0;
+    Checks::clear_slot_records(&mut checker.output);
     checker.output.machine_count = syntax.machine_count;
     checker.call_count = 0;
     checker.supplied_count = 0;

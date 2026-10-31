@@ -46,14 +46,17 @@ data DarwinTimestampRecord {
     modified_seconds: i64;
     modified_nanoseconds: i64;
 }
-data DarwinTimestampAlignment { }
-macos_arm64 machine DarwinTimestampAlignment::plan(schema: Schema) -> Plan {
+DarwinTimestampAlignment satisfies FixedLayout<DarwinTimestampRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan
+    reaches
+    terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
     entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
     entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 24 } };
     Plan { entries: entries, entry_count: 4, size_fixed: 32, size_is_dynamic: false, align: 8 }
+}
 }
 
 // Decode the caller's packed little-endian bytes without forming an aligned
@@ -420,7 +423,7 @@ boundary requirement PosixFilesystemDarwin::c_read_metadata_at(directory_descrip
 reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_set_len(fd: i32, length: i64) -> i32
 reaches FilesystemContentWrite + FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
+boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>) -> i32
 reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_sync(fd: i32) -> i32
 ;
@@ -498,7 +501,7 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_read_metadata_at(directory_d
     satisfies PosixFilesystemDarwin::c_read_metadata_at via posix_darwin_fstatat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_set_len(fd: i32, length: i64) -> i32
     satisfies PosixFilesystemDarwin::c_set_len via posix_darwin_ftruncate_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_times(fd: i32, times: &LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>) -> i32
     satisfies PosixFilesystemDarwin::c_set_file_times via posix_darwin_futimens_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_sync(fd: i32) -> i32
     satisfies PosixFilesystemDarwin::c_sync via posix_darwin_fsync_binding();
@@ -1043,7 +1046,7 @@ reaches FilesystemMetadataMutation
 {
     transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
     machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
-        let mut native: DarwinTimestampAlignment<DarwinTimestampRecord>;
+        let mut native: LayoutStorage<DarwinTimestampRecord, DarwinTimestampAlignment>;
         native.accessed_seconds = darwin_timestamp_word(times[0..8]);
         native.accessed_nanoseconds = darwin_timestamp_word(times[8..16]);
         native.modified_seconds = darwin_timestamp_word(times[16..24]);

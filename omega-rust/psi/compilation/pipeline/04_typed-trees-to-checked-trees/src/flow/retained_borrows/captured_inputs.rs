@@ -2,6 +2,7 @@
 //! Selections meet their possible inputs; strict evaluations retain call order.
 
 use super::{RetainedBorrowHandback, RetainedBorrowSupply};
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{FlowControlFacts, FlowOperandFact, FlowOperandRetention};
 use typed_trees::expression::ExpressionHandle;
@@ -133,7 +134,7 @@ pub(in crate::flow) fn captured_sources(
         if validation::reference_shell(program, contract).is_some() {
             return Some(result);
         }
-        if let Some(mut place) = validation::canonical_place_from_expression_in_state(
+        if let Some(mut place) = place_at(
             program,
             operand.state_symbol,
             operand.statement_index,

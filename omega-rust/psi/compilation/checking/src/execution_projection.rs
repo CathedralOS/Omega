@@ -476,10 +476,11 @@ pub fn retain_machine_roster(
         .collect();
     program.roots.machines = program.tables.machines.insert_many(retained_machines);
 
-    // Typed sidecars keyed by a machine identity.
+    // Only an exact removed owner authorizes discarding its typed sidecars.
+    // Unknown/non-roster owners remain ordinary validation obligations.
     program
         .machine_specializations
-        .retain(|row| retained.contains(&row.instance));
+        .retain(|row| !pruned.contains(&row.instance));
     // Capture records are keyed by their executable owner, just as invocation
     // records are. They have no inbound arena handles; backing state mappings
     // retain their handles. An unrelated private checking projection must not
@@ -487,7 +488,7 @@ pub fn retain_machine_roster(
     let captures = program
         .captured_machine_applications
         .iter()
-        .filter(|(_, row)| retained.contains(&row.instance))
+        .filter(|(_, row)| !pruned.contains(&row.instance))
         .map(|(_, row)| row.clone())
         .collect::<Vec<_>>();
     let mut applications = arena::Arena::default();
@@ -501,13 +502,13 @@ pub fn retain_machine_roster(
         .retain(|row| !pruned.contains(&row.owner));
     program
         .evidence_forwardings
-        .retain(|row| retained.contains(&row.machine_symbol));
+        .retain(|row| !pruned.contains(&row.machine_symbol));
     program
         .proof_output_calls
-        .retain(|row| retained.contains(&row.machine_symbol));
+        .retain(|row| !pruned.contains(&row.machine_symbol));
     program
         .ranking_expression_custody
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| !pruned.contains(&row.machine));
 }
 
 /// Project sidecars whose exact declaration owner left the root roster.

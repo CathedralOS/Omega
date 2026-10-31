@@ -2,9 +2,7 @@
 
 use crate::value_custody::recasts::raw_byte_region::{ByteRegionFootprint, byte_region_footprint};
 use crate::value_custody::recasts::recast_judgments::{judge_scalar_recast, strip_mutable};
-use crate::value_custody::recasts::record_eligibility::{
-    closed_fact_free_record_symbol_is_eligible, direct_phantom_lifetime_record_symbol,
-};
+use crate::value_custody::recasts::record_eligibility::closed_fact_free_record_type_is_eligible;
 use crate::value_custody::recasts::record_representation::{
     representation_is_exactly_tiled, type_representation,
 };
@@ -300,17 +298,7 @@ pub(crate) fn literal_indexed_recast_target_size(
         });
     }
 
-    if direct_phantom_lifetime_record_symbol(program, target_type).is_some() {
-        return type_representation(program, target_type)
-            .map(|representation| representation.size)
-            .filter(|size| *size > 0);
-    }
-
-    let symbol = &program
-        .type_reference_table
-        .type_reference(target_type)
-        .as_named_symbol()?;
-    if !closed_fact_free_record_symbol_is_eligible(program, *symbol) {
+    if !closed_fact_free_record_type_is_eligible(program, target_type) {
         return None;
     }
 
@@ -341,13 +329,13 @@ fn literal_fixed_array_target_terminal(
     }
 
     match program.type_reference_table.type_reference(*element_type) {
-        TypeReferenceNode::Named { symbol, .. } => {
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
             if exact_primitive_type(program, *element_type).is_some_and(|primitive| {
                 primitive != PrimitiveType::Bool && primitive.scalar_byte_size().is_some()
             }) {
                 return Some(LiteralFixedArrayTerminal::ExactPrimitive);
             }
-            closed_fact_free_record_symbol_is_eligible(program, *symbol)
+            closed_fact_free_record_type_is_eligible(program, *element_type)
                 .then_some(LiteralFixedArrayTerminal::ClosedRecord)
         }
         TypeReferenceNode::FixedArray { .. } => {

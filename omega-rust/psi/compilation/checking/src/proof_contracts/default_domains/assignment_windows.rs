@@ -180,6 +180,7 @@ pub(crate) fn handle_assignment<'program>(
                 // Whole replacement transports the same completed case row as
                 // initialization. Syntax cannot stand in for an emitted case;
                 // unknown or disagreeing normal outcomes retain no case fact.
+                alternatives: Vec::new(),
                 active_case: crate::value_custody::places::declared_place_type_raw(
                     program,
                     machine,
@@ -313,6 +314,34 @@ pub(crate) fn handle_assignment<'program>(
     if let Some((length, capacity)) = expression_sequence_measures(program, value) {
         place.measures.push((field_name.clone(), length, capacity));
     }
+    if !place.alternatives.is_empty() {
+        let written = literal_value(program, value);
+        let definition = place.definition;
+        let case = place.active_case;
+        let holds = place.alternatives.iter().all(|fields| {
+            let mut fields = fields.clone();
+            if let Some(slot) = fields.iter_mut().find(|(name, _)| name == &field_name) {
+                slot.1 = written;
+            } else {
+                fields.push((field_name.clone(), written));
+            }
+            super::symbolic_values::predicate_holds(program, definition, &fields, case)
+        });
+        if holds {
+            for fields in &mut place.alternatives {
+                if let Some(slot) = fields.iter_mut().find(|(name, _)| name == &field_name) {
+                    slot.1 = written;
+                } else {
+                    fields.push((field_name.clone(), written));
+                }
+            }
+            place.established = true;
+            place.window_open = false;
+        } else {
+            place.window_open = place.established || place.window_open;
+        }
+        return;
+    }
 
     // Obligation: a field participating in either an authored `where` fact or
     // an implicit range/containment gate must help re-establish the whole
@@ -418,6 +447,7 @@ pub(crate) fn handle_assignment<'program>(
                     &place.symbols,
                     &place.measures,
                     place.born_zero,
+                    place.active_case,
                     *expression,
                 ) {
                     Some(value) if value != 0 => {}
@@ -563,6 +593,7 @@ pub(super) fn tracked_receiver<'program>(
         window_open: false,
         elements: Vec::new(),
         element_windows: Vec::new(),
+        alternatives: Vec::new(),
         active_case: seeded_case,
     });
     tracked.len() - 1

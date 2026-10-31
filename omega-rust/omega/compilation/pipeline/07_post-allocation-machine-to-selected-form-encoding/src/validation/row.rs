@@ -72,12 +72,7 @@ pub(crate) fn validate(
             if !admits_address_operation(kind, address.symbolic) {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
-            if !matches!(row.state, SelectedFormEncodingState::Encoded) {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-            }
-            let Some((bytes, footprint)) = encoded.encoded(row) else {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-            };
+            let (bytes, footprint) = encoded_row(row, encoded)?;
             let decoded = if architecture == Architecture::Aarch64 {
                 let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
                 {
@@ -329,12 +324,7 @@ fn validate_baseline(
     if row.address.is_some() {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
-    if !matches!(row.state, SelectedFormEncodingState::Encoded) {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    }
-    let Some((bytes, footprint)) = encoded.encoded(row) else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    };
+    let (bytes, footprint) = encoded_row(row, encoded)?;
     let views = operand_views(machine);
     let decoded = match target.architecture {
         Architecture::X86_64 => {
@@ -412,6 +402,20 @@ fn validate_machine_footprint(
         return Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(instruction));
     }
     Ok(())
+}
+
+/// The interned bytes and retained footprint of a row that encodes now. A
+/// deferred or unresolved row names nothing in the store.
+fn encoded_row<'a>(
+    row: &SelectedFormEncodingRow,
+    encoded: &'a SelectedFormEncodedRowStore,
+) -> Result<(&'a [u8], &'a SelectedFormDecodedFootprint), OptimizedSelectedFormEncodingError> {
+    if !matches!(row.state, SelectedFormEncodingState::Encoded) {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    encoded
+        .encoded(row)
+        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)
 }
 
 /// Admit one arm's re-decoded row: the machine row's declared effects and

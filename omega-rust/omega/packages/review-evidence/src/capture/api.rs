@@ -9,4 +9,5 @@ pub(super) mod domains;
 pub(super) mod operators;
 pub(crate) mod policy;
 pub(super) mod propositions;
+mod slot_metadata;
 pub(super) mod traits;

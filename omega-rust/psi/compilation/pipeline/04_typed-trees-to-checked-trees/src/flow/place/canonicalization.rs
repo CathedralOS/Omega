@@ -1,10 +1,9 @@
+use crate::flow::expressions;
+use crate::places::place_at;
 use facts::FactPlan;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use validation::{
-    CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,
-    effective_member_symbol,
-};
+use validation::{CanonicalPlace, canonical_place_from_expression, effective_member_symbol};
 
 /// Narrow each runtime `Index` segment whose selector value is pinned in the
 /// live contexts to the `FixedIndex` it names at this program point.
@@ -27,12 +26,7 @@ pub(crate) fn narrow_pinned_index_segments(
         let facts::PlaceSegment::Index { expression } = *segment else {
             continue;
         };
-        let Some(selector) = canonical_place_from_expression_in_state(
-            program,
-            state_symbol,
-            statement_index,
-            expression,
-        ) else {
+        let Some(selector) = place_at(program, state_symbol, statement_index, expression) else {
             continue;
         };
         let Some(facts::ScalarValue::Integer(index)) = crate::values::scalar_value_at_place(
@@ -81,8 +75,7 @@ pub(crate) fn projected_leaf_place(
             ExpressionNode::Name(name) => {
                 if !name.symbol.is_valid()
                     || !name.head_symbol.is_valid()
-                    || program
-                        .expression_table
+                    || expressions(program)
                         .name_path_member_symbols(name.member_symbols)
                         .first()
                         .is_some_and(|symbol| *symbol != name.head_symbol)
@@ -155,5 +148,5 @@ pub(crate) fn reference_source_place(
             _ => break,
         }
     }
-    canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)
+    place_at(program, state_symbol, statement_index, expression)
 }

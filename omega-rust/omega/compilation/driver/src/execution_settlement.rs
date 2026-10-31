@@ -54,7 +54,10 @@ impl SelectedProductTarget {
         if let Some(inputs) = package_inputs.as_ref()
             && let Some(binding) =
                 provider_planning::program_entry::discover_explicit_entry_binding(
-                    &source.program.typed,
+                    source
+                        .provider_inventory
+                        .services_for(&source.program)
+                        .map_err(|error| vec![error])?,
                     &source.computed_build_config.config.root_bindings,
                     target,
                     &source.computed_build_config.config.provider_selections,
@@ -340,7 +343,10 @@ fn select_checked_providers(
     } = prepare_target_provider_selection(source, selected_target_profile, package_inputs)?;
     let mut selected_program_entry =
         provider_planning::program_entry::select_compiler_program_entry(
-            typed,
+            source
+                .provider_inventory
+                .services_for(&source.program)
+                .map_err(|error| vec![error])?,
             &build_config.root_bindings,
             selected_target_profile,
             &providers.boundary_calling_plan_realizations,
@@ -396,9 +402,6 @@ fn prepare_target_provider_selection(
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
     let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
-    let selected_native_target = selected_target_profile
-        .map(target::TargetProfile::native_target)
-        .unwrap_or_else(target::NativeTarget::host);
     let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &source.program,
@@ -411,11 +414,11 @@ fn prepare_target_provider_selection(
     // otherwise nominal placements retain no private materialization and a
     // later closure would invalidate the already-captured plan commitment.
     // This consumes the shared source judgment, never another Psi check.
-    if selected_target_profile.is_some() {
+    if let Some(profile) = selected_target_profile {
         provider_planning::calling_policy_plans::close_outbound_callback_materializations(
             typed,
             &mut boundary_calling_plan_realizations,
-            selected_native_target,
+            profile,
             &build_config.opaque_representation_selections,
             package_inputs,
         )?;

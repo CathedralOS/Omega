@@ -12,6 +12,7 @@
 //! entry identity. Facts project before canonicalizing names, so an opaque
 //! sibling call cannot erase a safe conjunct or impersonate a parameter.
 
+use crate::flow::indexed_statements;
 use checked_trees::{CrashPredicateIdentity, CrashSiteLocation};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -151,10 +152,7 @@ pub(super) fn collect(
         // statement: provenance is resolved where the read ran, and a later
         // write cannot unmake the entry fact the unselected arm established.
         let mut guards = Vec::new();
-        for (ordinal, statement) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-        {
+        for (ordinal, statement) in indexed_statements(program, state.statement_nodes) {
             // Every statement — a crash exit, a call-bearing statement, or an
             // ordinary step — observes the facts earlier unselected arms
             // established. Provenance was already resolved at each guard's

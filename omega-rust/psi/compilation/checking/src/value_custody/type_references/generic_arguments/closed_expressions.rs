@@ -62,7 +62,7 @@ pub(crate) fn normalize_closed_const_expression_in_carrier(
         value,
         DecodedCanonicalConstValue::Integer { .. } | DecodedCanonicalConstValue::Boolean(_)
     ) {
-        canonical.type_name = program.normalized_type_identity_text(carrier.reference);
+        canonical.type_name = carrier.identity_text(program)?;
     }
     Ok(Some(canonical))
 }

@@ -101,6 +101,9 @@ pub(crate) enum ClosedArgumentIdentity {
     Nominal(syntax_trees::item::ItemHandle),
     RetainedNominal(symbols::SymbolHandle),
     Instance(syntax_trees::item::ItemHandle, Vec<ClosedArgumentIdentity>),
+    /// Code arguments are distinct from data even when their lookup names
+    /// coincide. The implementation's complete own telescope closes the key.
+    Implementation(syntax_trees::item::ItemHandle, Vec<ClosedArgumentIdentity>),
     Constant(String),
     Array(Box<ClosedArgumentIdentity>, usize),
     Reference(language_core::ReferenceAccess, Box<ClosedArgumentIdentity>),

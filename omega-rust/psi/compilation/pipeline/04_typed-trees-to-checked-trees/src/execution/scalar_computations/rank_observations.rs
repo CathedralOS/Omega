@@ -5,6 +5,7 @@
 //! A mutable formal here denotes its arrival value, never a later StorageRead.
 
 use super::{Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind};
+use crate::places::place_at;
 use checked_trees::{
     CheckedNaturalRankMeasure, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedStateNaturalRank,
@@ -90,46 +91,29 @@ pub(super) fn record(
             .collect::<Vec<_>>();
         let subject = typed_trees::ranking::resolve_machine_witness_subjects(program, owner)
             .and_then(|subjects| subjects.first().copied());
-        if let CheckedNaturalRankMeasure::DeclaredMeasure { measure, .. } = rank.measure {
-            let definition = program
-                .measures()
-                .iter()
-                .find(|definition| definition.symbol == measure);
-            let Some((formal, subject)) = definition
-                .and_then(|definition| definition.parameter.as_ref())
-                .zip(subject)
-            else {
-                continue;
-            };
-            let Some(entry) = program.machine_states(owner).first() else {
-                continue;
-            };
-            let Some(subject) = validation::canonical_place_from_expression_in_state(
-                program,
-                entry.symbol,
-                0,
-                subject,
-            ) else {
-                continue;
-            };
-            let facts::PlaceRoot::Symbol(parameter) = subject.root else {
-                continue;
-            };
-            let template_bindings = bindings.declaration_bindings(
-                formal.symbol,
-                &validation::RankSubjectCoordinate {
-                    parameter,
-                    path: subject.segments,
-                },
-            );
-            if template_bindings.is_empty() {
-                continue;
-            }
-            declaration_bindings.extend(
-                template_bindings
+        if let CheckedNaturalRankMeasure::DeclaredMeasure { bindings, .. } = rank.measure {
+            let Some(inputs) = admitted.bindings.span(bindings).and_then(|inputs| {
+                inputs
                     .iter()
-                    .map(|binding| (place(&binding.entry), place(&binding.destination))),
-            );
+                    .map(|input| {
+                        let entry = admitted.coordinates.get(input.entry);
+                        let destination = admitted.coordinates.get(input.destination);
+                        Some((
+                            validation::CanonicalPlace {
+                                root: facts::PlaceRoot::Symbol(entry.parameter),
+                                segments: admitted.path_segments.span(entry.path)?.to_vec(),
+                            },
+                            validation::CanonicalPlace {
+                                root: facts::PlaceRoot::Symbol(destination.parameter),
+                                segments: admitted.path_segments.span(destination.path)?.to_vec(),
+                            },
+                        ))
+                    })
+                    .collect::<Option<Vec<_>>>()
+            }) else {
+                continue;
+            };
+            declaration_bindings.extend(inputs);
         }
         let parameters = inputs
             .iter()
@@ -186,12 +170,7 @@ fn input_coordinate(
     let (owner, _) = validation::find_state(builder.program, builder.state)?;
     let entry = builder.program.machine_states(owner).first()?;
     let source = if let Some(subject) = subject {
-        validation::canonical_place_from_expression_in_state(
-            builder.program,
-            entry.symbol,
-            0,
-            subject,
-        )?
+        place_at(builder.program, entry.symbol, 0, subject)?
     } else {
         // A joint component retains an exact primitive entry coordinate even
         // when this participant authors no separate ranking expression. Its
@@ -243,6 +222,7 @@ fn observation(
     let observed = match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
             measure,
+            bindings: application_inputs,
             primitive_type,
         } => {
             let definition = builder
@@ -258,12 +238,30 @@ fn observation(
             else {
                 return None;
             };
-            let subject = subject?;
             if let Some(subject_type) = builder
                 .program
                 .primitive_type_reference(formal.type_reference)
             {
-                let operand = builder.expression(subject, subject_type)?;
+                let [input] = admitted.bindings.span(application_inputs)? else {
+                    return None;
+                };
+                let formal_coordinate = admitted.coordinates.get(input.entry);
+                if formal_coordinate.parameter != formal.symbol
+                    || !formal_coordinate.path.is_empty()
+                {
+                    return None;
+                }
+                let input = admitted.coordinates.get(input.destination);
+                let coordinate = validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(input.parameter),
+                    segments: admitted.path_segments.span(input.path)?.to_vec(),
+                };
+                let operand = builder.scalar_coordinate(
+                    subject.unwrap_or_default(),
+                    &coordinate,
+                    subject_type,
+                    admitted.entry_indexes.span(input.entry_indexes)?,
+                )?;
                 let expression = crate::values::scalar::scalar_lowering::lower_return_expression(
                     builder.program,
                     builder.operators,

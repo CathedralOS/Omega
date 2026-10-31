@@ -334,16 +334,16 @@ elision and carried-loan transport. The compiler's current multiple-input and
 generic returned-view limitations are documented [beside checking](../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence).
 Those limitations are not permission to forget unresolved borrows.
 
-## Storage Carried By Placed Views
+## Storage Carried By Access Views
 
-A borrowed `Placed<P, T>` retains its source borrow. An owned placement instead
+A borrowed `Access<P, T>` retains its source borrow. An owned access view instead
 carries an extent claim that needs an authorized return or release:
 
 ```omega
-machine inspect(uart: &Placed<UartMmio, UartRegisters>) {
+machine inspect(uart: &Access<UartMmio, UartRegisters>) {
 }
 
-machine configure(uart: &mut Placed<UartMmio, UartRegisters>) {
+machine configure(uart: &mut Access<UartMmio, UartRegisters>) {
 }
 ```
 
@@ -356,7 +356,7 @@ Projected accessors cannot outlive the view or escape the planned field.
 Disjoint subviews need both logical non-overlap and compatible physical effects:
 bitfields sharing a transfer word are not independently exclusive for destructive
 reads or read-modify-write. Child views only narrow the parent's rights.
-See [placed memory](chapter_20_memory_layout_abi.md#placed-and-externally-mutable-memory).
+See [access views](chapter_20_memory_layout_abi.md#access-policies-and-externally-mutable-memory).
 
 ## Relationship To Drops
 

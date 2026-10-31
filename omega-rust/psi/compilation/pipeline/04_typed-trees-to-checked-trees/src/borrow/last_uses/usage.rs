@@ -11,6 +11,8 @@ pub(super) use validation::statement_uses_symbol;
 
 use crate::borrow::owner_segment_matches_place_segment;
 use crate::borrow::tracker::BorrowOwnerSegment;
+use crate::flow::expressions;
+use crate::places::place_at;
 
 pub(super) fn statement_uses_local_name(
     program: &dyn ::validation::CheckingInput,
@@ -145,13 +147,7 @@ fn expression_uses_owner_path(
     owner_symbol: SymbolHandle,
     owner_path: &[BorrowOwnerSegment],
 ) -> bool {
-    if validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    )
-    .is_some_and(|place| {
+    if place_at(program, state_symbol, statement_index, expression).is_some_and(|place| {
         matches!(place.root, facts::PlaceRoot::Symbol(root) if root == owner_symbol)
             && owner_path_overlaps_place_segments(program, owner_path, &place.segments)
     }) {
@@ -172,20 +168,18 @@ fn expression_uses_owner_path(
         ExpressionNode::SavedSubject(saved) => {
             program.saved_value_source(saved).is_some_and(recurse)
         }
-        ExpressionNode::Match(dispatch) => program
-            .expression_table
-            .match_deep_any(dispatch, |handle| recurse(handle)),
+        ExpressionNode::Match(dispatch) => {
+            expressions(program).match_deep_any(dispatch, |handle| recurse(handle))
+        }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expressions(program)
             .expression_handles(*values)
             .iter()
             .any(|value| recurse(*value)),
         ExpressionNode::Binary(binary) => recurse(binary.left) || recurse(binary.right),
         ExpressionNode::Call(call) => {
             (call.receiver.is_valid() && recurse(call.receiver))
-                || program
-                    .expression_table
+                || expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| recurse(*argument))
@@ -196,8 +190,7 @@ fn expression_uses_owner_path(
             (range.start.is_valid() && recurse(range.start))
                 || (range.end.is_valid() && recurse(range.end))
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| recurse(field.value)),

@@ -1,0 +1,15 @@
+// Expected exit: 0
+// A user constructor named LayoutStorage remains ordinary generic data.
+data LayoutStorage<T [copy], Policy [copy]> [copy] { payload: T; marker: Policy; }
+machine make() -> LayoutStorage<u64, u64> {
+    LayoutStorage { payload: 7u64, marker: 9u64 }
+}
+const SAVED: LayoutStorage<u64, u64> = make();
+machine main() crashes Trap {
+    transition SAVED.payload == 7u64 && SAVED.marker == 9u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

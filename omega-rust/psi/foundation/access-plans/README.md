@@ -1,8 +1,10 @@
 # Access plans and resident views
 
-Contract: [placed access](../../../../wiki/spec/resources/placed_access.md).
-[lib.rs](src/lib.rs) is the entry map. Layout owns geometry; access plans own
-observation policy and permitted primitive operations over that geometry.
+Contract: [access policies](../../../../wiki/spec/resources/access.md).
+[lib.rs](src/lib.rs) is the entry map. `AccessPlan` contains a `LayoutPlan`,
+field-operation decisions, and required reach. Layout owns representation and
+geometry without access rights. `Access<P, T>` is the complete view;
+`Accessor<T>` is a projected operation handle, not an unrestricted lvalue.
 
 Owned Stable and Atomic resident lifecycles, borrowed resident views, projection,
 specialization, and checked/runtime correspondence are separate owners. Every
@@ -14,6 +16,6 @@ preserves a non-clonable specialized request and verifies its exact resident/res
 shape; it does not issue an atomic operation or establish source-call, runtime
 result, provider-selection, or native authority.
 
-Do not turn a successful foundation join into a claim that Terminal lowering is
-complete. The existing ACCESS-PLAN-AND-PLACED task owns the remaining
-[source-to-Terminal integration](../../../../TASKS.md).
+The policy and compatibility checks consume the backing's actual authority and
+capabilities. They do not issue a grant, invent resident custody, or establish
+that a schema corresponds to the physical device.

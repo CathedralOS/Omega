@@ -1,0 +1,103 @@
+use omega::language::core::layout;
+// Each target closes layout queries against its own validated policy plan.
+// Queries flow through a const, a returned value, a field, and a state
+// parameter. Expected native exit: 0 on every bound target.
+
+
+data Payload [copy] { value: u32; }
+Policy satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let facts: LayoutTargetFacts = layout_target_facts(&target);
+        transition {
+            facts.profile == "macos_arm64" -> on_macos_arm64(schema)
+            facts.profile == "linux_x86_64" -> on_linux_x86_64(schema)
+            facts.profile == "linux_arm64" -> on_linux_arm64(schema)
+            facts.profile == "windows_x86_64" -> on_windows_x86_64(schema)
+            _ -> unsupported_target()
+        }
+        machine on_macos_arm64(schema: Schema) -> Plan reaches terminates; {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+        machine on_linux_x86_64(schema: Schema) -> Plan reaches terminates; {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
+}
+        machine on_linux_arm64(schema: Schema) -> Plan reaches terminates; {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 4 }
+}
+        machine on_windows_x86_64(schema: Schema) -> Plan reaches terminates; {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
+}
+        machine unsupported_target() -> Plan reaches terminates; {
+            let entries: [FieldEntry; 64];
+            Plan { entries: entries, entry_count: 0, size_fixed: 0, size_is_dynamic: false, align: 0 }
+        }
+    }
+}
+boundary trait LayoutExpectedSize { machine expected_size() -> u64 reaches; }
+MacosArm64LayoutExpectedSize satisfies LayoutExpectedSize {
+    machine expected_size() -> u64 { 8 }
+}
+LinuxX8664LayoutExpectedSize satisfies LayoutExpectedSize {
+    machine expected_size() -> u64 { 4 }
+}
+LinuxArm64LayoutExpectedSize satisfies LayoutExpectedSize {
+    machine expected_size() -> u64 { 8 }
+}
+WindowsX8664LayoutExpectedSize satisfies LayoutExpectedSize {
+    machine expected_size() -> u64 { 4 }
+}
+
+
+
+
+
+
+
+
+const BYTES: u64 = size_of<LayoutStorage<Payload, Policy>>();
+data View { payload: LayoutStorage<Payload, Policy>; observed: u64; }
+machine query_size() -> u64 { size_of<LayoutStorage<Payload, Policy>>() }
+// The same portable helper contract has applications in different authored
+// target bodies. Every body is checked, even for a single-target product.
+machine demand_eight() requires size_of<LayoutStorage<Payload, Policy>>() == 8 {}
+machine demand_four() requires size_of<LayoutStorage<Payload, Policy>>() == 4 {}
+boundary trait LayoutDemandLayout { machine demand_layout() reaches; }
+MacosArm64LayoutDemandLayout satisfies LayoutDemandLayout {
+    machine demand_layout() { demand_eight(); }
+}
+LinuxArm64LayoutDemandLayout satisfies LayoutDemandLayout {
+    machine demand_layout() { demand_eight(); }
+}
+LinuxX8664LayoutDemandLayout satisfies LayoutDemandLayout {
+    machine demand_layout() { demand_four(); }
+}
+WindowsX8664LayoutDemandLayout satisfies LayoutDemandLayout {
+    machine demand_layout() { demand_four(); }
+}
+
+
+
+
+machine program() crashes Trap {
+    LinuxX8664LayoutDemandLayout::demand_layout();
+    let mut view: View;
+    view.observed = query_size();
+    transition { _ -> inspect(&view, size_of<LayoutStorage<Payload, Policy>>()) }
+    machine inspect(view: &View, extent: u64) {
+        transition view.observed == LayoutExpectedSize::expected_size() && extent == LayoutExpectedSize::expected_size()
+            && BYTES == LayoutExpectedSize::expected_size() && align_of<LayoutStorage<Payload, Policy>>() == 4 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

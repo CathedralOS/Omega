@@ -3,7 +3,9 @@ use omega::language::core::external_binding;
 
 public data InitializerPolicy { }
 public InitializerCalling satisfies CallingPolicy {
-    CallingPolicy::plan = InitializerPolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        InitializerPolicy::plan(signature)
+    }
 }
 
 machine InitializerPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -38,7 +40,9 @@ public boundary trait Initializer: Calling<InitializerCalling> {
 
 public data OncePolicy { }
 public OnceCalling satisfies CallingPolicy {
-    CallingPolicy::plan = OncePolicy::plan;
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        OncePolicy::plan(signature)
+    }
 }
 
 machine OncePolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult

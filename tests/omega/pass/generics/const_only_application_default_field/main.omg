@@ -1,0 +1,4 @@
+const THREE: u64 = 3u64;
+data Inner<const N: u64> [copy] { value: u64; }
+data Outer [copy] { inner: Inner<THREE>; }
+machine main() { let value: Outer = Outer {}; }

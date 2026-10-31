@@ -83,20 +83,15 @@ impl<'program> LayoutBuilder<'program> {
             .map(|field| self.plan_field(field, bindings))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-        // PLAN-LAID VALUE TYPES (layouts L4): a synthesized `Policy<Schema>`
-        // instance is placed at its validated plan's offsets instead of the
-        // native packing; downstream field-offset resolution reads the baked
-        // `FieldLayout.offset` exactly as for packed records.
-        if let Some(plan) = self
-            .program
-            .plan_laid_layouts
-            .iter()
-            .find(|plan| definition.symbol == plan.data_symbol)
-        {
-            let geometry = plan.invariant_geometry().ok_or_else(|| {
+        // The exact representation application selects its retained validated
+        // row for this builder's explicit target. Preserve the full roster on
+        // the application; field offsets consume this selected geometry.
+        if let Some(plan) = self.program.plan_laid_layout_for_data(definition) {
+            let geometry = plan.geometry_for_target(self.program, self.layout_profile.map(target::TargetProfile::target_name)).ok_or_else(|| {
                 Diagnostic::error(format!(
-                    "plan-laid data `{}` retains an unresolved target-family layout; the typed layout backend requires an invariant layout or a target-closed Terminal view",
-                    plan.data_name
+                    "fixed representation data `{}` has no admitted layout for typed layout target `{}`",
+                    plan.data_name,
+                    self.layout_profile.map(target::TargetProfile::target_name).unwrap_or("<unselected>")
                 ))
             })?;
             if geometry.offsets.len() != fields.len()

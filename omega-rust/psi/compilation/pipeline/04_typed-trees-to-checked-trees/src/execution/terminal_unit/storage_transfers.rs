@@ -2,6 +2,7 @@
 //! Possible transfers fence disposal of the original slot. Definite transfers
 //! additionally prove that every selected alternative moved that slot.
 
+use crate::places::place_at;
 use checked_trees::CheckFacts;
 use checked_trees::{
     CheckedStructuralAccess, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
@@ -1110,12 +1111,7 @@ fn local_place_is_owned(
     selected_type: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<bool> {
     let state = local_state(program, symbol)?;
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement as usize,
-        expression,
-    )?;
+    let place = place_at(program, state.symbol, statement as usize, expression)?;
     Some(
         super::borrowed_windows::owned_assignment_source(
             program,

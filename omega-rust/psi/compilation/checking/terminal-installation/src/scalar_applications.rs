@@ -55,6 +55,7 @@ pub struct ScalarApplicationObservations<'artifact> {
     layouts: AdmittedTargetLayouts,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     applications: std::sync::Arc<Arena<ApplicationObservations>>,
+    application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
 }
 
 /// Immutable provisional inputs to one evaluation. Cloning shares the retained
@@ -91,6 +92,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         artifact: TerminalArtifactView<'artifact>,
         targets: &'artifact AdmittedTargetMachineSelections,
         providers: &'artifact AdmittedProviderSelections,
+        target_layout: &crate::LayoutTargetFacts,
     ) -> Result<Self, String> {
         if artifact.identity() != targets.terminal_psi()
             || artifact.identity() != providers.terminal_psi()
@@ -104,8 +106,8 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                 "scalar observations differ from the artifact's folded target closure".into(),
             );
         }
-        let layouts =
-            crate::admit_target_layouts(artifact, targets).map_err(|error| error.to_string())?;
+        let layouts = crate::admit_target_layouts(artifact, targets, target_layout)
+            .map_err(|error| error.to_string())?;
         let mut applications = Arena::new();
         applications.insert_many(
             artifact
@@ -122,6 +124,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             layouts,
             carrier_layout: None,
             applications: std::sync::Arc::new(applications),
+            application_roots: None,
         })
     }
 
@@ -150,6 +153,50 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         &self.layouts
     }
 
+    /// Bind complete Build roots to this artifact's proof coordinates. Provider
+    /// implementations join from the already admitted whole selection, never
+    /// from dormant candidate declarations or a target spelling in Source.
+    pub fn with_application_roots(
+        mut self,
+        roots: Option<&[terminal_psi::ProofDeclarationId]>,
+    ) -> Result<Self, String> {
+        let Some(roots) = roots else {
+            return Ok(self);
+        };
+        let scope = &self.artifact.module().scalar_applications.proof_scope;
+        let mut declarations = Vec::with_capacity(roots.len());
+        for &root in roots {
+            if !matches!(
+                scope.declaration(root),
+                Some(terminal_psi::ProofScopeDeclaration::Callable(_))
+            ) {
+                return Err(
+                    "Build scalar application root has no exact checked proof declaration".into(),
+                );
+            }
+            if !declarations.contains(&root) {
+                declarations.push(root);
+            }
+        }
+        for callable in self
+            .providers
+            .providers()
+            .map(|(_, body)| terminal_psi::TargetMachineCallable::Machine(body))
+            .chain(self.providers.assumed_bindings().iter().map(|binding| {
+                terminal_psi::TargetMachineCallable::Machine(binding.implementation)
+            }))
+        {
+            let owner = scope
+                .callable_declaration(callable)
+                .ok_or("selected scalar provider has no retained proof declaration")?;
+            if !declarations.contains(&owner) {
+                declarations.push(owner);
+            }
+        }
+        self.application_roots = Some(declarations);
+        Ok(self)
+    }
+
     pub fn values(&self) -> ScalarApplicationValues {
         ScalarApplicationValues(std::sync::Arc::clone(&self.applications))
     }
@@ -174,6 +221,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                     .map(|binding| (binding.required, binding.implementation)),
             ),
             demanded,
+            self.application_roots.as_deref(),
         )
     }
 

@@ -216,6 +216,11 @@ pub(crate) fn project_trait_requirement(
         ))]);
     }
     let published_crash = project_crash_routes(crash_capsule.published_buckets());
+    let slot_metadata = super::slot_metadata::project_requirement_slot_metadata(
+        compilation,
+        trait_symbol,
+        requirement.symbol,
+    )?;
     Ok(PackageReviewTraitRequirement {
         identity,
         spelling: requirement.spelling,
@@ -245,6 +250,8 @@ pub(crate) fn project_trait_requirement(
         suspends: requirement.suspends,
         blocks: requirement.blocks,
         termination,
+        returned_borrow_origins: slot_metadata.returned_borrow_origins,
+        parameter_qualification_preconditions: slot_metadata.parameter_qualification_preconditions,
     })
 }
 

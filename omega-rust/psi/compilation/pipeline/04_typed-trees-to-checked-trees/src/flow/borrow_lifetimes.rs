@@ -6,6 +6,7 @@
 use validation::CanonicalPlace;
 
 use crate::flow::reference_spans;
+use crate::places::place_at;
 use checked_trees::{
     BorrowFacts, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowConstraintKind,
     FlowConstraintRef, FlowInvalidationSource,
@@ -181,14 +182,9 @@ pub(crate) fn filter_reassigned_borrow_loans(
     // The caller supplies the one completed, still-current address. It has
     // already crossed reference ancestors; resolving it again using the live
     // loan set could redirect it to a different slot.
-    let authored_carrier = statement.as_assignment().and_then(|assignment| {
-        validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            assignment.target,
-        )
-    });
+    let authored_carrier = statement
+        .as_assignment()
+        .and_then(|assignment| place_at(program, state.symbol, statement_index, assignment.target));
 
     if writes_referent && authored_carrier.is_none() {
         return source;

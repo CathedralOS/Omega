@@ -33,6 +33,7 @@
 //! `count as u64` for a nonnegative wrapping count, through a local, a field,
 //! a parameter, or a call, because each spelling is that same integer.
 use crate::checks::unsigned;
+use crate::flow::expressions;
 use crate::values::scalar::structural_fields;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -1046,6 +1047,21 @@ impl<'program> CurrentScalarValues<'program> {
         values
     }
 
+    pub(crate) fn forms_declared_integer_application(
+        &self,
+        machine: &Machine,
+        expression: &ScopedArithmeticExpression,
+        result: PrimitiveType,
+    ) -> bool {
+        validation::scoped_declared_integer_application_is_formed(
+            self.program,
+            machine,
+            &self.hypotheses,
+            expression,
+            result,
+        )
+    }
+
     pub(crate) fn proves_values_relation(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -1282,8 +1298,7 @@ fn closed_integer_literal(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<numerics::bignum::BigInt> {
-    program
-        .expression_table
+    expressions(program)
         .integer_node(expression)?
         .value_bignum()
 }
@@ -1579,8 +1594,7 @@ fn preserving_integer_cast_operand(
     let operand = integer_cast_operand(program, machine, state, expression)?;
     let (target_minimum, target_maximum) =
         integer_carrier_span(program, machine, state, expression)?;
-    if let Some(value) = program
-        .expression_table
+    if let Some(value) = expressions(program)
         .integer_node(operand)
         .and_then(|literal| literal.value_bignum())
     {

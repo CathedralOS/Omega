@@ -285,6 +285,15 @@ fn type_requires_establishment_inner(
     if !type_reference.is_valid() {
         return false;
     }
+    // Physical representation does not establish T's qualifications. Keep
+    // enclosing qualifications in the normal walk before following this lens.
+    if !matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Constrained { .. }
+    ) && let Some(storage) = program.layout_storage_arguments(type_reference)
+    {
+        return type_requires_establishment_inner(program, storage.semantic_type, index);
+    }
     if let Some(interval) = crate::proof_contracts::arithmetic_domains::range_constraint_interval(
         program,
         type_reference,

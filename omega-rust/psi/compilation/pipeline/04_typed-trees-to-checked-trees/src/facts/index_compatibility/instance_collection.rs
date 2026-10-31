@@ -2,6 +2,7 @@
 //! index, typed-indexed instance discovery, and ensured-instance plumbing.
 
 use super::labels::{domain_label, qualification_label};
+use crate::flow::expressions;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedOperatorFacts, ContractProofFactKind, FlowFacts, FlowSemanticContextRef, ProofFacts,
@@ -351,9 +352,7 @@ pub(super) fn append_call_result_ensured_instances(
         // The subject must be the whole reserved result: a projection such
         // as `result.storage` belongs to that field's declared type.
         if !membership.semantic_domain.is_valid()
-            || !program
-                .expression_table
-                .names_reserved_result(membership.value)
+            || !expressions(program).names_reserved_result(membership.value)
         {
             continue;
         }
@@ -448,22 +447,21 @@ pub(super) fn selected_operation_count(
     program: &dyn ::validation::CheckingInput,
     arguments: impl Iterator<Item = TypeReferenceHandle>,
 ) -> usize {
-    let mut expressions = Vec::new();
+    let mut selected_expressions = Vec::new();
     for argument in arguments {
         let TypeReferenceNode::ConstExpression(expression) =
             program.type_reference_table.type_reference(argument)
         else {
             continue;
         };
-        if !expressions.contains(expression) {
-            expressions.push(*expression);
+        if !selected_expressions.contains(expression) {
+            selected_expressions.push(*expression);
         }
     }
-    expressions
+    selected_expressions
         .into_iter()
         .map(|expression| {
-            program
-                .expression_table
+            expressions(program)
                 .open_index_operations(expression)
                 .count()
         })

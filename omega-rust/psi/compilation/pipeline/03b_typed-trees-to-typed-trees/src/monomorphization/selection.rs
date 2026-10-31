@@ -23,7 +23,7 @@ pub(crate) use selection_assembly::{
     proposal_bindings, selection_for_call, selection_from_proposals, unique_complete_selections,
     upsert_selection,
 };
-pub(crate) use static_bindings::{infer_static_bindings, names_type_binder};
+pub(crate) use static_bindings::{infer_static_bindings, names_type_binder, same_const_identity};
 
 use super::{
     CallSite, ExpressionHandle, ExpressionNode, StatementNode, StaticMachineArgument, SymbolHandle,

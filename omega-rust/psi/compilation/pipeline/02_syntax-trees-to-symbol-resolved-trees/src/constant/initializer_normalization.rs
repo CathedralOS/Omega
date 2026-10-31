@@ -19,6 +19,8 @@ use symbols::SymbolKind;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{SyntaxTrees, item::ConstDefinition, types::ConstArgumentOrigin};
 
+mod resolved_payload;
+
 /// The three existing initializer inventories: original value use, complete
 /// declaration preparation, and the materialized value's realized selections.
 #[derive(Clone, Copy)]
@@ -176,36 +178,28 @@ pub(crate) fn retain(
     {
         return Err(error(reference, "lost its exact authored expression"));
     }
-    let value = if lowerer.const_resolution_mode
-        == crate::resolution::lowerer::ConstResolutionMode::Complete
-    {
-        super::declaration_values::evaluated_declaration_value(
-            syntax,
-            definition,
-            lowerer.constant_selection.as_ref(),
-        )
-    } else {
-        crate::preparation::generic_data::canonicalize_pending_initializer_payload(
-            syntax,
-            definition,
-            lowerer.constant_selection.as_ref(),
-        )
-        .and_then(|payload| {
-            if payload.pending_destination != definition.pending_qualification {
-                return Err(
-                    "private initializer lost its exact pending destination obligation".to_owned(),
-                );
-            }
-            Ok(payload.value.encoding.into())
+    if definition
+        .pending_qualification
+        .as_ref()
+        .is_some_and(|obligation| {
+            obligation.declaration != definition.name.source_span()
+                || obligation.initializer != definition.value
         })
-    }
-    .map_err(|_| error(reference, "materialized value is not canonical"))?;
-    if value != receipt.result_value {
+        || definition
+            .qualification
+            .as_ref()
+            .is_some_and(|qualification| {
+                qualification.destination != definition.type_reference
+                    || qualification.initializer != definition.value
+            })
+    {
         return Err(error(
             reference,
-            "materialized value drifted from its canonical result",
+            "initializer lost its exact destination obligation",
         ));
     }
+    // Payload agreement is checked after symbol assignment, against current
+    // and retained declaration identities together, before any substitution.
     let mut references = Vec::new();
     let mut operators = Vec::new();
     let mut pending = vec![receipt.authored_expression];
@@ -880,6 +874,34 @@ pub(crate) fn finalize(
     use syntax_trees::item::ConstInitializerCustody;
     let mut roots = Vec::new();
     for (ordinal, record) in records.iter().enumerate() {
+        let mut owners = program.const_declarations.iter().filter(|declaration| {
+            program.symbols.symbol_source_span(declaration.symbol) == Some(record.declaration)
+                && declaration.initializer == record.materialized
+        });
+        let owner = owners.next().ok_or_else(|| {
+            error(
+                record.declaration,
+                "normalization lost its exact declaration owner",
+            )
+        })?;
+        if owners.next().is_some() {
+            return Err(error(
+                record.declaration,
+                "normalization has ambiguous declaration custody",
+            ));
+        }
+        resolved_payload::validate(
+            program,
+            &owner.declared_type,
+            record.materialized,
+            &record.receipt.result_value,
+        )
+        .map_err(|reason| {
+            error(
+                record.declaration,
+                &format!("materialized value is not canonical: {reason}"),
+            )
+        })?;
         let (authored_origins, authored_operators) =
             reconstruct(program, records, ordinal, DependencyPurpose::Authored)?;
         let authored_calls = declaration_custody(program, record, DependencyPurpose::Authored)?;

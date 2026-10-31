@@ -52,8 +52,20 @@ pub fn prepare<'input>(
             artifact.view(),
             proposal.target_profile().target_name(),
         );
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
+        let target_facts = proposal
+            .target_profile()
+            .layout_target_facts()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "entry RAM target has no representation facts",
+                )]
+            })?;
+        let layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &selections,
+            &target_facts,
+        )
+        .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
         let entry = proposal.program_entry().checked_entry().terminal_entry();
         let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
         for initializer in request.private_entry_ram {

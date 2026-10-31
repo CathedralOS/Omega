@@ -3,6 +3,7 @@ use super::{
     SymbolHandle, proof_nat_cast,
 };
 use crate::proof_integer_expression;
+mod application_formation;
 #[cfg(test)]
 mod difference_constraint_tests;
 mod difference_matrix;
@@ -350,6 +351,31 @@ impl<'program> Engine<'program> {
             }
         }
         engine
+    }
+
+    /// The initializer of one immutable local in this machine. A dispatch
+    /// subject keeps its comparison there after the binding is renamed.
+    pub(super) fn immutable_local_initializer(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<ExpressionHandle> {
+        let machine = self.program.machine(self.machine_symbol)?;
+        for state in self.program.machine_states(machine) {
+            for statement in self
+                .program
+                .statement_table
+                .statements(state.statement_nodes)
+            {
+                if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                    && local.symbol == symbol
+                    && !local.is_mutable
+                    && local.initial_value.is_valid()
+                {
+                    return Some(local.initial_value);
+                }
+            }
+        }
+        None
     }
 
     /// The one Engine field roster. `new` and `for_explicit_bindings` differ

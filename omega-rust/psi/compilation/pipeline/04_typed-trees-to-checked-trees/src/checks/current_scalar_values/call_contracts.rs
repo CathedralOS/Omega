@@ -8,6 +8,7 @@ use super::{
     Binding, CurrentScalarValues, Length, LengthSubject, ScalarField, admitted, fixed_length,
     integer_carrier, length_occurrence, literal_window_length, scalar_field_occurrence, scoped,
 };
+use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
 use typed_trees::machine::Machine;
@@ -142,9 +143,7 @@ impl CurrentScalarValues<'_> {
             (
                 self.program
                     .machine_by_own_or_state_symbol(row.registration_operation)?,
-                self.program
-                    .expression_table
-                    .static_machine_application_arguments(application),
+                expressions(self.program).static_machine_application_arguments(application),
             )
         } else {
             (callee, explicit)

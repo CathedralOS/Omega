@@ -1,0 +1,20 @@
+use psi::checks::checks;
+use psi::checking::slot_review;
+
+// Product consumer of the public slot records Psi checking publishes.
+// The admission itself is `psi::checking::slot_review`: this package cannot
+// be linked as a dependency of the checking gate, because the product root
+// is an application. Every product compilation that reaches this module
+// re-admits the same records.
+
+public data OmegaSlotReview {}
+
+public machine OmegaSlotReview::prepare(review: &mut OmegaSlotReview) {}
+
+public machine OmegaSlotReview::admits(review: &OmegaSlotReview, checks: &Checks) -> bool
+crashes Trap
+{
+    let mut admission: SlotReview;
+    SlotReview::prepare(&mut admission);
+    SlotReview::admits(&admission, checks)
+}

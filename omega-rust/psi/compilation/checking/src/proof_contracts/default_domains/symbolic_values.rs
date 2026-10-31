@@ -64,6 +64,70 @@ pub(super) fn literal_value(
     }
 }
 
+/// Whether every declared fact of `definition` is true for this valuation.
+pub(super) fn predicate_holds(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::data::DataDefinition,
+    fields: &[(String, Option<LiteralValue>)],
+    active_case: Option<symbols::SymbolHandle>,
+) -> bool {
+    let valuation = fields
+        .iter()
+        .map(|(name, value)| (name.as_str(), *value))
+        .collect::<Vec<_>>();
+    program
+        .conjunctive_proof_facts(definition.where_facts)
+        .all(|fact| {
+            let Some(expression) = fact.as_expression() else {
+                return false;
+            };
+            fold(
+                program,
+                definition,
+                &valuation,
+                &[],
+                &[],
+                false,
+                active_case,
+                *expression,
+            )
+            .is_some_and(|value| value != 0)
+        })
+}
+
+/// Literal and symbolic fields of one struct literal. A non-literal
+/// initializer contributes no field valuation.
+pub(super) fn struct_literal_snapshot(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> (
+    Vec<(String, Option<LiteralValue>)>,
+    Vec<(String, SymbolicValue)>,
+) {
+    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
+    else {
+        return (Vec::new(), Vec::new());
+    };
+    let fields = program.expression_table.struct_fields(literal.fields);
+    let values = fields
+        .iter()
+        .map(|field| {
+            (
+                field.name.as_str().to_string(),
+                literal_value(program, field.value),
+            )
+        })
+        .collect();
+    let symbols = fields
+        .iter()
+        .filter_map(|field| {
+            expression_symbolic_value(program, field.value)
+                .map(|symbol| (field.name.as_str().to_string(), symbol))
+        })
+        .collect();
+    (values, symbols)
+}
+
 /// Distinguish IEEE predicates before the integer symbolic shortcut sees
 /// them. In particular `value == value` is not true for an unknown float.
 pub(super) fn mentions_float(
@@ -135,6 +199,7 @@ pub(super) fn fold(
     symbols: &[(String, SymbolicValue)],
     measures: &[(String, Option<i128>, Option<i128>)],
     born_zero: bool,
+    active_case: Option<symbols::SymbolHandle>,
     expression: ExpressionHandle,
 ) -> Option<i128> {
     match program.expression_table.expression(expression) {
@@ -186,9 +251,22 @@ pub(super) fn fold(
                 None => None,
             }
         }
+        ExpressionNode::Member(member)
+            if subject_field(program, definition, member.receiver) =>
+        {
+            match valuation
+                .iter()
+                .find(|(name, _)| *name == member.member.as_str())
+            {
+                Some((_, value)) => value.and_then(LiteralValue::integer),
+                None if born_zero => Some(0),
+                None => None,
+            }
+        }
         ExpressionNode::Binary(binary) => {
-            // A tag classifier is not an integer value, including in a zero
-            // valuation. The captured structural predicate owner judges it.
+            // A known active case makes `self in Case` true or false. An
+            // unknown case stays unknown. Either side of `||` can carry the
+            // predicate, and either side of `&&` can refute it.
             if binary.operator == BinaryOperator::CaseMembership
                 || program
                     .expression_table
@@ -203,7 +281,42 @@ pub(super) fn fold(
                             })
                     })
             {
-                return None;
+                return case_membership_value(program, binary.right, active_case);
+            }
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                let left = fold(
+                    program,
+                    definition,
+                    valuation,
+                    symbols,
+                    measures,
+                    born_zero,
+                    active_case,
+                    binary.left,
+                );
+                let right = fold(
+                    program,
+                    definition,
+                    valuation,
+                    symbols,
+                    measures,
+                    born_zero,
+                    active_case,
+                    binary.right,
+                );
+                return match binary.operator {
+                    BinaryOperator::Or => match (left, right) {
+                        (Some(value), _) | (_, Some(value)) if value != 0 => Some(1),
+                        (Some(left), Some(right)) => Some(i128::from(left != 0 || right != 0)),
+                        _ => None,
+                    },
+                    BinaryOperator::And => match (left, right) {
+                        (Some(0), _) | (_, Some(0)) => Some(0),
+                        (Some(left), Some(right)) => Some(i128::from(left != 0 && right != 0)),
+                        _ => None,
+                    },
+                    _ => None,
+                };
             }
             if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
                 && mentions_float(program, definition, expression)
@@ -247,6 +360,7 @@ pub(super) fn fold(
                 symbols,
                 measures,
                 born_zero,
+                active_case,
                 binary.left,
             )?;
             let right = fold(
@@ -256,6 +370,7 @@ pub(super) fn fold(
                 symbols,
                 measures,
                 born_zero,
+                active_case,
                 binary.right,
             )?;
             match binary.operator {
@@ -275,6 +390,42 @@ pub(super) fn fold(
         }
         _ => None,
     }
+}
+
+/// `self.field` in this declaration's predicate. A nested receiver is not
+/// that field's current valuation.
+fn subject_field(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::data::DataDefinition,
+    receiver: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(receiver) else {
+        return false;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    members.len() == 1
+        && (path.symbol == definition.predicate_subject_symbol || members[0].as_str() == "self")
+}
+
+/// `self in Case` against the place's retained active case. Unknown when the
+/// case was not retained or the membership does not name one variant.
+fn case_membership_value(
+    program: &dyn crate::CheckingInput,
+    case: ExpressionHandle,
+    active_case: Option<symbols::SymbolHandle>,
+) -> Option<i128> {
+    let active = active_case.filter(|symbol| symbol.is_valid())?;
+    let path = program.expression_table.name_path_node(case)?;
+    if path.resolved_symbol() == Some(active) {
+        return Some(1);
+    }
+    let spelled = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()?
+        .as_str();
+    let active_name = program.symbols.name(active);
+    Some(i128::from(spelled == active_name))
 }
 
 /// Read a scalar static argument through the producer's retained application.

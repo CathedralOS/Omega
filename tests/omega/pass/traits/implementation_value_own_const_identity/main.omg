@@ -1,0 +1,9 @@
+// Static control: selected implementation applications retain their own const operands.
+const ZERO: u64 = 0u64;
+const EIGHT: u64 = 8u64;
+trait Tag {}
+Choice<const Value: u64> satisfies Tag {}
+data Holder<Implementation satisfies Tag> [copy] { value: u64; }
+machine probe(value: Holder<Choice<ZERO>>) -> Holder<Choice<ZERO>> { value }
+machine forward<const Index: u64>(value: Holder<Choice<Index>>) -> Holder<Choice<Index>> { value }
+machine main() {}

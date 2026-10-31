@@ -248,6 +248,10 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
             }
         }
         TypeReference::ConstExpression(expression) => {
+            if !expression.supplied_operand_owner.is_valid() && !expression.lexical_owner.is_valid()
+            {
+                expression.lexical_owner = machine.symbol;
+            }
             // Resolve lexical subjects before determining whether an index is
             // closed. A runtime binding cannot become a same-named constant.
             assign_statement_expression_symbols(
@@ -257,7 +261,7 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 state_symbol,
                 expressions,
                 child_types,
-                *expression,
+                expression.expression,
             );
         }
         TypeReference::Named { .. } | TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}

@@ -765,6 +765,8 @@ pub(crate) fn validate_structural_root_operations(
                                 &unit.identities,
                                 path,
                                 source.access,
+                                result.structural_type,
+                                storage.as_ref(),
                             ) else {
                                 return false;
                             };

@@ -473,6 +473,27 @@ impl TerminalExecution<'_> {
         storage: &PrimitiveStorage,
         access: StructuralAccess,
     ) -> Result<Option<StructuralFieldType>, TerminalInterpretError> {
+        if let PrimitiveStorageEndpoint::Projection { fragments, .. } = &storage.endpoint {
+            for fragment in fragments {
+                if let Some(restriction) =
+                    self.captured_scalar_restriction(&fragment.storage, access)?
+                {
+                    // A shared host observation cannot replace its source.
+                    // Mutable projected replacement needs every original cell
+                    // to admit arbitrary bits; a target byte's type cannot
+                    // discharge a wider field's predicate or atomic protocol.
+                    let unrestricted = matches!(restriction,
+                        StructuralFieldType::Scalar(scalar) if scalar != semantic_vocabulary::ScalarType::Boolean)
+                        || matches!(restriction, StructuralFieldType::IeeeFloat(_));
+                    if access != StructuralAccess::SharedBorrow && !unrestricted {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "projected host scalar replacement requires its original field restrictions",
+                        ));
+                    }
+                }
+            }
+            return Ok(None);
+        }
         let PrimitiveStorageEndpoint::ScalarField(cell) = &storage.endpoint else {
             return Ok(None);
         };
@@ -521,6 +542,13 @@ pub(crate) fn scalar_qualification_owner(
         PrimitiveStorageEndpoint::Scalar(place) => Some(place),
         PrimitiveStorageEndpoint::ScalarField(field) => Some(&field.parent),
         PrimitiveStorageEndpoint::ArrayElement { array, .. } => Some(&array.referent),
+        PrimitiveStorageEndpoint::Projection { fragments, .. } => {
+            let owner = scalar_qualification_owner(&fragments.first()?.storage)?;
+            fragments
+                .iter()
+                .all(|fragment| scalar_qualification_owner(&fragment.storage) == Some(owner))
+                .then_some(owner)
+        }
         PrimitiveStorageEndpoint::OwnedArrayElement { .. }
         | PrimitiveStorageEndpoint::ViewByte { .. } => None,
     }

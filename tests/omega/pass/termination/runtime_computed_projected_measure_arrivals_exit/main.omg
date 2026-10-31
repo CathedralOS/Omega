@@ -3,7 +3,7 @@
 // exact `u64` member coordinate rather than a bare formal. The flat self
 // call descends directly; the two-state form transports the same coordinate
 // and the pinned ceiling through the discovered telescope.
-data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }
+data Countdown requires self.remaining >= 0 && self.remaining <= 5 { remaining: u64; }
 measure Countdown::Doubled(value: u64) -> u64
 { value * 2 }
 
