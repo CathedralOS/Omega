@@ -6,6 +6,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item;
+use syntax_trees::item::PropositionBody;
 use syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, ProofFact,
 };
@@ -142,8 +143,8 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
             }
             Item::Proposition(proposition) => {
                 let body = match proposition.body {
-                    item::PropositionBody::Primitive => PropositionBodySurface::Primitive,
-                    item::PropositionBody::Witness { evidence } => {
+                    PropositionBody::Primitive => PropositionBodySurface::Primitive,
+                    PropositionBody::Witness { evidence } => {
                         collect_bounded_type_site(
                             &mut report,
                             syntax_trees,
@@ -155,9 +156,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                         );
                         PropositionBodySurface::Witness
                     }
-                    item::PropositionBody::Transparent { .. } => {
-                        PropositionBodySurface::Transparent
-                    }
+                    PropositionBody::Transparent { .. } => PropositionBodySurface::Transparent,
                 };
                 for parameter in syntax_trees.items.state_parameters(proposition.parameters) {
                     let parameter = syntax_trees.items.state_parameter(*parameter);
