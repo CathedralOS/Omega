@@ -1092,10 +1092,12 @@ fn selected_value_type(
             // correspondence from retained template selectors. Reopening its
             // declaration telescope loses that correspondence (including for
             // compiler-issued accessor records). Check enclosing reference
-            // access above, then use the same closed-field owner as ordinary
+            // access above, then use the same prepared-field owner as ordinary
             // result typing and write-only projection. A mismatched selector
             // must not recover by name or through the open-template path.
-            if program.closed_data_definition(receiver).is_some() {
+            if program.closed_data_definition(receiver).is_some()
+                || program.data_application_definition(receiver).is_some()
+            {
                 return crate::value_custody::places::applied_data_member_field(
                     program, receiver, member,
                 )
