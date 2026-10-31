@@ -20,6 +20,7 @@ use super::{
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::places::place_at;
 use checked_trees::expression::ExpressionHandle;
 
 /// The terminator family an edge is built for. The trace names the guard
@@ -214,13 +215,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     let case_test = match transition.guard {
         TransitionGuardNode::When(guard) => crate::proof::exact_outcome_case_test(program, guard)
             .and_then(|(subject, case)| {
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    source.symbol,
-                    ordinal as usize,
-                    subject,
-                )
-                .map(|place| (place, case))
+                place_at(program, source.symbol, ordinal as usize, subject)
+                    .map(|place| (place, case))
             }),
         _ => None,
     };
@@ -235,12 +231,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         {
             argument = cast.value;
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            source.symbol,
-            ordinal as usize,
-            argument,
-        )?;
+        let place = place_at(program, source.symbol, ordinal as usize, argument)?;
         let symbol = place.root.as_symbol()?;
         if !place.segments.is_empty() {
             return None;
@@ -360,7 +351,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             // result forwarding needs one; its absence leaves construction
             // to the ordinary selected-edge establishment below.
             if (target.access == CheckedStructuralAccess::Owned || shared_view || mutable_view)
-                && let Some(place) = validation::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)
+                && let Some(place) = place_at(program, source.symbol, ordinal as usize, expression)
                 // Forward an existing descriptor here. Borrowing an owned
                 // local establishes a loan, even when its referent has the
                 // same representation as the target. The ordinary loan path
@@ -432,9 +423,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 }
             }
             if let Some((subject_place, selected_case)) = &case_test
-                && let Some(place) = validation::canonical_place_from_expression_in_state(
-                    program, source.symbol, ordinal as usize, expression,
-                )
+                && let Some(place) = place_at(program, source.symbol, ordinal as usize, expression)
             {
                 mark(SuccessorGuard::CasePayloadTransfer);
                 if let Some(source) = case_payload_transfer(
@@ -529,12 +518,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 )
             {
                 let expected_access = target.access;
-                if let Some(place) = validation::canonical_place_from_expression_in_state(
-                        program,
-                        source.symbol,
-                        ordinal as usize,
-                        expression,
-                    )
+                if let Some(place) = place_at(program, source.symbol, ordinal as usize, expression)
                     && let Some(root_symbol) = place.root.as_symbol()
                 {
                     // The root names either a source parameter — the authored
@@ -1157,12 +1141,7 @@ fn projected_value_subject(
     if target.access != CheckedStructuralAccess::Owned {
         return None;
     }
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        source.symbol,
-        ordinal as usize,
-        expression,
-    )?;
+    let place = place_at(program, source.symbol, ordinal as usize, expression)?;
     if place.segments.is_empty() {
         return None;
     }

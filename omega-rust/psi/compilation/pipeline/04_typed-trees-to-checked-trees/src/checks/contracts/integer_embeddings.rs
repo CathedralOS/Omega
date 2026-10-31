@@ -1,6 +1,7 @@
 //! Exit-local congruence for admitted proof integer embeddings.
 
 use super::return_values::{exit_return_expression, is_result_reference};
+use crate::flow::expressions;
 use checked_trees::{FlowExitFact, FlowStateFact};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -127,10 +128,7 @@ fn embedded_literal(
     literal: ExpressionHandle,
 ) -> Option<(ExpressionHandle, numerics::bignum::BigInt)> {
     let (_, argument) = validation::integer_embedding_argument(program, embedded)?;
-    let literal = program
-        .expression_table
-        .integer_node(literal)?
-        .value_bignum()?;
+    let literal = expressions(program).integer_node(literal)?.value_bignum()?;
     Some((argument, literal))
 }
 
@@ -152,8 +150,7 @@ fn returned_subject(
     let Some(literal) = program.expression_table.struct_literal_node(returned) else {
         return expression;
     };
-    program
-        .expression_table
+    expressions(program)
         .struct_fields(literal.fields)
         .iter()
         .find(|field| field.name.as_str() == member.member.as_str())

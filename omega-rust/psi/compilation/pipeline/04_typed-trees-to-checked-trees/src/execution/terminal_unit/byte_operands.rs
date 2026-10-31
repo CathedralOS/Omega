@@ -6,6 +6,7 @@
 //! replays a local initializer as current storage. Lifetime and predicate
 //! obligations remain with the consuming operation.
 use super::{calls, types};
+use crate::places::place_at;
 use checked_trees::{
     CheckedOperatorFacts, CheckedRuntimeIndex, CheckedScalarExpressionPlans,
     CheckedStructuralAccess, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,
@@ -90,12 +91,7 @@ fn place(
     dense_parameter: &dyn Fn(usize) -> Option<u32>,
     selector: &dyn Fn(ExpressionHandle) -> Option<CheckedRuntimeIndex>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        operand,
-    )?;
+    let place = place_at(program, state.symbol, statement_index, operand)?;
     if !validation::place_has_builtin_coordinates(program, machine, Some(state), operand) {
         return None;
     }

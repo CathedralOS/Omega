@@ -4,6 +4,7 @@
 
 use super::index_terms::{index_arguments_equal, index_identity_bindings};
 use super::instance_collection::StateCallIndex;
+use crate::flow::expressions;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorOccurrence, FlowFacts, FlowSemanticContextRef,
@@ -200,10 +201,7 @@ fn has_builtin_equality_meaning(
         AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget,
     };
     let mut authored = false;
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in expressions(program).authored_selection_occurrences(expression) {
         authored = true;
         if !program
             .authored_declaration_selections()
@@ -318,8 +316,7 @@ pub(crate) fn bound_index_substitutions(
     if !application.is_valid() {
         return Vec::new();
     }
-    program
-        .expression_table
+    expressions(program)
         .static_machine_application_bindings(application)
         .iter()
         .filter_map(|binding| {

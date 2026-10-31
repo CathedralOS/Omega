@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -234,8 +235,7 @@ pub(super) fn expression_is_parameter(
     };
 
     path.symbol == parameter.symbol
-        || program
-            .expression_table
+        || expressions(program)
             .name_path_members(path.members)
             .last()
             .is_some_and(|member| member.as_str() == parameter.name.as_str())

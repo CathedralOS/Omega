@@ -19,6 +19,7 @@ use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call
 use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, parameter_qualifications, state_flow,
 };
+use crate::places::place_at;
 
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 
@@ -157,13 +158,8 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
             // A loan of existing storage must keep that storage's identity.
             // Only a completed value with no canonical stored home needs an
             // argument establishment; a copied Name would be a new referent.
-            if validation::canonical_place_from_expression_in_state(
-                program,
-                state,
-                statement_index,
-                referent.0,
-            )
-            .is_some_and(|place| place.root.as_symbol().is_some())
+            if place_at(program, state, statement_index, referent.0)
+                .is_some_and(|place| place.root.as_symbol().is_some())
             {
                 return None;
             }
@@ -232,13 +228,8 @@ fn evaluated_value_root<'a>(
     } = facts.values.structural_values.nodes.get(root.root).kind
         && !path.is_empty()
     {
-        if validation::canonical_place_from_expression_in_state(
-            program,
-            state,
-            statement_index,
-            root.expression,
-        )
-        .is_some_and(|place| place.root.as_symbol().is_some())
+        if place_at(program, state, statement_index, root.expression)
+            .is_some_and(|place| place.root.as_symbol().is_some())
         {
             return None;
         }
@@ -736,12 +727,7 @@ fn collect<'a>(
             });
             continue;
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            call.statement_index,
-            *argument,
-        );
+        let place = place_at(program, state.symbol, call.statement_index, *argument);
         if place
             .as_ref()
             .is_some_and(|place| place.root.as_symbol().is_some())

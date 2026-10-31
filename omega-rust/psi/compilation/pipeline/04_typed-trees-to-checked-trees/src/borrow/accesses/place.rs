@@ -1,3 +1,4 @@
+use crate::places::place_at;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -212,12 +213,7 @@ pub(crate) fn borrow_access_geometry(
     }
     // Formation, flow and returned-value capture share one address algebra.
     // In particular, a computed backing root is not absence of a loan.
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    )?;
+    let place = place_at(program, state_symbol, statement_index, expression)?;
     Some(BorrowAccessGeometry::declared(BorrowAccessPlace {
         incoming_reference: Default::default(),
         incoming_owner_path: Default::default(),

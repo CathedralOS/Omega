@@ -5,6 +5,7 @@
 //! A mutable formal here denotes its arrival value, never a later StorageRead.
 
 use super::{Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind};
+use crate::places::place_at;
 use checked_trees::{
     CheckedNaturalRankMeasure, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedStateNaturalRank,
@@ -169,12 +170,7 @@ fn input_coordinate(
     let (owner, _) = validation::find_state(builder.program, builder.state)?;
     let entry = builder.program.machine_states(owner).first()?;
     let source = if let Some(subject) = subject {
-        validation::canonical_place_from_expression_in_state(
-            builder.program,
-            entry.symbol,
-            0,
-            subject,
-        )?
+        place_at(builder.program, entry.symbol, 0, subject)?
     } else {
         // A joint component retains an exact primitive entry coordinate even
         // when this participant authors no separate ranking expression. Its

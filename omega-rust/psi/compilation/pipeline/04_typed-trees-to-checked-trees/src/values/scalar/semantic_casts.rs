@@ -1,4 +1,5 @@
 //! Semantic cast custody is independent of the pure scalar payload grammar.
+use crate::flow::expressions;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -119,8 +120,7 @@ pub(crate) fn requires_custody(
         }
         ExpressionNode::Call(call) => {
             child(call.receiver)
-                || program
-                    .expression_table
+                || expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .copied()
@@ -131,14 +131,12 @@ pub(crate) fn requires_custody(
         ExpressionNode::Borrow(borrow) => child(borrow.target),
         ExpressionNode::Atomic(atomic) => child(atomic.value) || child(atomic.result),
         ExpressionNode::Range(range) => child(range.start) || child(range.end),
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(elements) => expressions(program)
             .expression_handles(*elements)
             .iter()
             .copied()
             .any(child),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expressions(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| child(field.value)),

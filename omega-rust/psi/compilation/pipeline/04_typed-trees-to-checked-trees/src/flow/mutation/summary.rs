@@ -16,11 +16,12 @@
 use validation::CanonicalPlace;
 use validation::call_site_argument_expressions;
 use validation::canonical_place_from_expression;
-use validation::canonical_place_from_expression_in_state;
 use validation::find_call_site;
 
+use crate::flow::indexed_statements;
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{CallMutationWrite, StorageRegion, WritePlaceNamespace};
+use crate::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
@@ -783,10 +784,7 @@ fn collect_state_mutation_summary_places(
     let machine = program.machine_by_symbol(machine_symbol)?;
     let mut writes = Vec::new();
 
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         if let Some(local) = statement.as_local_data()
             && validation::atomic_once_carrier(program, local.initial_value).is_some()
         {
@@ -1044,7 +1042,7 @@ fn instantiate_call_relative_writes_pre_resolved(
                 ));
             }
             argument.and_then(|expression| {
-                canonical_place_from_expression_in_state(
+                place_at(
                     program,
                     caller_state_symbol,
                     borrow_call.statement_index,
@@ -1132,7 +1130,7 @@ pub(super) fn captured_argument_write_regions(
                         })
                         .collect::<Option<Vec<_>>>()?
                 } else {
-                    let mut place = canonical_place_from_expression_in_state(
+                    let mut place = place_at(
                         program,
                         state_symbol,
                         statement_index,

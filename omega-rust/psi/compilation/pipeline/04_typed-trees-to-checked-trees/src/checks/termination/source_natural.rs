@@ -9,6 +9,8 @@ use super::{
     order::{OrderResolution, RankingOrder},
 };
 use crate::checks::current_scalar_values::CurrentScalarValues;
+use crate::flow::expressions;
+use crate::flow::state_statements;
 use checked_trees::{CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember};
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
@@ -92,11 +94,7 @@ fn admit_coordinates(
             },
         });
         for state in program.machine_states(machine) {
-            for ordinal in 0..program
-                .statement_table
-                .statements(state.statement_nodes)
-                .len()
-            {
+            for ordinal in 0..state_statements(program, state.statement_nodes).len() {
                 let calls =
                     validation::collect_call_sites_in_statement(program, machine, state, ordinal);
                 for (call_ordinal, site) in calls.iter().enumerate() {
@@ -161,18 +159,14 @@ fn admit_coordinates(
                     let callee = machines[callee_position];
                     let destination = &coordinates[callee_position];
                     let (source_callee, arguments) = if application.is_valid() {
-                        let selected = program
-                            .expression_table
-                            .static_machine_application(application);
+                        let selected = expressions(program).static_machine_application(application);
                         (
                             program
                                 .machine_by_symbol(selected.registration_operation)
                                 .or_else(|| {
                                     program.machine_holding_state(selected.registration_operation)
                                 }),
-                            program
-                                .expression_table
-                                .static_machine_application_arguments(application),
+                            expressions(program).static_machine_application_arguments(application),
                         )
                     } else {
                         (Some(callee), fallback)
@@ -330,11 +324,7 @@ fn internal_cycle(program: &dyn validation::CheckingInput, machine: &Machine) ->
     let states = program.machine_states(machine);
     let mut adjacency = graph::machine_adjacency(program, machine);
     for (source, state) in states.iter().enumerate() {
-        for ordinal in 0..program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len()
-        {
+        for ordinal in 0..state_statements(program, state.statement_nodes).len() {
             for call in
                 validation::collect_call_sites_in_statement(program, machine, state, ordinal)
             {
@@ -580,11 +570,7 @@ fn realized_forwarding(
         let (_, source) = realized_parameter(program, state, original, carrier)
             .ok_or_else(|| "source rank has no unique immutable state realization".to_string())?;
         mapping.push((state.symbol, source));
-        for ordinal in 0..program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len()
-        {
+        for ordinal in 0..state_statements(program, state.statement_nodes).len() {
             for call in
                 validation::collect_call_sites_in_statement(program, machine, state, ordinal)
             {

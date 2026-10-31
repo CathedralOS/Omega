@@ -23,6 +23,8 @@ use crate::checks::multiplicity::selected_evaluation::place_bindings::{
 use crate::checks::multiplicity::{projected_affine, projected_replacements, temporary_results};
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::flow::FlowOwnershipEventSource;
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -1184,12 +1186,7 @@ fn copy_source_completions(
             continue;
         };
         let expression = *expression;
-        if !expression.is_valid()
-            || program
-                .expression_table
-                .borrow_expression(expression)
-                .is_some()
-        {
+        if !expression.is_valid() || expressions(program).borrow_expression(expression).is_some() {
             continue;
         }
         let Some(source) = place.root.as_expression() else {
@@ -1300,7 +1297,7 @@ fn copy_source_completions(
                 let observation = observations.next()?;
                 if observations.next().is_some()
                     || !facts.flow.control.operands.is_valid(observation.receiver)
-                    || !validation::canonical_place_from_expression_in_state(
+                    || !place_at(
                         program,
                         state,
                         statement_index,

@@ -3,6 +3,7 @@
 //! to its source only while both the destination and every source/selector observation
 //! survive through this exact invocation. This does not replay an initializer
 //! or a callee, and a write followed by restoration still breaks the relation.
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
@@ -138,21 +139,17 @@ fn stable_copies(
         }
         if selectors_preserve_identity
             && reads.iter().all(|read| {
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.state_symbol,
-                    stored.statement_index,
-                    *read,
+                place_at(program, state.state_symbol, stored.statement_index, *read).is_some_and(
+                    |place| {
+                        crate::flow::operand_observations_agree(
+                            program,
+                            &facts.flow,
+                            stored,
+                            invocation,
+                            &place,
+                        )
+                    },
                 )
-                .is_some_and(|place| {
-                    crate::flow::operand_observations_agree(
-                        program,
-                        &facts.flow,
-                        stored,
-                        invocation,
-                        &place,
-                    )
-                })
             })
         {
             aliases.push((destination, stored.expression));
@@ -217,7 +214,7 @@ impl Comparison<'_> {
         ) {
             return None;
         }
-        let place = validation::canonical_place_from_expression_in_state(
+        let place = place_at(
             self.program,
             self.state.state_symbol,
             self.call.statement_index,

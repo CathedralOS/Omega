@@ -13,6 +13,8 @@
 
 mod suppliers;
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use arena::{Arena, Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, BorrowLoanOwnerSegment, CapturedPlace, CheckFacts,
@@ -238,7 +240,7 @@ fn collect(
             }
             continue;
         }
-        let Some(source) = validation::canonical_place_from_expression_in_state(
+        let Some(source) = place_at(
             program,
             state.state_symbol,
             capture.statement_index,
@@ -617,9 +619,8 @@ fn returned_places(
     if !matched {
         return None;
     }
-    let typed_trees::expression::ExpressionNode::Call(expression) = program
-        .expression_table
-        .expression(call.authored_expression)
+    let typed_trees::expression::ExpressionNode::Call(expression) =
+        expressions(program).expression(call.authored_expression)
     else {
         return None;
     };
@@ -754,7 +755,7 @@ fn projected_operand_places(
             active_calls,
         );
     }
-    let source = validation::canonical_place_from_expression_in_state(
+    let source = place_at(
         program,
         state.state_symbol,
         operand.statement_index,

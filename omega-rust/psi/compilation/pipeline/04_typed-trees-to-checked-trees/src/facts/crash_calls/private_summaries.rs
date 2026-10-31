@@ -9,6 +9,7 @@ use crate::facts::crash_calls::summary_predicates::{
     normalize_summary_buckets,
 };
 use crate::facts::crash_plan_facts::declared_parameter_names;
+use crate::flow::expressions;
 use symbols::SymbolHandle;
 use validation::contract_structure::is_true_crash_route;
 
@@ -700,8 +701,7 @@ fn is_selected_build_operation(
             .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
             .map(|selection| selection.target()),
         validation::CallSite::Expression { expression, call } if !call.target_symbol.is_valid() => {
-            let mut selections = program
-                .expression_table
+            let mut selections = expressions(program)
                 .authored_selection_occurrences(expression)
                 .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
                 .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call);

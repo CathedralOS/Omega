@@ -10,6 +10,9 @@
 //! a persistent owner's loan through every outgoing transition.
 
 use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
+use crate::flow::expressions;
+use crate::flow::indexed_statements;
+use crate::places::place_at;
 use diagnostics::Diagnostic;
 use language_core::place_label;
 use symbols::SymbolHandle;
@@ -434,10 +437,7 @@ fn analyze_persistent_state(
     let mut static_persistent_places = Vec::new();
     let mut static_persistent_paths = entry_paths.to_vec();
     let mut diagnostics = Vec::new();
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
+    for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
         if retain_static_paths_across_call_frame(
             program,
             state,
@@ -469,12 +469,8 @@ fn analyze_persistent_state(
         let Some(assignment) = statement.as_assignment() else {
             continue;
         };
-        let Some(place) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            assignment.target,
-        ) else {
+        let Some(place) = place_at(program, state.symbol, statement_index, assignment.target)
+        else {
             continue;
         };
         let target_field = persistent_field_and_tail(&place, persistent);
@@ -574,12 +570,7 @@ fn source_is_known_static_persistent_place(
     known_static_paths: &[StaticPersistentPath],
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> bool {
-    let Some(source) = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    ) else {
+    let Some(source) = place_at(program, state_symbol, statement_index, expression) else {
         return false;
     };
 
@@ -1003,12 +994,8 @@ fn place_segments_proven_equal(
             },
         ) => {
             if let (Some(left), Some(right)) = (
-                program
-                    .expression_table
-                    .constant_integer_value(left_expression),
-                program
-                    .expression_table
-                    .constant_integer_value(right_expression),
+                expressions(program).constant_integer_value(left_expression),
+                expressions(program).constant_integer_value(right_expression),
             ) {
                 return left == right;
             }

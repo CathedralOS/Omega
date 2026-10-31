@@ -3,6 +3,7 @@
 //! Such a predicate must use its retained capture; syntax-only proof routes may
 //! not reinterpret both observations as the invocation's final storage value.
 
+use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{Fact, FactPayload};
 
@@ -671,7 +672,7 @@ fn capture_preserves_source(
         }
     }
     for observation in observations {
-        let mut place = validation::canonical_place_from_expression_in_state(
+        let mut place = place_at(
             program,
             state.state_symbol,
             call.statement_index,
@@ -732,7 +733,7 @@ fn reference_construction_preserves_source(
         }
     }
     for selector in selectors {
-        let place = validation::canonical_place_from_expression_in_state(
+        let place = place_at(
             program,
             state.state_symbol,
             capture.statement_index,

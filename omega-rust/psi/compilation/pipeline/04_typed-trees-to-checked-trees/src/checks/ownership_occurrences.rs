@@ -4,6 +4,7 @@
 mod selected_evaluation;
 pub(super) use selected_evaluation::SelectedEvaluation;
 
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -405,12 +406,7 @@ pub(super) fn owned_temporary_occurrences(
         if !expression.is_valid() || completed.iter().any(|(owner, _)| *owner == expression) {
             continue;
         }
-        let Some(place) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            expression,
-        ) else {
+        let Some(place) = place_at(program, state.symbol, statement_index, expression) else {
             continue;
         };
         if place.root != facts::PlaceRoot::Expression(expression) || !place.segments.is_empty() {

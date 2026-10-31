@@ -3,6 +3,8 @@
 //! Root custody distinguishes parameters, owned locals and view locals. Selection
 //! does not: length, content and element observations must retain the same field
 //! path and selected type rather than rediscovering a whole-local source shape.
+use crate::flow::expressions;
+use crate::places::place_at;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;
@@ -51,9 +53,7 @@ pub(crate) fn structural_sequence_length(
         TypeReferenceHandle,
     ) -> Option<CheckedScalarExpression>,
 ) -> Option<CheckedScalarExpression> {
-    let receiver = program
-        .expression_table
-        .authored_length_receiver(expression)?;
+    let receiver = expressions(program).authored_length_receiver(expression)?;
     structural_sequence_receiver_length(program, operators, parameters, receiver, selector)
 }
 
@@ -397,12 +397,8 @@ fn parameter_projection(
             ) {
                 return None;
             }
-            let element_index = u64::try_from(
-                program
-                    .expression_table
-                    .constant_integer_value(indexed.index)?,
-            )
-            .ok()?;
+            let element_index =
+                u64::try_from(expressions(program).constant_integer_value(indexed.index)?).ok()?;
             let collection_type = predicate_referent_path(program, collection_type, fields)?;
             let element = fixed_index_element_type(program, collection_type, element_index)?;
             fields.push(CheckedStructuralPredicatePathSegment::FixedIndex(
@@ -417,8 +413,7 @@ fn parameter_projection(
             // A parameter owns its place root by symbol. Resolution retains
             // that symbol on the name itself or on one of its path members.
             let root = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
-                program
-                    .expression_table
+                expressions(program)
                     .name_path_member_symbols(name.member_symbols)
                     .iter()
                     .copied()
@@ -724,9 +719,7 @@ pub(crate) fn storage_observation_is_frozen(
             }
         }
     }
-    let Some(place) =
-        validation::canonical_place_from_expression_in_state(program, state, statement, expression)
-    else {
+    let Some(place) = place_at(program, state, statement, expression) else {
         return false;
     };
     let Some(root) = place.root.as_symbol() else {
