@@ -124,7 +124,6 @@ pub use provider_planning::program_entry::{
     RootBinding, SelectedCompilerProgramEntry, SelectedProgramEntry,
     SelectedProgramEntryCallingPlans, program_entry_semantic_binding_role,
     select_compiler_program_entry, selected_program_entry_machine,
-    validate_selected_program_entry_calling_plan,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 pub use terminal_execution::{

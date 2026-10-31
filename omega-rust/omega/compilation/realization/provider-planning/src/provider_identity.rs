@@ -6,9 +6,6 @@ use checked_trees::typed_trees::trait_definition::Conformance;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 use symbols::SymbolHandle;
 
-mod receiving_application;
-pub use receiving_application::{ProviderReceiverApplication, provider_receiver_application};
-
 pub(crate) use build_time_evaluation::provider_declarations::{
     eligible, named_requirement_lifetime_arguments,
 };
