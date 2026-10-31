@@ -57,7 +57,10 @@ Additional controls retain rejection of
 [owned Build fields](../../../../tests/omega/fail/build/activation_owned_field_refused)
 and
 [whole-activation replacement through a borrowed field](../../../../tests/omega/fail/build/activation_borrowed_field_replacement_refused).
-Existing counterfeit-local controls remain unchanged.
+A [reference-rebind control](controls/reference_rebind/main.omg) retains legal
+shared-view descriptor assignment inside an ordinary helper. Its product
+selects a different cell through the rebound view and checks both referents
+and their neighbors. Existing counterfeit-local controls remain unchanged.
 
 ## Requirements and evidence
 
@@ -74,8 +77,9 @@ Existing counterfeit-local controls remain unchanged.
   carrier shape. Constants supply scalar operands. The selected implementation
   remains an ordinary exact entry operand.
 - **Soundness:** the integrity pass distinguishes a borrow from owned storage.
-  Whole-value assignment uses the shared typed-place query, including field
-  projections and call roots, rather than a separate name-only recognizer.
+  Whole-value assignment uses the shared assignment receiving-type judgment,
+  rather than a separate name-only recognizer. A reference-valued field store
+  rebinds its descriptor; an owned Build replacement remains forbidden.
   Ordinary loan checking still owns exclusivity, access and lifetime; the
   runtime binding host retains its issuer check.
 - **Psi 05–07:** ordinary reference-carrying records and helper completions lower

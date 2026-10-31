@@ -29,8 +29,8 @@ enum BuildStorage {
 }
 
 // Storing a loan delegates the original activation's access; it does not store
-// the activation itself. Whole-value writes below query their exact target
-// type through the shared place projection, including fields and call results.
+// the activation itself. Whole-value writes below query the value installed
+// by the assignment: rebinding a descriptor does not replace its referent.
 // Ordinary carried-loan checking owns exclusivity, lifetime and projection.
 fn build_storage(
     typed: &TypedTrees,
@@ -153,13 +153,12 @@ fn validate_build_activation_integrity(
             for statement in typed.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assignment(assignment) => {
-                        if validation::expression_place_type_reference(
-                            typed,
-                            assignment.target,
-                            &[],
+                        if validation::assignment_stored_value_type(
+                            typed, machine, state, assignment,
                         )
                         .is_some_and(|reference| {
-                            build_storage(typed, reference, build_symbol).is_some()
+                            build_storage(typed, reference, build_symbol)
+                                == Some(BuildStorage::Owned)
                         }) {
                             diagnostics.push(Diagnostic::error(
                                 "the compiler-owned Build activation cannot be replaced as a whole value",

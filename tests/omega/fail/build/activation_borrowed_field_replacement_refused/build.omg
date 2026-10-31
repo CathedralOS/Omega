@@ -1,6 +1,8 @@
 data Configuration<'activation> { builder: &'activation mut Build; }
+machine replace(configuration: &mut Configuration, replacement: Build) {
+    configuration.builder = replacement;
+}
 machine configure(configuration: &mut Configuration) {
-    configuration.builder = configuration.builder;
     Build::bind(configuration.builder, linux_x86_64::ProgramEntry, main);
     Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
     Build::bind(configuration.builder, macos_arm64::ProgramEntry, main);
