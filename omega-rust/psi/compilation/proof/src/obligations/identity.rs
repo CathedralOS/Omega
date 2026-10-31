@@ -35,8 +35,8 @@ use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral, MatchPattern,
-    PrivateLayoutOperationRequest, QuotientOperationRequest, StaticMachineArgument,
-    StaticSymbolApplication, TableCallExpression, TableNamePath,
+    QuotientOperationRequest, StaticMachineArgument, StaticSymbolApplication, TableCallExpression,
+    TableNamePath,
 };
 use typed_trees::statement::TransitionGuardNode;
 use typed_trees::typed_trees::StaticRequirementDispatch;
@@ -795,7 +795,12 @@ fn call_identity(program: &IdentityContext<'_>, call: &TableCallExpression) -> S
             quotient_identity(program, call.quotient_operation.as_ref()),
             call.private_layout_operation
                 .as_ref()
-                .map(|request| private_layout_identity(program, request))
+                .map(|request| {
+                    compound(
+                        "private-layout",
+                        [static_argument_identity(program, &request.selected_slot)],
+                    )
+                })
                 .unwrap_or_else(|| "private-layout:none".to_owned()),
             compound(
                 "arguments",
@@ -867,16 +872,6 @@ fn quotient_identity(
             ],
         ),
     }
-}
-
-fn private_layout_identity(
-    program: &IdentityContext<'_>,
-    request: &PrivateLayoutOperationRequest,
-) -> String {
-    compound(
-        "private-layout",
-        [static_argument_identity(program, &request.selected_slot)],
-    )
 }
 
 fn static_argument_identity(

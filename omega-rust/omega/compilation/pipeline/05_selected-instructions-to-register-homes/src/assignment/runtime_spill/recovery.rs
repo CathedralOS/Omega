@@ -39,8 +39,7 @@ use selected_instructions_to_selected_instructions::{
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     UnsealedRecoveryFacts, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
     ValidatedLiveRanges, ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
-    ValidatedSelectedAnalysis, analyze_allocation_legality_reusing, analyze_live_ranges_reusing,
-    analyze_liveness_reusing, materialize_selected_fixed_occurrences,
+    ValidatedSelectedAnalysis, materialize_selected_fixed_occurrences,
     rematerialize_selected_runtime_value, spill_selected_runtime_value,
     spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
 };
@@ -71,45 +70,6 @@ fn assign_reusing(
         environment,
         reuse,
     )
-}
-
-#[allow(dead_code)]
-pub(super) fn analyze(
-    environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    availability: &ValidatedAllocatorAvailability,
-    previous: &impl ValidatedSelectedAnalysis,
-    previous_liveness: &ValidatedLiveness,
-    previous_ranges: &ValidatedLiveRanges,
-    previous_legality: &ValidatedAllocationLegality,
-    selected: &impl ValidatedSelectedAnalysis,
-) -> Result<RuntimeSpillFacts, RuntimeSpillAllocationError> {
-    let liveness = analyze_liveness_reusing(previous, previous_liveness, selected)
-        .map_err(RuntimeSpillAllocationError::Liveness)?;
-    let ranges = analyze_live_ranges_reusing(
-        previous,
-        previous_liveness,
-        previous_ranges,
-        selected,
-        &liveness,
-    )
-    .map_err(RuntimeSpillAllocationError::Ranges)?;
-    let legality = analyze_allocation_legality_reusing(
-        previous_ranges,
-        previous_legality,
-        &ranges,
-        availability,
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        &environment.allocation_constraint_keys(),
-    )
-    .map_err(RuntimeSpillAllocationError::Legality)?;
-    Ok(RuntimeSpillFacts {
-        liveness,
-        ranges,
-        legality,
-    })
 }
 
 fn reanalyze_unsealed(
@@ -200,9 +160,8 @@ impl SpillPressureProbe {
 // spill them like any other value; admission still rejects the ones defined
 // by address-producing instructions. A committed rewrite can mint registers
 // — a split's fresh register keeps any pinned use over its own span — so the
-// pool re-derives against each step's plan. Reloads from either recovery form
-// restate the victim's own origin, so `retire_minted` keeps them out. Only the
-// failed function's registers can relieve its pressure and every step rewrites
+// pool re-derives against each step's plan. Only the failed function's
+// registers can relieve its pressure and every step rewrites
 // only that function, so the roster reads that one function's registers rather
 // than every register of the program at each step.
 pub(super) fn candidates(
@@ -232,66 +191,6 @@ fn is_recovery_candidate(
             | VirtualRegisterOrigin::StructuralObservation { .. }
             | VirtualRegisterOrigin::AbiTransport { .. }
     ) || body.is_entry_register(register)
-}
-
-/// Retire every candidate a spill or rematerialization step minted. Their
-/// reloads and carriers restate the victim's origin — an instruction result
-/// or a structural observation — so `candidates` would readmit them, and
-/// each spill would mint the next victim: one pressured value then chains
-/// through a fresh reload per step, each step a whole-function analysis.
-/// A split's fresh register is the only minted register that joins the pool.
-/// The step rewrote `function` alone, so only its registers can be new.
-#[allow(dead_code)]
-pub(super) fn retire_minted(
-    retired: &mut std::collections::BTreeSet<(usize, VirtualRegisterId)>,
-    function: usize,
-    before: &SelectedInstructionPlan,
-    after: &SelectedInstructionPlan,
-) {
-    // These rewrites append fresh declarations. Verify that exact prefix and
-    // entry-role stability before reading only the new suffix. Unusual inputs
-    // retain the general set difference below; no ID-density assumption enters.
-    if let (Some(prior), Some(current)) = (
-        before.functions.get(function),
-        after.functions.get(function),
-    ) {
-        let result_place = |body: &selected_instructions::SelectedFunction| {
-            body.structural
-                .as_ref()
-                .and_then(|signature| signature.result.as_ref())
-                .map(|result| result.place)
-        };
-        let count = prior.virtual_registers.len();
-        if result_place(prior) == result_place(current)
-            && current.virtual_registers.get(..count) == Some(prior.virtual_registers.as_slice())
-        {
-            let maximum = prior
-                .virtual_registers
-                .iter()
-                .map(|register| register.id)
-                .max();
-            let appended = &current.virtual_registers[count..];
-            if appended
-                .iter()
-                .all(|register| maximum.is_none_or(|maximum| register.id > maximum))
-            {
-                retired.extend(
-                    appended
-                        .iter()
-                        .filter(|register| is_recovery_candidate(current, register))
-                        .map(|register| (function, register.id)),
-                );
-                return;
-            }
-        }
-    }
-    let existing: std::collections::BTreeSet<_> =
-        candidates(before, function).into_iter().collect();
-    retired.extend(
-        candidates(after, function)
-            .into_iter()
-            .filter(|entry| !existing.contains(entry)),
-    );
 }
 
 /// Every recorded transformation this recovery produced, appended after the
@@ -735,7 +634,7 @@ impl<'ranges> FailedDomain<'ranges> {
         }
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     fn spill_priority(&self, function: usize, register: VirtualRegisterId) -> (usize, u64) {
         (
             if function == self.function {
@@ -773,7 +672,7 @@ fn region_counts(
 // Long-lived blockers otherwise force recovery through many short failed
 // leaders and a whole-function analysis per victim. Equal scores retain roster
 // order. Intrinsic constraints still admit only the exact failed value.
-#[allow(dead_code)]
+#[cfg(test)]
 fn candidate_position<Priority: Ord + Copy>(
     failure: &crate::RegisterHomeError,
     roster: &[(usize, VirtualRegisterId)],

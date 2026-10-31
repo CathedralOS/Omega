@@ -456,6 +456,28 @@ impl<'plans> FlowBuildContext<'plans> {
         );
     }
 
+    /// Retain `place` as an origin write of `span`. Origin writes carry no
+    /// formation; the segments are copied into the referent arena and the root
+    /// kept verbatim.
+    pub(super) fn append_origin_write(
+        &mut self,
+        span: &mut arena::HandleSpan<checked_trees::FlowOperandReferent>,
+        place: &validation::CanonicalPlace,
+    ) {
+        let segments = self
+            .control
+            .operand_referent_segments
+            .insert_many(place.segments.iter().copied());
+        self.control.operand_origin_writes.append_to_span(
+            span,
+            checked_trees::FlowOperandReferent {
+                formation: arena::Handle::invalid(),
+                root: place.root,
+                segments,
+            },
+        );
+    }
+
     /// Position of `machine_symbol` in `program.machines()`.
     pub(super) fn machine_index(
         &self,

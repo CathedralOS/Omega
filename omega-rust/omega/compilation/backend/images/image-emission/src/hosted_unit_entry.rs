@@ -476,9 +476,6 @@ pub(super) fn main_points_to(
     fn word(bytes: &[u8], offset: usize) -> Option<u32> {
         crate::codec_bytes::u32_at(bytes, offset)
     }
-    fn wide(bytes: &[u8], offset: usize) -> Option<u64> {
-        crate::codec_bytes::u64_at(bytes, offset)
-    }
     // CPU_TYPE_ARM64 or CPU_TYPE_X86_64, each with the ABI64 flag: the header
     // must name the exact target the adapter was emitted for.
     let cpu_type = if target == target::NativeTarget::macos_arm64() {
@@ -520,7 +517,7 @@ pub(super) fn main_points_to(
             if entry.is_some() || size != 24 {
                 return false;
             }
-            entry = wide(bytes, cursor + 8);
+            entry = crate::codec_bytes::u64_at(bytes, cursor + 8);
         }
         if command == 0x19 {
             if size < 72 {

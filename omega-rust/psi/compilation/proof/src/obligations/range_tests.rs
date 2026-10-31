@@ -47,15 +47,11 @@ fn program_with_primitive(
     (program, carrier)
 }
 
-fn program_with_u8() -> (TypedTrees, TypeReferenceHandle) {
-    program_with_primitive(symbols::BuiltinTypeAtom::U8, "u8")
-}
-
 #[test]
 fn proof_range_rejects_invalid_integer_landing_in_float_fallback() {
     for floating_peer in [false, true] {
         for invalid_minimum in [false, true] {
-            let (mut program, carrier) = program_with_u8();
+            let (mut program, carrier) = program_with_primitive(symbols::BuiltinTypeAtom::U8, "u8");
             let invalid = program.expression_table.insert(ExpressionNode::Integer(
                 IntegerLiteral::from_value(256).with_landing(IntegerLanding {
                     landed_type: LandedIntegerType::U8,

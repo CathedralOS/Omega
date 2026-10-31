@@ -28,12 +28,12 @@
 //! A repair store runs only after its value and destination selectors finish.
 
 use crate::checks::borrows::StorageSelectorFacts;
+use crate::checks::reference_access;
 use validation::CanonicalPlace;
 
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) use arm_windows::{ArmWindowPlan, ArmWindowVerdict};
 pub(super) use boundary_checks::{
@@ -206,18 +206,6 @@ impl<'a> FrameWalk<'a> {
         operators: &'a checked_trees::CheckedOperatorFacts,
     ) -> Self {
         Self { program, operators }
-    }
-}
-
-/// The access of a possibly-constrained reference type.
-fn reference_access(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<ReferenceAccess> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { access, .. } => Some(*access),
-        TypeReferenceNode::Constrained { base_type, .. } => reference_access(program, *base_type),
-        _ => None,
     }
 }
 

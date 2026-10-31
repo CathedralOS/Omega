@@ -488,18 +488,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 .get(statement_fact)
                 .completed_writes;
             for place in writes.iter() {
-                let segments = build
-                    .control
-                    .operand_referent_segments
-                    .insert_many(place.segments.iter().copied());
-                build.control.operand_origin_writes.append_to_span(
-                    &mut completed,
-                    checked_trees::FlowOperandReferent {
-                        formation: arena::Handle::invalid(),
-                        root: place.root,
-                        segments,
-                    },
-                );
+                build.append_origin_write(&mut completed, place);
             }
             build
                 .control
@@ -577,18 +566,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // operand content effects already retain their alias-expanded prefix.
         if let Some(places) = &storage_writes {
             for place in places {
-                let segments = build
-                    .control
-                    .operand_referent_segments
-                    .insert_many(place.segments.iter().copied());
-                build.control.operand_origin_writes.append_to_span(
-                    &mut completed_contents,
-                    checked_trees::FlowOperandReferent {
-                        formation: arena::Handle::invalid(),
-                        root: place.root,
-                        segments,
-                    },
-                );
+                build.append_origin_write(&mut completed_contents, place);
             }
         }
         if let Some(places) = &content_writes {
@@ -597,18 +575,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                     .as_ref()
                     .is_none_or(|physical| !physical.contains(place))
             }) {
-                let segments = build
-                    .control
-                    .operand_referent_segments
-                    .insert_many(place.segments.iter().copied());
-                build.control.operand_origin_writes.append_to_span(
-                    &mut completed_contents,
-                    checked_trees::FlowOperandReferent {
-                        formation: arena::Handle::invalid(),
-                        root: place.root,
-                        segments,
-                    },
-                );
+                build.append_origin_write(&mut completed_contents, place);
             }
         }
         let completed = build.control.statements.get_mut(statement_fact);
