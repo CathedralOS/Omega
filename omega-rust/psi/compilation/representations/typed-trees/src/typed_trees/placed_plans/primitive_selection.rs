@@ -98,9 +98,7 @@ impl PlacedAccessPrimitive {
             referee,
             access,
             lifetime,
-        } = program
-            .type_reference_table
-            .type_reference(field.type_reference)
+        } = program.type_reference_node(field.type_reference)
         else {
             return Err(invalid());
         };
@@ -131,9 +129,7 @@ impl PlacedAccessPrimitive {
                     && !parameters[1].is_mutable
                     && names_parameter(parameters[1].type_reference, value.symbol)
                     && matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(state.return_type),
+                        program.type_reference_node(state.return_type),
                         TypeReferenceNode::Unit
                     )
             }

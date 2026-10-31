@@ -236,11 +236,7 @@ impl CallableApplication {
                 .expression_table
                 .insert(expression::ExpressionNode::Integer(literal)));
         }
-        match program
-            .type_reference_table
-            .type_reference(reference)
-            .clone()
-        {
+        match program.type_reference_node(reference).clone() {
             types::TypeReferenceNode::ConstExpression(value) => {
                 Ok(program.expression_table.insert_copy(value))
             }

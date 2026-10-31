@@ -166,9 +166,8 @@ pub fn has_generic_carrier(program: &TypedTrees, domain: &DomainDefinition) -> b
     if !matches!(parameter.kind, crate::data::TypeParameterKind::Type) {
         return false;
     }
-    let crate::types::TypeReferenceNode::Named { symbol, name } = program
-        .type_reference_table
-        .type_reference(domain.target_type)
+    let crate::types::TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_node(domain.target_type)
     else {
         return false;
     };

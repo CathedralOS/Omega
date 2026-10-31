@@ -43,11 +43,7 @@ impl CallableApplication {
         let mut applied_owner = program
             .type_reference_table
             .operand_lifetime_owner(original);
-        let node = match program
-            .type_reference_table
-            .type_reference(original)
-            .clone()
-        {
+        let node = match program.type_reference_node(original).clone() {
             types::TypeReferenceNode::Named { symbol, name } => {
                 if let Some((_, argument)) = self
                     .static_arguments

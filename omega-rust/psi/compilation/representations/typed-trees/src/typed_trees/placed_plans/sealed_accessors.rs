@@ -195,9 +195,7 @@ impl PlacedScalarAccessorDeclaration {
         };
         let TypeReferenceNode::Reference {
             referee, access, ..
-        } = typed
-            .type_reference_table
-            .type_reference(first.type_reference)
+        } = typed.type_reference_node(first.type_reference)
         else {
             return Err(invalid("accessor argument is not borrowed"));
         };

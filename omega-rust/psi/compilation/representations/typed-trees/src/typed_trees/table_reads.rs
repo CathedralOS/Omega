@@ -17,7 +17,7 @@ use crate::static_applications::{
     StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
     StaticMachineLifetimeBinding,
 };
-use crate::types::TypeReferenceHandle;
+use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 
 impl crate::typed_trees::TypedTreeTables {
@@ -27,6 +27,13 @@ impl crate::typed_trees::TypedTreeTables {
         span: HandleSpan<TypeReferenceHandle>,
     ) -> &[TypeReferenceHandle] {
         self.type_reference_table.type_reference_handles(span)
+    }
+
+    /// The row one type reference handle names. Named `_node` because
+    /// `type_reference` already means the span read above, the `TypedReferences`
+    /// visitor hook and the applied-scope projection.
+    pub(crate) fn type_reference_node(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
+        self.type_reference_table.type_reference(handle)
     }
 
     /// Whether `handle` still names a live type reference row.
