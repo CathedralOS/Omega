@@ -18,6 +18,7 @@ use diagnostics::Diagnostic;
 use package_evidence::record::PackagePolicyRowKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
+use crate::Hex;
 use crate::lock::{PackageCheckedContext, PackageLockTarget};
 use crate::resolution::graph::DependencyRequestPath;
 
@@ -71,10 +72,7 @@ impl UngrantedRestrictedBuildRequest {
 
 impl std::fmt::Display for UngrantedRestrictedBuildRequest {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut identity = String::new();
-        for byte in &self.package.digest()[..4] {
-            identity.push_str(&format!("{byte:02x}"));
-        }
+        let identity = Hex(&self.package.digest()[..4]).to_string();
         writeln!(
             formatter,
             "package {identity}… {} {} occurrence requests:\n    {}",
@@ -88,15 +86,10 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
         match &self.request_path {
             Some(path) => {
                 write!(formatter, "    path ")?;
-                for byte in path.root().identity().digest() {
-                    write!(formatter, "{byte:02x}")?;
-                }
+                write!(formatter, "{}", Hex(&path.root().identity().digest()))?;
                 for step in path.steps() {
-                    write!(formatter, " -> {:?}", step.alias().as_str())?;
-                    write!(formatter, " ")?;
-                    for byte in step.target().identity().digest() {
-                        write!(formatter, "{byte:02x}")?;
-                    }
+                    write!(formatter, " -> {:?} ", step.alias().as_str())?;
+                    write!(formatter, "{}", Hex(&step.target().identity().digest()))?;
                 }
                 Ok(())
             }
