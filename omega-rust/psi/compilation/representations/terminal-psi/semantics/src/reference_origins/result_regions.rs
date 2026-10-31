@@ -3,6 +3,7 @@
 //! descriptor whose full footprint and parent custody are checked at completion.
 
 use semantic_vocabulary::StructuralTypeId;
+use terminal_psi::TerminalDynamicReferenceOrigin;
 use terminal_psi::{
     BoundaryMachineResult, ReferenceOriginProjection, StructuralAccess, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalDynamicSlot,
@@ -47,10 +48,8 @@ pub fn validate_dynamic_reference_regions<'types>(
             return Err("dynamic reference region disagrees with result access");
         }
         let index = match region.origin {
-            terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
-                argument_index
-            }
-            terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+            TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
+            TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
                 let path = region
                     .source_path
                     .iter()
