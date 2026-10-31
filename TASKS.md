@@ -424,7 +424,6 @@ retired-syntax deletions to completion.
   - Admit complete machine-valued static callable tuples through generic dispatch.
   - Preserve exact cross-module const-alias selection in callable/evidence arguments.
   - Admit open-Const callable families through their declaration-owned scopes.
-  - Complete declaration-owned call formation for receiver/projection terms.
   - Complete citation/induction call guarantees with their transitive assumptions.
   - Extend `OpenIndexOperationSelection` in
     `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`

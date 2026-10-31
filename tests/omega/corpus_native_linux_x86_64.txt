@@ -4590,6 +4590,15 @@ pass/facts/projection_call_premise_through_other_machine_exit built 2903ms exit:
 pass/facts/projection_call_premise_through_other_state_exit built 2958ms exit:0 @a92f16431042
 pass/facts/projection_call_premise_through_parameter_exit built 2411ms exit:0 @a92f16431042
 pass/facts/projection_call_premise_through_target_body_exit built 2763ms exit:0 @a92f16431042
+pass/facts/projection_receiver_call_through_call_result_exit built 2918ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_const_name_exit built 2513ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_field_exit built 2549ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_local_exit built 2964ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_match_join_exit built 2643ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_machine_exit built 2635ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_state_exit built 2669ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_parameter_exit built 2682ms exit:0 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_target_body_exit built 1770ms exit:0 @73c70115c79e+wt
 pass/facts/qualified_borrowed_join_exit built 2841ms exit:0 @a92f16431042
 pass/facts/qualified_field_capacity_through_call_result_exit built 3222ms exit:0 @a92f16431042
 pass/facts/qualified_field_capacity_through_const_name_exit built 3250ms exit:0 @a92f16431042

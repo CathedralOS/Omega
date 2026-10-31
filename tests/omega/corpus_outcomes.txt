@@ -142,6 +142,28 @@ fail/facts/nested_machine_joint_rank_indexed_payload_parameter_rejected rejected
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_indexed_payload_target_body_rejected rejected 747ms expected @00e93f641615+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/projection_receiver_call_through_call_result_rejected rejected 1669ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_const_name_rejected rejected 2261ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_field_rejected rejected 1658ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_local_rejected rejected 1539ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_match_join_rejected rejected 1570ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_other_machine_rejected rejected 2086ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_other_state_rejected rejected 1578ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in check is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_parameter_rejected rejected 1855ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms expected @73c70115c79e+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expected @45fb2a705c96
@@ -7255,6 +7277,15 @@ pass/facts/projection_call_premise_through_other_state_exit rejected 2797ms chec
 	cannot prove requires contract for call project from check: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/projection_call_premise_through_parameter_exit checked 3762ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/projection_call_premise_through_target_body_exit checked 4114ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/projection_receiver_call_through_call_result_exit checked 2662ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_const_name_exit checked 2593ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_field_exit checked 2922ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_local_exit checked 2600ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_match_join_exit checked 2762ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_machine_exit checked 2752ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_state_exit checked 2238ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_parameter_exit checked 2424ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_target_body_exit checked 2800ms check-target:macos_arm64 @73c70115c79e+wt
 pass/facts/provider_contract_endpoint_control_composed_endpoint checked 4993ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/provider_contract_endpoint_control_computed_composition_mode checked 4345ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/provider_contract_endpoint_control_dormant_target_endpoint_positive checked 3972ms check-target:macos_arm64 @ccdb99ca2214

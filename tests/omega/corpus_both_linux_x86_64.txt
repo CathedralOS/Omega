@@ -4780,6 +4780,15 @@ pass/facts/projection_call_premise_through_other_machine_exit built 1974ms exit:
 pass/facts/projection_call_premise_through_other_state_exit built 2156ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/projection_call_premise_through_parameter_exit built 2819ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/projection_call_premise_through_target_body_exit built 2805ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/projection_receiver_call_through_call_result_exit built 2540ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_const_name_exit built 2911ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_field_exit built 2573ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_local_exit built 2575ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_match_join_exit built 2860ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_machine_exit built 2169ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_other_state_exit built 2769ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_parameter_exit built 2678ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
+pass/facts/projection_receiver_call_through_target_body_exit built 1928ms exit:0 interpreter-exit:0 interpreter:agrees @73c70115c79e+wt
 pass/facts/provider_descriptor_poststate_through_call_result_exit built 4074ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
 pass/facts/provider_descriptor_poststate_through_const_name_exit built 3722ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
 pass/facts/provider_descriptor_poststate_through_field_exit built 4225ms exit:0 interpreter-exit:0 interpreter:agrees @717593f593c6+wt
