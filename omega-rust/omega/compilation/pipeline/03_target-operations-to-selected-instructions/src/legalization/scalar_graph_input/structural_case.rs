@@ -66,6 +66,20 @@ pub(in crate::legalization) fn block_parameter_declared(
         })
 }
 
+/// Every block parameter declaring `place`, with the block that declares it.
+pub(in crate::legalization) fn arrivals<'a>(
+    function: &'a PsiOptimizationFunction,
+    place: PlaceId,
+) -> impl Iterator<Item = (BlockId, &'a StructuralParameterDeclaration)> + 'a {
+    function.blocks.iter().flat_map(move |block| {
+        block
+            .structural_parameters
+            .iter()
+            .filter(move |parameter| parameter.place == place)
+            .map(move |parameter| (block.id, parameter))
+    })
+}
+
 pub(in crate::legalization) fn source_owner(
     function: &PsiOptimizationFunction,
     place: PlaceId,
@@ -78,13 +92,7 @@ pub(in crate::legalization) fn source_owner(
             },
         );
     }
-    let mut parameters = function.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut parameters = arrivals(function, place);
     let (block, declaration) = parameters.next().ok_or(LegalizationError::custody())?;
     if parameters.next().is_some() || declaration.access != terminal_psi::StructuralAccess::Owned {
         return Err(LegalizationError::custody());
@@ -136,12 +144,7 @@ pub(in crate::legalization) fn case_source(
     // A readable borrowed block parameter joins as its referent's address: the
     // dispatch reads through the edge-retained pointer the join minted, under
     // the borrowed-parameter contract rather than an owned arrival's.
-    let mut parameters = function.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-    });
+    let mut parameters = arrivals(function, place).map(|(_, parameter)| parameter);
     let declaration = parameters.next().ok_or(LegalizationError::custody())?;
     if parameters.next().is_some()
         || !matches!(

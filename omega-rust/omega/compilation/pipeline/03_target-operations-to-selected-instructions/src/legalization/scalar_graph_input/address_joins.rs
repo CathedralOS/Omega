@@ -31,13 +31,7 @@ pub(in crate::legalization) fn parameter<'a>(
     place: PlaceId,
     plan: &AbstractOperationPlan,
 ) -> Option<(BlockId, &'a StructuralParameterDeclaration)> {
-    let mut matching = function.blocks.iter().flat_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .filter(move |parameter| parameter.place == place)
-            .map(move |parameter| (block.id, parameter))
-    });
+    let mut matching = super::structural_case::arrivals(function, place);
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != function.entry
