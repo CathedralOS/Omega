@@ -158,10 +158,7 @@ impl RecordFileRoot {
             )
         })();
 
-        confirmation.map_err(|error| RecordFileError::PublishedButUnconfirmed {
-            path: display_path,
-            message: record_error_message(error),
-        })
+        confirmation.map_err(unconfirmed_at(&display_path))
     }
 
     /// Atomically replace one existing regular file beneath this exact root.
@@ -271,12 +268,8 @@ impl RootRecordRead<'_> {
             .directory
             .remove_file(&self.file_name)
             .map_err(|error| io_error(&self.display_path, error))?;
-        synchronize_directory(&self.root.directory, &self.root.display_path).map_err(|error| {
-            RecordFileError::PublishedButUnconfirmed {
-                path: self.display_path,
-                message: record_error_message(error),
-            }
-        })
+        synchronize_directory(&self.root.directory, &self.root.display_path)
+            .map_err(unconfirmed_at(&self.display_path))
     }
 
     pub fn verify_current(&mut self, limits: RecordFileLimits) -> Result<(), RecordFileError> {
@@ -421,6 +414,13 @@ fn enforce_byte_limit(actual: usize, limits: RecordFileLimits) -> Result<(), Rec
         });
     }
     Ok(())
+}
+
+fn unconfirmed_at(path: &Path) -> impl FnOnce(RecordFileError) -> RecordFileError + '_ {
+    move |error| RecordFileError::PublishedButUnconfirmed {
+        path: path.to_path_buf(),
+        message: record_error_message(error),
+    }
 }
 
 fn io_at<T>(result: std::io::Result<T>, path: &Path) -> Result<T, RecordFileError> {

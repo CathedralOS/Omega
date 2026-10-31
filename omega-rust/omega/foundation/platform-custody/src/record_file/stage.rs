@@ -2,7 +2,7 @@
 use super::{
     CapabilityDirectory, CapabilityFile, CapabilityOpenOptions, FollowSymlinks, OsStr, OsString,
     Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, SeekFrom, enforce_byte_limit,
-    io_at, io_error, read_bytes_bounded, record_error_message, synchronize_directory,
+    io_at, io_error, read_bytes_bounded, synchronize_directory, unconfirmed_at,
     verify_capability_regular_identity,
 };
 use cap_fs_ext::OpenOptionsFollowExt;
@@ -106,10 +106,7 @@ pub(super) fn replace(
         verify_capability_regular_identity(&root.directory, file_name, &stage.file, display_path)
     })();
 
-    confirmation.map_err(|error| RecordFileError::PublishedButUnconfirmed {
-        path: display_path.to_path_buf(),
-        message: record_error_message(error),
-    })
+    confirmation.map_err(unconfirmed_at(display_path))
 }
 
 fn create_exclusive_capability_stage(
