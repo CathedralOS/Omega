@@ -347,7 +347,13 @@ named-map capture, inherited signature order and simultaneous type bindings.
 Requests and their refusal results remain in source order. Omega follows these
 arena-backed associations rather than traversing trait requirements or rebuilding
 application scopes for every target. It still selects each deployment's policy
-body and evaluates the policy. Publishing these applications and their closed
+body and admits its compiler-run closure. The compiler publishes one immutable
+policy-code dependency through ordinary Psi production per checked source;
+target children share it. Initial policy activation and callback-geometry
+reevaluation both execute that catalog in Terminal, with finite Terminal fuel
+and metered storage/results, not the checked-source interpreter. This dependency
+is distinct from the final Product artifact: it does not yet make Product
+provider settlement Terminal-only. Publishing these applications and their closed
 storage/contract inputs in Terminal, rather than retaining source coordinates,
 remains the next connected migration.
 

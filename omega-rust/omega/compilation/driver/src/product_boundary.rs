@@ -952,7 +952,7 @@ fn calling_materialization_consumes_prepared_psi_telescopes() {
         .split("pub(crate) fn evaluate_default_calling_application(")
         .nth(1)
         .unwrap()
-        .split("pub fn compute_boundary_calling_plans(")
+        .split("pub fn prepare_boundary_calling_plans<")
         .next()
         .unwrap();
     assert_absent(
@@ -989,6 +989,21 @@ fn calling_policy_selection_consumes_prepared_psi_applications() {
     assert!(computation.contains("calling.requests()"));
     assert!(computation.contains("signatures.applied_declaration(application)"));
     assert!(computation.contains("calling.bindings(application)"));
+    assert!(computation.contains("admitted_program_machine_closure_symbols("));
+    assert!(!computation.contains("evaluate_machine_symbol_for_invocation_measured("));
+    let callback = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    assert!(callback.contains(".evaluate(realization.policy_symbol, target_profile, &signature)"));
+    assert!(!callback.contains("evaluate_materialized_calling_policy_plan("));
+    let code = include_str!("terminal/calling_policy_code.rs");
+    assert!(code.contains(".calling_policy_code"));
+    assert!(code.contains("TerminalProductionRequest::new("));
+    assert_eq!(code.matches("TerminalProductionRequest::new(").count(), 1);
+    let execution =
+        include_str!("../../realization/provider-planning/src/calling_policy_plans/policy_code.rs");
+    assert!(execution.contains("evaluate_terminal_calling_policy("));
+    assert!(!execution.contains("TerminalProductionRequest"));
     let preparation = include_str!(
         "../../../../psi/compilation/representations/typed-trees/src/service_declarations/signatures/calling_applications.rs"
     );
