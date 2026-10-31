@@ -57,7 +57,7 @@ impl ReadWalk<'_, '_, '_> {
         {
             return self.descend_and_capture_symbol_place(expression, place, depth);
         }
-        self.temporary_member_symbol(member).is_valid()
+        self.temporary_member_symbol_at(member, 0).is_valid()
             && self.collect_reads(member.receiver, depth + 1)
     }
 
@@ -76,13 +76,6 @@ impl ReadWalk<'_, '_, '_> {
     /// supply), or a member name no field of the agreed declaration owns all stay
     /// unproven. The footprint itself still comes from the receiver's own read
     /// scan — this answers only which field the projection selects.
-    fn temporary_member_symbol(
-        &self,
-        member: &typed_trees::expression::TableMemberExpression,
-    ) -> SymbolHandle {
-        self.temporary_member_symbol_at(member, 0)
-    }
-
     fn temporary_member_symbol_at(
         &self,
         member: &typed_trees::expression::TableMemberExpression,
