@@ -175,7 +175,7 @@ public data Window {
 // Title borrows the complete live NUL-terminated UTF-8 buffer, matching
 // ObjectiveC::send_byte_string. NSString copies it before this call returns;
 // Window retains no title loan. The buffer length is not a window API limit.
-public macos_arm64 machine macos_window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+public machine macos_window_create<const Count: u64>(class_name: [u8; 7], title: &[u8; Count], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
 requires Count > 0
 requires title[Count - 1] == 0
 reaches
@@ -307,7 +307,7 @@ invokes ObjectiveC
         pool: pool,
     }
 }
-public macos_arm64 machine macos_window_destroy(window: Window)
+public machine macos_window_destroy(window: Window)
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -326,12 +326,12 @@ invokes ObjectiveC
     cg_color_space_release(window.space);
     ignored = ObjectiveC::pool_pop(window.pool);
 }
-public macos_arm64 machine macos_window_get_dc(window_state: &Window, window: u64) -> u64
+public machine macos_window_get_dc(window_state: &Window, window: u64) -> u64
 {
     transition { _ -> ret(window) }
     machine ret(window: u64) -> u64 { window }
 }
-public macos_arm64 machine macos_window_msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32
+public machine macos_window_msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -354,12 +354,12 @@ invokes ObjectiveC
     machine got() -> u32 { 1 }
     machine ret() -> u32 { 0 }
 }
-public macos_arm64 machine macos_window_msg_translate(window_state: &Window, message: [u64; 6]) -> u32
+public machine macos_window_msg_translate(window_state: &Window, message: [u64; 6]) -> u32
 {
     let r32: u32 = 1;
     r32
 }
-public macos_arm64 machine macos_window_msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64
+public machine macos_window_msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -372,7 +372,7 @@ invokes ObjectiveC
     let rc: u64 = ObjectiveC::send_scalar(window_state.app, window_state.dsel, window_state.evt);
     rc
 }
-public macos_arm64 machine macos_window_is_window(window_state: &Window, window: u64) -> u32
+public machine macos_window_is_window(window_state: &Window, window: u64) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -386,7 +386,7 @@ invokes ObjectiveC
     let r32: u32 = narrow_u64_to_u32_wrapping(rc);
     r32
 }
-public macos_arm64 machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
+public machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -399,7 +399,7 @@ invokes ObjectiveC
     macos_window_present(window_state, source_width, source_height, &mut pixels[0..4096])
 }
 
-public macos_arm64 machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
+public machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -449,7 +449,7 @@ invokes ObjectiveC
 }
 
 // Global key polling is meaningful only while this application's window is key.
-public macos_arm64 machine macos_window_foreground_window(window_state: &Window) -> u64
+public machine macos_window_foreground_window(window_state: &Window) -> u64
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -465,7 +465,7 @@ invokes ObjectiveC
 
 // Win32 virtual-key to macOS ANSI keycode mapping. Unknown keys retain the
 // 65535 sentinel and macos_key_state reports them as not down.
-public macos_arm64 machine macos_map_keycode(virtual_key: u32) -> u64 {
+public machine macos_map_keycode(virtual_key: u32) -> u64 {
     transition virtual_key == 8 { true -> k51() _ -> t13(virtual_key) }
     machine t13(virtual_key: u32) -> u64 { transition virtual_key == 13 { true -> k36() _ -> t27(virtual_key) } }
     machine t27(virtual_key: u32) -> u64 { transition virtual_key == 27 { true -> k53() _ -> t32(virtual_key) } }
@@ -529,7 +529,7 @@ public macos_arm64 machine macos_map_keycode(virtual_key: u32) -> u64 {
     machine unmapped() -> u64 { 65535 }
 }
 
-public macos_arm64 machine macos_key_state(virtual_key: u32) -> u64
+public machine macos_key_state(virtual_key: u32) -> u64
 reaches GlobalInputObservation
 {
     let keycode: u64 = macos_map_keycode(virtual_key);
@@ -549,7 +549,7 @@ public boundary trait DarwinClock {
 
 // Millisecond pacing through poll(NULL, 0, timeout). The conversion retains
 // the former u32-to-i32 wrapping contract.
-public macos_arm64 machine macos_sleep(milliseconds: u32)
+public machine macos_sleep(milliseconds: u32)
 reaches ExecutionDelay
 {
     let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
@@ -557,7 +557,7 @@ reaches ExecutionDelay
 }
 
 // CLOCK_MONOTONIC milliseconds since boot, retaining the low 32 bits.
-public macos_arm64 machine macos_get_tick_count() -> u32
+public machine macos_get_tick_count() -> u32
 reaches ClockObservation
 {
     let nanoseconds: u64 = darwin_clock_ns(6);
@@ -565,10 +565,10 @@ reaches ClockObservation
     narrow_u64_to_u32_wrapping(milliseconds)
 }
 
-public macos_arm64 machine macos_perf_counter() -> u64
+public machine macos_perf_counter() -> u64
 reaches ClockObservation
 {
     darwin_clock_ns(6)
 }
 
-public macos_arm64 machine macos_perf_frequency() -> u64 { 1000000000 }
+public machine macos_perf_frequency() -> u64 { 1000000000 }
