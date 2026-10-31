@@ -103,28 +103,34 @@ fn inferred_method_arguments(
     }
     let mut bindings = Vec::new();
     for (parameter, argument) in parameters.iter().zip(explicit) {
+        // The authored prefix is already supplied, regardless of its kind.
+        // Seed available type evidence for matching later operands; a literal
+        // or code/evidence operand need not have a materialized type payload.
+        // Keep every original operand below, so immutable admission checks it
+        // even when runtime matching independently infers another candidate.
         if !matches!(
             parameter.kind,
             typed_trees::data::TypeParameterKind::Type
                 | typed_trees::data::TypeParameterKind::Const { .. }
         ) {
-            return None;
+            continue;
         }
-        bindings.push((
-            parameter.symbol,
-            if argument.type_reference.is_valid() {
-                argument.type_reference
-            } else if argument.application.is_none()
-                && argument.const_literal.is_none()
-                && argument.evidence_projection.is_none()
-            {
-                program
-                    .type_reference_table
-                    .find_named_type_reference(argument.symbol)?
-            } else {
-                return None;
-            },
-        ));
+        let reference = if argument.type_reference.is_valid() {
+            Some(argument.type_reference)
+        } else if argument.symbol.is_valid()
+            && argument.application.is_none()
+            && argument.const_literal.is_none()
+            && argument.evidence_projection.is_none()
+        {
+            program
+                .type_reference_table
+                .find_named_type_reference(argument.symbol)
+        } else {
+            None
+        };
+        if let Some(reference) = reference {
+            bindings.push((parameter.symbol, reference));
+        }
     }
     for (formal, actual) in program
         .state_signature_parameters(signature)
