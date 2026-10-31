@@ -69,12 +69,6 @@ impl MachineOverloadIndex {
             groups,
         }
     }
-
-    fn group(&self, entry: SymbolHandle) -> Option<&MachineOverloadGroup> {
-        self.entry_to_group
-            .get(&entry.arena_index())
-            .and_then(|index| self.groups.get(*index))
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -920,7 +914,11 @@ fn selected_named_callable_symbol(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
-    if let Some(group) = machine_overloads.group(provisional_target) {
+    if let Some(group) = machine_overloads
+        .entry_to_group
+        .get(&provisional_target.arena_index())
+        .and_then(|index| machine_overloads.groups.get(*index))
+    {
         let visible_overloads = group
             .overloads
             .iter()
