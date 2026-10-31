@@ -8,6 +8,10 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
+	the compiler-owned Build activation cannot be replaced as a whole value
+fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
+	the compiler-owned Build activation cannot be stored in field `builder`
 fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
 	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
 fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
@@ -82,6 +86,24 @@ fail/facts/array_element_default_domain/writeback rejected 909ms expected @89d5d
 	data `Tallies`'s default domain is still FALSE at state exit: the invariant window opened on `tallies` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/array_element_default_domain/zero_owner rejected 1211ms expected @89d5d2d7655c
 	machine `main` state `entry` statement 1: reading `tallies.<whole value>` crosses an open default-domain invariant window before data `Tallies` is established: the zeroed representation is not yet a `Tallies` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/facts/build_activation_borrow/call_result rejected 2029ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/const_name rejected 338ms expected @3a020eca642a
+	machine `build` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/build_activation_borrow/field rejected 1113ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/local rejected 860ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/match_join rejected 265ms expected @3a020eca642a
+	machine `join` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/build_activation_borrow/other_machine rejected 666ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/other_state rejected 648ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/parameter rejected 648ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/target_body rejected 548ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -1286,6 +1308,7 @@ pass/boundary/nested_projected_structural_crash_formal_exit checked 3354ms check
 pass/boundary/static_foreign_scalar_result_locals_exit checked 17698ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/static_opaque_qualifier_exit checked 4171ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/acquired_generator_completed_output_set checked 15684ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @ccdb99ca2214
+pass/build/activation_borrowed_field_rebind_exit checked 19378ms check-target:macos_arm64 @3a020eca642a
 pass/build/activation_yields_without_replay checked 3967ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/artifact_only_output checked 3216ms @ccdb99ca2214
 pass/build/artifact_only_required_output_completion checked 7179ms published:files/manifest.txt @ccdb99ca2214
@@ -3495,6 +3518,15 @@ pass/facts/bounded_scalar_sums_through_other_machine_exit checked 3885ms check-t
 pass/facts/bounded_scalar_sums_through_other_state_exit checked 3459ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_scalar_sums_through_parameter_exit checked 3157ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_scalar_sums_through_target_body_exit checked 3537ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/build_activation_borrow/call_result checked 17839ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/const_name checked 19597ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/field checked 21101ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/local checked 15838ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/match_join checked 24050ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/other_machine checked 18694ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/other_state checked 25421ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/parameter checked 15952ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/target_body checked 12537ms check-target:macos_arm64 @3a020eca642a
 pass/facts/build_target_provider_through_call_result_exit checked 8454ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/build_target_provider_through_const_name_exit checked 7119ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/build_target_provider_through_field_exit checked 7948ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
