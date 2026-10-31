@@ -1534,7 +1534,16 @@ impl TypedTrees {
             .collect::<Vec<_>>()
             .join(",");
         callable_identity::CallableIdentityParts {
-            path: path.to_owned(),
+            // A callable's declaration path retains the same nominal owner
+            // as its types. Equal spellings in different managed packages or
+            // the toolchain are different requirements, even with equal ABI
+            // carriers. Ordinary source-free/local views keep their existing
+            // local path; qualification supplies no admission authority.
+            path: TypeIdentityContext::default().qualify_non_binder_name(
+                self,
+                owner_symbol,
+                path.to_owned(),
+            ),
             parameters,
             result_dispatch: self.normalized_result_dispatch_set(return_type),
         }
