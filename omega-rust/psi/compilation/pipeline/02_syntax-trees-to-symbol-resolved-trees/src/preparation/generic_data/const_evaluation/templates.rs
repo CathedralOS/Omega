@@ -17,7 +17,6 @@ use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use arena::HandleSpan;
 use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::expression::StaticMachineArgument;
 use syntax_trees::item::CapabilityContract;
 use syntax_trees::item::Machine;
 use syntax_trees::item::ProofFact;
@@ -129,12 +128,14 @@ pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_nam
                     );
                 }
                 StatementNode::Call(call) => {
-                    collect_static_argument_expression_handles(
-                        syntax,
-                        &call.machine_arguments,
-                        &mut expressions,
-                        &mut type_references,
-                    );
+                    visit_static_argument_type_inputs(&call.machine_arguments, &mut |reference| {
+                        collect_type_expression_handles(
+                            syntax,
+                            reference,
+                            &mut expressions,
+                            &mut type_references,
+                        );
+                    });
                 }
                 _ => {}
             }
@@ -210,17 +211,6 @@ fn update_captured_names(
             }
         }
     }
-}
-
-fn collect_static_argument_expression_handles(
-    syntax: &SyntaxTrees,
-    arguments: &[StaticMachineArgument],
-    expressions: &mut HashSet<ExpressionHandle>,
-    type_references: &mut HashSet<TypeReferenceHandle>,
-) {
-    visit_static_argument_type_inputs(arguments, &mut |reference| {
-        collect_type_expression_handles(syntax, reference, expressions, type_references);
-    });
 }
 
 fn collect_contract_expression_handles(
