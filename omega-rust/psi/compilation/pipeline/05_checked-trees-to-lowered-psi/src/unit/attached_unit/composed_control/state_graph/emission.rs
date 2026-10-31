@@ -33,6 +33,7 @@ use std::collections::BTreeMap;
 mod captured_loans;
 mod conditional_return;
 mod dispatch_copies;
+mod entry_rank;
 mod guarded_chain;
 mod loan_chains;
 mod loaned_local_homes;
@@ -60,6 +61,9 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     loan_completions: Vec<terminal_psi::LoanCompletion>,
     block_entry_claims: Vec<terminal_psi::EntryClaim>,
     entry_reentered: bool,
+    invocation_entry: Option<BlockId>,
+    invocation_erased: Vec<ValueDeclaration>,
+    rank_parameters: Vec<Option<ValueId>>,
     state_ids: Vec<BlockId>,
     state_views: Vec<Vec<StructuralParameterDeclaration>>,
     state_contract_rosters: &'a [Vec<(u32, StructuralParameterDeclaration)>],
@@ -397,7 +401,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .any(|successor| plan.successor_position(successor) == Some(0));
     // Invocation parameters are immutable. Reentering the authored entry
     // therefore uses an ordinary parameterized block behind a one-shot jump.
-    let invocation_entry = if entry_reentered {
+    let entry_ranked = ranking::observation(checked, plan, &plan.states[0])?.is_some();
+    let invocation_entry = if entry_reentered || entry_ranked {
         Some(block_id(allocate_dense(&mut catalogs.next_block)?))
     } else {
         None
@@ -527,6 +532,22 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         }
     }
     let mut block_entry_claims = Vec::new();
+    // Rank values arrive alongside the source telescope, not by reading a
+    // later SSA completion backward through its own observation control.
+    let rank_parameters = plan
+        .states
+        .iter()
+        .enumerate()
+        .map(|(position, state)| {
+            if admitted.live[position] && ranking::observation(checked, plan, state)?.is_some() {
+                Ok(Some(crate::terminal_identities::value_id(allocate_dense(
+                    &mut catalogs.next_value,
+                )?)))
+            } else {
+                Ok(None)
+            }
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     for (position, state) in plan.states.iter().enumerate() {
         if !admitted.live[position] || (position == 0 && !entry_reentered) {
             continue;
@@ -573,17 +594,20 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 target: state_ids[0],
                 arguments: scalar_parameters
                     .iter()
+                    .filter(|_| entry_reentered)
                     .map(|parameter| parameter.id)
                     .collect(),
                 // A reentered entry forwards the machine's proof-only
                 // formals into the authored block's own erased declarations.
                 erased_arguments: entry_erased_formals
                     .iter()
+                    .filter(|_| entry_reentered)
                     .map(|parameter| ScalarTerm::value(parameter.id, parameter.scalar_type))
                     .collect(),
                 // The machine proof roster forwards positionally into the
                 // entry block's identical declaration.
                 erased_proof_arguments: (0..plan.states[0].erased_proof_parameters.len())
+                    .filter(|_| entry_reentered)
                     .map(|position| semantic_vocabulary::ProofTerm::Formal {
                         position: u32::try_from(position)
                             .expect("erased-proof roster positions fit u32"),
@@ -592,6 +616,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 structural_arguments: parameters
                     .iter()
                     .enumerate()
+                    .filter(|_| entry_reentered)
                     .filter(|(dense, _)| {
                         !admitted
                             .entry_aliases
@@ -719,6 +744,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         loan_completions: Vec::new(),
         block_entry_claims,
         entry_reentered,
+        invocation_entry,
+        invocation_erased: entry_erased_formals.clone(),
+        rank_parameters,
         state_ids,
         state_views,
         state_contract_rosters: &state_contract_rosters,
