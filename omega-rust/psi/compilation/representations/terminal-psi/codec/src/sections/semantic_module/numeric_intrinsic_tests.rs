@@ -1,5 +1,4 @@
 use super::module_wire::encode_raw;
-use super::structural_signature_wire::{decode_boundary_machine, encode_boundary_machine};
 use super::target_family_tests::{identity_table, unit_machine};
 use crate::{decode_module, encode_module, semantic_fingerprint};
 use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericResult, NumericType};
@@ -110,10 +109,19 @@ fn numeric_meaning_wire_rejects_noncanonical_padding_unknown_rows_and_truncation
     let meaning = NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap();
     let boundary = &module(meaning).boundary_machines[0];
     let mut writer = super::wire::Writer::default();
-    encode_boundary_machine(&mut writer, boundary).unwrap();
+    <super::structural_signature_wire::BoundaryMachine as super::wire_fields::Field<_>>::write(
+        &mut writer,
+        boundary,
+    )
+    .unwrap();
     let bytes = writer.finish();
     for length in 0..bytes.len() {
-        assert!(decode_boundary_machine(&mut super::wire::Reader::new(&bytes[..length])).is_err());
+        assert!(
+            <super::structural_signature_wire::BoundaryMachine as super::wire_fields::Field<_>>::read(
+                &mut super::wire::Reader::new(&bytes[..length])
+            )
+            .is_err()
+        );
     }
     for bytes in [
         [0, 255, 0, 0],

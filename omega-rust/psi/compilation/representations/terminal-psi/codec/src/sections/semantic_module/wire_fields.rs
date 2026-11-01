@@ -6,8 +6,6 @@
 //! identity error reports.
 
 use super::CodecError;
-use super::contract_wire::{decode_crash_routes, encode_crash_routes};
-use super::proof_declaration_wire::{decode_evidence_interface, encode_evidence_interface};
 use super::proof_term_wire::{decode_proof_terms, encode_proof_terms};
 use super::scalar_term_wire::{decode_scalar_terms, encode_scalar_terms};
 use super::scalar_wire::{
@@ -23,16 +21,17 @@ use super::wire::{
     encode_optional_id,
 };
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IeeeFloatComparisonOperation, IeeeFloatValue, IntegerValue,
-    ProofTerm, PsiSemanticId, ScalarTerm, StructuralFieldId,
+    CanonicalStructuralPathSegment, ContentProjectionIdentity, IeeeFloatComparisonOperation,
+    IeeeFloatValue, IntegerValue, ProofTerm, PsiSemanticId, ScalarTerm, StructuralFieldId,
 };
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
-    ByteSequencePredicate, ClaimTransfer, CompletionReceipt, CrashRouteBucket, ElementViewRegion,
+    ByteSequencePredicate, ClaimTransfer, CompletionReceipt, ElementViewRegion,
     OutcomeSpecificCallArgumentSubstitution, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificEvidenceUse, OutcomeSpecificGuard, RecordFieldInitializer, RecordFieldValue,
-    ResidentReferenceSource, ScalarCaseField, StructuralArgument, StructuralPathSegment,
+    OutcomeSpecificEvidenceUse, RecordFieldInitializer, RecordFieldValue, ResidentReferenceSource,
+    ScalarCaseField, StructuralArgument, StructuralContentProjection, StructuralPathQualification,
+    StructuralPathSegment, StructuralReferentIdentity, StructuralResultClaimBinding,
 };
 
 pub(super) trait Field<T> {
@@ -403,11 +402,11 @@ macro_rules! delegated_fields {
         }
     )*};
 }
+pub(super) use delegated_fields;
 delegated_fields! {
     Arguments: Vec<StructuralArgument> => encode_structural_arguments, decode_structural_arguments;
     ScalarTerms: Vec<ScalarTerm> => encode_scalar_terms, decode_scalar_terms;
     ProofTerms: Vec<ProofTerm> => encode_proof_terms, decode_proof_terms;
-    CrashRoutes: Vec<CrashRouteBucket> => encode_crash_routes, decode_crash_routes;
 }
 
 /// Claims crossing a call or settled by a boundary completion: the claim, the
@@ -442,143 +441,459 @@ argument_claims! {
     CompletionReceipts: CompletionReceipt, "boundary claim settlements";
 }
 
-/// Outcome-specific selections of the structural call encodings.
-pub(super) struct SelectedEvidence;
-impl Field<Vec<OutcomeSpecificCallEvidence>> for SelectedEvidence {
+// Outcome-specific selections of the structural call encodings.
+wire_record! {
+    SelectedEvidenceRow: OutcomeSpecificCallEvidence {
+        guard: super::contract_wire::Guard,
+        position: U32,
+        callee_obligation: Id,
+        callee_term: Id,
+        output_field: Text,
+        callee_proposition: Id,
+        instantiated_proposition: Id,
+        output: Id,
+        result_substitution: Optional<ResultSubstitution>,
+        argument_substitutions: List<ArgumentSubstitution>,
+        validity: EvidenceValidity,
+        expected_use_count: U32,
+        uses: List<EvidenceUse>,
+    }
+    ResultSubstitution: OutcomeSpecificCallResultSubstitution {
+        argument_position: U32,
+        callee_result: Id,
+        caller_result: Id,
+    }
+    EvidenceValidity: OutcomeSpecificCallEvidenceValidity {
+        result: Id,
+        proposition_dependencies: Ids,
+        evidence_interface: EvidenceInterface,
+        interface_dependencies: Ids,
+    }
+    EvidenceUse: OutcomeSpecificEvidenceUse {
+        target: Id,
+        input_position: U32,
+        target_requirement: Id,
+        target_term: Id,
+        source: Id,
+        instantiated_proposition: Id,
+        target_parameter: Id,
+        caller_result: Id,
+    }
+}
+pub(super) type SelectedEvidence = List<SelectedEvidenceRow>;
+
+/// By-value spellings owned by sibling wire modules.
+macro_rules! copied_fields {
+    ($($marker:ident: $ty:ty => $encode:path, $decode:path;)*) => {$(
+        pub(super) struct $marker;
+        impl Field<$ty> for $marker {
+            fn write(writer: &mut Writer, value: &$ty) -> Result<(), CodecError> {
+                $encode(writer, *value);
+                Ok(())
+            }
+            fn read(reader: &mut Reader<'_>) -> Result<$ty, CodecError> {
+                $decode(reader)
+            }
+        }
+    )*};
+}
+copied_fields! {
+    Access: terminal_psi::StructuralAccess => encode_structural_access, decode_structural_access;
+    Multiplicity: terminal_psi::StructuralMultiplicity
+        => super::structural_result_wire::encode_multiplicity,
+           super::structural_result_wire::decode_multiplicity;
+    Scalar: semantic_vocabulary::ScalarType
+        => super::scalar_wire::encode_scalar_type, super::scalar_wire::decode_scalar_type;
+}
+
+/// A module identity-table index.
+pub(super) struct Index;
+impl Field<terminal_psi::TerminalIdentityIndex> for Index {
     fn write(
         writer: &mut Writer,
-        value: &Vec<OutcomeSpecificCallEvidence>,
+        value: &terminal_psi::TerminalIdentityIndex,
     ) -> Result<(), CodecError> {
-        writer.len("guarded call selected evidence", value.len())?;
-        for binding in value {
-            writer.id(binding.guard.result_type);
-            writer.id(binding.guard.result_case);
-            writer.u32(binding.position);
-            writer.id(binding.callee_obligation);
-            writer.id(binding.callee_term);
-            writer.string("guarded call output field", &binding.output_field)?;
-            writer.id(binding.callee_proposition);
-            writer.id(binding.instantiated_proposition);
-            writer.id(binding.output);
-            match &binding.result_substitution {
-                None => writer.u8(0),
-                Some(substitution) => {
-                    writer.u8(1);
-                    writer.u32(substitution.argument_position);
-                    writer.id(substitution.callee_result);
-                    writer.id(substitution.caller_result);
-                }
-            }
-            writer.len(
-                "guarded call argument substitutions",
-                binding.argument_substitutions.len(),
-            )?;
-            for substitution in &binding.argument_substitutions {
-                writer.u32(substitution.argument_position);
-                writer.u32(substitution.parameter_position);
-                match &substitution.structural_path {
-                    None => writer.u8(0),
-                    Some(path) => {
-                        writer.u8(1);
-                        encode_structural_path(writer, "guarded call argument projection", path)?;
-                    }
-                }
-            }
-            writer.id(binding.validity.result);
-            writer.len(
-                "guarded call proposition dependencies",
-                binding.validity.proposition_dependencies.len(),
-            )?;
-            for dependency in &binding.validity.proposition_dependencies {
-                writer.id(*dependency);
-            }
-            encode_evidence_interface(writer, &binding.validity.evidence_interface)?;
-            writer.len(
-                "guarded call interface dependencies",
-                binding.validity.interface_dependencies.len(),
-            )?;
-            for dependency in &binding.validity.interface_dependencies {
-                writer.id(*dependency);
-            }
-            writer.u32(binding.expected_use_count);
-            writer.len("guarded selected evidence uses", binding.uses.len())?;
-            for use_ in &binding.uses {
-                writer.id(use_.target);
-                writer.u32(use_.input_position);
-                writer.id(use_.target_requirement);
-                writer.id(use_.target_term);
-                writer.id(use_.source);
-                writer.id(use_.instantiated_proposition);
-                writer.id(use_.target_parameter);
-                writer.id(use_.caller_result);
-            }
+        writer.u32(value.0);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::TerminalIdentityIndex, CodecError> {
+        Ok(terminal_psi::TerminalIdentityIndex(reader.u32()?))
+    }
+}
+
+pub(super) struct Text;
+impl Field<String> for Text {
+    fn write(writer: &mut Writer, value: &String) -> Result<(), CodecError> {
+        writer.string("wire text", value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<String, CodecError> {
+        reader.string("wire text")
+    }
+}
+
+/// A counted roster of one element spelling.
+pub(super) struct List<K>(std::marker::PhantomData<K>);
+impl<T, K: Field<T>> Field<Vec<T>> for List<K> {
+    fn write(writer: &mut Writer, value: &Vec<T>) -> Result<(), CodecError> {
+        writer.len("wire roster", value.len())?;
+        for element in value {
+            K::write(writer, element)?;
         }
         Ok(())
     }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<OutcomeSpecificCallEvidence>, CodecError> {
-        decode_counted(reader, |reader| {
-            Ok(OutcomeSpecificCallEvidence {
-                guard: OutcomeSpecificGuard {
-                    result_type: reader.id("StructuralTypeId")?,
-                    result_case: reader.id("StructuralCaseId")?,
-                },
-                position: reader.u32()?,
-                callee_obligation: reader.id("ObligationId")?,
-                callee_term: reader.id("EvidenceTermId")?,
-                output_field: reader.string("guarded call output field")?,
-                callee_proposition: reader.id("PropositionId")?,
-                instantiated_proposition: reader.id("PropositionId")?,
-                output: reader.id("EvidenceTermId")?,
-                result_substitution: match reader.u8()? {
-                    0 => None,
-                    1 => Some(OutcomeSpecificCallResultSubstitution {
-                        argument_position: reader.u32()?,
-                        callee_result: reader.id("PlaceId")?,
-                        caller_result: reader.id("PlaceId")?,
-                    }),
-                    tag => {
-                        return Err(CodecError::InvalidTag(
-                            "OutcomeSpecificCallResultSubstitution",
-                            tag,
-                        ));
-                    }
-                },
-                argument_substitutions: decode_counted(reader, |reader| {
-                    Ok(OutcomeSpecificCallArgumentSubstitution {
-                        argument_position: reader.u32()?,
-                        parameter_position: reader.u32()?,
-                        structural_path: match reader.u8()? {
-                            0 => None,
-                            1 => Some(decode_structural_path(reader)?),
-                            tag => {
-                                return Err(CodecError::InvalidTag(
-                                    "OutcomeSpecificCallArgumentSubstitution",
-                                    tag,
-                                ));
-                            }
-                        },
-                    })
-                })?,
-                validity: OutcomeSpecificCallEvidenceValidity {
-                    result: reader.id("PlaceId")?,
-                    proposition_dependencies: decode_ids(reader, "PlaceId")?,
-                    evidence_interface: decode_evidence_interface(reader)?,
-                    interface_dependencies: decode_ids(reader, "PlaceId")?,
-                },
-                expected_use_count: reader.u32()?,
-                uses: decode_counted(reader, |reader| {
-                    Ok(OutcomeSpecificEvidenceUse {
-                        target: reader.id("MachineId")?,
-                        input_position: reader.u32()?,
-                        target_requirement: reader.id("PropositionId")?,
-                        target_term: reader.id("EvidenceTermId")?,
-                        source: reader.id("EvidenceTermId")?,
-                        instantiated_proposition: reader.id("PropositionId")?,
-                        target_parameter: reader.id("PlaceId")?,
-                        caller_result: reader.id("PlaceId")?,
-                    })
-                })?,
-            })
+    fn read(reader: &mut Reader<'_>) -> Result<Vec<T>, CodecError> {
+        decode_counted(reader, K::read)
+    }
+}
+
+/// An optional value behind a 0/1 presence byte.
+pub(super) struct Optional<K>(std::marker::PhantomData<K>);
+impl<T, K: Field<T>> Field<Option<T>> for Optional<K> {
+    fn write(writer: &mut Writer, value: &Option<T>) -> Result<(), CodecError> {
+        writer.boolean(value.is_some());
+        if let Some(value) = value {
+            K::write(writer, value)?;
+        }
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Option<T>, CodecError> {
+        Ok(if reader.boolean()? {
+            Some(K::read(reader)?)
+        } else {
+            None
         })
     }
+}
+
+/// A record spelled as its fields in wire order. The destructuring names every
+/// field, so a new field fails to compile until its spelling is chosen.
+macro_rules! wire_record {
+    ($($marker:ident: $ty:ident { $($field:ident: $kind:ty),* $(,)? })*) => {$(
+        pub(super) struct $marker;
+        impl $crate::sections::semantic_module::wire_fields::Field<$ty> for $marker {
+            fn write(
+                writer: &mut $crate::sections::semantic_module::wire::Writer,
+                value: &$ty,
+            ) -> Result<(), $crate::sections::semantic_module::CodecError> {
+                let $ty { $($field),* } = value;
+                $(<$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(
+                    writer, $field,
+                )?;)*
+                Ok(())
+            }
+            fn read(
+                reader: &mut $crate::sections::semantic_module::wire::Reader<'_>,
+            ) -> Result<$ty, $crate::sections::semantic_module::CodecError> {
+                Ok($ty {
+                    $($field: <$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(
+                        reader,
+                    )?),*
+                })
+            }
+        }
+    )*};
+}
+pub(super) use wire_record;
+
+pub(super) struct Strings;
+impl Field<Vec<String>> for Strings {
+    fn write(writer: &mut Writer, value: &Vec<String>) -> Result<(), CodecError> {
+        writer.strings("wire texts", value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Vec<String>, CodecError> {
+        reader.strings("wire texts")
+    }
+}
+
+delegated_fields! {
+    CallResult: terminal_psi::BoundaryMachineResult
+        => super::structural_signature_wire::encode_call_result,
+           super::structural_signature_wire::decode_call_result;
+}
+
+/// A closed enum spelled as one tag byte, then its variant's fields in wire
+/// order. Each arm names every field of its variant; a one-field tuple
+/// variant names its binding as `Variant(binding: Kind)`.
+macro_rules! wire_enum {
+    ($($marker:ident: $ty:ident, $name:literal {
+        $($tag:literal => $variant:ident
+            $(( $tuple_field:ident: $tuple_kind:ty ))?
+            $({ $($field:ident: $kind:ty),* $(,)? })?
+        ),* $(,)?
+    })*) => {$(
+        pub(super) struct $marker;
+        impl $crate::sections::semantic_module::wire_fields::Field<$ty> for $marker {
+            fn write(
+                writer: &mut $crate::sections::semantic_module::wire::Writer,
+                value: &$ty,
+            ) -> Result<(), $crate::sections::semantic_module::CodecError> {
+                match value {
+                    $($ty::$variant $(($tuple_field))? $({ $($field),* })? => {
+                        writer.u8($tag);
+                        $(<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $tuple_field)?;)?
+                        $($(<$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $field)?;)*)?
+                    })*
+                }
+                Ok(())
+            }
+            fn read(
+                reader: &mut $crate::sections::semantic_module::wire::Reader<'_>,
+            ) -> Result<$ty, $crate::sections::semantic_module::CodecError> {
+                Ok(match reader.u8()? {
+                    $($tag => $ty::$variant
+                        $((<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(reader)?))?
+                        $({ $($field: <$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(reader)?),* })?,
+                    )*
+                    tag => return Err($crate::sections::semantic_module::CodecError::InvalidTag(
+                        $name, tag,
+                    )),
+                })
+            }
+        }
+    )*};
+}
+pub(super) use wire_enum;
+
+pub(super) type EvidenceInterface = super::proof_declaration_wire::Interface;
+
+/// The digest committing a closed conformance application.
+pub(super) struct Commitment;
+impl Field<terminal_psi::ClosedConformanceApplicationCommitment> for Commitment {
+    fn write(
+        writer: &mut Writer,
+        value: &terminal_psi::ClosedConformanceApplicationCommitment,
+    ) -> Result<(), CodecError> {
+        writer.bytes(&value.as_bytes());
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<terminal_psi::ClosedConformanceApplicationCommitment, CodecError> {
+        Ok(terminal_psi::ClosedConformanceApplicationCommitment::from_digest(reader.array()?))
+    }
+}
+
+pub(super) struct InvocationSite;
+impl Field<semantic_vocabulary::InvocationSite> for InvocationSite {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::InvocationSite,
+    ) -> Result<(), CodecError> {
+        super::wire::encode_invocation_site(writer, *value);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::InvocationSite, CodecError> {
+        super::wire::decode_invocation_site(reader)
+    }
+}
+
+wire_record! {
+    ArgumentSubstitution: OutcomeSpecificCallArgumentSubstitution {
+        argument_position: U32,
+        parameter_position: U32,
+        structural_path: Optional<Path>,
+    }
+}
+
+/// One-field `u32` newtypes spelled as their index.
+macro_rules! u32_newtypes {
+    ($($marker:ident: $ty:path;)*) => {$(
+        pub(super) struct $marker;
+        impl Field<$ty> for $marker {
+            fn write(writer: &mut Writer, value: &$ty) -> Result<(), CodecError> {
+                writer.u32(value.0);
+                Ok(())
+            }
+            fn read(reader: &mut Reader<'_>) -> Result<$ty, CodecError> {
+                Ok($ty(reader.u32()?))
+            }
+        }
+    )*};
+}
+pub(super) use u32_newtypes;
+
+/// A fixed 32-byte commitment digest.
+pub(super) struct Digest;
+impl Field<[u8; 32]> for Digest {
+    fn write(writer: &mut Writer, value: &[u8; 32]) -> Result<(), CodecError> {
+        writer.bytes(value);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<[u8; 32], CodecError> {
+        reader.array()
+    }
+}
+
+/// A nominal declaration, spelled as its identity-table index.
+pub(super) struct Nominal;
+impl Field<terminal_psi::NominalDeclarationIdentity> for Nominal {
+    fn write(
+        writer: &mut Writer,
+        value: &terminal_psi::NominalDeclarationIdentity,
+    ) -> Result<(), CodecError> {
+        writer.u32(value.identity().0);
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<terminal_psi::NominalDeclarationIdentity, CodecError> {
+        Ok(terminal_psi::NominalDeclarationIdentity::new(
+            terminal_psi::TerminalIdentityIndex(reader.u32()?),
+        ))
+    }
+}
+
+/// A top-level proposition or content projection; nested depth starts at zero.
+pub(super) struct Proposition;
+impl Field<semantic_vocabulary::Proposition> for Proposition {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::Proposition,
+    ) -> Result<(), CodecError> {
+        super::proposition_wire::encode_proposition(writer, value, 0)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::Proposition, CodecError> {
+        super::proposition_wire::decode_proposition(reader, 0)
+    }
+}
+
+pub(super) struct ContentExpression;
+impl Field<semantic_vocabulary::ContentProjectionExpression> for ContentExpression {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::ContentProjectionExpression,
+    ) -> Result<(), CodecError> {
+        super::structural_signature_wire::encode_content_projection_expression(writer, value)
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::ContentProjectionExpression, CodecError> {
+        super::structural_signature_wire::decode_content_projection_expression(reader, 0)
+    }
+}
+
+delegated_fields! {
+    ContentAlgebra: semantic_vocabulary::ContentAlgebra
+        => super::content_wire::encode_content_algebra, super::content_wire::decode_content_algebra;
+}
+
+pub(super) struct ReachArgument;
+impl Field<terminal_psi::ClosedReachArgument> for ReachArgument {
+    fn write(
+        writer: &mut Writer,
+        value: &terminal_psi::ClosedReachArgument,
+    ) -> Result<(), CodecError> {
+        super::reach_application_wire::encode_argument(writer, value);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::ClosedReachArgument, CodecError> {
+        super::reach_application_wire::decode_argument(reader)
+    }
+}
+
+/// A qualification path: a structural path whose projections may name a case.
+pub(super) struct QualificationPath;
+impl Field<Vec<StructuralPathSegment>> for QualificationPath {
+    fn write(writer: &mut Writer, value: &Vec<StructuralPathSegment>) -> Result<(), CodecError> {
+        super::structural_place_wire::encode_qualification_path(writer, value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Vec<StructuralPathSegment>, CodecError> {
+        super::structural_place_wire::decode_qualification_path(reader)
+    }
+}
+
+delegated_fields! {
+    MachineDeclaration: terminal_psi::CheckedMachineDeclaration
+        => super::machine_declaration_wire::encode, super::machine_declaration_wire::decode;
+}
+
+wire_record! {
+    ProjectionIdentity: ContentProjectionIdentity { domain: Id, projection_report_fingerprint: U64 }
+    ContentProjection: StructuralContentProjection {
+        identity: ProjectionIdentity,
+        algebra: ContentAlgebra,
+        expression: ContentExpression,
+    }
+    PathQualification: StructuralPathQualification { path: QualificationPath, domain: Id }
+}
+
+delegated_fields! {
+    StructuralType: terminal_psi::StructuralTypeDeclaration
+        => super::structural_type_wire::encode_structural_type,
+           super::structural_type_wire::decode_structural_type;
+}
+
+wire_record! {
+    Referent: StructuralReferentIdentity { id: Id, identity: Index }
+}
+
+/// A scalar qualification set, spelled as its identity; zero is the empty set.
+pub(super) struct QualificationSet;
+impl Field<semantic_vocabulary::ScalarQualificationSetId> for QualificationSet {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::ScalarQualificationSetId,
+    ) -> Result<(), CodecError> {
+        writer.u64(value.get());
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::ScalarQualificationSetId, CodecError> {
+        Ok(semantic_vocabulary::ScalarQualificationSetId::new(
+            reader.u64()?,
+        ))
+    }
+}
+
+/// Crash continuations: buckets of guarded routes, one cause per bucket.
+pub(super) type CrashRoutes = List<super::contract_wire::Bucket>;
+
+delegated_fields! {
+    CleanupAction: terminal_psi::TerminalAffineCleanupAction
+        => super::structural_place_wire::encode_affine_cleanup_action,
+           super::structural_place_wire::decode_affine_cleanup_action;
+}
+
+// Operation results, returning edges and loan completions carry the same
+// path-based claim join. One row keeps every envelope on the Case guard and
+// the typed source path, never machine-local identity order.
+wire_record! {
+    ClaimBinding: StructuralResultClaimBinding { claim: Id, path: Path }
+}
+
+/// An optional package identity behind a presence flag; the zero digest names
+/// no package, so each owner refuses it with its own reason.
+macro_rules! optional_packages {
+    ($($marker:ident: $empty:literal;)*) => {$(
+        pub(super) struct $marker;
+        impl Field<Option<semantic_vocabulary::PackageKeyIdentity>> for $marker {
+            fn write(
+                writer: &mut Writer,
+                value: &Option<semantic_vocabulary::PackageKeyIdentity>,
+            ) -> Result<(), CodecError> {
+                writer.boolean(value.is_some());
+                if let Some(package) = value {
+                    writer.bytes(&package.digest());
+                }
+                Ok(())
+            }
+            fn read(
+                reader: &mut Reader<'_>,
+            ) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, CodecError> {
+                if !reader.boolean()? {
+                    return Ok(None);
+                }
+                semantic_vocabulary::PackageKeyIdentity::from_digest(reader.array()?)
+                    .map(Some)
+                    .ok_or(CodecError::MalformedStructuralFoundation($empty))
+            }
+        }
+    )*};
+}
+optional_packages! {
+    TaskPackage: "task requirement has a zero package identity";
+    ExternalPackage: "empty external provider package identity";
+    ProviderPackage: "empty provider source package identity";
+    BoundaryPackage: "empty boundary package identity";
 }

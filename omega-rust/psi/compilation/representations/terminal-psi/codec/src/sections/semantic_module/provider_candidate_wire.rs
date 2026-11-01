@@ -6,150 +6,61 @@
 
 use terminal_psi::{
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter, StructuralDomainRequirement,
+    ProviderSignature, ProviderSignatureParameter,
 };
 
 use super::CodecError;
-use super::structural_place_wire::{decode_qualification_path, encode_qualification_path};
-use super::structural_result_wire::{decode_multiplicity, encode_multiplicity};
-use super::structural_signature_wire::{
-    decode_projected_qualifications, decode_structural_access, encode_projected_qualifications,
-    encode_service_ceiling, encode_structural_access,
-};
+use super::structural_signature_wire::DomainRequirement;
 use super::wire::{Reader, Writer};
-use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
-use semantic_vocabulary::PackageKeyIdentity;
-use terminal_psi::TerminalIdentityIndex;
+use super::wire_fields::{
+    Access, Field, Id, Ids, Index, List, Multiplicity, Nominal, PathQualification, ProviderPackage,
+    U32, wire_record,
+};
+
+wire_record! {
+    Candidate: ProviderCandidateConformance {
+        boundary: Id,
+        requirement_identity: Index,
+        source_requirement_identity: Index,
+        receiving_application: Index,
+        receiving_region_arguments: List<Index>,
+        provider_identity: Index,
+        provider_declaration: Nominal,
+        candidate_identity: Index,
+        source_candidate_identity: Index,
+        source_candidate_package_identity: ProviderPackage,
+        candidate: Id,
+        signature: Signature,
+        refinement: Refinement,
+    }
+    Signature: ProviderSignature { parameters: List<SignatureParameter> }
+    SignatureParameter: ProviderSignatureParameter {
+        position: U32,
+        structural_type: Id,
+        multiplicity: Multiplicity,
+        access: Access,
+        qualifications: Ids,
+        projected_qualifications: List<PathQualification>,
+    }
+    Refinement: ProviderRefinement {
+        positional_parameters: List<ParameterRefinement>,
+        required_domains: List<DomainRequirement>,
+        realized_service_ceiling: Ids,
+    }
+    ParameterRefinement: ProviderParameterRefinement { boundary_index: U32, candidate_index: U32 }
+}
 
 pub(crate) fn encode_provider_candidate(
     writer: &mut Writer,
     candidate: &ProviderCandidateConformance,
 ) -> Result<(), CodecError> {
-    writer.id(candidate.boundary);
-    writer.u32(candidate.requirement_identity.0);
-    writer.u32(candidate.source_requirement_identity.0);
-    writer.u32(candidate.receiving_application.0);
-    writer.len(
-        "provider receiving region arguments",
-        candidate.receiving_region_arguments.len(),
-    )?;
-    for region in &candidate.receiving_region_arguments {
-        writer.u32(region.0);
-    }
-    writer.u32(candidate.provider_identity.0);
-    writer.u32(candidate.provider_declaration.identity().0);
-    writer.u32(candidate.candidate_identity.0);
-    writer.u32(candidate.source_candidate_identity.0);
-    writer.boolean(candidate.source_candidate_package_identity.is_some());
-    if let Some(package) = candidate.source_candidate_package_identity {
-        writer.bytes(&package.digest());
-    }
-    writer.id(candidate.candidate);
-    writer.len(
-        "provider signature parameters",
-        candidate.signature.parameters.len(),
-    )?;
-    for parameter in &candidate.signature.parameters {
-        writer.u32(parameter.position);
-        writer.id(parameter.structural_type);
-        encode_multiplicity(writer, parameter.multiplicity);
-        encode_structural_access(writer, parameter.access);
-        writer.len(
-            "provider signature qualifications",
-            parameter.qualifications.len(),
-        )?;
-        for qualification in &parameter.qualifications {
-            writer.id(*qualification);
-        }
-        encode_projected_qualifications(writer, &parameter.projected_qualifications)?;
-    }
-    writer.len(
-        "provider positional refinements",
-        candidate.refinement.positional_parameters.len(),
-    )?;
-    for parameter in &candidate.refinement.positional_parameters {
-        writer.u32(parameter.boundary_index);
-        writer.u32(parameter.candidate_index);
-    }
-    writer.len(
-        "provider required domains",
-        candidate.refinement.required_domains.len(),
-    )?;
-    for requirement in &candidate.refinement.required_domains {
-        writer.u32(requirement.argument_index);
-        encode_qualification_path(writer, &requirement.path)?;
-        writer.id(requirement.domain);
-    }
-    encode_service_ceiling(writer, &candidate.refinement.realized_service_ceiling)
+    Candidate::write(writer, candidate)
 }
 
 pub(crate) fn decode_provider_candidate(
     reader: &mut Reader<'_>,
 ) -> Result<ProviderCandidateConformance, CodecError> {
-    let boundary = reader.id("BoundaryMachineId")?;
-    let requirement_identity = TerminalIdentityIndex(reader.u32()?);
-    let source_requirement_identity = TerminalIdentityIndex(reader.u32()?);
-    let receiving_application = TerminalIdentityIndex(reader.u32()?);
-    let receiving_region_arguments =
-        decode_counted(reader, |reader| Ok(TerminalIdentityIndex(reader.u32()?)))?;
-    let provider_identity = TerminalIdentityIndex(reader.u32()?);
-    let provider_declaration =
-        terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
-    let candidate_identity = TerminalIdentityIndex(reader.u32()?);
-    let source_candidate_identity = TerminalIdentityIndex(reader.u32()?);
-    let source_candidate_package_identity = if reader.boolean()? {
-        Some(PackageKeyIdentity::from_digest(reader.array()?).ok_or(
-            CodecError::MalformedStructuralFoundation("empty provider source package identity"),
-        )?)
-    } else {
-        None
-    };
-    let candidate = reader.id("MachineId")?;
-    let parameters = decode_counted(reader, |reader| {
-        let position = reader.u32()?;
-        let structural_type = reader.id("StructuralTypeId")?;
-        let multiplicity = decode_multiplicity(reader)?;
-        Ok(ProviderSignatureParameter {
-            position,
-            structural_type,
-            multiplicity,
-            access: decode_structural_access(reader)?,
-            qualifications: decode_ids(reader, "StructuralDomainId")?,
-            projected_qualifications: decode_projected_qualifications(reader)?,
-        })
-    })?;
-    let positional_parameters = decode_counted(reader, |reader| {
-        Ok(ProviderParameterRefinement {
-            boundary_index: reader.u32()?,
-            candidate_index: reader.u32()?,
-        })
-    })?;
-    let required_domains = decode_counted(reader, |reader| {
-        Ok(StructuralDomainRequirement {
-            argument_index: reader.u32()?,
-            path: decode_qualification_path(reader)?,
-            domain: reader.id("StructuralDomainId")?,
-        })
-    })?;
-    Ok(ProviderCandidateConformance {
-        boundary,
-        requirement_identity,
-        source_requirement_identity,
-        receiving_application,
-        receiving_region_arguments,
-        provider_identity,
-        provider_declaration,
-        candidate_identity,
-        source_candidate_identity,
-        source_candidate_package_identity,
-        candidate,
-        signature: ProviderSignature { parameters },
-        refinement: ProviderRefinement {
-            positional_parameters,
-            required_domains,
-            realized_service_ceiling: decode_ids(reader, "ServiceId")?,
-        },
-    })
+    Candidate::read(reader)
 }
 
 /// Encode one provider declaration using the current Terminal vocabulary.

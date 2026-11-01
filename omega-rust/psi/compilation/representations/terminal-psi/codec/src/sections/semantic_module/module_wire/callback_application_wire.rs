@@ -1,35 +1,26 @@
-use super::super::CodecError;
-use super::super::wire::{Reader, Writer};
+//! Callback applications on the wire: the registrar, requirement and
+//! published contract of one admitted callback body.
+
+use super::super::wire_fields::{Digest, Flag, Id, MachineDeclaration, Text, U32, wire_record};
 use terminal_psi::TerminalCallbackApplication;
 
-pub(super) fn encode(
-    writer: &mut Writer,
-    application: &TerminalCallbackApplication,
-) -> Result<(), CodecError> {
-    writer.u32(application.application_index);
-    writer.id(application.registrar);
-    writer.u32(application.static_machine_ordinal);
-    writer.string("callback requirement", &application.requirement)?;
-    writer.bytes(&application.published_contract);
-    writer.boolean(application.entry_admitted);
-    super::super::machine_declaration_wire::encode(writer, &application.body)
-}
-
-pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalCallbackApplication, CodecError> {
-    Ok(TerminalCallbackApplication {
-        application_index: reader.u32()?,
-        registrar: reader.id("callback registrar")?,
-        static_machine_ordinal: reader.u32()?,
-        requirement: reader.string("callback requirement")?,
-        published_contract: reader.array()?,
-        entry_admitted: reader.boolean()?,
-        body: super::super::machine_declaration_wire::decode(reader)?,
-    })
+wire_record! {
+    Application: TerminalCallbackApplication {
+        application_index: U32,
+        registrar: Id,
+        static_machine_ordinal: U32,
+        requirement: Text,
+        published_contract: Digest,
+        entry_admitted: Flag,
+        body: MachineDeclaration,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sections::semantic_module::wire::{Reader, Writer};
+    use crate::sections::semantic_module::wire_fields::Field;
     use semantic_vocabulary::OperationId;
 
     #[test]
@@ -57,14 +48,17 @@ mod tests {
             },
         };
         let mut writer = Writer::default();
-        encode(&mut writer, &application).expect("encode callback");
+        Application::write(&mut writer, &application).expect("encode callback");
         let bytes = writer.finish();
         let mut reader = Reader::new(&bytes);
-        assert_eq!(decode(&mut reader).expect("decode callback"), application);
+        assert_eq!(
+            Application::read(&mut reader).expect("decode callback"),
+            application
+        );
         assert_eq!(reader.remaining(), 0);
         for byte_count in 0..bytes.len() {
             assert!(
-                decode(&mut Reader::new(&bytes[..byte_count])).is_err(),
+                Application::read(&mut Reader::new(&bytes[..byte_count])).is_err(),
                 "accepted {byte_count} bytes"
             );
         }
