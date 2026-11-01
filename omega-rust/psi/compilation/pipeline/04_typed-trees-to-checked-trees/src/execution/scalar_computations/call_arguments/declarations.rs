@@ -38,8 +38,9 @@ impl Builder<'_, '_> {
         if authored.root.as_symbol() != Some(input.formal) {
             return None;
         }
-        let coordinate = scope.plan.coordinates.get(input.actual);
-        let root_path = scope.plan.path_segments.span(coordinate.path)?;
+        let plan = scope.plan;
+        let coordinate = plan.coordinates.get(input.actual);
+        let root_path = plan.path_segments.span(coordinate.path)?;
         let actual = validation::CanonicalPlace {
             root: facts::PlaceRoot::Symbol(coordinate.parameter),
             segments: root_path
@@ -68,7 +69,38 @@ impl Builder<'_, '_> {
         if !validation::declared_input_type_matches(self.program, actual_type, input.actual_type) {
             return None;
         }
-        let selectors = self.projection_selector_evaluations(argument, argument)?;
+        let geometry = validation::structural_coordinate(
+            self.program,
+            self.authored_parameters,
+            coordinate.parameter,
+            root_path,
+        )?;
+        let bounds = plan.entry_indexes.span(coordinate.entry_indexes)?;
+        let mut selectors = Vec::new();
+        for (path_step, projection) in geometry.projections.iter().enumerate() {
+            let validation::ScalarCoordinateProjection::Element { selector, .. } = projection
+            else {
+                continue;
+            };
+            // Constant fixed-array coordinates already lower as FixedIndex.
+            // Other selectors carry their own entry-bound identity, not an
+            // authored argument occurrence in the declaration's namespace.
+            let checked =
+                self.entry_index_selector(coordinate.parameter, path_step, projection, bounds)?;
+            let checked_trees::CheckedEntryIndexSelector::Expression(expression) = selector else {
+                return None;
+            };
+            let primitive = crate::values::scalar::expression_facts::scalar_expression_type(
+                &checked.expression,
+            )?;
+            let value = self.insert(
+                primitive,
+                checked_trees::CheckedScalarComputationKind::Value(checked.expression),
+            );
+            self.plans.nodes.get_mut(value).authored_root = *expression;
+            selectors.push((*expression, value));
+        }
+        selectors.extend(self.projection_selector_evaluations(argument, argument)?);
         let mut argument_plan = crate::execution::terminal_unit::calls::owned_argument(
             self.program,
             &mut self.shapes,
@@ -85,10 +117,11 @@ impl Builder<'_, '_> {
                 })
             }),
         )?;
-        argument_plan.retain_projection_evaluations(
-            self.projection_selector_span(argument, &selectors)?,
-            &self.plans.operands,
-        )?;
+        let evaluations = self
+            .plans
+            .operands
+            .insert_many(selectors.iter().map(|(_, value)| *value));
+        argument_plan.retain_projection_evaluations(evaluations, &self.plans.operands)?;
         Some(argument_plan)
     }
 }

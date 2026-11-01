@@ -20,13 +20,42 @@ pub(super) fn owned_copy(
         return None;
     }
     let path = admitted.path_segments.span(coordinate.path)?;
-    // A whole indexed root needs its own retained selector observation. The
-    // scalar leaf roster cannot authorize re-evaluating that selector here.
-    if path
-        .iter()
-        .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
-    {
-        return None;
+    // Typed projection and bound receipts are retained on this whole root,
+    // independently of the scalar leaves demanded by the declaration.
+    let geometry = validation::structural_coordinate(
+        program,
+        program.state_parameters(state),
+        coordinate.parameter,
+        path,
+    )?;
+    let bounds = admitted.entry_indexes.span(coordinate.entry_indexes)?;
+    for (path_step, step) in geometry.projections.iter().enumerate() {
+        let validation::ScalarCoordinateProjection::Element {
+            selector,
+            collection_type,
+            element_type,
+            collection_path,
+            extent,
+            ..
+        } = step
+        else {
+            continue;
+        };
+        let extent = extent.map(u64::try_from).transpose().ok()?;
+        let mut matching = bounds.iter().filter(|bound| {
+            bound.state == state.symbol
+                && bound.parameter == coordinate.parameter
+                && usize::try_from(bound.path_step).ok() == Some(path_step)
+                && bound.selector == *selector
+                && bound.collection_type == *collection_type
+                && bound.element_type == *element_type
+                && bound.collection_path == *collection_path
+                && bound.extent == extent
+        });
+        matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
     }
     for length in 0..=path.len() {
         let selected = validation::project_type_reference_from_segments(

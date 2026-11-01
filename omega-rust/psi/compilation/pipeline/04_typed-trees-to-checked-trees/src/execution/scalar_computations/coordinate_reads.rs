@@ -55,71 +55,21 @@ impl Builder<'_, '_> {
             .iter()
             .position(|parameter| parameter.symbol == symbol)?;
         let mut path = Vec::new();
-        for (path_step, step) in geometry.projections.into_iter().enumerate() {
+        for (path_step, step) in geometry.projections.iter().enumerate() {
             match step {
                 validation::ScalarCoordinateProjection::Storage(step) => {
                     let step = match step {
                         Storage::Referent => Predicate::Referent,
-                        Storage::Field(field) => Predicate::Field(field),
-                        Storage::Case(case) => Predicate::Case(case),
-                        Storage::FixedIndex(index) => Predicate::FixedIndex(index),
+                        Storage::Field(field) => Predicate::Field(field.clone()),
+                        Storage::Case(case) => Predicate::Case(case.clone()),
+                        Storage::FixedIndex(index) => Predicate::FixedIndex(*index),
                         _ => return None,
                     };
                     path.push(CheckedScalarReadProjection::Static(step));
                 }
-                validation::ScalarCoordinateProjection::Element {
-                    selector,
-                    collection_type,
-                    element_type,
-                    collection_path,
-                    extent,
-                    ..
-                } => {
-                    let path_step = u32::try_from(path_step).ok()?;
-                    let extent = extent.map(u64::try_from).transpose().ok()?;
-                    let mut bounds = entry_indexes.iter().filter(|bound| {
-                        bound.state == self.state
-                            && bound.parameter == symbol
-                            && bound.path_step == path_step
-                            && bound.selector == selector
-                            && bound.collection_type == collection_type
-                            && bound.element_type == element_type
-                            && bound.collection_path == collection_path
-                            && bound.extent == extent
-                    });
-                    let bound = bounds.next()?;
-                    if bounds.next().is_some() {
-                        return None;
-                    }
-                    let selector_value = match selector {
-                        checked_trees::CheckedEntryIndexSelector::Expression(selector) => {
-                            crate::values::scalar::scalar_lowering::pure_selector(
-                                self.program,
-                                self.operators,
-                                selector,
-                                self.parameters,
-                                self.authored_parameters,
-                                self.parameter_types,
-                                self.locals,
-                                self.exact_integer_casts,
-                            )?
-                        }
-                        checked_trees::CheckedEntryIndexSelector::Constant(value) => {
-                            facts::u64_integer_literal(value, bound.primitive_type)?
-                        }
-                    };
-                    if crate::values::scalar::expression_facts::scalar_expression_type(
-                        &selector_value,
-                    ) != Some(bound.primitive_type)
-                    {
-                        return None;
-                    }
+                validation::ScalarCoordinateProjection::Element { .. } => {
                     path.push(CheckedScalarReadProjection::RuntimeIndex(
-                        CheckedScalarSelector {
-                            expression: selector_value,
-                            occurrence: ExpressionHandle::invalid(),
-                            entry_bound: Some(bound.clone()),
-                        },
+                        self.entry_index_selector(symbol, path_step, step, entry_indexes)?,
                     ));
                 }
             }
@@ -137,5 +87,71 @@ impl Builder<'_, '_> {
             },
         )?;
         Some(self.insert(expected_type, CheckedScalarComputationKind::Value(template)))
+    }
+
+    /// Bind an admitted entry selector against its immutable formal telescope.
+    /// Scalar reads and whole-value copies consume the same exact receipt.
+    pub(super) fn entry_index_selector(
+        &self,
+        symbol: symbols::SymbolHandle,
+        path_step: usize,
+        projection: &validation::ScalarCoordinateProjection,
+        entry_indexes: &[CheckedEntryIndexBound],
+    ) -> Option<CheckedScalarSelector> {
+        let validation::ScalarCoordinateProjection::Element {
+            selector,
+            collection_type,
+            element_type,
+            collection_path,
+            extent,
+            ..
+        } = projection
+        else {
+            return None;
+        };
+        let path_step = u32::try_from(path_step).ok()?;
+        let extent = extent.map(u64::try_from).transpose().ok()?;
+        let mut bounds = entry_indexes.iter().filter(|bound| {
+            bound.state == self.state
+                && bound.parameter == symbol
+                && bound.path_step == path_step
+                && bound.selector == *selector
+                && bound.collection_type == *collection_type
+                && bound.element_type == *element_type
+                && bound.collection_path == *collection_path
+                && bound.extent == extent
+        });
+        let bound = bounds.next()?;
+        if bounds.next().is_some() {
+            return None;
+        }
+        let selector_value = match selector {
+            checked_trees::CheckedEntryIndexSelector::Expression(selector) => {
+                crate::values::scalar::scalar_lowering::pure_selector(
+                    self.program,
+                    self.operators,
+                    *selector,
+                    self.parameters,
+                    self.authored_parameters,
+                    self.parameter_types,
+                    self.locals,
+                    self.exact_integer_casts,
+                )?
+            }
+            checked_trees::CheckedEntryIndexSelector::Constant(value) => {
+                facts::u64_integer_literal(*value, bound.primitive_type)?
+            }
+        };
+        if crate::values::scalar::expression_facts::scalar_expression_type(&selector_value)
+            != Some(bound.primitive_type)
+        {
+            return None;
+        }
+
+        Some(CheckedScalarSelector {
+            expression: selector_value,
+            occurrence: ExpressionHandle::invalid(),
+            entry_bound: Some(bound.clone()),
+        })
     }
 }

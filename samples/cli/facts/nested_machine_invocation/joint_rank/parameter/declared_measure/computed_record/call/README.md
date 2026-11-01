@@ -72,7 +72,9 @@ hashes, commands and output remain in those records and the publication evidence
 
 The runtime receipt covers borrow-free owned copies whose source and result are
 unrestricted. It preserves ordinary callee cleanup. Inputs requiring loans,
-affine/linear transfers or captured whole-root selectors need their own actual
-custody/selector plans; this row supplies no evidence for them. All programs bind
+affine/linear transfers need their own actual custody plans; this row supplies
+no evidence for them. The [indexed-input continuation](indexed/README.md)
+retains whole-root selector bounds and disjoint current fields across a
+selected store, with its own nine places and refusal controls. All programs bind
 four hosted targets; execution on other hosts and broader parent acceptance
 remain unverified.

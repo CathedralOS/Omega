@@ -1,0 +1,71 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Progress [copy] { lower: u64; upper: u64; canary: u64; }
+machine distance(value: Progress) -> u64
+requires value.lower <= value.upper
+ensures result == value.upper - value.lower
+terminates
+{ value.upper - value.lower }
+measure Progress::Remaining(value: Progress) -> u64 { distance(value) }
+machine count(counter: &mut u64, remaining: [Progress; 2], slot: u64, untouched: u64) crashes Trap
+requires slot < 2 && remaining[slot].lower <= remaining[slot].upper && remaining[slot].upper <= 7
+terminates
+terminates by remaining[slot] -> Progress::Remaining
+{
+    transition remaining[slot].lower < remaining[slot].upper {
+        true -> forward(remaining, slot, untouched, counter)
+        false -> finish(remaining, slot, untouched)
+    }
+    machine forward(mut pending: [Progress; 2], selected: u64, untouched: u64, counter: &mut u64) crashes Trap
+    requires selected < 2 && pending[selected].lower < pending[selected].upper && pending[selected].upper <= 7
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        pending[selected].lower = pending[selected].lower + 0;
+        transition { _ -> count(counter, pending, selected, untouched) }
+    }
+    machine finish(remaining: [Progress; 2], slot: u64, untouched: u64) crashes Trap
+    requires slot < 2
+    {
+        let neighbor: bool = match slot == 0 {
+            true -> remaining[1].lower == untouched
+            false -> remaining[0].lower == untouched
+        };
+        transition remaining[slot].lower == remaining[slot].upper && neighbor &&
+            remaining[0].canary == 641 && remaining[1].canary == 643 &&
+            remaining[0].upper == 7 && remaining[1].upper == 7 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine input(active: bool) -> [Progress; 2]
+ensures result[0].lower <= result[0].upper && result[0].upper <= 7 &&
+    result[1].lower <= result[1].upper && result[1].upper <= 7
+terminates
+{
+    let lower: u64 = match active { true -> 0 false -> 7 };
+    let other_lower: u64 = match active { true -> 2 false -> 7 };
+    [Progress { lower: lower, upper: 7, canary: 641 }, Progress { lower: other_lower, upper: 7, canary: 643 }]
+}
+machine perform(counter: &mut u64, active: bool, second: bool) crashes Trap {
+    let lower: u64 = match active { true -> 0 false -> 7 };
+    let other_lower: u64 = match active { true -> 2 false -> 7 };
+    let slot: u64 = match second { true -> 1 false -> 0 };
+    let untouched: u64 = match second { true -> lower false -> other_lower };
+    relay(counter, input(active), slot, untouched);
+}
+machine relay(counter: &mut u64, received: [Progress; 2], slot: u64, untouched: u64) crashes Trap
+requires slot < 2 && received[slot].lower <= received[slot].upper && received[slot].upper <= 7
+{ transition { _ -> count(counter, received, slot, untouched) } }
+machine main() crashes Trap {
+    let mut first: u64 = 3;
+    perform(&mut first, true, false);
+    let active: bool = first == 10;
+    perform(&mut first, false, false);
+    let mut second: u64 = 3;
+    perform(&mut second, true, true);
+    let selected: bool = second == 8;
+    perform(&mut second, false, true);
+    transition active && selected && first == 10 && second == 8 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
