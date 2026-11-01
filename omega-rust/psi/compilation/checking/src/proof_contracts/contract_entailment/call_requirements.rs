@@ -269,11 +269,13 @@ fn structural_requirement_at_prefix(
             || callee_machine.is_some_and(|machine| {
                 program
                     .state_in_machine(machine, callee_owner)
-                    .is_some_and(|state| runtime_equality_fact(program, machine, state, expression))
+                    .is_some_and(|state| {
+                        runtime_predicate_fact(program, machine, state, expression)
+                    })
             }))
             || (!case_facts_only
                 && !requires.iter().all(|fact| {
-                    runtime_equality_fact(
+                    runtime_predicate_fact(
                         program,
                         machine,
                         if state_prefix { caller_state } else { entry },
@@ -291,7 +293,7 @@ fn structural_requirement_at_prefix(
                     .iter()
                     .map(|fact| (
                         expression_table(program).display_name(*fact),
-                        runtime_equality_fact(
+                        runtime_predicate_fact(
                             program,
                             machine,
                             if state_prefix { caller_state } else { entry },
@@ -689,10 +691,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
     }
 }
 
-/// Runtime facts retain exact case membership or builtin Boolean/integer
-/// equality, not arbitrary selected operators or IEEE floating equality. Check
-/// assumptions as well as goals: misreading one could manufacture vacuity.
-fn runtime_equality_fact(
+/// Runtime facts retain authenticated predicate meaning, including checked
+/// mathematical aliases. This classifies a premise for the prefix observer;
+/// it grants no truth or operand-identity law. The same reader handles a
+/// nonbinary alias and its reduced inline proposition, so source shape cannot
+/// discard an admitted invocation hypothesis.
+fn runtime_predicate_fact(
     program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
@@ -702,6 +706,11 @@ fn runtime_equality_fact(
         return matches!(
             expression_table(program).expression(expression),
             ExpressionNode::Boolean(_)
+        ) || runtime_fact_for_parameters(
+            program,
+            machine.symbol,
+            program.state_parameters(state),
+            expression,
         );
     };
     // Authored membership retains its selected meaning on an equality node;
@@ -718,8 +727,8 @@ fn runtime_equality_fact(
     }
     match binary.operator {
         BinaryOperator::And | BinaryOperator::Or => {
-            runtime_equality_fact(program, machine, state, binary.left)
-                && runtime_equality_fact(program, machine, state, binary.right)
+            runtime_predicate_fact(program, machine, state, binary.left)
+                && runtime_predicate_fact(program, machine, state, binary.right)
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
             super::structural_terms::has_identity_equality_meaning(

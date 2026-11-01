@@ -56,10 +56,29 @@ fn read_term(
     }
     let read = |term| read_term(program, view, term, captures, depth + 1);
     match view.arena.get(term) {
+        Term::TwoZero | Term::TwoOne => Some(boolean(matches!(view.arena.get(term), Term::TwoOne))),
         Term::Variable(index) => captures
             .get(captures.len().checked_sub(index as usize + 1)?)?
             .clone(),
         Term::Squash { ty } => read(ty),
+        Term::Id { ty, left, right } if matches!(view.arena.get(ty), Term::Two) => {
+            let reference =
+                crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    symbols::BuiltinTypeAtom::Bool,
+                )?;
+            let meaning = (
+                typed_trees::types::PrimitiveType::Bool,
+                program.arithmetic_domain_for_type_reference(reference),
+            );
+            Some(StructuralTerm::ScalarBinary {
+                references: [reference; 2],
+                operator: BinaryOperator::Equal,
+                meaning: [meaning; 2],
+                left: Box::new(read(left)?),
+                right: Box::new(read(right)?),
+            })
+        }
         Term::Id { ty, left, right } => {
             let Term::Constant { declaration, .. } = view.arena.get(ty) else {
                 return None;
@@ -75,9 +94,31 @@ fn read_term(
             }
             Some(binary(BinaryOperator::Equal, read(left)?, read(right)?))
         }
-        Term::Sigma { domain, codomain } if !matches!(view.arena.get(domain), Term::Two) => {
+        Term::Sigma { domain, codomain } => {
             let mut extended = captures.to_vec();
             extended.push(None);
+            if matches!(view.arena.get(domain), Term::Two) {
+                let Term::CaseTwo {
+                    zero_branch,
+                    one_branch,
+                    scrutinee,
+                    ..
+                } = view.arena.get(codomain)
+                else {
+                    return None;
+                };
+                if !matches!(view.arena.get(scrutinee), Term::Variable(0)) {
+                    return None;
+                }
+                // The checked logical sum chooses a Boolean witness. Its
+                // branches keep the same outer captures; neither branch is an
+                // ambient assumption about a caller's runtime Boolean.
+                return Some(binary(
+                    BinaryOperator::Or,
+                    read_term(program, view, zero_branch, &extended, depth + 1)?,
+                    read_term(program, view, one_branch, &extended, depth + 1)?,
+                ));
+            }
             Some(binary(
                 BinaryOperator::And,
                 read(domain)?,
@@ -95,9 +136,9 @@ fn read_term(
                     // Retain the producer's already landed format and bits.
                     // Rebuilding an anonymous f64 literal loses the f32 lane
                     // and cannot authenticate an IEEE bound observation.
-                    Some(StructuralTerm::Float(
-                        FloatLiteral::from_bits(*format, *bits)?,
-                    ))
+                    Some(StructuralTerm::Float(FloatLiteral::from_bits(
+                        *format, *bits,
+                    )?))
                 }
                 (
                     PreparedConstantMeaning::FloatRelation {
@@ -176,5 +217,13 @@ fn binary(operator: BinaryOperator, left: StructuralTerm, right: StructuralTerm)
         operator,
         left: Box::new(left),
         right: Box::new(right),
+    }
+}
+
+fn boolean(value: bool) -> StructuralTerm {
+    StructuralTerm::Constructor {
+        data: "bool".to_owned(),
+        case: value.to_string(),
+        fields: Vec::new(),
     }
 }

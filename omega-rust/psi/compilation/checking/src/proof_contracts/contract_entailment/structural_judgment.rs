@@ -177,8 +177,9 @@ pub(crate) enum StructuralTerm {
         reference: TypeReferenceHandle,
         value: Box<StructuralTerm>,
     },
-    /// Builtin unbounded integer meaning, distinct from every finite runtime
-    /// carrier and its arithmetic policy. Children retain captured identities.
+    /// Builtin unbounded integer operations and logical connectives, distinct
+    /// from finite runtime arithmetic and selected IEEE comparison leaves.
+    /// Children retain their own captured identities and scalar meanings.
     MathematicalBinary {
         operator: BinaryOperator,
         left: Box<StructuralTerm>,
@@ -292,8 +293,11 @@ impl StructuralTerm {
     }
 
     pub(super) fn is_checked_predicate(&self) -> bool {
+        if value_predicates::boolean_value(self.semantic_value()).is_some() {
+            return true;
+        }
         if let Self::MathematicalBinary {
-            operator: BinaryOperator::And,
+            operator: BinaryOperator::And | BinaryOperator::Or,
             left,
             right,
         } = self.semantic_value()
@@ -1457,18 +1461,18 @@ impl<'program> StructuralJudge<'program> {
             self.intake_preserved_predicate(binary.left);
             self.intake_preserved_predicate(binary.right);
         } else if let Some(term) = self.declaration_term(fact) {
-            let predicate = match &term {
-                StructuralTerm::MathematicalBinary { .. } => term.is_checked_predicate(),
-                StructuralTerm::ScalarBinary { .. } | StructuralTerm::Application { .. } => {
-                    self.declaration_expression_type(fact)
-                        .and_then(|reference| program.primitive_type_reference(reference))
-                        == Some(PrimitiveType::Bool)
-                }
-                StructuralTerm::Variable(_) => {
-                    program.static_type_predicate_operands(fact).is_some()
-                }
-                _ => false,
-            };
+            let predicate = term.is_checked_predicate()
+                || match &term {
+                    StructuralTerm::ScalarBinary { .. } | StructuralTerm::Application { .. } => {
+                        self.declaration_expression_type(fact)
+                            .and_then(|reference| program.primitive_type_reference(reference))
+                            == Some(PrimitiveType::Bool)
+                    }
+                    StructuralTerm::Variable(_) => {
+                        program.static_type_predicate_operands(fact).is_some()
+                    }
+                    _ => false,
+                };
             if predicate {
                 self.intake_equation(term, value_predicates::boolean_term(true), 0);
             }

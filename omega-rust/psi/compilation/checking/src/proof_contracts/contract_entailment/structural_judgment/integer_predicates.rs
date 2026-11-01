@@ -693,10 +693,11 @@ impl<'program> StructuralJudge<'program> {
         // leaves. Compose their independent judgments instead of sending the
         // entire proposition to integer projection.
         if let StructuralTerm::MathematicalBinary {
-            operator: BinaryOperator::And,
+            operator,
             left,
             right,
         } = predicate.semantic_value()
+            && matches!(operator, BinaryOperator::And | BinaryOperator::Or)
             && left.is_checked_predicate()
             && right.is_checked_predicate()
         {
@@ -704,7 +705,7 @@ impl<'program> StructuralJudge<'program> {
                 return StructuralJudgment::Unknown;
             }
             return StructuralJudgment::connective(
-                BinaryOperator::And,
+                *operator,
                 self.judge_observed_predicate(*left.clone(), depth + 1),
                 self.judge_observed_predicate(*right.clone(), depth + 1),
             );
