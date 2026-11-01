@@ -78,12 +78,15 @@ impl Builder<'_, '_> {
     /// an explicitly rebound declaration input must first pass through the
     /// computation graph. The shared typed-reference walk owns all expression
     /// forms; independent literals and ordinary formals retain their fast path.
+    /// A completed capture also blocks the shortcut without a coordinate row:
+    /// its saved value must not be replaced by the ordinary formal parameter.
     pub(super) fn has_declaration_binding(&self, expression: ExpressionHandle) -> bool {
-        if self.declaration_bindings.is_empty() {
+        if self.declaration_bindings.is_empty() && self.declaration_values.is_empty() {
             return false;
         }
         struct Bindings<'bindings> {
             bindings: &'bindings [(validation::CanonicalPlace, validation::CanonicalPlace)],
+            captures: &'bindings [(SymbolHandle, CheckedScalarComputationHandle)],
             found: bool,
             visited: Vec<ExpressionHandle>,
         }
@@ -93,6 +96,7 @@ impl Builder<'_, '_> {
                     self.bindings
                         .iter()
                         .any(|(formal, _)| formal.root == facts::PlaceRoot::Symbol(symbol))
+                        || self.captures.iter().any(|(formal, _)| *formal == symbol)
                 });
             }
         }
@@ -110,6 +114,7 @@ impl Builder<'_, '_> {
         }
         let mut bindings = Bindings {
             bindings: self.declaration_bindings,
+            captures: &self.declaration_values,
             found: false,
             visited: Vec::new(),
         };
