@@ -125,6 +125,10 @@ pub struct ClosedConformanceApplication {
     /// Domain-separated commitment to the historical closed-application
     /// encoding. The separately retained resolved argument tree is not hashed.
     pub commitment: ClosedConformanceApplicationCommitment,
+    /// Exact normalized Source-v4 preimage, retained by closure for portable
+    /// selected-layout receipts. Consumers never reconstruct it from display
+    /// strings or substitute Terminal's distinct conformance encoding.
+    pub identity_encoding: std::sync::Arc<[u8]>,
 }
 
 impl ClosedConformanceApplication {
@@ -142,6 +146,7 @@ impl ClosedConformanceApplication {
             && self.rows == other.rows
             && self.report_fingerprint == other.report_fingerprint
             && self.commitment == other.commitment
+            && self.identity_encoding == other.identity_encoding
     }
 }
 

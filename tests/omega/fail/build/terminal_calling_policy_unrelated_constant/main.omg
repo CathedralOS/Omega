@@ -1,0 +1,142 @@
+// The retained policy computes an ABI from a supplied signature, not source.
+use omega_language_std::calling;
+use omega::language::core::representation;
+
+// This width belongs to the policy's invocation, including its scalar job's
+// ordinary helper. The independent Endpoint-backed constant below does not.
+const PolicyCount: u64 = policy_count();
+data PolicyStorage { bytes: [u8; PolicyCount]; }
+machine policy_count() -> u64 { policy_count_value() }
+machine policy_count_value() -> u64
+ensures result <= policy_ceiling()
+{ 8u64 }
+machine policy_ceiling() -> u64 { 8u64 }
+machine policy_width() -> u64 {
+    let storage: PolicyStorage = PolicyStorage {
+        bytes: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8]
+    };
+    storage.bytes.len
+}
+
+public boundary trait Endpoint {
+    machine upper() -> u64 reaches terminates;
+}
+public Actual satisfies Endpoint {
+    machine upper() -> u64 { 6u64 }
+}
+machine limit() -> u64 { Endpoint::upper() }
+machine bounded(value: u64) -> u64
+requires value <= limit()
+ensures result <= limit()
+{ value }
+const VALUE: u64 = bounded(7u64);
+
+public boundary data PolicyToken;
+public data PolicyTokenBytes [copy] { value: u64; }
+public PolicyTokenRepresentation satisfies OpaqueRepresentation<PolicyToken, PolicyTokenBytes> {}
+public data PolicyEnvelope { value: PolicyToken; }
+public boundary trait OpaqueRelay: Calling<RetainedCalling> {
+    machine value(left: PolicyToken, right: u64) -> PolicyToken reaches;
+}
+OpaqueRelayMap satisfies OpaqueRelay {
+    machine value(left: PolicyToken, right: u64) -> PolicyToken { left }
+}
+public boundary trait OpaqueEntry: Calling<RetainedCalling> {
+    machine value(left: PolicyEnvelope, right: u64) -> u64 reaches;
+}
+OpaqueEntryMap satisfies OpaqueEntry {
+    machine value(left: PolicyEnvelope, right: u64) -> u64 { right }
+}
+
+public boundary trait LocalEntry: Calling<RetainedCalling> {
+    machine value(left: u64, right: u64) -> u64 reaches;
+}
+LocalMap satisfies LocalEntry { machine value(left: u64, right: u64) -> u64 { right } }
+public boundary trait NoResult { machine value() reaches; }
+NoResultMap satisfies NoResult { machine value() {} }
+// This declaration transports a reference, without demanding its pointee's
+// storage in the policy inspection artifact.
+public data PolicyReferent { payload: u64; }
+public data PolicyReference { value: &PolicyReferent; }
+public boundary trait ReferenceEntry: Calling<RetainedCalling> {
+    machine value(left: PolicyReference, right: u64) -> u64 reaches;
+}
+ReferenceMap satisfies ReferenceEntry {
+    machine value(left: PolicyReference, right: u64) -> u64 { right }
+}
+public RetainedCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        retained_plan(signature)
+    }
+}
+
+machine retained_plan(signature: BoundarySignature) -> BoundaryPlanResult {
+    transition signature.parameter_count == 2 && signature.has_result {
+        true -> select_result(signature, signature.parameters[0], signature.parameters[1], signature.result)
+        _ -> reject()
+    }
+    machine select_result(signature: BoundarySignature, left: u64, right: u64, result: u64) -> BoundaryPlanResult {
+        transition left < 256 && right < 256 && result < 256 {
+            true -> select_formals(signature, left, right, result)
+            _ -> reject()
+        }
+    }
+    machine select_formals(signature: BoundarySignature, left: u64, right: u64, result: u64) -> BoundaryPlanResult {
+        transition signature.native_parameter_count == 2
+            && signature.native_parameters[0].identity != signature.native_parameters[1].identity
+            && signature.native_parameters[0].native_ordinal == 0
+            && signature.native_parameters[1].native_ordinal == 1 {
+            true -> accept(signature, left, right, result)
+            _ -> reject()
+        }
+    }
+    machine accept(signature: BoundarySignature, left: u64, right: u64, result: u64) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.convention = CallingConvention::Aapcs64;
+        plan.call.parameter_count = 2;
+        plan.call.parameters[0].shape.class = AbiValueClass::Integer;
+        plan.call.parameters[0].shape.byte_size = signature.shapes[left].byte_size;
+        plan.call.parameters[0].shape.alignment = signature.shapes[left].alignment;
+        plan.call.parameters[0].location_count = 1;
+        plan.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8
+        };
+        plan.call.parameters[1].shape.class = AbiValueClass::Integer;
+        plan.call.parameters[1].shape.byte_size = signature.shapes[right].byte_size;
+        plan.call.parameters[1].shape.alignment = signature.shapes[right].alignment;
+        plan.call.parameters[1].location_count = 1;
+        plan.call.parameters[1].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: 1 }, value_byte_offset: 0, byte_size: 8
+        };
+        plan.call.has_result = true;
+        plan.call.result.shape.class = AbiValueClass::Integer;
+        plan.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        plan.call.result.shape.alignment = signature.shapes[result].alignment;
+        plan.call.result.location_count = 1;
+        plan.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: policy_width()
+        };
+        plan.call.stack_alignment = 16;
+        plan.call.entry_control = EntryControl::CallReturn;
+        plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
+        plan.state.permitted_transitive_use.general_registers = true;
+        plan.state.permitted_transitive_use.flags = true;
+        plan.state.stack = EntryStack::ProviderSelected;
+        plan.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: plan }
+    }
+    machine reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "scalar result required" } }
+    }
+}
+
+machine main() reaches LocalEntry, OpaqueRelay, OpaqueEntry crashes Trap {
+    let first: u64 = LocalEntry::value(11u64, 73u64);
+    let second: u64 = LocalEntry::value(91u64, 29u64);
+    let token: PolicyToken;
+    let retained: PolicyToken = OpaqueRelay::value(token, 19u64);
+    let third: u64 = OpaqueEntry::value(PolicyEnvelope { value: retained }, 41u64);
+    transition first == 73 && second == 29 && third == 41 && VALUE == 7u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

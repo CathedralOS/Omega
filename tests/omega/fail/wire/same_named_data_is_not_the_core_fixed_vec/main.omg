@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // An authored data type that only shares the name `FixedVec` is not the
 // core carrier: the wire encoder recognizes the core declaration in
 // core/fixed_vec.omg, not the spelling, so this member is refused.
@@ -11,9 +13,9 @@ data RoomPacket {
     #2 depth: i32;
 }
 data RoomPacketValue {
-    room_id: u32;
-    samples: FixedVec<i32, 4>;
-    depth: i32;
+    #0 room_id: u32;
+    #1 samples: FixedVec<i32, 4>;
+    #2 depth: i32;
 }
 data WireVerdict {
     case Invalid;
@@ -32,8 +34,7 @@ machine Main::main(main: &mut Main) {
         samples: FixedVec { items: [150, 0 - 2, 0, 0], length: 2 },
         depth: 0 - 64,
     };
-    RoomPacket::encode(&msg, &mut main.buffer, &mut main.written);
-    RoomPacket::decode(&mut main.packet, &main.buffer, &mut main.read, &mut main.verdict);
+    SelectedCodec::encode(&msg, &mut main.buffer, &mut main.written);
     transition main.verdict == WireVerdict::Sound
         && main.written == 13
         && main.read == 13
@@ -45,3 +46,32 @@ machine Main::main(main: &mut Main) {
     machine done() {}
     machine bad() {}
 }
+
+data SelectedCodec {}
+machine SelectedCodec::plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<RoomPacket, SelectedCodec::member>(context);
+}
+machine SelectedCodec::member<Kind>(context: &mut ScalarPlanContext, info: &reflect::FieldInfo)
+requires Kind == u32 || Kind == i32 || Kind == omega::language::FixedVec<i32, 4>
+{
+    transition { Kind == u32 || Kind == i32 -> CompactBinary::plan_scalar<Kind>(context, info)
+        _ -> CompactBinary::plan_payload<Kind>(context, info) }
+}
+machine SelectedCodec::fields(value: &RoomPacketValue, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<RoomPacketValue, SelectedCodec::field>(value, context);
+}
+machine SelectedCodec::field<Kind>(context: &mut EncodeContext, info: &reflect::FieldInfo, value: &Kind)
+requires Kind == u32 || Kind == i32 || Kind == omega::language::FixedVec<i32, 4>
+{
+    transition { Kind == u32 || Kind == i32 -> CompactBinary::scalar_field<Kind>(context, info, value)
+        _ -> CompactBinary::fixed_vec_field<Kind, i32, 4>(context, info, value) }
+}
+machine SelectedCodec::encode(value: &RoomPacketValue, bytes: &mut [u8; 64], written: &mut u64) {
+    let mut scratch: [u8; 64]; let mut fields: [EncodedField; 3];
+    transition CompactBinary::encode<RoomPacketValue, SelectedCodec::fields>(value, &mut bytes[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next) _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
+}
+
+machine entry_start() { let mut storage: Main; Main::main(&mut storage); }

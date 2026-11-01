@@ -1,0 +1,49 @@
+// Fact: an active case selected on an owned result retains the source place needed to borrow its payload without changing the returned slice's input provenance.
+// Expected exit: 0
+
+data BorrowedCase<'input> { case Missing; case Bytes(value: &'input [u8]); }
+machine produce<'input>(input: &'input [u8]) -> BorrowedCase<'input> {
+    transition input.len > 0u64 {
+        true -> header(input)
+        false -> BorrowedCase::Missing
+    }
+    machine header(input: &'input [u8]) -> BorrowedCase<'input>
+    requires input.len > 0u64
+    {
+        let length: u64 = input[0u64] as u64;
+        transition length < input.len {
+            true -> BorrowedCase::Bytes { value: &input[1u64..length + 1u64] }
+            false -> BorrowedCase::Missing
+        }
+    }
+}
+machine forward<'input>(input: &'input [u8]) -> BorrowedCase<'input> { produce(input) }
+machine inspect(input: &[u8]) -> u64 {
+    transition forward(input) {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    transition inspect(&bytes[..]) == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

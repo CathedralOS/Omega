@@ -1,10 +1,8 @@
-//! Wire schema plans, members and the encode and decode call schemas.
+//! Historical wire schema descriptions and their retained artifact metadata.
 
-use crate::statement::TableCall;
 use crate::typed_trees::TypedTrees;
 use crate::{types, wire};
 use arena::HandleSpan;
-use symbols::JoinedPath;
 
 impl TypedTrees {
     super::typed_tree_table! {
@@ -54,56 +52,6 @@ impl TypedTrees {
             };
             (!field.relevance.is_erased()).then_some(field)
         })
-    }
-
-    /// Recognize the compiler-synthesized wire encoder call shape
-    /// `Schema::encode(&value, &mut out, &mut written)` (chapter 20,
-    /// wire stage 2a): a statement call whose receiver names a wire schema
-    /// and whose target is `encode`.
-    pub fn wire_encode_call_schema(&self, call: &TableCall) -> Option<&wire::WireSchema> {
-        if call.target.as_str() != wire::WIRE_ENCODE_MACHINE_NAME {
-            return None;
-        }
-        self.wire_call_receiver_schema(call)
-    }
-
-    /// Recognize the compiler-synthesized wire decoder call shape
-    /// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`
-    /// (chapter 20, wire stage 2b): a statement call whose receiver names a
-    /// wire schema and whose target is `decode`.
-    pub fn wire_decode_call_schema(&self, call: &TableCall) -> Option<&wire::WireSchema> {
-        if call.target.as_str() != wire::WIRE_DECODE_MACHINE_NAME {
-            return None;
-        }
-        self.wire_call_receiver_schema(call)
-    }
-
-    /// Locate the wire schema a codec call's receiver names. A codec
-    /// receiver is a compile-time declaration, never current-state storage,
-    /// so it binds by declaration path rather than leaf spelling: a resolved
-    /// `receiver_symbol` already carries the authored path's source-scoped
-    /// precedence (imports, local module, shadowing storage), and a
-    /// qualified `module::Schema` receiver that storage-path resolution
-    /// cannot follow still selects its schema through the authored path
-    /// itself. Same-named schemas in sibling modules stay distinct, and a
-    /// leaf that resolves ambiguously or to unrelated storage cannot claim
-    /// the call.
-    pub fn wire_call_receiver_schema(&self, call: &TableCall) -> Option<&wire::WireSchema> {
-        if call.receiver_symbol.is_valid() {
-            let declaration_path = self.symbols.display_path(call.receiver_symbol, "::");
-            return self
-                .wire_schemas()
-                .iter()
-                .find(|schema| self.symbols.display_path(schema.symbol, "::") == declaration_path);
-        }
-        let members = self.statement_table.name_path_members(call.receiver);
-        let authored_path = members.joined_path();
-        if authored_path.is_empty() {
-            return None;
-        }
-        self.wire_schemas()
-            .iter()
-            .find(|schema| self.symbols.display_path(schema.symbol, "::") == authored_path)
     }
 
     /// The era discriminator a schema's CURRENT body encodes (frozen decision

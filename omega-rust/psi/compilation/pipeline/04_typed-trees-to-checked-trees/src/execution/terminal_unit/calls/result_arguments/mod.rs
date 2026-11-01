@@ -222,7 +222,7 @@ fn argument_contract(
                 declared_place_type_raw(program, source_machine, Some(source_state), owner)
             })?;
         if reference::is_carrier(program, reference)
-            && result.type_identity == program.normalized_type_identity(reference)
+            && result.type_identity == stored_structural_type_identity(program, reference, &[], &[])
         {
             phase("result argument: anonymous producer epoch");
             if result.statement_index as usize != call.statement_index {
@@ -460,7 +460,12 @@ fn argument_contract(
             || (access == CheckedStructuralAccess::SharedBorrow
                 && borrowed_named_view(program, parameter.type_reference)
                 && result.type_identity
-                    == program.normalized_type_identity(parameter.type_reference)))
+                    == stored_structural_type_identity(
+                        program,
+                        parameter.type_reference,
+                        &[],
+                        &[],
+                    )))
         && let Some(view_symbol) = place.root.as_symbol()
     {
         let Some(StatementNode::LocalData(local)) =

@@ -7,7 +7,9 @@ data Lease [linear] { tag: u64; }
 
 machine Lease::drop(lease: &mut Lease) {}
 
-boundary requirement Main::redeem(token: Lease);
+boundary trait LeaseRedeem {
+    machine redeem(token: Lease) reaches;
+}
 
 data Main { done: u64; }
 
@@ -20,5 +22,5 @@ machine Main::renew(token: Lease) -> Lease {
 machine Main::main(main: &mut Main) {
     let first: Lease = Lease { tag: 4 };
     let second: Lease = Main::renew(move first);
-    Main::redeem(move second);
+    LeaseRedeem::redeem(move second);
 }

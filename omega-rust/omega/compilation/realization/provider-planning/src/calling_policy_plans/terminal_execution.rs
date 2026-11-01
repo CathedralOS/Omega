@@ -70,16 +70,16 @@ pub fn evaluate_terminal_calling_policy(
     let requirements = program
         .execution_requirements(Some(&installation))
         .map_err(|error| format!("calling policy demands: {error:?}"))?;
+    let mut demanded = requirements.scalar_applications;
+    for application in requirements.scalar_entry_conditions {
+        if !demanded.contains(&application) {
+            demanded.push(application);
+        }
+    }
     let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None)
         .map_err(|error| format!("calling policy fuel: {error:?}"))?;
-    let scalars = complete_policy_scalar_inputs(
-        artifact,
-        target,
-        entry,
-        &requirements.scalar_applications,
-        &providers,
-        &mut meter,
-    )?;
+    let scalars =
+        complete_policy_scalar_inputs(artifact, target, entry, &demanded, &providers, &mut meter)?;
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,

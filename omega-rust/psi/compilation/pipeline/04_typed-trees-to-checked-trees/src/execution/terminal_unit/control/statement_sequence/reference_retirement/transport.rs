@@ -34,6 +34,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     results: &Results,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<TransportedLoans> {
+    let _profile = phase_profile::guard("05.unit.reference_retirement.transport");
     let Some(borrowing) = super::unique_borrow_state(facts, machine, state.symbol)? else {
         return Some(Vec::new());
     };

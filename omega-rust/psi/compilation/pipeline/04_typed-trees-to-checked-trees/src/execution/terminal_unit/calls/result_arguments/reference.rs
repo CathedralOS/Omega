@@ -62,7 +62,11 @@ pub(crate) fn argument(
         return None;
     }
     phase("stored reference argument: producer identity");
-    if result.type_identity != program.normalized_type_identity(reference) {
+    // This binding names executable storage. The exact source occurrence,
+    // access and formation custody remain the independent joins above; a
+    // runtime index may be absent from storage after member independence was
+    // proved, without making differently indexed source applications equal.
+    if result.type_identity != stored_structural_type_identity(program, reference, &[], &[]) {
         return None;
     }
     phase("stored reference argument: projected referent");

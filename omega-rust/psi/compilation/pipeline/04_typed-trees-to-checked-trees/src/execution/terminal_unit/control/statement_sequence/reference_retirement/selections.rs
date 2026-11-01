@@ -211,6 +211,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
 pub(in crate::execution::terminal_unit::control::statement_sequence) fn complement_completions(
     retirement: &Retirement<'_>,
 ) -> Option<Vec<(usize, CheckedUnitSelectedReferenceRetirementPlan)>> {
+    let _profile = phase_profile::guard("05.unit.reference_retirement.selected_complements");
     closed_complements(retirement)?
         .into_iter()
         .map(|complement| {

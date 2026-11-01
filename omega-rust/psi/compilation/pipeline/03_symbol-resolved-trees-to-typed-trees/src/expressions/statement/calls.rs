@@ -122,5 +122,6 @@ fn lower_ordinary_call(
         discards_result: call.discards_result,
         source_span: call.target.source_span(),
         authored_call_selection: call.authored_call_selection,
+        reflected_field_origin: None,
     })
 }

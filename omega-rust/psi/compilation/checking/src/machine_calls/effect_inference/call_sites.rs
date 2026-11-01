@@ -59,6 +59,11 @@ pub(super) fn visit_state_calls(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
+        if program.static_statement_type_context_is_unreachable(
+            state.statement_nodes.handle_at(statement_index as u32),
+        ) {
+            continue;
+        }
         let mut ordinal = 0usize;
         visit_statement(
             program,
@@ -158,14 +163,16 @@ fn visit_transition_target(
             operational_acknowledgement,
             ..
         } => {
-            let target = crate::declarations::transitions::named_transition_call_symbol(
+            let target_symbol = crate::declarations::transitions::named_transition_call_symbol(
                 program,
                 machine,
                 path.symbol,
             );
-            if target.is_valid() {
+            if target_symbol.is_valid()
+                && !program.static_transition_type_context_is_unreachable(target)
+            {
                 visitor.named_transfer(
-                    target,
+                    target_symbol,
                     path,
                     *arguments,
                     *static_machine_parameter,
@@ -205,7 +212,13 @@ fn visit_expression(
             }
         }
         ExpressionNode::Call(call) => {
-            visitor.expression_call(call, statement_index, *ordinal);
+            // An impossible source occurrence has no executable effect edge.
+            // Preserve its ordinal and all child coordinates so active calls
+            // retain the same joins with borrow, flow and contract records.
+            // Source formation uses its independent complete traversal.
+            if !program.static_type_context_is_unreachable(expression) {
+                visitor.expression_call(call, statement_index, *ordinal);
+            }
             reserve_ordinal(ordinal);
             visit_expression(program, call.receiver, statement_index, ordinal, visitor);
             for argument in program.expression_table.expression_handles(call.arguments) {

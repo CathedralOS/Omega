@@ -694,12 +694,46 @@ impl TerminalExecution<'_> {
                     expected,
                     parameter.access == StructuralAccess::SharedBorrow,
                 ),
-                None => self.primitive_view_access(
-                    &value,
-                    &[],
-                    expected,
-                    parameter.access == StructuralAccess::SharedBorrow,
-                )?,
+                None => {
+                    // A projected scalar header has already shed its Case
+                    // step. Capture the selected source field now, while that
+                    // namespace still accompanies the authenticated path.
+                    // Byte-backed and representation views retain their
+                    // existing codec path instead of becoming typed cells.
+                    let field = if let Some((prefix, field_path)) =
+                        scalar_field_projection(&argument.path)
+                    {
+                        let (carrier, view) = self.resolve_live_view_projection(
+                            argument.place,
+                            prefix,
+                            argument.access,
+                        )?;
+                        if view.is_none() && self.reference_byte_region(&carrier)?.is_none() {
+                            self.scalar_field_at_carrier(carrier, view, field_path, expected)?
+                                .map(|observed| observed.cell)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    if let Some(field) = field {
+                        (
+                            PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ScalarField(
+                                field,
+                            )),
+                            expected,
+                            parameter.access == StructuralAccess::SharedBorrow,
+                        )
+                    } else {
+                        self.primitive_view_access(
+                            &value,
+                            &[],
+                            expected,
+                            parameter.access == StructuralAccess::SharedBorrow,
+                        )?
+                    }
+                }
             };
             (value, storage, scalar_type, shared_view)
         };

@@ -266,6 +266,12 @@ pub(super) fn collect_call_selections(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for handle in state.statement_nodes.handles() {
+                if program
+                    .typed_program()
+                    .static_statement_type_context_is_unreachable(handle)
+                {
+                    continue;
+                }
                 match program.statement_table.statement(handle) {
                     StatementNode::Call(call)
                         if declaration_by_symbol(program, call.target_symbol).is_none() =>
@@ -354,6 +360,16 @@ pub(super) fn collect_call_selections(
                     continue;
                 }
                 covered_expressions.insert(expression);
+                // The original source call still owes formation. A type-world
+                // contradiction only prevents demanding an executable body for
+                // this occurrence; it cannot admit an impossible specialization
+                // or let the arena fallback reactivate that same dead call.
+                if program
+                    .typed_program()
+                    .static_type_context_is_unreachable(expression)
+                {
+                    continue;
+                }
                 if let Some(selection) = selection_for_call(
                     program,
                     machine,

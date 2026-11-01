@@ -1,0 +1,10 @@
+// A caller lifetime cannot authorize a returned view into callee-local storage.
+data BorrowedCase<'input> { case Missing; case Bytes(value: &'input [u8]); }
+machine escape<'input>(input: &'input [u8]) -> BorrowedCase<'input> {
+    let local: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    BorrowedCase::Bytes { value: &local[1u64..4u64] }
+}
+machine main() {
+    let input: [u8; 1] = [1u8];
+    let value: BorrowedCase = escape(&input[..]);
+}

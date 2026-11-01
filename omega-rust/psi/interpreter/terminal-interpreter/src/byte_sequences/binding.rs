@@ -871,8 +871,11 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        self.validate_descriptor_borrow(argument, parameter.access)?;
-        let binding = self.byte_descriptor_binding(argument, &value)?;
+        self.validate_descriptor_borrow(argument, parameter.access)
+            .map_err(|error| error.in_argument_preparation("byte descriptor source permission"))?;
+        let binding = self
+            .byte_descriptor_binding(argument, &value)
+            .map_err(|error| error.in_argument_preparation("byte descriptor backing relation"))?;
         let requested_access = storage_ceiling.unwrap_or(parameter.access);
         if !terminal_semantics::descriptor_reborrow_matches(
             self.structural_types().values(),
@@ -882,7 +885,14 @@ impl TerminalExecution<'_> {
             parameter.structural_type,
             requested_access,
         ) {
-            return Err(malformed());
+            return Err(TerminalInterpretError::ReferenceFormation {
+                stage: "byte descriptor geometry",
+                detail: format!(
+                    "source={:?} target={parameter:?} argument={argument:?} binding-access={:?}",
+                    self.structural_types().get(&value.structural_type),
+                    binding.access()
+                ),
+            });
         }
         let binding = if requested_access == StructuralAccess::WriteOnlyBorrow {
             // An outer readable storage loan can expose a write-only inner
@@ -891,7 +901,8 @@ impl TerminalExecution<'_> {
             // authenticated the exact resident descriptor and its ceiling.
             binding.clone()
         } else {
-            self.reborrow_byte_sequence_binding(&binding, &value, requested_access)?
+            self.reborrow_byte_sequence_binding(&binding, &value, requested_access)
+                .map_err(|error| error.in_argument_preparation("byte descriptor reborrow"))?
         };
         // A lent descriptor must satisfy every domain the formal names
         // (structural access, shared view fields). The checked call proved

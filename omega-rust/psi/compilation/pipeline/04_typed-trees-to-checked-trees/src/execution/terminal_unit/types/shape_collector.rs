@@ -534,11 +534,14 @@ impl<'program> ShapeCollector<'program> {
         access: CheckedStructuralAccess,
         foreign_descriptor: bool,
     ) -> Option<TypeIdentityId> {
-        let identity = self.program.type_identity(TypeIdentityRequest {
-            binders,
-            substitutions,
-            ..TypeIdentityRequest::ordinary(reference)
-        });
+        // Descriptor registration and every stored-value consumer use the
+        // same storage identity. Full source identity retains runtime value
+        // subjects that this identity may erase only after proving every
+        // complete member type independent. Registering under that different
+        // source identity leaves a checked descriptor absent from its catalog.
+        // Source application equality and formation/loan custody stay separate.
+        let identity =
+            stored_structural_type_identity(self.program, reference, binders, substitutions);
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             owns_linear_claim: false,

@@ -1,0 +1,11 @@
+// Expected exit: 0
+use owner;
+use library;
+machine main() crashes Trap {
+    let subject: owner::Subject = owner::Subject { first: 19u64, second: 23u64 };
+    let mut totals: owner::Totals = owner::Totals { total: 0u64, count: 0u64 };
+    library::inspect<owner::Subject, owner::Totals, owner::visit>(&subject, &mut totals);
+    transition totals.total == 42u64 && totals.count == 2u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

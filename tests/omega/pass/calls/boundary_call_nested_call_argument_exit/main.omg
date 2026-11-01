@@ -8,11 +8,12 @@ use omega_language_std::console;
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 
-data Io { }
 
-boundary requirement Io::c_close_handle(handle: i64) -> i32
-reaches
+boundary trait Io {
+    machine c_close_handle(handle: i64) -> i32
+    reaches
     Console;
+}
 
 data IoImports { }
 

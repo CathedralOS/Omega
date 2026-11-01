@@ -2,7 +2,6 @@
 //! checking. Available provider candidates are not selected provider edges.
 //! This is a work selection, never evidence that any condition is true.
 
-use super::ScalarApplicationPurpose;
 use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::PredicateNode;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarApplicationId};
@@ -13,29 +12,27 @@ use terminal_psi::{
 
 /// Invocation-local rows selected from one immutable condition roster.
 pub struct ScalarConditionSelection<'artifact> {
+    proof_scope: &'artifact ProofApplicationScope,
     conditions: &'artifact ScalarConditions,
     target: String,
     primary: bool,
-    purpose: ScalarApplicationPurpose,
     providers: Vec<(BoundaryMachineId, MachineId)>,
     ranges: Vec<usize>,
     predicates: Vec<usize>,
     completions: Vec<usize>,
     application_machines: Option<Vec<terminal_psi::ProofDeclarationId>>,
-    application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
+    condition_scope: super::ScalarConditionScope,
 }
 
 impl<'artifact> ScalarConditionSelection<'artifact> {
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn select(
-        scope: &ProofApplicationScope,
+        scope: &'artifact ProofApplicationScope,
         conditions: &'artifact ScalarConditions,
         target: &str,
         primary: bool,
         providers: impl IntoIterator<Item = (BoundaryMachineId, MachineId)>,
         demanded: &[ScalarApplicationId],
-        roots: Option<&[terminal_psi::ProofDeclarationId]>,
-        purpose: ScalarApplicationPurpose,
+        condition_scope: &super::ScalarConditionScope,
     ) -> Result<Self, String> {
         let providers: Vec<_> = providers.into_iter().collect();
         let mut selected = Vec::new();
@@ -49,19 +46,25 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             selected.push((requirement, realization));
         }
         let applications = scope.applications();
-        let (machines, declarations) = match purpose {
-            ScalarApplicationPurpose::Product => {
-                applications.membership(target, primary, &selected, roots)
+        let (machines, declarations) = match condition_scope {
+            super::ScalarConditionScope::Source => {
+                applications.membership(target, primary, &selected, None)
             }
-            ScalarApplicationPurpose::Invocation => {
-                let roots = roots.ok_or("scalar invocation has no exact entry roots")?;
+            super::ScalarConditionScope::SourceRoots(roots) => {
+                applications.membership(target, primary, &selected, Some(roots))
+            }
+            super::ScalarConditionScope::Invocation(roots) => {
                 let machines = applications
                     .invocation_reachability(target, &selected, roots)
                     .machines;
-                let declarations = scope.plan.declaration_closure(&machines);
+                let mut dependencies = roots.clone();
+                dependencies.extend(machines.iter().copied());
+                let declarations = scope.plan.declaration_closure(&dependencies);
                 (machines, declarations)
             }
         };
+        let source_formation =
+            !matches!(condition_scope, super::ScalarConditionScope::Invocation(_));
         let all_declarations = applications.declarations();
         let applies = |subject, address_model| match subject {
             ScalarConditionSubject::Module => true,
@@ -69,9 +72,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
                 machines.contains(&owner)
                     || (address_model
                         && (declarations.contains(&owner)
-                            || (primary
-                                && purpose == ScalarApplicationPurpose::Product
-                                && all_declarations.contains(&owner))))
+                            || (source_formation && primary && all_declarations.contains(&owner))))
             }
             // Keeping an entry in the catalog is not a demand to execute it.
             ScalarConditionSubject::Application(application) => demanded.contains(&application),
@@ -113,21 +114,67 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             }
         }
         Ok(Self {
+            proof_scope: scope,
             conditions,
             target: target.to_owned(),
             primary,
-            purpose,
             providers,
             ranges,
             predicates,
             completions,
-            application_machines: roots.map(|_| machines),
-            application_roots: roots.map(<[_]>::to_vec),
+            application_machines: (!matches!(condition_scope, super::ScalarConditionScope::Source))
+                .then_some(machines),
+            condition_scope: condition_scope.clone(),
         })
     }
 
     pub(super) fn application_machines(&self) -> Option<&[terminal_psi::ProofDeclarationId]> {
         self.application_machines.as_deref()
+    }
+
+    pub(super) fn scope(&self) -> &super::ScalarConditionScope {
+        &self.condition_scope
+    }
+
+    /// Generated evaluation entries can call ordinary helpers not reached by
+    /// the requesting policy's runtime calls. Bring their exact body and
+    /// declaration debts into this same invocation ledger before execution.
+    pub fn include_evaluation_entry(&mut self, entry: MachineId) -> Result<(), String> {
+        if !matches!(
+            self.condition_scope,
+            super::ScalarConditionScope::Invocation(_)
+        ) {
+            return Ok(());
+        }
+        let declaration = self
+            .proof_scope
+            .callable_declaration(TargetMachineCallable::Machine(entry))
+            .ok_or("scalar evaluation entry has no checked proof declaration")?;
+        if self
+            .application_machines
+            .as_ref()
+            .is_some_and(|machines| machines.contains(&declaration))
+        {
+            return Ok(());
+        }
+        let extra = Self::select(
+            self.proof_scope,
+            self.conditions,
+            &self.target,
+            self.primary,
+            self.providers.iter().copied(),
+            &[],
+            &super::ScalarConditionScope::Invocation(vec![declaration]),
+        )?;
+        extend_unique(&mut self.ranges, extra.ranges);
+        extend_unique(&mut self.predicates, extra.predicates);
+        extend_unique(&mut self.completions, extra.completions);
+        if let (Some(machines), Some(extra)) =
+            (&mut self.application_machines, extra.application_machines)
+        {
+            extend_unique(machines, extra);
+        }
+        Ok(())
     }
 
     pub fn ranges(&self) -> &[usize] {
@@ -157,8 +204,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
                 .conditions,
         ) && self.target == observations.targets().target()
             && self.primary == (self.target == primary)
-            && self.purpose == observations.purpose
-            && self.application_roots == observations.application_roots
+            && self.condition_scope == observations.condition_scope
             && self
                 .providers
                 .iter()
@@ -199,6 +245,55 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             }
         }
         self.completions.sort_unstable();
+    }
+
+    /// Refuse independently ready debts before executing more scalar entries.
+    /// Entry-result debts remain pending until their complete activation returns;
+    /// final closure still discharges every selected row and the address model.
+    pub fn discharge_ready(
+        &self,
+        observations: &super::ScalarApplicationObservations<'_>,
+    ) -> Result<(), String> {
+        if !std::ptr::eq(
+            self.conditions,
+            &observations
+                .artifact()
+                .module()
+                .scalar_applications
+                .conditions,
+        ) {
+            return Err("scalar condition selection names another artifact".into());
+        }
+        for &position in &self.predicates {
+            let mut ready = true;
+            for (_, node) in self.conditions.predicates()[position].nodes().iter() {
+                if let PredicateNode::Leaf(observation) = &node.0 {
+                    ready &= observations.observation_ready(observation)?;
+                }
+            }
+            if ready {
+                observations.discharge_predicate(position)?;
+            }
+        }
+        for &position in &self.ranges {
+            let condition = &self.conditions.ranges()[position];
+            let ScalarRangeCondition::Range { requirement, .. } = condition else {
+                return Err("scalar range condition is absent".into());
+            };
+            if matches!(requirement, ScalarRangeRequirement::AddressModel) {
+                continue;
+            }
+            let mut ready = true;
+            for step in self.conditions.steps(condition)? {
+                if let IntegerBoundStep::Observation(observation) = step {
+                    ready &= observations.observation_ready(observation)?;
+                }
+            }
+            if ready {
+                observations.discharge_range(position, None)?;
+            }
+        }
+        Ok(())
     }
 
     /// Observe only selected debts. These include intermediate entry results,
@@ -248,6 +343,14 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             }
         }
         Ok(applications)
+    }
+}
+
+fn extend_unique<T: PartialEq>(selected: &mut Vec<T>, extra: impl IntoIterator<Item = T>) {
+    for value in extra {
+        if !selected.contains(&value) {
+            selected.push(value);
+        }
     }
 }
 

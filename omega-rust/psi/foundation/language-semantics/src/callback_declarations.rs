@@ -6,6 +6,54 @@
 
 use semantic_vocabulary::{CallbackRequirementId, NativeParameterId, StaticMachineBinderId};
 
+/// A checked named slot application and its exact substituted trait roles.
+/// These are portable producer facts, not Source handles or independent proof
+/// that an arbitrary description was selected. Artifact/package admission owns
+/// that provenance; a report fingerprint alone never supplies it.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct PrivateCallbackSlotSelection {
+    pub declaration_identity: String,
+    pub trait_identity: String,
+    pub semantic_identity: String,
+    pub layout_identity: String,
+    pub requirement_identity: String,
+    pub application_report_fingerprint: u64,
+    pub application_commitment: [u8; 32],
+    pub application_encoding: std::sync::Arc<[u8]>,
+}
+
+impl PrivateCallbackSlotSelection {
+    /// Structural availability only. The same compile trusts its checked
+    /// producer; untrusted ingress separately checks the retained preimage.
+    pub fn has_complete_identity(&self) -> bool {
+        !self.declaration_identity.is_empty()
+            && !self.trait_identity.is_empty()
+            && !self.semantic_identity.is_empty()
+            && !self.layout_identity.is_empty()
+            && !self.requirement_identity.is_empty()
+            && self.application_commitment != [0; 32]
+            && !self.application_encoding.is_empty()
+    }
+
+    /// Check the historical Source-v4 coordinate at a receiving boundary.
+    /// The digest binds the preimage, not an unauthenticated role projection.
+    pub fn validate_identity_encoding(&self) -> Result<(), String> {
+        if !self.has_complete_identity() {
+            return Err(
+                "private callback slot lost its exact selected application identity".into(),
+            );
+        }
+        let (report, commitment) =
+            crate::conformance_identity::source_identity_commitments(&self.application_encoding);
+        if report != self.application_report_fingerprint
+            || commitment != self.application_commitment
+        {
+            return Err("private callback slot changed its Source-v4 identity preimage".into());
+        }
+        Ok(())
+    }
+}
+
 /// An ordinary checked invocation, or an exact callable needing provider selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CallbackRegistrationDeclaration {

@@ -443,7 +443,14 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
             return declaration;
         }
     }
-    call_target_for_attached_data(symbols, &owner, target.as_str(), reference)
+    // A qualified free machine has an `entry` child, while attached/legacy
+    // declarations may retain their named state. Both spellings select the
+    // exact source-visible declaration before choosing its executable entry.
+    symbols
+        .find_top_level_by_name_and_kinds_from_source(&rendered, &[SymbolKind::Machine], reference)
+        .map_or_else(SymbolHandle::invalid, |declaration| {
+            machine_entry_symbol(symbols, declaration, target.as_str())
+        })
 }
 
 /// Stamp one static argument and every declaration-owned nested application.

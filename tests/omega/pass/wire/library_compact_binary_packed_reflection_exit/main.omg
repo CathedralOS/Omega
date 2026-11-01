@@ -1,0 +1,27 @@
+// Expected exit: 0
+// Independent packed bytes: zigzag(150)=300 -> AC 02, zigzag(-2)=3.
+use omega_language_std::wire;
+use omega::language::core::reflect;
+data Packet { #0 items: [i32; 2]; }
+machine fields(value: &Packet, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<Packet, CompactBinary::packed_field>(value, context);
+}
+machine main() crashes Trap {
+    let packet: Packet = Packet { items: [150i32, (0i32 - 2i32)] };
+    let mut output: [u8; 8] = [77u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 99u8];
+    let mut scratch: [u8; 32];
+    let mut slots: [EncodedField; 1];
+    transition CompactBinary::encode<Packet, fields>(&packet, &mut output[1u64..7u64], &mut scratch[..], &mut slots[..], 100u64) {
+        EncodeResult::Encoded { next } -> inspect(&output[..], next)
+        _ -> bad()
+    }
+    machine inspect(output: &[u8], next: u64) crashes Trap requires output.len == 8u64 {
+        transition next == 6u64 && output[0u64] == 77u8 && output[7u64] == 99u8
+            && output[1u64] == 0u8 && output[2u64] == 0u8 && output[3u64] == 3u8
+            && output[4u64] == 172u8 && output[5u64] == 2u8 && output[6u64] == 3u8 {
+            true -> done() false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,75 @@
+// Expected exit: 0
+// Declaration order differs from stable tags; signed MIN keeps all 64 bits.
+use omega_language_std::wire;
+use omega::language::core::reflect;
+data Packet { #2 bottom: i64; #0 delta: i32; #1 flag: bool; }
+machine fields(value: &Packet, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<Packet, CompactBinary::scalar_field>(value, context);
+}
+machine same(bytes: &[u8], expected: &[u8], index: u64, fuel: u64) -> bool
+terminates by fuel
+requires fuel > 0u64
+{
+    transition {
+        index == bytes.len && index == expected.len -> true
+        index < bytes.len && index < expected.len && fuel > 1u64 -> compare(bytes, expected, index, fuel)
+        _ -> false
+    }
+    machine compare(bytes: &[u8], expected: &[u8], index: u64, fuel: u64) -> bool
+    requires index < bytes.len && index < expected.len && fuel > 1u64
+    {
+        transition bytes[index] == expected[index] {
+            true -> same(bytes, expected, index + 1u64, fuel - 1u64)
+            false -> false
+        }
+    }
+}
+machine signed_field(bytes: &[u8]) -> bool {
+    transition CompactBinary::read_signed_field(bytes, 1u64, 0u64) {
+        SignedRead::Read { value, next } -> (value == (0i64 - 2i64) && next == 3u64 && scalar_field(bytes))
+        _ -> false
+    }
+}
+machine scalar_field(bytes: &[u8]) -> bool {
+    transition CompactBinary::read_scalar_field(bytes, 3u64, 1u64) {
+        UnsignedRead::Read { value, next } -> (value == 1u64 && next == 5u64 && last_field(bytes))
+        _ -> false
+    }
+}
+machine last_field(bytes: &[u8]) -> bool {
+    transition CompactBinary::read_signed_field(bytes, 5u64, 2u64) {
+        SignedRead::Read { value, next } -> (value == -9223372036854775808i64 && next == 16u64 && wrong_tag(bytes))
+        _ -> false
+    }
+}
+machine wrong_tag(bytes: &[u8]) -> bool {
+    transition CompactBinary::read_scalar_field(bytes, 3u64, 9u64) {
+        UnsignedRead::Invalid -> true
+        _ -> false
+    }
+}
+machine main() crashes Trap {
+    let subject: Packet = Packet { bottom: -9223372036854775808i64, delta: (0i32 - 2i32), flag: true };
+    let mut output: [u8; 18];
+    output[0u64] = 77u8;
+    output[17u64] = 99u8;
+    let mut scratch: [u8; 32];
+    let mut frames: [EncodedField; 3];
+    let expected: [u8; 16] = [0u8, 0u8, 3u8, 1u8, 1u8, 2u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 1u8];
+    transition CompactBinary::encode<Packet, fields>(&subject, &mut output[1u64..17u64], &mut scratch[..], &mut frames[..], 100u64) {
+        EncodeResult::Encoded { next } -> inspect(&output[..], &expected[..], next)
+        _ -> bad()
+    }
+    machine inspect(output: &[u8], expected: &[u8], next: u64) crashes Trap
+    requires output.len == 18u64
+    {
+        transition next == 16u64 && output[0u64] == 77u8 && output[17u64] == 99u8
+            && same(&output[1u64..17u64], expected, 0u64, 17u64)
+            && signed_field(&output[1u64..17u64]) {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

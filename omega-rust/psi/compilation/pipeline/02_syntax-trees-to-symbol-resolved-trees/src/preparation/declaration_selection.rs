@@ -790,6 +790,56 @@ impl<'base> ConstantSelection<'base> {
         Ok(span)
     }
 
+    /// Leaf scheduling needs the selected carrier's closed telescope, not its
+    /// syntax members. A retained predecessor owns the same authoritative
+    /// declaration header even when its source is outside this resumed cohort.
+    /// Value admission and materialization still check the exact full carrier.
+    pub(crate) fn require_closed_data_leaf(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+    ) -> Result<(), String> {
+        let selected = self
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                name.as_str(syntax),
+                &[SymbolKind::Data],
+                name.source_span(),
+            )
+            .ok_or_else(|| {
+                "computed nominal constant requires one selected data declaration".to_owned()
+            })?;
+        let reference = self
+            .symbols
+            .symbol_source_span(selected)
+            .ok_or_else(|| "computed nominal carrier has no declaration custody".to_owned())?;
+        if syntax.root_items().any(|item| matches!(item, Item::Data(data) if data.name.source_span() == reference && data.name.as_str(syntax) == self.symbols.name(selected))) {
+            let data = self.data_declaration(syntax, name, selected)?;
+            return if data.type_parameters.is_empty() && data.lifetime_parameters.is_empty() {
+                Ok(())
+            } else { Err("computed nominal constant requires a closed selected declaration".to_owned()) };
+        }
+        let data = self
+            .retained_data_header(selected)
+            .filter(|data| data.symbol == selected)
+            .ok_or_else(|| {
+                "computed nominal carrier lost its selected declaration header".to_owned()
+            })?;
+        if !data.is_public
+            && !self
+                .symbols
+                .same_source_package(name.source_span(), reference)
+        {
+            return Err("computed nominal carrier is private in another package".to_owned());
+        }
+        if !data.type_parameters.is_empty() || !data.lifetime_parameters.is_empty() {
+            return Err(
+                "computed nominal constant requires a closed selected declaration".to_owned(),
+            );
+        }
+        Ok(())
+    }
+
     /// Recognize the already selected representation constructor, never an
     /// authored type with the same spelling. Its immutable source also owns
     /// the semantic-type and explicitly selected policy parameter contract.

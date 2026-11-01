@@ -84,6 +84,20 @@ impl ResidualTraversal<'_> {
     }
 }
 
+/// Erased descriptions retain semantic identity but own no runtime region.
+/// Authenticate both relevance and the erased carrier before omitting one;
+/// a relevance flag alone cannot hide an ordinary owned field.
+fn has_runtime_storage(field: &checked_trees::CheckedUnitStructuralFieldPlan) -> Option<bool> {
+    match (&field.field_type, field.relevance.is_erased()) {
+        (CheckedUnitStructuralFieldType::Erased { type_identity }, true) => {
+            (type_identity.is_valid() && *type_identity == field.receiving_type_identity)
+                .then_some(false)
+        }
+        (CheckedUnitStructuralFieldType::Erased { .. }, false) | (_, true) => None,
+        (_, false) => Some(true),
+    }
+}
+
 fn validate_type(
     types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
     current_type: TypeIdentityId,
@@ -114,12 +128,17 @@ fn validate_type(
         CheckedUnitStructuralTypeShape::Record { fields, .. } => {
             for (index, field) in fields.iter().enumerate() {
                 if !field.identity.is_valid()
-                    || field.relevance.is_erased()
-                    || (!is_partial_affine_field_type(&field.field_type)
-                        && !field.cleanup_type_identity().is_valid())
                     || fields[..index]
                         .iter()
                         .any(|earlier| earlier.identity == field.identity)
+                {
+                    return None;
+                }
+                if !has_runtime_storage(field)? {
+                    continue;
+                }
+                if !is_partial_affine_field_type(&field.field_type)
+                    && !field.cleanup_type_identity().is_valid()
                 {
                     return None;
                 }
@@ -180,12 +199,17 @@ fn validate_inline_alternatives(
     let fields_are_inline = |fields: &[checked_trees::CheckedUnitStructuralFieldPlan]| {
         fields.iter().enumerate().all(|(position, field)| {
             field.identity.is_valid()
-                && !field.relevance.is_erased()
-                && is_partial_affine_field_type(&field.field_type)
-                && !matches!(
-                    field.field_type,
-                    CheckedUnitStructuralFieldType::Structural { .. }
-                )
+                && match has_runtime_storage(field) {
+                    Some(false) => true,
+                    Some(true) => {
+                        is_partial_affine_field_type(&field.field_type)
+                            && !matches!(
+                                field.field_type,
+                                CheckedUnitStructuralFieldType::Structural { .. }
+                            )
+                    }
+                    None => false,
+                }
                 && !fields[..position]
                     .iter()
                     .any(|earlier| earlier.identity == field.identity)
@@ -536,9 +560,14 @@ fn visit_fields(
 ) -> Option<usize> {
     if fields.iter().enumerate().any(|(position, field)| {
         !field.identity.is_valid()
-            || field.relevance.is_erased()
-            || (!is_partial_affine_field_type(&field.field_type)
-                && !field.cleanup_type_identity().is_valid())
+            || match has_runtime_storage(field) {
+                Some(false) => false,
+                Some(true) => {
+                    !is_partial_affine_field_type(&field.field_type)
+                        && !field.cleanup_type_identity().is_valid()
+                }
+                None => true,
+            }
             || fields[..position]
                 .iter()
                 .any(|earlier| earlier.identity == field.identity)
@@ -549,6 +578,18 @@ fn visit_fields(
     let mut matched = 0_usize;
     let mut matched_boundaries = 0_usize;
     for field in fields.iter().rev() {
+        if !has_runtime_storage(field)? {
+            // Moves and hook boundaries against erased members remain
+            // unmatched and reject below. A refinement cut cannot invent
+            // storage for that member either.
+            if traversal.partition_paths.iter().any(|path| {
+                matches!(path.strip_prefix(prefix.as_slice()).and_then(|relative| relative.first()),
+                    Some(CheckedUnitStructuralPathSegment::Field(identity)) if identity == &field.identity)
+            }) {
+                return None;
+            }
+            continue;
+        }
         let matching = moved_paths.iter().filter_map(|(path, identity)| {
             let (segment, remaining) = path.split_first()?;
             matches!(segment, CheckedUnitStructuralPathSegment::Field(candidate) if candidate == &field.identity)

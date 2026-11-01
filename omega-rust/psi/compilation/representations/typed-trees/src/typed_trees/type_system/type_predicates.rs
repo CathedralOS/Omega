@@ -132,6 +132,7 @@ pub struct StaticTypeContexts {
     /// Sorted by membership handle.
     case_memberships: Vec<CaseMembershipTypeFacts>,
     rows: Vec<(ExpressionHandle, Vec<TypeWorld>)>,
+    statement_rows: Vec<(crate::statement::StatementHandle, Vec<TypeWorld>)>,
     transition_rows: Vec<(crate::statement::TransitionTargetHandle, Vec<TypeWorld>)>,
 }
 
@@ -223,6 +224,11 @@ impl StaticTypeContexts {
 #[derive(Default)]
 struct StaticContextBuilder {
     rows: std::collections::HashMap<ExpressionHandle, Vec<TypeWorld>, symbols::BuildSymbolHasher>,
+    statement_rows: std::collections::HashMap<
+        crate::statement::StatementHandle,
+        Vec<TypeWorld>,
+        symbols::BuildSymbolHasher,
+    >,
     transition_rows: std::collections::HashMap<
         crate::statement::TransitionTargetHandle,
         Vec<TypeWorld>,
@@ -675,7 +681,17 @@ impl TypedTrees {
                         }
                     }
                 }
-                for statement in self.statement_table.statements(state.statement_nodes) {
+                for (handle, statement) in state
+                    .statement_nodes
+                    .handles()
+                    .zip(self.statement_table.statements(state.statement_nodes))
+                {
+                    let retained = contexts.statement_rows.entry(handle).or_default();
+                    for world in &remaining {
+                        if !retained.contains(world) {
+                            retained.push(world.clone());
+                        }
+                    }
                     let mut visit = |expression, environment: &[TypeWorld]| {
                         visit_context(self, &mut contexts, expression, environment, &mut active)
                     };
@@ -770,6 +786,11 @@ impl TypedTrees {
             (expression.arena_index(), expression.generation())
         });
         self.static_type_contexts.rows = rows;
+        let mut statement_rows = contexts.statement_rows.into_iter().collect::<Vec<_>>();
+        statement_rows.sort_unstable_by_key(|(statement, _)| {
+            (statement.arena_index(), statement.generation())
+        });
+        self.static_type_contexts.statement_rows = statement_rows;
         let mut transition_rows = contexts.transition_rows.into_iter().collect::<Vec<_>>();
         transition_rows
             .sort_unstable_by_key(|(target, _)| (target.arena_index(), target.generation()));
@@ -946,6 +967,26 @@ impl TypedTrees {
         .then_some(tag.left)
     }
 
+    /// Executable body selection uses the exact statement occurrence, including
+    /// calls with no arguments. This does not discard source formation or
+    /// assume an unknown runtime condition is false.
+    pub fn static_statement_type_context_is_unreachable(
+        &self,
+        statement: crate::statement::StatementHandle,
+    ) -> bool {
+        self.static_type_contexts
+            .statement_rows
+            .binary_search_by_key(
+                &(statement.arena_index(), statement.generation()),
+                |(owned, _)| (owned.arena_index(), owned.generation()),
+            )
+            .is_ok_and(|position| {
+                self.static_type_contexts.statement_rows[position]
+                    .1
+                    .is_empty()
+            })
+    }
+
     pub fn static_transition_type_context_is_unreachable(
         &self,
         target: crate::statement::TransitionTargetHandle,
@@ -993,6 +1034,120 @@ impl TypedTrees {
         self.static_type_contexts
             .refined_reference(self, expression, reference)
     }
+    /// Establish an applied predicate from every already-formed type world at
+    /// the consuming occurrence. The goal is tested by refuting its negation;
+    /// its clauses never become premises. Unknown runtime atoms remain unknown.
+    /// Receiving aliases are admitted only in a fresh telescope: overlapping
+    /// caller/receiving symbols leave the ordinary proof path responsible.
+    pub fn static_type_requirement_entailed(
+        &self,
+        predicate: ExpressionHandle,
+        context: ExpressionHandle,
+        substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    ) -> bool {
+        let Ok(position) = self.static_type_contexts.rows.binary_search_by_key(
+            &(context.arena_index(), context.generation()),
+            |(expression, _)| (expression.arena_index(), expression.generation()),
+        ) else {
+            return false;
+        };
+        self.static_type_requirement_entailed_in_worlds(
+            predicate,
+            &self.static_type_contexts.rows[position].1,
+            substitutions,
+        )
+    }
+
+    /// A unit call with no runtime operands still has an exact source scope.
+    pub fn static_type_requirement_entailed_at_statement(
+        &self,
+        predicate: ExpressionHandle,
+        context: crate::statement::StatementHandle,
+        substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    ) -> bool {
+        let Ok(position) = self
+            .static_type_contexts
+            .statement_rows
+            .binary_search_by_key(
+                &(context.arena_index(), context.generation()),
+                |(statement, _)| (statement.arena_index(), statement.generation()),
+            )
+        else {
+            return false;
+        };
+        self.static_type_requirement_entailed_in_worlds(
+            predicate,
+            &self.static_type_contexts.statement_rows[position].1,
+            substitutions,
+        )
+    }
+
+    fn static_type_requirement_entailed_in_worlds(
+        &self,
+        predicate: ExpressionHandle,
+        worlds: &[TypeWorld],
+        substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    ) -> bool {
+        if !self.expression_table.expression_is_valid(predicate)
+            || !contains_type_predicate(self, predicate, &mut Vec::new())
+        {
+            return false;
+        }
+        // Lifted lexical statics retain their original binder identities.
+        // An exact self-binding carries the caller's existing variable; it is
+        // not a receiving alias and must not hide its already established facts.
+        let substitutions = substitutions
+            .iter()
+            .copied()
+            .filter(|(formal, actual)| {
+                !matches!(self.type_reference_table.type_reference(*actual),
+                crate::types::TypeReferenceNode::Named { symbol, .. } if symbol == formal)
+            })
+            .collect::<Vec<_>>();
+        let substitutions = substitutions.as_slice();
+        let formals = substitutions
+            .iter()
+            .map(|(formal, _)| *formal)
+            .collect::<Vec<_>>();
+        if formals
+            .iter()
+            .enumerate()
+            .any(|(position, formal)| formals[..position].contains(formal))
+        {
+            return false;
+        }
+        if substitutions.iter().any(|(formal, actual)| {
+            !formal.is_valid()
+                || self.symbols.get(*formal).kind != symbols::SymbolKind::TypeParameter
+                || crate::references::collect_type_symbol_dependencies(self, *actual)
+                    .iter()
+                    .any(|symbol| formals.contains(symbol))
+        }) {
+            return false;
+        }
+        for world in worlds {
+            if world
+                .bindings
+                .iter()
+                .chain(&world.exclusions)
+                .any(|(binder, actual)| {
+                    formals.contains(binder)
+                        || crate::references::collect_type_symbol_dependencies(self, *actual)
+                            .iter()
+                            .any(|symbol| formals.contains(symbol))
+                })
+            {
+                return false;
+            }
+            let mut applied = world.clone();
+            applied.bindings.extend_from_slice(substitutions);
+            if !condition_inner(self, &[applied], predicate, false).is_empty() {
+                return false;
+            }
+        }
+        true
+    }
+
     pub fn static_type_context_is_unreachable(&self, expression: ExpressionHandle) -> bool {
         self.static_type_contexts.is_unreachable(expression)
     }

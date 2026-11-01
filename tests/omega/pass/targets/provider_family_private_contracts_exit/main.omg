@@ -1,7 +1,8 @@
 // The public requirement is portable. Each provider body checks its private
 // calls against its own target, without rewriting the portable caller.
-public data Value {}
-public boundary requirement Value::read() -> u64 ensures result == 42;
+public boundary trait Value {
+    machine read() -> u64 reaches ensures result == 42;
+}
 public data TargetValue {}
 
 linux_x86_64 machine private_value(input: u64) -> u64 requires input == 1 { 42 }

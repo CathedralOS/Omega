@@ -115,19 +115,11 @@ pub fn authored_call_intrinsic(
 }
 
 pub fn classify_statement_call_intrinsic(
-    program: &dyn crate::CheckingInput,
+    _program: &dyn crate::CheckingInput,
     call: &typed_trees::statement::TableCall,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-
     if call.target_symbol.is_valid() {
         return None;
-    }
-    if program.wire_encode_call_schema(call).is_some() {
-        return Some(Intrinsic::WireEncode);
-    }
-    if program.wire_decode_call_schema(call).is_some() {
-        return Some(Intrinsic::WireDecode);
     }
     checked_call_intrinsic(
         call.target.as_str(),

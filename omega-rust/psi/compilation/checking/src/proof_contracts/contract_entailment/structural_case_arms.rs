@@ -1227,12 +1227,6 @@ fn recognize_structural_state_leaves_from<'a>(
     if !visitors.is_empty() && visitors.iter().all(|visitor| visitor.is_complete()) {
         return Some(Vec::new());
     }
-    let key = StructuralArrivalKey {
-        state: state.symbol,
-        start_index,
-        collect_citations,
-        context: environment_fingerprint(&environment),
-    };
     // Arrival deduplication is a cycle-bound mechanism. A cyclic machine's
     // pump regenerates the same provable arrival at exponentially many
     // frontier positions and must merge them to terminate; an acyclic
@@ -1240,24 +1234,32 @@ fn recognize_structural_state_leaves_from<'a>(
     // different accumulated judge and legitimately produces different
     // leaves, so they must never merge.
     let dedup_applies = state_lies_on_prefix_cycle(program, invocation, state);
-    if dedup_applies
-        && arrivals
+    if dedup_applies {
+        // Only recurrent arrivals consume a fingerprint. Formatting captured
+        // values at each acyclic continuation otherwise repeats work whose
+        // result is discarded, including their retained scalar recipes.
+        let key = StructuralArrivalKey {
+            state: state.symbol,
+            start_index,
+            collect_citations,
+            context: environment_fingerprint(&environment),
+        };
+        if arrivals
             .get(&key)
             .is_some_and(|producer| *producer != arrival_parent)
-    {
-        // A repeat of a provable arrival produced by a different parent
-        // frame owes nothing the first visit did not already do: case-arm
-        // leaves are deterministic in the keyed inputs, and each visitor's
-        // deliveries there are the same observations applied again --
-        // visit effects are monotone accumulations (observed flags,
-        // `proven &=`, completed-set unions), so a second delivery of an
-        // identical observation cannot change a verdict the first visit
-        // left. The residual approximation is accepted: two equal-key
-        // arrivals under different parents can carry different accumulated
-        // judges, and the first visit's subtree stands for both.
-        return Some(Vec::new());
-    }
-    if dedup_applies {
+        {
+            // A repeat of a provable arrival produced by a different parent
+            // frame owes nothing the first visit did not already do: case-arm
+            // leaves are deterministic in the keyed inputs, and each visitor's
+            // deliveries there are the same observations applied again --
+            // visit effects are monotone accumulations (observed flags,
+            // `proven &=`, completed-set unions), so a second delivery of an
+            // identical observation cannot change a verdict the first visit
+            // left. The residual approximation is accepted: two equal-key
+            // arrivals under different parents can carry different accumulated
+            // judges, and the first visit's subtree stands for both.
+            return Some(Vec::new());
+        }
         arrivals.entry(key).or_insert(arrival_parent);
     }
     // This frame's identity for the arrivals it produces.

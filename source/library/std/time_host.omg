@@ -23,8 +23,8 @@
 //            GetSystemTimePreciseAsFileTime raw=FILETIME u64,
 //            units 10_000_000, epoch offset 11_644_473_600 (1601 -> 1970)
 //   darwin:  clock_gettime_nsec_np(CLOCK_UPTIME_RAW / CLOCK_REALTIME),
-//            units 1_000_000_000, epoch offset 0; arm64 and x86_64 each own a
-//            copy, because a machine carries one target scope
+//            units 1_000_000_000, epoch offset 0; arm64 and x86_64 share
+//            the checked implementation with separate target-keyed bindings
 //   linux:   clock_gettime(CLOCK_MONOTONIC / CLOCK_REALTIME) through a
 //            borrowed timespec, units 1_000_000_000, epoch offset 0. The
 //            syscall number is per-architecture, NOT per-OS: 228 on x86-64's
@@ -37,68 +37,13 @@
 //            values. Wall clock = 2026-01-01T00:00:00Z + elapsed, already in
 //            Unix units (epoch offset 0, units 1000).
 use targets::macos_arm64::time_host_impl;
-use targets::macos_x86_64::time_host_impl;
 use targets::linux_x86_64::time_host_impl;
 use targets::linux_arm64::time_host_impl;
 use targets::windows_x86_64::time_host_impl;
 
-// The selected target owns an ordinary reviewed provider, not a table of
-// compiler-folded answers. Unsupported targets retain their settlement gap.
-public data TimeHostNativeProvider { }
-
-// The target namespace is not a whole-trait implementation. Select this
-// complete map; each inline member makes an ordinary call to its exact target
-// body, retaining that body's raw-provider closure and operational contract.
-public NativeTimeHost satisfies TimeHost {
-    machine monotonic_ticks() -> u64
-    reaches TimeHost
-    invokes LinuxX64TimeRead
-    invokes LinuxArm64TimeRead
-    invokes DarwinTimeRead
-    invokes DarwinX64TimeRead
-    invokes WindowsTimeRead
-    {
-        TimeHostNativeProvider::monotonic_ticks()
-    }
-
-    machine monotonic_ticks_per_second() -> u64
-    invokes WindowsTimeRead
-    {
-        TimeHostNativeProvider::monotonic_ticks_per_second()
-    }
-
-    machine wall_clock_raw() -> u64
-    reaches TimeHost
-    invokes LinuxX64TimeRead
-    invokes LinuxArm64TimeRead
-    invokes DarwinTimeRead
-    invokes DarwinX64TimeRead
-    invokes WindowsTimeRead
-    {
-        TimeHostNativeProvider::wall_clock_raw()
-    }
-
-    machine wall_clock_units_per_second() -> u64 {
-        TimeHostNativeProvider::wall_clock_units_per_second()
-    }
-
-    machine wall_clock_epoch_offset_seconds() -> u64 {
-        TimeHostNativeProvider::wall_clock_epoch_offset_seconds()
-    }
-
-    machine sleep(milliseconds: u32)
-    reaches TimeHost
-    invokes LinuxX64TimeRead
-    invokes LinuxArm64TimeRead
-    invokes DarwinTimeRead
-    invokes DarwinX64TimeRead
-    invokes WindowsTimeRead
-    blocks
-    {
-        block TimeHostNativeProvider::sleep(milliseconds);
-    }
-}
-
+// Package Build selects each ordinary checked implementation. The two Darwin
+// targets share one implementation and raw requirement schema; their Build
+// rows still derive distinct target calling plans and native backing.
 public boundary trait TimeHost {
     // Monotonic, never-decreasing tick counter since an unspecified epoch.
     // Only differences are meaningful. Each hosted read may enter its raw
@@ -108,7 +53,6 @@ public boundary trait TimeHost {
     invokes LinuxX64TimeRead
     invokes LinuxArm64TimeRead
     invokes DarwinTimeRead
-    invokes DarwinX64TimeRead
     invokes WindowsTimeRead;
     // Ticks per second for monotonic_ticks. Stable for the process lifetime.
     // Windows reads the frequency through the same raw trait; other hosts
@@ -123,7 +67,6 @@ public boundary trait TimeHost {
     invokes LinuxX64TimeRead
     invokes LinuxArm64TimeRead
     invokes DarwinTimeRead
-    invokes DarwinX64TimeRead
     invokes WindowsTimeRead;
     // Units per second for wall_clock_raw (constant per target).
     machine wall_clock_units_per_second() -> u64 reaches TimeHost;
@@ -138,7 +81,6 @@ public boundary trait TimeHost {
     invokes LinuxX64TimeRead
     invokes LinuxArm64TimeRead
     invokes DarwinTimeRead
-    invokes DarwinX64TimeRead
     invokes WindowsTimeRead
     blocks;
 }

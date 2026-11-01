@@ -246,7 +246,8 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 
         if context.allows_type_expression()
             && input.at_punctuation(PunctuationKind::Less)
-            && let Some((type_reference, rest)) = try_generic_type_operand(syntax_trees, start)
+            && let Some((type_reference, rest)) =
+                try_generic_type_operand(syntax_trees, start, !context.allows_struct_literal())
         {
             let expression = syntax_trees
                 .expressions
@@ -368,6 +369,7 @@ fn parse_applied_requirement_call<'tokens, 'source>(
 fn try_generic_type_operand<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    allow_body_delimiter: bool,
 ) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
     let checkpoint = syntax.append_checkpoint();
     let accepted = (|| {
@@ -378,20 +380,21 @@ fn try_generic_type_operand<'tokens, 'source>(
         ) {
             return None;
         }
-        let accepted = [
-            PunctuationKind::Arrow,
-            PunctuationKind::EqualEqual,
-            PunctuationKind::ExclamationEqual,
-            PunctuationKind::PipePipe,
-            PunctuationKind::AndAnd,
-            PunctuationKind::Comma,
-            PunctuationKind::Semicolon,
-            PunctuationKind::LeftBrace,
-            PunctuationKind::RightBrace,
-            PunctuationKind::RightParen,
-        ]
-        .into_iter()
-        .any(|punctuation| rest.at_punctuation(punctuation))
+        let accepted = rest.tokens.is_empty()
+            || [
+                PunctuationKind::Arrow,
+                PunctuationKind::EqualEqual,
+                PunctuationKind::ExclamationEqual,
+                PunctuationKind::PipePipe,
+                PunctuationKind::AndAnd,
+                PunctuationKind::Comma,
+                PunctuationKind::Semicolon,
+                PunctuationKind::LeftBrace,
+                PunctuationKind::RightBrace,
+                PunctuationKind::RightParen,
+            ]
+            .into_iter()
+            .any(|punctuation| rest.at_punctuation(punctuation))
             || [
                 "requires",
                 "ensures",
@@ -409,7 +412,8 @@ fn try_generic_type_operand<'tokens, 'source>(
             ]
             .into_iter()
             .any(|keyword| rest.at_contextual(keyword));
-        accepted.then_some((reference, rest))
+        (accepted && (allow_body_delimiter || !rest.at_punctuation(PunctuationKind::LeftBrace)))
+            .then_some((reference, rest))
     })();
     if accepted.is_none() {
         syntax.rewind_appended(checkpoint);

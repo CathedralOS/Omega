@@ -106,9 +106,8 @@ pub(super) fn expression(
     })
 }
 
-/// Static call and generic operands use the existing type/index grammars.
-/// Visit nested selected declarations too: opaque payload text would hide
-/// package owners.
+/// Generic and static-call operands use the same type/index grammars. Visit
+/// nested selected declarations too: opaque text would hide package owners.
 pub(super) fn static_argument(
     reader: &mut Reader<'_>,
     visitor: &mut dyn TypeIdentityPackageOwnerVisitor,

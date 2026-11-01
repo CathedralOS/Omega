@@ -20,8 +20,15 @@ pub(super) fn complete_policy_scalar_inputs(
     providers: &AdmittedProviderSelections,
     meter: &mut TerminalFuelMeter,
 ) -> Result<AdmittedScalarApplications, String> {
+    let root = artifact
+        .view()
+        .module()
+        .scalar_applications
+        .proof_scope
+        .callable_declaration(entry)
+        .ok_or("calling policy entry has no exact checked proof declaration")?;
     let mut closure =
-        ScalarApplicationClosure::for_invocation(artifact.view(), primary.target_name());
+        ScalarApplicationClosure::for_invocation(artifact.view(), primary.target_name(), &[root]);
     let scopes = closure.scopes().map(str::to_owned).collect::<Vec<_>>();
     for scope in scopes {
         let profile = target::TargetProfile::from_canonical_target_name(&scope)
@@ -38,7 +45,7 @@ pub(super) fn complete_policy_scalar_inputs(
                         .native_realization()
                         .map(runtime_abi::target_carrier_layout),
                 )
-                .for_invocation(entry)?;
+                .with_invocation_roots(&[root])?;
         let demand = if scope == primary.target_name() {
             requested
         } else {

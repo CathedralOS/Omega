@@ -2,9 +2,7 @@
 use super::*;
 use crate::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use calling_conventions::{LayoutPlanId, callback_layout_slot_id, callback_requirement_id};
-use typed_trees::typed_trees::{
-    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
-};
+use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
 fn identity(index: u32, size: usize, policy: bool) -> TargetClosedDataLayoutIdentity {
     TargetClosedDataLayoutIdentity {
         data_symbol: SymbolHandle::from_arena_index(index),
@@ -18,12 +16,15 @@ fn fixture(depth: usize) -> PrivateCallbackLayout {
     let owner = identity(17, 16, true);
     let terminal = TargetClosedPrivateCallbackDemand {
         data_symbol: owner.data_symbol,
-        slot_application: ClosedConformanceApplication {
-            declaration: SymbolHandle::from_arena_index(23),
-            trait_definition: SymbolHandle::from_arena_index(29),
-            arguments: Box::new([]),
-            commitment: ClosedConformanceApplicationCommitment::from_digest([7; 32]),
-            ..ClosedConformanceApplication::default()
+        slot_application: PrivateCallbackSlotSelection {
+            declaration_identity: "fixture::Slot".into(),
+            trait_identity: "core::layout::PrivateCallbackSlot".into(),
+            semantic_identity: owner.data_identity.to_string(),
+            layout_identity: owner.layout_subject_identity.as_ref().unwrap().to_string(),
+            requirement_identity: "fixture::Procedure::call".into(),
+            application_report_fingerprint: 7,
+            application_commitment: [7; 32],
+            application_encoding: vec![7].into(),
         },
         slot_identity: "fixture::Slot".into(),
         layout_subject_identity: owner.layout_subject_identity.as_ref().unwrap().clone(),
@@ -116,6 +117,12 @@ fn path_mutations_do_not_retarget_a_private_slot() {
     assert!(changed.validate(&expected, target).is_err());
     let mut changed = base.clone();
     changed.terminal_slot.layout_subject_identity = "foreign::Policy".into();
+    assert!(changed.validate(&expected, target).is_err());
+    let mut changed = base.clone();
+    changed.terminal_slot.slot_application.layout_identity = "foreign::Policy".into();
+    assert!(changed.validate(&expected, target).is_err());
+    let mut changed = base.clone();
+    changed.terminal_slot.slot_application.requirement_identity = "foreign::call".into();
     assert!(changed.validate(&expected, target).is_err());
     let mut changed = base.clone();
     changed.terminal_slot.byte_size = 4;

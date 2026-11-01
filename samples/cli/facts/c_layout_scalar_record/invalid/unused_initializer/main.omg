@@ -1,0 +1,4 @@
+// An unused declaration still owes target-dependent constant formation.
+data Packet { case Empty; case Payload(value: u64); }
+const BAD: u64 = size_of<Packet>() - 17u64;
+machine main() {}

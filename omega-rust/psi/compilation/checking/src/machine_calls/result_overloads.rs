@@ -280,6 +280,9 @@ pub fn resolve_named_result_overloads(
     // and dispatch needs the same admitted subject's possible cases. Compute
     // the whole batch against the preexisting contexts, then publish it once;
     // a goal or receiving annotation cannot become its own premise.
+    // Prefix observations share program-wide effect and callable indexes for
+    // this immutable input epoch. Drop the context before publishing new facts;
+    // those facts must not be read by a query that is establishing them.
     let predicate_contexts = {
         let context = CheckingContext::new(program);
         crate::proof_contracts::contract_entailment::predicate_type_contexts(&context)
@@ -572,6 +575,7 @@ pub fn resolve_named_result_overloads(
                 type_is_inferred: true,
                 is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
+                reflected_query_origin: None,
             });
     }
     changed_owners.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
