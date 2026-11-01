@@ -53,7 +53,19 @@ unresolved implementation member. Normalizing the exact child through the
 ordinary expression-call route preserves selected-map specialization instead
 of inventing a body or treating it as an internal control edge. The producer
 preparation took 830.546 seconds and checking took 7.693 seconds. The failed
-run is retained as failed; native/Terminal acceptance is still pending.
+run is retained as failed.
+
+Candidate `0b47ca900d70c293c27879f640e914684aa58139` (run 41339570194,
+optimized Linux image
+`de6b05740701a4858c29d7bd4cfb5521dab792e4f50659daf27981e2a8254b02`)
+gets past terminal selection, then refuses `compose` at its generic stored-output
+relation. The flow graph names the selected public requirement while the authored
+call keeps its evidence child; the output-obligation query compared only raw
+call symbols and mistook that exact edge for a missing relation. It now rejoins
+the bound-owned child/signature edge before reading the occurrence's complete
+applied contract. Unknown inventories and concrete writable slots keep their
+existing fail-closed rules. Preparation took 678.634 seconds; checking took
+16.514 seconds. Native/Terminal acceptance remains pending.
 
 The independent [primitive shadow control](controls/primitive_shadow/invalid/main.omg)
 continues to reject an ordinary declaration named `Int`; retiring `Result` does
