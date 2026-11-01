@@ -6791,15 +6791,6 @@ pass/facts/narrow_to_wide_sign_extension_through_other_machine_exit checked 3906
 pass/facts/narrow_to_wide_sign_extension_through_other_state_exit checked 3938ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_sign_extension_through_parameter_exit checked 3044ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_sign_extension_through_target_body_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_call_result_exit checked 3759ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_const_name_exit checked 3569ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_field_exit checked 3824ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_local_exit checked 3430ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_match_join_exit checked 4173ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_other_machine_exit checked 3792ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_other_state_exit checked 3286ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_parameter_exit checked 3310ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_16to32_extension_through_target_body_exit checked 4749ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_16to64_extension_through_call_result_exit checked 3420ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_16to64_extension_through_const_name_exit checked 3466ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_16to64_extension_through_field_exit checked 3174ms check-target:macos_arm64 @ccdb99ca2214
@@ -6818,24 +6809,6 @@ pass/facts/narrow_to_wide_signed_32to64_extension_through_other_machine checked 
 pass/facts/narrow_to_wide_signed_32to64_extension_through_other_state checked 3889ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_32to64_extension_through_parameter checked 3261ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_32to64_extension_through_target_body checked 3443ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_call_result_exit checked 3365ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_const_name_exit checked 3920ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_field_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_local_exit checked 3643ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_match_join_exit checked 3818ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_other_machine_exit checked 3818ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_other_state_exit checked 3419ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_parameter_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to16_extension_through_target_body_exit checked 3703ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_call_result_exit checked 3485ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_const_name_exit checked 3335ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_field_exit checked 3097ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_local_exit checked 3499ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_match_join_exit checked 4066ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_other_machine_exit checked 3472ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_other_state_exit checked 3635ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_parameter_exit checked 4572ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_signed_8to32_extension_through_target_body_exit checked 3971ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_8to64_extension_through_call_result_exit checked 3818ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_8to64_extension_through_const_name_exit checked 3194ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_8to64_extension_through_field_exit checked 3240ms check-target:macos_arm64 @ccdb99ca2214
@@ -6845,16 +6818,6 @@ pass/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_exit chec
 pass/facts/narrow_to_wide_signed_8to64_extension_through_other_state_exit checked 3859ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit checked 3808ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit checked 3915ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_call_result_exit checked 2961ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_const_name_exit checked 3969ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_field_exit checked 4127ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_local_exit checked 3617ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_match_join_exit checked 4130ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_other_machine_exit checked 3308ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_other_state_exit rejected 2702ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from step: forwarded >= 300 && forwarded <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_parameter_exit checked 3418ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_16to32_extension_through_target_body_exit checked 1418ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @8b0503ce7d48
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_exit checked 4197ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_exit checked 3409ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_field_exit checked 3038ms check-target:macos_arm64 @ccdb99ca2214
@@ -6873,24 +6836,6 @@ pass/facts/narrow_to_wide_unsigned_32to64_extension_through_other_machine_exit c
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_other_state_exit checked 3357ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_parameter_exit checked 2678ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_target_body_exit checked 5186ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_call_result_exit checked 4355ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_const_name_exit checked 5325ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_field_exit checked 4305ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_local_exit checked 4858ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_match_join_exit checked 4854ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_other_machine_exit checked 4352ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_other_state_exit checked 4324ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_parameter_exit checked 4759ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to16_extension_through_target_body_exit checked 5021ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_call_result_exit checked 3479ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_const_name_exit checked 4107ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_field_exit checked 3800ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_local_exit checked 3970ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_match_join_exit checked 3634ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_other_machine_exit checked 3169ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_other_state_exit checked 3524ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_parameter_exit checked 3615ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrow_to_wide_unsigned_8to32_extension_through_target_body_exit checked 3566ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_exit checked 4540ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_const_name_exit checked 5138ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_field_exit checked 4580ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
@@ -25757,25 +25702,6 @@ fail/facts/narrow_to_wide_sign_extension_through_target_body_rejected rejected 1
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_signed_16to32_extension_through_call_result_rejected rejected 2976ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_16to32_extension_through_const_name_rejected rejected 2738ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_16to32_extension_through_field_rejected rejected 2904ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_16to32_extension_through_local_rejected rejected 2900ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from exercise: w >= 300 && w <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_16to32_extension_through_match_join_rejected rejected 2712ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_16to32_extension_through_other_machine_rejected rejected 2712ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_16to32_extension_through_other_state_rejected rejected 2664ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from step: w >= 300 && w <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_16to32_extension_through_parameter_rejected rejected 2684ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from helper: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_16to32_extension_through_target_body_rejected rejected 2882ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from X86Probe::exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `exercise`
-	cannot prove requires contract for call verify_wide from ArmProbe::exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `exercise`
 fail/facts/narrow_to_wide_signed_16to64_extension_through_call_result_rejected rejected 3084ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_wide from ext_call_result: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/narrow_to_wide_signed_16to64_extension_through_const_name_rejected rejected 2781ms expected @ccdb99ca2214
@@ -25818,48 +25744,6 @@ fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_target_body reject
 	cannot prove requires contract for call verify_wide from ext_target: wide >= 70000 && wide <= 90000 (needs fact `wide >= 70000 && wide <= 90000` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_wide from ext_target: wide >= 70000 && wide <= 90000 (needs fact `wide >= 70000 && wide <= 90000` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_wide from ext_target: wide >= 70000 && wide <= 90000 (needs fact `wide >= 70000 && wide <= 90000` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_call_result_rejected rejected 3344ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_const_name_rejected rejected 2770ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_field_rejected rejected 2947ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from probe: held.wide >= 30 && held.wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_local_rejected rejected 2798ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_match_join_rejected rejected 2806ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_other_machine_rejected rejected 3525ms expected @ccdb99ca2214
-	cannot prove requires contract for call forward from probe: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_other_state_rejected rejected 3053ms expected @ccdb99ca2214
-	cannot prove requires contract for call step from probe: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_parameter_rejected rejected 3052ms expected @ccdb99ca2214
-	cannot prove requires contract for call check_param from probe: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to16_extension_through_target_body_rejected rejected 2908ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from evaluate_wide: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_wide from evaluate_wide: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_wide from evaluate_wide: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_wide from evaluate_wide: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_signed_8to32_extension_through_call_result_rejected rejected 1699ms expected @ccdb99ca2214
-	Exact integer cast in machine `extend_call_result` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/narrow_to_wide_signed_8to32_extension_through_const_name_rejected rejected 1275ms expected @ccdb99ca2214
-	Exact integer cast in machine `extend_const` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/narrow_to_wide_signed_8to32_extension_through_field_rejected rejected 1273ms expected @ccdb99ca2214
-	Exact integer cast in machine `extend_field` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/narrow_to_wide_signed_8to32_extension_through_local_rejected rejected 1587ms expected @ccdb99ca2214
-	Exact integer cast in machine `extend_local` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/narrow_to_wide_signed_8to32_extension_through_match_join_rejected rejected 941ms expected @ccdb99ca2214
-	Exact integer cast in machine `extend_match_join` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/narrow_to_wide_signed_8to32_extension_through_other_machine_rejected rejected 2121ms expected @ccdb99ca2214
-	Exact integer cast in machine `forward_eval` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/narrow_to_wide_signed_8to32_extension_through_other_state_rejected rejected 1302ms expected @ccdb99ca2214
-	Exact integer cast in machine `check_state` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/narrow_to_wide_signed_8to32_extension_through_parameter_rejected rejected 1647ms expected @ccdb99ca2214
-	Exact integer cast in machine `extend_param` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/narrow_to_wide_signed_8to32_extension_through_target_body_rejected rejected 1219ms expected @ccdb99ca2214
-	Exact integer cast in machine `extend_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-	Exact integer cast in machine `extend_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-	Exact integer cast in machine `extend_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-	Exact integer cast in machine `extend_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/narrow_to_wide_signed_8to64_extension_through_call_result_rejected rejected 3308ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_wide from compute_call_result: transported >= 30 && transported <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/narrow_to_wide_signed_8to64_extension_through_const_name_rejected rejected 2987ms expected @ccdb99ca2214
@@ -25879,27 +25763,6 @@ fail/facts/narrow_to_wide_signed_8to64_extension_through_parameter_rejected reje
 fail/facts/narrow_to_wide_signed_8to64_extension_through_target_body_rejected rejected 2891ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_wide from X86Probe::compute_target_body: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `compute_target_body`
 	cannot prove requires contract for call verify_wide from ArmProbe::compute_target_body: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `compute_target_body`
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_call_result_rejected rejected 3061ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from produce_wide at statement 0: result >= 300 && result <= 500
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_const_name_rejected rejected 2432ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from main: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_field_rejected rejected 2747ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from main: carrier.wide >= 300 && carrier.wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_local_rejected rejected 2711ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from main: local_wide >= 300 && local_wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_match_join_rejected rejected 2947ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from main: joined >= 300 && joined <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_other_machine_rejected rejected 2507ms expected @ccdb99ca2214
-	cannot prove requires contract for call runner from main: wide >= 300 && wide <= 500 (needs fact `val >= 300 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_other_state_rejected rejected 2492ms expected @ccdb99ca2214
-	cannot prove requires contract for call verify_wide from step: forwarded >= 300 && forwarded <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_parameter_rejected rejected 2680ms expected @ccdb99ca2214
-	cannot prove requires contract for call check_param from main: wide >= 300 && wide <= 500 (needs fact `val >= 300 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_16to32_extension_through_target_body_rejected rejected 3032ms expected @ccdb99ca2214
-	cannot prove requires contract for call exercise from main: wide >= 300 && wide <= 500 (needs fact `val >= 300 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call exercise from main: wide >= 300 && wide <= 500 (needs fact `val >= 300 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call exercise from main: wide >= 300 && wide <= 500 (needs fact `val >= 300 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call exercise from main: wide >= 300 && wide <= 500 (needs fact `val >= 300 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_rejected rejected 1247ms expected @ccdb99ca2214
 	exact arithmetic in machine `exercise` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_rejected rejected 1258ms expected @ccdb99ca2214
@@ -25938,46 +25801,6 @@ fail/facts/narrow_to_wide_unsigned_32to64_extension_unproved_at_parameter reject
 fail/facts/narrow_to_wide_unsigned_32to64_extension_unproved_at_target_body rejected 1676ms expected @ccdb99ca2214
 	exact arithmetic in machine `X86Probe::exercise` state `exercise` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmProbe::exercise` state `exercise` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_call_result_rejected rejected 2588ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from extend_u8 at statement 0: result >= 40 && result <= 160
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_const_name_rejected rejected 1284ms expected @ccdb99ca2214
-	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_field_rejected rejected 1412ms expected @ccdb99ca2214
-	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_local_rejected rejected 1495ms expected @ccdb99ca2214
-	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_match_join_rejected rejected 3026ms expected @ccdb99ca2214
-	cannot prove requires contract for call choose from probe: wide >= 40 && wide <= 160 && 100 >= 40 && 100 <= 160 (needs fact `first >= 40 && first <= 160 && second >= 40 && second <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_other_machine_rejected rejected 2438ms expected @ccdb99ca2214
-	cannot prove requires contract for call forward_wide from probe: wide >= 40 && wide <= 160 (needs fact `mid >= 40 && mid <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_other_state_rejected rejected 2977ms expected @ccdb99ca2214
-	cannot prove requires contract for call consume from probe: wide >= 40 && wide <= 160 (needs fact `forwarded >= 40 && forwarded <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_parameter_rejected rejected 3410ms expected @ccdb99ca2214
-	cannot prove requires contract for call consume_wide from probe: wide >= 40 && wide <= 160 (needs fact `forwarded >= 40 && forwarded <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/narrow_to_wide_unsigned_8to16_extension_through_target_body_rejected rejected 1383ms expected @ccdb99ca2214
-	exact arithmetic in machine `X86Probe::target_probe` state `target_probe` local `headroom` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `ArmProbe::target_probe` state `target_probe` local `headroom` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_call_result_rejected rejected 1457ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute_call` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_const_name_rejected rejected 1405ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute_const` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_field_rejected rejected 2046ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute_field` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_local_rejected rejected 1180ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute_local` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_match_join_rejected rejected 1400ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute_join` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_other_machine_rejected rejected 1590ms expected @ccdb99ca2214
-	exact arithmetic in machine `forward` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_other_state_rejected rejected 1112ms expected @ccdb99ca2214
-	exact arithmetic in machine `step` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_parameter_rejected rejected 1580ms expected @ccdb99ca2214
-	exact arithmetic in machine `verify_parameter` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to32_extension_through_target_body_rejected rejected 988ms expected @ccdb99ca2214
-	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_rejected rejected 3556ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from extend_u8 at statement 0: result >= 50 && result <= 180
 fail/facts/narrow_to_wide_unsigned_8to64_extension_through_const_name_rejected rejected 1292ms expected @ccdb99ca2214
