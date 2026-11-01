@@ -1,2 +1,2 @@
-cannot prove requires contract
+violates required fact
  == 9
