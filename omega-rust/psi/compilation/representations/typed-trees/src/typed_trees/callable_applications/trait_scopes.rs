@@ -108,11 +108,22 @@ impl TypedTrees {
         // Rejoin its exact authored bound before reading the prepared public
         // view, including when its caller-owned type operands remain symbolic.
         let binder = self.symbols.get(target).parent;
-        if binder.is_valid()
-            && let Some(bound) = self
-                .evidence_bound_requirement(self.symbols.get(binder).parent, binder, target)
+        let mut owner = lexical_owner;
+        let mut visited = Vec::new();
+        let bound = loop {
+            if !owner.is_valid() || visited.contains(&owner) {
+                break None;
+            }
+            visited.push(owner);
+            if let Some(bound) = self
+                .evidence_bound_requirement(owner, binder, target)
                 .ok()?
-        {
+            {
+                break Some(bound);
+            }
+            owner = self.declaration_scope_parent(owner);
+        };
+        if let Some(bound) = bound {
             if requirement_application.is_valid() {
                 let written = self
                     .applied_requirement_scope(lexical_owner, requirement_application)?

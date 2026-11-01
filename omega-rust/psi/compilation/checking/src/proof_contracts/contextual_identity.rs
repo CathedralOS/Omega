@@ -26,10 +26,33 @@ pub fn contextual_identity_subject_type(
     let carrier = program
         .type_reference_table
         .unconstrained_type_reference(reference);
+    if program.closed_data_definition(reference).is_some() {
+        return Some(program.normalized_type_identity(reference));
+    }
     match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Unit => {}
-        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-            program.closed_data_definition(reference)?;
+        TypeReferenceNode::Named { symbol, .. } => {
+            let declaration = program.unique_data_definition_by_symbol(*symbol)?;
+            if !declaration.type_parameters.is_empty()
+                || !declaration.lifetime_parameters.is_empty()
+            {
+                return None;
+            }
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            lifetime_arguments,
+            ..
+        } => {
+            let declaration = program.unique_data_definition_by_symbol(*base_symbol)?;
+            if program.type_reference_handles(*arguments).len() != declaration.type_parameters.len()
+                || lifetime_arguments.len() != declaration.lifetime_parameters.len()
+            {
+                return None;
+            }
+            // Id observes the complete source type, including open arguments.
+            // It does not need or authorize a closed storage specialization.
         }
         _ => return None,
     }
