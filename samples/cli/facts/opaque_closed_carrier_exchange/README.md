@@ -18,6 +18,28 @@ Inert cleanup rejection, and every authored exit oracle are unchanged. The
 qualified target-body rejection names the new ordinary implementation in place of
 the retired `observe` family; its missing-issuer obligation is unchanged. The qualified continuation's remaining acceptance below stays open.
 
+Fresh macOS ARM64 migration evidence uses optimized producer
+`bf0acdf0aaa76237800c46b1b3209f29facf1ef6` and its own SDK snapshot. The frozen
+originals check 52 positives and 48 intended rejects and run all 52 positive pins
+at native 0 / Terminal 0. The 99 changed pins check 51 positives and 48 intended
+rejects; all 51 positives run at native 0 / Terminal 0 with agreement. Their
+runtime tuples equal the originals. Source rejection differences are limited to
+two target-body machine/state labels; the qualified caller-name oracle was
+updated to its exact ordinary implementation. The untouched scalar-parent-tag
+control retains applicable original evidence and its original golden row.
+All 56 public positives also pass ordinary package review and `omega run --both`.
+The four raw-result/laundering controls each check successfully and then reject
+native admission at `UncheckedFactory::make` for the original issuer-provenance
+obligation. All 53 public source-rejection controls refuse their intended obligation. The
+nested-import control uses the canonical direct `--check` route that preserves
+its captured package hierarchy; an earlier generic package-preparation refusal
+is retained separately as setup evidence. A false-result mutation of the selected
+observation produces native SIGTRAP and Terminal `Trap` with host agreement.
+One batch compile of the Linear target-body witness publishes actual PE, ELF
+x86-64, ELF ARM64 and Mach-O ARM64 artifacts; these extra artifacts are not
+executed. Historical foreign-host records below retain their actual producers;
+this migration makes no new foreign-host execution claim.
+
 Parent: [OPAQUE-BY-VALUE-BOUNDARY-ABI](../../../../TASKS.md).
 Requirement: preserve the exact selected closed Inert carrier and one owned
 occurrence through by-value foreign results, transport and consuming arguments,
