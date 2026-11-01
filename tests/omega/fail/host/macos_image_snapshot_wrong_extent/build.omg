@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "macos_image_snapshot_wrong_extent");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

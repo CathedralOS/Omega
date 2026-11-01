@@ -186,9 +186,55 @@ pub(super) fn source(
             }
         }
     }
+    let mut representation_source_stride = None;
     let (extent_kind, storage, representation) = match geometry {
         terminal_semantics::ElementViewRegionGeometry::WholeCollection(collection) => {
             (collection.extent, collection.storage, None)
+        }
+        terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+            backing,
+            source: source_layout,
+            target: target_layout,
+        } => {
+            let original = match &*collection_shape {
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element, .. } => *element,
+                _ => return Err(invalid()),
+            };
+            if byte_window.is_some()
+                || source.access != StructuralAccess::SharedBorrow
+                || target_layout.size == 0
+                || source_layout.size == 0
+                || source_layout.size % target_layout.size != 0
+                || source_layout.alignment < target_layout.alignment
+                || matches!(
+                    backing.extent,
+                    terminal_semantics::CollectionExtent::LiveLength { .. }
+                )
+            {
+                return Err(invalid());
+            }
+            let source_shape = crate::lowering::structural_layout::structural_shape(
+                original,
+                structural_types,
+                &mut shape_cache,
+                &mut active,
+            )?;
+            if u64::from(source_shape.byte_size) != source_layout.size
+                || u64::from(source_shape.alignment) != source_layout.alignment
+                || source_layout.leaves.iter().any(|leaf| {
+                    scalar_leaf_offset(structural_types, original, &leaf.path, leaf.scalar_type)
+                        .map(u64::from)
+                        != Some(leaf.offset)
+                })
+                || matches!(backing.extent,
+                    terminal_semantics::CollectionExtent::Fixed(count)
+                        if count.checked_mul(source_layout.size / target_layout.size).is_none())
+            {
+                return Err(invalid());
+            }
+            representation_source_stride = Some(source_layout.size);
+            (backing.extent, backing.storage, Some(target_layout))
         }
         terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
             byte_extent,
@@ -223,7 +269,14 @@ pub(super) fn source(
     if element_stride == 0
         || match storage {
             terminal_semantics::CollectionStorage::Inline => {
-                (if representation.is_some() {
+                (if let Some(source_stride) = representation_source_stride {
+                    match extent_kind {
+                        terminal_semantics::CollectionExtent::Fixed(length) => {
+                            source_stride.checked_mul(length)
+                        }
+                        _ => None,
+                    }
+                } else if representation.is_some() {
                     match extent_kind {
                         terminal_semantics::CollectionExtent::Fixed(length) => Some(length),
                         _ => None,

@@ -83,10 +83,32 @@ impl Builder<'_, '_> {
             .flatten()
         })?;
         let state = self.program.state_by_symbol(self.state)?;
-        let (mut place, access) = self.view_formation(expression, expected, view.access)?;
-
         let machine = self.program.machine_by_symbol(self.machine)?;
         let authored_recast = slice_recast_source(self.program, expression);
+        if let Some(authored) = authored_recast
+            && let Some(declared) =
+                expression_result_type_reference(self.program, machine, state, authored.source)
+            && slice_view_shell(self.program, declared, &[]).is_some()
+        {
+            // An existing descriptor already carries its captured loan/window.
+            // Read that checked value through the ordinary reference producer;
+            // demanding a new storage-loan birth would erase this producer.
+            if view.access != language_semantics::ReferenceAccess::Shared
+                || authored.access != view.access
+                || self.program.normalized_type_identity(authored.element)
+                    != self.program.normalized_type_identity(view.element)
+            {
+                return None;
+            }
+            let (source, _, selectors) =
+                self.borrowed_leaf_argument(authored.source, declared, expression)?;
+            self.retain_reference_selectors(expression, selectors)?;
+            return Some(ValueKind::BorrowedSliceView {
+                source,
+                region: ViewRegion::WholeRepresentation,
+            });
+        }
+        let (mut place, access) = self.view_formation(expression, expected, view.access)?;
         let recast = slice_recast_byte_region(self.program, machine, state, expression);
         if let Some(authored) = authored_recast {
             if authored.access != view.access
@@ -139,7 +161,8 @@ impl Builder<'_, '_> {
             // join. Collection establishment would replace its captured extent
             // with backing geometry. Stored-leaf selection also retains every
             // crossing through a local reference before selecting this view.
-            let (mut source, _, selectors) = self.borrowed_leaf_argument(expression, declared)?;
+            let (mut source, _, selectors) =
+                self.borrowed_leaf_argument(expression, declared, expression)?;
             source.access = access;
             let selectors = self.retain_reference_selectors(expression, selectors)?;
             return Some(ValueKind::Reference {

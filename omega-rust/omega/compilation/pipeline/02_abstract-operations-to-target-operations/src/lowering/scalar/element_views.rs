@@ -566,6 +566,17 @@ pub(in crate::lowering) fn resolve_element_view(
             terminal_psi::ElementViewRegion::WholeCollection => {
                 target_operations::TargetElementViewRegion::WholeCollection
             }
+            terminal_psi::ElementViewRegion::WholeRepresentation {
+                source_length,
+                obligation,
+            } => {
+                // Retain the observed scalar's identity, not a recomputed count.
+                unsigned_u64_endpoint(values, &invalid)(*source_length)?;
+                target_operations::TargetElementViewRegion::WholeRepresentation {
+                    source_length: *source_length,
+                    obligation: *obligation,
+                }
+            }
             terminal_psi::ElementViewRegion::RepresentationBytes {
                 start,
                 end,

@@ -1,0 +1,78 @@
+// Expected exit: 0
+use omega_language_std::console;
+machine inspect(pixels: &[i32]) -> bool
+requires pixels.len == 6
+{
+    let bytes: &[u8] = pixels as &[u8];
+    transition bytes.len == 24 {
+        true -> read(bytes)
+        _ -> false
+    }
+    machine read(bytes: &[u8]) -> bool
+    requires bytes.len == 24 {
+        bytes[0] == 0x33 && bytes[12] == 0x66 && bytes[22] == 0x77
+    }
+}
+machine empty(pixels: &mut [i32]) -> bool
+requires pixels.len == 0
+{
+    shared(pixels)
+    machine shared(pixels: &[i32]) -> bool requires pixels.len == 0 {
+        let bytes: &[u8] = pixels as &[u8];
+        bytes.len == 0
+    }
+}
+// Shared attenuation must declare the callee's stored descriptor even when
+// the caller supplies only a mutable descriptor of the same element carrier.
+// Afterwards the original mutable view still writes the caller's live storage.
+machine attenuate(pixels: &mut [i32]) -> bool
+requires pixels.len == 6
+{
+    let correct: bool = inspect(pixels);
+    pixels[3] = 0x00aabbcc;
+    correct
+}
+data Cursor { calls: u64 in Wrapping; }
+machine selected(cursor: &mut Cursor) -> u64 ensures result == 1 {
+    cursor.calls = cursor.calls + 1;
+    1
+}
+// One-byte elements isolate ordered descriptor selection from count scaling.
+// The selected descriptor must complete once before its representation is read.
+machine projected(views: &[&[i8]; 2], cursor: &mut Cursor) -> bool {
+    let bytes: &[u8] = views[selected(cursor)] as &[u8];
+    transition bytes.len == 3 {
+        true -> read(bytes)
+        _ -> false
+    }
+    machine read(bytes: &[u8]) -> bool requires bytes.len == 3 {
+        bytes[0] == 0x41 && bytes[1] == 0x42 && bytes[2] == 0x43
+    }
+}
+machine main() reaches Console {
+    let mut pixels: [i32; 6] = [0x00112233, 0, 0, 0x00445566, 0, 0x00778899];
+    let mut guarded: [i32; 8] = [0x007f7f7f, 0x00112233, 0, 0, 0x00445566, 0, 0x00778899, 0x007e7e7e];
+    // Direct shared i32 descriptors would incidentally register the callee's
+    // stored type and hide the mutable-only ingress catalog regression.
+    let whole: bool = attenuate(&mut pixels[..]);
+    let narrowed: bool = attenuate(&mut guarded[1..7]);
+    let mut none: [i32; 0];
+    let empty_view: bool = empty(&mut none[..]);
+    let first: [i8; 3] = [0x11, 0x12, 0x13];
+    let second: [i8; 3] = [0x41, 0x42, 0x43];
+    let views: [&[i8]; 2] = [&first[..], &second[..]];
+    let mut cursor: Cursor = Cursor { calls: 0 };
+    let projection: bool = projected(&views, &mut cursor);
+    transition whole && narrowed && empty_view && projection && cursor.calls == 1
+        && pixels[3] == 0x00aabbcc
+        && pixels[2] == 0 && pixels[4] == 0
+        && pixels[0] == 0x00112233 && pixels[5] == 0x00778899
+        && guarded[4] == 0x00aabbcc
+        && guarded[3] == 0 && guarded[5] == 0
+        && guarded[0] == 0x007f7f7f && guarded[7] == 0x007e7e7e {
+        true -> passed()
+        _ -> failed()
+    }
+    machine passed() { Console::exit_process(0); }
+    machine failed() { Console::exit_process(1); }
+}

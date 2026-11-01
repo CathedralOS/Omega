@@ -27,7 +27,7 @@ pub fn build_verified_psi_optimization_unit(
     let context = input.context();
     optimization_unit::attach_verified_module_context(&mut seed, context.module())
         .map_err(VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine)?;
-    let facts = source_checked_obligation_facts(&seed);
+    let facts = source_checked_obligation_facts(&seed)?;
     let unit = optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
     Ok(VerifiedPsiOptimizationUnit { input, unit })
 }
@@ -38,7 +38,9 @@ pub fn build_verified_psi_optimization_unit(
 /// nested runtime paths and aggregate receiving sites. A private stage-05
 /// marker roster is neither a portable input nor a second admission channel.
 /// Source checking establishes safety; this projection preserves its owner.
-fn source_checked_obligation_facts(unit: &PsiOptimizationUnit) -> Vec<AcceptedObligationFact> {
+fn source_checked_obligation_facts(
+    unit: &PsiOptimizationUnit,
+) -> Result<Vec<AcceptedObligationFact>, VerifiedPsiOptimizationUnitBuildError> {
     let mut coordinates = BTreeSet::new();
     let mut facts = Vec::new();
     for function in &unit.functions {
@@ -52,13 +54,78 @@ fn source_checked_obligation_facts(unit: &PsiOptimizationUnit) -> Vec<AcceptedOb
             };
             let owner = optimization_unit::PsiProvenance::Operation(*support);
             if coordinates.insert((function.machine, owner, *obligation)) {
+                // Commit the count goal from the immutable checked source cut.
+                // This preserves the producer's judgment through rewrites; it
+                // does not manufacture or independently discharge a proof.
+                let representation =
+                    function.block_nodes().find_map(|node| {
+                        let abstract_operations::AbstractOperation::EstablishElementView {
+                            psi_operation,
+                            source,
+                            element,
+                            region:
+                                region @ terminal_psi::ElementViewRegion::WholeRepresentation {
+                                    source_length,
+                                    obligation: count_obligation,
+                                },
+                            ..
+                        } = &node.operation
+                        else {
+                            return None;
+                        };
+                        (*psi_operation == *support && *count_obligation == *obligation)
+                            .then_some((source, element, region, source_length))
+                    });
+                let proposition = if let Some((source, element, region, source_length)) =
+                    representation
+                {
+                    let missing =
+                        || VerifiedPsiOptimizationUnitBuildError::MissingReconstructedObligation {
+                            machine: function.machine,
+                            operation: *support,
+                            obligation: *obligation,
+                        };
+                    let root = optimization_unit::field_evidence(function, source.place)
+                        .and_then(|row| row.root_type)
+                        .ok_or_else(missing)?;
+                    let collection = terminal_semantics::runtime_structural_path_tip(
+                        unit.structural_types.iter(),
+                        root,
+                        &source.path,
+                    )
+                    .ok_or_else(missing)?;
+                    let Some(terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+                        source: source_layout,
+                        target: target_layout,
+                        ..
+                    }) = terminal_semantics::element_view_shape_region_geometry(
+                        unit.structural_types.iter(),
+                        &collection.shape,
+                        *element,
+                        *region,
+                        source.access,
+                    )
+                    else {
+                        return Err(missing());
+                    };
+                    let factor = source_layout
+                        .size
+                        .checked_div(target_layout.size)
+                        .ok_or_else(missing)?;
+                    let goal =
+                        terminal_semantics::whole_representation_count_goal(*source_length, factor)
+                            .ok_or_else(missing)?;
+                    terminal_codec::canonical_proposition_order_key(&goal)?
+                } else {
+                    Vec::new()
+                };
                 let fact = AcceptedObligationFact::new(
                     unit.psi,
                     [0; 32],
                     function.machine,
                     owner,
                     *obligation,
-                    Vec::new(),
+                    proposition,
                 );
                 // This original source-cut correspondence is immutable. A
                 // later rewrite cannot reuse the obligation for a different
@@ -162,7 +229,7 @@ fn source_checked_obligation_facts(unit: &PsiOptimizationUnit) -> Vec<AcceptedOb
             }
         }
     }
-    facts
+    Ok(facts)
 }
 
 /// Required optimizer input produced only after canonical artifact decoding,

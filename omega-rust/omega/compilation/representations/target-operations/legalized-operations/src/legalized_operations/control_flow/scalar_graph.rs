@@ -296,11 +296,17 @@ impl LegalizedScalarInstruction {
                 region, indices, ..
             } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
-                if let terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } =
-                    region
-                {
-                    visit(*start);
-                    visit(*end);
+                match region {
+                    terminal_psi::ElementViewRegion::WholeCollection => {}
+                    terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length, ..
+                    } => {
+                        visit(*source_length);
+                    }
+                    terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } => {
+                        visit(*start);
+                        visit(*end);
+                    }
                 }
             }
             LegalizedScalarInstructionKind::AccessorScalarAccess {

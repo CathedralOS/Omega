@@ -169,25 +169,21 @@ impl Emission<'_, '_, '_> {
             self.structural_type,
             self.structural_types,
         )?;
-        let bindings = self.structural_bindings();
-        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let parameters = self.checked.state_parameters(authored);
-        let argument = match loan {
-            LoanAccess::Shared => {
-                bindings.shared_structural_argument(identities, self.checked, source, parameters)?
+        if source.access
+            != match loan {
+                LoanAccess::Shared => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                LoanAccess::Mutable => checked_trees::CheckedStructuralAccess::MutableBorrow,
             }
-            LoanAccess::Mutable => bindings.borrowed_structural_argument(
-                identities,
-                self.checked,
-                source,
-                parameters,
-            )?,
-        };
+        {
+            return unsupported("element view changes its supplying loan access");
+        }
+        let argument = self.readable_place_argument(identities, expression, source)?;
         // The descriptor captures the byte endpoints now. Later field writes
         // and state transfers keep this formed region; they never reread the
         // authored selector to reconstruct a different borrowed window.
         let endpoints = match region {
-            checked_trees::CheckedElementViewRegion::WholeCollection => None,
+            checked_trees::CheckedElementViewRegion::WholeCollection
+            | checked_trees::CheckedElementViewRegion::WholeRepresentation => None,
             checked_trees::CheckedElementViewRegion::RepresentationBytes { start, end } => {
                 let start = self.scalar(
                     identities,
@@ -219,8 +215,46 @@ impl Emission<'_, '_, '_> {
                 Some((start, end))
             }
         };
+        // Capture the exact descriptor count as an ordinary scalar observation.
+        // The following region owns a separate count-fit obligation: a backing
+        // address envelope alone cannot justify narrowing a mathematical count.
+        let source_length = if matches!(
+            region,
+            checked_trees::CheckedElementViewRegion::WholeRepresentation
+        ) {
+            Some(
+                crate::emission::operation_emission::expressions::emit_scalar_leaf(
+                    terminal_psi::OperationKind::ElementViewLength {
+                        source: argument.clone(),
+                    },
+                    crate::emission::scalar_types::terminal_scalar_type(
+                        checked_trees::types::PrimitiveType::U64,
+                    )?,
+                    self.next_value,
+                    self.operations,
+                ),
+            )
+        } else {
+            None
+        };
         let id = self.operations.allocate();
         let region = match endpoints {
+            None if matches!(
+                region,
+                checked_trees::CheckedElementViewRegion::WholeRepresentation
+            ) =>
+            {
+                terminal_psi::ElementViewRegion::WholeRepresentation {
+                    source_length: source_length.ok_or(LoweringError::Unsupported(
+                        "representation view lost its captured count",
+                    ))?,
+                    obligation: crate::terminal_identities::obligation_id(
+                        id.get().checked_add(1).ok_or(LoweringError::Unsupported(
+                            "representation count obligation identity overflows",
+                        ))?,
+                    ),
+                }
+            }
             None => terminal_psi::ElementViewRegion::WholeCollection,
             Some((start, end)) => terminal_psi::ElementViewRegion::RepresentationBytes {
                 start,

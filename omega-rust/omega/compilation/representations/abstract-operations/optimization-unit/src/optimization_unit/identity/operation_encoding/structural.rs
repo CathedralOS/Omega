@@ -236,6 +236,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*element);
             match region {
                 terminal_psi::ElementViewRegion::WholeCollection => bytes.u8(0),
+                terminal_psi::ElementViewRegion::WholeRepresentation {
+                    source_length,
+                    obligation,
+                } => {
+                    bytes.u8(2);
+                    bytes.id(*source_length);
+                    bytes.id(*obligation);
+                }
                 terminal_psi::ElementViewRegion::RepresentationBytes {
                     start,
                     end,
