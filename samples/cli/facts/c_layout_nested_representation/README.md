@@ -63,8 +63,14 @@ That workflow remains failed: selected-array construction exposed a copy-propert
 walk that recognized `LayoutStorage` only at its public entrance, missing array
 elements. The repair moves that semantic lens into the recursive property walk.
 A further sole-change control removes the child's `[copy]` declaration; physical
-representation must never create semantic copyability. The selected-array triple
-is pending qualification; earlier independent passing observations retain their
-actual producer identity. Call result, match join, const name, nested machine,
+representation must never create semantic copyability. Optimized source `c966c3b51d7a2d22f3cb3e9bd7db305ce0386c9e`, image
+`3fbfbc85f402eabe1f2bda391d010bd60a87f64e14922542a67379ac76a8a1f2`,
+passes the unchanged selected-array positive (Linux native/Terminal exit 0),
+its default-child twin and its noncopy-child control in
+[pilot41309926510](https://github.com/CathedralOS/Omega/actions/runs/41309926510).
+Preparation took 683.172s and the three projects took 24.497s. Earlier passing
+observations remain bound to their actual b78 producer: the private property-walk
+repair changes nested representation descent, while direct child checks, scalar
+arrays, policy geometry, ABI replay and their inputs are unchanged. Call result, match join, const name, nested machine,
 other machine and selected target remain open. The full parent also retains
 other-host execution, complete SDK ABI records, conversions and Product parity.
