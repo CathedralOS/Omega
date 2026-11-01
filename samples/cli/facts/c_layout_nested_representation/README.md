@@ -4,8 +4,9 @@ Fact: library C layout preserves explicit child representation values, geometry 
 
 Parent: `LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../../../TASKS.md).
 
-Windows x86_64 matching-host execution of this row's nine transport places and
-nine rejection twins is pending.
+All nine transport places pass native Windows x86_64/Terminal execution with
+exit 0, and all nine authored twins reject in
+[pilot 41317050719](https://github.com/CathedralOS/Omega/actions/runs/41317050719).
 
 ## Nearest existing row
 
@@ -49,6 +50,24 @@ They exercise two different retained element carriers without a transport matrix
 
 ## Execution frontier
 
+Windows matching-host evidence comes from [pilot 41317050719](https://github.com/CathedralOS/Omega/actions/runs/41317050719)
+on exact source `496aaf641bf2d6d5176030516d443e84432bda6d`. The actual runner is
+`windows-2022`, Rust host `x86_64-pc-windows-msvc`, and target `windows_x86_64`.
+Its authenticated `opt_level=1` CLI image is
+`f338721b58882f10dabdd096abfc96b491f4ea4b04c92a7ed91e7016f794603d`.
+Every positive invokes native and Terminal execution against its authored exit 0
+oracle; every twin matches its intended checking refusal. The selected-provider
+17/29 counterfactuals, initialized backing, values, geometry and alias operations
+are unchanged.
+
+Both C rows share one producer and 36 sample projects: nine positives and nine
+twins per row. Preparation took 1401.078s, authentication 0.906s and all projects
+172.016s. Samples-only preparation built no corpus runner or runner profile.
+The raw emitted summary/sample JSON, actual job metadata and exportable source
+bundle retain the measured source and Windows host. This is existing-row
+execution evidence; complete platform ABI migration and parent acceptance remain
+separate work.
+
 Baseline `d312f53e3a50` rejects the unchanged local witness in
 [pilot41306652495](https://github.com/CathedralOS/Omega/actions/runs/41306652495):
 the C policy returns `entry_count 65 is outside 0..=64`.
@@ -75,7 +94,7 @@ Preparation took 683.172s and the three projects took 24.497s. Earlier passing
 observations remain bound to their actual b78 producer: the private property-walk
 repair changes nested representation descent, while direct child checks, scalar
 arrays, policy geometry, ABI replay and their inputs are unchanged. The full parent retains
-other-host execution, complete SDK ABI records, conversions and Product parity.
+macOS ARM64 and Linux ARM64 execution, complete SDK ABI records, conversions and Product parity.
 
 ## Transport evidence
 
@@ -118,5 +137,5 @@ source evidence are retained.
 
 The complete nine-place row and its default-child twins now have focused
 observations. Historical observations above keep their original producer
-identities. Other-host execution, broader schema/case composition, complete SDK
+identities. macOS ARM64 and Linux ARM64 execution, broader schema/case composition, complete SDK
 ABI records, conversions and Product acceptance remain parent work.

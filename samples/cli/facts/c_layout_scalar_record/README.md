@@ -4,8 +4,9 @@ Fact: library C layout preserves scalar values with C ABI field offsets, trailin
 
 Parent: `LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../../../TASKS.md).
 
-Windows x86_64 matching-host execution of this row's nine transport places and
-nine rejection twins is pending.
+All nine transport places pass native Windows x86_64/Terminal execution with
+exit 0, and all nine authored twins reject in
+[pilot 41317050719](https://github.com/CathedralOS/Omega/actions/runs/41317050719).
 The ordinary [core policy](../../../../source/library/core/c_layout.omg)
 computes scalar placement from the target-resolved schema. It selects no compiler
 format registration and grants no foreign or storage authority.
@@ -47,6 +48,24 @@ establish that physical placement. The ordinary policy walks reflected fields
 and computes padding; it does not contain a per-record placement table.
 
 ## Current evidence
+
+Windows matching-host evidence comes from [pilot 41317050719](https://github.com/CathedralOS/Omega/actions/runs/41317050719)
+on exact source `496aaf641bf2d6d5176030516d443e84432bda6d`. The actual runner is
+`windows-2022`, Rust host `x86_64-pc-windows-msvc`, and target `windows_x86_64`.
+Its authenticated `opt_level=1` CLI image is
+`f338721b58882f10dabdd096abfc96b491f4ea4b04c92a7ed91e7016f794603d`.
+Every positive invokes native and Terminal execution against its authored exit 0
+oracle; every twin matches its intended checking refusal. The selected-provider
+17/29 counterfactuals, initialized backing, values, geometry and alias operations
+are unchanged.
+
+Both C rows share one producer and 36 sample projects: nine positives and nine
+twins per row. Preparation took 1401.078s, authentication 0.906s and all projects
+172.016s. Samples-only preparation built no corpus runner or runner profile.
+The raw emitted summary/sample JSON, actual job metadata and exportable source
+bundle retain the measured source and Windows host. This is existing-row
+execution evidence; complete platform ABI migration and parent acceptance remain
+separate work.
 
 Optimized Linux x86_64 producer `4e6a0f454c1c57634066be59be9d2a4c2a64fe05`,
 image `651947e3b3ce37e7b2dce51abd43c5c1e35bc26a698a39af14087b07edf3d574`,
@@ -161,7 +180,7 @@ no compiler or library mechanism and needs no further build for these records.
 
 The complete nine-place transport row and policy twins now have focused
 observations. Broader schema composition, complete platform ABI records,
-Windows x86_64 and Linux ARM64 execution, and the parent acceptance remain open.
+Linux ARM64 execution and the parent acceptance remain open.
 These observations do not qualify the full compiler.
 
 
@@ -184,6 +203,6 @@ and emitted summary/sample JSON retain the actual producer and target.
 The later prerequisite cleanup and evidence documentation change no Rust,
 library, project, workflow or helper execution inputs; they need no new build.
 
-Windows x86_64 and Linux ARM64 execution remain open, as do the parent capability's
+Linux ARM64 execution remains open, as do the parent capability's
 other representation, complete platform ABI, conversion and Product requirements.
 This observation does not qualify the new Darwin SDK records.
