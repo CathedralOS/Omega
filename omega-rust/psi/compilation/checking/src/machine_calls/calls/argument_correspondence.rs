@@ -580,6 +580,8 @@ pub(crate) fn call_binding_correspondence(
 
 /// A requirement has no realized body or trailing executable Value operands.
 /// Its exact open or closed public view still transports the authored header.
+/// A dynamic slot keeps that same public header while its row-selection
+/// operands are observed separately from the selector and ordinary data.
 /// Rejoin through the same applied-signature owner that prepared its public
 /// contract; a same-sized telescope or a provider body cannot supply this map.
 fn requirement_binding_correspondence(
@@ -606,8 +608,19 @@ fn requirement_binding_correspondence(
         let (declaring_trait, declared) = program
             .trait_machine_signature(application.binding_declaration)
             .ok_or("the open application has no exact authored requirement header")?;
-        let (selected_trait, public) = requirement_contract_signature(program, caller, site)
-            .ok_or("the open application lost its exact public invocation view")?;
+        let (selected_trait, public) =
+            if let Some(slot) = program.dynamic_slot_by_symbol(site.target_symbol(program)) {
+                if slot.declaring_trait != declaring_trait.symbol
+                    || slot.requirement != declared.symbol
+                    || application.registration_operation != declared.symbol
+                {
+                    return Err("the dynamic header belongs to another public requirement");
+                }
+                (declaring_trait, declared)
+            } else {
+                requirement_contract_signature(program, caller, site)
+                    .ok_or("the open application lost its exact public invocation view")?
+            };
         if declaring_trait.symbol != selected_trait.symbol {
             return Err("the open application changed its declaring trait");
         }
@@ -672,7 +685,7 @@ fn requirement_binding_correspondence(
     }
     let mut parameters = Vec::with_capacity(header.len());
     let mut runtime_parameters = Vec::new();
-    for parameter in header {
+    for (ordinal, parameter) in header.iter().enumerate() {
         let selected = program
             .applied_signature_parameter(declared, public, parameter.symbol)
             .ok_or("the open application lost its applied header binder")?;
@@ -701,7 +714,14 @@ fn requirement_binding_correspondence(
             if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                 return Err("the open runtime operand does not belong to a Value binder");
             }
-            immutable_runtime_parameter(program, caller, &binding.value)?;
+            if program
+                .dynamic_slot_by_symbol(site.target_symbol(program))
+                .is_some()
+            {
+                dynamic_family_subject(program, caller, site, handle, ordinal, &binding.value)?;
+            } else {
+                immutable_runtime_parameter(program, caller, &binding.value)?;
+            }
             runtime_parameters.push(parameter.symbol);
         }
         parameters.push((parameter.symbol, selected));
@@ -712,6 +732,55 @@ fn requirement_binding_correspondence(
         parameters,
         runtime_parameters,
     })
+}
+
+/// A family selector reads its runtime header at the dispatch point, after
+/// ordinary operands complete. Retain that exact caller subject; the normal
+/// prefix owner supplies its current observation and invalidates stale facts.
+/// This is not the earlier captured operand of an ordinary realized Value call.
+fn dynamic_family_subject(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    site: &CallSite<'_>,
+    handle: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ordinal: usize,
+    value: &StaticMachineBindingValue,
+) -> Result<(), &'static str> {
+    let arguments = match site {
+        CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+        CallSite::Statement(call) => call.machine_arguments.as_ref(),
+        CallSite::TransitionNamed { .. } => return Err("a family header has no source invocation"),
+    };
+    if expression_table(program).static_machine_application_arguments(handle) != arguments {
+        return Err("the dynamic header changed its source arguments");
+    }
+    let StaticMachineBindingValue::RuntimeValue {
+        subject,
+        expression,
+        ..
+    } = value
+    else {
+        return Err("the family operand has another binding kind");
+    };
+    let argument = arguments
+        .get(ordinal)
+        .ok_or("the family operand lost its source ordinal")?;
+    if !subject.is_valid()
+        || expression.is_valid()
+        || argument.symbol != *subject
+        || !crate::machine_calls::static_arguments::is_runtime_value_subject(program, argument)
+    {
+        return Err("the family operand lost its exact runtime subject");
+    }
+    let parent = program.symbols.get(*subject).parent;
+    if parent != caller
+        && program
+            .machine_holding_state(parent)
+            .is_none_or(|machine| machine.symbol != caller)
+    {
+        return Err("the family operand belongs to another caller");
+    }
+    Ok(())
 }
 
 /// A lexical Value binder is an immutable runtime subject, never a constant.

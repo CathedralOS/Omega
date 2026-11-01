@@ -1458,6 +1458,10 @@ fail/facts/target_family_contract_operand/callback_capability rejected 517ms exp
 	machine argument `bounded_matches` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/target_family_contract_operand/stronger_provider_requirement rejected 1609ms expected @b0315c8f656c
 	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/facts/typed_reflection_active_case_selected_layout_alias_rejected rejected 787ms expected @9d8ac725f3d8
+	machine `field` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_active_case_selected_layout_rejected rejected 792ms expected @dd3a6c22f839
+	machine `field` requires type predicate does not hold for the supplied arguments
 fail/facts/write_only_scalar_entry_observation rejected 5920ms expected @3bd254ac6193
 	machine `read` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expected @f9df9c1404e3
@@ -1554,6 +1558,12 @@ fail/traits/public_method_evidence_not_inferred rejected 1101ms expected @b852a3
 	a value call to generic machine `choose` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/traits/public_method_inferred_actual_conflict rejected 1431ms expected @b852a38544d0
 	argument `right` for state `pair` expects `&u32`, got `named value`
+fail/traits/runtime_dyn_family_local_width_requires rejected 9611ms expected @7b6988120e7e
+	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/runtime_dyn_family_reordered_roster_requires rejected 8930ms expected @7b6988120e7e
+	cannot prove requires contract for call dyn Family::row from create: Width == 32 || Width == 16 || Width == 16 (needs fact `Width == 32 || Width == 16 || Width == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/runtime_dyn_family_replaced_width_requires rejected 9888ms expected @7b6988120e7e
+	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -5896,24 +5906,15 @@ pass/facts/finite_family_exclusive_result/parameter rejected 1436ms check-target
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_exclusive_result/target_body rejected 1268ms check-target:macos_arm64 @ccdb99ca2214
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/call_result rejected 1239ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/const_name rejected 1270ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/field rejected 1072ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/local rejected 1461ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/match_join rejected 1391ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/other_machine rejected 1146ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/other_state rejected 1053ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/parameter rejected 1441ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_input_index/target_body rejected 1557ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_input_index/call_result checked 15899ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/const_name checked 15017ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/field checked 15381ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/local checked 12285ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/match_join checked 12431ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/other_machine checked 13990ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/other_state checked 12316ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/parameter checked 12868ms check-target:macos_arm64 @7b6988120e7e
+pass/facts/finite_family_input_index/target_body checked 12216ms check-target:macos_arm64 @7b6988120e7e
 pass/facts/finite_family_returned_descriptor/call_result rejected 1675ms check-target:macos_arm64 @ccdb99ca2214
 	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_returned_descriptor/const_name rejected 1492ms check-target:macos_arm64 @ccdb99ca2214
@@ -9467,6 +9468,8 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_machine_exit checked 4
 pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 3591ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/typed_reflection_active_case_selected_layout_alias_exit checked 11634ms check-target:macos_arm64 @9d8ac725f3d8
+pass/facts/typed_reflection_active_case_selected_layout_exit checked 12161ms check-target:macos_arm64 @dd3a6c22f839
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 3750ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 3450ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 3654ms check-target:macos_arm64 @ccdb99ca2214
@@ -10614,12 +10617,9 @@ pass/generics/generic_callback_schema checked 3395ms @ccdb99ca2214
 pass/generics/generic_case_subject_sibling_bounds_exit checked 4501ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/generic_data_instantiation rejected 897ms regressed-from:checked @ccdb99ca2214
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Optional::None` for `Optional`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation
-pass/generics/generic_result_parameter_receipt rejected 811ms regressed-from:checked @ccdb99ca2214
-	machine `received` state `entry` statement 6: operand has no complete completed call-slot relation
-pass/generics/generic_seq_consuming_map_filter rejected 1234ms regressed-from:checked @ccdb99ca2214
-	machine `map` state `entry` statement 2: operand has no complete completed call-slot relation
-pass/generics/generic_seq_map_filter rejected 1791ms regressed-from:checked @ccdb99ca2214
-	machine `map` state `entry` statement 2: operand has no complete completed call-slot relation
+pass/generics/generic_result_parameter_receipt checked 3866ms @ada93c78b02f+wt
+pass/generics/generic_seq_consuming_map_filter checked 3779ms @ada93c78b02f+wt
+pass/generics/generic_seq_map_filter checked 5304ms @ada93c78b02f+wt
 pass/generics/higher_order_schema checked 3635ms @ccdb99ca2214
 pass/generics/inferred_equation_generic_result_projection_exit checked 3293ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/inferred_equation_inferred_array_result_exit checked 3762ms check-target:macos_arm64 @ccdb99ca2214
@@ -10844,8 +10844,7 @@ pass/generics/selected_value_bool_public_contract_exit checked 3801ms check-targ
 pass/generics/seq_map_filter rejected 1605ms regressed-from:checked @ccdb99ca2214
 	recursive proof machine `fold` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
 pass/generics/static_callable_local_type_argument_exit checked 4188ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/static_machine_borrowed_parameter_refines_after_substitution rejected 999ms regressed-from:checked @ccdb99ca2214
-	proof-only machine call cycle: `filter_touch`, `step` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
+pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 3721ms @ada93c78b02f+wt
 pass/generics/swapped_type_parameter_result checked 2268ms @ccdb99ca2214
 pass/generics/type_index_forwarding_exit checked 4402ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/typed_const_equation_helper_body_exit checked 3368ms check-target:macos_arm64 @ccdb99ca2214
@@ -12951,14 +12950,11 @@ pass/traits/runtime_dyn_byte_record_result checked 3619ms check-target:macos_arm
 pass/traits/runtime_dyn_byte_result_candidates checked 4308ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_byte_subview_join checked 3471ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_data_argument_counts_exit checked 11178ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_family_nested_result rejected 8740ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19499, generation: 1 }, but its retained targets are [(Handle { arena_index: 19499, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-	retained requirement tuple lost its exact source call application: call `code` in `nested_read` binds declaration Handle { arena_index: 19499, generation: 1 }, but its retained targets are [(Handle { arena_index: 19499, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-pass/traits/runtime_dyn_family_scalar_continuation rejected 1699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `compare` binds declaration Handle { arena_index: 1470, generation: 1 }, but its retained targets are [(Handle { arena_index: 1470, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+pass/traits/runtime_dyn_family_local_width_exit checked 11708ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_nested_result checked 93728ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_reordered_roster_exit checked 11748ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_replaced_width_exit checked 14132ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_scalar_continuation checked 15484ms check-target:macos_arm64 @7b6988120e7e
 pass/traits/runtime_dyn_field_assignment_establishment_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_guarded_result_exit checked 4858ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_image_incoming_backing_exit checked 3641ms check-target:macos_arm64 @ccdb99ca2214
@@ -22352,26 +22348,30 @@ fail/facts/finite_family_exclusive_result/parameter rejected 1741ms unexpected @
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 fail/facts/finite_family_exclusive_result/target_body rejected 1252ms unexpected @ccdb99ca2214
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/call_result rejected 1733ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/const_name rejected 1768ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/field rejected 1632ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/local rejected 1623ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/match_join rejected 1391ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/other_machine rejected 1663ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/other_state rejected 1334ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/parameter rejected 1321ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/target_body rejected 1568ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_input_index/wrong_provider rejected 2080ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+fail/facts/finite_family_input_index/call_result rejected 9033ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/const_name rejected 7997ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/field rejected 9640ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/local rejected 8098ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/match_join rejected 6491ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/other_machine rejected 14133ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/other_state rejected 11782ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/parameter rejected 16530ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/target_body rejected 8905ms expected @7b6988120e7e
+	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_input_index/wrong_provider rejected 7226ms expected @7b6988120e7e
+	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce$specialized$bf862e295a8967d7$0` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce$specialized$d1322acad3338bfd$1` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 fail/facts/finite_family_returned_descriptor/call_result rejected 1304ms unexpected @ccdb99ca2214
 	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
 fail/facts/finite_family_returned_descriptor/const_name rejected 1266ms unexpected @ccdb99ca2214
@@ -31221,9 +31221,8 @@ fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 2392ms e
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_multi_origin_reference_requires_fit rejected 2038ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
-fail/layouts/callee_integer_at_rhs_exposes_origin rejected 1910ms expected @ccdb99ca2214
-	machine `Main::main` state `main` statement 3: call stores a borrowed value without a complete destination/backing relation
-	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
+fail/layouts/callee_integer_at_rhs_exposes_origin rejected 672ms expected @fc1b208d9402
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `Main::main` state `main` at statement 3
 fail/layouts/callee_integer_at_stored_returned_reference_requires_fit rejected 2724ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_write_requires_fit rejected 1937ms expected @ccdb99ca2214
@@ -31443,9 +31442,9 @@ fail/machines/private_division_changed_storage_control rejected 1128ms expected 
 	division by zero in machine `divided` state `entry` terminal expression: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/machines/private_division_mixed_arrival_control rejected 1487ms expected @ccdb99ca2214
 	partial wrapping division in machine `divided` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/machines/private_division_self_formation_control rejected 1410ms expected @ccdb99ca2214
+fail/machines/private_division_self_formation_control rejected 1929ms expected @7b6988120e7e
 	partial wrapping division in machine `quotient` state `entry` local `__transition_subject#34`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-	partial wrapping division in machine `divided` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial wrapping division in machine `divided` state `entry` return value: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/machines/private_division_signed_pair_control rejected 1379ms expected @ccdb99ca2214
 	partial exact division in machine `divided` state `entry` terminal expression: the signed `MIN / -1` primitive pair must be excluded; discharge every definedness condition with independently accepted prior facts
 fail/machines/private_division_zero_divisor_control rejected 1436ms expected @ccdb99ca2214
