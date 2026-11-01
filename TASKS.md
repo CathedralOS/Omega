@@ -191,8 +191,10 @@ retired-syntax deletions to completion.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
     remaining case/aggregate writes, record-field and owned-array
-    predicate handback with current storage versions,
-    reads, calls, state joins,
+    predicate handback with current storage versions, including `window_demo`'s
+    guarded `pumped + 1` / `frame + 1` writes at the unchanged 16-message and
+    60-frame bounds; preserve that sample's existing guards and operation.
+    Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
