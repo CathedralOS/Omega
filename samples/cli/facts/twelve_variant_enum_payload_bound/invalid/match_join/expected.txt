@@ -1,1 +1,0 @@
-error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
