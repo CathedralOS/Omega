@@ -28,8 +28,9 @@ impl<'program> CallFrameResolver<'program> {
             site,
             &self.caches.state_write_shared_collections,
             |inference, prefix| {
-                let preceding_effect =
-                    self.prefix_may_change_origins(machine, statement, site, prefix);
+                let preceding_effect = prefix.is_none_or(|prefix| {
+                    self.prefix_may_change_origins(machine, statement, site, prefix)
+                });
                 self.capture_operand_origins(
                     machine,
                     inference,
@@ -106,17 +107,20 @@ impl<'program> CallFrameResolver<'program> {
                 let preceding_effect = !matches!(
                     operator_use.occurrence,
                     checked_trees::CheckedOperatorOccurrence::Expression
-                ) || self
-                    .prefix_may_change_origins(machine, statement, site, prefix);
+                ) || prefix.is_none_or(|prefix| {
+                    self.prefix_may_change_origins(machine, statement, site, prefix)
+                });
                 Some(CallWriteOrigins {
                     receiver: Some(Vec::new()),
-                    references: self.capture_reference_origins(
-                        machine,
-                        site,
-                        prefix,
-                        &arguments,
-                        preceding_effect,
-                    ),
+                    references: prefix.and_then(|prefix| {
+                        self.capture_reference_origins(
+                            machine,
+                            site,
+                            prefix,
+                            &arguments,
+                            preceding_effect,
+                        )
+                    }),
                     arguments: self.capture_operand_origins(
                         machine,
                         inference,
@@ -264,11 +268,15 @@ impl<'program> CallFrameResolver<'program> {
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
                 // rediscover an evaluation order from rendered paths.
-                let nested_effect =
-                    self.prefix_may_change_origins(machine, statement, site, prefix);
-                let preceding_effect = nested_effect
-                    || (receiver_expression.is_valid()
-                        && self.operand_may_change_origins(machine, receiver_expression, prefix));
+                let preceding_effect = prefix.is_none_or(|prefix| {
+                    self.prefix_may_change_origins(machine, statement, site, prefix)
+                        || (receiver_expression.is_valid()
+                            && self.operand_may_change_origins(
+                                machine,
+                                receiver_expression,
+                                prefix,
+                            ))
+                });
                 if !callee_has_explicit_parameters
                     && (!receiver_members.is_empty() || receiver_expression.is_valid())
                 {
@@ -276,7 +284,7 @@ impl<'program> CallFrameResolver<'program> {
                         if preceding_effect {
                             None
                         } else {
-                            prefix
+                            prefix?
                                 .argument_origins(
                                     program,
                                     machine,
@@ -291,7 +299,7 @@ impl<'program> CallFrameResolver<'program> {
                                     origins.into_iter().map(LocalWriteSource::from).collect()
                                 })
                         }
-                    } else if let CallerWriteSite::Call(call) = site {
+                    } else if !preceding_effect && let CallerWriteSite::Call(call) = site {
                         self.statement_receiver_origins(machine, state, statement, call)
                     } else {
                         None
@@ -305,13 +313,15 @@ impl<'program> CallFrameResolver<'program> {
                     &argument_types,
                     preceding_effect,
                 )?;
-                result.references = self.capture_reference_origins(
-                    machine,
-                    site,
-                    prefix,
-                    arguments,
-                    preceding_effect,
-                );
+                result.references = prefix.and_then(|prefix| {
+                    self.capture_reference_origins(
+                        machine,
+                        site,
+                        prefix,
+                        arguments,
+                        preceding_effect,
+                    )
+                });
                 Some(result)
             },
         )
@@ -348,7 +358,7 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &'program Machine,
         inference: &mut frames::FrameInference,
-        prefix: &CallOriginContext<'_>,
+        prefix: Option<&CallOriginContext<'_>>,
         arguments: &[ExpressionHandle],
         argument_types: &[typed_trees::types::TypeReferenceHandle],
         mut preceding_effect: bool,
@@ -357,7 +367,8 @@ impl<'program> CallFrameResolver<'program> {
         let machine_symbols = self.machine_symbols(machine)?;
         let mut result = Vec::with_capacity(arguments.len());
         for (index, argument) in arguments.iter().enumerate() {
-            let changes_origins = self.operand_may_change_origins(machine, *argument, prefix);
+            let changes_origins = prefix
+                .is_none_or(|prefix| self.operand_may_change_origins(machine, *argument, prefix));
             let reference = argument_types.get(index).copied();
             let detached = reference.is_some_and(|reference| {
                 frames::type_is_caller_isolated_local(program, reference)
@@ -378,18 +389,20 @@ impl<'program> CallFrameResolver<'program> {
                 // Earlier captured referents remain unchanged.
                 None
             } else {
-                prefix
-                    .argument_origins(
-                        program,
-                        machine,
-                        &machine_symbols,
-                        &self.tables.symbols,
-                        inference,
-                        &[*argument],
-                        &reference.into_iter().collect::<Vec<_>>(),
-                    )
-                    .and_then(|mut origins| origins.pop().flatten())
-                    .map(|origins| origins.into_iter().map(LocalWriteSource::from).collect())
+                prefix.and_then(|prefix| {
+                    prefix
+                        .argument_origins(
+                            program,
+                            machine,
+                            &machine_symbols,
+                            &self.tables.symbols,
+                            inference,
+                            &[*argument],
+                            &reference.into_iter().collect::<Vec<_>>(),
+                        )
+                        .and_then(|mut origins| origins.pop().flatten())
+                        .map(|origins| origins.into_iter().map(LocalWriteSource::from).collect())
+                })
             };
             result.push(origins);
             preceding_effect |= changes_origins;
