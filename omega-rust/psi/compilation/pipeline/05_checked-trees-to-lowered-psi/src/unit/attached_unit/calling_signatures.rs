@@ -17,6 +17,7 @@ pub(super) fn lower(
             Ok(storage) => Ok(CallingAbiStorage {
                 parameters: storage.parameters.iter().map(|parameter| Ok(terminal_psi::CallingAbiParameter {
                     structural_type: lookup_type_id(types, &parameter.type_identity)?,
+                    callback_backing: parameter.callback_backing.map(|identity| lookup_type_id(types, &identity)).transpose()?,
                     access: crate::expression_preparation::bindings::structural_paths::terminal_access(parameter.access),
                 })).collect::<Result<_, LoweringError>>()?,
                 result: storage.result.map(|identity| lookup_type_id(types, &identity)).transpose()?,

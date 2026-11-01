@@ -53,6 +53,15 @@ public boundary trait LocalEntry: Calling<RetainedCalling> {
     machine value(left: u64, right: u64) -> u64 reaches;
 }
 LocalMap satisfies LocalEntry { machine value(left: u64, right: u64) -> u64 { right } }
+// This ABI's owned extent is not a dependency of retained_plan's body.
+// Signature materialization must complete its recorded scalar input directly.
+public const AbiWidth: u64 = abi_width();
+public machine abi_width() -> u64 { 8u64 }
+public data AbiBytes { bytes: [u8; AbiWidth]; }
+public boundary trait ArrayEntry: Calling<RetainedCalling> {
+    machine value(left: AbiBytes, right: u64) -> u64 reaches;
+}
+ArrayMap satisfies ArrayEntry { machine value(left: AbiBytes, right: u64) -> u64 { right } }
 public boundary trait NoResult { machine value() reaches; }
 NoResultMap satisfies NoResult { machine value() {} }
 // This declaration transports a reference, without demanding its pointee's
@@ -131,13 +140,14 @@ machine retained_plan(signature: BoundarySignature) -> BoundaryPlanResult {
     }
 }
 
-machine main() reaches LocalEntry, OpaqueRelay, OpaqueEntry crashes Trap {
+machine main() reaches LocalEntry, OpaqueRelay, OpaqueEntry, ArrayEntry crashes Trap {
     let first: u64 = LocalEntry::value(11u64, 73u64);
     let second: u64 = LocalEntry::value(91u64, 29u64);
     let token: PolicyToken;
     let retained: PolicyToken = OpaqueRelay::value(token, 19u64);
     let third: u64 = OpaqueEntry::value(PolicyEnvelope { value: retained }, 41u64);
-    transition first == 73 && second == 29 && third == 41 && VALUE == 7u64 { true -> done() _ -> bad() }
+    let fourth: u64 = ArrayEntry::value(AbiBytes { bytes: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8] }, 53u64);
+    transition first == 73 && second == 29 && third == 41 && fourth == 53 && VALUE == 7u64 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

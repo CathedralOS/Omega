@@ -75,6 +75,10 @@ pub struct CallingAbiStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallingAbiParameter {
     pub structural_type: StructuralTypeId,
+    /// The direct formal carrier used to discover inline private callback
+    /// slots. Stored pointers remain leaves. None is an abstract pointee,
+    /// never a fabricated empty record or implicit dereference path.
+    pub callback_backing: Option<StructuralTypeId>,
     pub access: crate::StructuralAccess,
 }
 

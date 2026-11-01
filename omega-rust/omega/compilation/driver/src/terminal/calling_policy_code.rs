@@ -67,5 +67,6 @@ fn prepare(
         source_owner: Arc::downgrade(&source.program),
         artifact: Arc::clone(program.artifact()),
         entries,
+        source_records: program.source_records().to_vec().into(),
     })))
 }

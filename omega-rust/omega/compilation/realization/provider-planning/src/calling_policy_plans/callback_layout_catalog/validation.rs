@@ -26,7 +26,7 @@ pub(in crate::calling_policy_plans) fn validate(
         let entry = entries.next().ok_or_else(|| {
             "callback layout catalog is missing a declared private field demand".to_owned()
         })?;
-        if entry.destination != demand.destination
+        if *entry.destination() != demand.destination
             || entry.terminal_slot().requirement != demand.requirement
         {
             return Err("callback layout catalog changed its exact field demand".to_owned());
@@ -45,29 +45,27 @@ fn validate_entry(
     signature: &MaterializedBoundarySignature,
     entry: &BoundaryCallbackLayoutEntry,
 ) -> Result<(), String> {
-    let NativePlace::Field { parameter, .. } = &entry.destination else {
+    let NativePlace::Field { parameter, .. } = entry.destination() else {
         return Err("callback layout catalog contains a non-field destination".to_owned());
     };
-    let native_index = usize::try_from(entry.native_ordinal)
+    let native_index = usize::try_from(entry.native_ordinal())
         .map_err(|_| "callback layout catalog native ordinal is out of range")?;
     let native = signature
         .native_parameters
         .get(native_index)
         .ok_or_else(|| "callback layout catalog has no exact native parameter".to_owned())?;
-    let formal_index = usize::try_from(entry.formal_ordinal)
+    let formal_index = usize::try_from(entry.formal_ordinal())
         .map_err(|_| "callback layout catalog formal ordinal is out of range")?;
     if native.identity != *parameter
-        || native.native_ordinal != entry.native_ordinal
+        || native.native_ordinal != entry.native_ordinal()
         || native.origin
             != (BoundaryNativeParameterOrigin::SemanticFormal {
-                formal_ordinal: entry.formal_ordinal,
+                formal_ordinal: entry.formal_ordinal(),
             })
         || signature.parameters.get(formal_index).is_none_or(|shape| {
             native.shape != BoundaryNativeParameterShape::Semantic(*shape)
                 || usize::from(*shape) >= signature.shapes.len()
         })
-        || !native.layout_data_symbol.is_valid()
-        || native.layout_data_symbol != entry.root_layout().data_symbol
         || signature
             .native_parameters
             .iter()
@@ -85,6 +83,7 @@ fn validate_entry(
         );
     }
     entry
-        .layout
-        .validate(&entry.destination, signature.native_target)
+        .geometry()
+        .field_offset(signature.native_target)
+        .map(|_| ())
 }
