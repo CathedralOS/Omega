@@ -26,6 +26,7 @@ on:
         options:
           - linux_x86_64
           - windows_x86_64
+          - macos_arm64
         default: linux_x86_64
 
 permissions:
@@ -39,7 +40,7 @@ concurrency:
 
 jobs:
   compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'windows-2022' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","windows_x86_64":"windows-2022","macos_arm64":"macos-14"}')[inputs.native_host] || 'ubuntu-24.04' }}
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
     env:
       CARGO_BUILD_JOBS: '2'
@@ -48,7 +49,7 @@ jobs:
       CARGO_BUILD_FINGERPRINT: content
       OMEGA_CORPUS_JOBS: '2'
       RUST_MIN_STACK: '67108864'
-      # Match Linux post-merge storage so a fresh branch can restore main's build.
+      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
       CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -76,9 +77,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Linux' && 'compiler-regression' || 'compiler-pilot' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os == 'Linux' && 'compiler-regression' || 'compiler-pilot' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            ${{ runner.os == 'Windows' && 'compiler-pilot' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
