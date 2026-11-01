@@ -1490,15 +1490,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(alias.symbol) {
             continue;
         }
-        visit_symbol(retained, alias.symbol);
-        visit_type_parameters(program, retained, alias.type_parameters);
-        for bound in &alias.conformance_bounds {
-            visit_symbol(retained, bound.trait_symbol);
-            for argument in &bound.arguments {
-                visit_type_reference(program, retained, *argument);
-            }
-        }
-        visit_type_reference(program, retained, alias.expansion);
+        visit_alias(program, retained, alias);
     }
 
     for data in program.data_definitions() {
@@ -1595,36 +1587,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(declaration.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, declaration.symbol);
-        visit_symbol(retained, declaration.symbol);
-        visit_type_reference(program, retained, declaration.declared_type);
-        visit_expression(program, retained, declaration.authored_initializer);
-        if retained.derived_declaration_references() {
-            visit_expression(program, retained, declaration.materialized_initializer);
-        }
-        // The pending declaration owns its complete checked computation, not
-        // merely whichever helper appears first in the initializer. This edge
-        // preserves that body's plans through post-check product pruning.
-        if retained.derived_declaration_references()
-            && declaration.evaluated_value.is_none()
-            && program
-                .tables
-                .machines
-                .is_valid(declaration.evaluation_entry)
-        {
-            // A detached entry has its own expression occurrences. They are
-            // still declaration-owned inputs to target closure, even before
-            // ordinary checking roots the entry as an executable body.
-            visit_expression(program, retained, declaration.evaluation_expression);
-            visit_symbol(
-                retained,
-                program
-                    .tables
-                    .machines
-                    .get(declaration.evaluation_entry)
-                    .symbol,
-            );
-        }
+        visit_const(program, retained, declaration);
     }
 
     for operator in program
@@ -1792,6 +1755,59 @@ fn visit_proposition_formula(
         PropositionFormula::BooleanExpression(expression) => {
             visit_expression(program, retained, *expression);
         }
+    }
+}
+
+fn visit_alias(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    alias: &crate::type_aliases::TypeAliasDefinition,
+) {
+    visit_symbol(retained, alias.symbol);
+    visit_type_parameters(program, retained, alias.type_parameters);
+    for bound in &alias.conformance_bounds {
+        visit_symbol(retained, bound.trait_symbol);
+        for argument in &bound.arguments {
+            visit_type_reference(program, retained, *argument);
+        }
+    }
+    visit_type_reference(program, retained, alias.expansion);
+}
+
+fn visit_const(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    declaration: &crate::constant::ConstDeclaration,
+) {
+    visit_declaration_dependencies(program, retained, declaration.symbol);
+    visit_symbol(retained, declaration.symbol);
+    visit_type_reference(program, retained, declaration.declared_type);
+    visit_expression(program, retained, declaration.authored_initializer);
+    if retained.derived_declaration_references() {
+        visit_expression(program, retained, declaration.materialized_initializer);
+    }
+    // The pending declaration owns its complete checked computation, not
+    // merely whichever helper appears first in the initializer. This edge
+    // preserves that body's plans through post-check product pruning.
+    if retained.derived_declaration_references()
+        && declaration.evaluated_value.is_none()
+        && program
+            .tables
+            .machines
+            .is_valid(declaration.evaluation_entry)
+    {
+        // A detached entry has its own expression occurrences. They are
+        // still declaration-owned inputs to target closure, even before
+        // ordinary checking roots the entry as an executable body.
+        visit_expression(program, retained, declaration.evaluation_expression);
+        visit_symbol(
+            retained,
+            program
+                .tables
+                .machines
+                .get(declaration.evaluation_entry)
+                .symbol,
+        );
     }
 }
 
