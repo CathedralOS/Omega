@@ -8,6 +8,8 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms expected @c0424312ea2a+wt
+	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be replaced as a whole value
 fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
@@ -34452,6 +34454,7 @@ run/borrows/conditional_returned_descriptor_origins checked 3069ms check-target:
 run/borrows/direct_runtime_index_write checked 11454ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/dynamic_ancestor_static_byte_child_exit checked 10424ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/incoming_carrier_transport checked 3740ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/independent_invocation_reference_results checked 2534ms check-target:macos_arm64 @c0424312ea2a+wt
 run/borrows/indexed_loan_element_write checked 11221ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/local_mut_borrow checked 10253ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/mut_record_loan_member_access checked 10447ms check-target:macos_arm64 @ccdb99ca2214
