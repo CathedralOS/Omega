@@ -1,40 +1,11 @@
-//! Call payloads outside the fixed-tag rows: the module invocation inputs that
-//! a no-normal invocation edge shares with calls, and register access, whose
-//! tag follows its service authority. Call operations are rows of
-//! `operation_wire!`.
+//! Register access, whose tag follows its service authority. Call operations
+//! are rows of `operation_wire!`.
 
 use super::super::CodecError;
-use super::super::contract_wire::encode_crash_routes;
-use super::super::proof_term_wire::encode_proof_terms;
-use super::super::scalar_term_wire::encode_scalar_terms;
-use super::super::structural_place_wire::{encode_structural_arguments, encode_structural_path};
 use super::super::wire::{Reader, Writer};
 use super::operation_tags;
 use semantic_vocabulary::ServiceId;
 use terminal_psi::OperationKind;
-
-/// The same entry payload crosses ordinary calls and no-normal invocation edges.
-pub(super) fn encode_module_invocation_inputs(
-    writer: &mut Writer,
-    invocation: terminal_psi::ModuleInvocationInputs<'_>,
-) -> Result<(), CodecError> {
-    writer.id(invocation.callee);
-    writer.ids("module invocation scalar arguments", invocation.arguments)?;
-    encode_scalar_terms(writer, invocation.erased_arguments)?;
-    encode_proof_terms(writer, invocation.erased_proof_arguments)?;
-    encode_structural_arguments(writer, invocation.structural_arguments)?;
-    writer.len("call claim transfers", invocation.claim_transfers.len())?;
-    for transfer in invocation.claim_transfers {
-        writer.id(transfer.claim);
-        writer.u32(transfer.argument_index);
-        encode_structural_path(writer, "call claim transfer path", &transfer.path)?;
-    }
-    writer.ids(
-        "requirement obligations",
-        invocation.requirement_obligations,
-    )?;
-    encode_crash_routes(writer, invocation.crash_continuations)
-}
 
 pub(super) fn encode_register_access(
     writer: &mut Writer,

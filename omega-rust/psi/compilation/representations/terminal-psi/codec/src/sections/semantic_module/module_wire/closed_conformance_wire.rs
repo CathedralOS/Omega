@@ -2,258 +2,85 @@
 //! trait identities, realization callables, rows and commitment of one
 //! application.
 
-use super::super::CodecError;
-use super::super::reach_application_wire::{decode_argument, encode_argument};
-use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
-use super::super::wire::{Reader, Writer};
-use crate::sections::semantic_module::wire::decode_counted;
+use super::super::wire_fields::{
+    Bytes, Commitment, Digest, Id, Index, List, Nominal, Optional, ReachArgument, Scalar, Strings,
+    Text, U32, U64, wire_enum, wire_record,
+};
+use super::target_family_wire::Callable;
 use terminal_psi::{
-    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
-    ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRow, TerminalIdentityIndex,
+    ClosedConformanceApplication, ClosedConformanceCallableResult,
+    ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, ClosedConformanceSchema,
+    ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
 };
 
-pub(super) fn encode_closed_conformance_application(
-    writer: &mut Writer,
-    application: &ClosedConformanceApplication,
-) -> Result<(), CodecError> {
-    writer.id(application.owner);
-    writer.u32(application.declaration_identity.0);
-    writer.len("closed conformance telescope", application.telescope.len())?;
-    for binding in &application.telescope {
-        writer.string("closed conformance parameter", &binding.parameter)?;
-        writer.u8(match binding.kind {
-            ClosedConformanceParameterKind::Lifetime => 1,
-            ClosedConformanceParameterKind::Type => 2,
-            ClosedConformanceParameterKind::Const => 3,
-            ClosedConformanceParameterKind::Machine => 4,
-        });
-        writer.string("closed conformance argument", &binding.argument)?;
+wire_record! {
+    Application: ClosedConformanceApplication {
+        owner: Id,
+        declaration_identity: Index,
+        telescope: List<Binding>,
+        trait_identity: Index,
+        trait_lifetime_arguments: Strings,
+        trait_arguments: Strings,
+        realization_callables: List<RealizationCallable>,
+        schemas: List<Schema>,
+        static_applications: List<StaticApplication>,
+        rows: List<Row>,
+        report_fingerprint: U64,
+        commitment: Commitment,
     }
-    writer.u32(application.trait_identity.0);
-    writer.strings(
-        "closed conformance trait lifetime arguments",
-        &application.trait_lifetime_arguments,
-    )?;
-    writer.strings(
-        "closed conformance trait arguments",
-        &application.trait_arguments,
-    )?;
-    writer.len(
-        "closed conformance realization callables",
-        application.realization_callables.len(),
-    )?;
-    for callable in &application.realization_callables {
-        writer.u32(callable.source_callable_identity.0);
-        super::target_family_wire::encode_callable(writer, callable.callable);
-        match callable.result {
-            ClosedConformanceCallableResult::Unit => writer.u8(1),
-            ClosedConformanceCallableResult::Scalar(scalar) => {
-                writer.u8(2);
-                encode_scalar_type(writer, scalar);
-            }
-            ClosedConformanceCallableResult::Structural(identity) => {
-                writer.u8(3);
-                writer.id(identity);
-            }
-        }
+    Binding: ClosedConformanceParameterBinding { parameter: Text, kind: ParameterKind, argument: Text }
+    RealizationCallable: ClosedConformanceRealizationCallable {
+        source_callable_identity: Index,
+        callable: Callable,
+        result: CallableResult,
     }
-    writer.len("closed conformance schemas", application.schemas.len())?;
-    for schema in &application.schemas {
-        writer.u32(schema.requirement_declaration.identity().0);
-        for identity in [
-            schema.declaring_trait_identity,
-            schema.public_requirement_identity,
-            schema.requirement_identity,
-            schema.realization_identity,
-        ] {
-            writer.u32(identity.0);
-        }
-        writer.len("conformance schema definition", schema.definition.len())?;
-        writer.bytes(&schema.definition);
-        writer.u8(match schema.kind {
-            terminal_psi::ClosedConformanceSchemaKind::Nongeneric => 1,
-            terminal_psi::ClosedConformanceSchemaKind::Finite => 2,
-            terminal_psi::ClosedConformanceSchemaKind::Open => 3,
-        });
-        writer.u32(schema.lifetime_parameter_count);
-        writer.len(
-            "conformance method parameter kinds",
-            schema.parameter_kinds.len(),
-        )?;
-        writer.bytes(&schema.parameter_kinds);
-        writer.boolean(schema.finite_tuples.is_some());
-        if let Some(tuples) = &schema.finite_tuples {
-            writer.len("conformance method finite roster", tuples.len())?;
-            for tuple in tuples {
-                writer.len("conformance finite tuple", tuple.len())?;
-                for argument in tuple {
-                    writer.u32(argument.0);
-                }
-            }
-        }
+    Schema: ClosedConformanceSchema {
+        requirement_declaration: Nominal,
+        declaring_trait_identity: Index,
+        public_requirement_identity: Index,
+        requirement_identity: Index,
+        realization_identity: Index,
+        definition: Bytes,
+        kind: SchemaKind,
+        lifetime_parameter_count: U32,
+        parameter_kinds: Bytes,
+        finite_tuples: Optional<List<List<Index>>>,
     }
-    writer.len(
-        "closed conformance static applications",
-        application.static_applications.len(),
-    )?;
-    for applied in &application.static_applications {
-        writer.u32(applied.public_requirement_identity.0);
-        writer.u32(applied.realization_identity.0);
-        writer.u32(applied.source_callable_identity.0);
-        super::target_family_wire::encode_callable(writer, applied.callable);
-        writer.boolean(applied.application_commitment.is_some());
-        if let Some(commitment) = applied.application_commitment {
-            writer.bytes(&commitment);
-        }
-        writer.len(
-            "conformance method arguments",
-            applied.method_arguments.len(),
-        )?;
-        for argument in &applied.method_arguments {
-            encode_argument(writer, argument);
-        }
+    StaticApplication: ClosedConformanceStaticApplication {
+        public_requirement_identity: Index,
+        realization_identity: Index,
+        source_callable_identity: Index,
+        callable: Callable,
+        application_commitment: Optional<Digest>,
+        method_arguments: List<ReachArgument>,
     }
-    writer.len("closed conformance rows", application.rows.len())?;
-    for row in &application.rows {
-        writer.u32(row.requirement_declaration.identity().0);
-        writer.u32(row.declaring_trait_identity.0);
-        writer.u32(row.public_requirement_identity.0);
-        writer.len(
-            "closed conformance row family tuple",
-            row.family_tuple.len(),
-        )?;
-        for member in &row.family_tuple {
-            writer.u32(member.0);
-        }
-        writer.u32(row.requirement_identity.0);
-        writer.u32(row.realization_identity.0);
-        writer.boolean(row.realization_callable_identity.is_some());
-        if let Some(identity) = &row.realization_callable_identity {
-            writer.u32(identity.0);
-        }
+    Row: ClosedConformanceRow {
+        requirement_declaration: Nominal,
+        declaring_trait_identity: Index,
+        public_requirement_identity: Index,
+        family_tuple: List<Index>,
+        requirement_identity: Index,
+        realization_identity: Index,
+        realization_callable_identity: Optional<Index>,
     }
-    writer.u64(application.report_fingerprint);
-    writer.bytes(&application.commitment.as_bytes());
-    Ok(())
 }
 
-pub(super) fn decode_closed_conformance_application(
-    reader: &mut Reader<'_>,
-) -> Result<ClosedConformanceApplication, CodecError> {
-    Ok(ClosedConformanceApplication {
-        owner: reader.id("MachineId")?,
-        declaration_identity: TerminalIdentityIndex(reader.u32()?),
-        telescope: decode_counted(reader, |reader| {
-            Ok(ClosedConformanceParameterBinding {
-                parameter: reader.string("closed conformance parameter")?,
-                kind: match reader.u8()? {
-                    1 => ClosedConformanceParameterKind::Lifetime,
-                    2 => ClosedConformanceParameterKind::Type,
-                    3 => ClosedConformanceParameterKind::Const,
-                    4 => ClosedConformanceParameterKind::Machine,
-                    tag => {
-                        return Err(CodecError::InvalidTag(
-                            "ClosedConformanceParameterKind",
-                            tag,
-                        ));
-                    }
-                },
-                argument: reader.string("closed conformance argument")?,
-            })
-        })?,
-        trait_identity: TerminalIdentityIndex(reader.u32()?),
-        trait_lifetime_arguments: reader.strings("closed conformance trait lifetime arguments")?,
-        trait_arguments: reader.strings("closed conformance trait arguments")?,
-        realization_callables: decode_counted(reader, |reader| {
-            Ok(terminal_psi::ClosedConformanceRealizationCallable {
-                source_callable_identity: TerminalIdentityIndex(reader.u32()?),
-                callable: super::target_family_wire::decode_callable(reader)?,
-                result: match reader.u8()? {
-                    1 => ClosedConformanceCallableResult::Unit,
-                    2 => ClosedConformanceCallableResult::Scalar(decode_scalar_type(reader)?),
-                    3 => {
-                        ClosedConformanceCallableResult::Structural(reader.id("StructuralTypeId")?)
-                    }
-                    tag => {
-                        return Err(CodecError::InvalidTag(
-                            "ClosedConformanceCallableResult",
-                            tag,
-                        ));
-                    }
-                },
-            })
-        })?,
-        schemas: decode_counted(reader, |reader| {
-            let requirement_declaration =
-                terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
-            let declaring_trait_identity = TerminalIdentityIndex(reader.u32()?);
-            let public_requirement_identity = TerminalIdentityIndex(reader.u32()?);
-            let requirement_identity = TerminalIdentityIndex(reader.u32()?);
-            let realization_identity = TerminalIdentityIndex(reader.u32()?);
-            let definition = decode_counted(reader, |reader| reader.u8())?;
-            let kind = match reader.u8()? {
-                1 => terminal_psi::ClosedConformanceSchemaKind::Nongeneric,
-                2 => terminal_psi::ClosedConformanceSchemaKind::Finite,
-                3 => terminal_psi::ClosedConformanceSchemaKind::Open,
-                tag => return Err(CodecError::InvalidTag("ClosedConformanceSchemaKind", tag)),
-            };
-            let lifetime_parameter_count = reader.u32()?;
-            let parameter_kinds = decode_counted(reader, |reader| reader.u8())?;
-            let finite_tuples = if reader.boolean()? {
-                Some(decode_counted(reader, |reader| {
-                    decode_counted(reader, |reader| Ok(TerminalIdentityIndex(reader.u32()?)))
-                })?)
-            } else {
-                None
-            };
-            Ok(terminal_psi::ClosedConformanceSchema {
-                requirement_declaration,
-                declaring_trait_identity,
-                public_requirement_identity,
-                requirement_identity,
-                realization_identity,
-                definition,
-                kind,
-                lifetime_parameter_count,
-                parameter_kinds,
-                finite_tuples,
-            })
-        })?,
-        static_applications: decode_counted(reader, |reader| {
-            Ok(terminal_psi::ClosedConformanceStaticApplication {
-                public_requirement_identity: TerminalIdentityIndex(reader.u32()?),
-                realization_identity: TerminalIdentityIndex(reader.u32()?),
-                source_callable_identity: TerminalIdentityIndex(reader.u32()?),
-                callable: super::target_family_wire::decode_callable(reader)?,
-                application_commitment: if reader.boolean()? {
-                    Some(reader.array()?)
-                } else {
-                    None
-                },
-                method_arguments: decode_counted(reader, decode_argument)?,
-            })
-        })?,
-        rows: decode_counted(reader, |reader| {
-            Ok(ClosedConformanceRow {
-                requirement_declaration: terminal_psi::NominalDeclarationIdentity::new(
-                    TerminalIdentityIndex(reader.u32()?),
-                ),
-                declaring_trait_identity: TerminalIdentityIndex(reader.u32()?), /* closed conformance row declaring trait identity */
-                public_requirement_identity: TerminalIdentityIndex(reader.u32()?), /* closed conformance row public requirement identity */
-                family_tuple: decode_counted(reader, |reader| {
-                    Ok(TerminalIdentityIndex(reader.u32()?))
-                })?,
-                requirement_identity: TerminalIdentityIndex(reader.u32()?), /* closed conformance row requirement identity */
-                realization_identity: TerminalIdentityIndex(reader.u32()?), /* closed conformance row realization identity */
-                realization_callable_identity: if reader.boolean()? {
-                    Some(TerminalIdentityIndex(reader.u32()?))
-                } else {
-                    None
-                },
-            })
-        })?,
-        report_fingerprint: reader.u64()?,
-        commitment: ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
-    })
+wire_enum! {
+    ParameterKind: ClosedConformanceParameterKind, "ClosedConformanceParameterKind" {
+        1 => Lifetime,
+        2 => Type,
+        3 => Const,
+        4 => Machine,
+    }
+    CallableResult: ClosedConformanceCallableResult, "ClosedConformanceCallableResult" {
+        1 => Unit,
+        2 => Scalar(scalar: Scalar),
+        3 => Structural(identity: Id),
+    }
+    SchemaKind: ClosedConformanceSchemaKind, "ClosedConformanceSchemaKind" {
+        1 => Nongeneric,
+        2 => Finite,
+        3 => Open,
+    }
 }

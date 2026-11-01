@@ -624,21 +624,13 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi`,
   `omega-rust/psi/compilation/representations/terminal-psi/{semantics,codec}`,
   `omega-rust/psi/interpreter/terminal-interpreter` and
-  `omega-rust/omega/application/terminal-runtime`, 322,359 lines at
-  `55f4a84e523`. Literal and identifier-normalized clones there total about
-  6,600 lines, and only one public function is unreferenced.
-  - Terminal Psi codec operation carriage: each of 113 operation tags has a
-    hand-written dispatch arm and encode/decode pair. Replace them with one
-    row per operation that lists its recorded fields in wire order.
-  - Terminal Psi codec declaration rows under `module_wire/`: the same
-    per-row field carriage.
+  `omega-rust/omega/application/terminal-runtime`.
   - Stage 05 has 3,379 fail-closed shape gates (`unsupported`, `unpinned`)
     that re-check checked custody. Retire only gates shown to be unreachable,
     after reject twins cover the custody facts they guard.
-  Acceptance: net -5,000 lines in scope by `git diff --numstat` against
-  `55f4a84e523`. Each folded family has one path per layer, and its old
-  paths are deleted. `program.oterm` bytes stay identical on the affected
-  `samples/cli/facts` places, and those places still pass `omega run --both`.
+  Acceptance: each retired gate's custody fact has a reject twin under
+  `tests/omega/fail/facts/` that still rejects in checking, and the affected
+  `samples/cli/facts` places still pass `omega run --both`.
 
 - **WIRE-CODEC-LIBRARY.** (new-scope; also covers **SEMANTIC-REFLECTION**)
   Connect [semantic reflection](wiki/spec/language/reflection.md) in
