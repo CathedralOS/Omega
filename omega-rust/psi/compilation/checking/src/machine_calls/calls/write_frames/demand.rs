@@ -459,9 +459,19 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
             expression,
         );
-        if unbound.is_some_and(|snapshot| snapshot.is_complete() && snapshot.effects.is_empty()) {
+        if unbound
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.is_complete() && snapshot.effects.is_empty())
+        {
             return Ok(Vec::new());
         }
+        // A template-dependent earlier call ends the prefix walk at its
+        // frozen-binding fence. When this operand's own relation is likewise
+        // only template-dependent, the closed instances own the concrete
+        // relation; any failed invocation keeps the prefix obligation.
+        let template_operand = unbound.as_ref().is_some_and(|snapshot| {
+            snapshot.template_dependent && snapshot.incomplete_calls.is_empty()
+        });
         let prefix = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
             self.program,
@@ -471,7 +481,11 @@ impl<'program> CallFrameResolver<'program> {
             statement_index,
             true,
         )
-        .ok_or(Unavailable)?;
+        .ok_or(if template_operand {
+            TemplateDependent
+        } else {
+            Unavailable
+        })?;
         let transfer = super::stored_calls::effects_at_expression(
             self.program,
             machine,
