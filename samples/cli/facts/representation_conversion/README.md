@@ -26,7 +26,7 @@ endpoints and consumes their result cases. It is not a storage recast or layout
 coercion. The negative obligation is exact conversion-map satisfaction, rather
 than the nearest row's constructor field bound.
 
-The initial places are local, field and parameter, with exact corpus mirrors
+The established Linux places are local, field and parameter, with exact corpus mirrors
 and all four hosted ProgramEntry bindings. Their source checks must establish
 each exact map and result payload. Composition must preserve payload custody
 and distinguish success from failure through checked-to-Terminal lowering.
@@ -65,7 +65,22 @@ call symbols and mistook that exact edge for a missing relation. It now rejoins
 the bound-owned child/signature edge before reading the occurrence's complete
 applied contract. Unknown inventories and concrete writable slots keep their
 existing fail-closed rules. Preparation took 678.634 seconds; checking took
-16.514 seconds. Native/Terminal acceptance remains pending.
+16.514 seconds.
+
+Candidate `dde0f3a03bcd5f2ba4027428611db2f9b2b4fb47` passes the complete
+scoped run [41341600988](https://github.com/CathedralOS/Omega/actions/runs/41341600988).
+Optimized Linux image
+`4933b4983b31d9f563e9941b32ce213de6bee1fcff44f8910959d1a9ad66f04b`
+executes all three unchanged positives at native/Terminal exit zero. All three
+wrong-endpoint twins and both independent controls reject for their intended
+reasons. Preparation took 648.217 seconds, authentication 1.756 seconds,
+checking 23.268 seconds, corpus execution 16.547 seconds and sample execution
+38.618 seconds. The eight canonical checking rows retain their actual source,
+timings and diagnostics; checking used its default macos_arm64 profile, while
+the execution observation is Linux x86-64. The source is retained on
+`evidence/representation-conversion-20261101-dde0f3a03bcd`; historical failed
+runs remain failed. These are observations of the recorded producer, not
+re-executions of later documentation commits.
 
 The independent [primitive shadow control](controls/primitive_shadow/invalid/main.omg)
 continues to reject an ordinary declaration named `Int`; retiring `Result` does
