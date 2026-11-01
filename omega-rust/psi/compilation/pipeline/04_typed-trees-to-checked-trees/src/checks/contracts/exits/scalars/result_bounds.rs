@@ -323,90 +323,113 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<checked_trees::IntegerRangeObligation> {
-        let binary = self.program.expression_table.binary_node(expression)?;
-        let (returned, result_type, bound, operator) =
-            if let Some((returned, result_type)) = self.result_bound_operand(binary.left) {
-                (returned, result_type, binary.right, binary.operator)
+        let mut stage = "comparison";
+        let condition = (|| {
+            let binary = self.program.expression_table.binary_node(expression)?;
+            stage = "returned operand";
+            let (returned, result_type, bound, operator) =
+                if let Some((returned, result_type)) = self.result_bound_operand(binary.left) {
+                    (returned, result_type, binary.right, binary.operator)
+                } else {
+                    let (returned, result_type) = self.result_bound_operand(binary.right)?;
+                    (
+                        returned,
+                        result_type,
+                        binary.left,
+                        binary.operator.mirrored(),
+                    )
+                };
+            stage = "result carrier";
+            let primitive = exact_integer_carrier(self.program, result_type)?;
+            let carrier = validation::carrier_integer_range(primitive)?;
+            let entry = self.program.machine_states(self.machine).first()?;
+            stage = "endpoint type";
+            let bound_type = validation::expression_result_type_reference(
+                self.program,
+                self.machine,
+                entry,
+                bound,
+            )?;
+            stage = "endpoint carrier or return stability";
+            if exact_integer_carrier(self.program, bound_type)? != primitive
+                || !self
+                    .return_expression_is_stable(exit_return_expression(self.program, self.exit))
+            {
+                return None;
+            }
+            // The return may await target closure even when its comparison endpoint
+            // is already complete. Preserve a retained endpoint recipe's identity;
+            // otherwise use the same checked closed-value owner as ordinary bounds.
+            // Unknown or unformed endpoints still supply no conditional proof.
+            stage = "endpoint value";
+            let endpoint = if self
+                .program
+                .constant_recipe_for_contract_expression(bound)
+                .is_valid()
+            {
+                checked_trees::IntegerRangeRecipe::observation(bound, self.machine.symbol)
             } else {
-                let (returned, result_type) = self.result_bound_operand(binary.right)?;
+                let value = validation::closed_integer_range_bound(self.program, bound)?;
+                typed_trees::closed_numeric::land_integer(&value, primitive)?;
+                checked_trees::IntegerRangeRecipe::bounds(value.clone(), value)
+            };
+            let (spelling, types) = if self.result_bound_operand(binary.left).is_some() {
                 (
-                    returned,
-                    result_type,
-                    binary.left,
-                    binary.operator.mirrored(),
+                    validation::comparison_operator_spelling(binary.operator)?,
+                    [Some(result_type), Some(bound_type)],
+                )
+            } else {
+                (
+                    validation::comparison_operator_spelling(binary.operator)?,
+                    [Some(bound_type), Some(result_type)],
                 )
             };
-        let primitive = exact_integer_carrier(self.program, result_type)?;
-        let carrier = validation::carrier_integer_range(primitive)?;
-        let entry = self.program.machine_states(self.machine).first()?;
-        let bound_type =
-            validation::expression_result_type_reference(self.program, self.machine, entry, bound)?;
-        if exact_integer_carrier(self.program, bound_type)? != primitive
-            || !self.return_expression_is_stable(exit_return_expression(self.program, self.exit))
-        {
-            return None;
+            stage = "comparison meaning";
+            if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                self.program,
+                self.machine.symbol,
+                expression,
+                spelling,
+                &types,
+            ) {
+                return None;
+            }
+            stage = "return occurrence";
+            let state = self.state()?;
+            let observed = validation::occurrence_integer_expression_recipe(
+                self.program,
+                self.machine.symbol,
+                state.symbol,
+                self.exit.statement_index,
+                returned,
+            )?;
+            stage = "difference recipe";
+            let difference = observed.binary(BinaryOperator::Subtract, &endpoint)?;
+            let span = carrier.maximum.sub(&carrier.minimum);
+            let (minimum, maximum) = match operator {
+                BinaryOperator::LessOrEqual => (span.negate(), BigInt::from_i64(0)),
+                BinaryOperator::Less => (span.negate(), BigInt::from_i64(-1)),
+                BinaryOperator::GreaterOrEqual => (BigInt::from_i64(0), span),
+                BinaryOperator::Greater => (BigInt::from_i64(1), span),
+                BinaryOperator::Equal => (BigInt::from_i64(0), BigInt::from_i64(0)),
+                _ => return None,
+            };
+            Some(checked_trees::IntegerRangeObligation::retain(
+                expression,
+                self.machine.symbol,
+                difference,
+                minimum,
+                maximum,
+                "ensures return comparison".to_owned(),
+            ))
+        })();
+        if condition.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT return-range refused machine={} expression={expression:?} stage={stage}",
+                self.machine.name,
+            );
         }
-        // The return may await target closure even when its comparison endpoint
-        // is already complete. Preserve a retained endpoint recipe's identity;
-        // otherwise use the same checked closed-value owner as ordinary bounds.
-        // Unknown or unformed endpoints still supply no conditional proof.
-        let endpoint = if self
-            .program
-            .constant_recipe_for_contract_expression(bound)
-            .is_valid()
-        {
-            checked_trees::IntegerRangeRecipe::observation(bound, self.machine.symbol)
-        } else {
-            let value = validation::closed_integer_range_bound(self.program, bound)?;
-            typed_trees::closed_numeric::land_integer(&value, primitive)?;
-            checked_trees::IntegerRangeRecipe::bounds(value.clone(), value)
-        };
-        let (spelling, types) = if self.result_bound_operand(binary.left).is_some() {
-            (
-                validation::comparison_operator_spelling(binary.operator)?,
-                [Some(result_type), Some(bound_type)],
-            )
-        } else {
-            (
-                validation::comparison_operator_spelling(binary.operator)?,
-                [Some(bound_type), Some(result_type)],
-            )
-        };
-        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
-            self.program,
-            self.machine.symbol,
-            expression,
-            spelling,
-            &types,
-        ) {
-            return None;
-        }
-        let state = self.state()?;
-        let observed = validation::occurrence_integer_expression_recipe(
-            self.program,
-            self.machine.symbol,
-            state.symbol,
-            self.exit.statement_index,
-            returned,
-        )?;
-        let difference = observed.binary(BinaryOperator::Subtract, &endpoint)?;
-        let span = carrier.maximum.sub(&carrier.minimum);
-        let (minimum, maximum) = match operator {
-            BinaryOperator::LessOrEqual => (span.negate(), BigInt::from_i64(0)),
-            BinaryOperator::Less => (span.negate(), BigInt::from_i64(-1)),
-            BinaryOperator::GreaterOrEqual => (BigInt::from_i64(0), span),
-            BinaryOperator::Greater => (BigInt::from_i64(1), span),
-            BinaryOperator::Equal => (BigInt::from_i64(0), BigInt::from_i64(0)),
-            _ => return None,
-        };
-        Some(checked_trees::IntegerRangeObligation::retain(
-            expression,
-            self.machine.symbol,
-            difference,
-            minimum,
-            maximum,
-            "ensures return comparison".to_owned(),
-        ))
+        condition
     }
 
     /// The expression and declared type whose immutable bounds a result
