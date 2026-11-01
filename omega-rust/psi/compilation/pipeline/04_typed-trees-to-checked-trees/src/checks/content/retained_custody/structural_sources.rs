@@ -9,7 +9,7 @@ use super::DomainApplication;
 use facts::PlaceRoot;
 use facts::PlaceSegment;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::data::{DataMember, TypeParameterKind};
+use typed_trees::data::DataMember;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -17,13 +17,27 @@ use typed_trees::types::{
 use validation::canonical_place_from_expression;
 use validation::owned_projection_type_reference;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub(super) struct ContentSource {
     pub(super) domain: DomainApplication,
     pub(super) borrowed: bool,
     pub(super) nested: bool,
     pub(super) path: Vec<SourceSegment>,
+    pub(super) carrier: TypeReferenceHandle,
+    pub(super) applications: Vec<TypeReferenceHandle>,
 }
+
+// Carrier operands explain a subject; they do not duplicate a claim already
+// named by the same domain and structural path in a requires clause.
+impl PartialEq for ContentSource {
+    fn eq(&self, other: &Self) -> bool {
+        self.domain == other.domain
+            && self.borrowed == other.borrowed
+            && self.nested == other.nested
+            && self.path == other.path
+    }
+}
+impl Eq for ContentSource {}
 
 /// Known declaration sources and the independent completeness of their frontier.
 /// Existing source checks can inspect the known paths of an open generic carrier;
@@ -101,7 +115,16 @@ pub(super) fn parameter_sources(
                     parameter.type_reference,
                     &place.segments,
                 );
+                let carrier = validation::source_type_application_from_segments(
+                    program,
+                    parameter.type_reference,
+                    &place.segments,
+                );
                 let source = ContentSource {
+                    carrier: carrier
+                        .as_ref()
+                        .map_or_else(TypeReferenceHandle::invalid, |carrier| carrier.0),
+                    applications: carrier.map_or_else(Vec::new, |carrier| carrier.1),
                     domain: DomainApplication {
                         symbol: membership.domain_symbol,
                         semantic_domain: membership.semantic_domain,
@@ -122,15 +145,6 @@ pub(super) fn parameter_sources(
         complete,
         has_open_owned_carrier,
     }
-}
-
-// Each actual retains the lexical environment in which it was supplied. A
-// reused generic binder must not capture its own outer argument.
-#[derive(Clone, Copy)]
-struct TypeBinding {
-    parameter: SymbolHandle,
-    argument: TypeReferenceHandle,
-    outer_scope: usize,
 }
 
 pub(super) fn domain_sources(
@@ -161,7 +175,7 @@ pub(super) fn domain_sources(
 fn append_sources(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
-    substitutions: &[TypeBinding],
+    applications: &[TypeReferenceHandle],
     borrowed: bool,
     nested: bool,
     path: &[SourceSegment],
@@ -169,11 +183,16 @@ fn append_sources(
     sources: &mut Vec<ContentSource>,
     has_open_owned_carrier: &mut bool,
 ) -> bool {
-    let (reference, substitutions) = substituted_head(program, reference, substitutions);
+    let Some((reference, frames)) =
+        program.project_enclosing_data_type_reference(reference, applications)
+    else {
+        return false;
+    };
+    let applications = &applications[..frames];
     if !reference.is_valid() {
         return true;
     }
-    let borrowed = borrowed || reference_shell(program, reference, substitutions);
+    let borrowed = borrowed || reference_shell(program, reference, applications);
     let definition_symbol = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Constrained {
             base_type,
@@ -182,6 +201,8 @@ fn append_sources(
             for constraint in program.type_reference_table.constraints(*constraints) {
                 if let TypeConstraintNode::Domain(domain) = constraint {
                     let source = ContentSource {
+                        carrier: reference,
+                        applications: applications.to_vec(),
                         domain: DomainApplication {
                             symbol: domain.symbol,
                             semantic_domain: domain.semantic_id,
@@ -198,7 +219,7 @@ fn append_sources(
             return append_sources(
                 program,
                 *base_type,
-                substitutions,
+                applications,
                 borrowed,
                 nested,
                 path,
@@ -211,7 +232,7 @@ fn append_sources(
             return append_sources(
                 program,
                 *referee,
-                substitutions,
+                applications,
                 true,
                 nested,
                 path,
@@ -241,7 +262,7 @@ fn append_sources(
             return append_sources(
                 program,
                 *element_type,
-                substitutions,
+                applications,
                 borrowed,
                 true,
                 &element_path,
@@ -267,34 +288,21 @@ fn append_sources(
     // Finite Wrapper<Wrapper<T>> consumes type-argument structure. Recursive
     // Node<Wrapper<T>> does not. This is a termination measure over the type
     // tree, not a resource capacity or an arbitrary recursion/fuel limit.
-    let size = type_size(program, reference, substitutions);
+    let size = type_size(program, reference, applications);
     if visiting
         .iter()
         .any(|(owner, ancestor_size)| *owner == definition_symbol && size >= *ancestor_size)
     {
         return false;
     }
-    let mut instantiated = substitutions.to_vec();
-    if let TypeReferenceNode::Generic { arguments, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        instantiated.extend(
-            program
-                .data_type_parameters(definition)
-                .iter()
-                .zip(
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
-                )
-                .filter_map(|(parameter, argument)| {
-                    matches!(parameter.kind, TypeParameterKind::Type).then_some(TypeBinding {
-                        parameter: parameter.symbol,
-                        argument: *argument,
-                        outer_scope: substitutions.len(),
-                    })
-                }),
-        );
+    let mut instantiated = applications.to_vec();
+    // A bare family has an existential index pack, not a supplying
+    // application. Its fixed fields remain known without inventing actuals.
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Generic { .. }
+    ) {
+        instantiated.push(reference);
     }
     visiting.push((definition_symbol, size));
     let mut complete = true;
@@ -339,34 +347,19 @@ fn append_sources(
     complete
 }
 
-fn substituted_head<'scope>(
-    program: &dyn ::validation::CheckingInput,
-    mut reference: TypeReferenceHandle,
-    mut substitutions: &'scope [TypeBinding],
-) -> (TypeReferenceHandle, &'scope [TypeBinding]) {
-    while let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        let Some(binding) = substitutions
-            .iter()
-            .rev()
-            .find(|binding| binding.parameter == *symbol)
-        else {
-            break;
-        };
-        reference = binding.argument;
-        substitutions = &substitutions[..binding.outer_scope];
-    }
-    (reference, substitutions)
-}
-
 fn reference_shell(
     program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
-    mut substitutions: &[TypeBinding],
+    mut applications: &[TypeReferenceHandle],
 ) -> bool {
     loop {
-        (reference, substitutions) = substituted_head(program, reference, substitutions);
+        let Some((projected, frames)) =
+            program.project_enclosing_data_type_reference(reference, applications)
+        else {
+            return false;
+        };
+        reference = projected;
+        applications = &applications[..frames];
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Reference { .. } => return true,
@@ -378,24 +371,29 @@ fn reference_shell(
 fn type_size(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
-    substitutions: &[TypeBinding],
+    applications: &[TypeReferenceHandle],
 ) -> usize {
-    let (reference, substitutions) = substituted_head(program, reference, substitutions);
+    let Some((reference, frames)) =
+        program.project_enclosing_data_type_reference(reference, applications)
+    else {
+        return usize::MAX;
+    };
+    let applications = &applications[..frames];
     let children = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_size(program, *base_type, substitutions)
+            type_size(program, *base_type, applications)
         }
-        TypeReferenceNode::Reference { referee, .. } => type_size(program, *referee, substitutions),
+        TypeReferenceNode::Reference { referee, .. } => type_size(program, *referee, applications),
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => {
-            type_size(program, *element_type, substitutions)
+            type_size(program, *element_type, applications)
         }
         TypeReferenceNode::Generic { arguments, .. } => program
             .type_reference_table
             .type_reference_handles(*arguments)
             .iter()
             .fold(0usize, |size, argument| {
-                size.saturating_add(type_size(program, *argument, substitutions))
+                size.saturating_add(type_size(program, *argument, applications))
             }),
         _ => 0,
     };
