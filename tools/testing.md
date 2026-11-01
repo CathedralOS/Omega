@@ -90,7 +90,7 @@ records the cost and failure pattern behind this rule.
 ### Exact fixtures on a hosted pilot
 
 The existing `Compiler queue pilot` manual dispatch accepts a comma-separated
-`fixtures` string and `native_host` (`linux_x86_64` or `windows_x86_64`). A
+`fixtures` string and `native_host` (`linux_x86_64`, `windows_x86_64` or `macos_arm64`). A
 nonempty selection replaces its default smoke; it does not extend a foreign
 cohort or start the full corpus. PR and merge-group pilot checks keep their
 existing Linux check behavior.
@@ -124,12 +124,14 @@ Selection validates
 before building; empty, unscored or check-only positives cannot pass. The
 artifact includes `samples.json` beside the corpus reports.
 
-Select `windows_x86_64` for a separate matching-host run. Host-specific caches,
+Select `windows_x86_64` or `macos_arm64` for a separate matching-host run.
+The macOS option uses the same `macos-14` ARM64 runner as existing post-merge
+qualification; it does not substitute a cross-compile for native execution. Host-specific caches,
 concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer
 profiles, source revision and corpus observations, not just workflow success.
 
-Linux pilots share the post-merge workflow's `compiler-regression` cache prefix
+Linux and macOS pilots share the post-merge workflow's `compiler-regression` cache prefix
 and `/tmp/ot` target directory. Both must match: GitHub's cache version includes
 the archived paths. This lets a fresh branch reuse main's compatible Cargo
 objects instead of starting a private cold cache. Windows pilots retain their
