@@ -398,10 +398,13 @@ Select checks from the affected behavior under
 regression. Read the harness before filtering: fixture-path filters and nextest
 test-name filters select different things. For e2e-visible changes — diagnostics,
 pipeline stages, acceptance behavior — `python3 tools/corpus_gate.py --filter
-<domain>` diffs the touched fixture domain against the recorded corpus golden in
-seconds-to-minutes; prefer it to chaining per-crate nextest suites as the first
-regression signal. Always filter: an unfiltered corpus gate or the full
-baseline is a manual trigger that only the user starts, never an agent. The
+<fact or fixture names>` diffs the fact's places, their twins and the fixtures
+named for the touched behavior against the recorded corpus golden in minutes;
+prefer it to chaining per-crate nextest suites as the first regression signal.
+Count the selection first: tens of fixtures is a witness set, and past about
+200 it is a sweep to narrow. A domain filter such as `facts/` (nearly 14,000)
+is a sweep, and so are an unfiltered corpus gate and the full baseline; only
+the user starts those. The
 shared golden also carries other lanes' drift and other
 hosts' rows, so its moves are a signal to attribute, not evidence against this
 change; attribute them with `--compare` (below) before acting on them. Record
@@ -455,7 +458,7 @@ remain unverified. If the change's correctness still depends on an unsupported
 assumption, resolve it or name the missing dependency before claiming completion.
 
 Attribute unexpected failures using a focused comparison on the base commit:
-`python3 tools/corpus_gate.py --compare <base> --filter <domain>` builds the base
+`python3 tools/corpus_gate.py --compare <base> --filter <the moved fixtures>` builds the base
 in its own worktree and lists every lost outcome, expected fragment and
 execution fact. Compare against the commit your series sits on, never a newer
 `main`. A failure that reproduces on the base is outside this change; record
