@@ -10,6 +10,8 @@ use super::{
 use crate::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
 use symbols::{SymbolHandle, SymbolKind};
 
+mod call_applications;
+
 #[cfg(test)]
 use super::{ExpressionNode, TypeReferenceNode, conformance_occurrence_tests};
 

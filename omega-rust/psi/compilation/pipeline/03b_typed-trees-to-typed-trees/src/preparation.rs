@@ -211,7 +211,7 @@ pub fn prepare_typed_trees(
     // Cloning binds only its newly produced instance after substitution; no
     // final whole-program receiver repair or data-method search is needed.
     validation::resolve_dynamic_call_targets(&mut program)?;
-    selections::retain_static_argument_contexts(&mut program);
+    program.retain_static_argument_contexts();
     // Executable specialization retains each consumed source application;
     // immutable checking judges its requirement -> implementation edge once.
     // Indexed-domain identities participate in static tuple selection. Bind
@@ -446,7 +446,7 @@ fn normalize_open_index_identities(program: &mut TypedTrees) -> Result<(), Vec<D
 /// underivable tuple is interim evidence, not a rejected program. The
 /// authoritative checking pass enforces the complete-tuple gate itself.
 pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    selections::retain_static_argument_contexts(program);
+    program.retain_static_argument_contexts();
     loop {
         let signatures = program.closed_requirement_applications().count();
         specialize_machine_calls(program, false)?;
@@ -482,7 +482,7 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
 pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
     elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
-    selections::retain_static_argument_contexts(&mut program);
+    program.retain_static_argument_contexts();
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     prepare_execution_applications(&mut program)?;
