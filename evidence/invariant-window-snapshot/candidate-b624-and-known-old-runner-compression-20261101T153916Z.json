@@ -1,0 +1,200 @@
+{
+  "status": "complete_T_and_P_producers_frozen",
+  "free_before": 467238912,
+  "target_free_bytes": 681574400,
+  "preserved": {
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-producer.json": {
+      "sha256": "e2c49adbad3a019cb095d5f56311de4f5f01f9474d69b931b0be575343f4e869",
+      "metadata": {
+        "size": 688,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546710244463267,
+        "allocated": 4096,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284118237
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-cargo.stdout": {
+      "sha256": "060ccd950a5637f3252d95d74433d9ce04013fcd16992b7deb3a3dde5eb0e601",
+      "metadata": {
+        "size": 360476,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546709489168834,
+        "allocated": 364544,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284118232
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-cargo.stderr": {
+      "sha256": "c098f6e6a26e103867822a1601411d461deebb1ebf7e1075022aeb1018450156",
+      "metadata": {
+        "size": 3725,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546709489314126,
+        "allocated": 4096,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284118233
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-source.patch": {
+      "sha256": "ca0ff86e78efbadb20e2bf7a3dd334700408fec06dff24c6da3ae46900e4af1b",
+      "metadata": {
+        "size": 14233,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546503875665242,
+        "allocated": 16384,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117563
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-build.json": {
+      "sha256": "f29c9ca8a9dfd157df1dbab53e09790152c82e4ba409bc5c8e2ae4e7d91c051a",
+      "metadata": {
+        "size": 363,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546709489464543,
+        "allocated": 4096,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284118234
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega.compiler-profile.json": {
+      "sha256": "3c85843a6f037311ec030baae5ce929624cf22e7b23940e92ce9d600ac328e4e",
+      "metadata": {
+        "size": 6421,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546709980662976,
+        "allocated": 8192,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284118236
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current/debug/build/compiler/731ee4755d8e8f12/out/corpus_runner-731ee4755d8e8f12.compiler-profile.json": {
+      "sha256": "85416ddb72f1a91732f5c87948ef77f7fecb0d8ed11b0a082b59495f5db21b1c",
+      "metadata": {
+        "size": 9464,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793534875863259482,
+        "allocated": 12288,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284089611
+      }
+    }
+  },
+  "compressed": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+      "sha256": "b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57",
+      "before": {
+        "size": 232264440,
+        "mode": 493,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546709365810297,
+        "allocated": 232267776,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284118235
+      },
+      "status": "compressed_verified",
+      "after": {
+        "size": 232264440,
+        "mode": 493,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546709365810297,
+        "allocated": 74149888,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 284119394
+      },
+      "allocated_reduction": 158117888
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current/debug/build/compiler/731ee4755d8e8f12/out/corpus_runner-731ee4755d8e8f12",
+      "sha256": "965136d5d524e37b62d03cc5e548d58c67a5a7a02b1c80fd5d65b0636af4268b",
+      "before": {
+        "size": 217754352,
+        "mode": 493,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793534875530466591,
+        "allocated": 217755648,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284089597
+      },
+      "status": "compressed_verified",
+      "after": {
+        "size": 217754352,
+        "mode": 493,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793534875530466591,
+        "allocated": 75669504,
+        "flags": 32,
+        "nlink": 1,
+        "inode": 284119404
+      },
+      "allocated_reduction": 142086144
+    }
+  ],
+  "removed": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current/debug/omega",
+      "sha256": "b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57",
+      "before": {
+        "size": 232264440,
+        "mode": 493,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546709365810297,
+        "allocated": 232267776,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284118231
+      },
+      "status": "removed_verified_disposable_duplicate"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current/debug/build/omega/75c2002dd4c90173/out/omega",
+      "sha256": "b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57",
+      "before": {
+        "size": 232264440,
+        "mode": 493,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793546709365810297,
+        "allocated": 232267776,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284118230
+      },
+      "status": "removed_verified_disposable_duplicate"
+    }
+  ],
+  "free_after": 768577536,
+  "free_increase": 301338624,
+  "target_650MiB_met": true
+}

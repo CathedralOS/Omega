@@ -1,0 +1,602 @@
+{
+  "fixed_base": "cf36a5e96fcb69e7fc28963e0d56fe48b915b828",
+  "profiles": {
+    "baseline": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+      "sha256": "b9bcf0d9e08e995a371bbb5ff3682cd3d223e219407150bd409e43b5ad3e649f",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "candidate": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+      "sha256": "b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "target": "macos_arm64",
+  "runtime_target_selection": "implicit host for actual both execution",
+  "seconds": 71.2091195,
+  "results": [
+    {
+      "place": "local",
+      "inputs": {
+        "row/local/main.omg": "f6f9d460b3da191e3f89149b5c1d972b78ad9a0377daa613685db2313f6726dc",
+        "row/local/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+        "row/local/invalid/main.omg": "11a8a723828ea51929a313278dc0fdc5a4a8442d8ca647f454b018a7e372a63e",
+        "row/local/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.659028917,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/local-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/local-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/local/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.305629208,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/local-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/local-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/local/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.266026708,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/local-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/local-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.53145325,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/local-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/local-candidate-both.stderr"
+        }
+      ]
+    },
+    {
+      "place": "field",
+      "inputs": {
+        "row/field/main.omg": "60e9e4eeb6e3fa73df1d86127b2952c555da96f2da9bf929fe5999c3837f5f34",
+        "row/field/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+        "row/field/invalid/main.omg": "e6fcda3333a636cd026ac4b964cf17db488ed50e8232e16cac4fdfbdb03b2698",
+        "row/field/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/field/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.0269783749999988,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/field-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/field-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/field/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.106801916,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/field-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/field-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/field/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.382342458,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/field-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/field-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/field/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.0930078749999996,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/field-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/field-candidate-both.stderr"
+        }
+      ]
+    },
+    {
+      "place": "parameter",
+      "inputs": {
+        "row/parameter/main.omg": "f5278847b1a3f6eb0aae1b23d323b79efe37c2c6d1670a32c25309385eec6962",
+        "row/parameter/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+        "row/parameter/invalid/main.omg": "0a9bcef1451dfad2221f48d361949349d89ca3ee586bac0e68f5b21a02457085",
+        "row/parameter/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/parameter/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.0612704169999994,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/parameter-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/parameter-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/parameter/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.787658208,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/parameter-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/parameter-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/parameter/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.2624160000000018,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/parameter-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/parameter-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/parameter/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.6965439579999995,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/parameter-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/parameter-candidate-both.stderr"
+        }
+      ]
+    },
+    {
+      "place": "call_result",
+      "inputs": {
+        "row/call_result/main.omg": "625461e93aee5823fc4eadb5e9687f08073c07be0968bf6189ce47bfa87176ff",
+        "row/call_result/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+        "row/call_result/invalid/main.omg": "e7b62bb6ac68632b9005ad899c6982543f8ae2027de0617d936e8b06783d125e",
+        "row/call_result/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/call_result/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.2193327079999996,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/call_result-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/call_result-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/call_result/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.023190834000001,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/call_result-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/call_result-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/call_result/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3889634169999994,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/call_result-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/call_result-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/call_result/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.0807482500000027,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/call_result-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/call_result-candidate-both.stderr"
+        }
+      ]
+    },
+    {
+      "place": "match_join",
+      "inputs": {
+        "row/match_join/main.omg": "18ef18a76b899405caaf96e3c4488dec8373caaf89f2251fdbada708d7210db7",
+        "row/match_join/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+        "row/match_join/invalid/main.omg": "9732b8cb3475066cd789671a6e97d69dfbbbdfe784f8d1c11bb28b51e5144948",
+        "row/match_join/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.035324166999999,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/match_join-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/match_join-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.269271500000002,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/match_join-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/match_join-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3491191659999942,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/match_join-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/match_join-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.028965540999998,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/match_join-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/match_join-candidate-both.stderr"
+        }
+      ]
+    },
+    {
+      "place": "const_name",
+      "inputs": {
+        "row/const_name/main.omg": "441963ec9a2f5176cd9f964a15f6fc1ec90089102a8bbdec1975ff4b755aae99",
+        "row/const_name/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+        "row/const_name/invalid/main.omg": "c4bdc30274fe7cd12ffba6009af1b32e5120c99ff82961826c4aa7300dc372b7",
+        "row/const_name/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/const_name/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.081272540999997,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/const_name-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/const_name-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/const_name/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 1.9973050830000005,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/const_name-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/const_name-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/const_name/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.2848345000000023,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/const_name-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/const_name-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/const_name/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.102448917000004,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/const_name-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/const_name-candidate-both.stderr"
+        }
+      ]
+    },
+    {
+      "place": "other_state",
+      "inputs": {
+        "row/other_state/main.omg": "132b1a339c08e1bc29ce2faba931310c91efdd6d65fa3e7c652c09013669488e",
+        "row/other_state/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+        "row/other_state/invalid/main.omg": "85924c5a58e7ea123b0c6e1035531fc84622c1ececf9ad0b817b32d8eb6eec63",
+        "row/other_state/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/other_state/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.2361232089999987,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_state-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_state-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/other_state/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.196202583999998,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_state-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_state-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/other_state/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4196658749999997,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_state-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_state-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/other_state/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.1667367499999983,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_state-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_state-candidate-both.stderr"
+        }
+      ]
+    },
+    {
+      "place": "other_machine",
+      "inputs": {
+        "row/other_machine/main.omg": "f2c5201c3b2da523f43e72c60478af430af91e84d19f627d86db35a7bf212424",
+        "row/other_machine/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+        "row/other_machine/invalid/main.omg": "698913b0dce8145efb1a12b602bb6290c84dec88e83fef8a8d0d1c542f7328ae",
+        "row/other_machine/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/other_machine/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.013502625000001,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_machine-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_machine-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/other_machine/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.1640648340000013,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_machine-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_machine-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/other_machine/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3010521669999946,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_machine-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_machine-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/other_machine/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.108198624999993,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_machine-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/other_machine-candidate-both.stderr"
+        }
+      ]
+    },
+    {
+      "place": "target_body",
+      "inputs": {
+        "row/target_body/main.omg": "4b36d7d0d41071cc0f495e929b40fc0af56d64ff482397581140dfb369af861d",
+        "row/target_body/build.omg": "bc3bb6060f5242372e3ae600d9f14d4406500500caf4c1665a6bafa33bd515e8",
+        "row/target_body/invalid/main.omg": "46d262fd57fb241ddc8e5cb7bd4434251fd391a789e140de720fc038851fa6a3",
+        "row/target_body/invalid/build.omg": "bc3bb6060f5242372e3ae600d9f14d4406500500caf4c1665a6bafa33bd515e8"
+      },
+      "observations": [
+        {
+          "name": "baseline-positive",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/target_body/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.0825965420000045,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/target_body-baseline-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/target_body-baseline-positive.stderr"
+        },
+        {
+          "name": "baseline-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/target_body/invalid/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.095211040999999,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/target_body-baseline-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/target_body-baseline-invalid.stderr"
+        },
+        {
+          "name": "candidate-invalid",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/target_body/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3050522079999922,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/target_body-candidate-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/target_body-candidate-invalid.stderr"
+        },
+        {
+          "name": "candidate-both",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/target_body/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.072417958999992,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/target_body-candidate-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/target_body-candidate-both.stderr"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,274 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "116224fd53595b6ebffc1d8c06f2d489bbf72f1a",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19037
+  },
+  "subset": true,
+  "filter": "invariant_window_snapshot",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 18,
+    "by_status": {
+      "checked": 9,
+      "rejected": 9
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2472,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2472,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2523,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2523,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2471,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2469,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2388,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2384,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "pass/facts/invariant_window_snapshot_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2447,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1476,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: supplied >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1496,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1385,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: note.value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1409,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1421,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: selected >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1431,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1414,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1391,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    },
+    {
+      "fixture": "fail/facts/invariant_window_snapshot_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1304,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from inspect: saved >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "116224fd5359"
+    }
+  ],
+  "fixtures": []
+}

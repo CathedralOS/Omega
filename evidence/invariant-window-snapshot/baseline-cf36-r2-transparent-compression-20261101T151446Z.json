@@ -1,0 +1,153 @@
+{
+  "status": "complete_T_frozen",
+  "free_before": 551047168,
+  "canonical": {
+    "path": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+    "sha256": "b9bcf0d9e08e995a371bbb5ff3682cd3d223e219407150bd409e43b5ad3e649f",
+    "before": {
+      "size": 232264264,
+      "mode": 493,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1793545583666092198,
+      "allocated": 232267776,
+      "flags": 0,
+      "nlink": 1,
+      "inode": 284117133
+    },
+    "after": {
+      "size": 232264264,
+      "mode": 493,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1793545583666092198,
+      "allocated": 74153984,
+      "flags": 32,
+      "nlink": 1,
+      "inode": 284117335
+    }
+  },
+  "preserved": {
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-cargo.stderr": {
+      "sha256": "353d6a8bd620926e1c6b294241db758635b20be0c6e2018edc071565ce6969e7",
+      "metadata": {
+        "size": 188,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793545583738191361,
+        "allocated": 4096,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117131
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-cargo.stdout": {
+      "sha256": "ef6d55001398fe9bc5e612ff58db330bff1a830108ea0688916aa7aadadd5f08",
+      "metadata": {
+        "size": 360453,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793545583738128736,
+        "allocated": 364544,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117130
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-build.json": {
+      "sha256": "f34ac04a58d3c89c7454efa73f0ddcb9af92edd5bc79761b21bb3401528ba87b",
+      "metadata": {
+        "size": 368,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793545583738290945,
+        "allocated": 4096,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117132
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega.compiler-profile.json": {
+      "sha256": "cb9a2ef322b8b42d840f88d2704c6620bc0ff674ab49ffc775e19ebfc53afd79",
+      "metadata": {
+        "size": 6421,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793545584126360951,
+        "allocated": 8192,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117134
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-producer.json": {
+      "sha256": "509e9a178e06a6a19f26c5e1d01fb25b1e95c28ca30d2376c66b1075e685336b",
+      "metadata": {
+        "size": 693,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793545584375055913,
+        "allocated": 4096,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117135
+      }
+    },
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-source.patch": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "metadata": {
+        "size": 0,
+        "mode": 420,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793545581638715195,
+        "allocated": 0,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117120
+      }
+    }
+  },
+  "removed": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current/debug/omega",
+      "sha256": "b9bcf0d9e08e995a371bbb5ff3682cd3d223e219407150bd409e43b5ad3e649f",
+      "before": {
+        "size": 232264264,
+        "mode": 493,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793545583666092198,
+        "allocated": 232267776,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117129
+      },
+      "status": "removed_verified_disposable_duplicate"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/gate-cli-reuse-current/debug/build/omega/75c2002dd4c90173/out/omega",
+      "sha256": "b9bcf0d9e08e995a371bbb5ff3682cd3d223e219407150bd409e43b5ad3e649f",
+      "before": {
+        "size": 232264264,
+        "mode": 493,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1793545583666092198,
+        "allocated": 232267776,
+        "flags": 0,
+        "nlink": 1,
+        "inode": 284117128
+      },
+      "status": "removed_verified_disposable_duplicate"
+    }
+  ],
+  "free_after": 709029888,
+  "free_increase": 157982720,
+  "minimum_750MiB_met": false
+}

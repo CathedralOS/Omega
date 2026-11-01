@@ -1,0 +1,24 @@
+// Compile-only semantic control. No runtime observation is claimed.
+// Expected: rejection at require_nonnegative(saved), after parent restoration.
+// The scalar read itself is legal while the mixed default predicate is false.
+data Pair
+requires self.start >= 0 && self.start <= self.end,
+{
+    start: i32;
+    end: i32;
+}
+machine require_nonnegative(value: i32)
+requires value >= 0
+{
+}
+machine inspect(pair: &mut Pair) {
+    pair.start = -1;
+    let saved: i32 = pair.start;
+    pair.end = 10;
+    pair.start = 0;
+    require_nonnegative(saved);
+}
+machine main() {
+    let mut pair: Pair = Pair { start: 0, end: 10 };
+    inspect(&mut pair);
+}

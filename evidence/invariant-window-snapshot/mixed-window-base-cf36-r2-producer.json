@@ -1,0 +1,27 @@
+{
+  "source": "cf36a5e96fcb69e7fc28963e0d56fe48b915b828",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "omega",
+    "--bin",
+    "omega",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 2.0994281249999998,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+    "sha256": "b9bcf0d9e08e995a371bbb5ff3682cd3d223e219407150bd409e43b5ad3e649f",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

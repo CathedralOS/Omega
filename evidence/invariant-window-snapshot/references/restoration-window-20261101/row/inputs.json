@@ -1,0 +1,59 @@
+{
+  "fact": "A scalar read as -1 while a mixed predicate is open remains -1 after its parent is restored, so consume accepts that snapshot.",
+  "inputs": {
+    "local": {
+      "local/main.omg": "f6f9d460b3da191e3f89149b5c1d972b78ad9a0377daa613685db2313f6726dc",
+      "local/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+      "local/invalid/main.omg": "11a8a723828ea51929a313278dc0fdc5a4a8442d8ca647f454b018a7e372a63e",
+      "local/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+    },
+    "field": {
+      "field/main.omg": "60e9e4eeb6e3fa73df1d86127b2952c555da96f2da9bf929fe5999c3837f5f34",
+      "field/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+      "field/invalid/main.omg": "e6fcda3333a636cd026ac4b964cf17db488ed50e8232e16cac4fdfbdb03b2698",
+      "field/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+    },
+    "parameter": {
+      "parameter/main.omg": "f5278847b1a3f6eb0aae1b23d323b79efe37c2c6d1670a32c25309385eec6962",
+      "parameter/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+      "parameter/invalid/main.omg": "0a9bcef1451dfad2221f48d361949349d89ca3ee586bac0e68f5b21a02457085",
+      "parameter/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+    },
+    "call_result": {
+      "call_result/main.omg": "625461e93aee5823fc4eadb5e9687f08073c07be0968bf6189ce47bfa87176ff",
+      "call_result/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+      "call_result/invalid/main.omg": "e7b62bb6ac68632b9005ad899c6982543f8ae2027de0617d936e8b06783d125e",
+      "call_result/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+    },
+    "match_join": {
+      "match_join/main.omg": "18ef18a76b899405caaf96e3c4488dec8373caaf89f2251fdbada708d7210db7",
+      "match_join/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+      "match_join/invalid/main.omg": "9732b8cb3475066cd789671a6e97d69dfbbbdfe784f8d1c11bb28b51e5144948",
+      "match_join/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+    },
+    "const_name": {
+      "const_name/main.omg": "441963ec9a2f5176cd9f964a15f6fc1ec90089102a8bbdec1975ff4b755aae99",
+      "const_name/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+      "const_name/invalid/main.omg": "c4bdc30274fe7cd12ffba6009af1b32e5120c99ff82961826c4aa7300dc372b7",
+      "const_name/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+    },
+    "other_state": {
+      "other_state/main.omg": "132b1a339c08e1bc29ce2faba931310c91efdd6d65fa3e7c652c09013669488e",
+      "other_state/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+      "other_state/invalid/main.omg": "85924c5a58e7ea123b0c6e1035531fc84622c1ececf9ad0b817b32d8eb6eec63",
+      "other_state/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+    },
+    "other_machine": {
+      "other_machine/main.omg": "f2c5201c3b2da523f43e72c60478af430af91e84d19f627d86db35a7bf212424",
+      "other_machine/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+      "other_machine/invalid/main.omg": "698913b0dce8145efb1a12b602bb6290c84dec88e83fef8a8d0d1c542f7328ae",
+      "other_machine/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+    },
+    "target_body": {
+      "target_body/main.omg": "4b36d7d0d41071cc0f495e929b40fc0af56d64ff482397581140dfb369af861d",
+      "target_body/build.omg": "bc3bb6060f5242372e3ae600d9f14d4406500500caf4c1665a6bafa33bd515e8",
+      "target_body/invalid/main.omg": "46d262fd57fb241ddc8e5cb7bd4434251fd391a789e140de720fc038851fa6a3",
+      "target_body/invalid/build.omg": "bc3bb6060f5242372e3ae600d9f14d4406500500caf4c1665a6bafa33bd515e8"
+    }
+  }
+}

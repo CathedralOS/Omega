@@ -1,0 +1,24 @@
+[
+  {
+    "label": "baseline",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+      "run",
+      "--both",
+      "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/recast_restored/main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.759101084
+  },
+  {
+    "label": "candidate",
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+      "run",
+      "--both",
+      "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/recast_restored/main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.574050333
+  }
+]

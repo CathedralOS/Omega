@@ -1,0 +1,8 @@
+{
+  "candidate": "b4b2ae52b1b0f15915f4bcd06960e3be91e14029",
+  "base": "cf36a5e96fcb69e7fc28963e0d56fe48b915b828",
+  "compiler_input_patch_sha256": "ca0ff86e78efbadb20e2bf7a3dd334700408fec06dff24c6da3ae46900e4af1b",
+  "reuse": "Frozen CLI cf36 plus captured patch exactly matches submitted compiler/library/toolchain input diff; corpus runner built at116224 uses identical compiler inputs. Subsequent commits record corpus outcomes only. Runtime observations retain original producer identities.",
+  "target": "macos_arm64",
+  "other_host_native": "unverified"
+}

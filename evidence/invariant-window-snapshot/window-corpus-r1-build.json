@@ -1,0 +1,19 @@
+{
+  "source": "116224fd53595b6ebffc1d8c06f2d489bbf72f1a",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 60.897013459
+}

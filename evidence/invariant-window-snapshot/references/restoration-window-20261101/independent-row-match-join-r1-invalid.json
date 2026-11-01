@@ -1,0 +1,51 @@
+{
+  "reviewer": "Codex independent reviewer",
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+    "--check",
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/invalid/main.omg"
+  ],
+  "exit": 1,
+  "seconds": 1.2871038749999997,
+  "producer": {
+    "source": "cf36a5e96fcb69e7fc28963e0d56fe48b915b828",
+    "patch_sha256": "ca0ff86e78efbadb20e2bf7a3dd334700408fec06dff24c6da3ae46900e4af1b",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 205.613033875,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+      "sha256": "b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "observed_workspace_head": "cf36a5e96fcb69e7fc28963e0d56fe48b915b828",
+  "environment": {
+    "OMEGA_LIBRARY_ROOT": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/source/library",
+    "RUST_MIN_STACK": "67108864"
+  },
+  "stdin_hex": "",
+  "input_hashes": {
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/main.omg": "18ef18a76b899405caaf96e3c4488dec8373caaf89f2251fdbada708d7210db7",
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/invalid/main.omg": "9732b8cb3475066cd789671a6e97d69dfbbbdfe784f8d1c11bb28b51e5144948",
+    "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/row/match_join/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db"
+  },
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/independent-row-match-join-r1-invalid.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/independent-row-match-join-r1-invalid.stderr"
+}

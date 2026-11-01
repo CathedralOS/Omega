@@ -1,0 +1,15 @@
+{
+  "fixed_base": "cf36a5e96fcb69e7fc28963e0d56fe48b915b828",
+  "original_directory": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/captured-bounds-mixed-window-explicit-restore-20261101T120136Z",
+  "source_change": "Only canonical data requires self... spelling and four hosted Build entries. The temporarily negative read, explicit restoration and require_nonnegative(saved) obligation remain unchanged. Source-only initial controls; no runtime claim.",
+  "inputs": {
+    "positive": {
+      "main.omg": "d7f5b6ba4051474c64431fa095a74e0094e143c768a03c2876fe9133e1724b77",
+      "build.omg": "a3bbac8511068d42db8e15ee2c6bad8fd10304f7a0aee512a3b15900f3bda908"
+    },
+    "reject": {
+      "main.omg": "1b1a229ec6c1fe1dff3a9ec7ae041a325160d6186e3cabcedeac8c4a84b46cf5",
+      "build.omg": "a3bbac8511068d42db8e15ee2c6bad8fd10304f7a0aee512a3b15900f3bda908"
+    }
+  }
+}

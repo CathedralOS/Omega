@@ -1,0 +1,138 @@
+{
+  "profiles": {
+    "baseline": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+      "sha256": "b9bcf0d9e08e995a371bbb5ff3682cd3d223e219407150bd409e43b5ad3e649f",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "candidate": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+      "sha256": "b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "results": [
+    {
+      "name": "standing",
+      "source_sha256": "8bfb7d965addb8ec91434ddaa5913a55112f33a86e167d2637142aeaaa92fb81",
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.360800292,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-standing-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-standing-baseline.stderr"
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.084802417,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-standing-candidate.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-standing-candidate.stderr"
+        }
+      ]
+    },
+    {
+      "name": "predicate",
+      "source_sha256": "ad190b72ca34e6a96108830a249142c9646356bb9a8625e6967f69b0b5654ee4",
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/predicate_helper/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 1.9738221249999999,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-predicate-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-predicate-baseline.stderr"
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/predicate_helper/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.1525138749999995,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-predicate-candidate.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-predicate-candidate.stderr"
+        }
+      ]
+    },
+    {
+      "name": "recast",
+      "source_sha256": "6f318af42aaa70896bddc7cf5bda56d46531255e3cef499ed8faf7f2e4d1d3b4",
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/mutable_recast/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.1620146249999994,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-recast-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-recast-baseline.stderr"
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/mutable_recast/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.129920083,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-recast-candidate.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-recast-candidate.stderr"
+        }
+      ]
+    },
+    {
+      "name": "entry_snapshot",
+      "source_sha256": "290f911bb57582d9841498595f457ba89fbd0784baf7ae4e4cd665fca9c86397",
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-base-cf36-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/entry_snapshot/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 1.96954925,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-entry_snapshot-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-entry_snapshot-baseline.stderr"
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/entry_snapshot/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.032642082999999,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-entry_snapshot-candidate.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/regression-entry_snapshot-candidate.stderr"
+        }
+      ]
+    }
+  ]
+}

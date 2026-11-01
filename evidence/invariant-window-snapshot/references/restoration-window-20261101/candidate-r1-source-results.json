@@ -1,0 +1,61 @@
+{
+  "producer": {
+    "source": "cf36a5e96fcb69e7fc28963e0d56fe48b915b828",
+    "patch_sha256": "ca0ff86e78efbadb20e2bf7a3dd334700408fec06dff24c6da3ae46900e4af1b",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 205.613033875,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+      "sha256": "b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "observations": [
+    {
+      "control": "positive",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+        "--check",
+        "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/positive/main.omg"
+      ],
+      "exit": 0,
+      "seconds": 3.0642481659999987
+    },
+    {
+      "control": "reject",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+        "--check",
+        "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/reject/main.omg"
+      ],
+      "exit": 1,
+      "seconds": 1.3499207499999955
+    },
+    {
+      "control": "entry_snapshot",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/mixed-window-candidate-r1-omega",
+        "--check",
+        "/Users/zcanann/Documents/Projects/Omega/build/restoration-window-20261101/entry_snapshot/main.omg"
+      ],
+      "exit": 0,
+      "seconds": 2.5475579590000166
+    }
+  ]
+}
