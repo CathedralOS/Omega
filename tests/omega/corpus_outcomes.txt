@@ -1381,6 +1381,12 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	duplicate data `Access`
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/proofs/completed_guard_converted_snapshot_without_condition rejected 1136ms expected @2cede9e14eca
+	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/proofs/completed_guard_private_boolean_without_condition rejected 1893ms expected @2cede9e14eca
+	exact arithmetic in machine `subtract_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/completed_guard_two_call_identities_without_refinement rejected 640ms expected @2cede9e14eca
+	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/proofs/exact_widening_without_source_bound rejected 991ms expected @b80d7416b671+wt
 	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -11482,6 +11488,9 @@ pass/proofs/case_call_premises checked 701ms @836691c69aa1
 pass/proofs/cauchy_predicates_compile checked 3205ms @ccdb99ca2214
 pass/proofs/citation_requires_discharged checked 15694ms @ccdb99ca2214
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 15779ms @ccdb99ca2214
+pass/proofs/completed_guard_converted_snapshot checked 3463ms check-target:macos_arm64 @2cede9e14eca
+pass/proofs/completed_guard_private_boolean checked 3022ms check-target:macos_arm64 @2cede9e14eca
+pass/proofs/completed_guard_two_call_identities checked 3022ms check-target:macos_arm64 @2cede9e14eca
 pass/proofs/completed_qualified_membership_exit checked 3545ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/completed_store_address_and_result_exit checked 3331ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/constant_boolean_return_join_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
