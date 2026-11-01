@@ -485,7 +485,16 @@ fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(
         declaration.callable = applied.public_requirement_identity;
         controls.push((
             "retargeted executable declaration",
-            "conformance callable registry differs from its checked declaration identity",
+            if module
+                .scalar_applications
+                .proof_scope
+                .callable_declaration(applied.callable)
+                .is_some()
+            {
+                "proof scope callable differs from its emitted declaration"
+            } else {
+                "conformance callable registry differs from its checked declaration identity"
+            },
             bad,
         ));
 
