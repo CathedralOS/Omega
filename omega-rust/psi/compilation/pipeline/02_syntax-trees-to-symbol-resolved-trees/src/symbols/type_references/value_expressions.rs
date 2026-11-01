@@ -26,6 +26,67 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
 ) {
     let attached_machines = crate::symbols::scope::attached_machines(program);
     let declarations = &mut program.tables.declarations;
+    // Declaration-owned static applications have no statement whose operand
+    // walk could resolve their recipes. Give them the same exact header scope
+    // as other type-bound expressions, without a runtime subject or activation.
+    // Otherwise an unresolved const name can look closed to later tuple work.
+    let applications = program
+        .roots
+        .data_definitions
+        .iter()
+        .filter_map(|declaration| {
+            declaration.cleanup_selection.as_ref().map(|selection| {
+                (
+                    declaration.symbol,
+                    declaration.type_parameters,
+                    selection.clone(),
+                )
+            })
+        })
+        .chain(
+            program
+                .roots
+                .domain_definitions
+                .iter()
+                .filter_map(|declaration| {
+                    declaration.cleanup_selection.as_ref().map(|selection| {
+                        (
+                            declaration.symbol,
+                            declaration.type_parameters,
+                            selection.clone(),
+                        )
+                    })
+                }),
+        )
+        .collect::<Vec<_>>();
+    for (owner, parameters, selection) in applications {
+        let scope = MachineScope {
+            symbol: owner,
+            lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
+            attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
+            type_parameters: declarations.data_type_parameters.span_or_empty(parameters),
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions: &program.roots.data_definitions,
+            type_aliases: &program.roots.type_aliases,
+            data_members: &declarations.data_members,
+            data_type_parameters: &declarations.data_type_parameters,
+            data_payload_fields: &declarations.data_payload_fields,
+            type_constraints: &program.tables.types.constraints,
+        };
+        crate::symbols::expressions::assign_static_arguments_type_symbols(
+            symbols,
+            &scope,
+            &[],
+            SymbolHandle::invalid(),
+            &mut program.tables.bodies.expressions,
+            &mut declarations.child_type_references,
+            std::slice::from_ref(&selection),
+        );
+    }
     // Constants own type-bound expressions too, including unused declarations.
     // Resolve under their exact source/module owner before typed endpoint
     // evaluation; no machine parameter or data field is in this scope.
