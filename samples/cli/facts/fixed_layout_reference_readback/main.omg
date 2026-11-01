@@ -11,6 +11,7 @@ PayloadLayout<const Marker: u64> satisfies FixedLayout<Payload> {
     }
 }
 data Envelope<T> [copy] { value: u64; pointer: &T; }
+data Readback<'held, T> [copy] { value: u64; pointer: &'held T; }
 EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
         let mut entries: [FieldEntry; 64];
@@ -19,17 +20,22 @@ EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
         LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
     }
 }
-machine update<const Marker: u64>(pointer: &LayoutStorage<Payload, PayloadLayout<Marker> >) -> bool {
+machine update<'source, 'storage, const Marker: u64>(pointer: &'source LayoutStorage<Payload, PayloadLayout<Marker> >, storage: &'storage u64) -> Readback<'source, LayoutStorage<Payload, PayloadLayout<Marker> > > {
     let mut record: LayoutStorage<Envelope<LayoutStorage<Payload, PayloadLayout<Marker> > >, EnvelopeLayout<LayoutStorage<Payload, PayloadLayout<Marker> > > >;
     record.pointer = pointer;
     record.value = 7u64;
-    let loaded: &LayoutStorage<Payload, PayloadLayout<Marker> > = record.pointer;
-    record.value == 7u64 && loaded.value == 43u64
+    let loaded: &'source LayoutStorage<Payload, PayloadLayout<Marker> > = record.pointer;
+    Readback { value: record.value, pointer: loaded }
+}
+machine observe<'source, 'storage>(pointer: &'source LayoutStorage<Payload, PayloadLayout<7u64> >, storage: &'storage u64) -> bool {
+    let result: Readback<'source, LayoutStorage<Payload, PayloadLayout<7u64> > > = update<7u64>(pointer, storage);
+    result.value == 7u64 && result.pointer.value == 43u64
 }
 machine main() crashes Trap {
     let mut pointee: LayoutStorage<Payload, PayloadLayout<7u64> >;
     pointee.value = 43u64;
-    let result: bool = update<7u64>(&pointee);
+    let storage: u64 = 23u64;
+    let result: bool = observe(&pointee, &storage);
     transition result && pointee.value == 43u64 {
         true -> done()
         _ -> bad()
