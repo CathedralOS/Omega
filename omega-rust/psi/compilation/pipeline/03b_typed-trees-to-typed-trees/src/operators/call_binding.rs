@@ -76,7 +76,6 @@ use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::TableBorrowExpression;
-use typed_trees::expression::TableMemberExpression;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableBinaryExpression,
     TableCallExpression, TableMatchArm, TableMatchExpression, TableRangeExpression,
