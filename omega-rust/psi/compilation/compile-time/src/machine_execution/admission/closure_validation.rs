@@ -236,9 +236,13 @@ fn machine_termination_violation(
                 "compile_time.admission.recursive_component_queries",
             );
             let query = phase_profile::guard("compile_time.admission.recursive_component");
+            // This owner receives bare typed execution. Borrow it immutably
+            // for the complete component judgment so its numeric and call-frame
+            // subqueries share the checker's existing invocation-owned memos.
+            let context = validation::CheckingContext::new(program);
             walk.recursive_terminations
                 .extend(infer_checked_recursive_machine_terminations(
-                    program,
+                    &context,
                     machine_symbol,
                     machine.states,
                 ));
