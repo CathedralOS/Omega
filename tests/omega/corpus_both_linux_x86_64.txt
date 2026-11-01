@@ -3785,6 +3785,17 @@ pass/facts/nested_borrow_qualification_through_other_machine_exit built 2264ms e
 pass/facts/nested_borrow_qualification_through_other_state_exit built 2218ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/nested_borrow_qualification_through_parameter_exit built 2229ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/nested_borrow_qualification_through_target_body_exit built 2239ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/nested_machine_joint_rank_reference_bearing_call_call_result_exit built 14809ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_const_name_exit built 15167ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_field_exit built 17611ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_local_exit built 14724ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_match_join_exit built 14393ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_other_machine_exit built 14311ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_other_state_exit built 17420ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_owned_projection_exit built 14983ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_parameter_exit built 15501ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_target_body_exit built 14465ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
+pass/facts/nested_machine_joint_rank_reference_bearing_call_two_shared_arguments_exit built 12949ms exit:0 interpreter-exit:0 interpreter:agrees @ba5f3ad0dfd3
 pass/facts/nested_machine_signed_rank_negated_requirement_call_result_exit built 5980ms exit:0 interpreter-exit:0 interpreter:agrees @efa5e25b0c13
 pass/facts/nested_machine_signed_rank_negated_requirement_const_name_exit built 7902ms exit:0 interpreter-exit:0 interpreter:agrees @efa5e25b0c13
 pass/facts/nested_machine_signed_rank_negated_requirement_disjunctive_requirement_exit built 7801ms exit:0 interpreter-exit:0 interpreter:agrees @efa5e25b0c13
