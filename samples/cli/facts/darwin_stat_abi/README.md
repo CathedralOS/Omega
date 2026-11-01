@@ -53,8 +53,8 @@ natively. Its Terminal `_futimens` adapter gap predates this migration and remai
 under FILESYSTEM-PLATFORM-SERVICES in [TASKS.md](../../../../TASKS.md); the
 private native sponsor does not grant extra filesystem capability.
 
-The final nested-machine, other-machine and selected-target transports and
-other-host observations remain open; the
+The final nested-machine, other-machine and selected-target transports are now
+being qualified; other-host observations remain open. The
 complete parent also retains conversions and Product parity.
 
 `file_times` checks the same shared two-element C timestamp array
