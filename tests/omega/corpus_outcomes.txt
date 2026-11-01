@@ -7828,26 +7828,16 @@ pass/facts/nested_three_level_record_field_bound_through_other_machine_exit chec
 pass/facts/nested_three_level_record_field_bound_through_other_state_exit checked 4133ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_three_level_record_field_bound_through_parameter_exit checked 3771ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_three_level_record_field_bound_through_target_body_exit checked 3212ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_zero_leaf_array_storage_through_call_result_exit rejected 3815ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_const_name_exit rejected 3470ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_field_exit rejected 3858ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_local_exit rejected 3533ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_match_join_exit rejected 3517ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit rejected 3294ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_other_state_exit rejected 4083ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_parameter_exit rejected 3640ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_target_body_exit rejected 3952ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit rejected 4590ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
+pass/facts/nested_zero_leaf_array_storage_through_call_result_exit checked 2782ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_const_name_exit checked 2722ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_field_exit checked 2736ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_local_exit checked 2710ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_match_join_exit checked 3007ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit checked 3031ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_other_state_exit checked 2924ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_parameter_exit checked 2745ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_target_body_exit checked 2804ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit checked 2779ms check-target:macos_arm64 @b59d0f8c2783
 pass/facts/nine_arg_stack_calling_plan_through_call_result_exit checked 3563ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nine_arg_stack_calling_plan_through_const_name_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nine_arg_stack_calling_plan_through_field_exit checked 3852ms check-target:macos_arm64 @ccdb99ca2214
@@ -25712,25 +25702,25 @@ fail/facts/nested_three_level_record_field_bound_through_target_body_rejected re
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_zero_leaf_array_storage_through_call_result_rejected rejected 2856ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_call_result_rejected rejected 1759ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected rejected 2802ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected rejected 1777ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_field_rejected rejected 3466ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_field_rejected rejected 1692ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_local_rejected rejected 3046ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_local_rejected rejected 1907ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_match_join_rejected rejected 3209ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_match_join_rejected rejected 1981ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_other_machine_rejected rejected 3277ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_other_machine_rejected rejected 1717ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_other_state_rejected rejected 2626ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_other_state_rejected rejected 1696ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_parameter_rejected rejected 3320ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_parameter_rejected rejected 1684ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_target_body_rejected rejected 3534ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_target_body_rejected rejected 1723ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_zeroed_source_rejected rejected 3633ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_zeroed_source_rejected rejected 1693ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
 fail/facts/nine_arg_stack_calling_plan_through_call_result_rejected rejected 17971ms expected @60f7e3cd4ee2+wt
 	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
