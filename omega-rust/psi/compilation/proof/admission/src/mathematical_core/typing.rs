@@ -356,7 +356,7 @@ pub fn infer_type(
         }
         Term::Lambda { .. } => infer_lambda_spine(arena, context, term, budget),
         Term::Apply { .. } => infer_apply_spine(arena, context, term, budget),
-        Term::Pair { .. } => infer_pair_spine(arena, context, term, budget),
+        Term::Pair { .. } => infer_pair_tree(arena, context, term, budget),
         Term::Fst { .. } | Term::Snd { .. } => infer_projection_spine(arena, context, term, budget),
         Term::Two => Ok(arena.insert(Term::Sort(Sort::Type(Level::Constant(0))))),
         Term::TwoZero | Term::TwoOne => Ok(arena.insert(Term::Two)),
@@ -1132,33 +1132,49 @@ fn infer_apply_spine(
     Ok(inferred)
 }
 
-/// `infer_type` over a `pair`-in-`second` tuple chain. Inference is
-/// non-dependent: nothing records how the codomain should mention the
-/// first component — `check_type` admits a dependent pair componentwise
-/// against an expected `Sigma`. The `first` types infer top-down, then
-/// the `Σ` results fold inside-out, each codomain the shifted type of
-/// the link's `second`.
-fn infer_pair_spine(
+/// Infer both branches of a pair tree in authored order on handle work.
+/// Inference remains non-dependent: only `check_type` has an expected `Sigma`
+/// that can relate the second component to the first. Each completed second
+/// type is shifted under its own result binder, exactly once. Collecting only
+/// the second spine would still recurse for every left-nested component.
+fn infer_pair_tree(
     arena: &mut TermArena,
     context: &Context,
     term: TermHandle,
     budget: &mut Budget,
 ) -> Result<TermHandle, CoreError> {
-    let mut first_types: Vec<TermHandle> = Vec::new();
-    let mut tail = term;
-    while let Term::Pair { first, second } = arena.get(tail) {
-        first_types.push(infer_type(arena, context, first, budget)?);
-        tail = second;
+    enum Work {
+        First { second: TermHandle },
+        Second { first_type: TermHandle },
     }
-    let mut inferred = infer_type(arena, context, tail, budget)?;
-    for first_type in first_types.into_iter().rev() {
-        let codomain = shift(arena, inferred, 0, 1);
-        inferred = arena.insert(Term::Sigma {
-            domain: first_type,
-            codomain,
-        });
+    let mut pending = Vec::new();
+    let mut current = term;
+    loop {
+        while let Term::Pair { first, second } = arena.get(current) {
+            pending.push(Work::First { second });
+            current = first;
+        }
+        let mut inferred = infer_type(arena, context, current, budget)?;
+        loop {
+            match pending.pop() {
+                Some(Work::First { second }) => {
+                    pending.push(Work::Second {
+                        first_type: inferred,
+                    });
+                    current = second;
+                    break;
+                }
+                Some(Work::Second { first_type }) => {
+                    let codomain = shift(arena, inferred, 0, 1);
+                    inferred = arena.insert(Term::Sigma {
+                        domain: first_type,
+                        codomain,
+                    });
+                }
+                None => return Ok(inferred),
+            }
+        }
     }
-    Ok(inferred)
 }
 
 /// `infer_type` over a `fst`/`snd` projection chain `fst (snd (fst p))`.
@@ -1219,9 +1235,10 @@ fn infer_projection_spine(
 /// *types* themselves even when `expected` is a strict proposition such
 /// as `sEmpty` or a squash's payload.
 ///
-/// The componentwise descents — a `Pair` against a `Sigma`, a `Lambda`
-/// against a `Pi` — loop instead of returning through recursion, so a
-/// right-nested tuple witness or a telescope body adds no call depth.
+/// Componentwise descents use one mutable context and handle continuations.
+/// Both pair branches and lambda bodies stay off the Rust call stack. A pair
+/// continuation restores its exact ambient prefix before substituting the
+/// successfully checked first component into the second component's type.
 pub fn check_type(
     arena: &mut TermArena,
     context: &Context,
@@ -1229,6 +1246,13 @@ pub fn check_type(
     expected: TermHandle,
     budget: &mut Budget,
 ) -> Result<(), CoreError> {
+    struct PendingSecond {
+        first: TermHandle,
+        second: TermHandle,
+        codomain: TermHandle,
+        prefix: usize,
+    }
+    let mut pending = Vec::new();
     let mut extended = context.clone();
     let mut term = term;
     let mut expected = expected;
@@ -1239,9 +1263,14 @@ pub fn check_type(
         if let Term::Pair { first, second } = arena.get(term) {
             let head = weak_head_normalize(arena, extended.signature(), expected, budget)?;
             if let Term::Sigma { domain, codomain } = arena.get(head) {
-                check_type(arena, &extended, first, domain, budget)?;
-                term = second;
-                expected = substitute(arena, codomain, first);
+                pending.push(PendingSecond {
+                    first,
+                    second,
+                    codomain,
+                    prefix: extended.bindings.len(),
+                });
+                term = first;
+                expected = domain;
                 continue;
             }
         }
@@ -1278,11 +1307,21 @@ pub fn check_type(
         }
         let shared_type = arena.insert(Term::Sort(expected_sort));
         let actual = infer_type(arena, &extended, term, budget)?;
-        return if convertible(arena, &extended, actual, expected, shared_type, budget)? {
-            Ok(())
-        } else {
-            Err(CoreError::TypeMismatch { expected, actual })
+        if !convertible(arena, &extended, actual, expected, shared_type, budget)? {
+            return Err(CoreError::TypeMismatch { expected, actual });
+        }
+        let Some(PendingSecond {
+            first,
+            second,
+            codomain,
+            prefix,
+        }) = pending.pop()
+        else {
+            return Ok(());
         };
+        extended.bindings.truncate(prefix);
+        term = second;
+        expected = substitute(arena, codomain, first);
     }
 }
 

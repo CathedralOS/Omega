@@ -94,6 +94,147 @@ fn long_pair_witness_checks_against_a_sigma_chain() {
 }
 
 #[test]
+fn left_nested_pair_witness_checks_on_the_default_stack() {
+    std::thread::spawn(|| {
+        let mut arena = TermArena::new();
+        let two = two(&mut arena);
+        let zero = two_zero(&mut arena);
+        let mut witness = zero;
+        let mut expected = two;
+        for _ in 0..SHALLOW {
+            witness = pair(&mut arena, witness, zero);
+            expected = sigma(&mut arena, expected, two);
+        }
+        check_type(
+            &mut arena,
+            &Context::empty(),
+            witness,
+            expected,
+            &mut default_budget(),
+        )
+        .unwrap();
+        let inferred = infer_type(
+            &mut arena,
+            &Context::empty(),
+            witness,
+            &mut default_budget(),
+        )
+        .unwrap();
+        assert!(arena.structurally_equal(inferred, expected));
+        assert!(matches!(
+            check_type(
+                &mut arena,
+                &Context::empty(),
+                witness,
+                two,
+                &mut default_budget(),
+            ),
+            Err(CoreError::TypeMismatch { expected, .. }) if expected == two
+        ));
+    })
+    .join()
+    .expect("both pair components use the default stack");
+}
+
+#[test]
+fn pair_checking_restores_binders_and_substitutes_only_checked_components() {
+    let mut arena = TermArena::new();
+    let universe = super::type_sort(&mut arena, 0);
+    let a_in_prefix = variable(&mut arena, 0);
+    let context = Context::empty().extend(universe).extend(a_in_prefix);
+    let two = two(&mut arena);
+    let zero = two_zero(&mut arena);
+    let bound = variable(&mut arena, 0);
+    let identity = lambda(&mut arena, two, bound);
+    let identity_type = pi(&mut arena, two, two);
+    let ambient_a = variable(&mut arena, 0);
+    let a_under_pair = variable(&mut arena, 2);
+    let expected = sigma(&mut arena, identity_type, a_under_pair);
+    let witness = pair(&mut arena, identity, ambient_a);
+    check_type(
+        &mut arena,
+        &context,
+        witness,
+        expected,
+        &mut default_budget(),
+    )
+    .unwrap();
+
+    // The second component is checked under the ambient context, with the
+    // *first value* substituted into its dependent codomain.
+    let family = variable(&mut arena, 0);
+    let dependent = sigma(&mut arena, universe, family);
+    let witness = pair(&mut arena, two, zero);
+    check_type(
+        &mut arena,
+        &Context::empty(),
+        witness,
+        dependent,
+        &mut default_budget(),
+    )
+    .unwrap();
+    let invalid = pair(&mut arena, two, two);
+    assert!(matches!(
+        check_type(
+            &mut arena,
+            &Context::empty(),
+            invalid,
+            dependent,
+            &mut default_budget(),
+        ),
+        Err(CoreError::TypeMismatch { expected, .. }) if expected == two
+    ));
+
+    // A binder introduced while checking a first component cannot supply a
+    // previously unbound variable to its sibling.
+    let unbound = variable(&mut arena, 0);
+    let expected = sigma(&mut arena, identity_type, two);
+    let invalid = pair(&mut arena, identity, unbound);
+    assert_eq!(
+        check_type(
+            &mut arena,
+            &Context::empty(),
+            invalid,
+            expected,
+            &mut default_budget(),
+        ),
+        Err(CoreError::UnboundVariable {
+            index: 0,
+            context_depth: 0
+        })
+    );
+}
+
+#[test]
+fn pair_judgments_refuse_the_first_component_before_visiting_the_second() {
+    let mut arena = TermArena::new();
+    let dummy = arena.insert(Term::Dummy);
+    let unbound = variable(&mut arena, 0);
+    let witness = pair(&mut arena, dummy, unbound);
+    let two = two(&mut arena);
+    let expected = sigma(&mut arena, two, two);
+    assert_eq!(
+        infer_type(
+            &mut arena,
+            &Context::empty(),
+            witness,
+            &mut default_budget()
+        ),
+        Err(CoreError::DummyTerm)
+    );
+    assert_eq!(
+        check_type(
+            &mut arena,
+            &Context::empty(),
+            witness,
+            expected,
+            &mut default_budget(),
+        ),
+        Err(CoreError::DummyTerm)
+    );
+}
+
+#[test]
 fn long_application_spine_consumes_arguments_in_order() {
     let mut arena = TermArena::new();
     let mut budget = default_budget();
