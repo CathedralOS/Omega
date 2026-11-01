@@ -149,6 +149,40 @@ impl IntegerApplicationInput {
 }
 
 impl super::Engine<'_> {
+    /// A borrow argument denotes an observation of the supplied referent, while
+    /// the selected formal still owns its access contract. Parameter-scoped
+    /// expression types intentionally report that observation's type; they do
+    /// not establish a loan or permit a borrow to satisfy an owned formal.
+    /// Executable argument planning must independently retain the actual loan.
+    pub(super) fn call_input_type(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        required: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        use language_semantics::ReferenceAccess;
+        use typed_trees::expression::ExpressionNode;
+
+        let borrowed = match self.program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => Some(borrow.access),
+            _ => None,
+        };
+        match crate::reference_shell(self.program, required) {
+            Some(shell) => {
+                // Denotational call formation admits shared observations, not
+                // exclusive/write-only authority or reads through such loans.
+                if shell.access != ReferenceAccess::Shared {
+                    return None;
+                }
+                let supplied = borrowed.or_else(|| {
+                    crate::reference_shell(self.program, self.source_result_type(expression)?)
+                        .map(|shell| shell.access)
+                })?;
+                (supplied == ReferenceAccess::Shared).then_some(shell.referee)
+            }
+            None => borrowed.is_none().then_some(required),
+        }
+    }
+
     /// Select a whole captured argument first, then retain only its scalar
     /// coordinates. A leaf roster without this root cannot form a record call.
     pub(super) fn captured_owned_call_input(
