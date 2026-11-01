@@ -1,5 +1,7 @@
 // window_app is a REAL windowed application: the GUI subsystem keeps Windows from
 // attaching a console box (PE Subsystem 2).
+use omega::language::core::external_binding;
+
 machine build(builder: &mut Build) {
     Build::application(builder, "window_app");
     builder.identifier = "com.omega.window-app";
@@ -8,32 +10,13 @@ machine build(builder: &mut Build) {
     });
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::select_provider<Gui, WindowGuiProvider>(builder, linux_arm64);
-    Build::select_provider<Gui, WindowGuiProvider>(builder, linux_x86_64);
     Build::select_provider<Gui, WindowGuiProvider>(builder, macos_arm64);
-    Build::select_provider<Gui, WindowGuiProvider>(builder, macos_x86_64);
     Build::select_provider<Gui, WindowGuiProvider>(builder, windows_x86_64);
-    Build::select_provider<Gui, WindowGuiProvider>(builder, uefi_x86_64);
-    Build::select_provider<Gui, WindowGuiProvider>(builder, cross_platform_cli);
-    Build::select_provider<Gui, WindowGuiProvider>(builder, local_unchecked);
-    Build::select_provider<Gui, WindowGuiProvider>(builder, alpha_bootstrap);
-    Build::select_provider<Input, WindowInputProvider>(builder, linux_arm64);
-    Build::select_provider<Input, WindowInputProvider>(builder, linux_x86_64);
     Build::select_provider<Input, WindowInputProvider>(builder, macos_arm64);
-    Build::select_provider<Input, WindowInputProvider>(builder, macos_x86_64);
     Build::select_provider<Input, WindowInputProvider>(builder, windows_x86_64);
-    Build::select_provider<Input, WindowInputProvider>(builder, uefi_x86_64);
-    Build::select_provider<Input, WindowInputProvider>(builder, cross_platform_cli);
-    Build::select_provider<Input, WindowInputProvider>(builder, local_unchecked);
-    Build::select_provider<Input, WindowInputProvider>(builder, alpha_bootstrap);
-    Build::select_provider<Clock, WindowClockProvider>(builder, linux_arm64);
-    Build::select_provider<Clock, WindowClockProvider>(builder, linux_x86_64);
     Build::select_provider<Clock, WindowClockProvider>(builder, macos_arm64);
-    Build::select_provider<Clock, WindowClockProvider>(builder, macos_x86_64);
-    Build::select_provider<Clock, WindowClockProvider>(builder, windows_x86_64);
-    Build::select_provider<Clock, WindowClockProvider>(builder, uefi_x86_64);
-    Build::select_provider<Clock, WindowClockProvider>(builder, cross_platform_cli);
-    Build::select_provider<Clock, WindowClockProvider>(builder, local_unchecked);
-    Build::select_provider<Clock, WindowClockProvider>(builder, alpha_bootstrap);
+    Build::bind<Clock::sleep>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "kernel32.dll", export: "Sleep" }
+    });
     builder.subsystem = Subsystem::Gui;
 }

@@ -319,6 +319,13 @@ pub(super) fn recognize_structural_case_arms_batched<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    if path_counting_enabled() && visitors.len() > 1 {
+        eprintln!(
+            "[walkb] case_arms machine={} members={}",
+            machine.name,
+            visitors.len()
+        );
+    }
     let states = program.machine_states(machine);
     let root = states.first()?;
     let parameter_names: Vec<String> = program
@@ -576,6 +583,14 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     visitors: &mut [&mut dyn StructuralPrefixVisitor],
 ) -> Vec<bool> {
+    if path_counting_enabled() && visitors.len() > 1 {
+        eprintln!(
+            "[walkb] prefix machine={} state={:?} members={}",
+            machine.name,
+            state.symbol,
+            visitors.len()
+        );
+    }
     let mut valid = vec![false; visitors.len()];
     if !state.symbol.is_valid() || visitors.is_empty() {
         return valid;

@@ -181,6 +181,11 @@ pub(crate) fn derive_provider_plans(
     ));
     let named =
         super::named_provider_plans::derive(services, calling_plans, selected_target, &plans);
+    if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
+        for plan in &named {
+            eprintln!("[prov] named-derived plan={}", plan.plan.name);
+        }
+    }
     plans.extend(named);
     derive_accessor_plans(services, selected_target, &mut plans)?;
     // Coverage includes the selected target's direct body closure, not only
@@ -194,13 +199,18 @@ pub(crate) fn derive_provider_plans(
             .filter(|target| !target.is_empty())
             .unwrap_or_else(|| target::TargetProfile::host().target_name()),
     );
+    let debug = std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some();
     plans.retain(|candidate| {
-        !candidate
+        let dropped = candidate
             .provenance
             .row_realizations
             .iter()
             .filter_map(ProviderRowRealization::authored)
-            .any(|machine| absent.contains(&machine))
+            .any(|machine| absent.contains(&machine));
+        if debug && dropped {
+            eprintln!("[prov] absent-filtered plan={}", candidate.plan.name);
+        }
+        !dropped
     });
     Ok(plans)
 }
