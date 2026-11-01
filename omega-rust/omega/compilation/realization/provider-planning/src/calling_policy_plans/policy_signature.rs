@@ -383,7 +383,6 @@ pub(crate) fn validate_calling_policy_result(
     signature: &CallingPolicySignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
     let native_formals = signature.native_parameters()?;
-    let demands = &signature.callbacks.demands;
     let BoundaryPlanResult::Accepted(plan) = result else {
         return validate_boundary_plan_result(result, &CallSignature::default())
             .map_err(|diagnostic| diagnostic.to_string());
@@ -441,7 +440,7 @@ pub(crate) fn validate_calling_policy_result(
             })?;
     }
     let classified = CallSignature::of_placements(&plan.call.parameters, plan.call.result.as_ref());
-    if demands.is_empty() {
+    if signature.callbacks.demands.is_empty() && signature.callbacks.binders.is_empty() {
         return validate_boundary_plan_result(BoundaryPlanResult::Accepted(plan), &classified)
             .map_err(|diagnostic| diagnostic.to_string());
     }
@@ -463,6 +462,44 @@ mod tests {
         NativeCallbackDemand, NativeParameterId, StaticMachineBinderId,
         evaluate_ordinary_boundary_entry_plan,
     };
+
+    #[test]
+    fn nominal_callback_binder_cannot_disappear_with_an_empty_demand_list() {
+        let binder = StaticMachineBinderId::new(11).unwrap();
+        let requirement = CallbackRequirementId::new(12).unwrap();
+        let mut signature = CallingPolicySignature {
+            target: target::TargetProfile::MacosArm64.native_target(),
+            geometry: BoundarySignatureGeometry {
+                shapes: Vec::new(),
+                fields: Vec::new(),
+                parameters: Vec::new(),
+                result: None,
+                native_parameters: Arena::new(),
+                native_parameter_rows: HandleSpan::empty(),
+                callback_layouts: Arena::new(),
+                callback_layout_rows: HandleSpan::empty(),
+                callback_bindings: Arena::new(),
+                callback_binding_rows: HandleSpan::empty(),
+            },
+            callbacks: CallbackMaterializationContext::default(),
+        };
+        let plan = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature::default(),
+        )
+        .expect("empty ordinary signature")
+        .plan()
+        .clone();
+        validate_calling_policy_result(BoundaryPlanResult::Accepted(plan.clone()), &signature)
+            .expect("a signature with no callback obligations remains valid");
+        signature.callbacks.binders.push(CallbackBinderRequirement {
+            binder,
+            requirement,
+        });
+        let error = validate_calling_policy_result(BoundaryPlanResult::Accepted(plan), &signature)
+            .expect_err("a nominal binder requires its materialization even with no demands");
+        assert!(error.contains("omits a nominal callback binder"), "{error}");
+    }
 
     #[test]
     fn canonical_input_keeps_native_only_arguments_and_callback_obligations() {

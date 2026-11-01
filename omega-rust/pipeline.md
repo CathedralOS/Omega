@@ -372,10 +372,12 @@ arena-backed associations rather than traversing trait requirements or rebuildin
 application scopes for every target. It still selects each deployment's policy
 body and admits its compiler-run closure. The compiler publishes one immutable
 policy-code catalog through ordinary Psi production per checked source;
-target children borrow the same artifact as the final Product. Initial policy
-activation and callback-geometry
-reevaluation both execute that catalog in Terminal, with finite Terminal fuel
-and metered storage/results, not the checked-source interpreter. Shared code
+target children borrow the same artifact as the final Product. Signature
+preparation closes the complete native telescope and callback geometry before
+the policy's single activation. That activation executes the shared catalog in
+Terminal with finite fuel and metered storage/results, not the checked-source
+interpreter. There is no preliminary incomplete-signature evaluation or later
+plan replacement. Shared code
 publication does not yet make Product provider settlement Terminal-only.
 Publishing these applications and their closed storage/contract inputs in
 Terminal, rather than retaining source coordinates,
