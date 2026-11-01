@@ -130,6 +130,7 @@ mod tests {
             report_fingerprint: 1,
             commitment: [0; 32],
             plan,
+            dispatch_only_parameter_count: 0,
             signature: BoundarySignatureGeometry {
                 shapes: vec![],
                 fields: vec![],
@@ -177,6 +178,7 @@ mod tests {
                 report_fingerprint: application.report_fingerprint,
                 commitment,
                 plan: application.plan.plan().clone(),
+                dispatch_only_parameter_count: application.dispatch_only_parameter_count,
                 signature: application.signature.clone(),
                 opaque_applications: vec![],
                 callback_context: Default::default(),

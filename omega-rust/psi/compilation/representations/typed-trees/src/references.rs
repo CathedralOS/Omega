@@ -930,8 +930,11 @@ pub fn visit_product_operand_inputs(
     for handle in pending.into_iter().filter(|handle| live.contains(handle)) {
         let application = program.product_operand_applications.get(handle);
         let source = program.static_machine_application(application.supplying_application);
-        roots.enter_lexical_scope(source.lexical_owner);
+        roots.enter_lexical_scope(application.declaration);
         roots.declaration_description_dependency(application.declaration);
+        visit_type_parameters(program, roots, application.declaration_parameters);
+        roots.leave_lexical_scope();
+        roots.enter_lexical_scope(source.lexical_owner);
         for selection in program
             .product_input_selections
             .span_or_empty(application.input_selections)

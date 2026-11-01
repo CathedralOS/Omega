@@ -16,7 +16,9 @@ impl BoundaryCallingApplication {
             .span(self.signature.native_parameter_rows)
             .ok_or("native telescope has stale row storage")?;
         let mut strong =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v7");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v8");
+        self.call_projection()?;
+        strong.raw(&self.dispatch_only_parameter_count.to_le_bytes());
         strong.string(&self.requirement_identity);
         strong.string(&self.abi.declaring_application);
         strong.u64(self.abi.id().get());

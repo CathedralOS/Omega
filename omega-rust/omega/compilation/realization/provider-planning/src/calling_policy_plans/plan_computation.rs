@@ -2,14 +2,89 @@
 //! materializing the boundary signature from the ABI result, and validating
 //! the plan the policy produced.
 
+use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeometry;
 use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
 use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
 use build_time_evaluation::BuildTimeProgram;
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::callback_nominal_report_fingerprint;
+use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 
+pub(crate) fn evaluate_default_calling_applications(
+    program: &super::CallingProgram,
+    declarations: &[semantic_vocabulary::CallingAbiIdentity],
+    target: target::TargetProfile,
+    policy: CallingPolicy,
+    dispatch_only_parameter_count: usize,
+) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, String> {
+    let mut applications = Vec::with_capacity(declarations.len());
+    for declaration in declarations {
+        let canonical = program.materialize_default(declaration, target)?;
+        let signature = &canonical.policy;
+        let geometry = &signature.geometry;
+        let dispatch_only_parameter_count = u32::try_from(dispatch_only_parameter_count)
+            .map_err(|_| "default dispatch prefix exceeds u32")?;
+        let projection = calling_conventions::NativeCallProjection::new(
+            signature.native_parameters()?,
+            geometry.parameters.len(),
+            dispatch_only_parameter_count,
+        )?;
+        let graph = calling_conventions::BoundaryValueGraph {
+            shapes: &geometry.shapes,
+            fields: &geometry.fields,
+        };
+        // Dispatch formals retain their public identities but do not occupy a
+        // callee argument. Native-only callback lanes are never removed here.
+        let mut parameters = Vec::new();
+        for parameter in projection.parameters() {
+            let shape = match parameter.shape {
+                calling_conventions::BoundaryNativeParameterShape::Semantic(root) => {
+                    graph.classify(root, policy)?
+                }
+                calling_conventions::BoundaryNativeParameterShape::TargetFunctionPointer {
+                    byte_size,
+                    alignment,
+                } => calling_conventions::ValueShape::integer(u32::from(byte_size), alignment),
+            };
+            parameters.push(shape);
+        }
+        let classified = calling_conventions::CallSignature {
+            parameters,
+            result: geometry
+                .result
+                .map(|root| graph.classify(root, policy))
+                .transpose()?,
+        };
+        let ordinary = evaluate_ordinary_boundary_entry_plan(policy, &classified)
+            .map_err(|diagnostic| diagnostic.to_string())?;
+        let validated =
+            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                ordinary.plan().clone(),
+                &classified,
+                &signature.callbacks,
+            )
+            .map_err(|diagnostic| diagnostic.to_string())?;
+        let movement = BoundaryOpaqueMovementGeometry {
+            shapes: &geometry.shapes,
+            fields: &geometry.fields,
+            parameters: &geometry.parameters,
+            result: geometry.result,
+            native_parameters: signature.native_parameters()?,
+        };
+        for representation in &canonical.opaque_uses {
+            movement.movement(
+                representation.shape_root,
+                &validated,
+                usize::try_from(dispatch_only_parameter_count)
+                    .map_err(|_| "default dispatch prefix exceeds usize")?,
+            )?;
+        }
+        applications.push(canonical.native_application(&validated, dispatch_only_parameter_count)?);
+    }
+    Ok(applications)
+}
 /// Prepare Source invocation admission and exact review coordinates only.
 /// Canonical publication owns declaration storage; target activation reads it.
 pub fn prepare_boundary_calling_plans<'checked>(
@@ -154,13 +229,9 @@ struct PreparedCallingPolicy {
 }
 
 impl PreparedBoundaryCallingPlans<'_> {
-    pub fn is_empty(&self) -> bool {
-        self.pending.is_empty()
-    }
-
     pub fn evaluate(
         self,
-        code: Option<&super::CallingCatalog>,
+        code: &super::CallingProgram,
     ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
         let mut evaluated = Vec::with_capacity(self.pending.len());
         for policy in self.pending {
@@ -168,9 +239,6 @@ impl PreparedBoundaryCallingPlans<'_> {
                 vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
             };
             policy.admission.map_err(&diagnostic)?;
-            let code = code.ok_or_else(|| {
-                diagnostic("calling policies have no published Terminal code".into())
-            })?;
             code.require_owner(self.checked).map_err(&diagnostic)?;
             let module = code.artifact.semantic_module();
             let request = module

@@ -12,6 +12,8 @@ fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected
 	the compiler-owned Build activation cannot be replaced as a whole value
 fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be stored in field `builder`
+fail/build/default_component_abi_wrong_arity rejected 444ms expected @930d13be83c0
+	Product application must supply its complete declaration telescope
 fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
 	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
 fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
@@ -2600,6 +2602,7 @@ pass/build/crash_exclusion_closed_provider_exit checked 3584ms check-target:maco
 pass/build/crash_exclusion_unexecuted_helper_exit checked 5404ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/crash_exclusion_untrapping_provider_exit checked 4287ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/declaration_domain_context checked 3936ms @ccdb99ca2214
+pass/build/default_component_abi_extents checked 3454ms check-target:macos_arm64 @930d13be83c0
 pass/build/dependency_declaration_queries checked 4143ms @ccdb99ca2214
 pass/build/dependency_generated_source_unimported rejected 376ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	quoted byte literal has 41 source byte(s), but owned fixed byte array `[u8; 38]` requires exactly 38; fixed-array literal copying neither truncates nor pads
