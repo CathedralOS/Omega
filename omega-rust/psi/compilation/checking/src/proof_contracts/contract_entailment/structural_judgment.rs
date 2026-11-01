@@ -1638,11 +1638,13 @@ impl<'program> StructuralJudge<'program> {
             }
             (StructuralTerm::Variable(name), _) => {
                 if left != right {
-                    Arc::make_mut(&mut self.substitutions).push((name.clone(), right));
+                    Arc::make_mut(&mut self.substitutions).push((name.clone(), right.clone()));
+                    self.note_type_atom(name, &right);
                 }
             }
             (_, StructuralTerm::Variable(name)) => {
-                Arc::make_mut(&mut self.substitutions).push((name.clone(), left));
+                Arc::make_mut(&mut self.substitutions).push((name.clone(), left.clone()));
+                self.note_type_atom(name, &left);
             }
             // A parameter-rooted member place resolves to its Opaque display
             // (`left.code`), so it carries the same rewrite as the unresolved
@@ -1663,6 +1665,31 @@ impl<'program> StructuralJudge<'program> {
                 self.hypotheses_contradictory = true;
             }
             _ => {}
+        }
+    }
+
+    /// Static type equality is exact (generics.md, "Static type equality"): a
+    /// type binder equated to one closed type is not equal to any other. This
+    /// judge sees `T == i32` and `T == bool` as unrelated atoms, so binding the
+    /// second one true while the first holds is the contradiction that lets a
+    /// contract's equation refute a case whose default domain states another.
+    fn note_type_atom(&mut self, name: &str, value: &StructuralTerm) {
+        let Some((open, closed)) = super::structural_terms::open_closed_type_atom(name) else {
+            return;
+        };
+        if value_predicates::boolean_value(value.semantic_value()) != Some(true) {
+            return;
+        }
+        let conflicts = self.substitutions.iter().any(|(other, bound)| {
+            other != name
+                && super::structural_terms::open_closed_type_atom(other).is_some_and(
+                    |(other_open, other_closed)| other_open == open && other_closed != closed,
+                )
+                && value_predicates::boolean_value(self.resolve(bound.clone()).semantic_value())
+                    == Some(true)
+        });
+        if conflicts {
+            self.hypotheses_contradictory = true;
         }
     }
 
