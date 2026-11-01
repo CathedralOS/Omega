@@ -207,7 +207,10 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
             erased_arguments: decode_scalar_terms(reader)?,
             erased_proof_arguments: decode_proof_terms(reader)?,
             structural_arguments: decode_structural_arguments(reader)?,
-            claim_transfers: super::call_operations::decode_claim_transfers(reader)?,
+            claim_transfers:
+                <super::super::wire_fields::ClaimTransfers as super::super::wire_fields::Field<
+                    _,
+                >>::read(reader)?,
             requirement_obligations: decode_ids(reader, "ObligationId")?,
             crash_continuations: decode_crash_routes(reader)?,
         },
