@@ -10,7 +10,6 @@
 //! suspension while the provider still retains its mutable original pointer.
 use super::aggregate_loans::borrow_carrying_data_loans;
 use super::aggregate_loans::result_source_loans;
-use super::call_views::CallViewReturnContract;
 use super::is_reference_type;
 use super::owner_paths::owner_path_from_place_segments;
 use super::owner_paths::owner_place_segments as place_segments;

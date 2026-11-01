@@ -44,7 +44,6 @@ use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode}
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceNode;
 use validation::CallSite;
-use validation::ExactIntegerCastFact;
 use validation::ScalarArrayElement;
 use validation::activation_target_state_index;
 use validation::assignment_stored_value_type;
