@@ -1,0 +1,29 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+    "update",
+    "--project",
+    "samples/gui/window_demo",
+    "--target",
+    "macos_arm64",
+    "--offline"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+    "sha256": "0e85ff600ada1e430d4dd12bfefae5b66def6cdbdfff32b3704f1e007265754e",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/build.omg": "20da3270dafb64438f91a16314b0d3b14fb3bf5c2fef3e3a891f6ff2efeeb10e",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/main.omg": "d4896271380a77593de3de1b27b57dcfbe8132216eaa91b99a84ddba866abe6a",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/providers.omg": "42e653c3aa4edefb2b62dc16a7721bb0ceda7905bfa7170b52e38108d43eb98f"
+  },
+  "utc": "2026-11-01T18:29:23.469303+00:00",
+  "exit": 3,
+  "seconds": 88.151288459,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.stderr"
+}

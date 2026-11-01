@@ -1,0 +1,18 @@
+package candidate checking failed: checked compilation failed for package `omega_language_std` with 18 diagnostic(s)
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  error: cannot establish assignment invariants: storage origins are unavailable
+  [truncated; 2 additional diagnostics omitted]

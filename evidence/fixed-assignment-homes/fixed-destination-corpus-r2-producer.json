@@ -1,0 +1,27 @@
+{
+  "source": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 10.586994665999999,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r2-omega",
+    "sha256": "90661032e411ad2779b1b80647b1788b041a9a5a91ee95708f4176eb02328d0a",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

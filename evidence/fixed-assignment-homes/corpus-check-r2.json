@@ -1,0 +1,339 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19095
+  },
+  "subset": true,
+  "filter": "recast_parent_restoration",
+  "shard": null,
+  "verdict": "clean",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 21,
+    "by_status": {
+      "checked": 10,
+      "rejected": 11
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 21,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "b32b6171a411",
+      "commits_behind": 11
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585",
+      "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6",
+      "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.",
+      "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 9.74,
+      "load1_end": 9.06
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/facts/recast_parent_restoration_preserved_end_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5842,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6964,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6855,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8120,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8902,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5773,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5868,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8873,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6895,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/recast_parent_restoration_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8057,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_changed_end_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1289,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1468,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1173,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2161,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1737,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1668,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1583,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1949,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1307,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1451,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/recast_parent_restoration_unrestored_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1388,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": []
+}

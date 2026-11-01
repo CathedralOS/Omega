@@ -1,0 +1,2690 @@
+{
+  "source": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+  "base": "b7e951cdab51dda4e199f3fd33c53a0408fe72db",
+  "target": "macos_arm64",
+  "producer": {
+    "source": "b7e951cdab51dda4e199f3fd33c53a0408fe72db",
+    "patch_sha256": "4ad8f5c2a351cf5469a38b41b4bf3cba4f8e399a1ea2b7367dc29506a821e49b",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 215.33143379199998,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+      "sha256": "0e85ff600ada1e430d4dd12bfefae5b66def6cdbdfff32b3704f1e007265754e",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "assertion": "Declaration-fixed assignment homes do not require captured reference provenance; loaded-reference origins remain fail-closed.",
+  "baseline": {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-b7-r1-omega",
+      "update",
+      "--project",
+      "samples/gui/window_demo",
+      "--target",
+      "macos_arm64",
+      "--offline"
+    ],
+    "producer": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-b7-r1-omega",
+      "sha256": "2149479fb0b172cc976a39ef611370f684235fbb3d322d4c239f17c0933ca30f",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "inputs": {
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/build.omg": "20da3270dafb64438f91a16314b0d3b14fb3bf5c2fef3e3a891f6ff2efeeb10e",
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/main.omg": "d4896271380a77593de3de1b27b57dcfbe8132216eaa91b99a84ddba866abe6a",
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/providers.omg": "42e653c3aa4edefb2b62dc16a7721bb0ceda7905bfa7170b52e38108d43eb98f"
+    },
+    "utc": "2026-11-01T17:41:45.654884+00:00",
+    "exit": 1,
+    "seconds": 17.464899167,
+    "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-update.stdout",
+    "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-update.stderr"
+  },
+  "fresh_candidate": {
+    "command": [
+      "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+      "update",
+      "--project",
+      "samples/gui/window_demo",
+      "--target",
+      "macos_arm64",
+      "--offline"
+    ],
+    "producer": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+      "sha256": "0e85ff600ada1e430d4dd12bfefae5b66def6cdbdfff32b3704f1e007265754e",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "inputs": {
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/build.omg": "20da3270dafb64438f91a16314b0d3b14fb3bf5c2fef3e3a891f6ff2efeeb10e",
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/main.omg": "d4896271380a77593de3de1b27b57dcfbe8132216eaa91b99a84ddba866abe6a",
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/gui/window_demo/providers.omg": "42e653c3aa4edefb2b62dc16a7721bb0ceda7905bfa7170b52e38108d43eb98f"
+    },
+    "utc": "2026-11-01T18:29:23.469303+00:00",
+    "exit": 3,
+    "seconds": 88.151288459,
+    "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.stdout",
+    "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.stderr"
+  },
+  "acceptance": "Fresh source-checking reaches pending package review. No package-policy acceptance or GUI execution claimed.",
+  "checks": {
+    "row": {
+      "producer": {
+        "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+        "sha256": "0e85ff600ada1e430d4dd12bfefae5b66def6cdbdfff32b3704f1e007265754e",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "results": [
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/main.omg": "3584ed3c1738a23b898714f8cd526cc97513d6873bf3954b23a89b522b7455a7"
+          },
+          "expected": true,
+          "place": "local",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/main.omg",
+          "source_sha256": "3584ed3c1738a23b898714f8cd526cc97513d6873bf3954b23a89b522b7455a7",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.473206958,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/invalid/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/invalid/main.omg": "fc2ca1a18d029e9ba2e7bc26259c6f295225cebba8b0737f235dba644daffb99",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "local",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/invalid/main.omg",
+          "source_sha256": "fc2ca1a18d029e9ba2e7bc26259c6f295225cebba8b0737f235dba644daffb99",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/local/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5509120419999998,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-invalid.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/main.omg": "314b284d64e1e3010d09e0a669945337a19178a25b93a3f760ba664eb4cbb7f9"
+          },
+          "expected": true,
+          "place": "field",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/main.omg",
+          "source_sha256": "314b284d64e1e3010d09e0a669945337a19178a25b93a3f760ba664eb4cbb7f9",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.8827779579999993,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/invalid/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/invalid/main.omg": "dcde036f591fa2e9a335871c159690b2f55d0ccb551636045a5c3954461b5f9b",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "field",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/invalid/main.omg",
+          "source_sha256": "dcde036f591fa2e9a335871c159690b2f55d0ccb551636045a5c3954461b5f9b",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/field/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.6525704590000005,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-invalid.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/main.omg": "d0aaacb7aded6c1cfb181225659f861f6f42019836ad0fea44a4e4373eba85a7"
+          },
+          "expected": true,
+          "place": "parameter",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/main.omg",
+          "source_sha256": "d0aaacb7aded6c1cfb181225659f861f6f42019836ad0fea44a4e4373eba85a7",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.746134833,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/invalid/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/invalid/main.omg": "9083f1c8d3c0e3d50bc729df981fb0f8b32af6f27990ed8eb8fd67f5b2fd16c1",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "parameter",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/invalid/main.omg",
+          "source_sha256": "9083f1c8d3c0e3d50bc729df981fb0f8b32af6f27990ed8eb8fd67f5b2fd16c1",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/parameter/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5332831660000004,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-invalid.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/main.omg": "b6e397e2703bd069002044f5b588dc606641629367fc8a418ff6b607d59b7aa2"
+          },
+          "expected": true,
+          "place": "call_result",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/main.omg",
+          "source_sha256": "b6e397e2703bd069002044f5b588dc606641629367fc8a418ff6b607d59b7aa2",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.4672945839999993,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/invalid/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/invalid/main.omg": "8f1421d24b418b974bfcae7f107bb6e01ef8b187d77affde854a884939789a29",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "call_result",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/invalid/main.omg",
+          "source_sha256": "8f1421d24b418b974bfcae7f107bb6e01ef8b187d77affde854a884939789a29",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/call_result/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.6247138749999994,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-invalid.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/main.omg": "b78ab5df3d433a7f32c2630b49589896d94d1c9a5d18931f1b35acaf89a2ca02"
+          },
+          "expected": true,
+          "place": "match_join",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/main.omg",
+          "source_sha256": "b78ab5df3d433a7f32c2630b49589896d94d1c9a5d18931f1b35acaf89a2ca02",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.5506581250000018,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/invalid/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/invalid/main.omg": "361d0e1a32dfcb3658dfbb0762a9fd6a8ef02f69a6c94ea8dd2c6b9d6fb365d3",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "match_join",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/invalid/main.omg",
+          "source_sha256": "361d0e1a32dfcb3658dfbb0762a9fd6a8ef02f69a6c94ea8dd2c6b9d6fb365d3",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/match_join/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5435374169999996,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-invalid.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/main.omg": "79215225d26955a300f160d74cb479b799f26cd5e210af4cf70593c6cc09db68"
+          },
+          "expected": true,
+          "place": "const_name",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/main.omg",
+          "source_sha256": "79215225d26955a300f160d74cb479b799f26cd5e210af4cf70593c6cc09db68",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.6768995829999973,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/invalid/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/invalid/main.omg": "c4af015adad88bd01f74f1718ae7906db39f71b0b9a25e732f747f17ea3823d9",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "const_name",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/invalid/main.omg",
+          "source_sha256": "c4af015adad88bd01f74f1718ae7906db39f71b0b9a25e732f747f17ea3823d9",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/const_name/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5370932089999982,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-invalid.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/main.omg": "2155b22afcc17e0ec3f509e72ff86306d92badc60ef4396bb39386d06b4ec21f"
+          },
+          "expected": true,
+          "place": "other_state",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/main.omg",
+          "source_sha256": "2155b22afcc17e0ec3f509e72ff86306d92badc60ef4396bb39386d06b4ec21f",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.251105709000001,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/invalid/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/invalid/main.omg": "2729ad0760798ff6adf03707c9b1e1e862de515ca9619b88bfdf74d9b59eecfe",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "other_state",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/invalid/main.omg",
+          "source_sha256": "2729ad0760798ff6adf03707c9b1e1e862de515ca9619b88bfdf74d9b59eecfe",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_state/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5979707080000018,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-invalid.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/main.omg": "e724121c836fbb66a877a7f5c2224f829b1af3f6a83f8fbee69991408f785185"
+          },
+          "expected": true,
+          "place": "other_machine",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/main.omg",
+          "source_sha256": "e724121c836fbb66a877a7f5c2224f829b1af3f6a83f8fbee69991408f785185",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.4464065419999983,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/invalid/build.omg": "e3ed0c96f7b34728dc30dac5d6fabd6b2cf64c3eecd3b7c7d0008d9b599af97f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/invalid/main.omg": "782d62b9170750c6de4fb7ffc9d02a886d65d2b82a3919ea13750ee4dfdbb405",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "other_machine",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/invalid/main.omg",
+          "source_sha256": "782d62b9170750c6de4fb7ffc9d02a886d65d2b82a3919ea13750ee4dfdbb405",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/other_machine/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5446234160000003,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-invalid.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/build.omg": "a89504c983bf34f52f641bc6a1855e0f39eaaae0f388d8269bef605b368af80f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/main.omg": "094d6a759ee50f7a95e8a40da6e26a4b454b507deff7618a827742111c96766c"
+          },
+          "expected": true,
+          "place": "target_body",
+          "invalid": false,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/main.omg",
+          "source_sha256": "094d6a759ee50f7a95e8a40da6e26a4b454b507deff7618a827742111c96766c",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.6439761670000017,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-positive.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-positive.stderr"
+        },
+        {
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/invalid/build.omg": "a89504c983bf34f52f641bc6a1855e0f39eaaae0f388d8269bef605b368af80f",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/invalid/main.omg": "3d4383da0d303a281c5a79cf2bd7d4fd90ad2b86d33a17c902d6b56993755b73",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/invalid/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "expected": true,
+          "place": "target_body",
+          "invalid": true,
+          "source": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/invalid/main.omg",
+          "source_sha256": "3d4383da0d303a281c5a79cf2bd7d4fd90ad2b86d33a17c902d6b56993755b73",
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/target_body/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5741929580000011,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-invalid.stderr"
+        }
+      ]
+    },
+    "regression": {
+      "producer": {
+        "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+        "sha256": "0e85ff600ada1e430d4dd12bfefae5b66def6cdbdfff32b3704f1e007265754e",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "results": [
+        {
+          "name": "snapshot-local",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/local/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/local/main.omg": "f6f9d460b3da191e3f89149b5c1d972b78ad9a0377daa613685db2313f6726dc"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.381256125,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local.stderr"
+        },
+        {
+          "name": "snapshot-local-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/local/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/local/invalid/main.omg": "11a8a723828ea51929a313278dc0fdc5a4a8442d8ca647f454b018a7e372a63e"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/local/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.362110875,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local-invalid.stderr"
+        },
+        {
+          "name": "snapshot-field",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/field/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/field/main.omg": "60e9e4eeb6e3fa73df1d86127b2952c555da96f2da9bf929fe5999c3837f5f34"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/field/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.345846416,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field.stderr"
+        },
+        {
+          "name": "snapshot-field-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/field/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/field/invalid/main.omg": "e6fcda3333a636cd026ac4b964cf17db488ed50e8232e16cac4fdfbdb03b2698"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/field/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4514392919999999,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field-invalid.stderr"
+        },
+        {
+          "name": "snapshot-parameter",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/parameter/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/parameter/main.omg": "f5278847b1a3f6eb0aae1b23d323b79efe37c2c6d1670a32c25309385eec6962"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/parameter/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.406320750000001,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter.stderr"
+        },
+        {
+          "name": "snapshot-parameter-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/parameter/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/parameter/invalid/main.omg": "0a9bcef1451dfad2221f48d361949349d89ca3ee586bac0e68f5b21a02457085"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/parameter/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.359117207999999,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter-invalid.stderr"
+        },
+        {
+          "name": "snapshot-call_result",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/call_result/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/call_result/main.omg": "625461e93aee5823fc4eadb5e9687f08073c07be0968bf6189ce47bfa87176ff"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/call_result/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.442600541000001,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result.stderr"
+        },
+        {
+          "name": "snapshot-call_result-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/call_result/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/call_result/invalid/main.omg": "e7b62bb6ac68632b9005ad899c6982543f8ae2027de0617d936e8b06783d125e"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/call_result/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3824908330000003,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result-invalid.stderr"
+        },
+        {
+          "name": "snapshot-match_join",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/match_join/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/match_join/main.omg": "18ef18a76b899405caaf96e3c4488dec8373caaf89f2251fdbada708d7210db7"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/match_join/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.478554000000001,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join.stderr"
+        },
+        {
+          "name": "snapshot-match_join-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/match_join/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/match_join/invalid/main.omg": "9732b8cb3475066cd789671a6e97d69dfbbbdfe784f8d1c11bb28b51e5144948"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/match_join/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4748643750000028,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join-invalid.stderr"
+        },
+        {
+          "name": "snapshot-const_name",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/const_name/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/const_name/main.omg": "441963ec9a2f5176cd9f964a15f6fc1ec90089102a8bbdec1975ff4b755aae99"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/const_name/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.719750417,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name.stderr"
+        },
+        {
+          "name": "snapshot-const_name-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/const_name/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/const_name/invalid/main.omg": "c4bdc30274fe7cd12ffba6009af1b32e5120c99ff82961826c4aa7300dc372b7"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/const_name/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3645163749999973,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name-invalid.stderr"
+        },
+        {
+          "name": "snapshot-other_state",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_state/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_state/main.omg": "132b1a339c08e1bc29ce2faba931310c91efdd6d65fa3e7c652c09013669488e"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_state/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.0094270829999985,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state.stderr"
+        },
+        {
+          "name": "snapshot-other_state-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_state/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_state/invalid/main.omg": "85924c5a58e7ea123b0c6e1035531fc84622c1ececf9ad0b817b32d8eb6eec63"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_state/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.390676416999998,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state-invalid.stderr"
+        },
+        {
+          "name": "snapshot-other_machine",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_machine/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_machine/main.omg": "f2c5201c3b2da523f43e72c60478af430af91e84d19f627d86db35a7bf212424"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_machine/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.9325198750000006,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine.stderr"
+        },
+        {
+          "name": "snapshot-other_machine-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_machine/invalid/build.omg": "7d8283a71e0bd83d6834d90c7b88e9046d9b5c96b19f00f212d137848f0d93db",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_machine/invalid/main.omg": "698913b0dce8145efb1a12b602bb6290c84dec88e83fef8a8d0d1c542f7328ae"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/other_machine/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4286123749999966,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine-invalid.stderr"
+        },
+        {
+          "name": "snapshot-target_body",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/target_body/build.omg": "bc3bb6060f5242372e3ae600d9f14d4406500500caf4c1665a6bafa33bd515e8",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/target_body/main.omg": "4b36d7d0d41071cc0f495e929b40fc0af56d64ff482397581140dfb369af861d"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/target_body/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.6545721669999978,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body.stderr"
+        },
+        {
+          "name": "snapshot-target_body-invalid",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/target_body/invalid/build.omg": "bc3bb6060f5242372e3ae600d9f14d4406500500caf4c1665a6bafa33bd515e8",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/target_body/invalid/main.omg": "46d262fd57fb241ddc8e5cb7bd4434251fd391a789e140de720fc038851fa6a3"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/invariant_window_snapshot/target_body/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.431924084000002,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body-invalid.stderr"
+        },
+        {
+          "name": "standing",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/local/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/local/build.omg": "254e7e068f24e81217b854d2466a8524ac3154563da911398234f13eb429dc96",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/local/main.omg": "8bfb7d965addb8ec91434ddaa5913a55112f33a86e167d2637142aeaaa92fb81"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.6221328339999985,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-standing.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-standing.stderr"
+        },
+        {
+          "name": "predicate",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/predicate_helper/local/build.omg": "254e7e068f24e81217b854d2466a8524ac3154563da911398234f13eb429dc96",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/predicate_helper/local/main.omg": "ad190b72ca34e6a96108830a249142c9646356bb9a8625e6967f69b0b5654ee4"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/predicate_helper/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.5009674589999946,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-predicate.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-predicate.stderr"
+        },
+        {
+          "name": "mutable-recast",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/mutable_recast/local/build.omg": "521e7973c1806f0df315ebc171444210c88de80369eb4580ad359db06602c8be",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/mutable_recast/local/main.omg": "6f318af42aaa70896bddc7cf5bda56d46531255e3cef499ed8faf7f2e4d1d3b4"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/data_where_standing/mutable_recast/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.778056874999997,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-mutable-recast.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-mutable-recast.stderr"
+        },
+        {
+          "name": "encoded-fit",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/runtime_callee_integer_at_fitting_write_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/runtime_callee_integer_at_fitting_write_exit/build.omg": "ff1b861d7cf61e5ac451b8abb20d00d314f0371b6df8c678bfebd1d4d292ff90",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/runtime_callee_integer_at_fitting_write_exit/main.omg": "8909d190bb4f59df55fab22c94ba98e44f6bc89804726b565ccfbc3c436bc07d"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/layouts/runtime_callee_integer_at_fitting_write_exit/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.0924217920000032,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-fit.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-fit.stderr"
+        },
+        {
+          "name": "preserved-end",
+          "invalid": false,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/preserved_end/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/preserved_end/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/preserved_end/build.omg": "a3bbac8511068d42db8e15ee2c6bad8fd10304f7a0aee512a3b15900f3bda908",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/preserved_end/main.omg": "13946cc591f74b8604b63efd4187f23825bce36a5e6128fc2cdd81045ced0d9f"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/preserved_end/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.9672180000000026,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-preserved-end.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-preserved-end.stderr"
+        },
+        {
+          "name": "changed-end",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/changed_end/build.omg": "a3bbac8511068d42db8e15ee2c6bad8fd10304f7a0aee512a3b15900f3bda908",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/changed_end/main.omg": "3e5d6a4244170112fd58515435c1afa98ff8e5cf3b9300e20d86d1614377d2d8",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/changed_end/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/changed_end/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5387569160000041,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-changed-end.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-changed-end.stderr"
+        },
+        {
+          "name": "unrestored",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/unrestored/build.omg": "a3bbac8511068d42db8e15ee2c6bad8fd10304f7a0aee512a3b15900f3bda908",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/unrestored/main.omg": "62024e6a8efb5b9d6b520f69f3c4fd33ea7c0fa3ab3747c8caccee91d9d9fa14",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/unrestored/expected.txt": "17621eccc596f910c0f7826c3b2e0e99848b9d01ded56a9f521334d7eafaa79d"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/recast_parent_restoration/controls/unrestored/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5459027089999964,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-unrestored.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-unrestored.stderr"
+        },
+        {
+          "name": "encoded-no-fit",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/layouts/callee_integer_at_write_requires_fit/main.omg": "efd13c4efceec2b6d877d6ae2cc9efd2116f1e30d8fa0beeed50259a60e0368a",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/layouts/callee_integer_at_write_requires_fit/expected.txt": "0003a340ad8b6d062bb1542cf03b4657e8e1bb3228f60eecfed971a7c38d4032"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/layouts/callee_integer_at_write_requires_fit/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4645239999999973,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-no-fit.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-no-fit.stderr"
+        },
+        {
+          "name": "write-only-reference",
+          "invalid": true,
+          "inputs": {
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/recast/write_only_stored_pointer_read/build.omg": "ee3bbc6be427f68158be78946a7e0e0bb780727820fb19b7622d30914ecf11fb",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/recast/write_only_stored_pointer_read/main.omg": "8b1ef27d1cfc4ecd2f3b0922d440a9e5edf589e68c6105956d2ca8350adce0bf",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/recast/write_only_stored_pointer_read/expected.txt": "344fe7be7cda817fbe86a1fc9837b8f85d4dd9f098210e715579150badf14ff3"
+          },
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/fail/recast/write_only_stored_pointer_read/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 0.5419577500000017,
+          "expected": true,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-write-only-reference.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-write-only-reference.stderr"
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "macos_arm64 actual runtime only",
+    "WindowDemo native qualification remains open",
+    "No standalone reproducer found by13 exploratory probes; real customer package update is regression witness"
+  ],
+  "claim": "5f762ece0f0d44ea9472ed61e176f071",
+  "corpus": {
+    "schema": "omega-corpus-verdict-v1",
+    "revision": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+    "dirty": false,
+    "leg": "checked",
+    "target": null,
+    "golden": "tests/omega/corpus_outcomes.txt",
+    "golden_reason_gaps": {
+      "rows": 1,
+      "of": 19095
+    },
+    "subset": true,
+    "filter": "recast_parent_restoration",
+    "shard": null,
+    "verdict": "clean",
+    "exit_code": 0,
+    "counts": {
+      "fixtures": 21,
+      "by_status": {
+        "checked": 10,
+        "rejected": 11
+      },
+      "wrong_reason": 0,
+      "wrong_reason_fixtures": [],
+      "fail_not_rejected": 0,
+      "fail_not_rejected_fixtures": [],
+      "lost_successes": 0,
+      "lost_success_fixtures": [],
+      "pinned_off_target": 0,
+      "pinned_off_target_fixtures": [],
+      "by_verdict": {}
+    },
+    "oracle_failures": [],
+    "infrastructure_error": null,
+    "golden_provenance": {
+      "stamped": 21,
+      "legacy": 0,
+      "unknown_revisions": 0,
+      "oldest": {
+        "revision": "b32b6171a411",
+        "commits_behind": 11
+      }
+    },
+    "perf_context": {
+      "golden": {
+        "incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585",
+        "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6",
+        "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.",
+        "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd",
+        "schema": "omega-corpus-context-v1"
+      },
+      "current": {
+        "schema": "omega-corpus-context-v1",
+        "jobs": null,
+        "cpus": 10,
+        "platform": "darwin",
+        "machine": "arm64",
+        "load1_start": 9.74,
+        "load1_end": 9.06
+      },
+      "warnings": []
+    },
+    "observations": [
+      {
+        "fixture": "pass/facts/recast_parent_restoration_preserved_end_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 5842,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_call_result_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6964,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_const_name_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6855,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_field_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 8120,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_local_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 8902,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_match_join_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 5773,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_other_machine_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 5868,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_other_state_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 8873,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_parameter_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 6895,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "pass/facts/recast_parent_restoration_through_target_body_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 8057,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_changed_end_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1289,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_call_result_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1468,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_const_name_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1173,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_field_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 2161,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_local_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1737,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_match_join_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1668,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_other_machine_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1583,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_other_state_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1949,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_parameter_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1307,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_through_target_body_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1451,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      },
+      {
+        "fixture": "fail/facts/recast_parent_restoration_unrestored_rejected",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1388,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    ],
+    "fixtures": []
+  },
+  "corpus_producer": {
+    "source": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "compiler",
+      "--test",
+      "corpus_runner",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 10.586994665999999,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r2-omega",
+      "sha256": "90661032e411ad2779b1b80647b1788b041a9a5a91ee95708f4176eb02328d0a",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "failed_corpus_link": {
+    "result": {
+      "source": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+      "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command": [
+        "cargo",
+        "rustc",
+        "--locked",
+        "-p",
+        "compiler",
+        "--test",
+        "corpus_runner",
+        "--message-format=json",
+        "--",
+        "-C",
+        "strip=none"
+      ],
+      "exit": 101,
+      "seconds": 65.846138625
+    },
+    "cause": "ld write() failed errno=28",
+    "recovery": {
+      "sha256": "41977c3852aac44be6be3f7d3227995073d7d3d930686c97c290ca482972d865",
+      "preserved": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r1-omega",
+      "removed_failed_link_output": [],
+      "free_before": 398331904,
+      "free_after": 563658752
+    }
+  },
+  "independent_review": {
+    "schema": "omega-independent-semantic-review-v1",
+    "accepted": true,
+    "reviewer": "OpenAI Codex independent reviewer; read-only source/evidence review, no implementation authorship",
+    "candidate": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+    "fixed_base": "b7e951cdab51dda4e199f3fd33c53a0408fe72db",
+    "blocking_findings": [],
+    "scope": "Exact one-file assignment destination recovery repair, authenticated completed 45 focused source/runtime outcomes, full-std/window_demo source checking to normal pending policy review, and the fresh exact-candidate 21-fixture source corpus gate.",
+    "rationale": "Destination geometry that is independent of prefix reference contents is recovered before requiring an alias inventory. The shortcut authenticates builtin coordinate meaning, exact declaring types and the performed receiving type, strips only one exclusive formal shell, and rejects traversal through interior references. Loaded/stored aliases retain the original captured-prefix and exposure requirements. This resolves the demonstrated full-std source regression without discarding recast parent debt or original entry-sibling preservation. The exact-candidate optimized corpus retry also passes all 21 selected source fixtures with their intended outcomes. The earlier link/infrastructure failure remains a distinct nonaccepted attempt.",
+    "semantic_assessment": {
+      "formal_and_descriptor_identity": "Shared formal bindings are excluded by access.is_exclusive(); their descriptors may be rebound. Exclusive outer addresses are fixed within the invocation, while nested reference slots remain prefix-dependent. Receiving-type equality distinguishes descriptor replacement from referent stores.",
+      "missing_evidence": "A missing reference inventory remains None, never Some(empty). The ordered-value consumer refuses reference-based noninterference when this inventory is unavailable. Genuinely unknown loaded addresses continue to fail closed; no speculative unknown-store fallback was added.",
+      "rhs_and_selectors": "Recovered coordinates do not prove RHS purity or contents. Exact captured post-value installation still calls captured_assignment_destination_remains_current, including selector survival and intermediate-reference stability across RHS writes. Default-domain direct proofs are a separate route: fixed declaration geometry, call/index effect invalidation and conservative wildcard tracking remain their basis; the captured-value guard is not asserted to cover every domain-discharge path.",
+      "preserved_restoration": "The scalar-value/primitive-bit interpretation gate, actual post-store parent predicate checks, entry-field capture, changed-sibling invalidation and read-only/write-only boundaries are unchanged by this diff. Fresh positive and rejecting raw observations preserve the previously fixed outcomes.",
+      "removed_dependency": "Owned/fixed-formal destination identity no longer unnecessarily depends on a complete preceding alias-prefix walk. Reference-content provenance and unstable loaded destinations still depend on that walk."
+    },
+    "qualification": {
+      "baseline": "Frozen optimized b7 full-std/window_demo update failed with 18 storage-origins-unavailable diagnostics. Diagnostics omit individual source sites; this review does not invent an exact 18-store mapping.",
+      "fresh_std_update": {
+        "receipt": {
+          "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.json",
+          "sha256": "b9fae0405da11ed459f3122c6ac518a8ca5c926a194b73ced854e828a8239b5e"
+        },
+        "exit": 3,
+        "seconds": 88.151288459,
+        "source_packages_checked": 2,
+        "stderr_empty": true,
+        "sample_input_hashes_verified": 3,
+        "meaning": "Source checking completed and normal package policy review is pending. No package-policy approval, normal resume, native GUI execution or parent closure is inferred."
+      },
+      "focused": {
+        "row": {
+          "outcomes": 18,
+          "actual_native_terminal_0_0": 9,
+          "intended_parent_debt_rejects": 9
+        },
+        "regressions": {
+          "outcomes": 27,
+          "actual_native_terminal_0_0": 14,
+          "intended_rejects": 13
+        },
+        "all_captured_input_hashes_match": true,
+        "raw_observations": [
+          {
+            "label": "local",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "local",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "field",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "field",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "parameter",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "parameter",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "call_result",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "call_result",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "match_join",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "match_join",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "const_name",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "const_name",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "other_state",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "other_state",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "other_machine",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "other_machine",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "target_body",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-positive.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-positive.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "target_body",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-invalid.stderr",
+              "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+            }
+          },
+          {
+            "label": "snapshot-local",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-local-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local-invalid.stderr",
+              "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+            }
+          },
+          {
+            "label": "snapshot-field",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-field-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field-invalid.stderr",
+              "sha256": "f6d51474532c23868cd945c428ee2650f82e0287d112299458fde10987e5583b"
+            }
+          },
+          {
+            "label": "snapshot-parameter",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-parameter-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter-invalid.stderr",
+              "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+            }
+          },
+          {
+            "label": "snapshot-call_result",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-call_result-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result-invalid.stderr",
+              "sha256": "a42512adf36f78ce33bf1524bed34edefb6d0c76b72ed7ecbe4a5d5190dccd65"
+            }
+          },
+          {
+            "label": "snapshot-match_join",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-match_join-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join-invalid.stderr",
+              "sha256": "2ff891ee1174edd943a92066f849270779e893e89d6ff57326277471f32fd459"
+            }
+          },
+          {
+            "label": "snapshot-const_name",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-const_name-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name-invalid.stderr",
+              "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+            }
+          },
+          {
+            "label": "snapshot-other_state",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-other_state-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state-invalid.stderr",
+              "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+            }
+          },
+          {
+            "label": "snapshot-other_machine",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-other_machine-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine-invalid.stderr",
+              "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+            }
+          },
+          {
+            "label": "snapshot-target_body",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "snapshot-target_body-invalid",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body-invalid.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body-invalid.stderr",
+              "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+            }
+          },
+          {
+            "label": "standing",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-standing.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-standing.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "predicate",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-predicate.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-predicate.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "mutable-recast",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-mutable-recast.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-mutable-recast.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "encoded-fit",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-fit.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-fit.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "preserved-end",
+            "invalid": false,
+            "exit": 0,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-preserved-end.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-preserved-end.stderr",
+              "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+            }
+          },
+          {
+            "label": "changed-end",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-changed-end.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-changed-end.stderr",
+              "sha256": "931033daef482cdd9ef8b73a6f4643783e641d36131492032d4f874cfd7bd3cb"
+            }
+          },
+          {
+            "label": "unrestored",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-unrestored.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-unrestored.stderr",
+              "sha256": "931033daef482cdd9ef8b73a6f4643783e641d36131492032d4f874cfd7bd3cb"
+            }
+          },
+          {
+            "label": "encoded-no-fit",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-no-fit.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-no-fit.stderr",
+              "sha256": "47559223b013dc8f432577fa70ca4bbc3377c3abdd7f06543d6e38d1d36e4831"
+            }
+          },
+          {
+            "label": "write-only-reference",
+            "invalid": true,
+            "exit": 1,
+            "stdout": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-write-only-reference.stdout",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "stderr": {
+              "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-write-only-reference.stderr",
+              "sha256": "4666c39e1ad5da9f04cc386a7f1b87154a435041ccb411d99fa5ae8cc4839e42"
+            }
+          }
+        ]
+      },
+      "corpus": {
+        "status": "completed and authenticated",
+        "verdict": "clean",
+        "receipt": {
+          "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/corpus-check-r2.json",
+          "sha256": "a1facf58913ff75ea20e0002b2017ecebdf4ba0eeb5fb974105a77e8396096ac"
+        },
+        "producer": {
+          "source": "2e81c4e0d10b84dd0f14bdd8371118687f3046e1",
+          "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "command": [
+            "cargo",
+            "rustc",
+            "--locked",
+            "-p",
+            "compiler",
+            "--test",
+            "corpus_runner",
+            "--message-format=json",
+            "--",
+            "-C",
+            "strip=none"
+          ],
+          "exit": 0,
+          "seconds": 10.586994665999999,
+          "executable": {
+            "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r2-omega",
+            "sha256": "90661032e411ad2779b1b80647b1788b041a9a5a91ee95708f4176eb02328d0a",
+            "profile": {
+              "schema": "omega-compiler-build-profile-v1",
+              "opt_level": "1"
+            }
+          }
+        },
+        "fixtures": 21,
+        "checked": 10,
+        "intended_rejected": 11,
+        "wrong_reason": 0,
+        "fail_accepted": 0,
+        "oracle_failures": [],
+        "fixture_roster": "Exact set of all current recast_parent_restoration pass/fail fixture roots, independently matched to per-fixture observations.",
+        "runtime_scope": "This corpus leg is source checking. Runtime evidence remains the 23 actual native/Terminal 0/0 focused positives recorded in the prior review.",
+        "previous_failed_attempt": {
+          "build": {
+            "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r1-build.json",
+            "sha256": "e8fd5be5f87a25dd7d8039f9d6c4ee2856a7f1f9f0ea82b3c73297a54956a341"
+          },
+          "verdict": {
+            "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/corpus-check.json",
+            "sha256": "56427201d43fc30e2e66c5941114e9a77dcb1d60be3067f71755d4d3a8390a79"
+          },
+          "classification": "Link errno28/disk infrastructure failure, not source or engine success; preserved without relabeling."
+        }
+      }
+    },
+    "preexisting_concerns": [
+      {
+        "path": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/assignment_windows.rs",
+        "line": 505,
+        "finding": "The alternatives fast return clears a window before the later wildcard/debt restriction. This branch is byte-identical to fixed b7, and no unsafe newly admitted execution through this candidate has been demonstrated.",
+        "classification": "preexisting source-level concern, not an established introduced regression or blocking finding"
+      }
+    ],
+    "producer": {
+      "source": "b7e951cdab51dda4e199f3fd33c53a0408fe72db",
+      "patch_sha256": "4ad8f5c2a351cf5469a38b41b4bf3cba4f8e399a1ea2b7367dc29506a821e49b",
+      "command": [
+        "cargo",
+        "rustc",
+        "--locked",
+        "-p",
+        "omega",
+        "--bin",
+        "omega",
+        "--message-format=json",
+        "--",
+        "-C",
+        "strip=none"
+      ],
+      "exit": 0,
+      "seconds": 215.33143379199998,
+      "executable": {
+        "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-omega",
+        "sha256": "0e85ff600ada1e430d4dd12bfefae5b66def6cdbdfff32b3704f1e007265754e",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "critical_receipts": [
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-b7-r1-producer.json",
+        "sha256": "1b30d5f71beef4e3b7b4d451801db4f08120cf93e9799f7ba81b349f2ffe3b28"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-update.json",
+        "sha256": "77040f9bee1a82c68c6c965a5bdc291e799f1db2aa3c317e6dd08c1ddfe93e2d"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-producer.json",
+        "sha256": "34a7c15ebfe0508d7643078e1ebb5253496d141cf19e29542b4b5d8195ddcf0c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.json",
+        "sha256": "b9fae0405da11ed459f3122c6ac518a8ca5c926a194b73ced854e828a8239b5e"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-row-results.json",
+        "sha256": "1944b93f9102cc6e70d36c97a735ae6164bc2d2db4cbeeb5e074687c6f07e121"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-results.json",
+        "sha256": "3f12139f33b0a1dcd970872675be0040e3070059a15756bd581cccc3de986fbd"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/corpus-check-r2.json",
+        "sha256": "a1facf58913ff75ea20e0002b2017ecebdf4ba0eeb5fb974105a77e8396096ac"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r2-producer.json",
+        "sha256": "1025b49f81801f30f52ebf52dbcc3b82f1793cc570532180cdeab977fcbdc1c5"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r2-build.json",
+        "sha256": "157f4b133b40f9d06d4f1208b02334afe2e7b45f9bdecd0b39d01226e81634e8"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r1-build.json",
+        "sha256": "e8fd5be5f87a25dd7d8039f9d6c4ee2856a7f1f9f0ea82b3c73297a54956a341"
+      }
+    ],
+    "source_identities": [
+      {
+        "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/caller_aliases.rs",
+        "git_blob": "8fb9c215673df20a7dd32681b587f962e5f1e870",
+        "sha256": "135681db959f8ad95142725d6528e3ab6d46fc604a8d49024cb8577cddc44593"
+      },
+      {
+        "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/assignment_addresses.rs",
+        "git_blob": "58b0eaacbb2804113cbeef8de151960cbe43cc4f",
+        "sha256": "2ca4abe7809d49766e390ef1685242ae74a8269d29b70bb313849b2fda5ff3bb"
+      },
+      {
+        "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/reference_subjects.rs",
+        "git_blob": "4ef17ef929efbddf04064a47a425fba7a734415d",
+        "sha256": "ed9603b4eb24c8012bb3fb4aaab82f2463a73d090781ff6b60db55be7b6f04b0"
+      },
+      {
+        "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs",
+        "git_blob": "fcd70d134986b668141540359d2470c87df32229",
+        "sha256": "c7f765f9a192a01bb4db3e56196d48bbdb661e34895459abc5762178d9700044"
+      },
+      {
+        "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/storage.rs",
+        "git_blob": "ec355703b5e4b88b06bc50c55498f7dd17b7741c",
+        "sha256": "187ae1400d0d8befb8d3db407747592e43c17fb381857fdf5985ce440aabdef2"
+      },
+      {
+        "path": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/assignment_windows.rs",
+        "git_blob": "1f7e546de16f92bc17c26bd4c0565f75cc521f96",
+        "sha256": "2cd4fead832edcf8885719074d4db9f0024c19966c136f9a8e9fcf567001a4df"
+      },
+      {
+        "path": "wiki/spec/language/dependent_values.md",
+        "git_blob": "9310753797a7ce251044a742640923416642e145",
+        "sha256": "0adf8f72b97849d510e54533813f3aa801950f56c1310e159c6e1bdaf2b14b8d"
+      },
+      {
+        "path": "wiki/spec/layouts/recasts.md",
+        "git_blob": "155224cc446683de44797f3a8a6ab97920783c81",
+        "sha256": "1b4969fcf527ea0f1a2415af969f1532ae960c5512f7a21bea904950da950ed3"
+      },
+      {
+        "path": "tools/testing.md",
+        "git_blob": "263cd7699aabd7dfe77dea7d030220a4e9a5ccdd",
+        "sha256": "6d27e38ea2bd96cdf36b2fdafad4cbe1dfe4ba4b12fbe1fca78d4375e97cac51"
+      },
+      {
+        "path": ".agents/skills/rust-systems-programmer/SKILL.md",
+        "git_blob": "de427ec2712f7675f6525462889e2b3dc0fe0ee7",
+        "sha256": "2c21d3d5d6a47d0f5d9b15ce705f346fe4d531f61318c56fdb5bf92c183fe95e"
+      }
+    ],
+    "artifacts": [
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-b7-r1-producer.json",
+        "sha256": "1b30d5f71beef4e3b7b4d451801db4f08120cf93e9799f7ba81b349f2ffe3b28"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-update.json",
+        "sha256": "77040f9bee1a82c68c6c965a5bdc291e799f1db2aa3c317e6dd08c1ddfe93e2d"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-update.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/baseline-update.stderr",
+        "sha256": "f9ede0be3fd31a4c84982521b2dbfc888ebdd366357e4256ed98160e1144637c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-producer.json",
+        "sha256": "34a7c15ebfe0508d7643078e1ebb5253496d141cf19e29542b4b5d8195ddcf0c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.json",
+        "sha256": "b9fae0405da11ed459f3122c6ac518a8ca5c926a194b73ced854e828a8239b5e"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.stdout",
+        "sha256": "f1ece75aef1e96487a3d7a64e0a899ff2980e6b71950e54a0cd342317a986409"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-update.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-row-results.json",
+        "sha256": "1944b93f9102cc6e70d36c97a735ae6164bc2d2db4cbeeb5e074687c6f07e121"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-local-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-field-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-parameter-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-call_result-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-match_join-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-const_name-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_state-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-other_machine-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-target_body-invalid.stderr",
+        "sha256": "07096f592457b02869f7a6d47cd83e6a1ba0924b0e7d6ffac10730a89ef2e49c"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-results.json",
+        "sha256": "3f12139f33b0a1dcd970872675be0040e3070059a15756bd581cccc3de986fbd"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-local-invalid.stderr",
+        "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-field-invalid.stderr",
+        "sha256": "f6d51474532c23868cd945c428ee2650f82e0287d112299458fde10987e5583b"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-parameter-invalid.stderr",
+        "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-call_result-invalid.stderr",
+        "sha256": "a42512adf36f78ce33bf1524bed34edefb6d0c76b72ed7ecbe4a5d5190dccd65"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-match_join-invalid.stderr",
+        "sha256": "2ff891ee1174edd943a92066f849270779e893e89d6ff57326277471f32fd459"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-const_name-invalid.stderr",
+        "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_state-invalid.stderr",
+        "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-other_machine-invalid.stderr",
+        "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body-invalid.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-snapshot-target_body-invalid.stderr",
+        "sha256": "f379d0f869b633d6e1f766df95c3701d2b1acd97f3fbc43210b28b24c0892c30"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-standing.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-standing.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-predicate.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-predicate.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-mutable-recast.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-mutable-recast.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-fit.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-fit.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-preserved-end.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-preserved-end.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-changed-end.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-changed-end.stderr",
+        "sha256": "931033daef482cdd9ef8b73a6f4643783e641d36131492032d4f874cfd7bd3cb"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-unrestored.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-unrestored.stderr",
+        "sha256": "931033daef482cdd9ef8b73a6f4643783e641d36131492032d4f874cfd7bd3cb"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-no-fit.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-encoded-no-fit.stderr",
+        "sha256": "47559223b013dc8f432577fa70ca4bbc3377c3abdd7f06543d6e38d1d36e4831"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-write-only-reference.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-regression-write-only-reference.stderr",
+        "sha256": "4666c39e1ad5da9f04cc386a7f1b87154a435041ccb411d99fa5ae8cc4839e42"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/candidate-r2-source.patch",
+        "sha256": "4ad8f5c2a351cf5469a38b41b4bf3cba4f8e399a1ea2b7367dc29506a821e49b"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/corpus-check-r2.json",
+        "sha256": "a1facf58913ff75ea20e0002b2017ecebdf4ba0eeb5fb974105a77e8396096ac"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r2-producer.json",
+        "sha256": "1025b49f81801f30f52ebf52dbcc3b82f1793cc570532180cdeab977fcbdc1c5"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r2-build.json",
+        "sha256": "157f4b133b40f9d06d4f1208b02334afe2e7b45f9bdecd0b39d01226e81634e8"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r1-build.json",
+        "sha256": "e8fd5be5f87a25dd7d8039f9d6c4ee2856a7f1f9f0ea82b3c73297a54956a341"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r1-cargo.stdout",
+        "sha256": "157775824d640ab22e16c987a9f87d91409dd54e774972edbbd943f1ab76955a"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/fixed-destination-corpus-r1-cargo.stderr",
+        "sha256": "8ac08c4884c7dae4c247f601ff3b9e7eded9988c4e6ab6c525a79fd64f0ac753"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/corpus-check.json",
+        "sha256": "56427201d43fc30e2e66c5941114e9a77dcb1d60be3067f71755d4d3a8390a79"
+      },
+      {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/independent-final-review.json",
+        "sha256": "3c0f8e9228cded1b928b19c85f39bf014c2cf2f5be3f0093671986c7af066d2a"
+      }
+    ],
+    "limitations": [
+      "WindowDemo update reaches pending ordinary policy review only; GUI/native acceptance remains open.",
+      "The prior row establishes restoration-scalar transport into a locally formed view, not general formed-view provenance/debt transport.",
+      "Runtime observations are macos_arm64 only; other-host execution is unverified.",
+      "No new builds, compiler executions, package mutations, source edits or mutable qualification operations were performed by this review.",
+      "The preexisting alternatives branch is not declared soundness-closed by this bounded decision."
+    ],
+    "skills_read": [
+      "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/.agents/skills/rust-systems-programmer/SKILL.md"
+    ],
+    "review_revision": 2,
+    "previous_review": {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/independent-final-review.json",
+      "sha256": "3c0f8e9228cded1b928b19c85f39bf014c2cf2f5be3f0093671986c7af066d2a"
+    }
+  }
+}
