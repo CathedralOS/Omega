@@ -699,6 +699,16 @@ The rules that touch every edit:
   into `source/library` and migrates its consumers together, preserving oracles
   and negative coverage. Do not create another permanent hierarchy or stale
   inventory. A Rust test of one crate stays beside that crate.
+- Tests check behavior or structure, never source text. Do not read source
+  files with `include_str!` or similar and assert that names or fragments
+  are present or absent: such a test breaks on a rename, passes when the
+  forbidden call goes through another spelling, and says nothing about what
+  the program does. An ownership or dependency rule belongs in
+  `tools/check_native_boundary.py` (cargo metadata) or in visibility and
+  types, so a violation stops compiling. An order or count rule belongs in a
+  test that runs the code and observes it. In the week to 2026-11-01, 261
+  such reads were added; PR #1139 replaced the ones it could and deleted
+  165 spelling-only asserts.
 - Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
