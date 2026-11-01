@@ -161,5 +161,29 @@ no compiler or library mechanism and needs no further build for these records.
 
 The complete nine-place transport row and policy twins now have focused
 observations. Broader schema composition, complete platform ABI records,
-other-host execution and the parent acceptance remain open. These observations
-do not qualify the full compiler.
+Windows x86_64 and Linux ARM64 execution, and the parent acceptance remain open.
+These observations do not qualify the full compiler.
+
+
+## macOS ARM64 execution
+
+The complete nine-place row and all nine policy-mismatch twins pass on native
+macOS ARM64 in [pilot41313309277](https://github.com/CathedralOS/Omega/actions/runs/41313309277).
+Source `3d5c5150f08151ca111b2e6b31545d1646085611` produced authenticated
+opt-level 1 CLI `090ee60d87c91f8e13b23f0bd14c8f323ed4e3946f524ae7833557cfae419bee`
+with Rust host `aarch64-apple-darwin`. Each positive runs native and Terminal
+execution against its declared exit 0 oracle. Each twin rejects its distinct
+receiving policy. The existing initialized backing, values 17/42/9, offsets 0/8/16,
+24-byte extent and 8-byte alignment remain unchanged. This is execution on the
+matching host, independently of earlier macos_arm64 checking-only records.
+
+Preparation took 1109.644s, producer authentication 1.918s and all 18 sample projects
+72.815s. The sample-only producer has no corpus runner or runner profile.
+The [exact source](https://github.com/CathedralOS/Omega/tree/evidence/c-layout-macos-20261101-3d5c5150f081)
+and emitted summary/sample JSON retain the actual producer and target.
+The later prerequisite cleanup and evidence documentation change no Rust,
+library, project, workflow or helper execution inputs; they need no new build.
+
+Windows x86_64 and Linux ARM64 execution remain open, as do the parent capability's
+other representation, complete platform ABI, conversion and Product requirements.
+This observation does not qualify the new Darwin SDK records.
