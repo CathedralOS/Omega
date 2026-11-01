@@ -78,7 +78,7 @@ pub(crate) fn close_private_callback_layouts(
         }
         for field in root_fields {
             let identity = program
-                .normalized_hermetic_symbol_identity(field.symbol)
+                .native_data_field_declaration_identity(field.symbol)
                 .map_err(|reason| {
                     Diagnostic::error(format!(
                         "callback field has no exact declaration identity: {reason}"
@@ -275,7 +275,7 @@ fn close_path(
                 ));
             }
             let identity = program
-                .normalized_hermetic_symbol_identity(field.symbol)
+                .native_data_field_declaration_identity(field.symbol)
                 .map_err(|reason| {
                     Diagnostic::error(format!(
                         "callback path field identity cannot close: {reason}"
