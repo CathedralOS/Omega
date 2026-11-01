@@ -7,17 +7,13 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-use calling_conventions::validate_fresh_native_parameter_identity;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
 };
 use calling_conventions::{
-    BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
-    NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan,
+    CallbackRequirementId, NativeCallbackDemand, NativeParameterId, StaticMachineBinderId,
+    ValidatedBoundaryEntryPlan,
 };
-use checked_trees::typed_trees::boundary_values::{BoundaryTypeBinding, BoundaryValuePreparation};
-use layout::BoundaryValueLayout;
-use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,14 +57,6 @@ impl MaterializedBoundarySignature {
     /// is deliberately absent.
     pub fn opaque_representation_uses(&self) -> &[BoundaryOpaqueRepresentationUse] {
         &self.opaque_representations
-    }
-
-    /// Source-free public shape input for the backend's ABI classifier.
-    pub(crate) fn value_graph(&self) -> BoundaryValueGraph<'_> {
-        BoundaryValueGraph {
-            shapes: &self.shapes,
-            fields: &self.fields,
-        }
     }
 
     pub fn shapes(&self) -> &[BoundaryValueShape] {
@@ -274,174 +262,4 @@ pub struct BoundaryCallbackBinder {
     pub requirement_machine: symbols::SymbolHandle,
     pub requirement_identity: String,
     pub invokes_synchronously: bool,
-}
-
-pub(crate) fn exact_compatibility_overload_index<'identity>(
-    trait_name: &str,
-    method_name: &str,
-    requirement_identity: &str,
-    candidate_identities: impl IntoIterator<Item = &'identity str>,
-) -> Result<Option<usize>, String> {
-    if requirement_identity.is_empty() {
-        return Err(format!(
-            "compatibility calling-plan lookup for `{trait_name}::{method_name}` has no exact requirement overload identity"
-        ));
-    }
-    let mut matches = candidate_identities
-        .into_iter()
-        .enumerate()
-        .filter(|(_, identity)| *identity == requirement_identity);
-    let Some((candidate_index, _)) = matches.next() else {
-        return Ok(None);
-    };
-    let duplicate_count = matches.count();
-    if duplicate_count != 0 {
-        return Err(format!(
-            "compatibility calling-plan lookup for `{trait_name}::{method_name}` matches {} exact requirement overload rows for identity `{requirement_identity}`",
-            duplicate_count + 1,
-        ));
-    }
-    Ok(Some(candidate_index))
-}
-
-pub(crate) fn compatibility_call_signature(
-    materialized: &MaterializedBoundarySignature,
-    policy: CallingPolicy,
-    dispatch_only_parameter_count: usize,
-) -> Result<CallSignature, String> {
-    if dispatch_only_parameter_count > materialized.parameters.len() {
-        return Err(format!(
-            "compatibility calling plan removes {dispatch_only_parameter_count} dispatch-only parameter(s) from a signature with only {} parameter(s)",
-            materialized.parameters.len()
-        ));
-    }
-    // Register capacity is not the source value's width or class. The old
-    // syscall shortcut replaced every root with integer(8, 8), so an i32
-    // formal no longer matched native transport and floats/large aggregates
-    // bypassed the syscall evaluator's normal rejection. Classify every root
-    // through the same checked graph; the ABI evaluator decides placement.
-    Ok(CallSignature {
-        parameters: materialized
-            .parameters
-            .iter()
-            .skip(dispatch_only_parameter_count)
-            .copied()
-            .map(|root| materialized.value_graph().classify(root, policy))
-            .collect::<Result<Vec<_>, _>>()?,
-        result: materialized
-            .result
-            .map(|root| materialized.value_graph().classify(root, policy))
-            .transpose()?,
-    })
-}
-
-/// Materialize the source owner's already-prepared declaration. Type recipes
-/// remain per-parameter work so a refused value stops before later values; the
-/// declaration telescope itself is shared across target requests.
-pub(crate) fn materialize_prepared_signature(
-    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
-    declaration: &checked_trees::typed_trees::service_declarations::signatures::BoundarySignatureDeclaration,
-    declaration_abi: Option<semantic_vocabulary::CallingSignatureId>,
-    bindings: &[BoundaryTypeBinding],
-    layout_target: layout::LayoutTarget,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
-) -> Result<MaterializedBoundarySignature, String> {
-    let prepared = declaration.projection.as_ref().map_err(Clone::clone)?;
-    let census = services.signatures();
-    let coordinate = match declaration_abi {
-        Some(coordinate) => coordinate,
-        None => *census
-            .abi_for_boundary(declaration.symbol)
-            .ok_or("boundary signature lost its exact declaration ABI association")?
-            .as_ref()
-            .map_err(Clone::clone)?,
-    };
-    let declaration_abi = census
-        .abi_signatures()
-        .iter()
-        .find(|row| row.id == coordinate)
-        .ok_or("boundary signature lost its complete declaration ABI key")?;
-    let abi = semantic_vocabulary::CallingAbiIdentity {
-        requirement_identity: declaration_abi.requirement_identity.clone(),
-        declaring_application: declaration_abi.declaring_application.clone(),
-        operands: declaration_abi.operands.clone(),
-    };
-    abi.validate()?;
-    if abi.id() != coordinate {
-        return Err("boundary declaration ABI key differs from its coordinate".into());
-    }
-    let typed = services.context().typed;
-    let telescope = &prepared.telescope;
-    let callback_binders = telescope
-        .binders
-        .iter()
-        .zip(&prepared.callback_sources)
-        .map(|(binder, source)| BoundaryCallbackBinder {
-            binder: binder.binder,
-            requirement: binder.requirement,
-            static_machine_ordinal: binder.static_machine_ordinal,
-            parameter_symbol: source.parameter_symbol,
-            requirement_trait: source.requirement_trait,
-            requirement_machine: source.requirement_machine,
-            requirement_identity: binder.requirement_identity.clone(),
-            invokes_synchronously: binder.invokes_synchronously,
-        })
-        .collect();
-    let representation_types =
-        crate::boundary_value_recipes::representation_types(opaque_representation_selections);
-    let mut preparation = BoundaryValuePreparation::new(typed, bindings, &representation_types);
-    let mut values = BoundaryValueLayout::new(layout_target);
-    let mut parameters = Vec::with_capacity(prepared.parameter_types.len());
-    let mut native_parameters =
-        Vec::<BoundaryNativeParameter>::with_capacity(prepared.parameter_types.len());
-    for (formal_ordinal, (type_reference, formal)) in prepared
-        .parameter_types
-        .iter()
-        .copied()
-        .zip(&telescope.parameters)
-        .enumerate()
-    {
-        let recipe = preparation.value_type(type_reference);
-        let (_, root) = values.value_type(preparation.recipes(), recipe)?;
-        parameters.push(root);
-        let formal_ordinal = u32::try_from(formal_ordinal)
-            .map_err(|_| "boundary signature has too many runtime parameters")?;
-        validate_fresh_native_parameter_identity(
-            native_parameters.iter().map(|parameter| parameter.identity),
-            formal.identity,
-            formal.native_ordinal,
-        )?;
-        native_parameters.push(BoundaryNativeParameter {
-            identity: formal.identity,
-            native_ordinal: formal.native_ordinal,
-            shape: BoundaryNativeParameterShape::Semantic(root),
-            origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal },
-        });
-    }
-    let result = if prepared.return_type.is_valid() {
-        let recipe = preparation.value_type(prepared.return_type);
-        Some(values.value_type(preparation.recipes(), recipe)?.1)
-    } else {
-        None
-    };
-    let (shapes, fields, occurrences) = values.into_parts();
-    let opaque_representations = crate::boundary_value_recipes::representation_uses(
-        opaque_representation_selections,
-        &occurrences,
-    )?;
-    Ok(MaterializedBoundarySignature {
-        abi,
-        owner_requirement_identity: declaration.requirement_identity.clone(),
-        native_target: layout_target.native_target(),
-        opaque_representations,
-        shapes,
-        fields,
-        parameters,
-        callback_binders,
-        callback_demands: Vec::new(),
-        callback_layout_catalog: Vec::new(),
-        native_parameters,
-        direct_callback_parameters: telescope.direct_callbacks.clone(),
-        result,
-    })
 }

@@ -7,15 +7,15 @@
 
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
-use provider_planning::calling_policy_plans::CallingPolicyCode;
+use provider_planning::calling_policy_plans::CallingCatalog;
 use std::sync::Arc;
 
-pub(crate) fn retain_calling_policy_code(
+pub(crate) fn retain_calling_catalog(
     source: &CheckedProductSource,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<Option<Arc<CallingPolicyCode>>, Vec<Diagnostic>> {
+) -> Result<Option<Arc<CallingCatalog>>, Vec<Diagnostic>> {
     source
-        .calling_policy_code
+        .calling_catalog
         .get_or_init(|| prepare(source, timings))
         .clone()
 }
@@ -23,10 +23,17 @@ pub(crate) fn retain_calling_policy_code(
 fn prepare(
     source: &CheckedProductSource,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<Option<Arc<CallingPolicyCode>>, Vec<Diagnostic>> {
+) -> Result<Option<Arc<CallingCatalog>>, Vec<Diagnostic>> {
     let code = super::product_code::ProductCodeSource::checked(source);
     let machines = code.calling_policy_roots()?;
-    if machines.is_empty() {
+    if machines.is_empty()
+        && source
+            .program
+            .typed
+            .boundary_signatures()
+            .abi_signatures()
+            .is_empty()
+    {
         return Ok(None);
     }
     let applications = machines
@@ -63,7 +70,7 @@ fn prepare(
             (machine, entry)
         })
         .collect();
-    Ok(Some(Arc::new(CallingPolicyCode {
+    Ok(Some(Arc::new(CallingCatalog {
         source_owner: Arc::downgrade(&source.program),
         artifact: Arc::clone(program.artifact()),
         entries,
