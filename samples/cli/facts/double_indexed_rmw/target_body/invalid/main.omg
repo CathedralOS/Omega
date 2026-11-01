@@ -45,7 +45,7 @@ X86Rmw satisfies SelectedRmw {
         transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
         machine done() {}
         machine bad() { crash Trap; }
-    
+
     }
 }
 
@@ -65,7 +65,7 @@ ArmRmw satisfies SelectedRmw {
         transition grid_got == 42 && rows_got == 49 { true -> done() _ -> bad() }
         machine done() {}
         machine bad() { crash Trap; }
-    
+
     }
 }
 
