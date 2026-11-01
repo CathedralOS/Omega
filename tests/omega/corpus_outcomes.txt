@@ -38027,7 +38027,7 @@ fail/proofs/numeric_state_bad_recurrence rejected 2315ms expected @ccdb99ca2214
 	cannot prove requires contract for call loop from loop: count + 2 <= 9 && embed(rest - 10) + embed(count + 2) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/numeric_state_exact_overflow rejected 705ms expected @ccdb99ca2214
 	exact arithmetic in machine `wrong` state `entry` call argument may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/proofs/numeric_state_initial_arrival rejected 934ms unexpected @ccdb99ca2214
+fail/proofs/numeric_state_initial_arrival rejected 833ms expected @90ff0f5cf999
 	machine `wrong` state `entry` value call to `loop` violates required fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99`: the instantiated fact is structurally false (`0 <= 9 && embed(100) + embed(0) * 10 <= 99`)
 fail/proofs/numeric_state_mixed_payload rejected 2223ms expected @ccdb99ca2214
 	cannot prove requires contract for call positive from wrong: trapping + 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
