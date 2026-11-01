@@ -156,6 +156,7 @@ mod callable_refinement;
 mod callable_regions;
 mod carried_lifetimes;
 mod lifetime_applications;
+mod owned_carriers;
 mod provider_outputs;
 mod region_correspondence;
 mod region_inference;
@@ -167,6 +168,7 @@ pub use provider_outputs::{
 
 pub(crate) use callable_refinement::lexical_region_owner;
 pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
+pub use owned_carriers::{OwnedCarrierLoanRelation, owned_carrier_loan_relation};
 
 pub(crate) use callable_refinement::PreparedCallableBorrowRefinement;
 pub(crate) use lifetime_applications::CallableLifetimeFrame;
