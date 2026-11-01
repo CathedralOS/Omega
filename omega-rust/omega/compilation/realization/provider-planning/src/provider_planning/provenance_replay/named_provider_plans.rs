@@ -118,11 +118,7 @@ pub(super) fn derive(
                     return None;
                 }
                 let realization = if application.capture.is_valid() {
-                    let Some(realization) = prepared_named_provider_member(
-                        typed,
-                        &application,
-                        row.realization_machine,
-                    ) else {
+                    let Some(realization) = prepared_named_provider_member(typed, &application, row.realization_machine) else {
                         if debug {
                             eprintln!("[named]   skip: captured member not prepared");
                         }

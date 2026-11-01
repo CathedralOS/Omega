@@ -13,8 +13,9 @@ use crate::calling_policy_plans::{
 };
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallbackBinderRequirement, CallbackMaterializationContext,
-    CallbackRequirementId, NativeCallbackDemand, NativePlace, ValidatedBoundaryEntryPlan,
-    callback_requirement_id, validate_boundary_entry_plan_with_callback_materializations,
+    CallbackRequirementId, NativeCallbackDemand, NativePlace,
+    ValidatedBoundaryEntryPlan, callback_requirement_id,
+    validate_boundary_entry_plan_with_callback_materializations,
 };
 use checked_trees::typed_trees::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;

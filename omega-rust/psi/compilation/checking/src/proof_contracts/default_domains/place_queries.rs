@@ -415,7 +415,11 @@ pub(crate) fn completed_case_occurrences(
                 {
                     continue;
                 }
-                occurrences.push((statement_index, local.initial_value, local.type_reference));
+                occurrences.push((
+                    statement_index,
+                    local.initial_value,
+                    local.type_reference,
+                ));
             }
             _ => {}
         }

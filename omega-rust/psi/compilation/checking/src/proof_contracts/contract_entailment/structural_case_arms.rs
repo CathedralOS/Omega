@@ -253,10 +253,11 @@ pub(crate) fn recognize_structural_case_arms<'a>(
             .as_deref()
             .map(|visitor| {
                 let site = visitor.site();
-                let state_name =
-                    crate::machine_calls::calls::machine_state_by_symbol(program, site.state)
-                        .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
-                        .unwrap_or_else(|| format!("{:?}", site.state));
+                let state_name = crate::machine_calls::calls::machine_state_by_symbol(
+                    program, site.state,
+                )
+                .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
+                .unwrap_or_else(|| format!("{:?}", site.state));
                 format!(
                     "{}.{}.{}",
                     state_name, site.statement_index, site.in_transition_target
@@ -375,9 +376,11 @@ pub(super) fn recognize_structural_state_prefix<'a>(
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
     if path_counting_enabled() {
         let site = requirement.site();
-        let state_name = crate::machine_calls::calls::machine_state_by_symbol(program, site.state)
-            .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
-            .unwrap_or_else(|| format!("{:?}", site.state));
+        let state_name = crate::machine_calls::calls::machine_state_by_symbol(
+            program, site.state,
+        )
+        .map(|(owner, state)| format!("{}.{}", owner.name, state.name))
+        .unwrap_or_else(|| format!("{:?}", site.state));
         let driver = format!("{:?}", std::backtrace::Backtrace::force_capture());
         let driver = driver
             .split("fn: \"")
@@ -399,7 +402,8 @@ pub(super) fn recognize_structural_state_prefix<'a>(
             .unwrap_or_else(|| "?".to_owned());
         eprintln!(
             "[walk] prefix machine={} site={}.{}.{} via={}",
-            machine.name, state_name, site.statement_index, site.in_transition_target, driver
+            machine.name, state_name, site.statement_index, site.in_transition_target,
+            driver
         );
     }
     let parameters = program.state_parameters(state);
@@ -1305,21 +1309,20 @@ fn recognize_structural_state_leaves_from<'a>(
         // incomplete and its site lies ahead in this state, sits on a
         // transition the loop has yet to hand over, or lives in a body this
         // path may still enter.
-        let member_live_in_statements =
-            |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
-             at_position: usize,
-             path: &[SymbolHandle]| {
-                !visitor.is_complete()
-                    && if visitor.site().state == state.symbol {
-                        match statements.get(visitor.site().statement_index) {
-                            Some(StatementNode::Transition(_)) => true,
-                            _ => position(visitor.site().statement_index)
-                                .is_some_and(|pending| pending > at_position),
-                        }
-                    } else {
-                        !path.contains(&visitor.site().state)
+        let member_live_in_statements = |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
+                                         at_position: usize,
+                                         path: &[SymbolHandle]| {
+            !visitor.is_complete()
+                && if visitor.site().state == state.symbol {
+                    match statements.get(visitor.site().statement_index) {
+                        Some(StatementNode::Transition(_)) => true,
+                        _ => position(visitor.site().statement_index)
+                            .is_some_and(|pending| pending > at_position),
                     }
-            };
+                } else {
+                    !path.contains(&visitor.site().state)
+                }
+        };
         let mut transitions = Vec::new();
         let mut saw_transition = false;
         for (execution_position, statement_index) in
@@ -1370,9 +1373,9 @@ fn recognize_structural_state_leaves_from<'a>(
             // Nothing after this call can establish its entry premises.
             // Other incoming paths are still visited by the parent.
             if !visitors.is_empty()
-                && !visitors
-                    .iter()
-                    .any(|visitor| member_live_in_statements(visitor, execution_position, path))
+                && !visitors.iter().any(|visitor| {
+                    member_live_in_statements(visitor, execution_position, path)
+                })
             {
                 return Some(Vec::new());
             }
@@ -1906,31 +1909,31 @@ fn recognize_structural_state_leaves_from<'a>(
         let _s_trans = phase_profile::guard("05.d.7.3b.1.cap.2d.transitions");
         let mut leaves = Vec::new();
         let mut remaining_paths = vec![(judge.clone(), case_equations.clone())];
-        let transition_order: Vec<usize> = transitions.iter().map(|(index, _)| *index).collect();
+        let transition_order: Vec<usize> =
+            transitions.iter().map(|(index, _)| *index).collect();
         // The same liveness question as in the statement loop, resolved
         // against the collected transitions: a member sited on a later
         // transition still waits for its arm, while a member sited on this
         // transition's target side is served just below.
-        let member_live_in_transitions =
-            |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
-             at_position: usize,
-             include_current_target: bool,
-             path: &[SymbolHandle]| {
-                !visitor.is_complete()
-                    && if visitor.site().state == state.symbol {
-                        transition_order
-                            .iter()
-                            .position(|index| *index == visitor.site().statement_index)
-                            .is_some_and(|pending| {
-                                pending > at_position
-                                    || (include_current_target
-                                        && pending == at_position
-                                        && visitor.site().in_transition_target)
-                            })
-                    } else {
-                        !path.contains(&visitor.site().state)
-                    }
-            };
+        let member_live_in_transitions = |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
+                                          at_position: usize,
+                                          include_current_target: bool,
+                                          path: &[SymbolHandle]| {
+            !visitor.is_complete()
+                && if visitor.site().state == state.symbol {
+                    transition_order
+                        .iter()
+                        .position(|index| *index == visitor.site().statement_index)
+                        .is_some_and(|pending| {
+                            pending > at_position
+                                || (include_current_target
+                                    && pending == at_position
+                                    && visitor.site().in_transition_target)
+                        })
+                } else {
+                    !path.contains(&visitor.site().state)
+                }
+        };
         for (transition_position, (statement_index, transition)) in
             transitions.into_iter().enumerate()
         {
@@ -2287,7 +2290,11 @@ fn recognize_structural_state_leaves_from<'a>(
                                 (member.site().state != state.symbol
                                     && !path.contains(&member.site().state)
                                     && !member.is_complete()
-                                    && prefix_site_is_reachable(program, target_state, &**member))
+                                    && prefix_site_is_reachable(
+                                        program,
+                                        target_state,
+                                        &**member,
+                                    ))
                                 .then_some(&mut **member)
                             })
                             .collect();

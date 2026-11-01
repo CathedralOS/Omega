@@ -632,20 +632,18 @@ fn populate_machine_completed_cases(
         }
         let mut visitors: Vec<CompletedCaseVisitor> = occurrences
             .iter()
-            .map(
-                |(statement_index, expression, reference)| CompletedCaseVisitor {
-                    site: super::structural_prefix::StructuralPrefixSite {
-                        state: state.symbol,
-                        statement_index: *statement_index,
-                        in_transition_target: false,
-                    },
-                    expression: *expression,
-                    reference: *reference,
-                    case: None,
-                    complete: true,
-                    observed: false,
+            .map(|(statement_index, expression, reference)| CompletedCaseVisitor {
+                site: super::structural_prefix::StructuralPrefixSite {
+                    state: state.symbol,
+                    statement_index: *statement_index,
+                    in_transition_target: false,
                 },
-            )
+                expression: *expression,
+                reference: *reference,
+                case: None,
+                complete: true,
+                observed: false,
+            })
             .collect();
         let recognized = {
             let mut batched: Vec<&mut dyn StructuralPrefixVisitor> = visitors

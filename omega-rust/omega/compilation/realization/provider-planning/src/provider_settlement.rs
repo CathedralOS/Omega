@@ -397,20 +397,12 @@ fn demanded_provider_plans(
         .cloned()
         .collect();
     if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
-        eprintln!(
-            "[prov] uses={} candidates={} demanded={}",
-            uses.len(),
-            candidates.len(),
-            demanded.len()
-        );
+        eprintln!("[prov] uses={} candidates={} demanded={}", uses.len(), candidates.len(), demanded.len());
         for candidate in candidates {
             eprintln!(
                 "[prov] candidate plan={} schema_trait={}",
                 candidate.plan.name,
-                candidate
-                    .plan
-                    .schema
-                    .identity_text(candidate.plan.schema.declaration.trait_name),
+                candidate.plan.schema.identity_text(candidate.plan.schema.declaration.trait_name),
             );
         }
         for choice in &choices {

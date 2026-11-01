@@ -197,7 +197,9 @@ where
             .iter_mut()
             .filter(|member| {
                 super::super::structural_case_arms::prefix_site_is_reachable(
-                    program, root_entry, &**member,
+                    program,
+                    root_entry,
+                    &**member,
                 )
             })
             .map(|member| member as &mut dyn StructuralPrefixVisitor)

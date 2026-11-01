@@ -438,15 +438,14 @@ fn retain_domain(
     let semantic_domain = DomainSemanticId::new(u64::from(semantic_id.0)).ok_or(
         LoweringError::Unsupported("scalar qualification has an invalid semantic identity"),
     )?;
-    let establishment_routes =
-        match catalog.domains.iter().find(|domain| {
-            domain.semantic_domain == semantic_domain && domain.carrier == scalar_type
-        }) {
-            // The checked declaration and its return decisions are immutable.
-            // Repeated occurrences reuse this catalog, not another source census.
-            Some(domain) => domain.establishment_routes.clone(),
-            None => scalar_domain_establishment_routes(identities, checked, symbol, semantic_id)?,
-        };
+    let establishment_routes = match catalog.domains.iter().find(|domain| {
+        domain.semantic_domain == semantic_domain && domain.carrier == scalar_type
+    }) {
+        // The checked declaration and its return decisions are immutable.
+        // Repeated occurrences reuse this catalog, not another source census.
+        Some(domain) => domain.establishment_routes.clone(),
+        None => scalar_domain_establishment_routes(identities, checked, symbol, semantic_id)?,
+    };
     let definition = checked
         .typed
         .domain_definition_for_instance(symbol, semantic_id)
