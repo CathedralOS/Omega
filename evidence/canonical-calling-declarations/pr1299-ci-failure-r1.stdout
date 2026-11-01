@@ -1,0 +1,24 @@
+compiler-check	Check rules that prose did not hold	﻿2026-11-01T21:10:43.6295433Z ##[group]Run if [ "$EVENT" = pull_request ]; then
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6295761Z [36;1mif [ "$EVENT" = pull_request ]; then[0m
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6295992Z [36;1m  python tools/check_rules.py --base HEAD^1 --title "$TITLE"[0m
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6296192Z [36;1melse[0m
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6296330Z [36;1m  python tools/check_rules.py --base HEAD^1[0m
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6296494Z [36;1mfi[0m
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6336744Z shell: /usr/bin/bash -e {0}
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6337141Z env:
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6337430Z   CARGO_BUILD_JOBS: 2
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6337711Z   CARGO_INCREMENTAL: 0
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6338008Z   CARGO_UNSTABLE_CHECKSUM_FRESHNESS: true
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6338340Z   CARGO_BUILD_FINGERPRINT: content
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6338726Z   RUST_MIN_STACK: 67108864
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6339004Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6339430Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6339825Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6340267Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6340633Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6340992Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6341287Z   EVENT: pull_request
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6341611Z   TITLE: compiler: carry canonical calling declarations through native execution
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:43.6341975Z ##[endgroup]
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:48.5395407Z check_rules: omega-rust/omega/compilation/driver/src/product_boundary.rs: 83 source-text reads, baseline 89. Lower the baseline: python tools/check_rules.py --update-source-reads
+compiler-check	Check rules that prose did not hold	2026-11-01T21:10:48.5479725Z ##[error]Process completed with exit code 1.

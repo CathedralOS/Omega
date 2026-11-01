@@ -1,3 +1,6 @@
+Current publication candidate: 42d497d251bef2b30be2e960256a4de4b8763005
+Only follow-up to the accepted semantic candidate lowers the obsolete Source-read test ceiling89to83; compiler/library/customer inputs and all historical engine observations are unchanged. See independent-canonical-default-final-review-r2.json.
+
 Canonical calling declaration repair: scoped execution evidence
 
 Candidate: 5d01339880be66cb512a1ae26e21889a36644569

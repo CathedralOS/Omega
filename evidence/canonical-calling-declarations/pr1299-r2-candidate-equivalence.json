@@ -1,0 +1,19 @@
+{
+  "candidate": "42d497d251bef2b30be2e960256a4de4b8763005",
+  "previous_candidate": "5d01339880be66cb512a1ae26e21889a36644569",
+  "changed_paths": [
+    "tools/source_text_reads.txt"
+  ],
+  "change": "Strictly lower product_boundary source-read ceiling89to83 after obsolete spelling-test removal. No compiler/library/customer source changes.",
+  "command": [
+    "python3",
+    "tools/check_rules.py",
+    "--base",
+    "3a4683b059c134bec55b05b7f2abbfe4e5122d9b",
+    "--title",
+    "compiler: carry canonical calling declarations through native execution"
+  ],
+  "exit": 0,
+  "seconds": 4.10009775,
+  "compiler_patch_sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361"
+}

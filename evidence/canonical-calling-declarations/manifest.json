@@ -1,13 +1,13 @@
 {
-  "candidate": "5d01339880be66cb512a1ae26e21889a36644569",
+  "candidate": "42d497d251bef2b30be2e960256a4de4b8763005",
   "producer_base": "f6820d721ece1c5c23b390a1609a530088aad78f",
   "compiler_patch_sha256": "6dd4cb47abde2eb25a58237cec771933aa0143d8f036fc359944bd435a523361",
   "utc": "2026-11-01T21:04:24.909190+00:00",
   "files": [
     {
       "path": "README.txt",
-      "bytes": 2644,
-      "sha256": "124e83e816656582e1aabf9747158fe4b387a78e6d11a257f44a8c7221243409"
+      "bytes": 2962,
+      "sha256": "b05b27bba14cd76aa6875a13f148ab60094083d65b2c6eea17736d754159495c"
     },
     {
       "path": "baseline-default-route-applicability.json",
@@ -940,6 +940,11 @@
       "sha256": "5d36a401f8cb355c064a79b83f8ac61a8be71e0bcfa610b02931c90554f763b5"
     },
     {
+      "path": "independent-canonical-default-final-review-r2.json",
+      "bytes": 2622,
+      "sha256": "2248a59640b179b0c4e9b549699e28c8005e5ac48b50f35d9c204ad8e237b89b"
+    },
+    {
       "path": "independent-canonical-default-final-review.json",
       "bytes": 42423,
       "sha256": "47485a00fe56cae8aed352021d5ae02df19be8f4cfdc418b175f8a4505c6732c"
@@ -1015,6 +1020,31 @@
       "sha256": "eaebf6434d68cdd6bf880e0d7223079919df58a3bac8263f517a192cc310a7f3"
     },
     {
+      "path": "pr1299-ci-failure-r1.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "pr1299-ci-failure-r1.stdout",
+      "bytes": 3073,
+      "sha256": "191f7e7513204f26c8348d9dc9a1801dfbb3bd7d0df0977f71b49405c7f03707"
+    },
+    {
+      "path": "pr1299-r2-candidate-equivalence.json",
+      "bytes": 697,
+      "sha256": "9e3bf7ee4f9b52a6f95344904228620dd3b00bb28a572ac2a19086728c76f412"
+    },
+    {
+      "path": "pr1299-r2-check-rules.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "pr1299-r2-check-rules.stdout",
+      "bytes": 40,
+      "sha256": "d0cc35fd40dd93d983a2c97801e3d6b66f6bc2aa8096e5d365659d2edc11b841"
+    },
+    {
       "path": "r2-review-applicability.json",
       "bytes": 4045,
       "sha256": "a4e63142e26b3017468f034d2b8102c14ecc83133cfbd9b4d7d6a435f5773ab6"
@@ -1063,6 +1093,11 @@
       "path": "scoped-rustfmt.stdout",
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "source-read-ratchet-followup.patch",
+      "bytes": 834,
+      "sha256": "8d38561844b9f6815887eb190f4d3200a586a329a68afce20bed0736e4b4eb7c"
     },
     {
       "path": "window-canonical-r9-native-input.omega.lock",
@@ -1207,5 +1242,6 @@
   ],
   "scope": "Raw scoped evidence; executables and copied SDK headers are excluded. Historical source/producer identities remain unchanged. Exactindependentreview addedbeforepublication.",
   "independent_review_accepted": true,
-  "reviewer_agent": "Hilbert (01a18b67-e6e5-7180-84f7-d669d63a25fe), independent Codex semantic reviewer"
+  "reviewer_agent": "Hilbert (01a18b67-e6e5-7180-84f7-d669d63a25fe), independent Codex semantic reviewer",
+  "previous_semantic_candidate": "5d01339880be66cb512a1ae26e21889a36644569"
 }
