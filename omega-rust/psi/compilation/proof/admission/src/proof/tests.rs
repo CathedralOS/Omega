@@ -1,4 +1,4 @@
-use crate::mathematical_core::verification_workers_started;
+use crate::mathematical_core::bounded_verification_entries;
 use crate::proof::{assumption_proof, semantic_axiom_proof};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType,
@@ -46,30 +46,48 @@ fn transport_certificate() -> (PropositionContext, Vec<Proposition>, ProofNode) 
 }
 
 #[test]
-fn certificate_receipt_reuses_admission_verification_stack() {
-    super::run_on_verification_stack(|| {
+fn public_bounded_entrypoints_keep_callers_default_stack() {
+    std::thread::spawn(|| {
         let (context, axioms, proof) = transport_certificate();
-        let before = verification_workers_started();
-        let accepted = super::accept_certificate_on_current_thread(
+        let before = bounded_verification_entries();
+        let accepted = accept_certificate(&context, &proof.conclusion, &[], &axioms, &proof)
+            .expect("transport certificate");
+        assert_eq!(bounded_verification_entries(), (before.0 + 1, before.1 + 1));
+        let mut denoted =
+            crate::denote_bounded_certificate(&context, &proof.conclusion, &[], &axioms, &proof)
+                .expect("independent public denotation");
+        assert_eq!(bounded_verification_entries(), (before.0 + 1, before.1 + 2));
+        // Denotation is untrusted evidence, not a completed judgment: run the
+        // raw kernel before comparing receipts, including its arena growth.
+        crate::verify_mathematical_certificate(
+            &mut denoted.arena,
+            &denoted.certificate,
+            &mut crate::Budget::default(),
+        )
+        .expect("independent raw judgment of the public denotation");
+        assert_eq!(bounded_verification_entries(), (before.0 + 1, before.1 + 2));
+        let verified = crate::verify_bounded_certificate(
             &context,
             &proof.conclusion,
             &[],
             &axioms,
-            &BTreeSet::new(),
             &proof,
+            &mut crate::Budget::default(),
         )
-        .expect("transport certificate");
+        .expect("independent public kernel judgment");
+        assert_eq!(bounded_verification_entries(), (before.0 + 1, before.1 + 3));
         assert_eq!(accepted.semantic_axioms.len(), 2);
-        assert!(matches!(
-            accepted.mathematical_core,
-            MathematicalCoreDecision::Judged(_)
-        ));
         assert_eq!(
-            verification_workers_started(),
-            before,
-            "receipt traversal already owns the admission stack"
+            accepted.mathematical_core,
+            MathematicalCoreDecision::Judged(verified.receipt())
         );
-    });
+        assert_eq!(denoted.receipt(), verified.receipt());
+        let wrong = Proposition::Falsehood;
+        assert!(accept_certificate(&context, &wrong, &[], &axioms, &proof).is_err());
+        assert_eq!(bounded_verification_entries(), (before.0 + 2, before.1 + 3));
+    })
+    .join()
+    .expect("all public bounded operations run on the caller's default stack");
 }
 
 #[test]
@@ -86,9 +104,9 @@ fn standalone_certificate_receipt_uses_default_stack_and_matches_admission() {
         &mut crate::Budget::default(),
     )
     .expect("independent denotation and kernel check");
-    let before = verification_workers_started();
+    let before = bounded_verification_entries();
     let receipt = denoted.receipt();
-    assert_eq!(verification_workers_started(), before);
+    assert_eq!(bounded_verification_entries(), before);
     assert_eq!(
         accepted.mathematical_core,
         MathematicalCoreDecision::Judged(receipt)
@@ -1129,8 +1147,8 @@ fn deep_logical_assumption_admission_uses_default_stack_and_exact_premise() {
             let context = PropositionContext::default();
             context.validate(&goal).expect("the whole source goal is admitted");
             eprintln!("8192-node assumption prepared; begin complete current-thread admission valid={valid}");
-            let before = verification_workers_started();
-            let result = super::accept_certificate_on_current_thread(&context, &goal, &assumptions, &[], &BTreeSet::new(), &proof);
+            let before = bounded_verification_entries();
+            let result = super::accept_certificate_with_machine_parameters(&context, &goal, &assumptions, &[], &BTreeSet::new(), &proof);
             if valid {
                 let accepted = result.expect("exact logical assumption is independently kernel judged");
                 assert_eq!(accepted.assumptions.len(), 1);
@@ -1143,7 +1161,7 @@ fn deep_logical_assumption_admission_uses_default_stack_and_exact_premise() {
             } else {
                 assert!(matches!(result, Err(ProofError::AssumptionConclusionMismatch(0))), "a changed leaf cannot cite the old complete premise");
             }
-            assert_eq!(verification_workers_started(), before, "the complete current-thread route creates no wide worker");
+            assert_eq!(bounded_verification_entries(), (before.0 + 1, before.1 + usize::from(valid)), "public admission and denotation execute on the default-stack caller");
             eprintln!("complete current-thread admission returned valid={valid}");
         }
     }).join().expect("complete logical admission and owned receipts stay on a default stack");
@@ -1196,8 +1214,8 @@ fn deep_scalar_assumption_admission_uses_default_stack_and_exact_premise() {
             eprintln!("exact value operations returned; begin complete scalar admission valid={valid}");
             let assumptions = [statement(depth, true)];
             let proof = ProofNode { conclusion: statement(depth, valid), rule: ProofRule::Assumption { index: 0 } };
-            let before = verification_workers_started();
-            let result = super::accept_certificate_on_current_thread(&context, &goal, &assumptions, &[], &BTreeSet::new(), &proof);
+            let before = bounded_verification_entries();
+            let result = super::accept_certificate_with_machine_parameters(&context, &goal, &assumptions, &[], &BTreeSet::new(), &proof);
             if depth == 8192 {
                 assert!(matches!(result, Err(ProofError::MathematicalCore(ref error)) if matches!(error.as_ref(), crate::BoundedDenotationError::Kernel(crate::CoreError::StepCeiling))), "the deep source question must preserve the independent kernel's resource refusal");
             } else if valid {
@@ -1212,7 +1230,7 @@ fn deep_scalar_assumption_admission_uses_default_stack_and_exact_premise() {
             } else {
                 assert!(matches!(result, Err(ProofError::AssumptionConclusionMismatch(0))));
             }
-            assert_eq!(verification_workers_started(), before);
+            assert_eq!(bounded_verification_entries(), (before.0 + 1, before.1 + usize::from(valid)));
             eprintln!("complete scalar admission returned depth={depth} valid={valid}");
         }
     }).join().expect("complete scalar admission and owned receipts stay on a default stack");
@@ -1260,8 +1278,8 @@ fn deep_open_integer_admission_preserves_exact_premises_on_default_stack() {
                 conclusion: statement(depth, valid),
                 rule: ProofRule::Assumption { index: 0 },
             };
-            let before = verification_workers_started();
-            let result = super::accept_certificate_on_current_thread(
+            let before = bounded_verification_entries();
+            let result = super::accept_certificate_with_machine_parameters(
                 &context,
                 &goal,
                 &assumptions,
@@ -1299,9 +1317,9 @@ fn deep_open_integer_admission_preserves_exact_premises_on_default_stack() {
                 );
             }
             assert_eq!(
-                verification_workers_started(),
-                before,
-                "the complete current-thread route creates no wide worker"
+                bounded_verification_entries(),
+                (before.0 + 1, before.1 + usize::from(valid)),
+                "public admission and denotation execute on the default-stack caller"
             );
         }
     })
