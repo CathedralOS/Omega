@@ -2,72 +2,13 @@
 //! materializing the boundary signature from the ABI result, and validating
 //! the plan the policy produced.
 
-use crate::calling_policy_plans::boundary_signatures::{
-    compatibility_call_signature, exact_compatibility_overload_index,
-    materialize_prepared_signature,
-};
 use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
 use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
 use build_time_evaluation::BuildTimeProgram;
+use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::callback_nominal_report_fingerprint;
-use calling_conventions::{
-    CallingPolicy, ValidatedBoundaryEntryPlan, evaluate_ordinary_boundary_entry_plan,
-};
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
-
-pub(crate) fn evaluate_default_calling_application(
-    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
-    layout_target: layout::LayoutTarget,
-    trait_name: &str,
-    trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    method_name: &str,
-    requirement_identity: &str,
-    policy: CallingPolicy,
-    dispatch_only_parameter_count: usize,
-    opaque_representation_selections: &[OpaqueRepresentationSelection],
-) -> Result<Option<calling_conventions::BoundaryCallingApplication>, String> {
-    let candidates = services
-        .signatures()
-        .declarations()
-        .filter(|declaration| {
-            declaration.default_eligible
-                && declaration.path == trait_name
-                && declaration.package == trait_package_identity
-                && declaration.method == method_name
-        })
-        .collect::<Vec<_>>();
-    let Some(candidate_index) = exact_compatibility_overload_index(
-        trait_name,
-        method_name,
-        requirement_identity,
-        candidates
-            .iter()
-            .map(|declaration| declaration.requirement_identity.as_str()),
-    )?
-    else {
-        return Ok(None);
-    };
-    let declaration = candidates.get(candidate_index).ok_or_else(|| {
-        "compatibility boundary selection index is outside its exact candidate catalog".to_owned()
-    })?;
-    let materialized = materialize_prepared_signature(
-        services,
-        declaration,
-        None,
-        &[],
-        layout_target,
-        opaque_representation_selections,
-    )?;
-    let classified =
-        compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
-    let validated = evaluate_ordinary_boundary_entry_plan(policy, &classified)
-        .map_err(|diagnostic| diagnostic.to_string())?;
-    for representation in materialized.opaque_representation_uses() {
-        materialized.opaque_representation_movement(representation, &validated)?;
-    }
-    publish_materialized_application(&materialized, &validated).map(Some)
-}
 
 /// Prepare Source invocation admission and exact review coordinates only.
 /// Canonical publication owns declaration storage; target activation reads it.
@@ -219,7 +160,7 @@ impl PreparedBoundaryCallingPlans<'_> {
 
     pub fn evaluate(
         self,
-        code: Option<&super::CallingPolicyCode>,
+        code: Option<&super::CallingCatalog>,
     ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
         let mut evaluated = Vec::with_capacity(self.pending.len());
         for policy in self.pending {

@@ -90,7 +90,7 @@ pub(super) fn settle_boundary<'request>(
         }
     }) };
     let matching_boundaries = input
-        .plan()
+        .module()
         .boundary_machines
         .iter()
         .filter(|boundary| {
@@ -99,7 +99,7 @@ pub(super) fn settle_boundary<'request>(
                 .selected_provider_plans
                 .selected_row_matches_requirement(
                     input
-                        .plan()
+                        .module()
                         .identities
                         .text(boundary.identity)
                         .unwrap_or_default(),
@@ -115,17 +115,6 @@ pub(super) fn settle_boundary<'request>(
     }
     let mut admitted = Vec::with_capacity(matching_boundaries.len());
     for boundary in matching_boundaries {
-        let realization = match settlement.realization {
-            NativeBoundaryRealization::Builtin(realization) => {
-                target_operations::BoundarySettlementRealization::Builtin(realization)
-            }
-            _ => realize(
-                &input
-                    .module()
-                    .calling_abi_identity(boundary.id)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
-            )?,
-        };
         if !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
             boundary,
             selected_plan,
@@ -135,6 +124,28 @@ pub(super) fn settle_boundary<'request>(
                 "provider completion for `{requirement}` disagrees with its exact retained requirement contract"
             ))]);
         }
+        // A shared selected-evidence catalog can describe dormant members.
+        // Validate their declaration contract above; only this entry's selected
+        // boundaries demand a physical calling application and execution.
+        if input.plan().boundary_machine(boundary.id).is_none() {
+            continue;
+        }
+        let realization = match settlement.realization {
+            NativeBoundaryRealization::Builtin(realization) => {
+                target_operations::BoundarySettlementRealization::Builtin(realization)
+            }
+            _ => realize(
+                &input
+                    .optimization_input()
+                    .selected_calling_abi_identity(boundary.id)
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "provider settlement for `{requirement}` at {:?}: {reason}",
+                            boundary.id
+                        ))]
+                    })?,
+            )?,
+        };
         if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
             let completion = match builtin {
                 target_operations::BoundaryRealization::AccessLifecycle { .. } => {

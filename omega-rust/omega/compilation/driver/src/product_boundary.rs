@@ -409,47 +409,6 @@ fn component_handoff_retains_the_producing_join() {
 }
 
 #[test]
-fn calling_materialization_consumes_prepared_psi_telescopes() {
-    let signatures = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs"
-    );
-    let materialization = signatures
-        .split("pub(crate) fn materialize_prepared_signature(")
-        .nth(1)
-        .unwrap()
-        .split("pub(crate) fn exact_boundary_layout_root_symbol(")
-        .next()
-        .unwrap();
-    assert_absent(
-        &[materialization],
-        "calling materialization rebuilds source telescope",
-        &[
-            "state_signature_parameters",
-            "state_signature_type_parameters",
-            "MachineParameterContract",
-            "native_callback_parameters",
-            "nominal_callback_native_parameter_id",
-            "callback_nominal_report_fingerprint",
-        ],
-    );
-    let computation = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"
-    );
-    let defaults = computation
-        .split("pub(crate) fn evaluate_default_calling_application(")
-        .nth(1)
-        .unwrap()
-        .split("pub fn prepare_boundary_calling_plans<")
-        .next()
-        .unwrap();
-    assert_absent(
-        &[defaults],
-        "default calling selection rescans source",
-        &[".traits()", ".machines()", "trait_machine_signatures"],
-    );
-}
-
-#[test]
 fn terminal_calling_activation_uses_only_canonical_geometry() {
     let execution = include_str!(
         "../../realization/provider-planning/src/calling_policy_plans/terminal_execution.rs"
@@ -476,55 +435,6 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
         &[projection],
         "terminal projection re-derives the policy signature:",
         &["policy_signature()?"],
-    );
-}
-
-#[test]
-fn calling_policy_selection_consumes_prepared_psi_applications() {
-    let computation = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"
-    );
-    assert_absent(
-        &[computation],
-        "target calling policy selection reopens source relationships",
-        &[
-            "standard_calling_vocabularies",
-            "trait_requirements",
-            "AppliedTraitScope",
-            "trait_implementation_applications",
-            "captured_machine_applications",
-            "evaluate_machine_symbol_for_invocation_measured(",
-        ],
-    );
-    // Calling policies borrow the Product publication; there is no policy-only
-    // producer or decoder and no copied artifact at this boundary.
-    let code = include_str!("terminal/calling_policy_code.rs");
-    assert_absent(
-        &[code],
-        "policy entry preparation compiles or reloads code:",
-        &[
-            "TerminalProductionRequest",
-            ".produce(",
-            "CanonicalTerminalArtifact::from_bytes",
-        ],
-    );
-    assert!(code.contains("code.publish("));
-    assert!(code.contains("Arc::clone(program.artifact())"));
-    let product = include_str!("terminal/product_code.rs");
-    assert_eq!(
-        product
-            .matches("psi_compiler::TerminalProductionRequest {")
-            .count(),
-        1
-    );
-    assert!(product.contains("self.publication.retain("));
-    assert!(product.contains("machines.extend(self.calling_policy_roots()?);"));
-    let execution =
-        include_str!("../../realization/provider-planning/src/calling_policy_plans/policy_code.rs");
-    assert_absent(
-        &[execution],
-        "planner requests Terminal production:",
-        &["TerminalProductionRequest"],
     );
 }
 

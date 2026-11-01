@@ -35,38 +35,9 @@ impl ComponentPublication {
         }
         let selections = optimization_core::OptimizationRollback::default()
             .settle(&checked.build().config.settings.optimizations);
-        // Export ABI planning belongs to this source-owned preparation, not
-        // the native handoff after Terminal publication. Ordinary entry calls
-        // do not enumerate every exported component requirement.
-        let providers = checked
-            .execution()
-            .selected_provider_provenance
-            .iter()
-            .collect::<Vec<_>>();
-        let exported_calling_applications = if providers.is_empty() {
-            Vec::new()
-        } else {
-            let target = checked
-                .execution()
-                .selected_native_target()
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "component native publication requires an exact selected target",
-                    )]
-                })?;
-            provider_planning::calling_policy_plans::component_calling_applications(
-                checked
-                    .execution()
-                    .provider_source
-                    .inventory()
-                    .services_for(checked.execution().provider_source.program())
-                    .map_err(|error| vec![error])?,
-                target,
-                &providers,
-                &checked.providers().boundary_calling_plan_realizations,
-                &checked.build().config.opaque_representation_selections,
-            )?
-        };
+        // Export ABI applications are derived from this same Product's
+        // canonical declaration catalog after portable publication.
+        let exported_calling_applications = Vec::new();
         let timings = std::mem::take(checked.timings_mut());
         Ok(Self {
             checked,
@@ -86,7 +57,7 @@ impl ComponentPublication {
     }
 
     pub(crate) fn finish(
-        self,
+        mut self,
         produced: TerminalApplication,
     ) -> Result<IndependentComponentProduct, CompilationProductError> {
         let mut accounting = self.checked.source_completion_accounting().clone();
@@ -101,6 +72,12 @@ impl ComponentPublication {
                 accounting,
             });
         }
+        self.exported_calling_applications = self
+            .prepare_exported_calling_applications(&produced)
+            .map_err(|diagnostics| CompilationProductError::ProductionAttempt {
+                diagnostics,
+                accounting: accounting.clone(),
+            })?;
         match self.publish(produced) {
             Ok(product) => Ok(product),
             Err(diagnostics) => Err(CompilationProductError::ProductionAttempt {
@@ -108,6 +85,42 @@ impl ComponentPublication {
                 accounting,
             }),
         }
+    }
+
+    fn prepare_exported_calling_applications(
+        &self,
+        produced: &TerminalApplication,
+    ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
+        let providers = self
+            .checked
+            .execution()
+            .selected_provider_provenance
+            .iter()
+            .collect::<Vec<_>>();
+        if providers.is_empty() {
+            return Ok(Vec::new());
+        }
+        let target = self
+            .checked
+            .execution()
+            .selected_target_profile
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "component native publication requires an exact selected target",
+                )]
+            })?;
+        provider_planning::calling_policy_plans::component_calling_applications(
+            self.checked
+                .execution()
+                .provider_source
+                .inventory()
+                .services_for(self.checked.execution().provider_source.program())
+                .map_err(|error| vec![error])?,
+            target,
+            Some(produced.artifact.as_ref()),
+            &providers,
+            &self.checked.providers().boundary_calling_plan_realizations,
+        )
     }
 
     fn complete_conditions(
