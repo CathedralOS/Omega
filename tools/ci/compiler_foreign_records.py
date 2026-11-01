@@ -197,9 +197,18 @@ class OwnedFactRow:
     fixture_prefix: str
     additional_projects: tuple = ()
     provider_recipe: Optional[str] = "fixture/prepare.py"
+    places: tuple = compiler_fact_rows.PLACES
+    invalid_prefix: Optional[str] = None
+    replay_resources: tuple = ()
+    root_entry: bool = True
 
 
 OWNED_ROWS = {
+    "darwin-stat": OwnedFactRow("darwin_stat_abi", "darwin_stat_abi",
+                                additional_projects=(("file_times", "darwin_file_times_array"),),
+                                places=("local", "field", "parameter"),
+                                invalid_prefix="darwin_stat_abi/record",
+                                replay_resources=("source/library/std",), root_entry=False),
     "nested": OwnedFactRow("foreign_scalar_record_result/nested", "foreign_nested_scalar_record_result"),
     "arrays": OwnedFactRow("foreign_scalar_record_result/arrays", "foreign_owned_array_record"),
     "zero-leaf": OwnedFactRow("nested_zero_leaf_array_storage", "nested_zero_leaf_array_storage",
@@ -297,7 +306,8 @@ def scalar_opaque(output, producer):
 def owned_row(output, fact, specification, library, producer):
     projects = specification.additional_projects
     positives, negatives = compiler_fact_rows.fixtures(
-        compiler_pilot.ROOT, fact, specification.fixture_prefix, additional_projects=projects)
+        compiler_pilot.ROOT, fact, specification.fixture_prefix, additional_projects=projects,
+        places=specification.places, invalid_prefix=specification.invalid_prefix, root_entry=specification.root_entry)
     # Installed host libraries need no fixture build. A required recipe still
     # fails during preparation; absence is explicit in the cohort specification.
     folders = ((output / "provider", (fact / specification.provider_recipe).parent)
@@ -307,11 +317,12 @@ def owned_row(output, fact, specification, library, producer):
                  for path in folder.iterdir() if path.is_file()}
     (output / "resource-inputs.json").write_text(json.dumps(resources, indent=2) + "\n", encoding="utf-8")
     with provider_path(library) if library is not None else nullcontext():
-        inventory = compiler_fact_rows.prepare(output, fact, producer, additional_projects=projects)
+        inventory = compiler_fact_rows.prepare(output, fact, producer, additional_projects=projects,
+                                                places=specification.places, replay_resources=specification.replay_resources, root_entry=specification.root_entry)
         status = compiler_pilot.run_suite(str(output.relative_to(compiler_pilot.ROOT / "build")),
                                          positives, negatives, producer=producer)
         try:
-            compiler_fact_rows.measure(output, inventory, producer, additional_projects=projects)
+            compiler_fact_rows.measure(output, inventory, producer, additional_projects=projects, places=specification.places, root_entry=specification.root_entry)
         finally:
             for path, expected in resources.items():
                 if compiler_fact_rows.digest(path) != expected:
@@ -337,7 +348,8 @@ def main(arguments=None):
             fact = compiler_pilot.ROOT / "samples/cli/facts" / specification.relative
             plans[name] = (fact, specification, *compiler_fact_rows.fixtures(
                 compiler_pilot.ROOT, fact, specification.fixture_prefix,
-                additional_projects=specification.additional_projects))
+                additional_projects=specification.additional_projects, places=specification.places,
+                invalid_prefix=specification.invalid_prefix, root_entry=specification.root_entry))
     inventories = select_fixtures(options.fixtures, {
         name: plans[name][2:] if name in plans else (POSITIVES, NEGATIVES)
         for name in selected})
