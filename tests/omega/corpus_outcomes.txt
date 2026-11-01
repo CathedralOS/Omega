@@ -146,6 +146,12 @@ fail/facts/atomic_operand_carrier_once_suffixed_literal_rejected rejected 2798ms
 	literal `7` is suffixed `u64` but lands in a `u32` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/facts/atomic_operand_carrier_once_target_body_rejected rejected 3840ms expected @89c92b530e12
 	store in machine `HostedExchangeBody::perform` state `perform` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/borrowed_scalar_entry_ieee_reflexivity rejected 16504ms expected @3bd254ac6193
+	cannot prove ensures contract for exit from same at statement 0: value == value
+fail/facts/borrowed_scalar_entry_unknown_value rejected 11368ms expected @3bd254ac6193
+	cannot prove ensures contract for exit from read at statement 0: result == 4
+fail/facts/borrowed_scalar_entry_write_invalidation rejected 13559ms expected @3bd254ac6193
+	cannot prove ensures contract for exit from preserve at statement 1: value == 4
 fail/facts/build_activation_borrow/call_result rejected 2029ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
 fail/facts/build_activation_borrow/const_name rejected 338ms expected @3a020eca642a
@@ -1166,6 +1172,8 @@ fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expec
 fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/write_only_scalar_entry_observation rejected 5920ms expected @3bd254ac6193
+	machine `read` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/generics/constructor_inferred_byte_domain_unproved rejected 2858ms expected @b852a38544d0
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[0] requires u8::Small
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[1] requires u8::Small

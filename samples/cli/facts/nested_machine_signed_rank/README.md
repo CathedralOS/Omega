@@ -212,3 +212,14 @@ The following checking controls challenge those boundaries:
 These repairs preserve the existing row's fact, bounds, counter updates and
 canaries. Declared measure calls that themselves need borrowed or affine
 arguments remain part of the open parent acceptance.
+
+Linux x86_64 requalification restores all nine unchanged places at native exit 0
+and Terminal exit 0; their nine increment-zero twins still reject the preserving
+cycle. A minimized shared-input result program also agrees at exit 0. All four
+controls above reject, and their focused corpus run records four intended
+refusals with no wrong-reason failures. The runtime producer's SHA-256 is
+`1befb40109e2e9f6d48aa5fe01940825923ed7a29c024a373a0dc36c32a59489`; its
+compiler source is retained by checkpoint `3bd254ac6193`. Raw observations and
+the exact source bundle are retained under `build/advance/` and
+`build/corpus-source/` in the owning worktree. Other hosts and the broader parent
+acceptance remain unqualified by this run.
