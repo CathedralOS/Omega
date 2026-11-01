@@ -8,15 +8,15 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
-pass/facts/inline_member_helper_through_call_result_exit built 8077ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
-pass/facts/inline_member_helper_through_const_name_exit built 9423ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
-pass/facts/inline_member_helper_through_field_exit built 8750ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
-pass/facts/inline_member_helper_through_local_exit built 8423ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
-pass/facts/inline_member_helper_through_match_join_exit built 9319ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
-pass/facts/inline_member_helper_through_other_machine_exit built 8566ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
-pass/facts/inline_member_helper_through_other_state_exit built 8695ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
-pass/facts/inline_member_helper_through_parameter_exit built 8175ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
-pass/facts/inline_member_helper_through_target_body_exit built 8498ms exit:0 interpreter-exit:0 interpreter:agrees @95f64c0356c6
+pass/facts/inline_member_helper_through_call_result_exit built 8987ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_const_name_exit built 8668ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_field_exit built 15819ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_local_exit built 9986ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_match_join_exit built 9050ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_other_machine_exit built 9232ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_other_state_exit built 8659ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_parameter_exit built 10302ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
+pass/facts/inline_member_helper_through_target_body_exit built 9380ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
 pass/facts/nested_machine_joint_rank_borrowed_call_call_result_exit built 6309ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
 pass/facts/nested_machine_joint_rank_borrowed_call_const_name_exit built 7577ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
 pass/facts/nested_machine_joint_rank_borrowed_call_field_exit built 5888ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
