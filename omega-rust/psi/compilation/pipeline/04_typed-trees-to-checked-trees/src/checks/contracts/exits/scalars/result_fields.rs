@@ -79,6 +79,14 @@ impl ExitScalars<'_, '_> {
             .flow
             .control
             .state(self.machine.symbol, self.exit.state_symbol)?;
+        let exit_arithmetic = arithmetic::at_exit(
+            self.program,
+            self.facts,
+            caller,
+            self.exit,
+            self.contexts,
+            self.call_frames?,
+        )?;
         let goal = arithmetic::proposition(
             self.program,
             self.facts,
@@ -172,30 +180,14 @@ impl ExitScalars<'_, '_> {
                             selected,
                             |value, carrier| {
                                 let place = call_guarantees::direct_place(self.program, value)?;
-                                let place = arithmetic::value_origin(
-                                    self.program,
-                                    self.facts,
-                                    caller,
-                                    self.exit.statement_index,
-                                    self.call_frames?,
-                                    place,
-                                )?;
-                                Some(arithmetic::atom(place, carrier))
+                                exit_arithmetic.value(place, carrier)
                             },
                         )?;
                         return Some(value);
                     }
                     let mut place = call_guarantees::direct_place(self.program, selected)?;
                     place.extend_segments(&remaining);
-                    let place = arithmetic::value_origin(
-                        self.program,
-                        self.facts,
-                        caller,
-                        self.exit.statement_index,
-                        self.call_frames?,
-                        place,
-                    )?;
-                    return Some(arithmetic::atom(place, primitive));
+                    return exit_arithmetic.value(place, primitive);
                 }
                 let mut value = crate::values::lower_unit_scalar_argument(
                     self.program,
@@ -214,27 +206,11 @@ impl ExitScalars<'_, '_> {
                 // owned input's preserved invocation value. Reconstruct this
                 // read at the exit frontier too: a saved pre-write read may
                 // otherwise have the same place spelling as new contents.
-                let place = arithmetic::value_origin(
-                    self.program,
-                    self.facts,
-                    caller,
-                    self.exit.statement_index,
-                    self.call_frames?,
-                    subjects.get(position)?.clone(),
-                )?;
-                Some(arithmetic::atom(place, primitive))
+                exit_arithmetic.value(subjects.get(position)?.clone(), primitive)
             },
         );
         let goal = goal?;
-        Some(arithmetic::proves_at_exit(
-            self.program,
-            self.facts,
-            caller,
-            self.exit,
-            self.contexts,
-            self.call_frames?,
-            &goal,
-        ))
+        Some(exit_arithmetic.proves(&goal))
     }
 
     pub(super) fn result_projection(

@@ -57,12 +57,12 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             return Ok(value);
         }
 
-        // Static conformance dispatch rewrote this call's target: the checker
-        // recorded the exact realization state on the call itself, so it
-        // executes before any receiver-carried adapter or name resolution.
-        if let Some(dispatch) = &call.static_requirement_dispatch {
+        // The dispatch retains the original selected row; the executable
+        // target carries its prepared capture and invocation substitutions.
+        // Execute that admitted entry before receiver-carried adapter routes.
+        if call.static_requirement_dispatch.is_some() {
             let value = self.run_selected_realization(
-                dispatch.realization_state,
+                call.target_symbol,
                 expression_table(self.program).expression_handles(call.arguments),
                 frame,
             )?;

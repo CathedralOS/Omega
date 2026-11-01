@@ -10,6 +10,33 @@
 
 use super::StructuralTerm;
 
+// Ordinary static-argument equality compares a literal's numeric value. A
+// resolver question additionally retains the carrier and arithmetic policy
+// that this particular literal brought to its selected application. Applied
+// owners can contain more static arguments, so preserve that metadata at
+// every level without changing the language's semantic equality relation.
+fn same_static_selection_metadata(
+    left: &[typed_trees::expression::StaticMachineArgument],
+    right: &[typed_trees::expression::StaticMachineArgument],
+) -> bool {
+    left.len() == right.len()
+        && left.iter().zip(right).all(|(left, right)| {
+            let same_literal = match (&left.const_literal, &right.const_literal) {
+                (None, None) => true,
+                (Some(left), Some(right)) => left.landing() == right.landing(),
+                _ => false,
+            };
+            same_literal
+                && match (&left.application, &right.application) {
+                    (None, None) => true,
+                    (Some(left), Some(right)) => {
+                        same_static_selection_metadata(&left.arguments, &right.arguments)
+                    }
+                    _ => false,
+                }
+        })
+}
+
 #[cfg(test)]
 mod resolution_payload_tests {
     use super::*;
@@ -139,6 +166,20 @@ impl StructuralTerm {
                 };
         }
         let metadata_matches = match (self, other) {
+            (
+                Self::Application { selections, .. },
+                Self::Application {
+                    selections: other_selections,
+                    ..
+                },
+            )
+            | (
+                Self::CallProjection { selections, .. },
+                Self::CallProjection {
+                    selections: other_selections,
+                    ..
+                },
+            ) => same_static_selection_metadata(selections, other_selections),
             (
                 Self::ScalarBinary { references, .. },
                 Self::ScalarBinary {

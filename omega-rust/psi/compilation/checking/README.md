@@ -300,6 +300,20 @@ bodies, not finite caller-argument composition; unknown or recursive bodies stay
 opaque. Cycle equations retain exact frames through supported bijective
 write-capable argument transport, not arbitrary alias-changing backedges.
 
+Invocation origin capture retains each operand's knowledge independently. An
+unavailable descriptor prefix leaves loaded references, runtime receivers and
+reference inventories unknown; it does not erase a validated address of owned
+storage. Complete write-frame queries still require the prefix. Entry subjects
+name the storage observed after operand evaluation, while the callee's future
+frame separately determines normal-return correspondence. An opaque future
+frame grants no preserved referent or fresh post-state observation.
+
+Unknown effects retire reachable storage observations. Existing immutable,
+non-atomic scalar bindings and code-only `dyn` selectors retain their private
+value; mutable bindings, reference payloads, atomic cells and projected storage
+keep their invalidation fences. Retaining a value neither restores an expired
+entry fact nor reconstructs an unknown initializer.
+
 Assignment queries use one prefix result for both the direct target and its
 alias closure. Binding replacement never closes over the former referent.
 The located state and statement index also serve local-origin recovery without

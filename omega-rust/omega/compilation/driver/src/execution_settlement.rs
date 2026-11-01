@@ -426,21 +426,7 @@ fn prepare_target_provider_selection(
     } else {
         crate::terminal::retain_calling_policy_code(source, timings)?
     };
-    let mut boundary_calling_plan_realizations = calling.evaluate(code.as_deref())?;
-    // Provider schemas and provenance commit to the complete calling
-    // application. Close target callback geometry before either captures it;
-    // otherwise nominal placements retain no private materialization and a
-    // later closure would invalidate the already-captured plan commitment.
-    // This consumes the shared source judgment, never another Psi check.
-    if let Some(profile) = selected_target_profile {
-        provider_planning::calling_policy_plans::close_outbound_callback_materializations(
-            &source.program,
-            &mut boundary_calling_plan_realizations,
-            profile,
-            &build_config.opaque_representation_selections,
-            code.as_deref(),
-        )?;
-    }
+    let boundary_calling_plan_realizations = calling.evaluate(code.as_deref())?;
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
         one_refusal(source.provider_inventory.origins_for(&source.program))?,
         &source.provider_defaults,

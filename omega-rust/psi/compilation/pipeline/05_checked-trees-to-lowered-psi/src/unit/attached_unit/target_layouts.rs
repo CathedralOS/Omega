@@ -11,9 +11,9 @@ use semantic_vocabulary::{AuthoredRecordStorage, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
-    StructuralTypeShape, TargetLayoutApplication, TargetLayoutFieldStorage,
-    TargetLayoutRealization, TargetLayoutSchemaArgument, TargetLayoutSchemaField,
-    TargetLayoutSchemaFieldKind,
+    StructuralTypeShape, TargetLayoutApplication, TargetLayoutFieldLayoutSource,
+    TargetLayoutFieldStorage, TargetLayoutRealization, TargetLayoutSchemaArgument,
+    TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
 };
 use typed_trees::type_identity::TypeIdentityId;
 
@@ -129,7 +129,7 @@ pub(super) fn lower(
                     .ok_or(LoweringError::Unsupported(
                         "target layout application lost its exact Schema argument",
                     ))?;
-            if argument.abi_version != 3 {
+            if argument.abi_version != 4 {
                 return unsupported(
                     "target layout application uses an unsupported Schema ABI version",
                 );
@@ -162,6 +162,17 @@ pub(super) fn lower(
                     identity: field.identity,
                     byte_size: field.byte_size,
                     byte_alignment: field.byte_alignment,
+                    layout_source: match field.layout_source {
+                        typed_trees::PlanLaidFieldLayoutSource::Default => {
+                            TargetLayoutFieldLayoutSource::Default
+                        }
+                        typed_trees::PlanLaidFieldLayoutSource::Scalar => {
+                            TargetLayoutFieldLayoutSource::Scalar
+                        }
+                        typed_trees::PlanLaidFieldLayoutSource::Explicit => {
+                            TargetLayoutFieldLayoutSource::Explicit
+                        }
+                    },
                     kind: match field.kind {
                         typed_trees::PlanLaidSchemaFieldKind::Scalar => {
                             TargetLayoutSchemaFieldKind::Scalar

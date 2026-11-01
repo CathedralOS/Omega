@@ -36,25 +36,10 @@ pub(crate) fn predicate_case_type_contexts(
             }
         }
     }
+    let formal_references = TypeParameterReferences::new(program, |_| true);
     let mut contexts = Vec::new();
     for machine in program.machines() {
-        let parameters = program.machine_type_parameters(machine);
-        let formals = program
-            .type_reference_table
-            .type_reference_rows()
-            .filter_map(|(reference, node)| {
-                let TypeReferenceNode::Named { symbol, .. } = node else {
-                    return None;
-                };
-                parameters
-                    .iter()
-                    .any(|parameter| {
-                        parameter.symbol == *symbol
-                            && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                    })
-                    .then_some(reference)
-            })
-            .collect::<Vec<_>>();
+        let formals = formal_references.of(program.machine_type_parameters(machine));
         if formals.is_empty() {
             continue;
         }
@@ -175,6 +160,60 @@ pub(crate) fn predicate_case_type_contexts(
     joined
 }
 
+/// The reference rows that name each machine type binder, found in one pass
+/// over the table. Scanning every row for every machine made these queries
+/// quadratic in program size.
+struct TypeParameterReferences {
+    by_binder: std::collections::HashMap<
+        symbols::SymbolHandle,
+        Vec<TypeReferenceHandle>,
+        symbols::BuildSymbolHasher,
+    >,
+}
+
+impl TypeParameterReferences {
+    /// Only binders that `accepts_binder` admits can be named by a formal.
+    fn new(
+        program: &dyn crate::CheckingInput,
+        accepts_binder: impl Fn(symbols::SymbolHandle) -> bool,
+    ) -> Self {
+        let mut by_binder = std::collections::HashMap::default();
+        for machine in program.machines() {
+            for parameter in program.machine_type_parameters(machine) {
+                if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    && accepts_binder(parameter.symbol)
+                {
+                    by_binder.entry(parameter.symbol).or_insert_with(Vec::new);
+                }
+            }
+        }
+        for (reference, node) in program.type_reference_table.type_reference_rows() {
+            if let TypeReferenceNode::Named { symbol, .. } = node
+                && let Some(references) = by_binder.get_mut(symbol)
+            {
+                references.push(reference);
+            }
+        }
+        Self { by_binder }
+    }
+
+    /// References naming a type binder of `parameters`, in table order.
+    fn of(&self, parameters: &[typed_trees::data::TypeParameter]) -> Vec<TypeReferenceHandle> {
+        let mut formals: Vec<TypeReferenceHandle> = parameters
+            .iter()
+            .filter(|parameter| {
+                matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            })
+            .filter_map(|parameter| self.by_binder.get(&parameter.symbol))
+            .flatten()
+            .copied()
+            .collect();
+        formals.sort_unstable_by_key(|reference| (reference.arena_index(), reference.generation()));
+        formals.dedup();
+        formals
+    }
+}
+
 struct ConditionalCaseEquations {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
@@ -272,25 +311,12 @@ pub(crate) fn predicate_type_contexts(
             }
         }
     }
+    let formal_references = TypeParameterReferences::new(program, |symbol| {
+        symbol.is_valid() && program.symbols.get(symbol).kind == SymbolKind::TypeParameter
+    });
     let mut equations = Vec::new();
     for machine in program.machines() {
-        let parameters = program.machine_type_parameters(machine);
-        let formals = program
-            .type_reference_table
-            .type_reference_rows()
-            .filter_map(|(reference, node)| {
-                let TypeReferenceNode::Named { symbol, .. } = node else {
-                    return None;
-                };
-                (symbol.is_valid()
-                    && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter
-                    && parameters.iter().any(|parameter| {
-                        parameter.symbol == *symbol
-                            && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                    }))
-                .then_some(reference)
-            })
-            .collect::<Vec<_>>();
+        let formals = formal_references.of(program.machine_type_parameters(machine));
         for state in program.machine_states(machine) {
             let has_predicates = program.state_parameters(state).iter().any(|parameter| {
                 type_carries_predicate_context(program, parameter.type_reference, &mut Vec::new())
@@ -360,9 +386,10 @@ pub(crate) fn predicate_type_contexts(
                         complete: true,
                     };
                     let complete =
-                        observe_runtime_state_prefix(program, machine, state, &mut visitor)
-                            .is_some()
-                            && visitor.observed
+                        phase_profile::scope("05.overloads.4a_prefix_observation", || {
+                            observe_runtime_state_prefix(program, machine, state, &mut visitor)
+                                .is_some()
+                        }) && visitor.observed
                             && visitor.complete;
                     if complete {
                         equations.push(ProvenTypeContext {
@@ -634,4 +661,73 @@ fn type_carries_predicate_context(
         );
     active.pop();
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TypeParameterReferences;
+    use symbols::SymbolHandle;
+    use typed_trees::TypedTrees;
+    use typed_trees::data::{TypeParameter, TypeParameterKind};
+    use typed_trees::machine::Machine;
+    use typed_trees::name::Identifier;
+    use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+    fn named(program: &mut TypedTrees, symbol: SymbolHandle) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol,
+                name: Identifier::from("T"),
+            })
+    }
+
+    #[test]
+    fn formals_are_the_rows_naming_a_machine_type_binder_in_table_order() {
+        let first = SymbolHandle::from_parts(1, 1);
+        let second = SymbolHandle::from_parts(2, 1);
+        let value = SymbolHandle::from_parts(3, 1);
+        let other = SymbolHandle::from_parts(4, 1);
+        let mut program = TypedTrees::default();
+        let parameters = program.data_type_parameters.insert_many([
+            TypeParameter {
+                symbol: first,
+                ..TypeParameter::default()
+            },
+            TypeParameter {
+                symbol: second,
+                ..TypeParameter::default()
+            },
+            TypeParameter {
+                symbol: value,
+                kind: TypeParameterKind::Const {
+                    type_reference: TypeReferenceHandle::invalid(),
+                },
+                ..TypeParameter::default()
+            },
+        ]);
+        program.push_machine(Machine {
+            type_parameters: parameters,
+            ..Machine::default()
+        });
+        let on_second = named(&mut program, second);
+        named(&mut program, other);
+        let on_first = named(&mut program, first);
+        named(&mut program, value);
+        let on_second_again = named(&mut program, second);
+        let machine = program.machines()[0].clone();
+
+        let references = TypeParameterReferences::new(&program, |_| true);
+        assert_eq!(
+            references.of(program.machine_type_parameters(&machine)),
+            [on_second, on_first, on_second_again]
+        );
+        // A binder the pass rejects names no formal, and no binders name none.
+        let references = TypeParameterReferences::new(&program, |symbol| symbol != second);
+        assert_eq!(
+            references.of(program.machine_type_parameters(&machine)),
+            [on_first]
+        );
+        assert!(references.of(&[]).is_empty());
+    }
 }

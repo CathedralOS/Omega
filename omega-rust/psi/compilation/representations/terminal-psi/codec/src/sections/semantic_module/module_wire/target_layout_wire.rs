@@ -11,9 +11,9 @@ use super::super::{
 };
 use semantic_vocabulary::{AuthoredFieldStorage, AuthoredRecordStorage};
 use terminal_psi::{
-    LayoutApplicationId, TargetLayoutApplication, TargetLayoutFieldStorage, TargetLayoutInput,
-    TargetLayoutRealization, TargetLayoutSchemaArgument, TargetLayoutSchemaField,
-    TargetLayoutSchemaFieldKind,
+    LayoutApplicationId, TargetLayoutApplication, TargetLayoutFieldLayoutSource,
+    TargetLayoutFieldStorage, TargetLayoutInput, TargetLayoutRealization,
+    TargetLayoutSchemaArgument, TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
 };
 
 wire_record! {
@@ -56,6 +56,7 @@ wire_record! {
         byte_size: U64,
         byte_alignment: U64,
         kind: SchemaFieldKind,
+        layout_source: FieldLayoutSource,
     }
 }
 
@@ -64,6 +65,11 @@ wire_enum! {
         0 => Scalar,
         1 => Nested,
         2 => Repeated,
+    }
+    FieldLayoutSource: TargetLayoutFieldLayoutSource, "TargetLayoutFieldLayoutSource" {
+        0 => Default,
+        1 => Scalar,
+        2 => Explicit,
     }
 }
 

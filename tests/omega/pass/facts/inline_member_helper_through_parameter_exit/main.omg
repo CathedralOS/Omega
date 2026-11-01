@@ -41,7 +41,7 @@ machine probe(left: i32, right: i32) -> i32
 blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
-ensures result == left + right
+ensures (result as i64) == (left as i64) + (right as i64)
 {
     block apply<Selected>(left, right)
 }

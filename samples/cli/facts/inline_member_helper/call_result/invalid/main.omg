@@ -35,22 +35,36 @@ ensures result == left + right
     block Operations::combine(left, right)
 }
 
-// Place: call result. The right supply call has no result range, so apply cannot prove combine's requires.
-machine supply(value: i32) -> i32
+// Place: call result. Both operands arrive from calls with declared result ranges.
+// Expected exit: 0
+// Each supplier promises its returned range independently. The twin changes
+// only the right supplier's produced value, contradicting that range.
+machine supply_left(value: i32) -> i32
+requires 0 <= value && value <= 50
+ensures 0 <= result && result <= 50
 {
     value
+}
+
+machine supply_right(value: i32) -> i32
+requires 0 <= value && value <= 50
+ensures 0 <= result && result <= 50
+{
+    51
 }
 
 machine probe(a: i32, b: i32) -> i32
 blocks
 requires 0 <= a && a <= 50
+requires 0 <= b && b <= 50
 {
-    block apply<Selected>(a, supply(b))
+    block apply<Selected>(supply_left(a), supply_right(b))
 }
 
 machine main() blocks crashes Trap {
-    let result: i32 = block probe(20, 22);
-    transition result == 42 { true -> done() _ -> bad() }
+    let wide: i32 = block probe(20, 22);
+    let narrow: i32 = block probe(10, 12);
+    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

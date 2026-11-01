@@ -383,6 +383,14 @@ impl ContractFacts {
         reference: TypeReferenceHandle,
         identity: String,
     ) {
+        // Numeric contracts observe readable contents, including an exclusive
+        // output's normal-return value. Positional correspondence relates those
+        // values across the two signatures, never reference addresses or access
+        // authority. Write-only formals retain their observation restriction.
+        let Some(reference) = crate::field_domains::readable_type_reference(program, reference)
+        else {
+            return;
+        };
         let Some(primitive) = program
             .primitive_type_reference(reference)
             .filter(|primitive| primitive.is_fixed_integer())

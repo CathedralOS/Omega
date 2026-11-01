@@ -17,10 +17,10 @@ extent and alignment. Every observed discrepancy traps.
 
 `invalid/wrong_policy` substitutes a distinct named policy with identical geometry;
 transparent aliases do not erase policy identity. The other controls reject a
-nested native record, numbered fields and a sum. The current policy supports
-complete nonempty, unnumbered scalar records only; it refuses repeated or nested
-shapes, empty records and sum cases rather than claiming their native Omega
-geometry is C ABI evidence. Ordinary scalar domains and access obligations remain
+nested native record, numbered fields and a sum. The policy now also composes scalar arrays and explicitly selected child
+representations, covered by the [nested representation row](../c_layout_nested_representation/README.md).
+Bare native aggregates, empty records and sum cases still reject; their native
+geometry is not evidence of a selected child representation. Ordinary scalar domains and access obligations remain
 in force; policy geometry grants no atomic or concurrent access permission.
 
 `controls/static_type_argument` independently passes an alias as an ordinary
@@ -76,8 +76,8 @@ remain historical failures, repaired by the later producer.
 Validation uses the focused runtime and refusal cases; no full Rust suite was run. Earlier query-free Mac ARM64
 diagnostics are historical, not qualification of this complete root.
 
-The nine transport places, complete nested C records/platform migration,
-other-host execution and the parent capability remain open. The installed
+Complete nested C records/platform migration, other-host execution and the
+parent capability remain open. The installed
 SDK15.5 arm64 oracle confirms Darwin stat 144/8 and timespec 16/8, including
 nanoseconds and reserved fields; no platform source migration is claimed here.
 
@@ -137,6 +137,50 @@ replay uses the same declaration visitors as current roots, retaining original
 constant inputs independently from evaluated/materialized results. This restores
 policy evidence without rooting a runtime constant or granting body authority.
 
-Nested machine, other machine and selected target implementation remain open,
-along with broader schema composition and other-host execution. These
-observations do not qualify the full compiler.
+The remaining nested-machine, other-machine and Build-selected implementation
+places pass in [pilot 41303478559](https://github.com/CathedralOS/Omega/actions/runs/41303478559).
+All three sample positives and their independent corpus mirrors execute with
+Linux x86_64 native/Terminal exit 0; all three one-type policy twins reject.
+Nested invocation receives the complete record explicitly and allocates its
+independent backing in the child, so it relies on no runtime capture. Selected
+providers carry distinct 17/29 markers independently of the identical record,
+so the target-body oracle also checks the selected implementation.
+
+The optimized source is `035d82f9f4c1559d694f5b0238f60c178a4ff0c6`, CLI image
+`7bfe79bbaf3c6954d6b87cff5d298ff571e3b5541db2cd9b04e57a72ef96659c`, verified
+`opt_level=1`. Preparation took 1096.214 seconds, authentication 1.824 seconds,
+corpus checking 33.635 seconds, corpus native/Terminal execution 26.374 seconds,
+and samples 52.310 seconds. Six canonical checking records retain the runner's
+raw diagnostics, timings and actual default `macos_arm64` check target under
+that source stamp; native observations remain Linux x86_64 evidence. The source
+and raw JSON reports are retained with the pilot artifacts. This batch changes
+no compiler or library mechanism and needs no further build for these records.
+
+The complete nine-place transport row and policy twins now have focused
+observations. Broader schema composition, complete platform ABI records,
+Windows x86_64 and Linux ARM64 execution, and the parent acceptance remain open.
+These observations do not qualify the full compiler.
+
+
+## macOS ARM64 execution
+
+The complete nine-place row and all nine policy-mismatch twins pass on native
+macOS ARM64 in [pilot41313309277](https://github.com/CathedralOS/Omega/actions/runs/41313309277).
+Source `3d5c5150f08151ca111b2e6b31545d1646085611` produced authenticated
+opt-level 1 CLI `090ee60d87c91f8e13b23f0bd14c8f323ed4e3946f524ae7833557cfae419bee`
+with Rust host `aarch64-apple-darwin`. Each positive runs native and Terminal
+execution against its declared exit 0 oracle. Each twin rejects its distinct
+receiving policy. The existing initialized backing, values 17/42/9, offsets 0/8/16,
+24-byte extent and 8-byte alignment remain unchanged. This is execution on the
+matching host, independently of earlier macos_arm64 checking-only records.
+
+Preparation took 1109.644s, producer authentication 1.918s and all 18 sample projects
+72.815s. The sample-only producer has no corpus runner or runner profile.
+The [exact source](https://github.com/CathedralOS/Omega/tree/evidence/c-layout-macos-20261101-3d5c5150f081)
+and emitted summary/sample JSON retain the actual producer and target.
+The later prerequisite cleanup and evidence documentation change no Rust,
+library, project, workflow or helper execution inputs; they need no new build.
+
+Windows x86_64 and Linux ARM64 execution remain open, as do the parent capability's
+other representation, complete platform ABI, conversion and Product requirements.
+This observation does not qualify the new Darwin SDK records.

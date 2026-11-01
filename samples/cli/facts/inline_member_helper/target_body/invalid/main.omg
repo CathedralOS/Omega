@@ -35,39 +35,83 @@ ensures result == left + right
     block Operations::combine(left, right)
 }
 
-// Place: another selected target implementation. Each target body omits the right operand bound.
-linux_x86_64 machine probe(a: i32, b: i32) -> i32
+// Place: another selected target implementation. Build supplies an ordinary checked body.
+// Expected exit: 0
+machine probe(a: i32, b: i32) -> i32
 blocks
 requires 0 <= a && a <= 50
+requires 0 <= b
+ensures (result as i64) == (a as i64) + (b as i64)
 {
     block apply<Selected>(a, b)
 }
 
-linux_arm64 machine probe(a: i32, b: i32) -> i32
-blocks
-requires 0 <= a && a <= 50
-{
-    block apply<Selected>(a, b)
+boundary trait BodyTag {
+    machine check(tag: u64) reaches crashes Trap;
 }
 
-macos_arm64 machine probe(a: i32, b: i32) -> i32
-blocks
-requires 0 <= a && a <= 50
-{
-    block apply<Selected>(a, b)
+X86Tag satisfies BodyTag {
+    machine check(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> bad() }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
 }
 
-windows_x86_64 machine probe(a: i32, b: i32) -> i32
-blocks
-requires 0 <= a && a <= 50
-{
-    block apply<Selected>(a, b)
+ArmTag satisfies BodyTag {
+    machine check(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> bad() }
+        machine done() {}
+        machine bad() crashes Trap { crash Trap; }
+    }
+}
+
+boundary trait TargetProbe {
+    machine evaluate(left: i32, right: i32) -> i32
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures (result as i64) == (left as i64) + (right as i64)
+    reaches BodyTag invokes BodyTag crashes Trap blocks;
+}
+
+X86Probe satisfies TargetProbe {
+    machine evaluate(left: i32, right: i32) -> i32
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures (result as i64) == (left as i64) + (right as i64)
+    reaches BodyTag invokes BodyTag crashes Trap blocks
+    {
+        BodyTag::check(17u64);
+        block probe(left, right)
+    }
+}
+
+ArmProbe satisfies TargetProbe {
+    machine evaluate(left: i32, right: i32) -> i32
+    requires 0 <= left && left <= 50
+    requires 0 <= right && right <= 50
+    ensures (result as i64) == (left as i64) + (right as i64)
+    reaches BodyTag invokes BodyTag crashes Trap blocks
+    {
+        BodyTag::check(29u64);
+        block probe(left, right)
+    }
 }
 
 machine main() blocks crashes Trap {
-    let result: i32 = block probe(20, 22);
-    transition result == 42 { true -> done() _ -> bad() }
-
+    let wide: i32 = block TargetProbe::evaluate(20, 22);
+    let narrow: i32 = block TargetProbe::evaluate(10, 12);
+    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine bad() crashes Trap { crash Trap; }
+}
+
+machine x86_entry() blocks crashes Trap {
+    BodyTag::check(17u64);
+    block main();
+}
+
+machine arm_entry() blocks crashes Trap {
+    BodyTag::check(29u64);
+    block main();
 }
