@@ -1,4 +1,4 @@
-//! Bounded receiving view of the existing complete v5 plan commitment input.
+//! Bounded receiving view of the existing complete v6 plan commitment input.
 //!
 //! This reader does not mint a ProviderPlan, evaluated binding receipt, or
 //! selection authority. It authenticates the original normalized bytes and
@@ -127,18 +127,41 @@ impl<'a> ProviderPlanInput<'a> {
                     previous_route = Some(key);
                 }
             }
-            let has_report = reader.tag(1)? == 1;
-            if has_report {
-                reader.number()?;
-            }
-            let has_commitment = reader.tag(1)? == 1;
-            if has_commitment {
-                if reader.blob()?.len() != 32 {
-                    return Err("provider calling commitment has the wrong width");
+            // v6 carries every complete ABI application, not v5's optional
+            // singleton report. Read the same full-key order the writer emits.
+            let mut previous_application = None;
+            for _ in 0..reader.count()? {
+                if reader.nonempty_string()? != requirement {
+                    return Err("provider calling ABI differs from its schema requirement");
                 }
-            }
-            if has_report != has_commitment {
-                return Err("provider calling commitment is incomplete");
+                let declaring = reader.nonempty_string()?;
+                let mut operands = Vec::new();
+                for _ in 0..reader.count()? {
+                    let ordinal = u32::try_from(reader.number()?)
+                        .map_err(|_| "provider calling formal ordinal exceeds u32")?;
+                    if operands
+                        .last()
+                        .is_some_and(|(previous, _, _)| *previous >= ordinal)
+                    {
+                        return Err("provider calling operands repeat or reorder formal ordinals");
+                    }
+                    operands.push((ordinal, reader.tag(5)?, reader.nonempty_string()?));
+                }
+                let key = (declaring, operands);
+                if previous_application
+                    .as_ref()
+                    .is_some_and(|previous| *previous >= key)
+                {
+                    return Err("provider calling applications repeat or reorder complete keys");
+                }
+                previous_application = Some(key);
+                if reader.number()? == 0 {
+                    return Err("provider calling report is empty");
+                }
+                let commitment = reader.blob()?;
+                if commitment.len() != 32 || commitment.iter().all(|byte| *byte == 0) {
+                    return Err("provider calling commitment is empty or has the wrong width");
+                }
             }
         }
         let mut rows = Vec::new();
@@ -367,6 +390,71 @@ mod tests {
         assert_eq!(
             input.rows[0].checked_adapter,
             Some(("Provider::consume(opaque)", None))
+        );
+    }
+
+    #[test]
+    fn retained_plan_reads_plural_full_abi_keys_and_rejects_malformed_rosters() {
+        use super::super::{
+            BoundaryCallingPlanCommitment, ServiceCallingApplication, ServiceCallingPlan,
+        };
+        use semantic_vocabulary::{CallingAbiIdentity, CallingOperandKind, CallingStaticOperand};
+        let mut plan = selected_plan();
+        let requirement = plan.schema.declaration.methods[0].requirement_identity;
+        plan.schema.calling_applications = ["u32", "u64"]
+            .into_iter()
+            .enumerate()
+            .map(|(ordinal, identity)| ServiceCallingApplication {
+                requirement,
+                abi: CallingAbiIdentity {
+                    requirement_identity: plan.schema.identity_text(requirement).into(),
+                    declaring_application: "Boundary<opaque>".into(),
+                    operands: vec![CallingStaticOperand {
+                        ordinal: 0,
+                        kind: CallingOperandKind::Type,
+                        identity: identity.into(),
+                    }],
+                },
+                plan: ServiceCallingPlan {
+                    report_fingerprint: ordinal as u64 + 1,
+                    commitment: BoundaryCallingPlanCommitment::from_digest([ordinal as u8 + 1; 32]),
+                },
+            })
+            .collect();
+        assert!(plan.validate_against_schema().is_empty());
+        let bytes = plan.identity_preimage();
+        let input = read(&bytes).unwrap();
+        assert_eq!(input.rows.len(), 1);
+        assert_eq!(input.rows[0].requirement, "Boundary::consume(opaque)");
+        let mut duplicate = plan.clone();
+        duplicate
+            .schema
+            .calling_applications
+            .push(duplicate.schema.calling_applications[0].clone());
+        assert!(
+            read(&duplicate.identity_preimage())
+                .unwrap_err()
+                .contains("complete keys")
+        );
+        let mut foreign = plan.clone();
+        foreign.schema.calling_applications[0]
+            .abi
+            .requirement_identity = "Other::consume".into();
+        assert!(
+            read(&foreign.identity_preimage())
+                .unwrap_err()
+                .contains("schema requirement")
+        );
+        let mut repeated_operand = plan;
+        let operand = repeated_operand.schema.calling_applications[0].abi.operands[0].clone();
+        repeated_operand.schema.calling_applications[0]
+            .abi
+            .operands
+            .push(operand);
+        assert!(
+            read(&repeated_operand.identity_preimage())
+                .unwrap_err()
+                .contains("formal ordinals")
         );
     }
 
