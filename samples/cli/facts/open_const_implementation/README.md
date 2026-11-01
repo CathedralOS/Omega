@@ -37,13 +37,21 @@ Two additional productions stay in this fact:
   member in statement position. Its exact public write guarantee establishes
   the scalar later returned and evaluated as a constant. Its
   [twin](const_name/statement_result/invalid/main.omg) changes the same const
-  argument, preserving the bound and subtraction.
+  argument, preserving the bound and subtraction. The
+  [saved-output composition](const_name/statement_result/saved_output/main.omg)
+  copies the completed scalar before overwriting the original; its
+  [twin](const_name/statement_result/saved_output/invalid/main.omg) changes the
+  same selected argument.
 
 The [private result guarantee control](controls/private_result_guarantee/main.omg)
 asks a generic wrapper for equality where its public requirement promises only
 a lower bound. It must reject even though the selected concrete member has a
 stronger equality guarantee. A prepared executable target does not donate that
-private contract to the generic caller.
+private contract to the generic caller. The
+[current-output write](controls/changed_statement_output/main.omg) and
+[outgoing return write](controls/return_write_output/main.omg) controls reject
+at the public postcondition after a write retires its current-storage truth.
+The saved scalar keeps its historical guarantee independently of that truth.
 
 Applicable requirements:
 
@@ -52,7 +60,9 @@ Applicable requirements:
   formation; a caller guard supplies no subtraction premise.
 - **Identity and lifetime:** immutable const binders and completed scalar values
   keep their declaration/occurrence identities. No storage or borrow authority
-  follows from an equal scalar value.
+  follows from an equal scalar value. Normal mutable-output guarantees name
+  the exact call-return version; copies retain it, while overlapping writes
+  retire its association with current storage.
 - **Composition:** simultaneous actual substitution transports `Base + 4`;
   calls, joins, and state arrivals retain the same lower bound. The operation
   `value - 7` consumes that bound directly.
@@ -74,7 +84,8 @@ The governing clauses are [generics](../../../../wiki/spec/language/generics.md)
 [conformances](../../../../wiki/spec/language/conformances.md),
 [dependent values](../../../../wiki/spec/language/dependent_values.md),
 [evaluation](../../../../wiki/spec/language/evaluation.md), and
-[constants](../../../../wiki/spec/language/constants.md).
+[constants](../../../../wiki/spec/language/constants.md), and
+[normal return contracts](../../../../wiki/spec/language/state_contracts.md#returns-and-proof-use).
 
 At fixed base `bfcffe6bcfcedb6fd60713e223408566c6c4e10d`, the unchanged
 local witness wrongly refuses at `selected`'s `result >= Minimum` guarantee.
@@ -93,6 +104,35 @@ field/join runtime oracles were strengthened. The additional productions and
 private-guarantee boundary retain their own current observations there. This is
 Linux x86-64 evidence; declarations for the other hosted targets do not supply
 new execution observations.
+
+The statement production exposed two further obligations before edits: readable
+scalar output equality must imply the published lower bound during declaration
+refinement, and the caller must join its returned scalar to that exact completed
+output version. Current-storage association cannot outlive a later write, even
+when a saved copy retains the old proposition. The frozen direct statement and
+saved-output sources passed checking before runtime calls were added to their
+oracles. All intermediate refusals, corrected probe formation errors, and the
+stale return-write acceptance are retained with their actual producer identities
+in the qualification record.
+
+Optimized producer `ea132c1fff8bccd603ac18adb83691ee4d2e8f23` observes
+native and Terminal exit 0 for all thirteen current positive productions and
+matches all sixteen intended refusals. The related open-record row's root and
+nine places also agree in both engines, with all ten twins refusing. The fixed-base
+consumer comparisons observe 81 source fixtures and 34 native/Terminal fixtures
+with zero losses; all 34 execution pairs exit 0 and agree.
+
+Forty source records and fourteen records in each Linux native/both leg retain
+the actual improvements, new productions and changed field/match oracles. Every
+outside golden byte is unchanged. Three diagnostic differences and one missing
+runtime pin already occur in the measured baseline and are left untouched; an
+existing wrong-literal-tuple fixture also retains its old statement-index
+expectation mismatch. Those cases do not establish this row's reject evidence.
+Exact source/oracle hashes, accepted locks, producer profiles, raw streams and
+independent review remain in the qualification/claim evidence, with each
+observation's original revision. These are Linux x86-64 observations; the other
+three hosted targets and the parent's wider acceptance remain open.
+
 
 The optimized reference producer `5df98d50e149` has actual Linux x86-64
 native and Terminal exit 0 for the unchanged root and all nine places, with
