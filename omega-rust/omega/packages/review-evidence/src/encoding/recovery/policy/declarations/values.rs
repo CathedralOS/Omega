@@ -57,3 +57,52 @@ pub(in crate::encoding::recovery) fn operator_spelling(
         12 => OperatorSpelling::Range,
     }))
 }
+
+#[cfg(test)]
+mod constant_meaning_tests {
+    use super::super::super::PackagePolicyRecoveryLimits;
+    use super::*;
+
+    fn prefix() -> Vec<u8> {
+        let mut bytes = vec![0]; // Exact package owner of the public declaration.
+        bytes.extend_from_slice(&[1; 32]);
+        for text in ["RAW_SIZE", "named(name(u64))"] {
+            bytes.extend_from_slice(&(text.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(text.as_bytes());
+        }
+        bytes
+    }
+
+    #[test]
+    fn deferred_constant_meaning_never_recovers_as_a_folded_value() {
+        let canonical = "named(name(u8))";
+        let mut bytes = prefix();
+        bytes.extend_from_slice(&[1, 27, 0]); // Dependency, size query.
+        bytes.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(canonical.as_bytes());
+        let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+        let shape = const_shape(&mut reader).unwrap();
+        assert!(matches!(
+            shape.meaning,
+            PackageReviewConstMeaning::TargetDependent(
+                crate::record::PackageReviewContractExpression::LayoutQuery {
+                    kind: crate::record::PackageReviewLayoutQueryKind::Size,
+                    ..
+                }
+            )
+        ));
+        reader.finish().unwrap();
+        for suffix in [
+            &[2][..],
+            &[255][..],
+            &[1][..],
+            &[1, 27, 2][..],
+            &[1, 5, 2][..],
+        ] {
+            let mut bytes = prefix();
+            bytes.extend_from_slice(suffix);
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(const_shape(&mut reader).is_err());
+        }
+    }
+}

@@ -87,7 +87,7 @@ pub enum PackageReviewCastForm {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewLayoutQueryKind {
+pub enum PackageReviewLayoutQueryKind {
     Size,
     Alignment,
 }

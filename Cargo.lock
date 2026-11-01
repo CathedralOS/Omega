@@ -491,6 +491,7 @@ dependencies = [
  "extents",
  "image-emission",
  "installation-evidence",
+ "language-core",
  "language-semantics",
  "layout",
  "libc",
