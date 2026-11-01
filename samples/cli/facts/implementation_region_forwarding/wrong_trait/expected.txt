@@ -1,0 +1,2 @@
+`Different` must select a complete `Tag` implementation
+with the instantiated trait arguments
