@@ -24,6 +24,7 @@ mod native_parameters;
 mod opaque_representations;
 mod plan_computation;
 mod policy_code;
+mod scalar_completion;
 mod selected_application;
 mod terminal_execution;
 mod terminal_values;

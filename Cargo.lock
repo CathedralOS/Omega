@@ -1814,6 +1814,7 @@ dependencies = [
  "program-entry-plan",
  "provider-selection",
  "representation-planning",
+ "runtime-abi",
  "semantic-vocabulary",
  "source",
  "source-audit",
