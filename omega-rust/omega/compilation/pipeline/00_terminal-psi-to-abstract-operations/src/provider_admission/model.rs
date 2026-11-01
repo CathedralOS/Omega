@@ -59,5 +59,5 @@ pub struct AdmittedBoundarySettlement<'execution> {
 #[derive(Debug, Clone, Copy)]
 pub enum AdmittedBoundaryExecution<'execution> {
     Provider(&'execution dyn installation_evidence::ProviderExecutionEvidence),
-    CompilerBuiltin(target_operations::CompilerBuiltinExecution),
+    CompilerBuiltin(super::SettledCompilerBuiltin),
 }

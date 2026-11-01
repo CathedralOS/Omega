@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "terminal_private_callback_calling");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<Registrar, RegistrarImpl>(builder, macos_arm64);
+    Build::select_provider<Registrar, RegistrarImpl>(builder, linux_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

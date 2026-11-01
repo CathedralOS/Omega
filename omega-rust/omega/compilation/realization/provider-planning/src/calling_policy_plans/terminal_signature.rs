@@ -11,12 +11,14 @@ use calling_conventions::{
 };
 use layout::BoundaryValueLayout;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalCallingSignature {
     pub abi: semantic_vocabulary::CallingAbiIdentity,
     pub declaration: semantic_vocabulary::CallingSignatureId,
     pub requirement_identity: String,
     pub policy: CallingPolicySignature,
     pub opaque_uses: Vec<CanonicalOpaqueUse>,
+    pub callback_paths: Vec<layout::CallbackLayoutCoordinates>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,6 +28,39 @@ pub struct CanonicalOpaqueUse {
 }
 
 impl CanonicalCallingSignature {
+    /// Only values carried inline and actual callback-containing backings
+    /// demand extents. A pointer alone cannot require its referent's layout.
+    pub(crate) fn extent_demands(
+        module: &terminal_psi::TerminalModule,
+        declaration: semantic_vocabulary::CallingSignatureId,
+        target: target::TargetProfile,
+    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
+        let storage = module
+            .calling_abi_signature(declaration)
+            .ok_or("calling extent query lost its declaration")?
+            .storage
+            .as_ref()
+            .map_err(Clone::clone)?;
+        let mut roots = Vec::new();
+        roots.extend(storage.result);
+        for parameter in &storage.parameters {
+            if parameter.access == terminal_psi::StructuralAccess::Owned {
+                roots.push(parameter.structural_type);
+            }
+            if let Some(backing) = parameter.callback_backing {
+                if layout::callback_storage_has_slots(module, target, backing)? {
+                    roots.push(backing);
+                }
+            }
+        }
+        let declarations = module
+            .structural_types
+            .iter()
+            .map(|row| (row.id, row))
+            .collect();
+        terminal_semantics::inline_storage_extent_dependencies(roots, &declarations)
+            .map(|rows| rows.into_iter().collect())
+    }
     /// Project an exact declaration application, including dormant declarations
     /// requested by a policy that have no emitted boundary invocation.
     pub fn materialize(
@@ -55,6 +90,7 @@ impl CanonicalCallingSignature {
             Vec::<BoundaryNativeParameterGeometry>::with_capacity(telescope.parameters.len());
         let mut callback_storage = layout::TerminalCallbackLayouts::new(module, target, extents);
         let mut private_layouts = Vec::new();
+        let mut callback_paths = Vec::new();
         for (formal_ordinal, (parameter, formal)) in storage
             .parameters
             .iter()
@@ -65,28 +101,18 @@ impl CanonicalCallingSignature {
             // ordinary borrowed formal. An owned reference carrier
             // names it explicitly; references inside records remain
             // leaves rather than recursively expanding pointees.
-            let mut storage_root = parameter.structural_type;
-            let mut reference_shells = Vec::new();
-            while let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
-                module.structural_type(storage_root).map(|row| &row.shape)
-            {
-                if reference_shells.contains(&storage_root) || reference_shells.len() >= 128 {
-                    return Err(
-                        "callback formal has a recursive or excessive reference shell".into(),
-                    );
-                }
-                reference_shells.push(storage_root);
-                storage_root = *referent;
-            }
-            private_layouts.extend(
-                callback_storage.for_parameter(layout::CallbackStorageRoot {
+            if let Some(storage_root) = parameter.callback_backing {
+                for layout in callback_storage.for_parameter(layout::CallbackStorageRoot {
                     record: storage_root,
                     parameter: formal.identity,
                     formal_ordinal: u32::try_from(formal_ordinal)
                         .map_err(|_| "calling signature has too many formals")?,
                     native_ordinal: formal.native_ordinal,
-                })?,
-            );
+                })? {
+                    private_layouts.push(layout.geometry);
+                    callback_paths.push(layout.coordinates);
+                }
+            }
             let recipe = match parameter.access {
                 terminal_psi::StructuralAccess::Owned => {
                     recipes.value(parameter.structural_type)?
@@ -206,6 +232,7 @@ impl CanonicalCallingSignature {
                 .ok_or("canonical signature lost its exact requirement identity")?
                 .to_owned(),
             opaque_uses,
+            callback_paths,
             policy: CallingPolicySignature {
                 target: target.native_target(),
                 geometry: calling_conventions::BoundarySignatureGeometry {

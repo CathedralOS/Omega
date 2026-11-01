@@ -7,6 +7,144 @@ mod fixture_package_inputs;
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
+#[test]
+fn callback_review_rejoins_candidate_types_reports_and_target_members() {
+    use package_evidence::{PackageReviewInput, project_checked_package_policy};
+    let target = "macos_arm64";
+    let profile = target::TargetProfile::from_canonical_target_name(target).unwrap();
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/terminal_private_callback_calling/main.omg");
+    let mut prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("private callback fixture admission");
+    let checked = fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        .expect("checked private callback fixture");
+    let package = checked.sources().package_identity().expect("root package");
+    project_checked_package_policy(&checked, profile, package).expect("original callback review");
+    let indirect = checked
+        .providers()
+        .boundary_calling_plan_realizations
+        .iter()
+        .find(|row| {
+            row.materialized_signature()
+                .owner_requirement_identity()
+                .contains("IndirectRegistrar")
+        })
+        .expect("indirect registrar's source-authored declaration ABI")
+        .materialized_signature();
+    assert!(indirect.callback_layout_catalog().is_empty());
+    assert!(
+        indirect.callback_demands().is_empty(),
+        "a stored pointer grants no direct private field destination"
+    );
+    let parameter = indirect.parameters()[0];
+    assert_eq!(
+        indirect.shapes()[usize::from(parameter)].class,
+        calling_conventions::BoundaryValueClass::Reference
+    );
+    let signature = checked
+        .providers()
+        .boundary_calling_plan_realizations
+        .iter()
+        .map(|row| row.materialized_signature())
+        .find(|signature| signature.callback_layout_catalog().len() == 2)
+        .expect("registrar retains both private inline paths");
+    let entries = signature.callback_layout_catalog();
+    let fixed = entries
+        .iter()
+        .find(|entry| {
+            let source = entry.review_source();
+            let data = checked
+                .typed
+                .data_definition_by_symbol(source.root.declaration)
+                .unwrap();
+            checked
+                .typed
+                .data_field(data, source.fields.last().unwrap().declaration)
+                .unwrap()
+                .name
+                .as_str()
+                == "first"
+        })
+        .expect("fixed-layout callback path");
+    let variable = entries
+        .iter()
+        .find(|entry| {
+            entry.review_source().fields.last().unwrap().declaration
+                != fixed.review_source().fields.last().unwrap().declaration
+        })
+        .expect("target-member callback path");
+    let fixed_source = fixed.review_source();
+    let variable_source = variable.review_source();
+    let fixed_field = fixed_source.fields.last().unwrap();
+    let variable_field = variable_source.fields.last().unwrap();
+    assert_ne!(
+        fixed_field.child.storage_identity,
+        variable_field.child.storage_identity
+    );
+    assert_eq!(fixed.terminal_slot().size, variable.terminal_slot().size);
+    let reject = |typed: typed_trees::TypedTrees, fragment: &str| {
+        let candidate = checked_trees::CheckedTrees::with_roots(typed, checked.facts.clone());
+        let errors = project_checked_package_policy(
+            PackageReviewInput::supplied(&candidate, &checked),
+            profile,
+            package,
+        )
+        .expect_err("changed candidate must not retain the original callback review");
+        assert!(
+            errors.iter().any(|error| error.message.contains(fragment)),
+            "expected {fragment:?}, got {errors:?}"
+        );
+    };
+    let mut typed = checked.typed.clone().into_inner();
+    let data = typed
+        .data_definition_by_symbol(fixed_source.root.declaration)
+        .unwrap();
+    let alternative = typed
+        .data_field(data, variable_field.declaration)
+        .unwrap()
+        .type_reference;
+    let member = typed.data_members(data).iter().find(|member| matches!(member, typed_trees::data::DataMember::Field(field) if field.symbol == fixed_field.declaration)).unwrap();
+    let handle = typed.data_members.handle_of(member).unwrap();
+    let typed_trees::data::DataMember::Field(field) = typed.data_members.get_mut(handle) else {
+        panic!("record field")
+    };
+    field.type_reference = alternative;
+    reject(
+        typed,
+        "callback inline field selects another exact child application",
+    );
+
+    let mut typed = checked.typed.clone().into_inner();
+    let coordinate = fixed_field.child.layout.as_ref().unwrap();
+    let geometry = match &mut typed.plan_laid_layouts[coordinate.ordinal as usize].realizations {
+        typed_trees::PlanLaidRealizations::Invariant(geometry) => geometry,
+        typed_trees::PlanLaidRealizations::TargetInputs(_) => {
+            &mut typed
+                .plan_laid_target_layouts
+                .get_mut(fixed_field.child.realization.as_ref().unwrap().member)
+                .geometry
+        }
+    };
+    geometry.private_callback_demands[0].offset = 0;
+    reject(
+        typed,
+        "callback source layout changed its complete selected report",
+    );
+
+    let mut typed = checked.typed.clone().into_inner();
+    let coordinate = variable_field.child.realization.as_ref().unwrap();
+    typed
+        .plan_laid_target_layouts
+        .get_mut(coordinate.member)
+        .target_facts
+        .pointer_size = 4;
+    reject(
+        typed,
+        "callback source realization changed its exact target facts",
+    );
+}
+
 fn execute_build(
     session: &mut CompilationSession,
     request: CheckedCompileRequest,

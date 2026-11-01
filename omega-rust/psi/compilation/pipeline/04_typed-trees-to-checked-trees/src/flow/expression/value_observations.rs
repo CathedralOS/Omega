@@ -116,6 +116,96 @@ impl Execution<'_, '_, '_> {
             contexts,
             constraints,
         );
+        self.append_constructed_child_qualifications(
+            parent,
+            destination,
+            type_reference,
+            evaluated,
+            contexts,
+            constraints,
+        );
+    }
+
+    /// The construction checker independently forms each declared child domain
+    /// against its earlier completed capture. Publish that pending judgment on
+    /// the parent field, never into the child's own proof context: otherwise a
+    /// receiving annotation could discharge its own construction obligation.
+    /// Existing views and storage reads only transport their recorded facts.
+    fn append_constructed_child_qualifications(
+        &mut self,
+        parent: ExpressionHandle,
+        destination: &[PlaceSegment],
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        evaluated: &EvaluatedOperand,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) {
+        if !matches!(
+            evaluated.capture.completion,
+            checked_trees::FlowOperandCompletion::Constructed(_)
+        ) || validation::reference_shell(self.program, type_reference).is_some()
+        {
+            return;
+        }
+        let domains =
+            validation::field_domains::domain_constraint_identities(self.program, type_reference);
+        for (domain_symbol, semantic_domain) in domains {
+            if validation::field_domains::domain_requires_provenance(self.program, domain_symbol)
+                || !crate::flow::domain::qualification_is_content_independent(
+                    self.program,
+                    domain_symbol,
+                )
+            {
+                continue;
+            }
+            let Some(dependency) = self.domains.dependency_fact(domain_symbol) else {
+                continue;
+            };
+            // Owned inline observations survive this value's completion.
+            // A predicate reading through a descriptor needs its independently
+            // retained backing evidence; this construction record cannot freeze it.
+            if !self.domains.dependency_paths(dependency).all(|path| {
+                (0..=path.len()).all(|length| {
+                    validation::project_type_reference_from_segments(
+                        self.program,
+                        type_reference,
+                        &path[..length],
+                    )
+                    .is_some_and(|reference| {
+                        !crate::flow::operand_binds_live_view(self.program, reference)
+                    })
+                })
+            }) {
+                continue;
+            }
+            let place = crate::semantic::places::append_place(
+                self.semantic,
+                facts::PlaceRoot::Expression(parent),
+                destination,
+            );
+            let context = crate::semantic::facts::append_observation_context(
+                self.semantic,
+                Fact {
+                    place: FactPlace::Place(place),
+                    point: ProgramPoint::Statement {
+                        machine_symbol: self.machine.symbol,
+                        state_symbol: self.state.symbol,
+                        statement_index: self.statement_index,
+                    },
+                    origin: FactOrigin::StatementTransfer,
+                    evidence: crate::facts::checked_validation_evidence(self.state.symbol),
+                    payload: FactPayload::DomainMembership {
+                        value: parent,
+                        domain: HandleSpan::empty(),
+                        domain_symbol,
+                        semantic_domain,
+                    },
+                },
+                &[FactPlace::Place(place)],
+            );
+            self.context
+                .append_semantic_context(contexts, constraints, context);
+        }
     }
 
     /// Rebase only the completed owned value's existing qualifications. A

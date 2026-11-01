@@ -100,3 +100,110 @@ pub(super) fn receiving_types(
         _ => None,
     }
 }
+
+/// Context for an authenticated ordered statement prefix. Argument positions
+/// are read from its complete selected telescope, rather than by finding an
+/// expression handle in a callee's parameter list. This matters for literals
+/// without standalone types and for applied argument qualifications.
+pub(super) fn prefix_receiving_types(
+    program: &dyn crate::CheckingInput,
+    caller: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    roots: &[ExpressionHandle],
+) -> Option<Vec<TypeReferenceHandle>> {
+    use super::super::super::specification_calls::selected_call_site_contract;
+    use typed_trees::statement::StatementNode;
+    let statement = program
+        .statement_table
+        .statement_at(state, statement_index)?;
+    match statement {
+        StatementNode::LocalData(local) => return Some(vec![local.type_reference; roots.len()]),
+        StatementNode::Assignment(assignment) => {
+            let reference =
+                crate::assignment_stored_value_type(program, caller, state, assignment)?;
+            return Some(vec![reference; roots.len()]);
+        }
+        StatementNode::Expression(_) => return Some(vec![state.return_type; roots.len()]),
+        _ => {}
+    }
+    let mut selected = None;
+    for site in crate::machine_calls::calls::collect_call_sites_in_statement(
+        program,
+        caller,
+        state,
+        statement_index,
+    ) {
+        // Calls nested inside a root supply their own operand types during
+        // evaluation. Only a statement/transition telescope owns these roots.
+        if matches!(site, crate::CallSite::Expression { .. }) {
+            continue;
+        }
+        let arguments = crate::call_site_argument_expressions(program, &site);
+        if !arguments.starts_with(roots) {
+            continue;
+        }
+        let (parameters, leading) = if site.is_internal_state_transfer(program, caller.symbol)
+            || matches!(site, crate::CallSite::TransitionNamed { .. })
+                && site.target_symbol(program) == caller.symbol
+        {
+            // Internal arrivals retain this machine's already resolved state
+            // telescope. They have no public callable application to fabricate.
+            (
+                std::borrow::Cow::Borrowed(site.parameters(program, caller.symbol)?),
+                0,
+            )
+        } else {
+            let owner = selected_call_site_contract(program, caller.symbol, site)?;
+            let parameters = call_parameter_scope(program, caller.symbol, &owner, site)?;
+            (parameters, owner_leading_operands(&owner))
+        };
+        if arguments.len() != leading + parameters.len() {
+            return None;
+        }
+        let references = roots
+            .iter()
+            .enumerate()
+            .map(|(position, root)| {
+                if position < leading {
+                    crate::expression_result_type_reference(program, caller, state, *root)
+                } else {
+                    parameters
+                        .get(position - leading)
+                        .map(|parameter| parameter.type_reference)
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+        // Ambiguous supplied roots cannot choose between different owners.
+        if selected.replace(references).is_some() {
+            return None;
+        }
+    }
+    if selected.is_some() {
+        return selected;
+    }
+    // Value and guard targets have their own semantic receiving roles. An
+    // unavailable named telescope cannot fall through to the state's result.
+    let [root] = roots else {
+        return None;
+    };
+    let inventory = program.tables.expression_roots(statement);
+    let mut owners = inventory
+        .iter()
+        .filter(|(_, expression)| expression == root);
+    let (role, _) = owners.next()?;
+    if owners.next().is_some() {
+        return None;
+    }
+    let reference = match role {
+        typed_trees::statement::StatementRootRole::TransitionValue => state.return_type,
+        typed_trees::statement::StatementRootRole::TransitionGuard => {
+            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                program,
+                symbols::BuiltinTypeAtom::Bool,
+            )?
+        }
+        _ => return None,
+    };
+    Some(vec![reference])
+}

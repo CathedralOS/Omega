@@ -1021,6 +1021,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             match validation::observed_storage_type_references(
                 program,
                 *source_type,
+                &[],
                 &subject.path,
                 *field,
                 field_identity,

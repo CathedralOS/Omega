@@ -28,6 +28,7 @@ pub(super) fn encode_structural_contract(
             bytes.extend_from_slice(&referent.id.get().to_le_bytes());
             bytes.extend_from_slice(&referent.identity.0.to_le_bytes());
             bytes.push(u8::from(referent.foreign_descriptor));
+            bytes.push(u8::from(referent.abstract_opaque));
         }
         // Bind the actual retained interpretation catalog, including callable/slot
         // mappings. A stale copied catalog cannot borrow the unit's identity.

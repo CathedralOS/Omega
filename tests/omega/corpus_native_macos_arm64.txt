@@ -13,6 +13,8 @@ pass/borrows/runtime_case_reference_reordered_state_returns_exit built 1496ms ex
 pass/borrows/runtime_owned_input_reference_replacement_copies_exit built 1395ms exit:0 @66bc5becc69e
 pass/borrows/runtime_owned_input_reference_replacement_exit built 1117ms exit:0 @66bc5becc69e
 pass/borrows/runtime_stored_reference_scalar_assignment_exit built 1428ms exit:0 @4ce70cb5f8a0
+pass/build/terminal_calling_policy_execution built 86920ms exit:0 terminal-runtime.retained_plan:match terminal-inspections:match @5599dba65fa9
+pass/build/terminal_private_callback_calling built 45543ms exit:0 @5599dba65fa9
 pass/calls/runtime_mutable_owned_computation_arguments_exit built 1107ms exit:0 @66bc5becc69e
 pass/collections/runtime_stored_reference_array_owned_record_contract_exit built 1343ms exit:0 @4ce70cb5f8a0
 pass/collections/runtime_stored_reference_array_replacement_contract_exit built 1176ms exit:0 @4ce70cb5f8a0

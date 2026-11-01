@@ -49,8 +49,12 @@ pub struct CheckedStructuralPathQualification {
 
 /// One concrete target-neutral structural shape. Identities are interned
 /// semantic type identity handles rather than source-tree handles.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct CheckedUnitStructuralTypePlan {
+    /// Original nominal declaration for review correspondence, not geometry
+    /// or semantic equality. Non-nominal and synthetic carriers keep zero.
+    pub source_declaration: SymbolHandle,
+    pub source_application: typed_trees::SourceTypeApplication,
     pub identity: TypeIdentityId,
     /// Producer-issued nominal data identity for native layout applications.
     /// Non-nominal or non-hermetic carriers have none; semantic type names do
@@ -81,6 +85,23 @@ pub struct CheckedUnitStructuralTypePlan {
     /// is created merely by retaining this schema.
     pub scalar_restriction: Option<CheckedUnitStructuralFieldType>,
 }
+
+impl PartialEq for CheckedUnitStructuralTypePlan {
+    fn eq(&self, other: &Self) -> bool {
+        self.identity == other.identity
+            && self.native_identity == other.native_identity
+            && self.native_policy_identity == other.native_policy_identity
+            && self.native_semantic_identity == other.native_semantic_identity
+            && self.owns_linear_claim == other.owns_linear_claim
+            && self.copyable == other.copyable
+            && self.no_code_affine_cleanup == other.no_code_affine_cleanup
+            && self.descriptor_cleanup == other.descriptor_cleanup
+            && self.shape == other.shape
+            && self.scalar_restriction == other.scalar_restriction
+    }
+}
+
+impl Eq for CheckedUnitStructuralTypePlan {}
 
 /// Physical storage remains unresolved until the exact target layout is closed.
 /// The typed application owns its checked alternatives; this row retains the
@@ -115,6 +136,7 @@ pub enum CheckedUnitStructuralTypeShape {
         /// Foreign transport is independent of whether the referent's storage
         /// is demanded. Preserve this judgment without expanding its body.
         foreign_descriptor: bool,
+        abstract_referent: bool,
     },
     /// One whole primitive referent carried through structural custody. This
     /// is distinct from a by-value scalar parameter: the place remains the
@@ -172,6 +194,9 @@ pub struct CheckedUnitStructuralCasePlan {
 
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub struct CheckedUnitStructuralFieldPlan {
+    /// Address of the original field for independent source review. It is
+    /// not the member's semantic identity and contributes no physical layout.
+    pub source_declaration: SymbolHandle,
     /// Exact declared scalar storage, independent of field-only predicates.
     pub scalar_carrier_identity: TypeIdentityId,
     /// Exact authored receiving type; numeric storage restrictions do not
@@ -697,6 +722,7 @@ mod field_identity_tests {
         let counter_reader = identities.intern("dyn Reader<Counter>");
         let other_reader = identities.intern("dyn Reader<Other>");
         let field = CheckedUnitStructuralFieldPlan {
+            source_declaration: Default::default(),
             scalar_carrier_identity: Default::default(),
             native_identity: None,
             type_reference: crate::types::TypeReferenceHandle::from_parts(1, 1),

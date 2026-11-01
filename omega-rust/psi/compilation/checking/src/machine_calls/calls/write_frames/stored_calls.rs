@@ -275,6 +275,12 @@ fn invocation_reference_effects(
                 call_expression,
             );
         }
+        // A static machine parameter has no body until specialization
+        // selects its actual machine. Each closed instance calls that body
+        // and publishes the concrete relation; the template owes none.
+        if program.machine_parameter_signature(target).is_some() {
+            return Some(SlotRelationTransfer::unknown(context, target, true, false));
+        }
         // A missing body cannot summarize a nonempty or symbolic frontier.
         return None;
     };
