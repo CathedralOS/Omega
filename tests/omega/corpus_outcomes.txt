@@ -327,11 +327,20 @@ fail/facts/coupled_requires_construction_target_body_rejected rejected 1636ms ex
 fail/facts/darwin_stat_abi/record_darwin_file_times_array_rejected rejected 25787ms expected @1a31aa120cdd
 	machine `main` state `entry` local `transported` expects `[DarwinTimespec; 2]`, but the value is delivered as `[LayoutStorage<DarwinTimespec, CAbiPolicy<DarwinTimespec>>; 2]`
 	argument `value` for state `check` expects `&[LayoutStorage<DarwinTimespec, CAbiPolicy<DarwinTimespec>>; 2]`, got `named value`
+fail/facts/darwin_stat_abi/record_through_call_result_rejected rejected 18468ms expected @79f174854e30
+	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+	argument `value` for state `check` expects `&LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
+fail/facts/darwin_stat_abi/record_through_const_name_rejected rejected 21357ms expected @79f174854e30
+	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+	argument `value` for state `check` expects `&LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
 fail/facts/darwin_stat_abi/record_through_field_rejected rejected 29347ms expected @1a31aa120cdd
 	construction of `Holder` field `value` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, OtherPolicy>`
 	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
 fail/facts/darwin_stat_abi/record_through_local_rejected rejected 28148ms expected @1a31aa120cdd
 	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+	argument `value` for state `check` expects `&LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
+fail/facts/darwin_stat_abi/record_through_match_join_rejected rejected 17574ms expected @79f174854e30
+	machine `observe` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
 	argument `value` for state `check` expects `&LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
 fail/facts/darwin_stat_abi/record_through_parameter_rejected rejected 25781ms expected @1a31aa120cdd
 	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
@@ -5794,8 +5803,11 @@ pass/facts/crash_entry_signed_zero_through_other_state_exit checked 5748ms check
 pass/facts/crash_entry_signed_zero_through_parameter_exit checked 6815ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_target_body_exit checked 6697ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/darwin_file_times_array_exit checked 78758ms check-target:macos_arm64 @1a31aa120cdd
+pass/facts/darwin_stat_abi_through_call_result_exit checked 65696ms check-target:macos_arm64 @79f174854e30
+pass/facts/darwin_stat_abi_through_const_name_exit checked 73112ms check-target:macos_arm64 @79f174854e30
 pass/facts/darwin_stat_abi_through_field_exit checked 89402ms check-target:macos_arm64 @1a31aa120cdd
 pass/facts/darwin_stat_abi_through_local_exit checked 90336ms check-target:macos_arm64 @1a31aa120cdd
+pass/facts/darwin_stat_abi_through_match_join_exit checked 59965ms check-target:macos_arm64 @79f174854e30
 pass/facts/darwin_stat_abi_through_parameter_exit checked 91331ms check-target:macos_arm64 @1a31aa120cdd
 pass/facts/data_where_private_write_multiple_arrivals_exit checked 3925ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/data_where_private_write_snapshot_exit checked 3281ms check-target:macos_arm64 @ccdb99ca2214

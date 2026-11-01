@@ -207,7 +207,7 @@ class OwnedFactRow:
 OWNED_ROWS = {
     "darwin-stat": OwnedFactRow("darwin_stat_abi", "darwin_stat_abi",
                                 additional_projects=(("file_times", "darwin_file_times_array"),),
-                                places=("local", "field", "parameter"),
+                                places=("local", "field", "parameter", "call_result", "match_join", "const_name"),
                                 invalid_prefix="darwin_stat_abi/record",
                                 replay_resources=("source/library/std",), root_entry=False,
                                 # Measured ordinary Std update/resume takes 450-507s.
