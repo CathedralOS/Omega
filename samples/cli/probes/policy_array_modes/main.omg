@@ -19,7 +19,7 @@ data Mode [copy] {
 }
 
 data Table
-where
+requires
     count <= 4,
 {
     modes: [Mode; 4] in Trapping;

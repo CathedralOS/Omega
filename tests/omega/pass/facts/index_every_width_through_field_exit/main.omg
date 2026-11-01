@@ -1,7 +1,7 @@
 // Every integer width with a proved bound 0 <= index <= 3 indexes a four-element array and XORs the selected u64 values.
 // Expected exit: 0
 data Indices
-where 0 <= index_u8 && index_u8 <= 3
+requires 0 <= index_u8 && index_u8 <= 3
     && 0 <= index_u16 && index_u16 <= 3
     && 0 <= index_u32 && index_u32 <= 3
     && 0 <= index_u64 && index_u64 <= 3

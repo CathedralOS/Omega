@@ -2,7 +2,7 @@
 // context argument. Construction also observes the latest local assignment.
 use omega_language_std::console;
 
-data Bounded where value <= 5 { value: u64; }
+data Bounded requires value <= 5 { value: u64; }
 data Main { value: Bounded; }
 
 machine Main::main(context: &mut Main) reaches Console {

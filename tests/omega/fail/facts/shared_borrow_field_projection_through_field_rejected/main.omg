@@ -1,7 +1,7 @@
 // Fact: projecting a bounded field through a shared borrow preserves its exact static upper bound without moving the backing record, discharging exact subtraction 90u64 - used across all nine places.
 // Place: field (invalid twin). Field bound is widened to used <= 91, and the projected field carries an opaque `requires seed <= 91` value, so the widened bound is all the checker knows: exact subtraction 90u64 - used may underflow.
 // Expected diagnostic: exact subtraction underflow
-data Window where used <= 91, {
+data Window requires used <= 91, {
     used: u64;
 }
 

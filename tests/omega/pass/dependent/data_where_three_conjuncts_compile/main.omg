@@ -2,7 +2,7 @@
 // `a >= 1`, `b >= a`, `b <= 9` — an ordered pair inside a bounded band.
 // Literals proving all three construct.
 data Band
-where
+requires
     a >= 1,
     b >= a,
     b <= 9,

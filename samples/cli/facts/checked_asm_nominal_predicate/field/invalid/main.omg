@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // An admitted nominal length predicate fixes the selected value at seven and proves the assembly move stores seven.
-data Counted [copy] where length == 7 { length: u64; }
+data Counted [copy] requires length == 7 { length: u64; }
 machine snapshot(start: u64, end: u64) -> Counted
 requires start <= end && end - start == 7 { Counted { length: end - start } }
 machine reset(cursor: &mut u64) -> u64

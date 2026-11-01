@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // A single-attempt exchange reports success or the instruction-observed failure value at its exact atomic cell.
-data Cells where selected <= 100 { selected: AtomicU32; }
-data Proposal where value <= 100 { value: u32; calls: u32 in Wrapping; }
+data Cells requires selected <= 100 { selected: AtomicU32; }
+data Proposal requires value <= 100 { value: u32; calls: u32 in Wrapping; }
 machine expected(proposal: &mut Proposal) -> u32 {
     proposal.value = 70;
     proposal.calls = proposal.calls + 1;

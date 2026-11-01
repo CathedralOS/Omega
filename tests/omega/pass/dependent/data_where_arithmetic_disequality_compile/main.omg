@@ -2,7 +2,7 @@
 // valid only while `a + 1 != b` — a disequality over a computed operand,
 // keeping b off a's successor.
 data Skip
-where
+requires
     a + 1 != b,
 {
     a: u64;

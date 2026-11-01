@@ -2,7 +2,7 @@
 // state of the attached machine and discharges exact arithmetic on its field.
 use omega_language_std::console;
 data Main
-where
+requires
     value <= 60,
 {
     value: i32;

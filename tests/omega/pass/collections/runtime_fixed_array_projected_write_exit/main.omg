@@ -17,7 +17,7 @@
 // Expected exit: 45
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-data Grid where 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
+data Grid requires 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
     cells: [u8; 12];
     max_y: u32;
     max_x: u32;

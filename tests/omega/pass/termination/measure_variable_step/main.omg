@@ -1,7 +1,7 @@
 // A measure-ranked record descends by a parameter step:
 // `countdown.remaining - amount` under `requires 1 <= amount <= 2`
 // — the entry and each rebuilt literal re-instantiate the bound.
-data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }
+data Countdown requires 0 <= remaining, remaining <= 5 { remaining: u64; }
 measure Countdown::Remaining(countdown: Countdown) -> u64
 { countdown.remaining }
 machine walk(countdown: Countdown, amount: u64) -> u64

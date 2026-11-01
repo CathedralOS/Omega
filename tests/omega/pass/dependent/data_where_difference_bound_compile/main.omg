@@ -2,7 +2,7 @@
 // while `left - right >= 2` — the fact reasons over a difference, keeping
 // the fields a provable distance apart.
 data Margin
-where
+requires
     left - right >= 2,
 {
     left: u64;

@@ -4,7 +4,7 @@
 // equivalent `&mut bool` alias stays legal
 // (`pass/recast/runtime_bool_representation_recast_exit`).
 data Main
-where
+requires
     byte >= 0 && byte <= 1,
 {
     byte: u8;

@@ -2,7 +2,7 @@
 
 A multi-variant Outcome sum carries its active payload value <= 50 across the place so matching Outcome::Ready adds 10 within result <= 60.
 
-Every place declares copyable `data Outcome [copy] { case Empty; case Ready(value: u64) where value <= 50; }` and transports the sum across the designated place. Destructuring `Outcome::Ready { value }` evaluates `value + 10` under postcondition `ensures result <= 60`. The test validates `Outcome::Ready { value: 32 }` yields `42` and `Outcome::Empty {}` yields `0`, exiting with 0. Only the transport mechanism of the sum value changes across places.
+Every place declares copyable `data Outcome [copy] { case Empty; case Ready(value: u64) requires value <= 50; }` and transports the sum across the designated place. Destructuring `Outcome::Ready { value }` evaluates `value + 10` under postcondition `ensures result <= 60`. The test validates `Outcome::Ready { value: 32 }` yields `42` and `Outcome::Empty {}` yields `0`, exiting with 0. Only the transport mechanism of the sum value changes across places.
 
 ## Places
 

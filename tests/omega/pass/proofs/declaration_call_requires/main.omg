@@ -6,7 +6,7 @@ machine guarded(value: u64) -> bool requires value != 0 { true }
 domain Input::Valid
 requires self.count != 0, HolderEquality::equals(
     &(Holder { flag: guarded(self.count) }), &(Holder { flag: true }));
-data ValidData where count != 0, guarded(count) { count: u64; }
+data ValidData requires count != 0, guarded(count) { count: u64; }
 data ValidCase 
     requires ((self in ValidCase::Cell) && (self.count != 0) && (guarded(self.count)))
 { case Cell(count: u64); }

@@ -12,7 +12,7 @@ requires
     self <= 8;
 
 data FixedBuffer<const N: u64>
-where
+requires
     N > 0 && N <= 8,
     N in BufferSize,
     used <= N,

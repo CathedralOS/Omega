@@ -23,7 +23,7 @@ use psi::tokens::tokens;
 // along every state edge that reads a token, so no token or stream is copied
 // and nothing is moved out of the owning lexer.
 public data Parser
-where
+requires
     current_index <= 65535,
     expression_operand_depth <= 64,
     expression_operator_depth <= 64,

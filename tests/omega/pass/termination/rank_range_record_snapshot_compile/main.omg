@@ -1,7 +1,7 @@
 // The live pair.left measure decreases around the ranked cycle. Its
 // original bounded snapshot may be returned from an acyclic finishing state
 // without retaining the measure in that state's telescope.
-data Pair where left <= 5 { left: u32; }
+data Pair requires left <= 5 { left: u32; }
 
 machine walk(remaining: u32) -> u32
 requires remaining <= 5

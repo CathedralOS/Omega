@@ -1,7 +1,7 @@
 // An independent selector read grants no reborrow authority over a held loan.
 // Both captures select byte zero, so accepting both would create exclusive aliases.
 data Main
-where position < 2;
+requires position < 2;
 {
     position: u64;
     bytes: [u8; 2];

@@ -2,7 +2,7 @@
 // k in 0..=2, an eight-byte region may leave seven bytes after the runtime
 // start, so it cannot establish a complete slice of two-byte elements.
 data Main
-where
+requires
     k <= 2,
 {
     bytes: [u8; 8];

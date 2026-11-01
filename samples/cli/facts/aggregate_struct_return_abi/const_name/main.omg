@@ -2,7 +2,7 @@
 // Place: const name. Named constants define the field values returned in the four-word structural aggregate.
 // Expected exit: 0
 
-data Quartet [copy] where
+data Quartet [copy] requires
     first >= 10u64 && first <= 10u64,
     second >= 20u64 && second <= 20u64,
     third >= 30u64 && third <= 30u64,

@@ -4,7 +4,7 @@
 // stays independently checked beside the declared layout.
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField
-where
+requires
     size <= 4096,
     1 <= align,
     align <= 16,
@@ -16,7 +16,7 @@ where
     kind: FieldKind;
 }
 data Schema
-where
+requires
     field_count <= 32,
 { fields: [SchemaField; 32]; field_count: u64; }
 data IntegerInterpretation { case Signed; case Unsigned; }

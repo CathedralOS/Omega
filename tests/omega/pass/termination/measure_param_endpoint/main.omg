@@ -3,7 +3,7 @@
 // the requires fact `5 <= ceiling && ceiling <= 10`; a subordinate
 // state carries its own requires clause, and the record's data-where
 // facts (`0 <= remaining <= 5`) discharge the descent measure.
-data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }
+data Countdown requires 0 <= remaining, remaining <= 5 { remaining: u64; }
 measure Countdown::Remaining(countdown: Countdown) -> u64
 { countdown.remaining }
 machine walk(countdown: Countdown, ceiling: u64) -> u64

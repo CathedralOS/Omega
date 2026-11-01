@@ -7,19 +7,19 @@ use configuration::ATTACK_FRAMES;
 use configuration::INVULNERABILITY_FRAMES;
 
 public data Position [copy]
-where x >= 0 && x < ROOM_WIDTH, y >= 0 && y < ROOM_HEIGHT {
+requires x >= 0 && x < ROOM_WIDTH, y >= 0 && y < ROOM_HEIGHT {
     x: i32;
     y: i32;
 }
 
 public data Vitality [copy]
-where maximum >= 0, current >= 0 && current <= maximum {
+requires maximum >= 0, current >= 0 && current <= maximum {
     current: i32;
     maximum: i32;
 }
 
 public data Countdown<const Duration: i32> [copy]
-where Duration >= 1, remaining >= 0 && remaining <= Duration {
+requires Duration >= 1, remaining >= 0 && remaining <= Duration {
     remaining: i32;
 }
 
@@ -34,7 +34,7 @@ public data Traversal [copy] {
 }
 
 public data Actor<const Rooms: u64> [copy]
-where Rooms >= 1, room < Rooms, facing >= 0 && facing < 4,
+requires Rooms >= 1, room < Rooms, facing >= 0 && facing < 4,
     speed >= 0 && speed <= MAX_MOVEMENT_STEP {
     position: Position;
     vitality: Vitality;
@@ -50,7 +50,7 @@ where Rooms >= 1, room < Rooms, facing >= 0 && facing < 4,
 }
 
 public data ActorSet<const Capacity: u64, const Rooms: u64>
-where Capacity >= 1, Rooms >= 1, count <= Capacity {
+requires Capacity >= 1, Rooms >= 1, count <= Capacity {
     items: [Actor<Rooms>; Capacity];
     count: u64;
 }

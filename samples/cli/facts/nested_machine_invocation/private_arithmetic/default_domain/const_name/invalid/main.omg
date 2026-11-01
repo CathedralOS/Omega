@@ -1,6 +1,6 @@
 // The recorded count is below 4, so its exact increment preserves the buffer count <= 4 default domain.
 // Expected exit: 0
-data Window where count <= 4 { bytes: [u8; 4]; count: u64; canary: u64; }
+data Window requires count <= 4 { bytes: [u8; 4]; count: u64; canary: u64; }
 const OFFSET_LIMIT: u64 = 5;
 machine probe(window: &mut Window, enabled: bool, value: u8) {
     transition enabled && window.count < OFFSET_LIMIT { true -> read(window, value) false -> {} }

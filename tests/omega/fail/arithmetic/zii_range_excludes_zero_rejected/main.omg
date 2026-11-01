@@ -2,7 +2,7 @@
 // A readable parameter would already carry that establishment obligation;
 // this local deliberately has no initializer to discharge it.
 data Divisor
-where
+requires
     value >= 1,
     value <= 100,
 {

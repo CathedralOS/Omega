@@ -264,7 +264,7 @@ public data ResolveDiagnostic [copy] {
 }
 
 public data NameResolution
-where
+requires
     binding_count <= 65536,
     value_binding_count <= 131072,
     path_binding_count <= 2048,

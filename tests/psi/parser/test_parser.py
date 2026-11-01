@@ -3429,23 +3429,24 @@ def main() -> None:
     for name, source, diagnostic, span, counts in admission_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
-    # Data default-domain facts remain admitted; retired case predicates do
-    # not produce a case-owned clause range.
-    source = b"data D where a <= 4, b > 0, { a: u64; b: u64; case C(x: u8); }"
+    # Data default-domain `requires` facts are admitted; retired case
+    # predicates do not produce a case-owned clause range.
+    source = b"data D requires a <= 4, b > 0, { a: u64; b: u64; case C(x: u8); }"
     status, payload = run(program, source)
-    assert status == 0, f"data-where: status {status}"
+    assert status == 0, f"data-requires: status {status}"
     actual = decode(payload)
-    assert [row[0] for row in actual.clauses] == [8, 8], f"data-where:\n{actual.clauses}"
-    assert actual.data_items[0][16:18] == (0, 2), f"data-where:\n{actual.data_items}"
-    assert actual.cases[0][12:14] == (2, 0), f"data-where:\n{actual.cases}"
+    assert [row[0] for row in actual.clauses] == [6, 6], f"data-requires:\n{actual.clauses}"
+    assert actual.data_items[0][16:18] == (0, 2), f"data-requires:\n{actual.data_items}"
+    assert actual.cases[0][12:14] == (2, 0), f"data-requires:\n{actual.cases}"
     for name, word in (("retired-case-where", b"where"), ("retired-case-requires", b"requires")):
         source = b"data D { case C(x: u8) " + word + b" x < 9; }"
         start = source.index(word)
         rejected(program, name, source, 203, (start, start + len(word)),
                  payload_field_count=1, type_reference_count=1)
     where_rejections = (
-        ("where-fact", b"data D where {}", 95, (13, 14), {}),
-        ("where-separator", b"data D where a b {}", 11, (15, 16), {"expression_count": 1}),
+        ("retired-data-where", b"data D where a {}", 105, (7, 12), {}),
+        ("requires-fact", b"data D requires {}", 95, (16, 17), {}),
+        ("requires-separator", b"data D requires a b {}", 11, (18, 19), {"expression_count": 1}),
         ("case-where-fact", b"data D { case C where ; }", 203, (16, 21), {}),
     )
     for name, source, diagnostic, span, counts in where_rejections:

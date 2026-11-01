@@ -1,6 +1,6 @@
 use omega_language_std::math;
 
-data Counter where value >= -1 && value <= 1 {
+data Counter requires value >= -1 && value <= 1 {
     calls: u32 in Wrapping;
     value: i32;
 }

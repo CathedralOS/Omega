@@ -732,9 +732,10 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement `requires` for data/default-domain predicates, generic predicates
-    and type equations, and structural/nominal `requires machine` contracts in
-    both Rust and Omega producers. Preserve logical `self`, binder-kind
+  - Implement `requires` for generic predicates and type equations on machines
+    and traits, quotient equivalence selection (`where equivalent satisfies`),
+    `where proposition` premises, and structural/nominal `requires machine`
+    contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
@@ -751,6 +752,9 @@ helper that passes does not close an item.
     tests where it implements the retired surface; other bootstrap languages
     keep their own syntax. Delete the old keyword, grammar, recommending
     diagnostics and compatibility paths, not just their documentation.
+  - Reword checker diagnostics that still name a data declaration's `where`
+    facts (such as ``stores a value not provably within its data's `where`
+    facts``) together with their expected fragments and corpus rows.
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject

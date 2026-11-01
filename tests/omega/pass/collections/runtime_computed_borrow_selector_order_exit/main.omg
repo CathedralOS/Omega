@@ -1,5 +1,5 @@
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
-data Cursor where row < 3 && column < 2 { row: u64; column: u64; }
+data Cursor requires row < 3 && column < 2 { row: u64; column: u64; }
 machine later(cursor: &mut Cursor) -> i32 in Wrapping {
     cursor.row = 0;
     cursor.column = 0;

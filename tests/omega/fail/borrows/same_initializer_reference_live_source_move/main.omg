@@ -1,5 +1,5 @@
 // Record fields evaluate in authored order: the loan precedes extraction.
-data Inventory where slots >= 0 && slots <= 100 { slots: i32; }
+data Inventory requires slots >= 0 && slots <= 100 { slots: i32; }
 data Bundle { loan: &Inventory; taken: Inventory; }
 data Main { inventory: Inventory; }
 

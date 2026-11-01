@@ -4,7 +4,7 @@ trait Arithmetic { machine + add(left:u32,right:u32)->u32 ensures result == left
 RetainLeft satisfies Arithmetic {
  machine add(left:u32,right:u32)->u32 ensures result == left { left }
 }
-data Index<Limit: u32> [copy] where value < Limit { value: u32; }
+data Index<Limit: u32> [copy] requires value < Limit { value: u32; }
 data Observation [copy] { payload:u32; limit:u32; after:u32; }
 
 machine payload_bad(origin:&mut u32)->u32 ensures result == 10 { origin=4294967295; 10 }
@@ -22,7 +22,7 @@ machine observe<Observed:u32>(value:u32)->u32
 requires value < Observed
 { create<Observed>(value).value }
 
-data Bounds [copy] where limit>=9 && limit<=10 {limit:u32;}
+data Bounds [copy] requires limit>=9 && limit<=10 {limit:u32;}
 machine construct<Operations satisfies Arithmetic>(bounds:Bounds)->Observation {
  let limit:u32=bounds.limit;
  let mut origin:u32=limit;

@@ -29,7 +29,7 @@ data Table {
     count: u64;
 }
 
-data Main where 0 <= low, low <= 16383, 0 <= high, high <= 16383 {
+data Main requires 0 <= low, low <= 16383, 0 <= high, high <= 16383 {
     low: u64;
     high: u64;
     rounds: u64 in Wrapping;

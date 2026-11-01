@@ -11,7 +11,7 @@
 // (`i - main.count`) stays refused (probed -- underflow is real there).
 // exits: 8 - 6 = 2.
 use omega_language_std::console;
-data Main where count <= 11 { count: u32; j: u32; out: i32; }
+data Main requires count <= 11 { count: u32; j: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.count = 8;
     main.j = 6;

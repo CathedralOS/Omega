@@ -2,7 +2,7 @@
 // valid only while `a <= b` and `b <= a` — the two relations meet only
 // at equality, an indirect `a == b`.
 data Twin
-where
+requires
     a <= b,
     b <= a,
 {

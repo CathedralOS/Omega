@@ -159,7 +159,7 @@ ensures cells[index] >= 0 && cells[index] <= 1
 {
 }
 
-data Grid [copy] where cells_valid(&board) == true, cells_valid(&next) == true {
+data Grid [copy] requires cells_valid(&board) == true, cells_valid(&next) == true {
     board: [i32; 16];
     next: [i32; 16];
     offset: i32 in Wrapping;

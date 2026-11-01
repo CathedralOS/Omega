@@ -11,7 +11,7 @@
 // write is observed (an unwritten cursor still reads 5 and exits 71).
 use omega_language_std::console;
 
-data Cursor where remaining <= 8 { remaining: u64; }
+data Cursor requires remaining <= 8 { remaining: u64; }
 
 machine Cursor::step(cursor: &mut Cursor, remaining: u64) -> u64
 requires remaining <= 8

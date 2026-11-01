@@ -1,6 +1,6 @@
 // A failed pattern mutates storage after the match subject was captured.
 // The later literal 0 matches that capture, not the current index value 1.
-data Holder where which <= 2 { which: u64; values: [u8; 4]; }
+data Holder requires which <= 2 { which: u64; values: [u8; 4]; }
 machine reset(value: &mut u64) -> u64
 requires value <= 2
 ensures value <= 2

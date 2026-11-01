@@ -1,4 +1,4 @@
-data Countdown where remaining <= 5 {
+data Countdown requires remaining <= 5 {
     remaining: u64;
     limit: u64;
 }

@@ -1,4 +1,4 @@
-data Cell where value >= 0 && value <= 9 { value: i32; }
+data Cell requires value >= 0 && value <= 9 { value: i32; }
 data Slot { child: Cell; scores: [i32; 2]; active: bool; tag: u32; }
 data Grid { slots: [Slot; 3]; }
 data Envelope { items: &[Slot]; }
