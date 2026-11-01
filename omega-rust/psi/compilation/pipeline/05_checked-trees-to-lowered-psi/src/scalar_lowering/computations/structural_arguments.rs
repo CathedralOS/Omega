@@ -38,10 +38,11 @@ pub(super) fn lower(
             let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
                 return unsupported("computed constructor did not retain its structural value");
             };
-            // Declaration inputs are authenticated whole entry copies. They
-            // bind the same owned parameter home as ordinary calls, but cannot
-            // acquire a statement's loan or anonymous temporary reservation.
-            if source_call.is_none() && (argument.access != checked_trees::CheckedStructuralAccess::Owned
+            // Declaration inputs are authenticated whole entry copies. Their
+            // checked call plan may copy or temporarily share that initialized
+            // home; neither route acquires a statement's loan or an anonymous
+            // temporary reservation. Exclusive authority is not implied.
+            if source_call.is_none() && (!matches!(argument.access, checked_trees::CheckedStructuralAccess::Owned | checked_trees::CheckedStructuralAccess::SharedBorrow)
                 || !matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }))
             {
                 return unsupported("declaration input lacks the required loan or temporary custody");

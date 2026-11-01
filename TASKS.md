@@ -163,7 +163,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    declaration calls needing loan or affine input custody or declaration-local
+    declaration calls borrowing reference-bearing inputs or needing exclusive-loan
+    or affine input custody or declaration-local
     selectors, other remaining declared body forms, nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
@@ -282,8 +283,8 @@ retired-syntax deletions to completion.
   - **Psi checking, contracts, and package review
     (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
     - Extend requirement-contract checking at selector calls beyond exact fact
-      correspondence to transparent proposition aliases, supported integer
-      arithmetic, and literal IEEE-bound weakening while preserving the
+      correspondence to supported integer arithmetic and literal IEEE-bound
+      weakening while preserving the
       requirement's public contract independently of stronger implementation
       guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
       all nine places).
@@ -334,9 +335,9 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 72 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 13 facts spell it in all nine places
-    (`foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
+    Frontier: 70 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 11 facts spell it in all nine places
+    (`foreign_{nested_record_backing,retained_mutable_borrow,retained_shared_borrow}`,
     `generic_calling_policy`, `nested_zero_leaf_array_storage`,
     `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
     `selected_provider_issuance`, `target_family_contract_operand`,

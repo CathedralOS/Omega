@@ -1,6 +1,7 @@
 # Original scalar backing at a thin foreign boundary
 
-Parent: **NORMALIZED-ABI-LOWERING** in [TASKS.md](../../../../TASKS.md).
+Parents: **NORMALIZED-ABI-LOWERING**, **BUILD-OWNED-TARGET-SELECTION**, and
+**BUILD-OWNED-NATIVE-BINDINGS** in [TASKS.md](../../../../TASKS.md).
 
 Fact: a shared inline scalar-field loan exports its original backing through the
 thin foreign ABI without changing adjacent fields.
@@ -70,7 +71,8 @@ Acceptance is `omega run --both <place>/main.omg`, both exits zero and exact
 The same bytes are pinned under
 `tests/omega/{pass,fail}/facts/foreign_scalar_backing_through_*`.
 
-Current qualification is recorded in [hosted_qualification.json](hosted_qualification.json).
+Historical four-host qualification is recorded in
+[hosted_qualification.json](hosted_qualification.json).
 The actual optimized producer is `6fe58fe64b3825ed91fed6a8fc4e146ae3a9d779`.
 The root and all nine places run on each matching host with exact `ABC\n`
 bytes (eight bytes for `match_join`), native/Terminal exit zero, nine pinned
@@ -107,3 +109,19 @@ customer and returned reference-sibling control retain their separately recorded
 macOS evidence; this row does not promote those controls to unmeasured hosts.
 Remaining descriptor carriers, retained pointers, opaque/view codecs and unrelated
 C record-result ABI lanes stay on the parent task.
+
+Build owns the migrated row's four target entries and raw imports. Three Unix
+profiles share ordinary POSIX machines; Windows keeps its distinct `u32` count,
+`i32` result, and binary-mode setup. The target-body place selects ordinary
+`PosixScalarBacking` or `WindowsScalarBacking` implementations of the private
+`ScalarBackingTarget` requirement. Its loan is formed inside that selected member.
+Native rows bind the existing exact requirements directly with inferred locator
+extents; there are no native forwarding declarations or target-prefixed bodies.
+
+The migration replay uses the optimized Rust producer at `fbf567b724db` with its
+matching SDK. Fresh macOS ARM64 observations cover the root, all nine places,
+all nine active-loan controls and the eighteen pins, retaining the exact streams.
+Other hosts' executions remain the historical observations above; a source
+migration does not relabel them as fresh runs. This row discharges its hosted
+source migration under the two Build-owned tasks; their remaining sources,
+legacy compiler paths and broader platform acceptance remain open.
