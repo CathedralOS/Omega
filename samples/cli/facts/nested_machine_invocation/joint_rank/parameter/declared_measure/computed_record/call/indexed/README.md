@@ -13,7 +13,7 @@ The retained optimized compiler at source `2938be01c249` refuses all nine
 positive places with “a computed natural rank application has no independent
 entry formation.” The fixed development base is `644dce3eeeae`; the retained
 producer's digest is `d92a688b16822571a58aded260c4e6dd2a51b54e9e2b81139c93a61924e03e71`.
-Source `4b17be01af7f` runs all nine positive places with Terminal/native exit
+Source `bb7f2eaee144` runs all nine positive places with Terminal/native exit
 zero on macOS ARM64; all nine zero-step twins reject for missing strict cycle
 descent. The field-prefix composition agrees in both engines, and its twin,
 missing-bound, missing-order and wrong-element controls reject.
