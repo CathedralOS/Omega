@@ -683,20 +683,34 @@ fn instantiate_default_signature(
         // copied requirement's invocation telescope. Deep copying keeps nested
         // operand custody while leaving fresh surrounding wrappers untouched.
         let supplied = syntax.copy_type_reference_handle(&snapshot, *argument);
-        let replacement = syntax.type_references.type_reference(supplied).clone();
-        syntax
+        let applications = syntax
             .type_references
-            .replace_type_reference(handle, replacement);
-        let origin = syntax.type_references.generic_application_origin(supplied);
-        if origin.is_valid() {
-            syntax
-                .type_references
-                .retain_generic_application_origin(handle, origin);
+            .type_alias_applications(supplied)
+            .map(|alias| alias.application)
+            .collect::<Vec<_>>();
+        for application in applications {
+            if matches!(syntax.type_references.supplied_operand_owner(application), Ok(owner) if !owner.is_valid())
+            {
+                syntax
+                    .type_references
+                    .retain_supplied_operand_owner(application, supplying_declaration);
+            }
         }
-        syntax
-            .tables
+        // The parameter can itself be an alias expansion. Keep its authored
+        // obligations around the substituted operand, just as SyntaxCopy's
+        // ordinary type-substitution path does, while replacing every prepared
+        // occurrence row with the supplying occurrence's exact metadata.
+        let authored_aliases = syntax
             .type_references
-            .retain_copied_operand_owner(supplied, handle);
+            .type_alias_applications(handle)
+            .cloned()
+            .collect::<Vec<_>>();
+        syntax
+            .type_references
+            .replace_type_occurrence(handle, supplied);
+        for alias in authored_aliases {
+            syntax.type_references.retain_type_alias_application(alias);
+        }
         if matches!(
             syntax.type_references.supplied_operand_owner(supplied),
             Ok(owner) if !owner.is_valid()

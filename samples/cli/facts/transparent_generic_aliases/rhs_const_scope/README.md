@@ -27,9 +27,12 @@ The source expansion does not evaluate/inline Bias's initializer or grant a new
 owner. The original application still owes carrier/formation obligations and
 ordinary const evaluation selects its meaning and Exact arithmetic. Original
 RHS occurrences use existing alias provenance; substituted caller inputs use
-their own ordinary scope. Explicit/lost supplying custody, RHS calls and
-qualified RHS value names remain refused until their full transport is
-implemented. This is an additional place, not the completed parent alias row.
+their own ordinary scope. At that recorded boundary, explicit/lost supplying custody, RHS calls and
+qualified RHS value names remained refused. The later
+[captured-supplier place](../rhs_captured_supplier/README.md) covers one retained
+named-map supplier through a default member; other mixed/open compositions and
+RHS calls/qualified value names remain open. Neither place completes the parent
+alias row.
 
 Raw logs/JSON, frozen pair and source bundle are retained outside scratch at
 `/Users/zcanann/Omega-build/alias-rhs-declaration-scope-20261101/`.
