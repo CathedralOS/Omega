@@ -165,9 +165,8 @@ impl<'program> CurrentScalarValues<'program> {
             .iter()
             .filter_map(|parameter| {
                 // A scalar parameter names either an owned value or the
-                // current scalar in a stable borrowed place. Mutable homes
-                // and borrowed contents use call-frame invalidation below;
-                // immutable owned parameters retain their invocation value. Write-only
+                // current scalar in a stable borrowed place. Both use the
+                // same store and call-frame invalidation below. Write-only
                 // storage starts without an observation; its first completed
                 // store must supply one before any postcondition can read it.
                 let (primitive, readable) = if let Some(reference) =
@@ -207,10 +206,7 @@ impl<'program> CurrentScalarValues<'program> {
                         )
                     }),
                     alternatives: Vec::new(),
-                    // An immutable owned scalar belongs to this activation;
-                    // opaque external effects cannot change that copied value.
-                    immutable_coordinate: !parameter.is_mutable
-                        && validation::reference_shell(program, parameter.type_reference).is_none(),
+                    immutable_coordinate: false,
                     read_dependencies: Some(Vec::new()),
                 })
             })
@@ -656,9 +652,9 @@ impl<'program> CurrentScalarValues<'program> {
     pub(crate) fn invalidate_operand_writes(&mut self, frame: Option<facts::NormalizedWriteFrame>) {
         let paths = frame.and_then(|frame| frame.into_complete_paths());
         for binding in &mut self.current {
-            // Immutable owned parameters and machine Value/Const coordinates
-            // belong to this invocation. Opaque writes cannot change their
-            // exact captured value; ordinary mutable homes still expire.
+            // Machine Value/Const coordinates belong to this invocation, not
+            // addressable storage. Even an opaque write cannot change their
+            // exact captured value; ordinary locals still lose their identity.
             if binding.immutable_coordinate {
                 continue;
             }
