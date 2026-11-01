@@ -217,6 +217,7 @@ impl RetainedComponentNativeInputs {
         component: Arc<VerifiedComponent>,
         retained: Arc<RetainedTerminalArtifact>,
         plan: &ProviderPlan,
+        selecting_declaration: &str,
         receiving_applications: &[BoundaryCallingApplication],
     ) -> Result<Self, String> {
         if component.artifact() != retained.artifact() {
@@ -231,7 +232,7 @@ impl RetainedComponentNativeInputs {
             return Err("component native target differs from the selected provider plan".into());
         }
         let candidates = component
-            .selected_plan_export_positions(plan)
+            .selected_plan_export_positions(plan, selecting_declaration)
             .map_err(|error| error.to_string())?;
         let mut exports = Vec::with_capacity(candidates.len());
         for candidate_position in candidates {

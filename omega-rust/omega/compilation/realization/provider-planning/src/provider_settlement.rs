@@ -413,6 +413,7 @@ fn demanded_provider_plans(
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     provider_uses: &std::collections::HashSet<symbols::SymbolHandle>,
     body_declarations: &DirectCallDeclarations<SymbolHandle>,
@@ -552,6 +553,7 @@ pub fn settle_checked_providers(
             crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
             selected_provider_plans,
             &independent_components,
+            exact_toolchain_sources,
         )?;
     completion::retain_completions(
         checked,
