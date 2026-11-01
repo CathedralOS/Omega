@@ -9,16 +9,32 @@ pub(in crate::machine_calls::calls::write_frames) fn public_effects(
     effects
         .into_iter()
         .map(|effect| {
-            let stored_origins::StoredOriginKind::Reference(access) = effect.kind else {
-                return None;
+            let destination_kind = match effect.kind {
+                stored_origins::StoredOriginKind::Reference(access) => {
+                    StoredReferenceDestinationKind::Reference(access)
+                }
+                stored_origins::StoredOriginKind::LifetimeDependency => {
+                    StoredReferenceDestinationKind::LifetimeDependency
+                }
+                stored_origins::StoredOriginKind::OpaqueRegion => return None,
             };
             let sources = effect.sources?;
+            if destination_kind == StoredReferenceDestinationKind::LifetimeDependency
+                && sources
+                    .iter()
+                    .any(|source| source.lifetime_access.is_none())
+            {
+                return None;
+            }
             let has_static_values = sources
                 .iter()
                 .any(|source| source.origin.source.is_static() && source.lifetime_access.is_none());
             let incoming_identity = effect.incoming && sources.is_empty();
             Some(StoredReferenceEffect {
-                suppliers_complete: sources
+                suppliers_complete: matches!(
+                    destination_kind,
+                    StoredReferenceDestinationKind::Reference(_)
+                ) && sources
                     .iter()
                     .all(|source| source.lifetime_access.is_none()),
                 has_static_values,
@@ -41,7 +57,7 @@ pub(in crate::machine_calls::calls::write_frames) fn public_effects(
                 retains_incoming: effect.incoming,
                 incoming_identity,
                 may_select: effect.may_select,
-                access,
+                destination_kind,
             })
         })
         .collect()
@@ -102,7 +118,7 @@ pub(in crate::machine_calls::calls::write_frames) fn apply(
                 {
                     let mut unknown = leaf.clone();
                     unknown.origin = None;
-                    unknown.lifetime_dependencies.clear();
+                    unknown.lifetime_dependencies = None;
                     if !record
                         .references
                         .iter()
@@ -112,7 +128,7 @@ pub(in crate::machine_calls::calls::write_frames) fn apply(
                                 && prior.kind == unknown.kind
                                 && prior.may_select == unknown.may_select
                                 && prior.origin.is_none()
-                                && prior.lifetime_dependencies.is_empty()
+                                && prior.lifetime_dependencies.is_none()
                         })
                     {
                         unresolved.push(unknown);
@@ -160,13 +176,19 @@ pub(in crate::machine_calls::calls::write_frames) fn apply(
         let origins = sources
             .iter()
             .filter(|source| !source.lifetime_access.is_some())
-            .map(|source| (Some(source.origin.clone()), lifetime_dependencies.clone()))
+            .map(|source| {
+                (
+                    Some(source.origin.clone()),
+                    Some(lifetime_dependencies.clone()),
+                )
+            })
             .chain(
-                (!lifetime_dependencies.is_empty())
-                    .then_some((None, lifetime_dependencies.clone())),
+                (!lifetime_dependencies.is_empty()
+                    || effect.kind == stored_origins::StoredOriginKind::LifetimeDependency)
+                    .then_some((None, Some(lifetime_dependencies.clone()))),
             )
             // A partial debt roster is not a complete opaque dependency answer.
-            .chain(incoming_unknown.then_some((None, Vec::new())));
+            .chain(incoming_unknown.then_some((None, None)));
         for (origin, lifetime_dependencies) in origins {
             if record.references.iter().any(|leaf| {
                 leaf.local_segments == effect.segments

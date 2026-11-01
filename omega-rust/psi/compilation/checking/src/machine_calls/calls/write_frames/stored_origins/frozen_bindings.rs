@@ -357,13 +357,10 @@ pub(in crate::machine_calls::calls::write_frames) fn writes_may_replace_binding(
                 let mut frozen = local
                     .references
                     .iter()
-                    // A reference-slot summary does not describe the hidden
-                    // contents of an opaque region. Only modeled slots can
-                    // lose this conservative replacement fence.
-                    .filter(|leaf| {
-                        !references_known
-                            || !matches!(leaf.kind, super::StoredOriginKind::Reference(_))
-                    })
+                    // A complete slot summary describes physical descriptors
+                    // and retained debt, never an opaque region's hidden
+                    // contents. Only modeled slots lose this replacement fence.
+                    .filter(|leaf| !references_known || !leaf.kind.is_modeled_slot())
                     .map(|leaf| leaf.local_segments.as_slice())
                     .chain(
                         local
@@ -575,8 +572,9 @@ fn receiver_contains_binding(
 
 /// An implicit method receiver at a reference leaf borrows the referent, not
 /// the slot. Explicit exclusive borrows can expose the slot itself as well.
-/// Opaque regions have no such referent distinction, and a reference-slot
-/// summary never establishes replacement knowledge for their hidden contents.
+/// Logical carriers have no indirection: replacement at their endpoint changes
+/// the retained debt itself. Opaque regions likewise have no known referent
+/// distinction; a slot summary never describes their hidden contents.
 pub(super) fn target_replaces_untracked_origin(
     program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
@@ -585,9 +583,8 @@ pub(super) fn target_replaces_untracked_origin(
     include_endpoint: bool,
     references_known: bool,
 ) -> bool {
-    let untracked = |leaf: &super::StoredWriteOrigin| {
-        !references_known || !matches!(leaf.kind, super::StoredOriginKind::Reference(_))
-    };
+    let untracked =
+        |leaf: &super::StoredWriteOrigin| !references_known || !leaf.kind.is_modeled_slot();
     let Some(source) = binding_source(program, target, aliases) else {
         return stored
             .iter()
@@ -613,7 +610,11 @@ pub(super) fn target_replaces_untracked_origin(
                 .any(|leaf| {
                     prefix_matches(&source.segments, &leaf.local_segments)
                         && (include_endpoint
-                            || leaf.kind == super::StoredOriginKind::OpaqueRegion
+                            || matches!(
+                                leaf.kind,
+                                super::StoredOriginKind::OpaqueRegion
+                                    | super::StoredOriginKind::LifetimeDependency
+                            )
                             || source.segments.len() < leaf.local_segments.len())
                 })
         })

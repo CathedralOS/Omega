@@ -117,7 +117,7 @@ fn access_view_result_origins(
             local_suffix: place_suffix("result", &leaf.local_path)?.to_owned(),
             local_segments: leaf.local_segments.clone(),
             may_select: false,
-            lifetime_dependencies: Vec::new(),
+            lifetime_dependencies: Some(Vec::new()),
             origin: Some(ReferenceSource::Symbolic(FramePlaceOrigin {
                 path: storage.name.as_str().to_owned(),
                 precision: FramePathPrecision::Exact,
@@ -180,7 +180,7 @@ fn activation_borrow_result_origins(
             local_suffix: String::new(),
             local_segments: Vec::new(),
             may_select: false,
-            lifetime_dependencies: Vec::new(),
+            lifetime_dependencies: Some(Vec::new()),
             origin: Some(ReferenceSource::Symbolic(FramePlaceOrigin {
                 path: parameter.name.as_str().to_owned(),
                 precision: FramePathPrecision::Exact,

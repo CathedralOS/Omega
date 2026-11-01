@@ -41,7 +41,7 @@ pub(super) fn instantiate(
     // evaluator has already retained all ordered argument effects in context;
     // applying those effects again here would retarget an earlier descriptor.
     let argument = |index: usize| arguments.get(index);
-    let substitute = |root, segments: &[PlaceSegment]| {
+    let substitute = |root, segments: &[PlaceSegment], kind| {
         let index = typed_trees::signature::state_parameter_position(parameters, root)?;
         let captured = argument(index)?;
         destination_sources(
@@ -50,6 +50,7 @@ pub(super) fn instantiate(
             &parameters[index],
             captured,
             segments,
+            kind,
             context,
             symbols,
         )
@@ -62,7 +63,7 @@ pub(super) fn instantiate(
         if effect.incoming && effect.sources.as_ref()?.is_empty() {
             continue;
         }
-        let Some(destinations) = substitute(effect.root, &effect.segments) else {
+        let Some(destinations) = substitute(effect.root, &effect.segments, effect.kind) else {
             trace_instantiation_refusal(
                 machine,
                 parameters,
@@ -190,11 +191,12 @@ pub(super) fn destination_source(
     parameter: &StateParameter,
     captured: &SlotArgumentCapture,
     segments: &[PlaceSegment],
+    kind: stored_origins::StoredOriginKind,
     entry: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<(FrameSourcePlace, FrameSourcePlace)> {
     let mut destinations = destination_sources(
-        program, machine, parameter, captured, segments, entry, symbols,
+        program, machine, parameter, captured, segments, kind, entry, symbols,
     )?;
     (destinations.len() == 1).then(|| destinations.remove(0))
 }
@@ -209,6 +211,7 @@ fn destination_sources(
     parameter: &StateParameter,
     captured: &SlotArgumentCapture,
     segments: &[PlaceSegment],
+    kind: stored_origins::StoredOriginKind,
     entry: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<Vec<(FrameSourcePlace, FrameSourcePlace)>> {
@@ -275,11 +278,28 @@ fn destination_sources(
             true,
         )?;
         let mut boundaries = inventory.references.iter().filter(|leaf| {
-            leaf.local_segments.len() < segments.len() && segments.starts_with(&leaf.local_segments)
+            leaf.kind.may_indirect_storage()
+                && leaf.local_segments.len() < segments.len()
+                && segments.starts_with(&leaf.local_segments)
         });
         let Some(boundary) = boundaries.next() else {
             let leaf = stored_origins::projected_storage_type(program, reference, segments)?;
-            crate::reference_shell(program, leaf)?;
+            match kind {
+                stored_origins::StoredOriginKind::Reference(access) => {
+                    let shell = crate::reference_shell(program, leaf)?;
+                    (shell.access == access).then_some(())?;
+                }
+                stored_origins::StoredOriginKind::LifetimeDependency => {
+                    // A token's slot is ordinary owned storage, not a pointer
+                    // value. Its complete canonical frontier must identify a
+                    // logical obligation at this exact projected carrier.
+                    crate::borrow_contracts::retained_lifetime_owner_paths(program, leaf)?
+                        .iter()
+                        .any(Vec::is_empty)
+                        .then_some(())?;
+                }
+                stored_origins::StoredOriginKind::OpaqueRegion => return None,
+            }
             let base = base?;
             if !base.source.root.is_valid()
                 || base.source.is_static()

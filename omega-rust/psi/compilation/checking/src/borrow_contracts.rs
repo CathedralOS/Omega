@@ -544,7 +544,7 @@ pub fn retained_lifetime_owner_paths(
     program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<Vec<BorrowOwnerSegment>>> {
-    carried_lifetimes(program, reference).map(|leaves| {
+    carried_lifetimes::stored_lifetimes(program, reference).map(|leaves| {
         leaves
             .into_iter()
             .filter(|leaf| leaf.lifetime_only)

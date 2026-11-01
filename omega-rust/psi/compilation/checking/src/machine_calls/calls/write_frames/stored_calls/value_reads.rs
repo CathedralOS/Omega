@@ -171,14 +171,17 @@ impl CompletedValueReads {
                 continue;
             }
             if leaf.may_select
-                || !leaf.lifetime_dependencies.is_empty()
+                || leaf
+                    .lifetime_dependencies
+                    .as_ref()
+                    .is_none_or(|dependencies| !dependencies.is_empty())
                 || !matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(access) if access.is_readable())
             {
                 if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                     eprintln!(
-                        "STRUCT completed-value-read-refused path={path:?} phase=leaf may_select={} lifetime_debts={} source={:?}",
+                        "STRUCT completed-value-read-refused path={path:?} phase=leaf may_select={} lifetime_debts={:?} source={:?}",
                         leaf.may_select,
-                        leaf.lifetime_dependencies.len(),
+                        leaf.lifetime_dependencies.as_ref().map(Vec::len),
                         leaf.origin
                     );
                 }
