@@ -7,6 +7,48 @@ use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 
+#[test]
+fn identity_only_reference_transport_closes_geometry_but_not_owned_storage() {
+    for descriptor in [false, true] {
+        let referent = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
+        let mut module = terminal_psi::TerminalModule::declarations();
+        module
+            .structural_referents
+            .push(terminal_psi::StructuralReferentIdentity {
+                id: referent,
+                identity: terminal_psi::TerminalIdentityIndex::ABSENT,
+                foreign_descriptor: descriptor,
+            });
+        let mut recipes = super::TerminalBoundaryRecipes::new(&module, "macos_arm64");
+        let recipe = recipes
+            .reference(referent)
+            .expect("explicit transport role");
+        let mut layout =
+            BoundaryValueLayout::new(target::TargetProfile::MacosArm64.native_target(), &[]);
+        let (shape, _) = layout
+            .value_type(recipes.recipes(), recipe)
+            .expect("target geometry");
+        assert_eq!(
+            shape,
+            ValueShape::integer(if descriptor { 16 } else { 8 }, 8)
+        );
+        let error = recipes
+            .value(referent)
+            .expect_err("transport supplied owned storage");
+        assert!(
+            error.contains("no canonical storage declaration"),
+            "{error}"
+        );
+        let unknown = semantic_vocabulary::StructuralTypeId::new(2).unwrap();
+        assert!(
+            recipes
+                .reference(unknown)
+                .unwrap_err()
+                .contains("no retained foreign reference representation")
+        );
+    }
+}
+
 fn typed(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax = parse_syntax_trees(&tokens).expect("syntax");

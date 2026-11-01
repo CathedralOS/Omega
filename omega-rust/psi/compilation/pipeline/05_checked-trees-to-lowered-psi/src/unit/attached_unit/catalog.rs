@@ -787,9 +787,28 @@ pub(crate) fn lower_unit_structural_type_roots(
     let referents = referent_ids
         .into_iter()
         .map(|identity| {
+            let mut representations = selected.iter().filter_map(|plan| match &plan.shape {
+                CheckedUnitStructuralTypeShape::Reference {
+                    referent_identity,
+                    foreign_descriptor,
+                    ..
+                } if *referent_identity == identity => Some(*foreign_descriptor),
+                _ => None,
+            });
+            let foreign_descriptor = representations.next().ok_or_else(|| {
+                LoweringError::MissingUnitStructuralType(
+                    "referent has no reference transport declaration".into(),
+                )
+            })?;
+            if representations.any(|other| other != foreign_descriptor) {
+                return unsupported(
+                    "one referent identity has conflicting foreign reference representations",
+                );
+            }
             Ok(StructuralReferentIdentity {
                 id: lookup_type_id(&type_ids, &identity)?,
                 identity: identities.intern(&identity_text(identity)),
+                foreign_descriptor,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -804,6 +823,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
+                ..
             } => {
                 let access = match *access {
                     checked_trees::CheckedStructuralAccess::MutableBorrow => {

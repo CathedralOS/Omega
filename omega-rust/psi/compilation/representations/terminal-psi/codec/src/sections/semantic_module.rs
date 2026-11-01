@@ -45,6 +45,8 @@ mod external_provider_tests;
 #[cfg(test)]
 mod numeric_intrinsic_tests;
 #[cfg(test)]
+mod reference_transport_tests;
+#[cfg(test)]
 mod routed_scalar_tests;
 #[cfg(test)]
 mod target_family_tests;
@@ -146,7 +148,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Callback uses retain missing entry admission as an explicit native obligation.
 // Fixed representation applications retain exact semantic and policy inputs.
 // Schema ABI3 retains every target input and retired field identity.
-pub(crate) const FORMAT_MARKER: u16 = 223;
+// Identity-only referents retain their checked foreign pointer/descriptor role.
+pub(crate) const FORMAT_MARKER: u16 = 224;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

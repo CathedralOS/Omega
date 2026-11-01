@@ -82,6 +82,34 @@ pub(super) fn observe(
             ));
         }
         let signature = MaterializedBoundarySignature::from_terminal(module, description, target)?;
+        if module.structural_referents.is_empty() {
+            return Err(
+                "reference calling fixture did not retain an identity-only referent".into(),
+            );
+        }
+        let record = signature
+            .parameters()
+            .first()
+            .and_then(|root| signature.shapes().get(usize::from(*root)))
+            .ok_or("reference calling fixture lost its record argument")?;
+        let calling_conventions::BoundaryValueClass::Record {
+            first_field,
+            field_count: 1,
+        } = record.class
+        else {
+            return Err("reference calling fixture lost its stored reference field".into());
+        };
+        let field = signature
+            .fields()
+            .get(usize::from(first_field))
+            .and_then(|field| signature.shapes().get(usize::from(field.shape)))
+            .ok_or("reference calling fixture lost its field geometry")?;
+        if field.class != calling_conventions::BoundaryValueClass::Reference
+            || field.byte_size != 8
+            || field.alignment != 8
+        {
+            return Err("reference calling fixture did not preserve its pointer geometry".into());
+        }
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
             fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
