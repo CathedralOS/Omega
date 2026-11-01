@@ -410,9 +410,17 @@ impl StructuralJudge<'_> {
                     fields: fields
                         .into_iter()
                         .map(|(name, field)| {
-                            Some((name, self.resolve_case_subject(field, depth + 1)?))
+                            // A completed constructor owns its tag independently
+                            // of whether a payload has a case denotation. Retain
+                            // an unresolved payload verbatim: its observation,
+                            // scalar bounds and descriptor fences still govern
+                            // projection and cannot prove a payload classifier.
+                            let resolved = self
+                                .resolve_case_subject(field.clone(), depth + 1)
+                                .unwrap_or(field);
+                            (name, resolved)
                         })
-                        .collect::<Option<Vec<_>>>()?,
+                        .collect(),
                 })
             }
             StructuralTerm::RepeatedArray { length, element } => {
