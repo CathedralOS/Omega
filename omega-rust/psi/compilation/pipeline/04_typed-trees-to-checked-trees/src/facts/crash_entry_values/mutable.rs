@@ -21,8 +21,6 @@
 //! outside its window. A dynamic index or any projection the scan cannot
 //! separate stays opaque and reaches everything at or below it.
 
-use crate::facts::push_expression_children;
-use crate::facts::push_match_children;
 use crate::flow::expressions;
 use crate::flow::state_statements;
 use symbols::SymbolHandle;
@@ -493,8 +491,10 @@ fn expression_may_overwrite(
                     pending.push(atomic.result);
                 }
             }
-            ExpressionNode::Match(dispatch) => push_match_children(program, dispatch, &mut pending),
-            _ => push_expression_children(program, expression, &mut pending),
+            node => program.subtree_children(node, typed_trees::SubtreeEdges::VALUES, |child| {
+                pending.push(child);
+                false
+            }),
         }
     }
     false

@@ -11,7 +11,6 @@ pub(super) use validation::statement_uses_symbol;
 
 use crate::borrow::owner_segment_matches_place_segment;
 use crate::borrow::tracker::BorrowOwnerSegment;
-use crate::flow::expressions;
 use crate::places::place_at;
 
 pub(super) fn statement_uses_local_name(
@@ -147,60 +146,22 @@ fn expression_uses_owner_path(
     owner_symbol: SymbolHandle,
     owner_path: &[BorrowOwnerSegment],
 ) -> bool {
-    if place_at(program, state_symbol, statement_index, expression).is_some_and(|place| {
-        matches!(place.root, facts::PlaceRoot::Symbol(root) if root == owner_symbol)
-            && owner_path_overlaps_place_segments(program, owner_path, &place.segments)
-    }) {
-        return true;
-    }
-
-    let recurse = |child| {
-        expression_uses_owner_path(
-            program,
-            state_symbol,
-            statement_index,
-            child,
-            owner_symbol,
-            owner_path,
-        )
+    let edges = typed_trees::SubtreeEdges {
+        pattern_dependencies: true,
+        ..typed_trees::SubtreeEdges::SAVED_SOURCES
     };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(saved) => {
-            program.saved_value_source(saved).is_some_and(recurse)
+    program.subtree_any(expression, edges, |handle, node| {
+        if place_at(program, state_symbol, statement_index, handle).is_some_and(|place| {
+            matches!(place.root, facts::PlaceRoot::Symbol(root) if root == owner_symbol)
+                && owner_path_overlaps_place_segments(program, owner_path, &place.segments)
+        }) {
+            typed_trees::SubtreeVisit::Found
+        } else if matches!(node, ExpressionNode::Member(_)) {
+            typed_trees::SubtreeVisit::Prune
+        } else {
+            typed_trees::SubtreeVisit::Descend
         }
-        ExpressionNode::Match(dispatch) => {
-            expressions(program).match_deep_any(dispatch, |handle| recurse(handle))
-        }
-        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
-        ExpressionNode::ArrayLiteral(values) => expressions(program)
-            .expression_handles(*values)
-            .iter()
-            .any(|value| recurse(*value)),
-        ExpressionNode::Binary(binary) => recurse(binary.left) || recurse(binary.right),
-        ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && recurse(call.receiver))
-                || expressions(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| recurse(*argument))
-        }
-        ExpressionNode::Cast(cast) => recurse(cast.value),
-        ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
-        ExpressionNode::Range(range) => {
-            (range.start.is_valid() && recurse(range.start))
-                || (range.end.is_valid() && recurse(range.end))
-        }
-        ExpressionNode::StructLiteral(literal) => expressions(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| recurse(field.value)),
-        ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Borrow(inner) => recurse(inner.target),
-        ExpressionNode::Member(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::TypeExpression(_)
-        | typed_trees::spelled_literal_expression_pattern!() => false,
-    }
+    })
 }
 
 fn transition_target_uses_owner_path(

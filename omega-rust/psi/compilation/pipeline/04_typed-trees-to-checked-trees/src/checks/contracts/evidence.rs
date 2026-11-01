@@ -43,7 +43,10 @@ pub(super) fn bind_contract_expression_evidence_arguments(
                 continue;
             }
             let node = program.expression_table.expression(expression);
-            crate::facts::push_every_expression_child(program, node, &mut expressions);
+            program.subtree_children(node, typed_trees::SubtreeEdges::STRUCTURAL, |child| {
+                expressions.push(child);
+                false
+            });
             let typed_trees::expression::ExpressionNode::Call(call) = node else {
                 continue;
             };

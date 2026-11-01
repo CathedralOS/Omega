@@ -993,36 +993,24 @@ fn expression_is_inert_or_calls(
     expression: ExpressionHandle,
     admit_call: &dyn Fn(&typed_trees::expression::TableCallExpression) -> bool,
 ) -> bool {
-    if !expression.is_valid() {
-        return true;
-    }
-    let mut inert =
-        |expression| expression_is_inert_or_calls(program, machine, state, expression, admit_call);
-    match expression_table(program).expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            expression_table(program).match_deep_all(dispatch, &mut inert)
+    use typed_trees::SubtreeVisit;
+    let edges = typed_trees::SubtreeEdges {
+        pattern_dependencies: true,
+        ..typed_trees::SubtreeEdges::VALUES
+    };
+    // Each visit names a node that is not inert; the walk owns the subterms.
+    !program.subtree_any(expression, edges, |handle, node| match node {
+        ExpressionNode::Atomic(atomic)
+            if crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+                .is_some() =>
+        {
+            SubtreeVisit::Found
         }
-        ExpressionNode::Atomic(atomic) => {
-            crate::value_custody::atomic_operations::atomic_once_operands(program, atomic).is_none()
-                && inert(atomic.value)
+        ExpressionNode::Binary(binary)
+            if !meaning::binary_is_inert(program, machine, state, handle, binary) =>
+        {
+            SubtreeVisit::Found
         }
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => true,
-        ExpressionNode::Member(member) => inert(member.receiver),
-        ExpressionNode::Binary(binary) => {
-            meaning::binary_is_inert(program, machine, state, expression, binary)
-                && inert(binary.left)
-                && inert(binary.right)
-        }
-        ExpressionNode::Unary(unary) => inert(unary.operand),
-        ExpressionNode::Cast(cast) => inert(cast.value),
-        ExpressionNode::StructLiteral(literal) => expression_table(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| inert(field.value)),
-        ExpressionNode::ArrayLiteral(items) => expression_table(program)
-            .expression_handles(*items)
-            .iter()
-            .all(|item| inert(*item)),
         // A builtin indexed read or subslice is a pure projection of its
         // collection. Only an authored or selected index operation could hide
         // an effect here, and its scalar bounds traverse the same inert check;
@@ -1033,41 +1021,32 @@ fn expression_is_inert_or_calls(
                 program,
                 machine,
                 Some(state),
-                expression,
+                handle,
             ) || crate::value_custody::places::place_has_builtin_coordinates(
                 program,
                 machine,
                 Some(state),
-                expression,
+                handle,
             ) =>
         {
-            let endpoints_inert = match expression_table(program).expression(indexed.index) {
-                ExpressionNode::Range(range) => [range.start, range.end]
-                    .into_iter()
-                    .all(|endpoint| !endpoint.is_valid() || inert(endpoint)),
-                _ => inert(indexed.index),
-            };
-            inert(indexed.collection) && endpoints_inert
+            let mut operands = vec![indexed.collection];
+            match expression_table(program).expression(indexed.index) {
+                ExpressionNode::Range(range) => operands.extend([range.start, range.end]),
+                _ => operands.push(indexed.index),
+            }
+            SubtreeVisit::InsteadEach(operands)
         }
+        ExpressionNode::Indexed(_) | ExpressionNode::Range(_) => SubtreeVisit::Found,
         // Forming a reference writes nothing of its own; a later store through
         // the alias is a separate statement whose frame is closed over the
         // referent's origins by the write-frame owner. A call or an
         // unadmitted indexed operation can have selected behavior this pure
         // rank slice cannot see.
-        ExpressionNode::Borrow(borrow) => inert(borrow.target),
-        ExpressionNode::Call(call) => {
-            // A call admitted by the caller's bar keeps every subterm inert
-            // the way transition actuals are; the caller decides which
-            // callees may appear and covers their writes in the aggregate
-            // write frame separately.
-            admit_call(call)
-                && (!call.receiver.is_valid() || inert(call.receiver))
-                && expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .all(|argument| inert(*argument))
-        }
-        ExpressionNode::TypeExpression(_) => true,
-        ExpressionNode::Indexed(_) | ExpressionNode::Range(_) => false,
-    }
+        //
+        // A call admitted by the caller's bar keeps every subterm inert the
+        // way transition actuals are; the caller decides which callees may
+        // appear and covers their writes in the aggregate write frame.
+        ExpressionNode::Call(call) if !admit_call(call) => SubtreeVisit::Found,
+        _ => SubtreeVisit::Descend,
+    })
 }
