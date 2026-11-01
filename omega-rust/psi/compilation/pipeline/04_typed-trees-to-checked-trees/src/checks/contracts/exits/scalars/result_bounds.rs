@@ -342,14 +342,25 @@ impl ExitScalars<'_, '_> {
         let bound_type =
             validation::expression_result_type_reference(self.program, self.machine, entry, bound)?;
         if exact_integer_carrier(self.program, bound_type)? != primitive
-            || !self
-                .program
-                .constant_recipe_for_contract_expression(bound)
-                .is_valid()
             || !self.return_expression_is_stable(exit_return_expression(self.program, self.exit))
         {
             return None;
         }
+        // The return may await target closure even when its comparison endpoint
+        // is already complete. Preserve a retained endpoint recipe's identity;
+        // otherwise use the same checked closed-value owner as ordinary bounds.
+        // Unknown or unformed endpoints still supply no conditional proof.
+        let endpoint = if self
+            .program
+            .constant_recipe_for_contract_expression(bound)
+            .is_valid()
+        {
+            checked_trees::IntegerRangeRecipe::observation(bound, self.machine.symbol)
+        } else {
+            let value = validation::closed_integer_range_bound(self.program, bound)?;
+            typed_trees::closed_numeric::land_integer(&value, primitive)?;
+            checked_trees::IntegerRangeRecipe::bounds(value.clone(), value)
+        };
         let (spelling, types) = if self.result_bound_operand(binary.left).is_some() {
             (
                 validation::comparison_operator_spelling(binary.operator)?,
@@ -378,7 +389,6 @@ impl ExitScalars<'_, '_> {
             self.exit.statement_index,
             returned,
         )?;
-        let endpoint = checked_trees::IntegerRangeRecipe::observation(bound, self.machine.symbol);
         let difference = observed.binary(BinaryOperator::Subtract, &endpoint)?;
         let span = carrier.maximum.sub(&carrier.minimum);
         let (minimum, maximum) = match operator {

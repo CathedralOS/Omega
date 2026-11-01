@@ -4,4 +4,17 @@ machine build(builder: &mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+
+    Build::select_provider<Answer, Small>(builder, linux_x86_64);
+    Build::select_provider<Answer, Large>(builder, windows_x86_64);
+    Build::select_provider<Answer, Small>(builder, linux_arm64);
+    Build::select_provider<Answer, Large>(builder, macos_arm64);
+    Build::select_provider<ExpectedExtent, FourByteExpectation>(builder, linux_x86_64);
+    Build::select_provider<ExpectedExtent, EightByteExpectation>(builder, windows_x86_64);
+    Build::select_provider<ExpectedExtent, FourByteExpectation>(builder, linux_arm64);
+    Build::select_provider<ExpectedExtent, EightByteExpectation>(builder, macos_arm64);
+    Build::select_provider<DerivedObservation, DerivedObservationCode>(builder, linux_x86_64);
+    Build::select_provider<DerivedObservation, DerivedObservationCode>(builder, windows_x86_64);
+    Build::select_provider<DerivedObservation, DerivedObservationCode>(builder, linux_arm64);
+    Build::select_provider<DerivedObservation, DerivedObservationCode>(builder, macos_arm64);
 }
