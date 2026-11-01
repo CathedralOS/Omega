@@ -1359,6 +1359,28 @@ fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/recast_parent_restoration_changed_end_rejected rejected 884ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_call_result_rejected rejected 1431ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_const_name_rejected rejected 1418ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_field_rejected rejected 1366ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_local_rejected rejected 1603ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_match_join_rejected rejected 1570ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 1563ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_other_state_rejected rejected 1643ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_parameter_rejected rejected 1402ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1396ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_unrestored_rejected rejected 789ms expected @b32b6171a411
+	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected rejected 5494ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected rejected 5593ms expected @755b31d334ff
@@ -8298,6 +8320,16 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 3869ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/recast_parent_restoration_preserved_end_exit checked 5325ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_call_result_exit checked 7773ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_const_name_exit checked 8368ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_field_exit checked 6590ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_local_exit checked 6578ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_match_join_exit checked 6548ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_other_machine_exit checked 7772ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_other_state_exit checked 5314ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_parameter_exit checked 4487ms check-target:macos_arm64 @b32b6171a411
+pass/facts/recast_parent_restoration_through_target_body_exit checked 7852ms check-target:macos_arm64 @b32b6171a411
 pass/facts/record_layout_geometry_through_call_result_exit checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_const_name_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_field_exit checked 3172ms check-target:macos_arm64 @ccdb99ca2214
