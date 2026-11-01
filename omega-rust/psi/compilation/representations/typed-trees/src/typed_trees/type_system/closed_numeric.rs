@@ -180,16 +180,34 @@ impl TypedTrees {
         machine: symbols::SymbolHandle,
         binding: &mut impl FnMut(ExpressionHandle) -> Option<(BigInt, TypeReferenceHandle)>,
     ) -> Option<BigInt> {
-        evaluate_value::<true>(
+        Some(
+            self.closed_integer_value_with_bindings(expression, machine, binding)?
+                .value,
+        )
+    }
+
+    /// The same selected evaluation retains its completed carrier for a
+    /// surrounding application. A supplied operand never borrows the receiving
+    /// binder's annotation merely because its integer bits are known.
+    pub fn closed_integer_value_with_bindings(
+        &self,
+        expression: ExpressionHandle,
+        machine: symbols::SymbolHandle,
+        binding: &mut impl FnMut(ExpressionHandle) -> Option<(BigInt, TypeReferenceHandle)>,
+    ) -> Option<ClosedIntegerValue> {
+        let value = evaluate_value::<true>(
             self,
             expression,
             &[],
             Some(machine),
             &mut |expression| has_anonymous_operator_meaning(self, expression),
             binding,
-        )?
-        .value
-        .to_integer_exact()
+        )?;
+        Some(ClosedIntegerValue {
+            value: value.value.to_integer_exact()?,
+            primitive: value.primitive,
+            type_reference: value.type_reference,
+        })
     }
 }
 

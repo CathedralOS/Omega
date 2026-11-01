@@ -256,6 +256,16 @@ pub(crate) fn normalize_array_length(
             else {
                 return atom("invalid-array-expression", "missing constant recipe");
             };
+            // Local application correspondence compares a closed selected
+            // extent with its literal carrier, without changing the published
+            // structural identity protocol or admitting any source obligation.
+            if context.invalid_application.is_some()
+                && context.qualification == TypeIdentityQualification::Ordinary
+                && let Some(value) =
+                    super::applied_constants::integer_expression(program, *expression, context)
+            {
+                return atom("integer", &value.to_string());
+            }
             compound(
                 "const-expression",
                 [super::identity_context::normalize_index_expression(
