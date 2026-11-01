@@ -117,3 +117,27 @@ The complete nine-place row and its default-child twins now have focused
 observations. Historical observations above keep their original producer
 identities. Other-host execution, broader schema/case composition, complete SDK
 ABI records, conversions and Product acceptance remain parent work.
+
+## Linux ARM64 execution
+
+The complete nine-place row and all nine sole-type twins pass on native Linux
+ARM64 in [pilot 41317826843](https://github.com/CathedralOS/Omega/actions/runs/41317826843).
+The same producer observes both C-layout rows: 18 positives execute with native
+and Terminal exit 0, and all 18 twins reject their authored policy obligations.
+The source programs, four target bindings, values, backing observations and
+geometry oracles are unchanged.
+
+[Source `05bfe3d4b250f158f332757d02eb9670f3e0a7e7`](https://github.com/CathedralOS/Omega/tree/05bfe3d4b250f158f332757d02eb9670f3e0a7e7)
+produced authenticated opt-level 1 CLI
+`2ba88ac44acb292ff35f3bcebd70e7e2d39a236acf8caf04aa71acee019678f6`.
+The actual Rust host is `aarch64-unknown-linux-gnu`, the runtime target is
+`linux_arm64`, and the GitHub runner is `ubuntu-24.04-arm`. Preparation took
+984.501s, authentication 0.789s and the 36 projects 145.549s. The sample-only
+producer has no corpus runner or runner profile. Raw summary/sample JSON and an
+exportable source bundle preserve that producer identity independently of later
+documentation or queue commits. This is matching-host execution, not a cross
+compile or another host's checking record.
+
+Windows x86_64 and macOS ARM64 execution, broader schema/case composition,
+complete platform ABI records, conversions and Product acceptance remain parent
+work. Earlier Linux x86_64 observations retain their original producer identities.
