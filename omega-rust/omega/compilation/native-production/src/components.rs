@@ -3,6 +3,7 @@
 use crate::realization::{ComponentExportImage, ComponentExportRequest, ComponentNativeCall};
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
+use native_artifact::NativeComponentProduct;
 use std::sync::Arc;
 use terminal_psi::TerminalIdentityTable;
 use terminal_psi_to_abstract_operations::provider_admission::{
@@ -85,9 +86,7 @@ impl EmittedComponent<'_> {
         )
     }
 
-    pub(crate) fn into_product(
-        self,
-    ) -> Result<Arc<native_artifact::NativeComponentProduct>, Vec<Diagnostic>> {
+    pub(crate) fn into_product(self) -> Result<Arc<NativeComponentProduct>, Vec<Diagnostic>> {
         self.image
             .into_product(&self.call)
             .map(Arc::new)

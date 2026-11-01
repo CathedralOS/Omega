@@ -1,5 +1,10 @@
 use super::{EINVAL, ENOTDIR, io_errno};
-use crate::interpreter::evaluator::EvalResult;
+use crate::interpreter::evaluator::filesystem::host_open_flags::{
+    o_append, o_creat, o_excl, o_trunc,
+};
+use crate::interpreter::evaluator::{
+    EvalResult, checked_directory_name_snapshot_total, checked_directory_record_snapshot_total,
+};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
@@ -53,27 +58,16 @@ pub(super) fn real_directory_entries(
     }
     let (mut name_bytes, mut record_bytes) = match snapshot_kind {
         DirectoryEntrySnapshotKind::PackedRecords => {
-            let record_bytes =
-                crate::interpreter::evaluator::checked_directory_record_snapshot_total(0, 1)?;
+            let record_bytes = checked_directory_record_snapshot_total(0, 1)?;
             (
                 None,
-                Some(
-                    crate::interpreter::evaluator::checked_directory_record_snapshot_total(
-                        record_bytes,
-                        2,
-                    )?,
-                ),
+                Some(checked_directory_record_snapshot_total(record_bytes, 2)?),
             )
         }
         DirectoryEntrySnapshotKind::FindCursor => {
-            let name_bytes =
-                crate::interpreter::evaluator::checked_directory_name_snapshot_total(0, 1)?;
+            let name_bytes = checked_directory_name_snapshot_total(0, 1)?;
             (
-                Some(
-                    crate::interpreter::evaluator::checked_directory_name_snapshot_total(
-                        name_bytes, 2,
-                    )?,
-                ),
+                Some(checked_directory_name_snapshot_total(name_bytes, 2)?),
                 None,
             )
         }
@@ -100,20 +94,13 @@ pub(super) fn real_directory_entries(
         };
         let bytes = crate::interpreter::evaluator::portable_directory_entry_name(bytes);
         if let Some(current) = name_bytes {
-            name_bytes = Some(
-                crate::interpreter::evaluator::checked_directory_name_snapshot_total(
-                    current,
-                    bytes.len(),
-                )?,
-            );
+            name_bytes = Some(checked_directory_name_snapshot_total(current, bytes.len())?);
         }
         if let Some(current) = record_bytes {
-            record_bytes = Some(
-                crate::interpreter::evaluator::checked_directory_record_snapshot_total(
-                    current,
-                    bytes.len(),
-                )?,
-            );
+            record_bytes = Some(checked_directory_record_snapshot_total(
+                current,
+                bytes.len(),
+            )?);
         }
         children.push((bytes.to_vec(), d_type));
     }
@@ -193,18 +180,14 @@ pub(super) fn open_options_for(
     options
         .read(access == 0 || access == 2)
         .write(access == 1 || access == 2)
-        .append(crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags))
-        .truncate(crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags))
-        .create(crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags));
-    if crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
-        && crate::interpreter::evaluator::filesystem::host_open_flags::o_excl(flags)
-    {
+        .append(o_append(flags))
+        .truncate(o_trunc(flags))
+        .create(o_creat(flags));
+    if o_creat(flags) && o_excl(flags) {
         options.create_new(true);
     }
     #[cfg(unix)]
-    if crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
-        && apply_creation_mode
-    {
+    if o_creat(flags) && apply_creation_mode {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(mode & 0o7777);
     }

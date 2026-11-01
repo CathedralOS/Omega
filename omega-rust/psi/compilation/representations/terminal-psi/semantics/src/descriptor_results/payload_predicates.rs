@@ -6,6 +6,7 @@
 //! Neither Content nor establishment-route authority can be introduced here.
 use super::PayloadMembershipContract;
 use crate::descriptor_lifetimes::DescriptorPathSegment;
+use semantic_vocabulary::ValueId;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, PropositionContext, ScalarTerm, ScalarType,
     StructuralPlaceKind,
@@ -224,11 +225,7 @@ pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
     contract.qualifications.dedup();
 }
 
-fn collect_value_types(
-    term: &ScalarTerm,
-    output: &mut Vec<(semantic_vocabulary::ValueId, ScalarType)>,
-    depth: usize,
-) {
+fn collect_value_types(term: &ScalarTerm, output: &mut Vec<(ValueId, ScalarType)>, depth: usize) {
     visit_scalar_terms(
         term,
         &mut |term| {
@@ -250,10 +247,7 @@ fn visit_scalar_terms(term: &ScalarTerm, visit: &mut impl FnMut(&ScalarTerm), de
     }
 }
 
-fn collect_proposition_types(
-    proposition: &Proposition,
-    output: &mut Vec<(semantic_vocabulary::ValueId, ScalarType)>,
-) {
+fn collect_proposition_types(proposition: &Proposition, output: &mut Vec<(ValueId, ScalarType)>) {
     visit_proposition_terms(proposition, &mut |term| {
         if let ScalarTerm::Value { id, scalar_type } = term {
             output.push((*id, *scalar_type));
@@ -364,7 +358,7 @@ fn observed_byte_predicate(
 
 pub(super) fn terminal_scalar_literal(
     machine: &terminal_psi::TerminalMachine,
-    value: semantic_vocabulary::ValueId,
+    value: ValueId,
 ) -> Option<ScalarTerm> {
     use terminal_psi::OperationKind;
     if let Some(literal) = machine.operations().find_map(|operation| {
@@ -395,12 +389,12 @@ pub(super) fn terminal_scalar_literal(
 /// independently checked. Reads remain immutable SSA snapshots; their
 /// relationship to current storage belongs to payload history below.
 pub fn scalar_payload_expression(
-    value: semantic_vocabulary::ValueId,
-    origin: &impl Fn(semantic_vocabulary::ValueId) -> Option<(ScalarType, Option<ScalarTerm>)>,
+    value: ValueId,
+    origin: &impl Fn(ValueId) -> Option<(ScalarType, Option<ScalarTerm>)>,
 ) -> Option<ScalarTerm> {
     fn expand(
         term: &mut ScalarTerm,
-        origin: &impl Fn(semantic_vocabulary::ValueId) -> Option<(ScalarType, Option<ScalarTerm>)>,
+        origin: &impl Fn(ValueId) -> Option<(ScalarType, Option<ScalarTerm>)>,
         remaining: &mut usize,
         depth: usize,
     ) -> Option<()> {
@@ -436,7 +430,7 @@ pub fn scalar_payload_expression(
 /// literal recovery, definition order, failure and recursion budgets stay intact.
 pub(super) struct TerminalScalarExpressions<'machine> {
     machine: &'machine terminal_psi::TerminalMachine,
-    types: std::collections::BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
+    types: std::collections::BTreeMap<ValueId, ScalarType>,
 }
 
 impl<'machine> TerminalScalarExpressions<'machine> {
@@ -494,8 +488,8 @@ impl<'machine> TerminalScalarExpressions<'machine> {
 
 pub(crate) fn terminal_scalar_snapshots(
     machine: &terminal_psi::TerminalMachine,
-    values: &[semantic_vocabulary::ValueId],
-) -> Vec<(semantic_vocabulary::ValueId, ScalarTerm)> {
+    values: &[ValueId],
+) -> Vec<(ValueId, ScalarTerm)> {
     let expressions = TerminalScalarExpressions::new(machine);
     values
         .iter()

@@ -2,11 +2,13 @@
 // linear local across one arm only; the other arm abandons it.
 data Receipt [linear] { code: i32; }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 machine consume(receipt: Receipt) -> i32 {
     let observed: i32 = receipt.code;
-    Receipt::ack(receipt);
+    ReceiptAck::ack(receipt);
     observed
 }
 
@@ -23,7 +25,7 @@ machine main() {
     }
 
     machine finishing(last: Receipt) {
-        Receipt::ack(last);
+        ReceiptAck::ack(last);
     }
 
     machine skipping() {}

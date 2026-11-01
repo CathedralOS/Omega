@@ -1,7 +1,7 @@
 use diagnostics::bracketed_display_names;
 
 use crate::expression::{
-    BinaryOperator, ExpressionNode, StaticMachineArgument, TableBinaryExpression,
+    BinaryOperator, ExpressionNode, MatchPattern, StaticMachineArgument, TableBinaryExpression,
     TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryOperator,
 };
 use crate::identifier::JoinedSyntaxPath;
@@ -16,13 +16,11 @@ impl ExpressionNode {
                     .iter()
                     .map(|arm| {
                         let pattern = match arm.pattern {
-                            crate::expression::MatchPattern::Value(value) => {
-                                table.display_expression_name(value)
-                            }
-                            crate::expression::MatchPattern::Destructure(pattern) => {
+                            MatchPattern::Value(value) => table.display_expression_name(value),
+                            MatchPattern::Destructure(pattern) => {
                                 display_destructure_pattern(table, pattern)
                             }
-                            crate::expression::MatchPattern::Wildcard => "_".to_owned(),
+                            MatchPattern::Wildcard => "_".to_owned(),
                         };
                         format!("{pattern} => {}", table.display_expression_name(arm.value))
                     })

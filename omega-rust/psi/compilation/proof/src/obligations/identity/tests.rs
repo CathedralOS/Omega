@@ -2,6 +2,7 @@
 //! constraint and payload sensitivity, and schema marking.
 
 use super::proof_obligation_key as try_proof_obligation_key;
+use crate::obligations::ProofObligationKey;
 use crate::obligations::{
     BinaryValueOperands, BoundedAssignmentObligation, GuardedTransitionObligation, IntegerRange,
     ProofConstraint, ProofObligation, ProofPlan,
@@ -11,6 +12,7 @@ use numerics::bignum::BigInt;
 use numerics::literals::IntegerLiteral;
 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
 use typed_trees::TypedTrees;
+use typed_trees::expression;
 use typed_trees::expression::{
     BinaryExpression, BinaryOperator, Expression, ExpressionHandle, NamePath,
 };
@@ -19,10 +21,7 @@ use typed_trees::statement::TransitionGuardNode;
 use typed_trees::types::TypeReferenceNode;
 
 /// Every equality in this suite compares formed keys, never two missing keys.
-fn proof_obligation_key(
-    plan: &ProofPlan<'_>,
-    obligation: &ProofObligation,
-) -> crate::obligations::ProofObligationKey {
+fn proof_obligation_key(plan: &ProofPlan<'_>, obligation: &ProofObligation) -> ProofObligationKey {
     try_proof_obligation_key(plan, obligation).expect("formed obligation has a canonical key")
 }
 
@@ -206,8 +205,8 @@ fn float_ranges_key_by_exact_value() {
     let machine = program.machine;
     let data = program.data[0];
     let float_range = |minimum: f64, maximum: f64, inclusive| ProofConstraint::FloatRange {
-        minimum: typed_trees::expression::FloatLiteral::from_f64(minimum),
-        maximum: typed_trees::expression::FloatLiteral::from_f64(maximum),
+        minimum: expression::FloatLiteral::from_f64(minimum),
+        maximum: expression::FloatLiteral::from_f64(maximum),
         maximum_inclusive: inclusive,
     };
     let mut plan = ProofPlan::new(&program.typed_trees);

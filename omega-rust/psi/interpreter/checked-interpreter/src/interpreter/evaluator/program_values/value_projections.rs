@@ -11,6 +11,7 @@ use crate::interpreter::evaluator::{
     expression_table, unsupported,
 };
 use language_semantics::const_value::boolean_literal_spelling;
+use typed_trees::operator::builtin_index_read_is_spelled;
 impl Evaluator<'_> {
     pub(in crate::interpreter::evaluator) fn eval_read_cell(
         &mut self,
@@ -105,12 +106,8 @@ impl Evaluator<'_> {
             // landing cannot retroactively remove an authored index candidate.
             self.expression_type_reference(indexed.index, frame),
         ];
-        if !typed_trees::operator::builtin_index_read_is_spelled(
-            self.program,
-            frame.machine_symbol,
-            expression,
-            &operands,
-        ) {
+        if !builtin_index_read_is_spelled(self.program, frame.machine_symbol, expression, &operands)
+        {
             return unsupported("array value projection has no exact builtin indexing meaning");
         }
         Ok(())

@@ -7,7 +7,7 @@
 use semantic_vocabulary::ValueId;
 use std::collections::BTreeMap;
 use terminal_psi::{OperationKind, TerminalMachine};
-use terminal_semantics::ScalarLeafLiteral;
+use terminal_semantics::{ScalarLeafLiteral, constant_goal_free_scalar_leaf};
 
 pub(super) fn fold(
     machine: &mut TerminalMachine,
@@ -48,11 +48,9 @@ pub(super) fn fold(
                 {
                     continue;
                 }
-                let Some(literal) = terminal_semantics::constant_goal_free_scalar_leaf(
-                    operation,
-                    &literals,
-                    &value_types,
-                ) else {
+                let Some(literal) =
+                    constant_goal_free_scalar_leaf(operation, &literals, &value_types)
+                else {
                     continue;
                 };
                 operation.kind = match literal {

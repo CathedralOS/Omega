@@ -3,6 +3,7 @@
 use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralTypeShape;
 use terminal_psi::{Block, StructuralParameterDeclaration, TerminalMachine};
 
 /// Qualification metadata does not add descriptor words. Only element views
@@ -21,10 +22,7 @@ pub fn view_descriptor_projected_qualifications<'types>(
         return false;
     };
     matching.next().is_none()
-        && matches!(
-            declaration.shape,
-            terminal_psi::StructuralTypeShape::ElementView { .. }
-        )
+        && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
         && projected.iter().all(|row| row.is_element_membership())
 }
 
@@ -56,13 +54,11 @@ pub fn view_descriptor_parameter<'types>(
     };
     matching.next().is_none()
         && (parameter.projected_qualifications.is_empty()
-            || matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ElementView { .. }
-            ) && parameter
-                .projected_qualifications
-                .iter()
-                .all(|row| row.is_element_membership()))
+            || matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+                && parameter
+                    .projected_qualifications
+                    .iter()
+                    .all(|row| row.is_element_membership()))
         && (declaration.shape.is_canonical_view_descriptor()
             || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && crate::descriptor_results::descriptor_value_access(

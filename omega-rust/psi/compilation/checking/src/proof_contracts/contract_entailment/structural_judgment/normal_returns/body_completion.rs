@@ -121,7 +121,7 @@ impl<'program> StructuralJudge<'program> {
                 true,
                 &mut Vec::new(),
                 &mut 0,
-                &mut None,
+                &mut [],
                 CitationFacts::default(),
             )
         })?;

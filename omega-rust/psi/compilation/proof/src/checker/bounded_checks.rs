@@ -41,16 +41,17 @@ use crate::checker::named_constraints::{
     check_initializer_named_constraints, check_return_named_constraints,
     check_transition_named_constraints,
 };
-use crate::checker::return_arrival;
+use crate::checker::return_arrival::integer_range;
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofPlan,
 };
 use crate::obligations::{FloatRange, IntegerRange, ProofConstraint, RecipeRangeBound};
-use crate::typed_expressions::expression_table;
+use crate::typed_expressions::{expression_contains_call_node, expression_table};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionNode;
+use typed_trees::state::state_by_symbol;
 use typed_trees::statement::StatementNode;
 
 pub(crate) fn check_bounded_assignment<'program>(
@@ -62,7 +63,7 @@ pub(crate) fn check_bounded_assignment<'program>(
     recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
-) -> Option<crate::obligations::IntegerRange> {
+) -> Option<IntegerRange> {
     // Chapter 11 invariant windows: an intermediate store need not itself
     // satisfy the place's constraints when a later store repairs the EXACT
     // place before anything can observe it.  The repairing assignment keeps
@@ -175,7 +176,7 @@ pub(crate) fn check_bounded_assignment<'program>(
 /// the state must preserve the field.
 fn dependent_atom_proves(
     proof_plan: &ProofPlan,
-    argument_constraints: arena::HandleSpan<crate::obligations::ProofConstraint>,
+    argument_constraints: arena::HandleSpan<ProofConstraint>,
     machine: &str,
     state: &str,
     max_field: &typed_trees::name::Identifier,
@@ -197,10 +198,7 @@ fn assignment_is_overwritten_before_consumption(
 ) -> bool {
     let program = proof_plan.program;
     let Some(state) = program.machines().iter().find_map(|machine| {
-        typed_trees::state::state_by_symbol(
-            program.machine_states(machine),
-            obligation.state_symbol,
-        )
+        state_by_symbol(program.machine_states(machine), obligation.state_symbol)
     }) else {
         return false;
     };
@@ -236,10 +234,7 @@ fn assignment_is_overwritten_before_consumption(
             // invariant window may not flow through it.
             StatementNode::AssemblyFact(_) => return false,
             StatementNode::Assignment(assignment) => {
-                if crate::typed_expressions::expression_contains_call_node(
-                    proof_plan.program,
-                    assignment.value,
-                ) {
+                if expression_contains_call_node(proof_plan.program, assignment.value) {
                     return false;
                 }
                 let mut reads = Vec::new();
@@ -263,10 +258,7 @@ fn assignment_is_overwritten_before_consumption(
             }
             StatementNode::LocalData(local) => {
                 if local.initial_value.is_valid() {
-                    if crate::typed_expressions::expression_contains_call_node(
-                        proof_plan.program,
-                        local.initial_value,
-                    ) {
+                    if expression_contains_call_node(proof_plan.program, local.initial_value) {
                         return false;
                     }
                     let mut reads = Vec::new();
@@ -280,10 +272,7 @@ fn assignment_is_overwritten_before_consumption(
                 }
             }
             StatementNode::Expression(expression) => {
-                if crate::typed_expressions::expression_contains_call_node(
-                    proof_plan.program,
-                    *expression,
-                ) {
+                if expression_contains_call_node(proof_plan.program, *expression) {
                     return false;
                 }
                 let mut reads = Vec::new();
@@ -442,9 +431,7 @@ pub(crate) fn check_bounded_state_return<'program>(
                 ));
             }
             CertificateVerdict::Uncovered => {
-                let Some(value_range) =
-                    return_arrival::integer_range(proof_plan, obligation, context)
-                else {
+                let Some(value_range) = integer_range(proof_plan, obligation, context) else {
                     diagnostics.push(cannot_prove_bounded_return_integer(
                         proof_plan,
                         obligation,
@@ -863,7 +850,7 @@ fn discharge_declared_float_range<O>(
 fn discharge_recipe_range(
     proof_plan: &ProofPlan,
     owner: symbols::SymbolHandle,
-    constraints: arena::HandleSpan<crate::obligations::ProofConstraint>,
+    constraints: arena::HandleSpan<ProofConstraint>,
     value_range: Option<IntegerRange>,
     value: typed_trees::expression::ExpressionHandle,
     description: String,
@@ -871,9 +858,7 @@ fn discharge_recipe_range(
     recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
 ) {
     for constraint in type_constraints(proof_plan, constraints) {
-        let crate::obligations::ProofConstraint::IntegerRangeRecipe { minimum, maximum } =
-            constraint
-        else {
+        let ProofConstraint::IntegerRangeRecipe { minimum, maximum } = constraint else {
             continue;
         };
         let source_span = proof_plan.program.expression_table.source_span(value);

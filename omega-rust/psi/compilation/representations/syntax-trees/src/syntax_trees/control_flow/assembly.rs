@@ -21,10 +21,9 @@ pub struct AssemblyControlFlow {
     pub target_requirement: language_core::inline_assembly::AsmTargetApplicability,
     /// Catalog-generated arithmetic and ZF operations: their selected meaning
     /// must remain builtin, independently of authored token overloads.
-    pub primitives: HandleSpan<crate::expression::ExpressionHandle>,
+    pub primitives: HandleSpan<ExpressionHandle>,
     /// Explicit body-local register/flag identities; empty cells are absent.
-    pub scratch: [crate::expression::ExpressionHandle;
-        language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
+    pub scratch: [ExpressionHandle; language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
     pub blocks: HandleSpan<AssemblyBlock>,
 }
 impl Default for AssemblyControlFlow {
@@ -32,7 +31,7 @@ impl Default for AssemblyControlFlow {
         Self {
             target_requirement: Default::default(),
             primitives: Default::default(),
-            scratch: [crate::expression::ExpressionHandle::invalid();
+            scratch: [ExpressionHandle::invalid();
                 language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
             blocks: Default::default(),
         }

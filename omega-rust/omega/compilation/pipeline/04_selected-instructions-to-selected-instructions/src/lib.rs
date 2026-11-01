@@ -316,16 +316,13 @@ pub use analyses::{
     stage_optimized_selected_reanalysis,
 };
 pub(crate) use analyses::{
-    AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
-    FixedPrecoloredIntervalValidationReceipt, FixedPrecoloredSegmentHomeValidationReceipt,
+    AllocationLegalityValidationReceipt, AllocatorAvailabilityError, FixedPrecoloredIntervalError,
+    FixedPrecoloredIntervalValidationReceipt, FixedPrecoloredSegmentHomeError,
+    FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementError,
     FixedPrecoloredSplitRequirementValidationReceipt, LiveRangeValidationReceipt,
-    LivenessValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
-    StagedOptimizedLivenessCustodyReceipt,
-};
-pub(crate) use analyses::{
-    FixedPrecoloredIntervalError, FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSplitRequirementError, MachineEffectError, OptimizedLiveRangeCustodyError,
-    OptimizedLivenessCustodyError, StagedOptimizedLiveness, ValidatedFixedPrecoloredIntervals,
+    LivenessValidationReceipt, MachineEffectError, OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError, StagedOptimizedLiveRangeCustodyReceipt, StagedOptimizedLiveness,
+    StagedOptimizedLivenessCustodyReceipt, ValidatedFixedPrecoloredIntervals,
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
     analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
     assign_fixed_precolored_segment_homes, stage_optimized_live_ranges, stage_optimized_liveness,

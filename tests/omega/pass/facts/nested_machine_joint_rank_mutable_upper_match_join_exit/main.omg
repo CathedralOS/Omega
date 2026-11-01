@@ -1,0 +1,76 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Counts [copy] { value: u64; climbs: u64; shrinks: u64; }
+machine count(counter: &mut Counts, bounds: &mut [u64], index: u64, cursor: u64)
+requires index < bounds.len
+requires cursor <= bounds[index]
+terminates
+terminates by (cursor, bounds[index]) -> Nat::BoundedDistance
+{
+    transition cursor < bounds[index] {
+        true -> forward(counter, bounds, index, cursor)
+        false -> done()
+    }
+    machine forward(counter: &mut Counts, view: &mut [u64], selector: u64, position: u64)
+    requires selector < view.len
+    requires position < view[selector]
+    {
+        counter.value = ((counter.value as u64 in Wrapping) + 1) as u64;
+        let climb: u64 in Wrapping = match position < 3 { true -> 1 false -> 0 };
+        let shrink: u64 in Wrapping = match position < 3 { true -> 0 false -> 1 };
+        counter.climbs = ((counter.climbs as u64 in Wrapping) + climb) as u64;
+        counter.shrinks = ((counter.shrinks as u64 in Wrapping) + shrink) as u64;
+        transition position < 3 {
+            true -> count(counter, view, selector, position + 1)
+            false -> reduce(counter, view, selector, position)
+        }
+        machine reduce(counter: &mut Counts, view: &mut [u64], selector: u64, position: u64)
+        requires selector < view.len
+        requires position < view[selector]
+        {
+            view[selector] = view[selector] - 1;
+            transition { _ -> count(counter, view, selector, position) }
+        }
+    }
+    machine done() {}
+}
+machine perform(counter: &mut Counts, bounds: &mut [u64], select: bool)
+requires bounds.len == 3
+requires 3 <= bounds[1]
+{
+    count(counter, bounds, 1, match select { true -> 0 false -> 3 });
+}
+machine exercise(bounds: &mut [u64]) crashes Trap
+requires bounds.len == 3
+requires bounds[0] == 641 && bounds[1] == 7 && bounds[2] == 919
+{
+    let mut counter: Counts = Counts { value: 3, climbs: 0, shrinks: 0 };
+    perform(&mut counter, bounds, true);
+    transition counter.value == 10 && counter.climbs == 3 && counter.shrinks == 4
+        && bounds[0] == 641 && bounds[1] == 3 && bounds[2] == 919 {
+        true -> complete(bounds, counter)
+        false -> bad()
+    }
+    machine complete(bounds: &mut [u64], previous: Counts) crashes Trap
+    requires bounds.len == 3
+    requires bounds[0] == 641 && bounds[1] == 3 && bounds[2] == 919
+    requires previous.value == 10 && previous.climbs == 3 && previous.shrinks == 4
+    {
+        let mut counter: Counts = previous;
+        perform(&mut counter, bounds, false);
+        transition counter.value == 10 && counter.climbs == 3 && counter.shrinks == 4
+            && bounds[0] == 641 && bounds[1] == 3 && bounds[2] == 919 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut bounds: [u64; 3];
+    bounds[0] = 641;
+    bounds[1] = 7;
+    bounds[2] = 919;
+    exercise(&mut bounds[..]);
+}

@@ -164,7 +164,7 @@ retired-syntax deletions to completion.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
     other declared body forms, remaining nonscalar orders beyond fixed-integer
-    lexicographic products, or dependent distances
+    lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -393,9 +393,9 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 65 std raw platform rows and 70 test files to boundary
-    traits with explicit reach clauses, and preserve source-selected trait
-    tokens (`samples/cli/probes/operator_requires_effects`).
+  - Migrate the remaining 65 std raw platform rows, 61 test files and 1 sample
+    probe to boundary traits with explicit reach clauses, and preserve
+    source-selected trait tokens (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
     checking, Terminal codec, provider planning, and both compilers, keeping one
     parser fail fixture for the retired spelling.
@@ -425,31 +425,6 @@ retired-syntax deletions to completion.
   ordered operands, and receiver/result loans pass `omega run --both` on every
   host, while missing bodies, duplicate shapes, unproved laws, and missing
   premises reject.
-
-- **ARITHMETIC-POLICY-REALIZATION.** (also covers **IMPLICIT-STORE-CONVERSION**)
-  Close remaining [numeric-policy](wiki/spec/language/numeric_values.md)
-  realization and the implicit-store-conversion rejection and migration under
-  [explicit coercion/erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure)
-  end to end (`omega run --both`).
-  Owners: `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/{assignments,operand_reports}.rs`,
-  stage 04 scalar checking, stage 05 expression preparation, and
-  `omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`
-  with its interpreter and native consumers.
-  - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
-    in samples (**SAMPLE-CORPUS**) and in maintained pass fixtures outside
-    `tests/omega/pass/arithmetic`, `tests/omega/pass/core`, and
-    `tests/omega/pass/float` to explicit conversions (`as` requires
-    unchanged denotation and representability;
-    wrapping/clamping use
-    `core/numeric_conversion.omg`), producing one actionable diagnostic per
-    authored conversion error.
-  Acceptance: comparisons, conversions, and policy-explicit stores agree between
-  the interpreter and matching-host native execution across all six relations,
-  operand orientations, widths, signedness, and extrema above `i64::MAX`
-  (`python tools/corpus_gate.py --both --filter numeric_,runtime_explicit_call_,runtime_shift_count_domain_exit,runtime_comparison_signedness_exit,runtime_wrapping_operand_truncation_exit`);
-  `tests/omega/fail/arithmetic/implicit_{store_conversion,store_widening,store_call_result_conversion,call_operand_conversion,call_result_policy_change,integer_policy_erasure}_rejected`
-  and `fail/slices/signed_slice_index_upper_only` each report their intended
-  refusal.
 
 - **LOC-OMEGA-CONSOLIDATION.** Fold Omega-side (non-Psi) semantic duplication
   where only data differs, deleting the superseded copy in the same change.

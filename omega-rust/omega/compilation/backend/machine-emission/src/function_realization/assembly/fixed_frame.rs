@@ -6,6 +6,7 @@ use super::super::{
     FunctionRelativeOptimizationUnavailableData,
     ValidatedFunctionRelativeOptimizationRealizationManifest,
 };
+use super::layout_roots::validate_layout_optimization_manifest_roots;
 use super::statistics::function_relative_statistics;
 use crate::exit_contract::ValidatedWholeFunctionExitContract;
 use crate::frame_layout::{ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetFrameLayout};
@@ -39,11 +40,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     FunctionRelativeOptimizationRealizationError,
 > {
     let selections = allocation.selections();
-    super::layout_roots::validate_layout_optimization_manifest_roots(
-        baseline_layout,
-        layout_optimization,
-        selections,
-    )?;
+    validate_layout_optimization_manifest_roots(baseline_layout, layout_optimization, selections)?;
     let layout = layout_optimization.layout();
     let relaxation = layout_optimization
         .relaxation()

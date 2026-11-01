@@ -82,6 +82,7 @@ mod halts;
 mod scalar_numerics;
 
 use crate::interpreter::evaluator::filesystem::logical_handle_store::FilesystemLogicalHandles;
+use build_machine::output_obligations::OutputSealState;
 use build_machine::paths::{rooted_build_path_parts, validate_build_relative_path};
 use directory_entries::{
     checked_directory_name_snapshot_total, checked_directory_record_snapshot_total,
@@ -103,6 +104,7 @@ use scalar_numerics::{
     integer_bounds, integer_primitive_byte_width, is_unsigned_integer_primitive,
     primitive_bit_width, primitive_is_unsigned64, semantic_integer_format, wrap_to_width,
 };
+use typed_trees::expression::CompletedValueCapture;
 
 pub(super) const STEP_BUDGET: u64 = 10_000_000;
 
@@ -209,10 +211,7 @@ pub(crate) struct Frame {
     /// Lexically scoped aliases of subjects actually evaluated by Match.
     /// A cell preserves the original reference descriptor and backing; reading
     /// an alias never executes the source expression a second time.
-    match_subjects: Vec<(
-        arena::Handle<typed_trees::expression::CompletedValueCapture>,
-        Cell,
-    )>,
+    match_subjects: Vec<(arena::Handle<CompletedValueCapture>, Cell)>,
 }
 
 /// One open descriptor in the interpreter's virtual filesystem: which path it
@@ -384,10 +383,8 @@ pub(crate) struct Evaluator<'program> {
     /// attempts: a rooted path is `Open` while any writer descriptor remains
     /// live and `Sealed` once its last writer retires. `complete` binds only
     /// a `Sealed` name.
-    pub(super) output_seal_states: BTreeMap<
-        (FilesystemGrantRootIdentity, Vec<u8>),
-        build_machine::output_obligations::OutputSealState,
-    >,
+    pub(super) output_seal_states:
+        BTreeMap<(FilesystemGrantRootIdentity, Vec<u8>), OutputSealState>,
     /// Live descriptor identities bound to a rooted path by a successful
     /// create/open output in this run. Retirement seals the path once its
     /// last writer is gone.

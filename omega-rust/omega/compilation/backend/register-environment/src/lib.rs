@@ -34,6 +34,7 @@ use catalog::{
 };
 use isa_aarch64::{Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view};
 use isa_x86_64::{X86_64RegisterConstraintCatalogValidationError, x86_64_fixed_register_view};
+use register_model::RegisterViewId;
 use register_model::{
     RegisterConstraintKey, RegisterInstructionConstraint, RegisterModelValidationError,
     RegisterReservationProfileValidationError, TargetRegisterEnvironmentConstraintKeys,
@@ -42,6 +43,8 @@ use register_model::{
 };
 use selected_instructions::SelectedConstraintKeys;
 use target::Architecture;
+use target_operations::MachineRegister;
+use validation::validate_target_register_environment_join;
 
 /// Construct the target-owned allocator environment from its ISA declarations.
 /// Decoded or cached register models have no separate replay entrance here.
@@ -79,12 +82,7 @@ fn build_baseline_target_register_environment(
         .map_err(TargetRegisterEnvironmentValidationError::Physical)?;
     let constraints = target_constraint_catalog(target, &validated);
     let reservations = conservative_baseline_reservation_profile(target, &physical);
-    validation::validate_target_register_environment_join(
-        target,
-        validated,
-        constraints,
-        reservations,
-    )
+    validate_target_register_environment_join(target, validated, constraints, reservations)
 }
 
 /// Clean-lane custody of the exact target, independently validated physical
@@ -180,10 +178,7 @@ impl ValidatedTargetRegisterEnvironment {
         self.selected_keys.rows.clone()
     }
 
-    pub fn fixed_register_view(
-        &self,
-        register: target_operations::MachineRegister,
-    ) -> Option<register_model::RegisterViewId> {
+    pub fn fixed_register_view(&self, register: MachineRegister) -> Option<RegisterViewId> {
         fixed_register_view(&self.physical, register)
     }
 }
@@ -191,8 +186,8 @@ impl ValidatedTargetRegisterEnvironment {
 /// Resolve an ABI register through its ISA-owned physical vocabulary.
 pub fn fixed_register_view(
     physical: &ValidatedPhysicalRegisterModel,
-    register: target_operations::MachineRegister,
-) -> Option<register_model::RegisterViewId> {
+    register: MachineRegister,
+) -> Option<RegisterViewId> {
     match physical.model().architecture {
         Architecture::X86_64 => x86_64_fixed_register_view(physical, register),
         Architecture::Aarch64 => aarch64_fixed_register_view(physical, register),

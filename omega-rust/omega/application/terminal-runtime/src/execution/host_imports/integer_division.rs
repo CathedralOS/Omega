@@ -3,6 +3,7 @@
 
 use super::super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
+use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
@@ -89,18 +90,14 @@ impl TerminalEffectHandler for IntegerDivisionImport {
                 result_case: None,
                 fields: vec![
                     (
-                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                            self.fields[0],
-                        )],
+                        vec![Path::Field(self.fields[0])],
                         TerminalScalarValue::Integer {
                             scalar_type: integer,
                             value: IntegerValue::Signed(actual.quotient.into()),
                         },
                     ),
                     (
-                        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                            self.fields[1],
-                        )],
+                        vec![Path::Field(self.fields[1])],
                         TerminalScalarValue::Integer {
                             scalar_type: integer,
                             value: IntegerValue::Signed(actual.remainder.into()),

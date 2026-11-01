@@ -10,6 +10,10 @@ use crate::obligations::ranges::{
 };
 use numerics::bignum::BigInt;
 use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+use symbols::{
+    BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder,
+    builtin_type_symbols,
+};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionNode, FloatLiteral, TableCastExpression};
 use typed_trees::machine::Machine;
@@ -22,18 +26,14 @@ use typed_trees::types::TypeReferenceNode;
 /// A program carrying one builtin `Named` type reference; returns the
 /// carrier handle constraint readers resolve their declared type through.
 fn program_with_primitive(
-    atom: symbols::BuiltinTypeAtom,
+    atom: BuiltinTypeAtom,
     name: &'static str,
 ) -> (TypedTrees, TypeReferenceHandle) {
-    let mut builder = symbols::SymbolTableBuilder::new();
-    let root = builder.insert_root(
-        symbols::SymbolKind::Root,
-        symbols::SymbolNameRef::Static("root"),
-    );
-    let builtins = symbols::SymbolTableBuilder::child_handles(
-        builder.insert_children(root, symbols::builtin_type_symbols()),
-    )
-    .collect::<Vec<_>>();
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let builtins =
+        SymbolTableBuilder::child_handles(builder.insert_children(root, builtin_type_symbols()))
+            .collect::<Vec<_>>();
     let mut program = TypedTrees {
         symbols: builder.finish(),
         ..TypedTrees::default()
@@ -51,7 +51,7 @@ fn program_with_primitive(
 fn proof_range_rejects_invalid_integer_landing_in_float_fallback() {
     for floating_peer in [false, true] {
         for invalid_minimum in [false, true] {
-            let (mut program, carrier) = program_with_primitive(symbols::BuiltinTypeAtom::U8, "u8");
+            let (mut program, carrier) = program_with_primitive(BuiltinTypeAtom::U8, "u8");
             let invalid = program.expression_table.insert(ExpressionNode::Integer(
                 IntegerLiteral::from_value(256).with_landing(IntegerLanding {
                     landed_type: LandedIntegerType::U8,
@@ -91,7 +91,7 @@ fn proof_float_range_endpoints_read_at_the_declared_carrier() {
     // range's `0.3` endpoint is the widened f32 grid point
     // 0.30000001192092896, not the f64 text read -- the same value every
     // landed f32 argument delivers.
-    let (mut program, f32_carrier) = program_with_primitive(symbols::BuiltinTypeAtom::F32, "f32");
+    let (mut program, f32_carrier) = program_with_primitive(BuiltinTypeAtom::F32, "f32");
     let minimum = program
         .expression_table
         .insert(ExpressionNode::Float(FloatLiteral::parse("0.0").unwrap()));
@@ -166,7 +166,7 @@ fn proof_float_range_endpoints_read_at_the_declared_carrier() {
 
     // An f32-landed endpoint under an f64 range keeps its widened f32
     // value (validation's `closed_float_range_endpoint` twin).
-    let (mut program, f64_carrier) = program_with_primitive(symbols::BuiltinTypeAtom::F64, "f64");
+    let (mut program, f64_carrier) = program_with_primitive(BuiltinTypeAtom::F64, "f64");
     let minimum = program
         .expression_table
         .insert(ExpressionNode::Float(FloatLiteral::parse("0.0").unwrap()));
@@ -332,13 +332,10 @@ fn bool_to_integer_cast_constraints_mint_the_two_value_range() {
     // `bool as i32` produces exactly {0,1}: the conversion's constraint
     // derives a [0,1] range even when the source carries no facts.
     let (mut program, bool_carrier, i32_carrier) = {
-        let mut builder = symbols::SymbolTableBuilder::new();
-        let root = builder.insert_root(
-            symbols::SymbolKind::Root,
-            symbols::SymbolNameRef::Static("root"),
-        );
-        let builtins = symbols::SymbolTableBuilder::child_handles(
-            builder.insert_children(root, symbols::builtin_type_symbols()),
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let builtins = SymbolTableBuilder::child_handles(
+            builder.insert_children(root, builtin_type_symbols()),
         )
         .collect::<Vec<_>>();
         let mut program = TypedTrees {
@@ -348,13 +345,13 @@ fn bool_to_integer_cast_constraints_mint_the_two_value_range() {
         let bool_carrier = program
             .type_reference_table
             .insert(TypeReferenceNode::Named {
-                symbol: builtins[symbols::BuiltinTypeAtom::Bool.ordinal()],
+                symbol: builtins[BuiltinTypeAtom::Bool.ordinal()],
                 name: Identifier::generated("bool"),
             });
         let i32_carrier = program
             .type_reference_table
             .insert(TypeReferenceNode::Named {
-                symbol: builtins[symbols::BuiltinTypeAtom::I32.ordinal()],
+                symbol: builtins[BuiltinTypeAtom::I32.ordinal()],
                 name: Identifier::generated("i32"),
             });
         (program, bool_carrier, i32_carrier)
@@ -374,7 +371,7 @@ fn bool_to_integer_cast_constraints_mint_the_two_value_range() {
             domain: numerics::arithmetic::ArithmeticDomain::Exact,
             semantic_domain: arena::HandleSpan::empty(),
             semantic_domain_arguments: arena::HandleSpan::empty(),
-            semantic_domain_symbol: symbols::SymbolHandle::invalid(),
+            semantic_domain_symbol: SymbolHandle::invalid(),
             semantic_domain_id: language_semantics::SemanticDomainId::NULL,
             form: language_core::cast_form::CastForm::Value,
         }));

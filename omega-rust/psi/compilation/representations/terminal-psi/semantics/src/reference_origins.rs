@@ -24,6 +24,7 @@ pub use call_results::{
 };
 pub use descriptor_regions::validate_descriptor_result_regions;
 pub use result_regions::{ReferenceLeaf, reference_leaves, validate_dynamic_reference_regions};
+use std::slice::from_ref;
 
 /// The exact supplying permission and the relation below it. All consumers use
 /// this split; none evaluate a callee's selector in the caller's value namespace.
@@ -339,10 +340,7 @@ pub fn reference_origin_paths_may_overlap(
             ) if left != right => return true,
             (Element, _) | (_, Element) => {}
             (Exact(left), Exact(right))
-                if !crate::structural_paths_may_overlap(
-                    std::slice::from_ref(left),
-                    std::slice::from_ref(right),
-                ) =>
+                if !crate::structural_paths_may_overlap(from_ref(left), from_ref(right)) =>
             {
                 return false;
             }
