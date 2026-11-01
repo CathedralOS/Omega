@@ -1,6 +1,9 @@
 //! Recover native argument order and callback binders from the canonical declaration.
 
-use super::{BoundaryCallbackBinding, BoundaryCallingApplication, BoundaryNativeParameterGeometry};
+use super::{
+    BoundaryCallbackBinding, BoundaryCallingApplication, BoundaryNativeParameterGeometry,
+    BoundaryNativeParameterShape,
+};
 use crate::BoundaryNativeParameterOrigin;
 use crate::BoundaryValueClass;
 use terminal_psi::{BoundaryParameterKind, StructuralAccess, StructuralTypeShape, TerminalModule};
