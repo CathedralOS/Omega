@@ -214,25 +214,11 @@ impl PortableTerminalProgram {
     }
 }
 
-/// What production retains beside the canonical portable artifact.
-/// The entry identity is opaque checked source-signature custody; it does not
-/// select a target or install host services.
-#[derive(Clone, Copy, Default)]
-pub struct TerminalApplicationCustody<'a> {
-    pub entry_identity: Option<[u8; 32]>,
-    /// Exact checked source member whose signature the companion retains.
-    /// This does not select or rewrite the portable semantic root.
-    pub entry_machine: Option<crate::TerminalMachineSelection<'a>>,
-    /// Optional source projection requested for a later product check. This is
-    /// an ordered scope description, not a callback or an admission verdict.
-    pub composition: Option<crate::TerminalCompositionRoots<'a>>,
-}
-
 /// Independent consumers of one checked execution closure. Admission failure
 /// belongs to that application, not to another consumer of the same program.
 /// An empty slice requests code without application judgments; the request's
 /// publication destination determines whether that code can be exported.
 #[derive(Clone, Copy, Default)]
 pub struct TerminalProductionCustody<'a> {
-    pub applications: &'a [TerminalApplicationCustody<'a>],
+    pub applications: &'a [crate::TerminalApplicationCustody<'a>],
 }
