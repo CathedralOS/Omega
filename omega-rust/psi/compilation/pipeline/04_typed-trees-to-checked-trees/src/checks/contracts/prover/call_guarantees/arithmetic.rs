@@ -100,8 +100,8 @@ struct ReturnedObservation {
     value: ScopedArithmeticValue,
 }
 
-struct InvocationArithmetic {
-    proposition: ScopedArithmeticExpression,
+pub(super) struct InvocationArithmetic {
+    pub(super) proposition: ScopedArithmeticExpression,
     returned: Vec<ReturnedObservation>,
 }
 
@@ -445,7 +445,7 @@ fn append_context_hypotheses(
 /// Inputs use their operand frontier; a normal guarantee additionally carries
 /// the writes accepted by availability. Those observations have a new value
 /// identity at return and must never trace through the invocation's old stores.
-fn at_invocation(
+pub(super) fn at_invocation(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     caller: &FlowStateFact,
