@@ -59,9 +59,9 @@ jobs:
         # It lets a corrected Linux observation proceed while a cold Windows
         # build finishes, without starting another Windows build or canceling it.
         runner: >-
-          ${{ inputs.runtime_value_generics && fromJSON('["ubuntu-24.04", "windows-2025", "macos-14", "ubuntu-24.04-arm"]')
+          ${{ inputs.runtime_value_generics && fromJSON('["ubuntu-24.04", "windows-2025", "macos-15", "ubuntu-24.04-arm"]')
               || inputs.foreign_records && inputs.foreign_record_target && inputs.foreign_record_target != 'default'
-                 && (fromJSON('{"linux_x86_64":["ubuntu-24.04"],"windows_x86_64":["windows-2025"],"linux_arm64":["ubuntu-24.04-arm"],"macos_arm64":["macos-14"]}')[inputs.foreign_record_target] || fromJSON('[]'))
+                 && (fromJSON('{"linux_x86_64":["ubuntu-24.04"],"windows_x86_64":["windows-2025"],"linux_arm64":["ubuntu-24.04-arm"],"macos_arm64":["macos-15"]}')[inputs.foreign_record_target] || fromJSON('[]'))
               || fromJSON(inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || (inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
     # Windows used 30 minutes building, completed both corpus legs, then hit
@@ -91,9 +91,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
-          key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+          key: ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
-            compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check smoke report refusal paths
         run: |
           python tools/tests/test_compiler_pilot.py -v
