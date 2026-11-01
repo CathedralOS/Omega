@@ -509,11 +509,30 @@ profiles bound to the actual binary digests. See
   `python tools/corpus_gate.py --filter <group/name fragment>`; a crate's own
   Rust tests run by package and name filter
   (`mbx nextest run -p <crate> <filter>`).
-- **Full suites are manual triggers.** An agent never starts the unfiltered
-  corpus gate, the [full baseline](tools/testing.md#full-baseline), or any
-  other whole-corpus or whole-workspace sweep. Only the user starts those.
-  Agents doing work run focused checks: the change's own witnesses, the touched
-  fixture domains through `--filter`, and the affected crates' tests.
+- **Validate with witnesses, never with a sweep.** A check answers one
+  question: did this change move the behavior it touches? The answer comes
+  from the few programs that can move: the change's own fact places and their
+  reject twins, the fixtures named for the touched behavior, and the touched
+  crates' tests. That is tens of fixtures and minutes of execution, not
+  thousands of fixtures and hours. More fixtures do not add confidence about
+  this change; they add drift, timeouts and false alarms to chase.
+  - Count before running. Write the fixture count, the expected build time and
+    the expected execution time in the claim note. Past about 200 fixtures or
+    15 minutes, the selection is a sweep: narrow it before starting.
+  - A domain is not a focus. `--filter facts/` selects nearly 14,000 fixtures
+    and `--filter fail/` about 11,000. Filter by fact or fixture name:
+    `--filter facts/saved_observation_snapshot` selects 105.
+  - Unfiltered and whole-domain runs, the [full baseline](tools/testing.md#full-baseline),
+    and any other whole-corpus or whole-workspace sweep are the user's to start.
+  - A comparison must reach the code it compares. Before trusting base and
+    candidate agreeing, confirm a fixture got past parsing, admission and
+    package review into the stage the change touched. Two builds failing the
+    same way earlier prove nothing.
+  - Stored outcomes are history. A row that disagrees with today's run is
+    attributed with `--compare <base>` on that fixture, not chased.
+  - If a single fixture takes minutes to check or a build takes most of an
+    hour, that is a workflow defect to measure and report, not a reason to
+    wait longer.
 - Validation policy — what a change must run, baseline gates, corpus and
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the

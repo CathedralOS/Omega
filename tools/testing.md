@@ -41,8 +41,8 @@ An unverified base alone does not force a routine task to establish a full basel
 
 Attribute unexpected failures with a focused baseline comparison or dependency
 and source-reader evidence. For corpus movement the comparison is
-`python3 tools/corpus_gate.py --compare <parent> --filter <groups the change can
-move>`; a diff against the checked-in golden mixes this change with other
+`python3 tools/corpus_gate.py --compare <parent> --filter <the fixtures that
+moved>`; a diff against the checked-in golden mixes this change with other
 lanes' drift and cannot attribute either. Confirmed unrelated failures do not block landing a
 scoped change: retain the command, revision, and evidence, and report them without
 repairing them in the same task. New or unexplained failures in affected behavior
@@ -409,14 +409,17 @@ means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 
 ```bash
-python3 tools/corpus_gate.py --filter termination   # one domain in the loop
-python3 tools/corpus_gate.py --filter wire/,fail/proofs
+python3 tools/corpus_gate.py --filter facts/saved_observation_snapshot   # one fact: 105 fixtures
+python3 tools/corpus_gate.py --filter fail/contracts/scalar_copy_guard  # one behavior
 python3 tools/corpus_gate.py --record             # re-pin the golden
 ```
 
 An unfiltered run covers every fixture and takes a long time. It is a manual
-trigger: only the user starts it, never an agent. Agents always pass
-`--filter` with the domains their change can move.
+trigger: only the user starts it, never an agent. Agents filter to the
+fixtures their change can move, named by fact or behavior, and count the
+selection before running it. A whole domain is a sweep: `facts/` selects
+nearly 14,000 fixtures and `fail/` about 11,000. See
+[validate with witnesses](../AGENTS.md#commands).
 
 `--runner PATH` may reuse an immutable compiler built in another checkout.
 The gate supplies `OMEGA_CORPUS_ROOT` so fixture sources, oracles and discovery
