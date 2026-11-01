@@ -125,6 +125,8 @@ fail/facts/array_element_default_domain/writeback rejected 909ms expected @89d5d
 	data `Tallies`'s default domain is still FALSE at state exit: the invariant window opened on `tallies` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/array_element_default_domain/zero_owner rejected 1211ms expected @89d5d2d7655c
 	machine `main` state `entry` statement 1: reading `tallies.<whole value>` crosses an open default-domain invariant window before data `Tallies` is established: the zeroed representation is not yet a `Tallies` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/facts/atomic_bounded_resident/prior_guarantee_is_not_zero rejected 3272ms expected @cff664f7a5bb+wt
+	cannot prove ensures contract for exit from observe at statement 3: result == 0
 fail/facts/atomic_operand_carrier_once_both_operands_rejected rejected 5465ms expected @89c92b530e12
 	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `perform` state `entry` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
@@ -4331,7 +4333,7 @@ pass/facts/atomic_bounded_fetch/other_state checked 3012ms check-target:macos_ar
 pass/facts/atomic_bounded_fetch/parameter checked 2972ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_bounded_fetch/target_body checked 2860ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_bounded_resident/call_result checked 2249ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/atomic_bounded_resident/composition checked 3792ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/atomic_bounded_resident/composition checked 6442ms check-target:macos_arm64 @cff664f7a5bb+wt
 pass/facts/atomic_bounded_resident/const_name checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_bounded_resident/field checked 3003ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_bounded_resident/local checked 3561ms check-target:macos_arm64 @ccdb99ca2214
@@ -18741,7 +18743,8 @@ fail/facts/atomic_bounded_resident/parameter rejected 532ms expected @ccdb99ca22
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_bounded_resident/prior_before_event rejected 1101ms expected @ccdb99ca2214
 	machine `reject` state `entry` local `prior` cannot consume its atomic result before the event completes
-fail/facts/atomic_bounded_resident/prior_is_not_zero checked 2764ms @ccdb99ca2214
+fail/facts/atomic_bounded_resident/prior_is_not_zero rejected 734ms expected @cff664f7a5bb+wt
+	exact arithmetic in machine `reject` state `entry` local `invalid` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/atomic_bounded_resident/target_body rejected 510ms expected @ccdb99ca2214
 	machine `publish` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/atomic_compare_exchange_once_bounded/call_result rejected 830ms expected @ccdb99ca2214

@@ -45,17 +45,7 @@ Controls additionally reject [a result goal as its own premise](controls/load_re
 [using an event result before completion](controls/prior_before_event/main.omg).
 The row, composition and controls are pinned under `tests/omega/{pass,fail}/facts/atomic_bounded_resident`.
 
-The initial validated producer rejects a sufficient bounded store. The preserved
-integration producer `bf7a6ee94d1` additionally reproduces missing direct-load
-construction and return-contract proofs with this approved spelling. The
-`ba1756dbb15` optimized producer passes all 32 row observations and all five
-soundness controls. Final qualification and independent review remain pending.
-Earlier bracket-range witness observations are historical and superseded; the
-queued PR was withdrawn before landing to correct those spellings. Legacy atomic
-bracket ranges are not an acceptance requirement or new semantics.
-
-Linux x86-64 is the available execution host; other matching-host executions are
-not claimed. Serial agreement establishes no concurrent theorem. Bounded
+Serial execution agreement establishes no concurrent theorem. Bounded
 single-attempt exchange, universal fetch preservation, non-observing exchange,
 standalone atomic locations, relation/refinement checks, and the required
 TR3–TR8 concurrent runtime witnesses remain internal work. The named shared-store
