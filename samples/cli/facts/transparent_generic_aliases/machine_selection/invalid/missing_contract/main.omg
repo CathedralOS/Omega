@@ -1,0 +1,24 @@
+// Expected exit: 0
+use leaf::routes;
+
+machine forty_two(value: u64) -> u64 { 42u64 }
+machine seventeen(value: u64) -> u64 { 17u64 }
+machine wrong_shape(value: u32) -> u32 { value }
+
+machine evaluate<machine Selected>(value: leaf::routes::Routed<Selected>) -> leaf::routes::Routed<Selected>
+requires machine Selected(value: u64) -> u64;
+{ Selected(value) }
+
+machine main() crashes Trap {
+    let routed: leaf::routes::Routed<forty_two> = 0u64;
+    let explicit: u64 = routed;
+    let alias_again: leaf::routes::Routed<forty_two> = explicit;
+    let other: leaf::routes::Routed<seventeen> = 0u64;
+    let erased: leaf::routes::Erased<forty_two> = 42u64;
+    transition evaluate<forty_two>(alias_again) == 42u64 && evaluate<seventeen>(other) == 17u64 && erased == 42u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
