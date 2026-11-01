@@ -10926,7 +10926,7 @@ pass/host/runtime_descriptor_case_replacement_exit rejected 2500ms check-target:
 	call to `empty` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `check_empty` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `refill` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/host/runtime_descriptor_direct_array_exit checked 3800ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_direct_array_exit checked 61127ms check-target:macos_arm64 @33592c4ca518
 pass/host/runtime_descriptor_exclusive_atomic_record_exit checked 3569ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_float_loan_input_exit rejected 3954ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
@@ -10934,10 +10934,10 @@ pass/host/runtime_descriptor_immutable_primitive_loans_exit rejected 4381ms chec
 	call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 pass/host/runtime_descriptor_local_array_loan_input_exit checked 3340ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_mutable_view_input_exit checked 16886ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_nested_array_window_exit checked 4245ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_nested_array_window_exit checked 54664ms check-target:macos_arm64 @33592c4ca518
 pass/host/runtime_descriptor_nested_case_array_exit checked 15417ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_nested_record_loan_input_exit checked 4388ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_output_streams_exit checked 3194ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_output_streams_exit checked 53751ms check-target:macos_arm64 @33592c4ca518
 pass/host/runtime_descriptor_padded_prefix_loans_exit checked 3191ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_record_array_input_exit checked 16834ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_record_loan_input_exit checked 3182ms check-target:macos_arm64 @ccdb99ca2214
