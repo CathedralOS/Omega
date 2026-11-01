@@ -76,15 +76,15 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
                 .captured_integer_interval(state.symbol, expression)
         })
         .map_or(interval, |captured| interval.intersect(captured));
-    // R2 rung 3 slice 7 (READER HYPOTHESES): a domain-carrying place's standing
-    // where facts refine the read -- sound because the write net is TOTAL and
-    // gated reads are access-gated, so the facts hold at every legal
-    // observation.
+    // Only store-enforced refinements hold without a current-value premise.
+    // A mixed default predicate may be temporarily false in an invariant
+    // window; its conjuncts cannot refine a scalar copied during that window.
     let interval = walk
         .machine
-        .and_then(|machine| {
-            crate::proof_contracts::default_domains::where_fact_interval(
-                program, machine, walk.state, expression,
+        .zip(walk.state)
+        .and_then(|(machine, state)| {
+            crate::proof_contracts::default_domains::stored_field_where_interval(
+                program, machine, state, expression,
             )
         })
         .map_or(interval, |facts| interval.intersect(facts));

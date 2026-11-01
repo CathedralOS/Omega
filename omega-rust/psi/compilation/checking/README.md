@@ -161,6 +161,13 @@ owner and retained field handle before contributing declared bounds. References,
 locals, mutable parameters, and nested projections supply no snapshot-independent
 field interval. The same arithmetic rules retain each field's carrier and policy;
 neither a small final result nor algebraic cancellation excuses overflow.
+Occurrence-independent field bounds come from the complete store-enforced
+interval contract. Mixed default-domain conjuncts may be false inside an open
+restoration window; ordinary scalar reads retain their actual flow values.
+Established entry snapshots and guards keep their own versioned facts, while
+restoring the parent cannot qualify an earlier scalar copy. Arithmetic readers
+and recast representation requirements share this distinction; necessary logical
+consequences remain available to handback under its independent premises.
 Guard and entry-requirement readers check the selected equality or ordering
 before treating a literal or singleton field as a primitive bound. An authored
 `==` or `!=` supplies no builtin range or non-NaN fact merely through its spelling.

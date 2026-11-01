@@ -17,7 +17,8 @@
 //! A disjunction contributes only when every alternative bounds that parameter;
 //! the bound is their convex hull, so `side == 0 || side == 1` is `[0, 1]`
 //! while `side == 0 || flag == 1` does not bound `side`.
-//! A field read carries its data's `where` facts, which every write preserves.
+//! Field reads retain only refinements enforced by every store; mixed default
+//! predicates need independently established facts for the exact storage version.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, SignatureContractKind, State, TableCallExpression, TypeReferenceHandle,
@@ -89,7 +90,7 @@ pub fn immutable_integer_expression_bounds(
 
 /// A place's standing bounds at any read: the immutable bounds above, or for
 /// a mutable place what every store enforces -- its declared range and its
-/// data's `where` facts.
+/// store-enforced field predicates.
 pub(crate) fn standing_integer_interval(
     program: &dyn CheckingInput,
     machine: &Machine,
@@ -156,9 +157,9 @@ pub(crate) fn upper_bound_beyond_place_carrier(
         .then_some(high)
 }
 
-/// What every store to a place enforces: its declared range and its data's
-/// `where` facts. Reads no arrival fact, so it is safe inside `requires`
-/// resolution.
+/// What every store to a place enforces: its declared range and interval-only
+/// field predicates. Mixed declaration predicates may have open restoration
+/// debt, so they supply no occurrence-independent read bound.
 fn stored_place_interval(
     program: &dyn CheckingInput,
     machine: &Machine,
@@ -172,11 +173,8 @@ fn stored_place_interval(
         expression,
     )
     .and_then(|handle| super::range_constraint_interval(program, handle));
-    let facts = crate::proof_contracts::default_domains::where_fact_interval(
-        program,
-        machine,
-        Some(state),
-        expression,
+    let facts = crate::proof_contracts::default_domains::stored_field_where_interval(
+        program, machine, state, expression,
     );
     match (declared, facts) {
         (Some(declared), Some(facts)) => Some(declared.intersect(facts)),
@@ -449,10 +447,10 @@ fn bounds(
                     declared_mutable_leaves,
                 )?,
             )?;
-            // The owning data's `where` facts bound every legal read of the
-            // field: each write must preserve them.
-            let standing = crate::proof_contracts::default_domains::where_fact_interval(
-                program, machine, state, expression,
+            // Static expression bounds cannot assume that a mixed parent
+            // predicate is established at this read.
+            let standing = crate::proof_contracts::default_domains::stored_field_where_interval(
+                program, machine, state?, expression,
             );
             Some(Bounds {
                 interval: standing.map_or(declared.interval, |facts| {
