@@ -744,10 +744,8 @@ impl TerminalExecution<'_> {
             }
             _ => (path.as_slice(), Vec::new()),
         };
-        let projection =
-            self.resolve_live_storage_projection(destination, carrier_path, projection_access)?;
-        let parent = projection.value;
-        let view = projection.view_tip;
+        let (parent, view) =
+            self.resolve_live_view_projection(destination, carrier_path, projection_access)?;
         let declared_parent = match view {
             None => parent.structural_type,
             Some(AggregateViewTip::Aggregate { view, backing })
@@ -775,11 +773,9 @@ impl TerminalExecution<'_> {
                 &parent,
                 view,
                 &logical,
-                projection.collection_home.as_ref().or_else(|| {
-                    self.aggregate_argument_backings
-                        .get(&destination)
-                        .and_then(|backing| backing.collection_home.as_ref())
-                }),
+                self.aggregate_argument_backings
+                    .get(&destination)
+                    .and_then(|backing| backing.collection_home.as_ref()),
                 true,
             )?;
             self.store_primitive_storage(destination, storage, scalar_type, source)?;
@@ -1925,8 +1921,8 @@ impl TerminalExecution<'_> {
         path: &[CanonicalStructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
-        let projection = self.observation_storage_root(source)?;
-        self.observed_field_cell_in(&projection.value, projection.view_tip, path, field)
+        let (structural_value, view) = self.observation_view_root(source)?;
+        self.observed_field_cell_in(&structural_value, view, path, field)
     }
 
     /// Select a field in already resolved backing. Reference traversal owns
@@ -2013,9 +2009,7 @@ impl TerminalExecution<'_> {
         field: semantic_vocabulary::StructuralFieldId,
         scalar_type: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-        let projection = self.observation_storage_root(source)?;
-        let structural_value = projection.value;
-        let view = projection.view_tip;
+        let (structural_value, view) = self.observation_view_root(source)?;
         let declared_root = match view {
             Some(AggregateViewTip::Aggregate { view, .. }) => view.structural_type,
             Some(AggregateViewTip::Scalar { .. } | AggregateViewTip::ScalarRegion { .. }) => {
@@ -2055,11 +2049,9 @@ impl TerminalExecution<'_> {
                 &structural_value,
                 view,
                 &logical,
-                projection.collection_home.as_ref().or_else(|| {
-                    self.aggregate_argument_backings
-                        .get(&source)
-                        .and_then(|backing| backing.collection_home.as_ref())
-                }),
+                self.aggregate_argument_backings
+                    .get(&source)
+                    .and_then(|backing| backing.collection_home.as_ref()),
                 false,
             )?;
             return self.read_primitive_storage(

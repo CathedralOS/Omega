@@ -1847,12 +1847,12 @@ impl TerminalExecution<'_> {
     /// Field observations address the referent of a reference-valued root.
     /// Ordinary roots already name their storage. Both preserve the original
     /// runtime identity and projection rather than copying record contents.
-    /// Behind an aggregate re-view, retain both its logical window and original
-    /// collection home. The backing presentation alone owns no primitive cells.
-    pub(crate) fn observation_storage_root(
+    /// Behind an aggregate re-view, the root carries the backing declaration
+    /// and the tip names the view declaration observations are written in.
+    pub(crate) fn observation_view_root(
         &self,
         source: PlaceId,
-    ) -> Result<ResolvedStructuralProjection, TerminalInterpretError> {
+    ) -> Result<(TerminalStructuralValue, Option<AggregateViewTip>), TerminalInterpretError> {
         let value = crate::custody::verified_structural_place(&self.structural_values, source)?;
         if !matches!(
             self.structural_types()
@@ -1860,13 +1860,9 @@ impl TerminalExecution<'_> {
                 .map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::Reference { .. })
         ) {
-            return self.resolve_live_storage_projection(
-                source,
-                &[],
-                StructuralAccess::SharedBorrow,
-            );
+            return self.resolve_live_view_projection(source, &[], StructuralAccess::SharedBorrow);
         }
-        self.resolve_live_storage_projection(
+        self.resolve_live_view_projection(
             source,
             &[StructuralPathSegment::Referent],
             StructuralAccess::SharedBorrow,
