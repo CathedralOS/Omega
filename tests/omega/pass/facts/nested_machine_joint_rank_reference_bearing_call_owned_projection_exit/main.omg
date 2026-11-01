@@ -1,0 +1,51 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Endpoints [copy] { lower: u64; upper: u64; }
+data Progress [copy] { value: Endpoints; canary: u64; guard: &u64; }
+machine distance(value: Endpoints) -> u64
+requires value.lower <= value.upper
+ensures result == value.upper - value.lower
+terminates
+{ value.upper - value.lower }
+measure Progress::Remaining(value: Progress) -> u64 { distance(value.value) }
+machine count(counter: &mut u64, remaining: Progress) crashes Trap
+requires remaining.value.lower <= remaining.value.upper && remaining.value.upper <= 7
+terminates
+terminates by remaining -> Progress::Remaining
+{
+    transition remaining.value.lower < remaining.value.upper {
+        true -> forward(remaining, counter)
+        false -> finish(remaining.value.lower, remaining.value.upper, remaining.canary, remaining.guard)
+    }
+    machine forward(pending: Progress, counter: &mut u64) crashes Trap
+    requires pending.value.lower < pending.value.upper && pending.value.upper <= 7
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        let next: Progress = Progress { value: Endpoints { lower: pending.value.lower + 1, upper: pending.value.upper }, canary: pending.canary, guard: pending.guard };
+        transition { _ -> count(counter, next) }
+    }
+    machine finish(lower: u64, upper: u64, canary: u64, guard: &u64) crashes Trap {
+        transition lower == upper && canary == 641 && guard == 827 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine perform(counter: &mut u64, select: bool) crashes Trap {
+    let guard: u64 = 827;
+    let remaining: Progress = match select {
+        true -> Progress { value: Endpoints { lower: 0, upper: 7 }, canary: 641, guard: &guard }
+        false -> Progress { value: Endpoints { lower: 7, upper: 7 }, canary: 641, guard: &guard }
+    };
+    count(counter, remaining);
+}
+machine main() crashes Trap {
+    let mut counted: u64 = 3;
+    perform(&mut counted, true);
+    let matched: bool = counted == 10;
+    perform(&mut counted, false);
+    transition matched && counted == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

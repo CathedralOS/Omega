@@ -1,0 +1,5 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": ["static type equality cannot mix a type operand with a runtime value"]
+}

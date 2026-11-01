@@ -202,13 +202,15 @@ fn callback_paths(
             application,
         ))
     });
-    layouts.for_parameter(layout::CallbackStorageRoot {
-        record,
-        parameter: calling_conventions::NativeParameterId::new(1)
-            .ok_or("callback control has an absent parameter identity")?,
-        formal_ordinal: 0,
-        native_ordinal: 0,
-    })
+    layouts
+        .for_parameter(layout::CallbackStorageRoot {
+            record,
+            parameter: calling_conventions::NativeParameterId::new(1)
+                .ok_or("callback control has an absent parameter identity")?,
+            formal_ordinal: 0,
+            native_ordinal: 0,
+        })
+        .map(|rows| rows.into_iter().map(|row| row.geometry).collect())
 }
 
 #[derive(Debug, Clone, Copy)]

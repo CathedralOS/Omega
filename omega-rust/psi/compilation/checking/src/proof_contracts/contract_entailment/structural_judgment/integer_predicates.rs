@@ -794,16 +794,65 @@ impl<'program> StructuralJudge<'program> {
             })
             .map(|(comparison, _)| comparison)
             .collect::<Vec<_>>();
-        for alternative in alternatives {
-            let mut comparisons = admitted.clone();
-            comparisons.extend(alternative);
-            // Intake the complete batch together: an unoriented prior NE must
-            // see the denied branch's bounds, without gaining a direction in
-            // the original context. The admitted engine keeps operation laws
-            // and the exact private captured-value atom namespace.
-            let mut engine = observations.engine.clone();
-            if !engine.integer_comparisons_unsatisfiable(comparisons) {
-                return Some(false);
+        // A retained Boolean premise need not choose one integer alternative.
+        // Every feasible prefix world must contradict every denial of the
+        // goal. Keep these worlds private to entailment: neither a disjunct
+        // nor the denied question may establish an operand's formation.
+        let mut worlds = vec![Vec::<Comparison>::new()];
+        for (premise, truth) in self.rewrites.iter() {
+            if !matches!(
+                premise.semantic_value(),
+                StructuralTerm::ScalarBinary {
+                    operator: BinaryOperator::And | BinaryOperator::Or,
+                    ..
+                }
+            ) {
+                continue;
+            }
+            let Some(holds) = super::value_predicates::boolean_value(
+                &self.integer_projection_value(truth.clone()),
+            ) else {
+                continue;
+            };
+            let mut extended = observations.clone();
+            let first_operation = extended.operations.len();
+            let Some(choices) =
+                self.integer_boolean_alternatives(premise, holds, &mut extended, &mut remaining)
+            else {
+                continue;
+            };
+            if !extended.admitted(first_operation..extended.operations.len()) {
+                continue;
+            }
+            if worlds.len().checked_mul(choices.len())? > 32 {
+                return None;
+            }
+            let mut combined_worlds = Vec::new();
+            for world in &worlds {
+                for choice in &choices {
+                    if world.len().checked_add(choice.len())? > 64 {
+                        return None;
+                    }
+                    let mut combined = world.clone();
+                    combined.extend(choice.iter().cloned());
+                    combined_worlds.push(combined);
+                }
+            }
+            worlds = combined_worlds;
+            observations = extended;
+        }
+        for world in worlds {
+            for alternative in &alternatives {
+                let mut comparisons = admitted.clone();
+                comparisons.extend(world.iter().cloned());
+                comparisons.extend(alternative.iter().cloned());
+                // Intake the complete batch together: an unoriented prior NE
+                // must see the denied branch's bounds, without gaining a
+                // direction in the original context.
+                let mut engine = observations.engine.clone();
+                if !engine.integer_comparisons_unsatisfiable(comparisons) {
+                    return Some(false);
+                }
             }
         }
         Some(true)

@@ -163,8 +163,7 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    declaration calls borrowing reference-bearing inputs or needing exclusive-loan
-    or affine input custody or declaration-local
+    declaration calls needing exclusive-loan or affine input custody or declaration-local
     selectors, other remaining declared body forms, nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
@@ -293,13 +292,6 @@ retired-syntax deletions to completion.
       all nine places).
     - Complete remaining operational envelope refinement for suspending
       dynamic requirements beyond suspension and blocking.
-    - Migrate `traits/runtime_dyn_family_nested_result` and
-      `traits/runtime_dyn_family_scalar_continuation` from the retired `where`
-      family roster to `requires`, then prove the dyn-selector call
-      `Shape::code<width>(selected, item)`: with `requires` spelled, both refuse
-      `cannot prove requires contract for call dyn Shape<1 argument>::code`
-      because the runtime `width` that instantiates `Width` is not related to the
-      caller's `requires width == 16 || width == 32`.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including
@@ -422,10 +414,6 @@ retired-syntax deletions to completion.
     callers call the leaf satisfier directly (the `*ByteViews` precedent); a
     call to a trait member adds that trait to the caller's `invokes` edges, so
     the public portable requirements must not silently gain platform edges.
-  - Migrate `pass/host/runtime_descriptor_{direct_array,nested_array_window,output_streams}_exit`:
-    their foreign `&[u8]` leaves rely on the standalone row's compatibility
-    slice ABI, which trait members refuse without an explicit `Calling<C>`
-    policy.
   - Preserve source-selected trait tokens
     (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
@@ -527,10 +515,8 @@ narrows realization only.
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
-  - Publish boundary-value storage recipes, calling telescopes, the explicit
-    calling-policy application census and exact callback/policy captures in
-    canonical Terminal Psi, and move opaque selection, source-qualified review
-    and default ABI signature materialization onto them, so target planning
+  - Move opaque selection, source-qualified review and default ABI signature
+    materialization onto canonical Terminal Psi, so target planning
     drops its source-side signature preparation and passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
     declarations: host classification's catalog-local source join, typed
@@ -672,7 +658,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     remaining host operations (including an admitted loan-carrier interface for
     explicit host loan returns), and the staged dependency preparation/provider
     park/resume contract to the production Build scheduler, replacing checked-tree Build
-    evaluation and static syntax projection in
+    evaluation and the live-source/Git static syntax projections in
     `omega-rust/omega/packages/build-declarations`.
   - Complete applied/inherited multi-slot provider readiness.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,

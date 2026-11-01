@@ -44,7 +44,7 @@ pub fn settle_native_callback_placements(
             .identities
             .text(declaration.identity)
             .ok_or("callback registrar has no boundary identity")?;
-        let Some((_, row)) = selected.selected_requirement_row(requirement) else {
+        let Some((selected_plan, row)) = selected.selected_requirement_row(requirement) else {
             // A canonical module can retain other targets and unselected
             // candidates. Selection creates placement demand; actual executable
             // boundary admission still refuses any reached unsatisfied call.
@@ -64,17 +64,24 @@ pub fn settle_native_callback_placements(
                     .into(),
             );
         }
-        let inbound = calling_application(calling, &application.requirement)?;
-        let registrar =
-            calling_application(calling, selected.selected_requirement_identity(requirement))?;
-        let mut interfaces = module.boundary_machines.iter().filter(|declaration| {
-            module.identities.text(declaration.identity) == Some(application.requirement.as_str())
-        });
-        let (Some(interface), None) = (interfaces.next(), interfaces.next()) else {
-            return Err("callback has no unique exact Terminal requirement declaration".into());
-        };
+        let inbound_boundary = application
+            .boundary
+            .ok_or("admitted callback lost its exact inbound declaration")?;
+        let inbound = calling_application(
+            calling,
+            &module.calling_abi_identity(inbound_boundary)?,
+            None,
+        )?;
+        let registrar_abi = module.calling_abi_identity(boundary)?;
+        let selected_calling = selected_plan
+            .schema
+            .calling_application(&registrar_abi)
+            .ok_or(
+                "callback registrar lost its independently selected exact calling application",
+            )?;
+        let registrar = calling_application(calling, &registrar_abi, Some(selected_calling))?;
         let inbound_telescope =
-            TerminalCallingTelescope::for_application(module, interface.id, inbound)?;
+            TerminalCallingTelescope::for_application(module, inbound_boundary, inbound)?;
         let registrar_telescope =
             TerminalCallingTelescope::for_application(module, boundary, registrar)?;
         let entry_parameters = inbound_telescope
@@ -106,13 +113,23 @@ pub fn settle_native_callback_placements(
 
 fn calling_application<'plans>(
     calling: &'plans [BoundaryCallingApplication],
-    requirement: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+    expected: Option<&effects::provider_plan::ServiceCallingPlan>,
 ) -> Result<&'plans BoundaryCallingApplication, String> {
-    let mut matching = calling
-        .iter()
-        .filter(|application| application.requirement_identity == requirement);
+    let mut matching = calling.iter().filter(|application| {
+        &application.abi == abi
+            && expected
+                .is_none_or(|expected| application.commitment == expected.commitment.as_bytes())
+    });
+    let requirement = &abi.requirement_identity;
     match (matching.next(), matching.next()) {
-        (Some(application), None) => Ok(application),
+        (Some(application), None)
+            if expected.is_none_or(|expected| {
+                expected.report_fingerprint == application.report_fingerprint
+            }) =>
+        {
+            Ok(application)
+        }
         _ => Err(format!(
             "callback requirement `{requirement}` has no unique target calling application"
         )),

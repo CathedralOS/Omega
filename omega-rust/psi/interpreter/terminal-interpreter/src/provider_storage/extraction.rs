@@ -197,11 +197,11 @@ impl TerminalExecution<'_> {
         ];
         let extent_home = StructuralRuntimePlace {
             opaque_identity: value.opaque_identity,
-            path: vec![StructuralPathSegment::Field(extent_field.identity)],
+            path: extent_path.clone(),
         };
         let value_home = StructuralRuntimePlace {
             opaque_identity: value.opaque_identity,
-            path: vec![StructuralPathSegment::Field(value_field.identity)],
+            path: value_path.clone(),
         };
         let decoded = super::value_image::restore(self, plan, image, &value_home)?;
         let mut storage = ConstructorStorage::new(self.account.as_ref());

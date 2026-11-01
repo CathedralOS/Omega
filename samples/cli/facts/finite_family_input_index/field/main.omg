@@ -2,10 +2,10 @@
 // Expected exit: 0
 // Place: field.
 data Indexed<Limit: u32> { value: u32; }
-trait Family { machine row<Width: u32>(first: u32, limit: u32) -> Indexed<limit> where Width == 16 || Width == 32; }
+trait Family { machine row<Width: u32>(first: u32, limit: u32) -> Indexed<limit> requires Width == 16 || Width == 32; }
 machine produce<Span: u32>(payload: u32, bound: u32) -> Indexed<bound> satisfies Family::row { Indexed { value: payload } }
-Selected satisfies Family { machine row<Width: u32>(first: u32, limit: u32) -> Indexed<limit> where Width == 16 || Width == 32 { produce<Width>(first, limit) } }
-Other satisfies Family { machine row<Width: u32>(first: u32, limit: u32) -> Indexed<limit> where Width == 16 || Width == 32 { produce<Width>(first, limit) } }
+Selected satisfies Family { machine row<Width: u32>(first: u32, limit: u32) -> Indexed<limit> requires Width == 16 || Width == 32 { produce<Width>(first, limit) } }
+Other satisfies Family { machine row<Width: u32>(first: u32, limit: u32) -> Indexed<limit> requires Width == 16 || Width == 32 { produce<Width>(first, limit) } }
 machine input(slot: &mut u32) -> u32 { 7 }
 machine create(selected: dyn Family, width: u32) -> Indexed<16>
 requires width == 16 || width == 32

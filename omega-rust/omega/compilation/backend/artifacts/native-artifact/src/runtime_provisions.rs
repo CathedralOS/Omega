@@ -88,9 +88,10 @@ impl TerminalRuntimeHostProvisions {
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
-        identities: &terminal_psi::TerminalIdentityTable,
+        module: &terminal_psi::TerminalModule,
         external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
+        let identities = &module.identities;
         let mut host_requirements = Vec::new();
         for provision in &host {
             let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
@@ -134,8 +135,11 @@ impl TerminalRuntimeHostProvisions {
             if rows.next().is_some() {
                 return Err("runtime foreign calling application is ambiguous");
             }
+            let abi = module
+                .calling_abi_identity(boundary.id)
+                .map_err(|_| "runtime host provision lost its exact declaration ABI")?;
             let calling_application = row
-                .and_then(|row| row.calling_application.as_ref())
+                .and_then(|row| row.calling_application(&abi))
                 .map(|application| {
                     if Some(application.target) != binding.native_target()
                         || application.plan.plan() != &binding.boundary_entry_plan
@@ -542,7 +546,6 @@ impl TerminalRuntimeProvisions {
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
-        identities: &terminal_psi::TerminalIdentityTable,
         external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
         let checked = program_entry
@@ -571,7 +574,7 @@ impl TerminalRuntimeProvisions {
             host,
             boundaries,
             selected,
-            identities,
+            input.module(),
             external_bindings,
         )?;
         Ok(Self {

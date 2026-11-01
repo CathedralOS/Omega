@@ -32,7 +32,7 @@ impl<'program> StructuralJudge<'program> {
             subject.value = subject.judge.complete_match_subject(
                 expression,
                 dispatch,
-                subject.value.clone(),
+                subject.observed_value()?.clone(),
                 scope,
             )?;
         }
@@ -84,6 +84,7 @@ impl<'program> StructuralJudge<'program> {
                                     value: observed.clone(),
                                     judge,
                                     observation,
+                                    value_requested: subject.value_requested,
                                 }])
                             },
                         )?
@@ -92,6 +93,7 @@ impl<'program> StructuralJudge<'program> {
                     };
                     let predicate = predicate || case.is_some();
                     for tested in tested_paths {
+                        tested.observed_value()?;
                         let primitive = if predicate {
                             Some(typed_trees::types::PrimitiveType::Bool)
                         } else {
@@ -148,6 +150,7 @@ impl<'program> StructuralJudge<'program> {
                                 value: subject.value.clone(),
                                 judge: skipped,
                                 observation: subject.observation,
+                                value_requested: subject.value_requested,
                             });
                         }
                         if matches!(comparison, StructuralJudgment::Refuted) {
@@ -200,6 +203,7 @@ impl<'program> StructuralJudge<'program> {
             program.data_constructor_case(subject_type, source_definition, source_variant)?;
         let mut outcomes = Vec::new();
         for subject in evaluate(self, subject_expression)? {
+            subject.observed_value()?;
             let observed_subject = subject
                 .judge
                 .completed_match_case_observation(&subject.value);

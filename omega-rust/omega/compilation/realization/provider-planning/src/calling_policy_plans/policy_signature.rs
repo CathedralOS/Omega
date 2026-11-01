@@ -19,6 +19,7 @@ use calling_conventions::{
 
 /// Target geometry and callback obligations supplied to one policy activation.
 /// This is descriptive input, not provider selection or callback authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallingPolicySignature {
     pub target: target::NativeTarget,
     pub geometry: BoundarySignatureGeometry,

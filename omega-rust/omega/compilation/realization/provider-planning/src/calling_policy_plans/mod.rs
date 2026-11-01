@@ -29,13 +29,14 @@ mod policy_code;
 mod policy_signature;
 mod scalar_completion;
 mod selected_application;
+mod signature_source;
 mod terminal_execution;
 mod terminal_signature;
 mod terminal_values;
 pub use policy_code::CallingPolicyCode;
 pub use policy_signature::CallingPolicySignature;
 pub use selected_application::component_calling_applications;
-pub(crate) use selected_application::selected_source_calling_application;
+pub(crate) use selected_application::selected_source_calling_applications;
 pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
@@ -45,7 +46,10 @@ pub use boundary_signatures::{
 };
 pub(crate) use boundary_signatures::{BoundaryDirectCallbackParameter, BoundaryNativeParameter};
 pub use callback_bindings::BoundaryCallingPlanRealization;
-pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
+pub use callback_layout_catalog::{
+    BoundaryCallbackLayoutEntry, CallbackFieldReviewSource, CallbackLayoutReviewSource,
+    CallbackRecordReviewSource, CallbackSlotReviewSource,
+};
 pub use opaque_representations::{
     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
     BoundaryOpaqueRepresentationUse,

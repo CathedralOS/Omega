@@ -115,11 +115,7 @@ fn collect_nominal_expectations(
             // A const/value operand is not a nominal type edge. Read its
             // role from this exact generic declaration's telescope; a numeric
             // spelling cannot grant a type or classify a different operand.
-            let parameters = typed
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *base_symbol)
-                .map(|definition| typed.data_type_parameters(definition));
+            let parameters = typed.declaration_type_parameters(*base_symbol);
             for (index, argument) in typed
                 .type_reference_table
                 .type_reference_handles(*arguments)
@@ -127,7 +123,7 @@ fn collect_nominal_expectations(
                 .enumerate()
             {
                 if parameters
-                    .and_then(|parameters| parameters.get(index))
+                    .get(index)
                     .is_some_and(|parameter| parameter.kind.is_const_or_value())
                 {
                     continue;

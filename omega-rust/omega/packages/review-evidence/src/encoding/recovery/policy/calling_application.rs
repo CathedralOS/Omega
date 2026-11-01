@@ -27,6 +27,7 @@ pub(in crate::encoding::recovery) fn application(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallingPlan, Error> {
     Ok(PackagePolicyCallingPlan {
+        abi: declaration_abi(reader)?,
         boundary_trait: nominal(reader)?,
         boundary_arguments: reader.sequence(8, type_identity)?,
         boundary_lifetime_parameter_count: reader.u32()?,
@@ -70,4 +71,23 @@ pub(in crate::encoding::recovery) fn application(
         opaque_uses: reader.sequence(1, opaque::decode)?,
         physical: super::physical_calling_policy::physical(reader)?,
     })
+}
+
+fn declaration_abi(
+    reader: &mut Reader<'_>,
+) -> Result<semantic_vocabulary::CallingAbiIdentity, Error> {
+    use semantic_vocabulary::{CallingAbiIdentity, CallingOperandKind, CallingStaticOperand};
+    let coordinate = reader.u64()?;
+    let abi = CallingAbiIdentity {
+        requirement_identity: reader.string()?, declaring_application: reader.string()?,
+        operands: reader.sequence(13, |reader| Ok(CallingStaticOperand {
+            ordinal: reader.u32()?,
+            kind: super::tag!(reader => { 0 => CallingOperandKind::Type, 1 => CallingOperandKind::Const, 2 => CallingOperandKind::Value, 3 => CallingOperandKind::Machine, 4 => CallingOperandKind::Implementation, 5 => CallingOperandKind::Proposition }),
+            identity: reader.string()?,
+        }))?,
+    };
+    if abi.validate().is_err() || abi.id().get() != coordinate {
+        return Err(Error::NonCanonicalEncoding);
+    }
+    Ok(abi)
 }

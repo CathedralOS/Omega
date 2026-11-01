@@ -1113,44 +1113,7 @@ impl Denotation {
         &mut self,
         term: &ScalarTerm,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let denoted = if let Some((_, value)) = term.integer_value() {
-            self.math_term(&IntegerMathTerm::literal(value))?
-        } else {
-            match term {
-                ScalarTerm::Value {
-                    id,
-                    scalar_type: ScalarType::Integer(source_type),
-                } => self.math_term(&IntegerMathTerm::MathValue {
-                    source_type: *source_type,
-                    value: *id,
-                })?,
-                ScalarTerm::ExactIntegerSubtract { left, right, .. }
-                | ScalarTerm::ExactIntegerAdd { left, right, .. }
-                | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
-                    let left = self.fixed_scalar_term(left)?;
-                    let right = self.fixed_scalar_term(right)?;
-                    if matches!(term, ScalarTerm::ExactIntegerAdd { .. }) {
-                        self.add_terms(left, right)?
-                    } else if matches!(term, ScalarTerm::ExactIntegerSubtract { .. }) {
-                        self.subtract_terms(left, right)?
-                    } else {
-                        self.multiply_terms(left, right)?
-                    }
-                }
-                _ => {
-                    if let Some(applied) = self.integer_operation_term(term)? {
-                        return Ok(applied);
-                    }
-                    let position = self.interned_keyed_assumption(
-                        |this| &mut this.scalar_integer_terms,
-                        term.clone(),
-                        |this| this.integer_constant(),
-                    )?;
-                    self.constant(position)
-                }
-            }
-        };
-        Ok(denoted)
+        super::integer_operations::fixed_scalar::denote(self, term)
     }
 
     pub(super) fn fixed_scalar_relation(

@@ -56,7 +56,12 @@ impl<'input> AdmittedNativeComponentCall<'input> {
 
     pub(crate) fn replaces_local_adapter(&self, adapter: &crate::SelectedProviderAdapter) -> bool {
         adapter.provider_plan_digest == self.plan_digest
-            && adapter.requirement_identity == self.application.requirement_identity
+            && self
+                .component
+                .module()
+                .boundary_machine(self.selected.provider_boundary())
+                .and_then(|boundary| self.component.module().identities.text(boundary.identity))
+                == Some(adapter.requirement_identity.as_str())
     }
 }
 
@@ -105,14 +110,20 @@ impl<'input> ComponentNativeInputs<'input> {
         self.exports
             .iter()
             .map(|export| {
-                let requirement = &export.calling_application.requirement_identity;
+                // Invocation identity still includes callback actuals. Several
+                // invocations can deliberately share one declaration ABI.
+                let requirement = module
+                    .identities
+                    .text(export.candidate.requirement_identity)
+                    .ok_or("component export lost its exact invocation identity")?;
                 let mut receiving = receiver
                     .module()
                     .boundary_machines
                     .iter()
                     .filter(|boundary| {
-                        receiver.module().identities.text(boundary.identity)
-                            == Some(requirement.as_str())
+                        receiver.module().identities.text(boundary.identity) == Some(requirement)
+                            && receiver.module().calling_abi_identity(boundary.id).as_ref()
+                                == Ok(&export.calling_application.abi)
                     });
                 let boundary = receiving.next().ok_or_else(|| {
                     format!(
@@ -230,13 +241,25 @@ impl RetainedComponentNativeInputs {
                 .identities
                 .text(candidate.requirement_identity)
                 .ok_or("component export has no canonical requirement identity")?;
+            let abi = component
+                .module()
+                .calling_abi_identity(candidate.boundary)?;
+            let expected = plan.schema.calling_application(&abi);
+            let target = proposal.target_profile().native_target();
             let (producer_position, producer) = one_application(
                 &proposal.boundary_applications().calling,
-                requirement,
+                &abi,
+                expected,
+                target,
                 "component export",
             )?;
-            let (_, receiver) =
-                one_application(receiving_applications, requirement, "component import")?;
+            let (_, receiver) = one_application(
+                receiving_applications,
+                &abi,
+                expected,
+                target,
+                "component import",
+            )?;
             for application in [producer, receiver] {
                 if application.recomputed_commitment()? != application.commitment {
                     return Err(format!(
@@ -262,19 +285,36 @@ impl RetainedComponentNativeInputs {
 
 fn one_application<'input>(
     applications: &'input [BoundaryCallingApplication],
-    requirement: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+    expected: Option<&effects::provider_plan::ServiceCallingPlan>,
+    target: target::NativeTarget,
     role: &str,
 ) -> Result<(usize, &'input BoundaryCallingApplication), String> {
-    let mut matching = applications
-        .iter()
-        .enumerate()
-        .filter(|(_, row)| row.requirement_identity == requirement);
+    let mut matching = applications.iter().enumerate().filter(|(_, row)| {
+        &row.abi == abi
+            && row.target == target
+            && expected.map_or_else(
+                || {
+                    row.plan.plan().call.policy
+                        == calling_conventions::CallingPolicy::native_for_target(target)
+                },
+                |expected| row.commitment == expected.commitment.as_bytes(),
+            )
+    });
+    let requirement = &abi.requirement_identity;
     let application = matching
         .next()
         .ok_or_else(|| format!("{role} `{requirement}` has no complete calling application",))?;
     if matching.next().is_some() {
         return Err(format!(
             "{role} `{requirement}` has competing calling applications"
+        ));
+    }
+    if expected
+        .is_some_and(|expected| expected.report_fingerprint != application.1.report_fingerprint)
+    {
+        return Err(format!(
+            "{role} `{requirement}` has a stale calling report coordinate"
         ));
     }
     Ok(application)
