@@ -31,6 +31,7 @@ pub const fn requires_declaration_visibility(kind: SymbolKind) -> bool {
     matches!(
         kind,
         SymbolKind::Data
+            | SymbolKind::TypeAlias
             | SymbolKind::Conformance
             | SymbolKind::Domain
             | SymbolKind::Field
@@ -152,6 +153,7 @@ pub fn declaration_visibility(
     }
     let direct = match kind {
         SymbolKind::Data => retained_visibility!(data_definitions, "data"),
+        SymbolKind::TypeAlias => retained_visibility!(type_aliases, "type alias"),
         SymbolKind::Conformance => retained_visibility!(conformances, "conformance"),
         SymbolKind::Domain => retained_visibility!(domain_definitions, "domain"),
         SymbolKind::Machine => retained_visibility!(machines, "machine"),
@@ -242,6 +244,38 @@ mod tests {
             assert_eq!(visibility.kind(), "machine");
             assert_eq!(visibility.is_public(), is_public);
             assert!(!owning_machine_is_retained(&program, state));
+        }
+    }
+
+    #[test]
+    fn transparent_alias_visibility_requires_exact_consistent_retained_headers() {
+        use crate::type_aliases::TypeAliasDefinition;
+        for is_public in [false, true] {
+            let mut builder = SymbolTableBuilder::default();
+            let symbol = builder.insert_root(SymbolKind::TypeAlias, SymbolNameRef::Static("Alias"));
+            let mut program = TypedTrees::default();
+            program.symbols = builder.finish();
+            assert!(super::requires_declaration_visibility(
+                SymbolKind::TypeAlias
+            ));
+            assert!(declaration_visibility(&program, symbol).is_none());
+            let header = TypeAliasDefinition {
+                symbol,
+                is_public,
+                ..Default::default()
+            };
+            program.tables.type_aliases.insert(header.clone());
+            program.tables.type_aliases.insert(header);
+            let visibility = super::authored_selection_visibility(&program, symbol).unwrap();
+            assert_eq!(visibility.kind(), "type alias");
+            assert_eq!(visibility.is_public(), is_public);
+            program.tables.type_aliases.insert(TypeAliasDefinition {
+                symbol,
+                is_public: !is_public,
+                ..Default::default()
+            });
+            assert!(declaration_visibility(&program, symbol).is_none());
+            assert!(super::authored_selection_visibility(&program, symbol).is_none());
         }
     }
 
