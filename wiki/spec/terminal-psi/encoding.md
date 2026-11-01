@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 228 even when every table
+order below. This layout uses semantic format marker 229 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -924,7 +924,7 @@ remains dormant until consumed. Boundary associations retain the exact ABI id
 or their deferred refusal; selected callback implementations and invocation
 admission remain on their own boundary/callback application records.
 
-Marker 228 separates pointer transport from a formal's represented callback
+Marker 229 separates pointer transport from a formal's represented callback
 backing. A represented formal names its exact direct physical carrier after
 the ordinary loan shell; another stored reference remains a leaf, not an
 implicit dereference itinerary for callback writes. An abstract borrowed pointee may have no storage declaration:

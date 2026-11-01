@@ -31,7 +31,13 @@ impl PackagePolicyServiceMethod {
         {
             return Err("provider method has inconsistent identity, signature, or claims");
         }
-        if let Some(calling) = &self.calling {
+        for (position, calling) in self.calling.iter().enumerate() {
+            if self.calling[..position]
+                .iter()
+                .any(|previous| previous.abi == calling.abi)
+            {
+                return Err("provider method repeats an exact declaration ABI application");
+            }
             calling.validate_canonical_structure()?;
             if calling.target.profile.backend_profile() != target
                 || calling.boundary_trait != *schema

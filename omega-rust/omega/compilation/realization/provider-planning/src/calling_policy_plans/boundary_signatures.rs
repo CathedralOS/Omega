@@ -22,6 +22,7 @@ use target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterializedBoundarySignature {
+    pub(crate) abi: semantic_vocabulary::CallingAbiIdentity,
     pub(crate) owner_requirement_identity: String,
     pub(crate) native_target: NativeTarget,
     pub(crate) opaque_representations: Vec<BoundaryOpaqueRepresentationUse>,
@@ -37,6 +38,9 @@ pub struct MaterializedBoundarySignature {
 }
 
 impl MaterializedBoundarySignature {
+    pub fn abi(&self) -> &semantic_vocabulary::CallingAbiIdentity {
+        &self.abi
+    }
     /// Named layout-owned destinations in native-demand order. Direct callback
     /// parameters have no layout field and therefore contribute no entry here.
     /// Typed slot applications survive without retaining a complete LayoutPlan.
@@ -337,11 +341,35 @@ pub(crate) fn compatibility_call_signature(
 pub(crate) fn materialize_prepared_signature(
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     declaration: &checked_trees::typed_trees::service_declarations::signatures::BoundarySignatureDeclaration,
+    declaration_abi: Option<semantic_vocabulary::CallingSignatureId>,
     bindings: &[BoundaryTypeBinding],
     layout_target: layout::LayoutTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
     let prepared = declaration.projection.as_ref().map_err(Clone::clone)?;
+    let census = services.signatures();
+    let coordinate = match declaration_abi {
+        Some(coordinate) => coordinate,
+        None => *census
+            .abi_for_boundary(declaration.symbol)
+            .ok_or("boundary signature lost its exact declaration ABI association")?
+            .as_ref()
+            .map_err(Clone::clone)?,
+    };
+    let declaration_abi = census
+        .abi_signatures()
+        .iter()
+        .find(|row| row.id == coordinate)
+        .ok_or("boundary signature lost its complete declaration ABI key")?;
+    let abi = semantic_vocabulary::CallingAbiIdentity {
+        requirement_identity: declaration_abi.requirement_identity.clone(),
+        declaring_application: declaration_abi.declaring_application.clone(),
+        operands: declaration_abi.operands.clone(),
+    };
+    abi.validate()?;
+    if abi.id() != coordinate {
+        return Err("boundary declaration ABI key differs from its coordinate".into());
+    }
     let typed = services.context().typed;
     let telescope = &prepared.telescope;
     let callback_binders = telescope
@@ -402,6 +430,7 @@ pub(crate) fn materialize_prepared_signature(
         &occurrences,
     )?;
     Ok(MaterializedBoundarySignature {
+        abi,
         owner_requirement_identity: declaration.requirement_identity.clone(),
         native_target: layout_target.native_target(),
         opaque_representations,

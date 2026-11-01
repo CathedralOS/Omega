@@ -54,6 +54,7 @@ pub(crate) fn evaluate_default_calling_application(
     let materialized = materialize_prepared_signature(
         services,
         declaration,
+        None,
         &[],
         layout_target,
         opaque_representation_selections,

@@ -13,13 +13,13 @@ use diagnostics::Diagnostic;
 /// selection admitted. The public provider/schema identity carries the
 /// canonical fingerprint; source preparation retained the exact declaration
 /// and requirement correspondence, so selection never rediscovers source.
-pub(crate) fn selected_source_calling_application(
+pub(crate) fn selected_source_calling_applications(
     services: ServiceCatalog<'_>,
     boundary_calling_plan_realizations: &[super::BoundaryCallingPlanRealization],
     plan: &effects::provider_plan::ProviderPlan,
     provenance: &crate::ProviderPlanProvenance,
     row_index: usize,
-) -> Result<Option<calling_conventions::BoundaryCallingApplication>, Diagnostic> {
+) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Diagnostic> {
     if plan.name.is_empty() {
         return Err(Diagnostic::error(
             "selected source boundary entry plan has an empty ProviderPlan name",
@@ -105,65 +105,87 @@ pub(crate) fn selected_source_calling_application(
         prepared.schema,
         crate::ProviderSchemaDeclaration::BoundaryTrait(_)
     ) {
-        return match plan.schema.calling_plan(method.requirement_identity) {
-            None => Ok(None),
-            Some(_) => Err(Diagnostic::error(
+        return if plan
+            .schema
+            .calling_for_requirement(method.requirement_identity)
+            .is_empty()
+        {
+            Ok(Vec::new())
+        } else {
+            Err(Diagnostic::error(
                 "selected source non-trait boundary retains a trait calling-plan fingerprint",
-            )),
+            ))
         };
     }
     source.require_calling_owner()?;
 
-    let Some(calling) = plan.schema.calling_plan(method.requirement_identity) else {
-        return Ok(None);
-    };
-    let fingerprint = calling.report_fingerprint;
-    let commitment = calling.commitment;
-    if fingerprint == 0 {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry `{trait_name}::{method_name}` has a zero calling-plan fingerprint"
-        )));
-    }
+    let mut applications = Vec::new();
+    for calling in plan
+        .schema
+        .calling_for_requirement(method.requirement_identity)
+    {
+        let abi = &calling.abi;
+        let fingerprint = calling.plan.report_fingerprint;
+        let commitment = calling.plan.commitment;
+        if fingerprint == 0 {
+            return Err(Diagnostic::error(format!(
+                "selected source boundary entry `{trait_name}::{method_name}` has a zero calling-plan fingerprint"
+            )));
+        }
 
-    let matching_realizations = boundary_calling_plan_realizations
-        .iter()
-        .filter(|realization| {
-            realization.report_fingerprint == fingerprint
-                && realization.commitment == commitment
-                && realization.boundary_trait == prepared.schema.symbol()
-                && realization.requirement_machine == source.source.symbol
-        })
-        .collect::<Vec<_>>();
-    let [realization] = matching_realizations.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` resolves to {} exact calling-plan realizations for fingerprint 0x{fingerprint:016x}",
-            matching_realizations.len()
-        )));
-    };
-    let (validated, application_report_fingerprint, application_commitment) = realization
+        let matching_realizations = boundary_calling_plan_realizations
+            .iter()
+            .filter(|realization| {
+                realization.materialized_signature().abi() == abi
+                    && realization.boundary_trait == prepared.schema.symbol()
+                    && realization.requirement_machine == source.source.symbol
+                    && realization.boundary_arguments == prepared.boundary_arguments
+                    && realization.argument_owner() == prepared.argument_owner
+            })
+            .collect::<Vec<_>>();
+        let Some(realization) = matching_realizations.first().copied() else {
+            return Err(Diagnostic::error(format!(
+                "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` resolves to {} exact calling-plan realizations for fingerprint 0x{fingerprint:016x}",
+                matching_realizations.len()
+            )));
+        };
+        if matching_realizations
+            .iter()
+            .any(|candidate| *candidate != realization)
+            || realization.report_fingerprint != fingerprint
+            || realization.commitment != commitment
+        {
+            return Err(Diagnostic::error(
+                "selected source ABI application has competing or stale policy custody",
+            ));
+        }
+        let (validated, application_report_fingerprint, application_commitment) = realization
         .replayed_validated_application()
         .map_err(|error| {
         Diagnostic::error(format!(
             "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` retained an invalid target calling-plan realization: {error}"
         ))
     })?;
-    if validated.plan() != realization.exact_boundary_entry_plan() {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling plan behind its compact report fingerprint"
-        )));
-    }
-    if realization.report_fingerprint != application_report_fingerprint
-        || realization.commitment != application_commitment
-    {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling-plan commitment behind its compact report fingerprint"
-        )));
-    }
+        if validated.plan() != realization.exact_boundary_entry_plan() {
+            return Err(Diagnostic::error(format!(
+                "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling plan behind its compact report fingerprint"
+            )));
+        }
+        if realization.report_fingerprint != application_report_fingerprint
+            || realization.commitment != application_commitment
+        {
+            return Err(Diagnostic::error(format!(
+                "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling-plan commitment behind its compact report fingerprint"
+            )));
+        }
 
-    realization
-        .native_application()
-        .map(Some)
-        .map_err(Diagnostic::error)
+        applications.push(
+            realization
+                .native_application()
+                .map_err(Diagnostic::error)?,
+        );
+    }
+    Ok(applications)
 }
 
 /// Materialize this producer's own component-boundary applications while its
@@ -205,7 +227,7 @@ pub fn component_calling_applications(
             }
             let trait_name = trait_name_text(&plan.schema);
             let requirement = plan.identities.text(row.requirement_identity);
-            let application = selected_source_calling_application(
+            let mut selected_applications = selected_source_calling_applications(
                 services,
                 explicit,
                 plan,
@@ -213,34 +235,26 @@ pub fn component_calling_applications(
                 row_index,
             )
             .map_err(|error| vec![error])?;
-            let application = match application {
-                Some(application) => application,
-                None => super::plan_computation::evaluate_default_calling_application(
+            if selected_applications.is_empty() {
+                selected_applications.push(super::plan_computation::evaluate_default_calling_application(
                     services, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
                     &row.method, requirement,
                     calling_conventions::CallingPolicy::native_for_target(native_target),
                     0, representations,
                 ).map_err(|reason| vec![Diagnostic::error(format!("cannot materialize component calling application for `{trait_name}::{}`: {reason}", row.method))])?
-                    .ok_or_else(|| vec![Diagnostic::error(format!("component boundary `{requirement}` has no exact materializable source signature"))])?,
-            };
-            if std::env::var_os("OMEGA_TRACE_COMPONENT_CALLING").is_some() {
-                eprintln!(
-                    "component ABI materialized: package={:?} plan={:?} application={application:#?}",
-                    plan.origin_package_identity,
-                    plan.identity_digest()
-                );
+                    .ok_or_else(|| vec![Diagnostic::error(format!("component boundary `{requirement}` has no exact materializable source signature"))])?);
             }
-            if let Some(previous) = applications.iter().find(|previous| {
-                previous.requirement_identity == application.requirement_identity
-                    && previous.target == application.target
-            }) {
-                if previous != &application {
-                    return Err(vec![Diagnostic::error(
-                        "component selected plans disagree on one complete calling application",
-                    )]);
+            for application in selected_applications {
+                if std::env::var_os("OMEGA_TRACE_COMPONENT_CALLING").is_some() {
+                    eprintln!(
+                        "component ABI materialized: package={:?} plan={:?} application={application:#?}",
+                        plan.origin_package_identity,
+                        plan.identity_digest()
+                    );
                 }
-            } else {
-                applications.push(application);
+                if !applications.contains(&application) {
+                    applications.push(application);
+                }
             }
         }
     }

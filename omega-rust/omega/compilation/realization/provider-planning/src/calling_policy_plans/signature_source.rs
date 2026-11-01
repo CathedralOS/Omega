@@ -127,6 +127,7 @@ pub(crate) fn attach(
         callbacks,
     } = canonical.policy;
     Ok(MaterializedBoundarySignature {
+        abi: canonical.abi,
         owner_requirement_identity: canonical.requirement_identity,
         native_target: target,
         opaque_representations,

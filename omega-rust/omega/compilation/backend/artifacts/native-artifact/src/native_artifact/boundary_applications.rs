@@ -3,7 +3,7 @@ use boundary_applications::TerminalBoundaryApplicationCoverage;
 
 use crate::NativePhysicalEvidenceScope;
 
-const CUSTODY_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.d29-custody.sha256.v2\0";
+const CUSTODY_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.d29-custody.sha256.v3\0";
 
 pub(super) fn validate_boundary_application_coverage(
     module: &terminal_psi::TerminalModule,
@@ -55,6 +55,14 @@ pub(crate) fn boundary_application_coverage_identity(
     digest.raw(&canonical_usize(applications.rows().len()));
     for application in applications.rows() {
         digest.raw(&application.requirement_identity.0.to_le_bytes());
+        digest.string(&application.abi.requirement_identity);
+        digest.string(&application.abi.declaring_application);
+        digest.raw(&canonical_usize(application.abi.operands.len()));
+        for operand in &application.abi.operands {
+            digest.raw(&operand.ordinal.to_le_bytes());
+            digest.byte(operand.kind as u8);
+            digest.string(&operand.identity);
+        }
         digest.raw(&application.shape_root.to_le_bytes());
         digest.raw(&application.application_report_fingerprint.to_le_bytes());
         digest.raw(&application.selected_application_commitment);

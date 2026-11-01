@@ -13,6 +13,7 @@ use layout::BoundaryValueLayout;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalCallingSignature {
+    pub abi: semantic_vocabulary::CallingAbiIdentity,
     pub declaration: semantic_vocabulary::CallingSignatureId,
     pub requirement_identity: String,
     pub policy: CallingPolicySignature,
@@ -223,6 +224,7 @@ impl CanonicalCallingSignature {
         let mut native_parameters = arena::Arena::with_capacity(closed.parameters.len());
         let native_parameter_rows = native_parameters.insert_many(closed.parameters);
         Ok(Self {
+            abi: signature.identity(&module.identities)?,
             declaration,
             requirement_identity: module
                 .identities
