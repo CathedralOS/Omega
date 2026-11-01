@@ -186,7 +186,9 @@ failed this test: 29 `live_across_{two…thirty}_calls` families with the same
 frame and register at every count, N-argument stack-call families on the same
 side of the register/stack boundary, and fixed-array sizes with the same frame
 layout. Twins that give the same diagnostic in every family are the usual
-sign.
+sign. `tools/check_rules.py` compares a new folder's program with every
+existing row's; at 0.80 similarity or more, admission fails until the README
+names the row it found.
 
 Several places with one demonstrated root
 cause may belong to one repair. Do not leave `samples/cli/facts` to fill
