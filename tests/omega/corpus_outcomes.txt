@@ -277,6 +277,9 @@ fail/facts/generic_terminated_array_through_parameter rejected 738ms expected @a
 	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/generic_terminated_array_through_target_body rejected 678ms expected @a889c2d8b84c
 	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/independent_call_result_bound_applied_requirement_rejected rejected 8402ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
+	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
 fail/facts/induction_call_guarantee_through_call_result_rejected rejected 808ms expected @961147032a93+wt
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
 fail/facts/induction_call_guarantee_through_const_name_rejected rejected 622ms expected @961147032a93+wt
@@ -5943,15 +5946,16 @@ pass/facts/ieee_guard_i32_from_f64_other_machine checked 1953ms check-target:mac
 pass/facts/ieee_guard_i32_from_f64_other_state checked 1952ms check-target:macos_arm64 @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_parameter checked 1948ms check-target:macos_arm64 @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_target_body checked 1934ms check-target:macos_arm64 @da380b16b89b+wt
-pass/facts/independent_call_result_bound_through_call_result_exit checked 3653ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/independent_call_result_bound_through_const_name_exit checked 3858ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/independent_call_result_bound_through_field_exit checked 3911ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/independent_call_result_bound_through_local_exit checked 3708ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/independent_call_result_bound_through_match_join_exit checked 3727ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/independent_call_result_bound_through_other_machine_exit checked 4397ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/independent_call_result_bound_through_other_state_exit checked 4389ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/independent_call_result_bound_through_parameter_exit checked 4011ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/independent_call_result_bound_through_target_body_exit checked 3437ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/independent_call_result_bound_applied_requirement_exit checked 10603ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_call_result_exit checked 9994ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_const_name_exit checked 10023ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_field_exit checked 7739ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_local_exit checked 8030ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_match_join_exit checked 6745ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_other_machine_exit checked 7645ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_other_state_exit checked 6006ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_parameter_exit checked 8419ms check-target:macos_arm64 @1efc2536b3bc+wt
+pass/facts/independent_call_result_bound_through_target_body_exit checked 7135ms check-target:macos_arm64 @1efc2536b3bc+wt
 pass/facts/independent_content_partition_through_call_result_exit checked 1313ms check-target:macos_arm64 @767215d6ee2d
 pass/facts/independent_content_partition_through_const_name_exit checked 1398ms check-target:macos_arm64 @767215d6ee2d
 pass/facts/independent_content_partition_through_field_exit checked 1317ms check-target:macos_arm64 @767215d6ee2d
@@ -24827,32 +24831,32 @@ fail/facts/ieee_guard_i32_from_f64_target_body_invalid rejected 691ms expected @
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/facts/independent_call_result_bound_through_call_result_rejected rejected 2872ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_call_result_rejected rejected 6102ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_const_name_rejected rejected 3223ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_const_name_rejected rejected 6847ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_field_rejected rejected 2974ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_field_rejected rejected 4625ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_local_rejected rejected 2868ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_local_rejected rejected 7571ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_match_join_rejected rejected 3429ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_match_join_rejected rejected 10030ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_other_machine_rejected rejected 2881ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_other_machine_rejected rejected 6190ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_other_state_rejected rejected 2823ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_other_state_rejected rejected 5799ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_parameter_rejected rejected 2874ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_parameter_rejected rejected 4639ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_target_body_rejected rejected 3814ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from source at statement 0: result == 7
+fail/facts/independent_call_result_bound_through_target_body_rejected rejected 3603ms expected @1efc2536b3bc+wt
+	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
 fail/facts/independent_content_partition_through_call_result_rejected rejected 1112ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
