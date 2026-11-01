@@ -166,10 +166,10 @@ authored expression call.
 
 A producer built from the repaired source observes the three frozen positives
 with native exit 0 and Terminal exit 0, and their premise-false twins reject
-`structurally false` and `premise(kept)`. The 109 pinned `abstract_signature_call`
-fixtures run 50 of 51 positives and reject 57 of 58 controls; the exceptions are
-the [`applied_callback/forwarded_applied`](constant_initializer/applied_callback/forwarded_applied/main.omg)
-pair, which refuses `applied callable lost its original machine declaration`.
+`structurally false` and `premise(kept)`. With that repair alone, the 109 pinned
+`abstract_signature_call` fixtures ran 50 of 51 positives and rejected 57 of 58
+controls; the exceptions were the `applied_callback/forwarded_applied` pair,
+repaired under [Forwarded applied provider](#forwarded-applied-provider).
 
 ### Requirement accounting for this production
 
@@ -345,6 +345,39 @@ Producer-bound runs and comparison records live under the existing
 `CHECKED-PACKAGE-REUSE` claim `46e8022fc1394040925f256c6a3ede16` and
 `build/checked-reuse-20261022/call-binding-*`. This repairs a current-main
 prerequisite; it does not close checked-package persistence or timing acceptance.
+
+### Forwarded applied provider
+
+[`forwarded_applied`](constant_initializer/applied_callback/forwarded_applied/main.omg)
+supplies `witness<1>` to `forward<Inspect>`, whose body applies `apply<Inspect>`.
+The optimized producer with sha256
+`9d96341de029ccf18e65c933ebccfbf84f9bf00f10e5f25a99601fa3b9f28fb2` (opt-level 1,
+Windows x86-64; the applied-callback formation repair plus the terminal-call
+repair above) checks every other applied-callback place and refuses this one with
+`machine argument `witness` for `apply` does not refine `Observe`: applied
+callable lost its original machine declaration`. The twin refuses with the same
+text instead of `premise(kept)`.
+
+A trace of the refusing view shows the cause. Forwarding rewrote the nested
+occurrence's provider inside the private `forward$specialized` instance from the
+formal `Inspect` to the executable entry of the private `witness$specialized`
+instance, with no authored tuple left on it. The provider view then recorded that
+instance as its binding declaration, and the immutable checking input holds only
+the authored `premise`, `witness`, `apply` and `forward`.
+
+When the selected entry belongs to a private specialization, provider closing now
+rebuilds the candidate from the authored template and the exact tuple recorded
+when the instance was made (`Marker := 1`), as the outer occurrence already
+records it. The instance entry stays the executable selection. An occurrence that
+still carries its authored tuple, and a record holding a runtime operand, keep the
+previous path.
+
+The producer with sha256
+`c5c08ddc920f1addf597ada005002879935f2f65d6151ac8318c6a7cec12b6f0` runs the
+positive with native exit 0 and Terminal exit 0 and rejects its twin for
+`structurally false` and `premise(kept)`. All 109 pinned `abstract_signature_call`
+fixtures then behave as authored: 51 positives run with native 0 and Terminal 0,
+and 58 controls reject their expected fragments.
 
 ## Execution
 
