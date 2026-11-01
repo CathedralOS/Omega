@@ -881,12 +881,11 @@ helper that passes does not close an item.
     with the original 256-width and mismatched-policy-argument rejects.
     A [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     now returns the loaded reference/scalar from a temporary holder and observes
-    pointee 43/value 7 in Mac ARM64 native/Terminal execution. Its local, field,
-    parameter, call-result, match-join and named-constant placements and
-    returned-region twins also pass. Same-geometry policy mismatch and unrelated
-    returned-region controls reject. The remaining three places, byte roundtrips,
-    other-host execution and broader reference
-    composition remain outstanding; see the [composition scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
+    pointee 43/value 7 in Mac ARM64 native/Terminal execution. All nine transport
+    places and their returned-region twins are established on that host, with
+    exact corpus mirrors. Same-geometry policy mismatch and unrelated
+    returned-region controls reject. Byte roundtrips, other-host execution and
+    broader reference composition remain outstanding; see the [composition scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
     [Phantom-region forwarding through implementation arguments](samples/cli/facts/implementation_region_forwarding/README.md)
     now executes the original call with both independent environment/storage
     binders and the same const index, preserving value 42 in Mac ARM64
