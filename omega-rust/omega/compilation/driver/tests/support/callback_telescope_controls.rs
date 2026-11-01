@@ -49,6 +49,24 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
             return Err("decoded Terminal callback placement changed".into());
         }
         let mut changed = calling.clone();
+        let inbound = changed
+            .iter_mut()
+            .find(|application| {
+                application.requirement_identity == baseline[0].canonical_requirement_overload
+            })
+            .ok_or("callback reference control lost its inbound application")?;
+        let shape = inbound
+            .signature
+            .shapes
+            .iter_mut()
+            .find(|shape| shape.class == calling_conventions::BoundaryValueClass::Reference)
+            .ok_or("callback reference control has no borrowed parameter")?;
+        shape.byte_size = 16;
+        require_refusal(
+            settle(&changed),
+            "reference geometry differs from the Terminal transport role",
+        )?;
+        let mut changed = calling.clone();
         let signature = &mut changed[registrar].signature;
         let binders = signature
             .callback_bindings

@@ -5,6 +5,8 @@ machine build(builder: &mut Build) {
     Build::select_provider<LocalEntry, LocalMap>(builder, linux_arm64);
     Build::select_provider<NoResult, NoResultMap>(builder, macos_arm64);
     Build::select_provider<NoResult, NoResultMap>(builder, linux_arm64);
+    Build::select_provider<ReferenceEntry, ReferenceMap>(builder, macos_arm64);
+    Build::select_provider<ReferenceEntry, ReferenceMap>(builder, linux_arm64);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
 }

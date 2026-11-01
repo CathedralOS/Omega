@@ -8,9 +8,6 @@ use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use crate::machine_lowering::declarations::semantic_identity;
-use crate::proofs::evidence_lowering::checked_evidence_machine_identity;
-use crate::proofs::evidence_lowering::checked_evidence_requirement_identity;
 use checked_trees::types::{
     DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
@@ -28,8 +25,10 @@ use terminal_psi::{
 
 mod domain_predicates;
 mod fields;
+mod issuers;
 mod parameters;
 pub(crate) use fields::FieldType;
+pub(crate) use issuers::{establishment_route, establishment_routes};
 mod returns;
 pub(crate) use returns::SourceScalarReturn;
 pub(crate) use returns::retain_returns;
@@ -439,7 +438,14 @@ fn retain_domain(
     let semantic_domain = DomainSemanticId::new(u64::from(semantic_id.0)).ok_or(
         LoweringError::Unsupported("scalar qualification has an invalid semantic identity"),
     )?;
-    let establishment_routes = scalar_domain_establishment_routes(identities, checked, symbol)?;
+    let establishment_routes = match catalog.domains.iter().find(|domain| {
+        domain.semantic_domain == semantic_domain && domain.carrier == scalar_type
+    }) {
+        // The checked declaration and its return decisions are immutable.
+        // Repeated occurrences reuse this catalog, not another source census.
+        Some(domain) => domain.establishment_routes.clone(),
+        None => scalar_domain_establishment_routes(identities, checked, symbol, semantic_id)?,
+    };
     let definition = checked
         .typed
         .domain_definition_for_instance(symbol, semantic_id)
@@ -614,6 +620,7 @@ fn scalar_domain_establishment_routes(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     symbol: SymbolHandle,
+    semantic_domain: SemanticDomainId,
 ) -> Result<Vec<ScalarDomainEstablishmentRoute>, LoweringError> {
     let domain = checked
         .domain_definition(symbol)
@@ -623,6 +630,21 @@ fn scalar_domain_establishment_routes(
     let mut routes = Vec::new();
     for route in &domain.establishment_routes {
         routes.push(establishment_route(identities, checked, route)?);
+    }
+    // Retain the issuer applications already demanded by checked returns,
+    // rather than enumerating all possible machine bodies for each occurrence.
+    for decision in checked
+        .facts
+        .qualifications
+        .scalar_returns
+        .iter()
+        .filter(|decision| decision.semantic_domain == semantic_domain)
+    {
+        let checked_trees::CheckedScalarReturnOrigin::Established(route) = &decision.origin else {
+            continue;
+        };
+        let route = issuers::return_route(checked, decision.machine, route)?;
+        routes.push(establishment_route(identities, checked, &route)?);
     }
     routes.sort();
     routes.dedup();
@@ -695,49 +717,6 @@ fn scalar_value_type(
     Ok(QualifiedScalarType {
         scalar_type,
         qualifications,
-    })
-}
-
-pub(crate) fn establishment_route(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    route: &DomainEstablishmentRoute,
-) -> Result<ScalarDomainEstablishmentRoute, LoweringError> {
-    let declaration = terminal_psi::NominalDeclarationIdentity::new(
-        semantic_identity(identities, checked, route.established_declaration()).map_err(|_| {
-            LoweringError::Unsupported("domain issuer has no exact declaration owner")
-        })?,
-    );
-    Ok(match *route {
-        DomainEstablishmentRoute::CheckedRequirement {
-            trait_definition,
-            requirement,
-        } => ScalarDomainEstablishmentRoute::CheckedRequirement {
-            declaration,
-            requirement_identity: identities.intern(&checked_evidence_requirement_identity(
-                checked,
-                trait_definition,
-                requirement,
-            )?),
-        },
-        DomainEstablishmentRoute::BoundaryRequirement {
-            boundary_trait,
-            requirement,
-        } => ScalarDomainEstablishmentRoute::BoundaryRequirement {
-            declaration,
-            requirement_identity: identities.intern(&checked_evidence_requirement_identity(
-                checked,
-                boundary_trait,
-                requirement,
-            )?),
-        },
-        DomainEstablishmentRoute::ExactMachine { machine } => {
-            ScalarDomainEstablishmentRoute::ExactMachine {
-                declaration,
-                machine_identity: identities
-                    .intern(&checked_evidence_machine_identity(checked, machine)?),
-            }
-        }
     })
 }
 

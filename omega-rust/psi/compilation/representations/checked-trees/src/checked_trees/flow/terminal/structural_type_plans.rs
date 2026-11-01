@@ -106,6 +106,9 @@ pub enum CheckedUnitStructuralTypeShape {
     Reference {
         referent_identity: TypeIdentityId,
         access: CheckedStructuralAccess,
+        /// Foreign transport is independent of whether the referent's storage
+        /// is demanded. Preserve this judgment without expanding its body.
+        foreign_descriptor: bool,
     },
     /// One whole primitive referent carried through structural custody. This
     /// is distinct from a by-value scalar parameter: the place remains the

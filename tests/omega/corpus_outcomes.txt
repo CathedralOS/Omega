@@ -30,6 +30,16 @@ fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
 	machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])
+fail/cases/constructor_subject_range_narrowing_unproved rejected 1204ms expected @95750e8d2f8d
+	Exact integer cast in machine `make` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/cases/constructor_subject_range_neighbor_not_evidence rejected 580ms expected @95750e8d2f8d
+	data `Bound` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/cases/constructor_subject_range_replaced_value rejected 609ms expected @95750e8d2f8d
+	data `Bound` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/cases/constructor_subject_range_unproved rejected 619ms expected @03bcba3fe16d
+	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/cases/constructor_subject_range_unsigned_to_signed_unproved rejected 1007ms expected @95750e8d2f8d
+	Exact integer cast in machine `make` state `entry` from `u64` to `i64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expected @00e93f641615+wt
 	cannot prove requires contract for call consume from exercise: items[slot] == constructor:78:package:15da86fb44407d53f7ef1b34e99f42239b2095b2bbbf8f19fc64c76c42030c65::Item10:name:Ready (needs fact `items[slot] == Item::Ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/case_requirement_referent_selector_changed rejected 593ms expected @00e93f641615+wt
@@ -39,8 +49,8 @@ fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @
 fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch rejected 4053ms expected @68b6f6ba6c2f
 	machine `forward` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/domains/case_payload_widened_call_result_rejected rejected 1637ms expected @34e2f4e01441+wt
-	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
+	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
 	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
@@ -3344,7 +3354,7 @@ pass/domains/semicolon_predicate_presence_exit checked 3423ms check-target:macos
 pass/domains/slice_domain_validator checked 16637ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/tag_alias_retains_receiving_predicate_exit checked 3085ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/tagged_scalar_reference_carriers_exit checked 3724ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/target_generic_issuer_forwarding_exit checked 3157ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/target_generic_issuer_forwarding_exit checked 5833ms check-target:macos_arm64 terminal-inspections:match @95750e8d2f8d
 pass/domains/threaded_subject_keeps_established_domains checked 12907ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/transparent_alias_expansion checked 2590ms @ccdb99ca2214
 pass/domains/unit_membership_postcondition_exit checked 12713ms check-target:macos_arm64 @ccdb99ca2214
@@ -17241,7 +17251,7 @@ fail/cases/borrowed_case_write_only_tag_read rejected 710ms expected @ccdb99ca22
 	machine `inspect` state `entry` reads write-only parameter `message`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `inspect` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `inspect` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/cases/borrowed_case_wrong_pattern_owner rejected 740ms expected @ccdb99ca2214
+fail/cases/borrowed_case_wrong_pattern_owner rejected 597ms expected @95750e8d2f8d
 	case-membership operation lost its exact subject, carrier or case identity
 	match pattern does not select a record or case of its subject's exact carrier
 	match pattern does not select a record or case of its subject's exact carrier
@@ -18784,11 +18794,11 @@ fail/domains/generic_exact_issuer_reconstructed_value rejected 1988ms expected @
 	cannot prove default-domain field requirement for return from rebuild$specialized$103affd2fa9522a0$0, state entry, at statement 0: Ticket requires Issued
 fail/domains/generic_exact_issuer_reused_owner rejected 2343ms expected @ccdb99ca2214
 	cannot use `ticket` in machine `main` state `entry` (statement 2) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
-fail/domains/generic_exact_issuer_unrelated_template rejected 2030ms expected @ccdb99ca2214
+fail/domains/generic_exact_issuer_unrelated_template rejected 1380ms expected @95750e8d2f8d
 	construction value is not proven in domain `Issued` in counterfeit state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from counterfeit, state entry, at statement 0: Ticket requires Issued
-	construction value is not proven in domain `Issued` in counterfeit$specialized$51c8fecb8a99ba32$0 state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-	cannot prove default-domain field requirement for return from counterfeit$specialized$51c8fecb8a99ba32$0, state entry, at statement 0: Ticket requires Issued
+	construction value is not proven in domain `Issued` in counterfeit$specialized$6d7e76bacf9dd0f6$0 state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from counterfeit$specialized$6d7e76bacf9dd0f6$0, state entry, at statement 0: Ticket requires Issued
 fail/domains/generic_exact_issuer_wrong_index rejected 1419ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Issued:main::entry:call-0-0:Issued<First>==Issued<Second>` is not established: actual `Issued<First>` and expected `Issued<Second>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/domains/guard_call_requires_established_membership rejected 2059ms expected @ccdb99ca2214
@@ -18868,7 +18878,7 @@ fail/domains/moved_payload_cannot_revive_issued_membership rejected 1493ms expec
 	cannot prove requires contract for call read_issued from main: moved.cell in Cell::Issued in state `entry`
 fail/domains/named_const_subject_binding rejected 125ms unexpected @ccdb99ca2214
 	cannot prove scalar result domain for return from @const-qualification-INVALID-0 at statement 0: u64::Below::Inherited
-fail/domains/named_issuer_independent_predicate rejected 2614ms expected @ccdb99ca2214
+fail/domains/named_issuer_independent_predicate rejected 1598ms expected @95750e8d2f8d
 	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
 fail/domains/named_issuer_no_body_assumption rejected 2994ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from Factory::issue: token in Token::Issued in state `issue`
@@ -19137,11 +19147,11 @@ fail/domains/tag_alias_keeps_receiving_predicate rejected 891ms expected @ccdb99
 	cannot prove assignment value `0` satisfies bounded target `cell.value` in `write.entry`; expected 1..=4294967295
 fail/domains/target_issuer_no_self_assumption rejected 2265ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from issue: value in i64::Classified in state `entry`
-fail/domains/target_issuer_nonrealized_predicate rejected 2773ms expected @ccdb99ca2214
+fail/domains/target_issuer_nonrealized_predicate rejected 1458ms expected @95750e8d2f8d
 	cannot prove scalar result domain for return from issue at statement 0: i64::Classified
-fail/domains/target_issuer_same_name_other_owner rejected 1811ms expected @ccdb99ca2214
+fail/domains/target_issuer_same_name_other_owner rejected 1444ms expected @95750e8d2f8d
 	cannot prove scalar result domain for return from Other::issue at statement 0: i64::Classified
-fail/domains/target_issuer_wrong_machine rejected 2945ms expected @ccdb99ca2214
+fail/domains/target_issuer_wrong_machine rejected 1716ms expected @95750e8d2f8d
 	cannot prove scalar result domain for return from unrelated at statement 0: i64::Classified
 fail/domains/terminal_result_domain_incompatible_carrier rejected 1860ms expected @ccdb99ca2214
 	machine `missing` state `entry` delivers a `f64` value to a `i32` return value; a landed float retains its format, so changing format requires an explicit conversion

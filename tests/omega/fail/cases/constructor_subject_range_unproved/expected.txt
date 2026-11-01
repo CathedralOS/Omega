@@ -1,1 +1,1 @@
-cannot prove the case constraint
+data `ByteRead` literal cannot prove the default domain

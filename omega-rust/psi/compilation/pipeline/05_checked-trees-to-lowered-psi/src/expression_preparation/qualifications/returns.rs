@@ -237,7 +237,11 @@ pub(crate) fn retain_returns(
                     origins.push(match &decision.origin {
                         CheckedScalarReturnOrigin::Forwarded => ScalarReturnOrigin::Forwarded,
                         CheckedScalarReturnOrigin::Established(route) => {
-                            let route = super::establishment_route(identities, checked, route)?;
+                            // A target body or checked application can invoke an
+                            // authored issuer declaration. Retain this exact
+                            // returning body, not the head's nominal identity.
+                            let route = super::issuers::return_route(checked, symbol, route)?;
+                            let route = super::establishment_route(identities, checked, &route)?;
                             let position = domain
                                 .establishment_routes
                                 .iter()

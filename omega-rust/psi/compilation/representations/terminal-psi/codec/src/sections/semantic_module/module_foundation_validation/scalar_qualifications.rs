@@ -203,7 +203,10 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                     )?;
                     match domain.establishment_routes.get(*route as usize) {
                         Some(ScalarDomainEstablishmentRoute::ExactMachine { declaration: issuer, machine_identity }) => {
-                            (*machine_identity == declaration.callable && issuer.identity() == declaration.semantic_declaration)
+                            (module.identities.text(*machine_identity).zip(module.identities.text(declaration.callable))
+                                .is_some_and(|(issued, callable)| issued == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+                                    callable, declaration.specialization.as_ref().map(|application| &application.commitment),
+                                )) && issuer.identity() == declaration.semantic_declaration)
                                 || declaration.specialization.as_ref().is_some_and(|specialization| {
                                     *machine_identity == specialization.template_callable
                                         && issuer.identity() == specialization.template_semantic_declaration
@@ -265,6 +268,29 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                             })
                             .collect()
                     });
+                let issuer = match origin {
+                    ScalarReturnOrigin::Established { route } => domain
+                        .establishment_routes
+                        .get(*route as usize)
+                        .map(|route| {
+                            let callable = match route {
+                                ScalarDomainEstablishmentRoute::ExactMachine {
+                                    machine_identity,
+                                    ..
+                                } => module.identities.text(*machine_identity),
+                                _ => None,
+                            };
+                            (
+                                callable,
+                                module.identities.text(route.declaration().identity()),
+                            )
+                        }),
+                    _ => None,
+                };
+                let returned_declaration = machine
+                    .declaration
+                    .as_ref()
+                    .map(|declaration| module.identities.text(declaration.semantic_declaration));
                 return Err(CodecError::MalformedScalarReturnFoundation {
                     machine: machine_identity,
                     domain: module
@@ -276,7 +302,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                     source: returned.source,
                     result: returned.result,
                     reason: format!(
-                        "scalar return origin does not match its source or authorized issuer: site={:?}, origin={origin:?}, source memberships={source_memberships:?}, origin authorized={authorized}, prerequisites satisfied={prerequisites}",
+                        "scalar return origin does not match its source or authorized issuer: site={:?}, origin={origin:?}, source memberships={source_memberships:?}, origin authorized={authorized}, prerequisites satisfied={prerequisites}, issuer={issuer:?}, returned declaration={returned_declaration:?}",
                         returned.site,
                     ),
                 });

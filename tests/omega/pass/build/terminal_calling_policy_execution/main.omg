@@ -8,6 +8,16 @@ public boundary trait LocalEntry: Calling<RetainedCalling> {
 LocalMap satisfies LocalEntry { machine value(left: u64, right: u64) -> u64 { right } }
 public boundary trait NoResult { machine value() reaches; }
 NoResultMap satisfies NoResult { machine value() {} }
+// This declaration transports a reference, without demanding its pointee's
+// storage in the policy inspection artifact.
+public data PolicyReferent { payload: u64; }
+public data PolicyReference { value: &PolicyReferent; }
+public boundary trait ReferenceEntry: Calling<RetainedCalling> {
+    machine value(left: PolicyReference, right: u64) -> u64 reaches;
+}
+ReferenceMap satisfies ReferenceEntry {
+    machine value(left: PolicyReference, right: u64) -> u64 { right }
+}
 public RetainedCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         retained_plan(signature)

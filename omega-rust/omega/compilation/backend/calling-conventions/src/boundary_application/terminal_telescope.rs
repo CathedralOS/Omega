@@ -5,7 +5,8 @@ use super::{
     BoundaryNativeParameterShape,
 };
 use crate::BoundaryNativeParameterOrigin;
-use terminal_psi::TerminalModule;
+use crate::BoundaryValueClass;
+use terminal_psi::{BoundaryParameterKind, StructuralAccess, StructuralTypeShape, TerminalModule};
 
 /// Target-closed argument telescope. Value layouts still come from the calling
 /// application; declaration identity, native-only arguments and callback
@@ -86,6 +87,55 @@ impl TerminalCallingTelescope {
             return Err(
                 "calling application native parameters differ from the Terminal telescope".into(),
             );
+        }
+        let mut structural = boundary.structural_parameters.iter();
+        for (ordinal, kind) in boundary.parameter_order.iter().enumerate() {
+            if *kind != BoundaryParameterKind::Structural {
+                continue;
+            }
+            let parameter = structural
+                .next()
+                .ok_or("Terminal calling telescope lost a structural parameter")?;
+            let referent = if parameter.access != StructuralAccess::Owned {
+                Some(parameter.structural_type)
+            } else {
+                match module
+                    .structural_type(parameter.structural_type)
+                    .map(|row| &row.shape)
+                {
+                    Some(StructuralTypeShape::Reference { referent, .. }) => Some(*referent),
+                    Some(
+                        StructuralTypeShape::ByteSequence(_)
+                        | StructuralTypeShape::ElementView { .. },
+                    ) => Some(parameter.structural_type),
+                    _ => None,
+                }
+            };
+            let Some(referent) = referent else { continue };
+            let descriptor = module
+                .foreign_reference_descriptor(referent)
+                .ok_or("callback reference has no retained foreign transport role")?;
+            let (byte_size, alignment) = if descriptor {
+                let geometry = runtime_abi::fat_descriptor_layout(application.target);
+                (geometry.byte_size, geometry.alignment)
+            } else {
+                (
+                    application.target.pointer_size,
+                    application.target.pointer_alignment,
+                )
+            };
+            let shape = application
+                .signature
+                .parameters
+                .get(ordinal)
+                .and_then(|root| application.signature.shapes.get(usize::from(*root)))
+                .ok_or("callback reference has no value shape")?;
+            if shape.class != BoundaryValueClass::Reference
+                || usize::from(shape.byte_size) != byte_size
+                || usize::from(shape.alignment) != alignment
+            {
+                return Err("calling application reference geometry differs from the Terminal transport role".into());
+            }
         }
         let binders = telescope
             .binders
