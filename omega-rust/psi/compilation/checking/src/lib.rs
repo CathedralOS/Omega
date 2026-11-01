@@ -31,7 +31,6 @@ pub use declarations::traits::{
     provider_region_correspondence,
 };
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
-pub use machine_calls::machine_parameters::validate_callable_parameter_refinement;
 pub use machine_calls::{compiler_operations, contract_identities};
 pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{
