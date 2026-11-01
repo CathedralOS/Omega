@@ -1,0 +1,5 @@
+# Exact static-machine aliases
+
+The imported alias forwards an ordinary machine binder into a copyable carrier, interchanges with the explicit carrier, and invokes the selected machine. Two same-shaped callbacks return 42 and 17, so selecting the wrong declaration is observable. An erased alias still owes its own u64-to-u64 callable contract.
+
+The intended-invalid children change only the receiving carrier’s selected machine or the erased alias’s selected callback to a u32-to-u32 declaration. The retained Mac producer at source `363cb9e6a2200663ea536e700352df48167908a9` refused these canonical headers before checking: data machine binders were incorrectly preseeded with the trait-only identity contract, so the authored callable contract appeared duplicated. The parser repair restricts that implicit identity to trait declarations; data and alias declarations retain their required authored callable contract. Execution on the changed producer is pending. Full alias/nine-place/Product and other-host acceptance remain open.

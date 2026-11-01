@@ -156,7 +156,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             }
             let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
             let (name, input) = input.take_identifier()?;
-            let contract = trait_requirement_parameters
+            let contract = matches!(syntax, GenericParameterSyntax::TraitRequirements)
                 .then_some(MachineParameterContract::RequirementIdentity);
             (name, TypeParameterKind::Machine { contract }, input)
         } else if input.at_contextual("proposition") {
