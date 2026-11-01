@@ -408,6 +408,19 @@ fn selected_checked_candidates<'plan, 'terminal>(
                             == Some(requirement)
                         && module.identities.text(candidate.source_candidate_identity)
                             == Some(realization)
+                        // The portable catalog retains every member of the
+                        // remaining legacy families. A target-keyed plan joins
+                        // only its exact member before checking uniqueness;
+                        // other targets are not competing implementations.
+                        && module.target_machine_families.iter().all(|family| {
+                            let callable = terminal_psi::TargetMachineCallable::Machine(
+                                candidate.candidate,
+                            );
+                            !family.members.iter().any(|member| member.callable == callable)
+                                || family.members.iter().any(|member| {
+                                    member.target == plan.target && member.callable == callable
+                                })
+                        })
                 })
                 .collect::<Vec<_>>();
             // A template can supply many distinct closed requirements, never
