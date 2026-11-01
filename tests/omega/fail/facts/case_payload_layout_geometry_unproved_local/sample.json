@@ -3,6 +3,6 @@
   "entry": "main.omg",
   "rejection_contains": [
     "scalar range condition",
-    "bounds [-1, -1] lie outside [0, 18446744073709551615]"
+    "bounds [-4, -4] lie outside [0, 18446744073709551615]"
   ]
 }

@@ -35,23 +35,36 @@ must reject even when no executable body reads that constant.
 
 ## Current evidence
 
-Optimized Linux x86_64 producer `47e16a76404460206b0a7382be7b93dd3d3de6db`,
-image `46349017e1955bd3102a8ac99497818bd07e85fdc398520b63d286abb4aeb892`,
-executes the complete root (including alias extent/alignment queries), the ordinary
-static-alias generic call, and the existing nominal size-query positive. All three
-agree between native and Terminal execution. The five schema/policy/copy-bound
-controls reject as intended. Pilot 41274535924 took 822.814 seconds to prepare the
-optimized producer and 35.463 seconds for its selected case stage.
+Optimized Linux x86_64 producer `4e6a0f454c1c57634066be59be9d2a4c2a64fe05`,
+image `651947e3b3ce37e7b2dce51abd43c5c1e35bc26a698a39af14087b07edf3d574`,
+executes the complete root and the existing nominal size-query local with native
+and Terminal exit 0. Pilot [41277462630](https://github.com/CathedralOS/Omega/actions/runs/41277462630)
+reused the identical producer bytes: preparation 170.904 seconds, checking 16.822
+seconds, and native/Terminal execution 13.959 seconds.
 
-The same run exposed two remaining arithmetic failures: the existing nominal
-subtraction control was accepted, and the unused initializer reached an internal
-malformed-operation refusal. Source formation must remain independent of runtime
-body publication, and ready scalar obligations must reject before executing a
-root that would overflow. The two frozen programs retain their arithmetic;
-their expected messages name the canonical target-closure range refusal for
-`[-1, -1]` outside the `u64` bounds. Fixes and affected execution are pending;
-this pilot is not an overall pass. Earlier query-free Mac ARM64 diagnostic
-observations remain historical and are not qualification of the full witness.
+The same producer's [four-case observation](https://github.com/CathedralOS/Omega/actions/runs/41276586247)
+checks both positives and rejects both arithmetic controls. The unused initializer
+produces bounds `[-1, -1]`; the payloadless nominal sum uses a four-byte tag, so
+its subtraction produces `[-4, -4]`. Both refuse values outside the `u64` bounds.
+The nominal expected message initially assumed `-1`; it now matches the saved
+exact `-4` refusal. Program sources and obligations are unchanged. That workflow
+remains recorded as failed because of the old expectation; its actual refusals
+are reused, not relabeled as a green workflow. Preparation was 570.377 seconds
+and checking 24.038 seconds.
+
+The ordinary static-alias generic positive/copy-bound twin and the four
+schema/policy controls retain their passing observations from optimized producer
+`47e16a76404460206b0a7382be7b93dd3d3de6db`, image
+`46349017e1955bd3102a8ac99497818bd07e85fdc398520b63d286abb4aeb892`, in
+[pilot 41274535924](https://github.com/CathedralOS/Omega/actions/runs/41274535924).
+The later changes affect deferred scalar formation and evaluation ordering;
+these unchanged cases contain no deferred layout-query arithmetic. Their alias
+admission, policy geometry and incompatibility judgments are unchanged. That
+first workflow's accepted arithmetic negative and internal initializer error
+remain historical failures, repaired by the later producer.
+
+New focused Rust unit cases were not executed. Earlier query-free Mac ARM64
+diagnostics are historical, not qualification of this complete root.
 
 The nine transport places, complete nested C records/platform migration,
 other-host execution and the parent capability remain open. The installed
