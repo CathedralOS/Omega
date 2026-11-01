@@ -296,7 +296,14 @@ fn append_sources(
         return false;
     }
     let mut instantiated = applications.to_vec();
-    instantiated.push(reference);
+    // A bare family has an existential index pack, not a supplying
+    // application. Its fixed fields remain known without inventing actuals.
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Generic { .. }
+    ) {
+        instantiated.push(reference);
+    }
     visiting.push((definition_symbol, size));
     let mut complete = true;
     for member in program.data_members(definition) {
