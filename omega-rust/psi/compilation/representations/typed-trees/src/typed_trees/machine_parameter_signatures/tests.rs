@@ -19,7 +19,7 @@ fn children(
             owner,
             members
                 .iter()
-                .map(|(kind, name)| (*kind, SymbolNameRef::Static(*name))),
+                .map(|(kind, name)| (*kind, SymbolNameRef::Static(name))),
         )
         .handles()
         .collect()
