@@ -131,7 +131,9 @@ the archived paths. This lets a fresh branch reuse main's compatible Cargo
 objects instead of starting a private cold cache. Windows pilots retain their
 own namespace because their runner image differs. Restored objects still pass
 Cargo's locked content-freshness checks and the gate authenticates the actual
-optimized executable before running its selected witnesses.
+optimized executable before running its selected witnesses. Changes to the pinned
+toolchain, lockfile or root manifest select a new cache; Cargo rebuilds changed
+compiler inputs.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
 or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
