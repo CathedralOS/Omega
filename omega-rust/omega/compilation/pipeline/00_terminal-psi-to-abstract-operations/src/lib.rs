@@ -54,7 +54,7 @@ pub use native_admission::{
 };
 pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
-    NativeCallbackArgumentProposal,
+    NativeCallbackArgumentProposal, SettledCompilerBuiltin,
 };
 pub use retained_terminal::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,

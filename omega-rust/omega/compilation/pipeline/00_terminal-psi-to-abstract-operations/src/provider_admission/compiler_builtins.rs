@@ -17,8 +17,11 @@
 //! shape cannot stand in.
 
 mod access_schema;
+mod catalog;
 mod proposals;
 mod retained;
+
+pub use catalog::SettledCompilerBuiltin;
 
 pub use proposals::CompilerIntrinsicPlanProvenance;
 pub(crate) use proposals::derive_selected_intrinsic_settlement_proposals;
@@ -91,11 +94,12 @@ pub(super) fn settle_compiler_builtins<'request>(
         let requirement = proposal.requirement_identity;
         let TerminalCompilerBuiltinSettlement::Execution {
             identity: mechanism,
-            execution,
+            execution: settled,
         } = proposal.settlement
         else {
             unreachable!("unsettled compiler-builtin proposals were refused above");
         };
+        let execution = settled.execution();
         let boundary = terminal_psi::find_boundary_machine(
             &input.plan().boundary_machines,
             proposal.boundary,
@@ -277,7 +281,7 @@ pub(super) fn settle_compiler_builtins<'request>(
         };
         admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
-            execution: AdmittedBoundaryExecution::CompilerBuiltin(execution),
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
             realization: BoundarySettlementRealization::Builtin(realization),
         });
         mechanisms.push(AdmittedTerminalMechanism {
@@ -299,14 +303,14 @@ fn admit_x86_fma_features(
     };
     let mut diagnostics = Vec::new();
     for proposal in request.compiler_builtins {
-        let TerminalCompilerBuiltinSettlement::Execution {
-            execution:
-                CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                    operation: target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd,
-                    format,
-                },
-            ..
-        } = proposal.settlement
+        let TerminalCompilerBuiltinSettlement::Execution { execution, .. } = proposal.settlement
+        else {
+            continue;
+        };
+        let CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+            operation: target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd,
+            format,
+        } = execution.execution()
         else {
             continue;
         };
