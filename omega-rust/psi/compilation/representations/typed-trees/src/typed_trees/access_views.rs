@@ -289,9 +289,10 @@ pub struct PlanLaidLayout {
     pub realizations: PlanLaidRealizations,
 }
 
-/// Versioned record input of the compiler-owned Schema ABI. Version 3
+/// Versioned record input of the compiler-owned Schema ABI. Version 4
 /// canonically orders numbered fields and retired identities independently of
-/// the semantic declaration/geometry roster; unused rows are padded.
+/// the semantic declaration/geometry roster and retains each field's geometry
+/// source; unused rows are padded.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidSchemaArgument {
     pub abi_version: u16,
@@ -312,6 +313,15 @@ pub struct PlanLaidSchemaField {
     pub byte_size: u64,
     pub byte_alignment: u64,
     pub kind: PlanLaidSchemaFieldKind,
+    pub layout_source: PlanLaidFieldLayoutSource,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum PlanLaidFieldLayoutSource {
+    #[default]
+    Default,
+    Scalar,
+    Explicit,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]

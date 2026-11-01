@@ -17,6 +17,35 @@ pub struct LayoutStorageArguments {
 }
 
 impl TypedTrees {
+    /// Exact origin of reflected geometry. Arrays preserve their element's
+    /// origin; a selected representation stops the walk. In particular, an
+    /// aggregate or reference does not acquire its child's representation.
+    pub fn field_layout_source(
+        &self,
+        mut reference: TypeReferenceHandle,
+    ) -> crate::PlanLaidFieldLayoutSource {
+        loop {
+            if self.primitive_type_reference(reference).is_some() {
+                return crate::PlanLaidFieldLayoutSource::Scalar;
+            }
+            reference = self
+                .type_reference_table
+                .unconstrained_type_reference(reference);
+            if self.layout_storage_arguments(reference).is_some()
+                && self.plan_laid_layout_for_type(reference).is_some()
+            {
+                return crate::PlanLaidFieldLayoutSource::Explicit;
+            }
+            match self.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: crate::types::FixedArrayLength::Literal(_),
+                } => reference = *element_type,
+                _ => return crate::PlanLaidFieldLayoutSource::Default,
+            }
+        }
+    }
+
     /// Nominal data coordinate used by native callback layout identity. A
     /// compiler-generated closed instance keeps its original application;
     /// spelling or arena allocation order never supplies a replacement.
