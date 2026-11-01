@@ -44,7 +44,8 @@ pub mod provider_declarations;
 mod reflection;
 mod scalar_applications;
 pub use scalar_applications::{
-    ScalarScopeEvaluation, complete_scalar_applications, evaluate_scalar_applications,
+    ScalarScopeEvaluation, complete_scalar_applications, complete_scalar_invocation,
+    evaluate_scalar_applications,
 };
 mod syntax_probes;
 mod unique;

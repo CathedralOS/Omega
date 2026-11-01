@@ -57,6 +57,8 @@ pub(super) fn discover(
                 ),
                 ScalarApplication::Evaluate { entry, .. } => {
                     let machine = observations.entry(application)?;
+                    conditions.include_evaluation_entry(machine)?;
+                    extend_unique(&mut demanded, conditions.applications()?);
                     let installation = program
                         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
                             entry: Some(*entry),

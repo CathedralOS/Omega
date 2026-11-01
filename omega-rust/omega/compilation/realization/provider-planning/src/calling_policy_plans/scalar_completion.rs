@@ -24,16 +24,32 @@ pub(super) fn complete(
     let requirements = program
         .execution_requirements(Some(installation))
         .map_err(|error| format!("calling policy scalar demands: {error:?}"))?;
+    let entry = program
+        .entry_installed(installation)
+        .map_err(|error| format!("calling policy scalar entry: {error:?}"))?;
+    let root = artifact
+        .view()
+        .module()
+        .scalar_applications
+        .proof_scope
+        .callable_declaration(terminal_psi::TargetMachineCallable::Machine(entry.machine))
+        .ok_or("calling policy entry has no exact checked proof declaration")?;
+    let mut demanded = requirements.scalar_applications;
+    for application in requirements.scalar_entry_conditions {
+        if !demanded.contains(&application) {
+            demanded.push(application);
+        }
+    }
     let providers = terminal_installation::admit_provider_installation(artifact.view(), &[], &[])
         .map_err(|error| format!("calling policy scalar providers: {error:?}"))?;
     // The same activation sponsors completion and execution, so scalar jobs
     // consume its actual fuel/storage allowance rather than running for free.
     let mut accounting = SourceCompletionAccounting::default();
-    build_time_evaluation::complete_scalar_applications(
+    build_time_evaluation::complete_scalar_invocation(
         artifact,
         target.target_name(),
-        None,
-        &requirements.scalar_applications,
+        &[root],
+        &demanded,
         Some(account),
         &mut accounting,
         |scope| {

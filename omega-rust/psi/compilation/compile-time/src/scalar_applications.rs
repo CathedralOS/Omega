@@ -33,6 +33,12 @@ pub struct ScalarScopeEvaluation {
     pub layout_target: terminal_installation::LayoutTargetFacts,
 }
 
+#[derive(Clone, Copy)]
+enum CompletionRequest<'request> {
+    Source(Option<&'request [String]>),
+    Invocation(&'request [terminal_psi::ProofDeclarationId]),
+}
+
 /// Complete all authored proof scopes without changing the shared artifact.
 /// Explicit consumer demand belongs only to the primary value scope; other
 /// scopes execute the dependencies of their own retained obligations.
@@ -43,13 +49,56 @@ pub fn complete_scalar_applications(
     requested: &[ScalarApplicationId],
     sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     accounting: &mut crate::SourceCompletionAccounting,
+    select: impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
+) -> Result<terminal_installation::AdmittedScalarApplications, String> {
+    complete_request(
+        artifact,
+        primary,
+        CompletionRequest::Source(deployment_scopes),
+        requested,
+        sponsor,
+        accounting,
+        select,
+    )
+}
+
+/// Complete only the exact invocation and the scalar jobs it actually needs.
+/// This restricted receipt does not establish whole-source declaration
+/// formation; the ordinary Product admission must still finish that judgment.
+pub fn complete_scalar_invocation(
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    target: &str,
+    roots: &[terminal_psi::ProofDeclarationId],
+    requested: &[ScalarApplicationId],
+    sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    accounting: &mut crate::SourceCompletionAccounting,
+    select: impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
+) -> Result<terminal_installation::AdmittedScalarApplications, String> {
+    complete_request(
+        artifact,
+        target,
+        CompletionRequest::Invocation(roots),
+        requested,
+        sponsor,
+        accounting,
+        select,
+    )
+}
+
+fn complete_request(
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    primary: &str,
+    request: CompletionRequest<'_>,
+    requested: &[ScalarApplicationId],
+    sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    accounting: &mut crate::SourceCompletionAccounting,
     mut select: impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
     let mut records = Vec::new();
     let result = complete_scopes(
         artifact,
         primary,
-        deployment_scopes,
+        request,
         requested,
         sponsor,
         &mut records,
@@ -63,30 +112,49 @@ pub fn complete_scalar_applications(
 fn complete_scopes(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     primary: &str,
-    deployment_scopes: Option<&[String]>,
+    request: CompletionRequest<'_>,
     requested: &[ScalarApplicationId],
     sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
     records: &mut Vec<CanonicalScalarEvaluationReceipt>,
     select: &mut impl FnMut(&str) -> Result<ScalarScopeEvaluation, String>,
 ) -> Result<terminal_installation::AdmittedScalarApplications, String> {
-    let mut closure = ScalarApplicationClosure::new(artifact.view(), primary);
-    if let Some(scopes) = deployment_scopes {
-        closure = closure.with_deployment_scopes(scopes);
-    }
+    let mut closure = match request {
+        CompletionRequest::Source(scopes) => {
+            let source = ScalarApplicationClosure::new(artifact.view(), primary);
+            if let Some(scopes) = scopes {
+                source.with_deployment_scopes(scopes)
+            } else {
+                source
+            }
+        }
+        CompletionRequest::Invocation(roots) => {
+            ScalarApplicationClosure::for_invocation(artifact.view(), primary, roots)
+        }
+    };
     let scopes = closure.scopes().map(str::to_owned).collect::<Vec<_>>();
     for scope in scopes {
         let selected = select(&scope)?;
         if selected.targets.target() != scope {
             return Err("scalar evaluation selected a different authored scope".into());
         }
-        let mut observations = ScalarApplicationObservations::new(
+        let observations = ScalarApplicationObservations::new(
             artifact.view(),
             &selected.targets,
             &selected.providers,
             &selected.layout_target,
         )?
-        .with_target_carriers(selected.carrier_layout)
-        .with_application_roots(selected.application_roots.as_deref())?;
+        .with_target_carriers(selected.carrier_layout);
+        let mut observations = match request {
+            CompletionRequest::Source(_) => {
+                observations.with_application_roots(selected.application_roots.as_deref())?
+            }
+            CompletionRequest::Invocation(roots) => {
+                if selected.application_roots.is_some() {
+                    return Err("scalar invocation received source deployment roots".into());
+                }
+                observations.with_invocation_roots(roots)?
+            }
+        };
         let demand = if scope == primary { requested } else { &[] };
         let input = crate::evaluation_accounting::CanonicalScalarScope::capture(
             artifact,

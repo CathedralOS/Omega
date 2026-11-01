@@ -30,6 +30,17 @@ pub use closure::{
     AdmittedScalarApplications, ScalarAddressModel, ScalarApplicationClosure, ScalarScopeInputs,
 };
 
+/// Source admission owes every ground declaration, even with selected Build
+/// roots. An auxiliary invocation owes its reached code and descriptive
+/// dependencies; it cannot certify the rest of the shared source program.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+enum ScalarConditionScope {
+    #[default]
+    Source,
+    SourceRoots(Vec<terminal_psi::ProofDeclarationId>),
+    Invocation(Vec<terminal_psi::ProofDeclarationId>),
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct ApplicationObservations {
     value: Option<TerminalScalarValue>,
@@ -55,7 +66,7 @@ pub struct ScalarApplicationObservations<'artifact> {
     layouts: AdmittedTargetLayouts,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     applications: std::sync::Arc<Arena<ApplicationObservations>>,
-    application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
+    condition_scope: ScalarConditionScope,
 }
 
 /// Immutable provisional inputs to one evaluation. Cloning shares the retained
@@ -124,7 +135,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             layouts,
             carrier_layout: None,
             applications: std::sync::Arc::new(applications),
-            application_roots: None,
+            condition_scope: ScalarConditionScope::Source,
         })
     }
 
@@ -193,7 +204,33 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                 declarations.push(owner);
             }
         }
-        self.application_roots = Some(declarations);
+        self.condition_scope = ScalarConditionScope::SourceRoots(declarations);
+        Ok(self)
+    }
+
+    /// Select one invocation without promoting dormant Product bodies or
+    /// unrelated declaration formation into this execution's prerequisites.
+    pub fn with_invocation_roots(
+        mut self,
+        roots: &[terminal_psi::ProofDeclarationId],
+    ) -> Result<Self, String> {
+        if roots.is_empty() {
+            return Err("scalar invocation has no checked entry root".into());
+        }
+        let scope = &self.artifact.module().scalar_applications.proof_scope;
+        let mut declarations = Vec::with_capacity(roots.len());
+        for &root in roots {
+            if !matches!(
+                scope.declaration(root),
+                Some(terminal_psi::ProofScopeDeclaration::Callable(_))
+            ) {
+                return Err("scalar invocation root has no exact checked proof declaration".into());
+            }
+            if !declarations.contains(&root) {
+                declarations.push(root);
+            }
+        }
+        self.condition_scope = ScalarConditionScope::Invocation(declarations);
         Ok(self)
     }
 
@@ -221,7 +258,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                     .map(|binding| (binding.required, binding.implementation)),
             ),
             demanded,
-            self.application_roots.as_deref(),
+            &self.condition_scope,
         )
     }
 

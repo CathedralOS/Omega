@@ -1,0 +1,2 @@
+constant invocation of `bounded` failed checking
+structurally false (`7 <= 6`)
