@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "data `ByteParcel` case `Byte` literal violates the case constraint"
+    "data `ByteParcel` literal violates the default domain: a `where` fact evaluates FALSE at this construction"
   ]
 }
