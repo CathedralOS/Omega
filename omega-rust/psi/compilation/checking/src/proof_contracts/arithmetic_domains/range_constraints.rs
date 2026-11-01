@@ -75,13 +75,22 @@ impl IntegerValueObservation<'_> {
         else {
             return false;
         };
+        // Each end is an independent obligation. An end the interval already
+        // proved (including standing `where` reader facts) is not re-judged:
+        // a completed observation may name a fresh captured read that carries
+        // no `where` range, so re-proving that end would refuse a store whose
+        // bound was already established.
+        let unproved = Interval {
+            low: if lower_proven { None } else { stated.low },
+            high: if upper_proven { None } else { stated.high },
+        };
         crate::proof_contracts::contract_entailment::completed_value_fits_integer_interval(
             program,
             self.machine,
             state,
             statement_index,
             self.expression,
-            stated,
+            unproved,
         )
     }
 }

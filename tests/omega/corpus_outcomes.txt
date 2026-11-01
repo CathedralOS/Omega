@@ -1199,6 +1199,8 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	generic data `Access` expected 0 arguments but got 2
 	data `AccessPlan` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	duplicate data `Access`
+fail/machines/private_where_store_through_cycle_control rejected 1737ms expected @ba463c24b333+wt
+	machine `next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
 fail/proofs/exact_widening_without_source_bound rejected 991ms expected @b80d7416b671+wt
@@ -11537,6 +11539,7 @@ pass/machines/private_frontier_guarded_trapping_payload_exit checked 3464ms chec
 pass/machines/private_trapping_closed_division_exit checked 3440ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/private_trapping_proven_safe_exit checked 4156ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/private_trapping_signed_pair_excluded_exit checked 3920ms check-target:macos_arm64 @ccdb99ca2214
+pass/machines/private_where_store_through_cycle_exit checked 6663ms check-target:macos_arm64 @ba463c24b333+wt
 pass/machines/runtime_explicit_data_parameter_exit checked 3701ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/static_namespace_constant_exit checked 3171ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/write_state_forward checked 3066ms @ccdb99ca2214
