@@ -115,10 +115,15 @@ fn expand_replicated_leaves(
     count: usize,
     stride: usize,
 ) -> Option<Vec<MutableRecordLeaf>> {
+    let leaf_count = element.leaves.len().checked_mul(count)?;
+    if leaf_count > MAX_RECAST_REPRESENTATION_WORK {
+        return None;
+    }
+    if leaf_count == 0 {
+        return Some(Vec::new());
+    }
     let mut leaves = Vec::new();
-    leaves
-        .try_reserve_exact(element.leaves.len().checked_mul(count)?)
-        .ok()?;
+    leaves.try_reserve_exact(leaf_count).ok()?;
     for index in 0..count {
         let base = stride.checked_mul(index)?;
         for leaf in &element.leaves {
