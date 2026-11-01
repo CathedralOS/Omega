@@ -13,19 +13,24 @@ fn parameters<'a>(
     program: &'a dyn crate::CheckingInput,
     application: &ProductOperandApplication,
 ) -> Option<(&'a str, &'a [typed_trees::data::TypeParameter])> {
+    // Build describes Product declarations without rooting their bodies in its
+    // execution census. The exact declared telescope and its table therefore
+    // belong to the designated immutable Product frontier, not active Build.
+    // Actuals and their formation recipes are still checked in the caller.
+    let declarations = program.typed_program().product_declarations();
     match application.role? {
         ProductOperandRole::BoundarySubject => {
-            let definition = program.trait_definition_by_symbol(application.declaration)?;
+            let definition = declarations.trait_definition_by_symbol(application.declaration)?;
             Some((
                 definition.name.as_str(),
-                program.trait_type_parameters(definition),
+                declarations.trait_type_parameters(definition),
             ))
         }
         ProductOperandRole::Provider => {
-            let definition = program.conformance_by_symbol(application.declaration)?;
+            let definition = declarations.conformance_by_symbol(application.declaration)?;
             Some((
-                program.symbols.name(definition.symbol),
-                program.conformance_type_parameters(definition),
+                declarations.symbols.name(definition.symbol),
+                declarations.conformance_type_parameters(definition),
             ))
         }
         _ => None,

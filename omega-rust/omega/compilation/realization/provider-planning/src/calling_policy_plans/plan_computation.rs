@@ -25,9 +25,13 @@ pub(crate) fn evaluate_default_calling_applications(
         let canonical = program.materialize_default(declaration, target)?;
         let signature = &canonical.policy;
         let geometry = &signature.geometry;
-        if dispatch_only_parameter_count > geometry.parameters.len() {
-            return Err("default calling plan removes more dispatch formals than declared".into());
-        }
+        let dispatch_only_parameter_count = u32::try_from(dispatch_only_parameter_count)
+            .map_err(|_| "default dispatch prefix exceeds u32")?;
+        let projection = calling_conventions::NativeCallProjection::new(
+            signature.native_parameters()?,
+            geometry.parameters.len(),
+            dispatch_only_parameter_count,
+        )?;
         let graph = calling_conventions::BoundaryValueGraph {
             shapes: &geometry.shapes,
             fields: &geometry.fields,
@@ -35,16 +39,7 @@ pub(crate) fn evaluate_default_calling_applications(
         // Dispatch formals retain their public identities but do not occupy a
         // callee argument. Native-only callback lanes are never removed here.
         let mut parameters = Vec::new();
-        for parameter in signature.native_parameters()? {
-            if let calling_conventions::BoundaryNativeParameterOrigin::SemanticFormal {
-                formal_ordinal,
-            } = parameter.origin
-                && usize::try_from(formal_ordinal)
-                    .map_err(|_| "calling formal ordinal exceeds usize")?
-                    < dispatch_only_parameter_count
-            {
-                continue;
-            }
+        for parameter in projection.parameters() {
             let shape = match parameter.shape {
                 calling_conventions::BoundaryNativeParameterShape::Semantic(root) => {
                     graph.classify(root, policy)?
@@ -83,7 +78,8 @@ pub(crate) fn evaluate_default_calling_applications(
             movement.movement(
                 representation.shape_root,
                 &validated,
-                dispatch_only_parameter_count,
+                usize::try_from(dispatch_only_parameter_count)
+                    .map_err(|_| "default dispatch prefix exceeds usize")?,
             )?;
         }
         let mut application = calling_conventions::BoundaryCallingApplication {
@@ -93,6 +89,7 @@ pub(crate) fn evaluate_default_calling_applications(
             report_fingerprint: 0,
             commitment: [0; 32],
             plan: validated,
+            dispatch_only_parameter_count,
             signature: geometry.clone(),
             opaque_applications: canonical.opaque_uses.iter().map(|occurrence| {
                 let selected = &occurrence.application;

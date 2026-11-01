@@ -261,6 +261,11 @@ impl RetainedComponentNativeInputs {
                 "component import",
             )?;
             for application in [producer, receiver] {
+                if application.dispatch_only_parameter_count != 0 {
+                    return Err(
+                        "component calling application cannot omit dispatch-only formals".into(),
+                    );
+                }
                 if application.recomputed_commitment()? != application.commitment {
                     return Err(format!(
                         "component calling application for `{requirement}` has a stale commitment"

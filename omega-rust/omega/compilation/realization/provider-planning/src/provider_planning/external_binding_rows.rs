@@ -82,7 +82,11 @@ impl ExternalBindingContext<'_> {
         let profile = match name {
             Some(name) => target::TargetProfile::from_canonical_target_name(name)
                 .map_err(|error| vec![error])?,
-            None => target::TargetProfile::host(),
+            None => {
+                return Err(vec![Diagnostic::error(
+                    "external ABI requires an exact deployment profile",
+                )]);
+            }
         };
         if profile.native_target() != self.native_target {
             return Err(vec![Diagnostic::error(

@@ -29,6 +29,9 @@ pub struct BoundaryCallingApplication {
     pub report_fingerprint: u64,
     pub commitment: [u8; 32],
     pub plan: ValidatedBoundaryEntryPlan,
+    /// Semantic prefix used to locate a table, never passed to its callee.
+    /// Public telescope ordinals remain unchanged; native-only lanes survive.
+    pub dispatch_only_parameter_count: u32,
     pub signature: BoundarySignatureGeometry,
     pub opaque_applications: Vec<BoundaryOpaqueApplication>,
     /// Complete producer context, including binders and demands whose absence
@@ -51,6 +54,103 @@ pub struct BoundarySignatureGeometry {
     pub callback_layout_rows: HandleSpan<BoundaryCallbackLayout>,
     pub callback_bindings: Arena<BoundaryCallbackBinding>,
     pub callback_binding_rows: HandleSpan<BoundaryCallbackBinding>,
+}
+
+/// Validated public-native to physical-call projection. Only a semantic prefix
+/// can be omitted; callback lanes keep their declared order and identity.
+pub struct NativeCallProjection<'geometry> {
+    parameters: &'geometry [BoundaryNativeParameterGeometry],
+    dispatch_only_parameter_count: u32,
+}
+
+impl<'geometry> NativeCallProjection<'geometry> {
+    pub fn new(
+        parameters: &'geometry [BoundaryNativeParameterGeometry],
+        semantic_parameter_count: usize,
+        dispatch_only_parameter_count: u32,
+    ) -> Result<Self, String> {
+        let dispatch_count = usize::try_from(dispatch_only_parameter_count)
+            .map_err(|_| "dispatch prefix exceeds usize")?;
+        if dispatch_count > semantic_parameter_count {
+            return Err("dispatch prefix exceeds the public semantic telescope".into());
+        }
+        let mut semantic_seen = vec![false; semantic_parameter_count];
+        for (ordinal, parameter) in parameters.iter().enumerate() {
+            if usize::try_from(parameter.native_ordinal).ok() != Some(ordinal)
+                || parameters[..ordinal]
+                    .iter()
+                    .any(|prior| prior.identity == parameter.identity)
+            {
+                return Err(
+                    "native call projection repeats an identity or changes row order".into(),
+                );
+            }
+            if let crate::BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } =
+                parameter.origin
+            {
+                let seen = semantic_seen
+                    .get_mut(
+                        usize::try_from(formal_ordinal)
+                            .map_err(|_| "semantic formal exceeds usize")?,
+                    )
+                    .ok_or("native call projection has an out-of-range semantic formal")?;
+                if std::mem::replace(seen, true) {
+                    return Err("native call projection repeats a semantic formal".into());
+                }
+            }
+        }
+        if semantic_seen.contains(&false) {
+            return Err("native call projection lost a public semantic formal".into());
+        }
+        Ok(Self {
+            parameters,
+            dispatch_only_parameter_count,
+        })
+    }
+
+    fn is_dispatch_only(&self, parameter: &BoundaryNativeParameterGeometry) -> bool {
+        matches!(parameter.origin,
+            crate::BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal }
+            if formal_ordinal < self.dispatch_only_parameter_count)
+    }
+
+    pub fn parameters(
+        &self,
+    ) -> impl Iterator<Item = &'geometry BoundaryNativeParameterGeometry> + '_ {
+        self.parameters
+            .iter()
+            .filter(|parameter| !self.is_dispatch_only(parameter))
+    }
+
+    pub fn parameter_ordinal(&self, public_ordinal: u32) -> Result<Option<usize>, String> {
+        let ordinal =
+            usize::try_from(public_ordinal).map_err(|_| "native ordinal exceeds usize")?;
+        let parameter = self
+            .parameters
+            .get(ordinal)
+            .ok_or("native ordinal is outside the public telescope")?;
+        if self.is_dispatch_only(parameter) {
+            return Ok(None);
+        }
+        let omitted = self.parameters[..ordinal]
+            .iter()
+            .filter(|parameter| self.is_dispatch_only(parameter))
+            .count();
+        Ok(Some(ordinal - omitted))
+    }
+}
+
+impl BoundaryCallingApplication {
+    pub fn call_projection(&self) -> Result<NativeCallProjection<'_>, String> {
+        NativeCallProjection::new(
+            self.signature
+                .native_parameters
+                .span(self.signature.native_parameter_rows)
+                .ok_or("calling application has stale native telescope storage")?,
+            self.signature.parameters.len(),
+            self.dispatch_only_parameter_count,
+        )
+    }
 }
 
 /// Exact source binder correspondence retained by the calling-policy producer.

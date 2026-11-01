@@ -162,28 +162,15 @@ impl BoundaryOpaqueMovementGeometry<'_> {
                     matching.len(),
                 ));
             };
-            if usize::try_from(formal_ordinal).map_err(|_| "opaque formal ordinal exceeds usize")?
-                < dispatch_only_parameter_count
-            {
-                return Err("opaque occurrence belongs to a dispatch-only formal".into());
-            }
-            // Public native ordinals remain ABI identity. The wire plan omits
-            // dispatch-only semantic formals, but not native-only callbacks.
-            let removed = self
-                .native_parameters
-                .iter()
-                .filter(|parameter| {
-                    parameter.native_ordinal < native.native_ordinal
-                        && matches!(parameter.origin,
-                        BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal }
-                        if usize::try_from(formal_ordinal).is_ok_and(|ordinal|
-                            ordinal < dispatch_only_parameter_count))
-                })
-                .count();
-            let wire_ordinal = usize::try_from(native.native_ordinal)
-                .map_err(|_| "opaque native ordinal exceeds usize")?
-                .checked_sub(removed)
-                .ok_or("opaque movement has an invalid public-to-wire projection")?;
+            let projection = calling_conventions::NativeCallProjection::new(
+                self.native_parameters,
+                self.parameters.len(),
+                u32::try_from(dispatch_only_parameter_count)
+                    .map_err(|_| "dispatch prefix exceeds u32")?,
+            )?;
+            let wire_ordinal = projection
+                .parameter_ordinal(native.native_ordinal)?
+                .ok_or("opaque occurrence belongs to a dispatch-only formal")?;
             let placement = validated
                 .plan()
                 .call
