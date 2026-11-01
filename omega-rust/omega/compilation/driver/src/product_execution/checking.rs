@@ -27,11 +27,16 @@ impl CheckingCompilation {
         report: ProductReportPlan,
         permissions: Option<TerminalPermissionAcceptance>,
     ) -> Self {
+        let selections = realization
+            .custody
+            .terminal_publication
+            .optimizations()
+            .clone();
         Self {
             realization,
             report,
             permissions,
-            selections: OptimizationSelections::default(),
+            selections,
         }
     }
 

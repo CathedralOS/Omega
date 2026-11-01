@@ -15,6 +15,119 @@ fn prepare(relative: &str) -> fixture_package_inputs::ReviewedFixtureCompilation
 }
 
 #[test]
+fn calling_policies_share_product_code_across_targets_and_single_target_outputs() {
+    use artifacts::compile_timings::counters;
+    let mut prepared = prepare("tests/omega/pass/build/terminal_calling_policy_execution/main.omg");
+    let profiles = ["macos_arm64", "linux_arm64"]
+        .map(|name| target::TargetProfile::from_omega_target_name(Some(name)).unwrap());
+    // One source input set admits both targets. Review Linux's exact entry as
+    // well: a macOS-only acceptance must not authorize a different target.
+    let linux = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &fixture_package_inputs::repo_root()
+            .join("tests/omega/pass/build/terminal_calling_policy_execution/main.omg"),
+        Some("linux_arm64"),
+    )
+    .expect("review Linux entry");
+    let inputs = prepared
+        .package_inputs
+        .take()
+        .expect("packaged policy fixture");
+    let mut bindings = inputs
+        .accepted_semantic_bindings()
+        .cloned()
+        .collect::<Vec<_>>();
+    for binding in linux
+        .package_inputs
+        .as_ref()
+        .expect("Linux package inputs")
+        .accepted_semantic_bindings()
+    {
+        if !bindings.contains(binding) {
+            bindings.push(binding.clone());
+        }
+    }
+    prepared.package_inputs = Some(
+        inputs
+            .with_accepted_semantic_bindings(bindings)
+            .expect("both reviewed target bindings belong to these exact source packages"),
+    );
+    let output = fixture_package_inputs::repo_root().join("build/shared-policy-publication");
+    let compile = |targets: &[target::TargetProfile]| {
+        let mut request = CompileRequest::for_targets(
+            prepared.root_path.clone(),
+            output.clone(),
+            targets.iter().copied().map(Some).collect(),
+        )
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+        if let Some(inputs) = &prepared.package_inputs {
+            request = request.with_package_inputs(inputs.clone());
+        }
+        omega_build::compile_sources(&mut CompilationSession::default(), request)
+            .expect("Product request")
+            .into_outcomes()
+            .into_iter()
+            .map(|outcome| {
+                let profile = outcome.target_profile().unwrap();
+                (
+                    profile,
+                    outcome
+                        .into_result()
+                        .expect("calling policy admits the target"),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let source_checks = counters::product_source_check_count();
+    let publications = counters::terminal_production_count();
+    let reports = compile(&profiles);
+    assert_eq!(
+        counters::product_source_check_count() - source_checks,
+        1,
+        "targets share one Product judgment"
+    );
+    assert_eq!(
+        counters::terminal_production_count() - publications,
+        1,
+        "policy activation must not compile a second code catalog"
+    );
+    assert_eq!(reports.len(), 2);
+    let first = reports[0]
+        .1
+        .retained_native_artifact()
+        .unwrap()
+        .psi_artifact();
+    let second = reports[1]
+        .1
+        .retained_native_artifact()
+        .unwrap()
+        .psi_artifact();
+    assert!(
+        std::ptr::eq(first, second),
+        "targets borrow the same published artifact, not equal copies"
+    );
+    for (profile, report) in reports {
+        let mut single = compile(&[profile]);
+        assert_eq!(single.len(), 1);
+        let (_, single) = single.pop().unwrap();
+        let actual = report.retained_native_artifact().unwrap();
+        let expected = single.retained_native_artifact().unwrap();
+        assert_eq!(
+            actual.psi_artifact(),
+            expected.psi_artifact(),
+            "shared and single-target code must be identical for {profile:?}"
+        );
+        assert_eq!(
+            actual.image().output().bytes,
+            expected.image().output().bytes,
+            "native bytes must not depend on a sibling target: {profile:?}"
+        );
+        if Some(profile) == target::TargetProfile::host_if_supported() {
+            joined_product_execution::execute_report(report, &output);
+        }
+    }
+}
+
+#[test]
 fn late_application_attachment_outlives_source_and_preserves_recovered_attribution() {
     // Descriptions escape this scope without borrowing the checked program.
     let (program, recovered, valid, invalid, source_owner) = {

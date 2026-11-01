@@ -11,6 +11,7 @@
 
 mod behavior_exclusions;
 mod calling_policy_code;
+mod product_code;
 mod terminal_artifact;
 pub(crate) use calling_policy_code::retain_calling_policy_code;
 
