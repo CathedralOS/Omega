@@ -295,10 +295,6 @@ retired-syntax deletions to completion.
       `cannot prove requires contract for call dyn Shape<1 argument>::code`
       because the runtime `width` that instantiates `Width` is not related to the
       caller's `requires width == 16 || width == 32`.
-    - Lower the call argument `Input { bytes: &main.packet }` that
-      `traits/runtime_dyn_stored_byte_input` builds in place: `Main::main`
-      refuses at statement 3 with `call operation: structural arguments:
-      retained temporary`, so the fixture stays `incomplete`.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including
