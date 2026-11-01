@@ -145,12 +145,12 @@ independent verifier; none is expendable to improve a timing number.
 
 ## Evidence and navigation
 
-`design-workloads.json` preserves successful and refused commands, input hashes,
-binary digest/profile and raw output. `design-attribution.json` binds the
-instrumented binary to the committed producer plus `instrumentation.patch`.
-`design-assembly.json` records symbol extents, relevant emitted clone calls,
+[`design-workloads.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/design-workloads.json) preserves successful and refused commands, input hashes,
+binary digest/profile and raw output. [`design-attribution.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/design-attribution.json) binds the
+instrumented binary to the committed producer plus [`instrumentation.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/instrumentation.patch).
+[`design-assembly.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/design-assembly.json) records symbol extents, relevant emitted clone calls,
 binary identity, command form and hardware reports. Library hashes are retained
-in the original `timings.json`; those sources remained unchanged.
+in the original [`timings.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_2026_10_22/timings.json); those sources remained unchanged.
 
 Source anchors are relative to
 `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/` at

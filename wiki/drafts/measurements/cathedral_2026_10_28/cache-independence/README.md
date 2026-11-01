@@ -8,7 +8,7 @@ cache soundness. No production compiler code changed in this round.
 The tested producer is the optimized `67358c0345be...` compiler used for the
 [Cathedral desktop boot](../full-boot/README.md). The compiler-switch control is
 the distinct optimized `fce1b143fc4c...` shared-UI producer. Full binary hashes
-and optimization profiles are in [result.json](result.json). The source base
+and optimization profiles are in [result.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/cache-independence/result.json). The source base
 before adding this gate is `abc9757e1e8`.
 
 ## Observations
@@ -56,7 +56,7 @@ with the final harness, adding two native executions. The existing
 test also passed through `mbx nextest run --release -p omega-build --test
 shared_compilation` (one test, exit zero).
 
-[observations.tar.gz](observations.tar.gz) retains commands, source snapshots,
+[observations.tar.gz](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/cache-independence/observations.tar.gz) retains commands, source snapshots,
 native hashes/results, diagnostics, counters, and focused test logs. It includes
 the exact harness for each run, bound to the recorded SHA256, and the final
 focused replay script. Native image bytes and producer binaries remain local;

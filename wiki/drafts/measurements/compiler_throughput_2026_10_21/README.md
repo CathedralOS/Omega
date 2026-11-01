@@ -57,7 +57,7 @@ relevant and why a cross-stage cache was not selected.
 Build and freeze the baseline and candidate CLI binaries as
 `build/throughput/omega-{baseline,candidate}`. Each binary must report its actual
 optimized build profile. Run `python3
-wiki/drafts/measurements/compiler_throughput_2026_10_21/measure.py` from the
+[wiki/drafts/measurements/compiler_throughput_2026_10_21/measure.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/measure.py)` from the
 repository root after builds and corpus runs finish. It imports the existing
 benchmark harness's process timing/RSS and output parsing functions, retains
 warmups, alternates producer order, records all trials and runs every emitted
@@ -128,18 +128,18 @@ Two frozen corpus runners measured the same fixtures and library closure with
 `OMEGA_CORPUS_RECORDS` naming each retained record file. The baseline runner
 contains only the temporary attribution probes over the baseline source, with
 profiling disabled; the candidate runner contains the final implementation and
-no probes. [Producer identities](identities.json) bind all executable digests
+no probes. [Producer identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/identities.json) bind all executable digests
 and their opt-level-1 profiles; patches retain the exact diagnostic builds.
 
-- [Source-check comparison](check-comparison.json): 1,053 discovered fixtures
-  selected by [filter.txt](filter.txt), zero lost or gained outcomes, and zero
+- [Source-check comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/check-comparison.json): 1,053 discovered fixtures
+  selected by [filter.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/filter.txt), zero lost or gained outcomes, and zero
   changed diagnostics. Both runs report 438 checked, 611 rejected and four
   incomplete. Existing baseline issues remain: 26 positive/run fixtures refuse
   or are incomplete, and eleven negative controls miss an expected diagnostic
   fragment. They are individually listed in the record. This is equivalence,
   not a claim that the entire selection passes.
-- [Native/Terminal comparison](both-comparison.json): 23 fixtures selected by
-  [both-filter.txt](both-filter.txt), zero outcome or diagnostic changes.
+- [Native/Terminal comparison](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/both-comparison.json): 23 fixtures selected by
+  [both-filter.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/both-filter.txt), zero outcome or diagnostic changes.
   Twenty-one actually run in both engines and agree at exit 0, including all
   nine length places and eight dynamic-selector places. The parameter place of
   the dynamic-selector row and the applied-binding-field-telescope fixture
@@ -151,8 +151,8 @@ and their opt-level-1 profiles; patches retain the exact diagnostic builds.
 Run `python3 wiki/drafts/measurements/compiler_throughput_2026_10_21/compare.py`
 to compare fresh records with the repository's outcome comparator plus exact
 diagnostic comparison. The raw `.records` files retain every observed failure.
-The final [paired observations](paired-final.json), [first batch](paired-first.json),
-[second batch](paired-second.json) and [summary](summary.json) retain timing
+The final [paired observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/paired-final.json), [first batch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/paired-first.json),
+[second batch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/paired-second.json) and [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_2026_10_21/summary.json) retain timing
 ranges, individual observations, CPU times where collected, source/producer
 identities, native hashes and exits. The exploratory benchmark is separate.
 On Windows, the same Python replay uses the benchmark harness's job-object memory

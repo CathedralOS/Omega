@@ -33,7 +33,7 @@ chronological compiler trace. Six ABBAAB observations give baseline median
 179.74 ms (173.76–230.39), candidate 57.07 ms (55.79–60.63): **68.2% less
 recording time**, about 3.15 times the throughput for this roster. Initialization
 is outside the timed region; source, executable and toolchain identities are
-retained in [probe inputs](probe-inputs.json) and [runs](probe-runs.json).
+retained in [probe inputs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/probe-inputs.json) and [runs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/probe-runs.json).
 
 The real compiler comparison uses identical temporary scopes, changing only
 the collector. All six observations preserve the stack32 native image and exit.
@@ -50,7 +50,7 @@ ordinary compilation from profiling-enabled observations.
 
 The initial assertion that every global event count must match failed:
 23 unrelated counts vary, including among unchanged baseline runs. Preserve
-[event-counts.json](event-counts.json), including that failed assumption. The
+[event-counts.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/event-counts.json), including that failed assumption. The
 fixed-input probe independently verifies exact collector totals; real-run
 comparisons require the matching report roster, matching target counts and
 native artifacts. Do not silently describe all global counts as identical.
@@ -62,9 +62,9 @@ The original run completed 27 native observations and then timed out (30 s)
 executing the dispatch candidate. Its image is byte-identical to the successful
 baseline. Six exact-image replays all exit 0 in 32-42 ms, and a fresh 12-run
 dispatch comparison passes without changing the timeout. The timeout cause is
-unresolved; keep the interrupted attempt in `comparison-runs.json` and
-`comparison.log`, with separate `native-replays.json` and
-`dispatch-recheck-runs.json`. No original failure is relabeled as a pass.
+unresolved; keep the interrupted attempt in [`comparison-runs.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/comparison-runs.json) and
+[`comparison.log`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/comparison.log), with separate [`native-replays.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/native-replays.json) and
+[`dispatch-recheck-runs.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/dispatch-recheck-runs.json). No original failure is relabeled as a pass.
 
 The table uses the completed original stack32/length lanes and the separate
 fresh dispatch lane, four unprofiled observations per variant per workload.
@@ -105,7 +105,7 @@ permission experiment record only. Submitted head
 `a9eef12470d433b980d4a9b5afa7c5e100b095d4` published as
 `66fc7ac3c97bfb21af2f79f90fa96757495e5bb1`. PR, merge-queue and post-merge
 smoke checks passed; fetched-main ancestry was verified. See
-[publication identities](publication.json). This new profiler change is a
+[publication identities](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/publication.json). This new profiler change is a
 separate local iteration; those CI results do not validate it.
 
 The next question remains operand capture/lifetime retention, now with lower
@@ -117,18 +117,18 @@ unprofiled compiler, or sum inclusive scopes into a promised speedup.
 ## Replay
 
 The [research log](research.md) records hypotheses, primary-source research,
-failed replay/count assumptions and their resolution. Apply `profiler.patch`
+failed replay/count assumptions and their resolution. Apply [`profiler.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/profiler.patch)
 to the fixed workbench source for the production candidate. Apply
-`diagnostic.patch` to either side only for the matched detailed-profile
+[`diagnostic.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/diagnostic.patch) to either side only for the matched detailed-profile
 comparison. Build with `mbx build -p omega --locked --target-dir
 build/pass-producer`, `MBX_LEARNED_INCREMENTAL=0`, and an absolute
 `MBX_CACHE_DIR` pointing to the retained `build/conjunction-flow/recovery-cache`.
 Keep each local build/test chain under one `tools/build_slot.py` hold.
 
-Use the existing `spill_loop_2026_10_28/ablate.py` for each six-run profile
-screen and `checking_simplification_2026_10_28/compare.py` for three-workload
+Use the existing [`spill_loop_2026_10_28/ablate.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/ablate.py) for each six-run profile
+screen and [`checking_simplification_2026_10_28/compare.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py) for three-workload
 production comparison. Arguments are `BASELINE CANDIDATE FRESH_OUTPUT`.
-The standalone `probe-baseline.rs` and `probe-candidate.rs` include their
+The standalone [`probe-baseline.rs`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/probe-baseline.rs) and [`probe-candidate.rs`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/flow_evaluation_2026_10_29/probe-candidate.rs) include their
 adjacent retained profiler sources; compile each with the pinned `rustc`,
 `--edition 2024 --crate-name profile_probe -C opt-level=1`, then run with
 `OMEGA_PHASE_PROFILE=1` in ABBAAB order. Their grouped input order is deliberate

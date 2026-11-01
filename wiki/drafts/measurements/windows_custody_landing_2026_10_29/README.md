@@ -60,8 +60,8 @@ process loaded its graph and had a prepared hit; no warm store was reported.
 Source-bound run `4f7e8d5e0ae34f5c996045cbe670001f` exited 0 without input
 invalidations; verified receipt SHA256:
 `37bf60f67c983b5d0ae091803e127dcc92f7770932d4b5337c759b2a22e68398`.
-[Unrounded results and resources](summary.json) and
-[532 source/build/receipt/raw records](evidence.json.gz) preserve the exact
+[Unrounded results and resources](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_custody_landing_2026_10_29/summary.json) and
+[532 source/build/receipt/raw records](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_custody_landing_2026_10_29/evidence.json.gz) preserve the exact
 fixed-source comparison. Original producer `3cd599` and its results retain
 their original identities; no newer compiler is inferred from those runs.
 
@@ -76,13 +76,13 @@ Windows author evidence recorded here.
 Published through [PR864](https://github.com/CathedralOS/Omega/pull/864) as
 `bc1ed575da8c741b6b464776ad326a85d506510f`. The exact source head matched,
 source and merge-group admission passed, and the published commit was verified
-as an ancestor of fetched main. [Publication readback](publication.json) keeps
+as an ancestor of fetched main. [Publication readback](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_custody_landing_2026_10_29/publication.json) keeps
 all producer/runtime identities separate. The exact post-merge smoke was
 canceled as superseded; a newer descendant smoke was pending at this readback.
 Neither is reported as a runtime pass. Continue on the warm local source;
 publication observation does not require another compiler build.
 
-A later [post-merge smoke readback](post-smoke.json) passed on descendant
+A later [post-merge smoke readback](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/windows_custody_landing_2026_10_29/post-smoke.json) passed on descendant
 `aa9e154379ffc5c15b58fc370605f51c2ab058a5`, with published-commit ancestry
 verified. This is observed Linux smoke at that descendant, not a relabeling of
 the canceled exact-publication run or full release/other-host qualification.

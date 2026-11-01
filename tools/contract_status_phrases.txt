@@ -1,0 +1,29 @@
+# Status phrasing ("not yet", "now passes", "exits N on <host>", an
+# "Implementation status" heading, ...) per contract file.
+# Written by `python tools/check_rules.py --update-status-phrases`.
+# Counts may only fall: put open work on its TASKS.md item, not in the contract.
+1 wiki/spec/build/compiler_request.md
+1 wiki/spec/build/component_publication.md
+1 wiki/spec/build/configuration.md
+1 wiki/spec/build/embedding.md
+1 wiki/spec/build/entry_roots.md
+1 wiki/spec/build/execution.md
+2 wiki/spec/build/external_roots.md
+1 wiki/spec/build/testing.md
+1 wiki/spec/language/conformances.md
+1 wiki/spec/language/counts_and_addresses.md
+1 wiki/spec/language/dependent_values.md
+1 wiki/spec/language/numeric_values.md
+1 wiki/spec/language/ownership.md
+1 wiki/spec/layouts/recasts.md
+1 wiki/spec/packages/resolver_security.md
+1 wiki/spec/packages/review.md
+3 wiki/spec/packages/topology.md
+1 wiki/spec/proofs/kernel_metatheory.md
+1 wiki/spec/resources/allocation.md
+1 wiki/spec/resources/bounded_input.md
+1 wiki/spec/terminal-psi/byte_views.md
+1 wiki/spec/terminal-psi/encoding.md
+1 wiki/spec/terminal-psi/fact_validity.md
+1 wiki/spec/terminal-psi/ownership.md
+1 wiki/spec/terminal-psi/product.md

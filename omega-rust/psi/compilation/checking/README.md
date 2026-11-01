@@ -172,6 +172,18 @@ Guard and entry-requirement readers check the selected equality or ordering
 before treating a literal or singleton field as a primitive bound. An authored
 `==` or `!=` supplies no builtin range or non-NaN fact merely through its spelling.
 
+Performed scalar stores use the frame owner's complete destination roster,
+including stored aliases and recasts. Parent predicates attach to the actual
+backing field, not the alias spelling. Runtime-prefix replay retains a formed
+exclusive reference as an opaque descriptor, then records later stores at their
+captured source coordinates. Value-preserving views retain the scalar value;
+other full-primitive views use the shared bit-interpretation term. Geometry
+alone cannot decode stored-width layouts or publish a source value.
+Readable nominal inputs retain separately authenticated entry scalar fields,
+so disjoint writes preserve a sibling's original facts while overlapping writes
+retire its current observation. These are entry premises, not executed reads,
+owned reference captures, or permission to observe a write-only referent.
+
 `struct_literals/guard_bounds.rs` passes the selected transition arm's numeric
 facts to constructor checks only for exact immutable owned inputs and builtin
 arithmetic. It validates field identities before narrowing. Unsupported operand

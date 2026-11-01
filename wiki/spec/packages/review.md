@@ -239,9 +239,9 @@ Ordinary trait implementation, boundary-trait
 implementation and operator overload are different requirement roles. Disclosure neither
 selects that provider nor proves its implementation satisfies the contract.
 
-The reference review schema still records legacy external declarations.
 `BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../TASKS.md#pipeline-route)
-owns the identity/capture migration; old records cannot be relabeled as direct
+owns the identity/capture migration of legacy external declarations in the
+review schema; old records cannot be relabeled as direct
 Build bindings without their exact intent and source custody.
 
 Provider selection, representation availability/selection/demand, and supplied

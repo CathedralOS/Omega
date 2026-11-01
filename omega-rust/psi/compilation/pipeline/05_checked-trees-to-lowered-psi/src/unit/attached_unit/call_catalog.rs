@@ -149,6 +149,7 @@ pub(super) fn discover(
     }
     // Scalar implementations a selection made in the closure can dispatch to.
     let mut dispatched_scalar_roots = Vec::new();
+    let mut known_candidates = Vec::new();
     loop {
         let closure = match retained_roots.split_first() {
             Some((root, additional)) => {
@@ -169,6 +170,7 @@ pub(super) fn discover(
             plans,
             &closure,
             &mut retained_boundary_roots,
+            &mut known_candidates,
         )?;
         // This catalog contains checked Omega bodies, not opaque realizations.
         // Their stores and atomic operations keep the same checked access and

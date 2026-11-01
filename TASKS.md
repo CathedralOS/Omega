@@ -195,26 +195,10 @@ retired-syntax deletions to completion.
     predicate handback with current storage versions, including `window_demo`'s
     guarded `pumped + 1` / `frame + 1` writes at the unchanged 16-message and
     60-frame bounds; preserve that sample's existing guards and operation.
-    [Captured storage bounds](samples/cli/facts/captured_storage_bounds/README.md)
-    establishes the nine-place captured-read prerequisite after disjoint writes;
-    full GUI qualification remains open.
-    [Invariant-window snapshots](samples/cli/facts/invariant_window_snapshot/README.md)
-    retain actual negative scalar values across restoration without importing
-    temporarily false mixed predicates, while preserving established entry
-    snapshots. Nine runnable places and nine false-domain twins cover ordinary
-    read-query availability. Scalar-recast source-domain restoration remains open:
-    a `u32` view of `pair.start` can store `0xFFFFFFFFu32` and leave the mixed
-    parent predicate false while Source checking accepts, on both baseline and
-    repair. Carry that alias write into the parent's restoration obligation.
-    [Guarded call entry](samples/cli/facts/guarded_call_entry/README.md) establishes
-    fresh referent guards and immutable scalar facts at opaque invocations across
-    the nine places, with nine fact-sensitive rejects and stale-storage controls.
-    It repairs the integrated `6c8950d4825` producer's refusal of the unchanged
-    `frame_fields` / `parse` guards after opaque callbacks in
-    [CompactBinary](source/library/std/wire.omg), without changing those callers
-    or callback contracts. WindowDemo now clears source checking and Terminal
-    production; ordinary package-policy review and native GUI execution remain
-    open, alongside the mixed-predicate restoration-window issue above.
+    Complete WindowDemo's ordinary package-policy review and native GUI
+    qualification; its authored message/frame bounds and guards remain the
+    acceptance. Scalar-range syntax migration and the remaining aggregate
+    handback obligations below are still open.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
@@ -249,9 +233,6 @@ retired-syntax deletions to completion.
   - Qualify matching-host execution for
     `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
     across remaining hosted targets.
-  - Retire authored `Trait::member = Existing::machine;` reference rows in the
-    Omega-written producer (`source/psi/parse/conformance.omg`, the syntax rows
-    and resolver binding they feed, and the `tests/psi` harnesses).
   - **STATELESS-PROVIDERS:** take `ForeignBinding::VtableField` vtable addresses
     from its foreign binding plan rather than provider data, and ensure no
     installation or interpretation route supplies an unauthored provider value
@@ -357,10 +338,9 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 63 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 5 facts spell it in all nine places
+    Frontier: 62 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 4 facts spell it in all nine places
     (`generic_calling_policy`,
-    `scalar_boundary_parameter`,
     `selected_provider_issuance`,
     `target_layout_derived_constant`,
     `target_scoped_constant_realization`).
@@ -521,6 +501,7 @@ narrows realization only.
     coordinators and stage tests, `name.as_str() == "string"` spelling checks
     are replaced by representation classes, and 256 MiB thread stacks are
     replaced by arena-handle worklists on platform default stacks.
+  - Remove stage vocabulary from shared product representations.
   Acceptance: a two-target integration fixture proves with invocation counters
   that source/Psi `00–07`, Build, and Terminal publication each execute once and
   Omega `00–09` executes once per requested target, producing bytes equal to
@@ -547,6 +528,21 @@ narrows realization only.
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
+  - Publish boundary-value storage recipes, calling telescopes, the explicit
+    calling-policy application census and exact callback/policy captures in
+    canonical Terminal Psi, and move opaque selection, source-qualified review
+    and default ABI signature materialization onto them, so target planning
+    drops its source-side signature preparation and passes source-discard/reload.
+  - Move the remaining source-reading provider consumers onto prepared
+    declarations: host classification's catalog-local source join, typed
+    constant/comparison evaluation (including Early Build's typed-only
+    comparison path), general review call coordinates, source-dependent
+    direct-call preparation, and the initial source-aware calling-policy
+    selection and planning.
+  - Move review-only products' complete conformance evidence from checked
+    source custody into Terminal Psi.
+  - Publish portable dormant-use and checked-instance records, and the
+    trust-model accepted-machine roster, canonically with source-discard replay.
   - **OPERATOR-BOUNDARY-CALLS:** complete float/receiver signatures, directed
     FMA builtins, member-call borrowed-field planning, Windows GUI provider
     selection (`samples/gui/{window_app,windowed_calculator}`), and specialized
@@ -575,11 +571,9 @@ receiver replay is retired while keeping the mathematical kernel and checker
 contracts, and every supported primitive operation carries its checking-time
 decision (`SourceChecked`) into stage 05 and stage 00.
 
-- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
-  emission build their final image once (only retained/admitted replay entrypoints
-  rebuild and compare).
-  Acceptance: the `linux_x86_64` native corpus leg on a Linux host, with
-  execution, passes unchanged.
+- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Qualify the unchanged
+  `linux_x86_64` native corpus leg on a Linux host, with execution.
+  Acceptance: that full native corpus leg passes unchanged.
 
 - **LOC-VALUE-CUSTODY.** (new-scope) Carry each recorded value-custody
   requirement through checking, stage 05, Terminal Psi semantics/codec, the
@@ -681,6 +675,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and static syntax projection in
     `omega-rust/omega/packages/build-declarations`.
+  - Complete applied/inherited multi-slot provider readiness.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
@@ -1216,6 +1211,9 @@ defines the complete product bar.
     arrival/custody checking and stage 05 lowering (broader qualified/partial
     ownership, content reshuffles/partitions, broader structural-result custody,
     boundary completion receipts, and claim transfers through Unit/scalar calls).
+  - Compose cyclic Unit plans, and the per-callee call/return composition the
+    admission roster cannot express, under the
+    [fact validity](wiki/spec/terminal-psi/fact_validity.md) cyclic rules.
   - **TPR6:** extend `src/flow/value_origins.rs` beyond single-origin tracing so
     projected/stored helper results, extra reference boundaries, and state
     arrivals with distinct local owned backing homes retain exact provenance for
@@ -1276,6 +1274,8 @@ defines the complete product bar.
     synchronization, and outcome-sensitive RMW obligations, then run the
     concurrent publication, fence-pair, global-order, and compare-exchange
     contention witnesses once **TR3-TR8** lands.
+  - Specify the complete formal atomic/fence axioms and global-order semantics,
+    and mechanically check the target-refinement proofs against them.
   Acceptance: `shared_receiver_atomic_store` and `atomic_global_order_operations`
   (given an entry) execute via `omega run --both` on every matching host;
   missing or substituted relations, locations, orderings or outcomes reject in
@@ -1692,6 +1692,10 @@ defines the complete product bar.
     tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.
+  - Give `FinalFootprintCertificate` construction and region-inventory
+    validation the production caller that
+    [machine-state evidence](wiki/spec/build/machine_state_evidence.md)
+    requires; only tests construct them.
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`,
   `samples/cli/facts/foreign_retained_mutable_borrow`,
@@ -1798,6 +1802,8 @@ defines the complete product bar.
     on Windows and macOS with an Omega-authored installer, private-pipe
     adaptation, explicit Windows handle transfer, macOS validated/signed member
     images, and generation replacement.
+  - Add co-located and remote realizations beside the private-pipe leg and show
+    parity across co-located, isolated and remote realization.
   Acceptance: `build_scope_topology_plan` and `verify.omg` admit and verify
   `payments.plan` and execute the three-process payment topology on Windows and
   macOS with schema-checked private pipes and quiesced generation replacement,
@@ -1908,6 +1914,9 @@ defines the complete product bar.
     `omega-rust/omega/compilation/backend/images/image-emission/src/` to an
     authored/package provider and executor join that installs, invokes at
     distinct placements, and retires with quiescence and W^X enforcement.
+  - Replace the opaque `ExportSurface.identity` string with the export's
+    requirement identity so a demanded import is checked against the offered
+    export (needed by the [topology](wiki/spec/packages/topology.md) demand/supply join).
   Acceptance: a two-package `Independent` build and an installed-image customer
   execute crossing calls, placement-independent invocation, new-era routing, and
   old-era drain on matching hosts, while omitted/duplicate assumptions,

@@ -47,13 +47,13 @@ The final producer SHA-256 is `daf9306343b3a91fb2c67eb69e389d4be29ff76b1bdddac7b
 Its exact input trees are `omega-rust=4d42706b071ce20e9cf1c59ce47fd1b33feb5037`,
 `source=e979c71b293e681d1285c47a50455863bb4fce4c` and
 `tools/benchmark=1efce4e1771b74779170bbae621e32612b5f98f0`. Root Cargo,
-lock and toolchain digests are in [evidence.json](evidence.json). The recorded
+lock and toolchain digests are in [evidence.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/ui/publication/evidence.json). The recorded
 index tree precedes only this documentation and archive addition. The publication
 commit binds the final source to those same compiler input trees.
 
-[observations.zip](observations.zip) contains 106 raw records, logs and
+[observations.zip](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/ui/publication/observations.zip) contains 106 raw records, logs and
 adapters; SHA-256 `f5716936b31c5544c19dd89712d43049eb089bcc9d27b79f8098983a4edb5fd4`.
-[result.json](result.json) records final acceptance and publication artifact hashes.
+[result.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/cathedral/ui/publication/result.json) records final acceptance and publication artifact hashes.
 Binaries, PDBs, native images and private caches remain in ignored local build
 storage. Original frozen input and unchanged consumer sources remain in the
 parent study archives. Reproduction needs normal package acceptance with a rebuilt

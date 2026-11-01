@@ -15,7 +15,12 @@ pub(crate) struct CurrentIntegerBounds<'a> {
     semantic: &'a FactPlan,
     contexts: &'a [FactContextHandle],
     state: SymbolHandle,
-    predicates: Vec<BoundPredicate>,
+    operators: &'a checked_trees::CheckedOperatorFacts,
+    point: ProgramPoint,
+    /// The retained rows each queried root consults, built on its first query:
+    /// a collection's per-element membership rows are not rebuilt for a query
+    /// about an unrelated scalar, nor for a bounds object that is never asked.
+    predicates: Vec<(facts::PlaceRoot, Vec<BoundPredicate>)>,
 }
 
 pub(crate) enum IntegerReadStep {
@@ -26,7 +31,7 @@ pub(crate) enum IntegerReadStep {
 impl<'a> CurrentIntegerBounds<'a> {
     pub(crate) fn at_statement(
         program: &'a dyn validation::CheckingInput,
-        operators: &checked_trees::CheckedOperatorFacts,
+        operators: &'a checked_trees::CheckedOperatorFacts,
         semantic: &'a FactPlan,
         contexts: &'a [FactContextHandle],
         state: SymbolHandle,
@@ -47,7 +52,7 @@ impl<'a> CurrentIntegerBounds<'a> {
         ))
     }
     pub(crate) fn selected_read(
-        &self,
+        &mut self,
         root: SymbolHandle,
         reference: typed_trees::types::TypeReferenceHandle,
         mutable: bool,
@@ -67,7 +72,7 @@ impl<'a> CurrentIntegerBounds<'a> {
 
     #[allow(clippy::too_many_arguments)]
     fn selected_path(
-        &self,
+        &mut self,
         root: SymbolHandle,
         reference: typed_trees::types::TypeReferenceHandle,
         mutable: bool,
@@ -154,7 +159,7 @@ impl<'a> CurrentIntegerBounds<'a> {
     }
     pub(crate) fn new(
         program: &'a dyn validation::CheckingInput,
-        operators: &checked_trees::CheckedOperatorFacts,
+        operators: &'a checked_trees::CheckedOperatorFacts,
         semantic: &'a FactPlan,
         contexts: &'a [FactContextHandle],
         state: SymbolHandle,
@@ -165,12 +170,31 @@ impl<'a> CurrentIntegerBounds<'a> {
             semantic,
             contexts,
             state,
-            predicates: boolean_predicates::retained(program, operators, semantic, contexts, point),
+            operators,
+            point,
+            predicates: Vec::new(),
         }
     }
 
+    /// Where `root`'s rows sit in `predicates`, building them on first use.
+    fn rows_position(&mut self, root: facts::PlaceRoot) -> usize {
+        if let Some(position) = self.predicates.iter().position(|(known, _)| *known == root) {
+            return position;
+        }
+        let rows = boolean_predicates::retained_at_root(
+            self.program,
+            self.operators,
+            self.semantic,
+            self.contexts,
+            self.point,
+            root,
+        );
+        self.predicates.push((root, rows));
+        self.predicates.len() - 1
+    }
+
     pub(crate) fn at_place(
-        &self,
+        &mut self,
         place: &CanonicalPlace,
         primitive: PrimitiveType,
     ) -> Option<IntegerRange> {
@@ -199,7 +223,7 @@ impl<'a> CurrentIntegerBounds<'a> {
     }
 
     fn projected(
-        &self,
+        &mut self,
         place: &CanonicalPlace,
         primitive: PrimitiveType,
         budget: &mut usize,
@@ -237,7 +261,8 @@ impl<'a> CurrentIntegerBounds<'a> {
         hull
     }
 
-    fn exact(&self, place: &CanonicalPlace, primitive: PrimitiveType) -> Option<IntegerRange> {
+    fn exact(&mut self, place: &CanonicalPlace, primitive: PrimitiveType) -> Option<IntegerRange> {
+        let rows = self.rows_position(place.root);
         let contexts = || {
             self.contexts
                 .iter()
@@ -250,7 +275,7 @@ impl<'a> CurrentIntegerBounds<'a> {
             bounds.minimum = bounds.minimum.max(snapshot.minimum);
             bounds.maximum = bounds.maximum.min(snapshot.maximum);
         }
-        for predicate in &self.predicates {
+        for predicate in &self.predicates[rows].1 {
             if let Some(consequence) =
                 predicate.integer_interval_at_place(place, primitive, |place| {
                     super::scalar_value_at_place(self.program, self.semantic, contexts(), place)

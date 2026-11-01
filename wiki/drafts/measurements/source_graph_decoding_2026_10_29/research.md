@@ -60,8 +60,8 @@ The candidate passed 73 decoder/arena tests, 32 decoder/tool tests and scoped
 Clippy. The result is rejected because benefit was not demonstrated, despite
 correctness. Production batching is removed; useful format/budget tests remain.
 
-`scalar-batch-result.json`, producer identities, the exact candidate patch, and
-`scalar-batch-observations.zip` retain this experiment. The archive omits generated
+[`scalar-batch-result.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/scalar-batch-result.json), producer identities, the exact candidate patch, and
+[`scalar-batch-observations.zip`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_graph_decoding_2026_10_29/scalar-batch-observations.zip) retain this experiment. The archive omits generated
 executables and graph payloads; complete local replay material stays in ignored
 `build/performance/source-decoding/`. Its compiler-specific cache files are
 separately digest-bound. These are warm repeated builds on a shared Windows host,

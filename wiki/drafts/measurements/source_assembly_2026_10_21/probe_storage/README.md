@@ -70,7 +70,7 @@ run 10 alternating pairs: assembly minimum
 median 4.936 → 5.003 ms.
 Both runs reach their five-second quiet interval, retain every observation and
 load average, and run without this session compiling concurrently. See raw
-min/mean/max and complete stage timings in observations.json; no blanket
+min/mean/max and complete stage timings in [observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/probe_storage/observations.json); no blanket
 whole-compiler speedup is inferred from these workload-specific observations.
 
 The focused corpus comparison covers **71 fixtures**, zero lost and zero gained.
@@ -97,14 +97,14 @@ parser timing on the affected examples without changing published syntax.
 The remaining outer copy owns successful publication and remains necessary
 under the current forest/page identity contract.
 
-[observations.json](observations.json) binds all results and binary hashes;
+[observations.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/probe_storage/observations.json) binds all results and binary hashes;
 [research.md](research.md) records the design question and source read.
 The harness reuses the preceding argument-transfer experiment's repetition and
-parse-record sources; [allocation-record.rs.txt](allocation-record.rs.txt) adds
+parse-record sources; [allocation-record.rs.txt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/probe_storage/allocation-record.rs.txt) adds
 per-file counters. Raw evidence includes the complete standalone manifest/lock,
 binaries, input manifests, full syntax/allocation TSVs, assembly, logs and runtime
 products. It is archived outside the managed worktree before cleanup.
 
 ## Final main integration
 
-Main advanced to `3537d556844975cc2a5e4bfbf2340a4aa35547dd` with content-reunion samples and fixtures only. No Rust, manifest, toolchain, library or previously measured input changed. Both frozen parsers produced identical complete syntax/error records for all 72 added source files. The parser suite was rerun after rebase: 263 passed and the same seven failures, including the sample-discovery check. Existing allocation, timing, corpus and runtime observations retain their original producer identities and remain applicable to their unchanged inputs. The added files are not relabeled as part of the original allocation census. [integration.json](integration.json) records the exact delta, new input hashes and comparison digest.
+Main advanced to `3537d556844975cc2a5e4bfbf2340a4aa35547dd` with content-reunion samples and fixtures only. No Rust, manifest, toolchain, library or previously measured input changed. Both frozen parsers produced identical complete syntax/error records for all 72 added source files. The parser suite was rerun after rebase: 263 passed and the same seven failures, including the sample-discovery check. Existing allocation, timing, corpus and runtime observations retain their original producer identities and remain applicable to their unchanged inputs. The added files are not relabeled as part of the original allocation census. [integration.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/source_assembly_2026_10_21/probe_storage/integration.json) records the exact delta, new input hashes and comparison digest.

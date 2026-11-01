@@ -93,7 +93,7 @@ in different allocations and different successor ordinals, and checks strong
 ownership. An initial test-build failure used the private BlockId constructor;
 the corrected build and passing test are retained separately.
 
-[premise_run.py](premise_run.py) uses the existing fixed-input, accepted-lock,
+[premise_run.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/premise_reuse/premise_run.py) uses the existing fixed-input, accepted-lock,
 process CPU/memory and private-cache harness. It ran one original control, one
 disabled-observer control, two count observations, two timing observations and
 one explicit `omega run --both --keep` comparison. All six compile observations
@@ -103,10 +103,10 @@ Every native image retained SHA-256
 The explicit comparison executed both engines, exited 0 and produced identical
 463-byte stdout. Both count summaries agree exactly.
 
-[probe.patch](probe.patch) includes all temporary instrumentation, its small
+[probe.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/premise_reuse/probe.patch) includes all temporary instrumentation, its small
 identity test and the unchanged outer attribution probe. It applies cleanly to
-the recorded source checkpoint in a scratch Git index. [identities.json](identities.json),
-[summary.json](summary.json), [raw/](raw/) and the build/run logs preserve the
+the recorded source checkpoint in a scratch Git index. [identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/premise_reuse/identities.json),
+[summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/premise_reuse/summary.json), [raw/](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/premise_reuse/raw) and the build/run logs preserve the
 inputs and observations; [research.md](research.md) records API provenance and
 the hypothesis. Run `python <this-directory>/analyze.py` to verify the manifest,
 raw outcomes, count reproduction and unchanged work rosters without recompiling.

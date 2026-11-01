@@ -20,7 +20,7 @@ use psi::syntax::syntax;
 // case, an owned constant (`Owner::NAME`) or an owned machine. A callee path names a
 // machine through its owner, so `Trait::requirement` names a trait
 // requirement and `Conformance::member` a conformance's member, or the
-// machine its reference row or its trait supplies for that requirement. A
+// machine its trait supplies for that requirement. A
 // value target binds as any value, and so do a value-position match's
 // subject, value patterns and values. A pattern field renamed `field as
 // name` binds as `name`, and a waived `field as _` binds nothing. A
@@ -950,19 +950,19 @@ crashes Trap
 }
 
 // A callee path `Owner::name`: the machine of that path, else, for a named
-// conformance `Owner` declaring no such member, the machine its row or its
-// trait supplies for requirement `name` (containers.omg).
+// conformance `Owner` declaring no such member, the machine its trait
+// supplies for requirement `name` (containers.omg).
 machine Resolver::owned_callee(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
     let binding: ValueBinding = Resolver::machine_name(resolution, sources, syntax, true, owner, name);
     transition binding {
-        ValueBinding::Unresolved -> row(resolution, sources, syntax, owner, name)
+        ValueBinding::Unresolved -> requirement(resolution, sources, syntax, owner, name)
         _ -> found(binding)
     }
 
-    machine row(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
-        Resolver::conformance_row_named(resolution, sources, syntax, owner, name)
+    machine requirement(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+        Resolver::conformance_requirement_named(resolution, sources, syntax, owner, name)
     }
 
     machine found(binding: ValueBinding) -> ValueBinding {

@@ -27,7 +27,7 @@ The dirty source checkout was not edited. Its original snapshot, full manifests,
 working patch and two diagnostic copies remain at
 `C:/SoftwareDevelopmentKits/Omega/.agents/worktree/perf-spill-round/build/cathedral-baseline/`.
 The snapshot includes uncommitted inputs, so a fresh checkout of the revision
-alone cannot reproduce this workload. [Inputs](inputs.json) pin the retained
+alone cannot reproduce this workload. [Inputs](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/inputs.json) pin the retained
 files; the source bytes remain local.
 
 The current producer was built with `mbx build --locked --release -p omega`
@@ -42,23 +42,23 @@ Build calls. This does not establish a latest-compiler regression.
 
 ## Experiments
 
-1. [Original sources, current compiler](original/result.json): all eight
+1. [Original sources, current compiler](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/original/result.json): all eight
    entries fail package preparation because provider selections omit the
    explicit Build target. No artifact compilation or full-build timing.
-2. [Original sources, earlier compiler](legacy/result.json): same first
+2. [Original sources, earlier compiler](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/legacy/result.json): same first
    failure. The earlier gallery success was not Cathedral acceptance.
-3. [Explicit provider targets](targets/result.json): 32 selections changed
+3. [Explicit provider targets](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/targets/result.json): 32 selections changed
    across 15 Build files in a separate diagnostic snapshot. Each target is
    specific to this measured composition; this is not an all-target migration.
    Preparation then exposes retired nested states and missing boundary ceilings.
-4. [Syntax migration](syntax/result.json): a second diagnostic copy converts
+4. [Syntax migration](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/syntax/result.json): a second diagnostic copy converts
    933 nested state declarations in the 27 selected local package roots to
    machines, preserving their explicit signatures, and adds seven empty
    boundary reach ceilings. Across these two syntax changes 75 files differ.
    Empty ceilings impose a constraint which the checker must establish; they
    do not grant extra effects. Source migrations are diagnostic only, have
    not been installed in Cathedral, and have no runtime equivalence claim.
-   [Target patch](target-migration.patch.gz), [syntax patch](syntax-migration.patch.gz).
+   [Target patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/target-migration.patch.gz), [syntax patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/cathedral_2026_10_28/syntax-migration.patch.gz).
 
 Dependency preparation used the repository's existing `settle_package_review`
 local-benchmark ceremony in the diagnostic copy. It accepts generated project

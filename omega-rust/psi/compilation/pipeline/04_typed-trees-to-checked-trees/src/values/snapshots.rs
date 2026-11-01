@@ -308,12 +308,13 @@ fn payloads_at_place<'a>(
                 ) {
                     return None;
                 }
-                let place = fact.place.as_place()?;
-                let candidate = canonical_place_from_semantic_place(
-                    program,
-                    semantic,
-                    semantic.places.get(place),
-                )?;
+                let place = semantic.places.get(fact.place.as_place()?);
+                // Agreement needs the same root; most facts of a long context
+                // name other storage, and converting each would allocate.
+                if place.root != subject.root {
+                    return None;
+                }
+                let candidate = canonical_place_from_semantic_place(program, semantic, place)?;
                 if !crate::flow::canonical_places_agree(program, &candidate, subject) {
                     return None;
                 }

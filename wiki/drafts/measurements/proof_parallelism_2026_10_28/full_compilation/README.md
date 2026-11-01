@@ -144,13 +144,13 @@ Whole-process CPU/wall ratios cannot establish the compiler's serial fraction.
 Fixed semantic source is `456c5e984452a45d977295e254b3ca9ae3cc7750`;
 the patch base is documentation descendant
 `3c5a4ab0052af2f3040cd38b9beede83b038e623`. All 203 authored inputs match the
-existing [input manifest](../input-manifest.json). Every ordinary compilation
+existing [input manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/input-manifest.json). Every ordinary compilation
 uses a fresh private cache unless explicitly marked warm. Accepted locks were
 produced through normal offline `omega update`; no trust/consent edits.
 
 The original, coarse and refined producers have their own accepted lock digests
-and verified optimization level 1 in [identities.json](identities.json) and
-[refined-identity.json](refined-identity.json). Their executable SHA-256 values:
+and verified optimization level 1 in [identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/full_compilation/identities.json) and
+[refined-identity.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/full_compilation/refined-identity.json). Their executable SHA-256 values:
 
 ```
 original e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5
@@ -174,10 +174,10 @@ python wiki/drafts/measurements/proof_parallelism_2026_10_28/full_compilation/an
 
 The analyzer verifies file digests, producer/lock identities, all 22 status and
 oracle records, exact partitions, cache markers and retained byte counts.
-[summary.json](summary.json) retains every cohort separately.
-[Raw records](raw/) include stdout, stderr, process/native results and complete
+[summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/full_compilation/summary.json) retains every cohort separately.
+[Raw records](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/full_compilation/raw) include stdout, stderr, process/native results and complete
 timeline events; compressed logs retain both builds and all run schedules.
-[instrumentation.patch](instrumentation.patch) and [coarse.patch](coarse.patch)
+[instrumentation.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/full_compilation/instrumentation.patch) and [coarse.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/full_compilation/coarse.patch)
 apply independently to the recorded base; both were checked with a scratch Git
 index. Apply only one to rebuild the associated diagnostic producer. Runners
 reuse the prior fixed-workload harness. Build through the repository build-slot

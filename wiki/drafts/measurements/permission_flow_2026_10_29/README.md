@@ -21,14 +21,14 @@ demonstrated slowdown or a claim that root pruning can never help.
 
 Each cell uses four unprofiled observations, interleaved after one warmup per
 variant. Two subsequent profiles per workload are excluded from these medians,
-but retained with all 36 observations in [comparison-runs.json](comparison-runs.json).
+but retained with all 36 observations in [comparison-runs.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/permission_flow_2026_10_29/comparison-runs.json).
 All 36 successful compiles produce byte-identical native images across variants
 per workload, and all images exit 0. The six-run preliminary
-[screen](screen-runs.json) also preserves the exact stack32 image. Eight earlier
+[screen](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/permission_flow_2026_10_29/screen-runs.json) also preserves the exact stack32 image. Eight earlier
 diagnostic/native observations preserve that image too: 50 successful native
 observations total, with distinct measurement purposes, not 50 timing trials.
-[Summary](summary.json) retains checking times, ranges and memory; no memory
-improvement is claimed. [Metadata](comparison-metadata.json) binds producer
+[Summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/permission_flow_2026_10_29/summary.json) retains checking times, ranges and memory; no memory
+improvement is claimed. [Metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/permission_flow_2026_10_29/comparison-metadata.json) binds producer
 digests, source/Build hashes, toolchain and host. All compiler builds use
 verified `opt-level=1`.
 
@@ -79,7 +79,7 @@ not part of the production candidate or a measured speedup.
   observations are retained. Unknown or noisy differences are not gains.
 
 Only the native/artifact timing gates above were executed. The broader
-`validate.py` gate was prepared but **not run**: the candidate failed performance
+[`validate.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/permission_flow_2026_10_29/validate.py) gate was prepared but **not run**: the candidate failed performance
 promotion and was discarded. No new semantic acceptance or native/Terminal
 differential result is claimed. `git diff --exit-code -- omega-rust` confirms
 restoration. The restored source keeps the preceding iteration's evidence;
@@ -104,7 +104,7 @@ not an additive speedup promise or a completed optimization.
 
 ## Replay
 
-Apply [candidate.patch](candidate.patch) to the fixed source. Under one
+Apply [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/permission_flow_2026_10_29/candidate.patch) to the fixed source. Under one
 `python tools/build_slot.py --timeout 5400 --` hold, build with
 `mbx build -p omega --locked --target-dir build/pass-producer` and retain a
 separate copy of `debug/omega.exe`. This checkout used
@@ -113,9 +113,9 @@ separate copy of `debug/omega.exe`. This checkout used
 recovery build. Both producers must report the verified optimized profile.
 
 From the repository root, use the existing
-`wiki/drafts/measurements/spill_loop_2026_10_28/ablate.py` for the screen,
-`wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py` for
-timing, and this directory's `validate.py` for behavior. Each accepts
+[`wiki/drafts/measurements/spill_loop_2026_10_28/ablate.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/ablate.py) for the screen,
+[`wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py) for
+timing, and this directory's [`validate.py`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/permission_flow_2026_10_29/validate.py) for behavior. Each accepts
 `BASELINE CANDIDATE FRESH_OUTPUT`; do not reuse another experiment's output.
 The screen wrapper additionally checks artifact equality across both variants.
 

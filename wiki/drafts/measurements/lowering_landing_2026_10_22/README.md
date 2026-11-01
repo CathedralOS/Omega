@@ -51,11 +51,11 @@ establishes no end-to-end speedup. One-minute host load ranged from 9.93 to 24.2
 The copied-record workload's paired median saving was negative despite its lower
 unpaired median, so it does not establish a consistent improvement. Full
 minimum/median/maximum/mean values and every observation are retained in
-[propagation/timing-summary.json](propagation/timing-summary.json) and
-[propagation/timings.json](propagation/timings.json).
+[propagation/timing-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_landing_2026_10_22/propagation/timing-summary.json) and
+[propagation/timings.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_landing_2026_10_22/propagation/timings.json).
 
 The separate final-integration comparison retains 16 alternating pairs for each
-workload in [final/propagation/timings.json](final/propagation/timings.json).
+workload in [final/propagation/timings.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_landing_2026_10_22/final/propagation/timings.json).
 For packet lowering the medians were 59.468 and 60.330 ms; every emitted image
 remained identical. These observations compare the optimized compiler before
 and after the upstream build-cache change, with different host conditions from
@@ -87,8 +87,8 @@ suites captured by the qualification runner.
 ## Evidence and replay
 
 The scripts retain exact commands, guest observations, controls, canonical
-artifact digests and source hashes. `candidate.patch` reconstructs the optimized
-Rust inputs on the matched main revision; `final-integration.patch` records the
+artifact digests and source hashes. [`candidate.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_landing_2026_10_22/candidate.patch) reconstructs the optimized
+Rust inputs on the matched main revision; [`final-integration.patch`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_landing_2026_10_22/final-integration.patch) records the
 subsequent upstream Rust delta. Rebuild binaries at the recorded optimized
 profile and preserve existing outputs before replaying scripts from repository
 root. Script output paths point to ignored `build/lowering-landing/` directories.
@@ -98,7 +98,7 @@ source tree identities, producer/artifact identities, assessment decisions and
 immutable receipt digests. Full qualification receipts and filesystem custody
 stamps remain at the recorded paths in the retained warm worktree; the compact
 index is explicitly not a replacement for those receipts. Raw behavioral and
-timing observations are committed here. `capture-digests.json` hashes the saved
+timing observations are committed here. [`capture-digests.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_landing_2026_10_22/capture-digests.json) hashes the saved
 captures. Normal landing verification binds the final evidence-only HEAD to its
 exact-SHA workspace build receipt and revalidates the active qualification state.
 
@@ -109,7 +109,7 @@ propagation, and precise scalar-field storage exposure. The latest integrated
 base is `8bd3d5732111c01b62f836f0105d5793801d330a` and the freshly built producer is
 `6fc8f0011c3b3ffde04943c38ce8c5ce8ea4ba29`. All five optimization source files are byte-identical to the
 matched optimization checkpoint; the blob comparison is retained in
-`latest-main/optimization-source-identities.json`.
+[`latest-main/optimization-source-identities.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_landing_2026_10_22/latest-main/optimization-source-identities.json).
 
 The full-row results above remain observations of their recorded producers.
 Focused requalification executes eight existing positives covering packet
@@ -152,7 +152,7 @@ it does not replace the matched optimization-yield record. Captures are under
 `publication/`.
 
 The preceding 49-test observation is retained with the explicit applicability
-record in `publication/unit-evidence-applicability.json`: the three affected
+record in [`publication/unit-evidence-applicability.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/lowering_landing_2026_10_22/publication/unit-evidence-applicability.json): the three affected
 crate source trees are unchanged, and the broad successor source audit sees
 the same matching definitions despite incoming checking/compile-time files.
 No fresh execution of those unit tests is claimed for this producer. The final
