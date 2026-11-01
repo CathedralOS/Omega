@@ -14,9 +14,9 @@ the original complete service reach and boolean result; its selected body keeps
 the same construction, replacement and sibling checks. The qualified input twin
 keeps its original differing Linux body, so selecting other targets cannot hide
 its missing issuer. Copy permission, Linear consumption, qualification routes,
-Inert cleanup rejection, and every authored exit and diagnostic oracle are
-unchanged. The qualified continuation's remaining acceptance below stays open.
-
+Inert cleanup rejection, and every authored exit oracle are unchanged. The
+qualified target-body rejection names the new ordinary implementation in place of
+the retired `observe` family; its missing-issuer obligation is unchanged. The qualified continuation's remaining acceptance below stays open.
 
 Parent: [OPAQUE-BY-VALUE-BOUNDARY-ABI](../../../../TASKS.md).
 Requirement: preserve the exact selected closed Inert carrier and one owned
