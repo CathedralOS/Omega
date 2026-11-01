@@ -36,7 +36,7 @@ fail/cases/constructor_subject_range_neighbor_not_evidence rejected 580ms expect
 	data `Bound` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/cases/constructor_subject_range_replaced_value rejected 609ms expected @95750e8d2f8d
 	data `Bound` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/cases/constructor_subject_range_unproved rejected 580ms unexpected @95750e8d2f8d
+fail/cases/constructor_subject_range_unproved rejected 619ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/cases/constructor_subject_range_unsigned_to_signed_unproved rejected 1007ms expected @95750e8d2f8d
 	Exact integer cast in machine `make` state `entry` from `u64` to `i64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
@@ -49,7 +49,7 @@ fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @
 fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch rejected 4053ms expected @68b6f6ba6c2f
 	machine `forward` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/domains/case_payload_widened_call_result_rejected rejected 5443ms unexpected @95750e8d2f8d
+fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
 	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
