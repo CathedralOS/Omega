@@ -17,6 +17,8 @@
 mod boundary_values;
 mod builder;
 mod callback_layout;
+mod terminal_layout_identity;
+pub use terminal_layout_identity::{TerminalLayoutIdentity, terminal_layout_identity};
 mod layout_plan;
 mod packing;
 mod sizing;

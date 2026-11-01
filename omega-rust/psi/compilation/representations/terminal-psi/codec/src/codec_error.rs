@@ -49,6 +49,7 @@ pub enum CodecError {
         reason: String,
     },
     AccessPlan(String),
+    NativeLayout(String),
     AccessViewPlan(terminal_semantics::AccessViewPlanError),
     AccessRamCorrespondence(String),
     AccessViewInput(terminal_semantics::AccessViewInputError),

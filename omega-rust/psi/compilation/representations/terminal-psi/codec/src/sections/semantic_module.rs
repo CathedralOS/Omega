@@ -149,7 +149,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Fixed representation applications retain exact semantic and policy inputs.
 // Schema ABI3 retains every target input and retired field identity.
 // Identity-only referents retain their checked foreign pointer/descriptor role.
-pub(crate) const FORMAT_MARKER: u16 = 224;
+// Native layout provenance includes invariant and target-member reports,
+// nominal data/field associations and selected Source-v4 slot applications.
+pub(crate) const FORMAT_MARKER: u16 = 225;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

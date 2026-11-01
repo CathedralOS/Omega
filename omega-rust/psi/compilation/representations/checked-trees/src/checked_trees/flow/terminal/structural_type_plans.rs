@@ -52,6 +52,11 @@ pub struct CheckedStructuralPathQualification {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedUnitStructuralTypePlan {
     pub identity: TypeIdentityId,
+    /// Producer-issued nominal data identity for native layout applications.
+    /// Non-nominal or non-hermetic carriers have none; semantic type names do
+    /// not impersonate a portable declaration identity.
+    pub native_identity: Option<String>,
+    pub native_policy_identity: Option<String>,
     /// The normalized nominal carrier owns one whole linear obligation.
     /// Transparent arrays/aggregates do not inherit this bit from children;
     /// each child keeps its own obligation even beneath a whole-linear parent.
@@ -175,6 +180,9 @@ pub struct CheckedUnitStructuralFieldPlan {
     pub receiving_type_identity: TypeIdentityId,
     pub identity: CheckedMemberIdentity,
     pub relevance: BindingRelevance,
+    /// Exact declaration coordinate, distinct from the member's source-facing
+    /// spelling/number. Needed only by nominal native layout paths.
+    pub native_identity: Option<String>,
     pub field_type: CheckedUnitStructuralFieldType,
     /// Standalone geometry retained by an inline byte field. Borrowed fields
     /// dispose this descriptor, never the backing it references. Zero means
@@ -197,6 +205,7 @@ impl PartialEq for CheckedUnitStructuralFieldPlan {
         // qualifications or requiring independently cloned references to alias.
         self.receiving_type_identity == other.receiving_type_identity
             && self.identity == other.identity
+            && self.native_identity == other.native_identity
             && self.relevance == other.relevance
             && self.field_type == other.field_type
             && self.byte_sequence_type_identity == other.byte_sequence_type_identity
@@ -679,6 +688,7 @@ mod field_identity_tests {
         let counter_reader = identities.intern("dyn Reader<Counter>");
         let other_reader = identities.intern("dyn Reader<Other>");
         let field = CheckedUnitStructuralFieldPlan {
+            native_identity: None,
             type_reference: crate::types::TypeReferenceHandle::from_parts(1, 1),
             receiving_type_identity: counter_reader,
             identity: CheckedMemberIdentity::of_spelling("operations"),
