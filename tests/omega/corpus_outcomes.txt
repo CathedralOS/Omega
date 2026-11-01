@@ -9989,8 +9989,7 @@ pass/filesystem/runtime_portable_directory_names_exit rejected 29061ms check-tar
 	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation`
 pass/filesystem/runtime_portable_metadata_availability_exit rejected 123037ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_removal_walk::windows_x86_64::next", reason: "local refinement lost its machine identity", gap: None })
-pass/filesystem/runtime_portable_metadata_exit rejected 28536ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation`
+pass/filesystem/runtime_portable_metadata_exit checked 234009ms check-target:macos_arm64 @d2be883ccac9
 pass/filesystem/runtime_portable_permissions_exit rejected 28123ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation`
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit rejected 188939ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
