@@ -142,10 +142,10 @@ impl TerminalExecution<'_> {
         actual.ok_or_else(malformed)
     }
 
-    /// Runtime paths omit Case after authenticating its overlay. Recover a
-    /// containing declaration using the current stored cases, never by choosing
-    /// one case whose spelled field happens to fit. This is storage inspection,
-    /// not authority to observe or replace that storage.
+    /// Runtime descendants retain their case namespace. Recover a containing
+    /// declaration only after joining each selector to the current stored case,
+    /// never by choosing a case whose field happens to fit. This is storage
+    /// inspection, not authority to observe or replace that storage.
     pub(crate) fn actual_storage_type(
         &self,
         root: &TerminalStructuralValue,
@@ -176,33 +176,34 @@ impl TerminalExecution<'_> {
         }
         let mut structural_type = root.structural_type;
         let mut parent = StructuralRuntimePlace::from(root);
+        let mut selected_case = None;
         for segment in &target.path[root.path.len()..] {
             let declaration = self.structural_declaration(structural_type)?;
             match segment {
+                StructuralPathSegment::Case(case) => {
+                    if selected_case.is_some() {
+                        return Err(malformed());
+                    }
+                    let (StructuralTypeShape::Sum { cases }
+                    | StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
+                    else {
+                        return Err(malformed());
+                    };
+                    let actual = self.structural_cases.require(&parent)?;
+                    if actual.structural_type != structural_type || actual.case != *case {
+                        return Err(malformed());
+                    }
+                    selected_case = Some(
+                        terminal_psi::find_structural_case(cases, *case).ok_or_else(malformed)?,
+                    );
+                    emit(CanonicalStructuralPathSegment::Case(*case));
+                }
                 StructuralPathSegment::Field(identity) => {
-                    let common = match &declaration.shape {
-                        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-                            field_by_identity(fields, *identity)
-                        }
-                        _ => None,
+                    let fields = match selected_case.take() {
+                        Some(case) => case.fields.as_slice(),
+                        None => declaration.shape.direct_fields().ok_or_else(malformed)?,
                     };
-                    let field = if let Some(common) = common {
-                        common
-                    } else {
-                        let (StructuralTypeShape::Sum { cases }
-                        | StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
-                        else {
-                            return Err(malformed());
-                        };
-                        let actual = self.structural_cases.require(&parent)?;
-                        if actual.structural_type != structural_type {
-                            return Err(malformed());
-                        }
-                        emit(CanonicalStructuralPathSegment::Case(actual.case));
-                        let case = terminal_psi::find_structural_case(cases, actual.case)
-                            .ok_or_else(malformed)?;
-                        field_by_identity(&case.fields, *identity).ok_or_else(malformed)?
-                    };
+                    let field = field_by_identity(fields, *identity).ok_or_else(malformed)?;
                     let Some(child) = field.field_type.as_structural() else {
                         return Err(malformed());
                     };
@@ -210,6 +211,9 @@ impl TerminalExecution<'_> {
                     structural_type = child;
                 }
                 StructuralPathSegment::FixedIndex(index) => {
+                    if selected_case.is_some() {
+                        return Err(malformed());
+                    }
                     let StructuralTypeShape::FixedArray {
                         element,
                         length: terminal_psi::ArrayExtent::Literal(length),
@@ -226,6 +230,9 @@ impl TerminalExecution<'_> {
                 _ => return Err(malformed()),
             }
             parent.path.push(segment.clone());
+        }
+        if selected_case.is_some() {
+            return Err(malformed());
         }
         Ok(structural_type)
     }
@@ -302,20 +309,24 @@ impl TerminalExecution<'_> {
                     if contents.structural_type != leaf.structural_type || contents.case != *case {
                         return Err(malformed());
                     }
-                    case_fields = Some(
+                    case_fields = Some((
+                        *case,
                         cases
                             .iter()
                             .find(|candidate| candidate.id == *case)
                             .ok_or_else(malformed)?
                             .fields
                             .as_slice(),
-                    );
+                    ));
                     projection.push(StructuralPathSegment::Case(*case));
                     saw_case = true;
                 }
                 CanonicalStructuralPathSegment::Field(field) => {
                     let fields = match case_fields.take() {
-                        Some(fields) => fields,
+                        Some((case, fields)) => {
+                            leaf.path.push(StructuralPathSegment::Case(case));
+                            fields
+                        }
                         None => match &declaration.shape {
                             terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                             _ => return Err(malformed()),
@@ -382,8 +393,8 @@ impl TerminalExecution<'_> {
     }
 }
 
-/// Runtime payload fields overlay their sum's backing. Check each Case before
-/// omitting it from the physical path; two cases may use the same field names.
+/// Runtime payload fields retain their declaration namespace. Check each Case
+/// against the live discriminator; a path selector cannot establish membership.
 pub(crate) fn validate_case_projection(
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,

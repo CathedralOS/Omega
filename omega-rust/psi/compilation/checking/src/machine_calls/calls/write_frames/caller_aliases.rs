@@ -351,7 +351,7 @@ pub(super) fn assignment_write_paths(
 
 /// Address provenance of the performed store, not the contents before it.
 /// The recorded prefix distinguishes replacing a reference slot from writing
-/// its referent and retains every current alias alternative. Inline-owned
+/// its referent and retains every current alias alternative. Declared fixed
 /// homes do not depend on that reference inventory being available.
 pub(super) fn assignment_storage_origins(
     program: &dyn CheckingInput,
@@ -419,12 +419,12 @@ pub(super) fn assignment_storage_origins(
     // when the installed value is a reference. The initializer-origin query
     // deliberately follows the last descriptor to its referent and therefore
     // cannot identify a descriptor replacement's destination.
-    // Inline-owned cells have stable homes independently of the preceding
-    // reference/effect inventory. A missing prefix cannot erase their typed
-    // address, but still supplies no reference-preservation evidence. A path
-    // crossing a reference or recast does not qualify for this distinction.
+    // Inline-owned cells and exclusive formals' fixed outer addresses do not
+    // depend on the preceding reference/effect inventory. A missing prefix
+    // cannot erase their typed address, but supplies no reference-preservation
+    // evidence. Interior reference loads and recasts do not qualify.
     if let Some(place) =
-        inline_owned_assignment_place(program, machine, state, assignment.target, receiving)
+        declared_assignment_place(program, machine, state, assignment.target, receiving)
     {
         let root = place.root.as_symbol()?;
         let (path, precision) = super::place_paths::coordinate_storage_path(
@@ -521,10 +521,11 @@ pub(super) fn assignment_storage_origins(
     })
 }
 
-/// Inline cell coordinates need no reference-origin substitution. Stop before
-/// the final cell's value: replacing a descriptor writes its home, whereas a
-/// projection crossing that descriptor still needs the ordinary backing join.
-fn inline_owned_assignment_place(
+/// Owned homes and a formal's fixed outer address need no prefix-origin
+/// substitution. Interior reference loads still need their captured backing.
+/// Stop before the receiving cell's value: replacing a descriptor writes its
+/// home, while crossing that descriptor selects a different storage object.
+fn declared_assignment_place(
     program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
@@ -535,7 +536,18 @@ fn inline_owned_assignment_place(
     // meaning. Reuse the coordinate owner before claiming raw inline geometry.
     crate::place_has_builtin_coordinates(program, machine, Some(state), target).then_some(())?;
     let place = crate::canonical_place_from_expression(program, target)?;
-    let mut reference = crate::declaration_type_reference(program, place.root.as_symbol()?)?;
+    let root = place.root.as_symbol()?;
+    let mut reference = crate::declaration_type_reference(program, root)?;
+    if program.state_parameter_by_symbol(state, root).is_some()
+        && let Some(shell) = crate::reference_shell(program, reference)
+    {
+        // Shared parameter bindings may be replaced; only exclusive inputs
+        // supply a fixed incoming address independent of the captured prefix.
+        if !shell.access.is_exclusive() {
+            return None;
+        }
+        reference = shell.referee;
+    }
     for segment in &place.segments {
         if crate::reference_shell(program, reference).is_some() {
             return None;
@@ -546,16 +558,10 @@ fn inline_owned_assignment_place(
             std::slice::from_ref(segment),
         )?;
     }
-    if place.segments.is_empty() && crate::reference_shell(program, reference).is_some() {
-        return None;
-    }
     // A final reference cell may be the address of a referent store instead.
     // Only the performed store's receiving contract decides which operation
     // occurred; the target's reference type alone cannot authorize rebinding.
-    if crate::reference_shell(program, reference).is_some()
-        && program.normalized_type_identity(reference)
-            != program.normalized_type_identity(receiving)
-    {
+    if program.normalized_type_identity(reference) != program.normalized_type_identity(receiving) {
         return None;
     }
     Some(place)
