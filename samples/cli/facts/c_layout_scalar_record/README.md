@@ -29,6 +29,10 @@ argument from copyable `u64` to affine `Resource`; the alias still owes `[copy]`
 when its expansion is simply `u64`. This checks ordinary formation rather than
 introducing a layout-query exception.
 
+`invalid/unused_initializer` keeps an unused declaration's target-dependent
+constant-formation obligation: subtracting 17 from the 16-byte packet extent
+must reject even when no executable body reads that constant.
+
 ## Current evidence
 
 Full root execution is pending the measured general alias-static-operand and
