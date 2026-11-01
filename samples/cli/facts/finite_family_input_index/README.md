@@ -80,8 +80,9 @@ the retained fixed-base producer confirms the latter wording and the same
 independent-formation rejection. The division-snapshot native result had no
 prior golden row; its successful actual replay was recorded separately.
 
-The [raw evidence archive](../../../../wiki/drafts/measurements/dynamic_family_membership_2026_11_01/raw-evidence.tar.gz)
-retains commands, logs, producer digests, canonical context and the exact
+The [raw evidence archive](https://github.com/CathedralOS/Omega/blob/e84e6e4660226bd086c7b9accf17f5bba8fc4f7c/wiki/drafts/measurements/dynamic_family_membership_2026_11_01/raw-evidence.tar.gz)
+at the pinned pre-publication evidence commit retains commands, logs, producer
+digests, canonical context and the exact
 source bundle (requiring the fixed base). Its SHA-256 is
 `5c0c4ba9c5e4b05f9aebe1092293c629b9d5b7e4f9fa3e316a65a7959f5fd089`. Extract it at a repository root.
 The final CLI SHA-256 is
