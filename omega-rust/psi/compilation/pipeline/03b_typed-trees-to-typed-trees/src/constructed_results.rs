@@ -209,6 +209,50 @@ fn retain_borrow_result_type(
     let derived = (|| {
         let formation = validation::reference_formation_source(program, expression)?;
         let target = scope.result_type(program, formation.source)?;
+        // A declared local may explicitly borrow a stored reference
+        // descriptor rather than reborrow its pointee. The destination is
+        // accepted only when its referee is the exact completed source type;
+        // it cannot invent a conversion, qualification, or access permission.
+        if let ValueTypeOwner::State { state, .. } = scope {
+            let state = program.state_by_symbol(state)?;
+            let mut requested = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .filter_map(|statement| match statement {
+                    typed_trees::statement::StatementNode::LocalData(local)
+                        if local.initial_value == expression && !local.type_is_inferred =>
+                    {
+                        match program
+                            .type_reference_table
+                            .type_reference(local.type_reference)
+                        {
+                            TypeReferenceNode::Reference {
+                                referee,
+                                access,
+                                lifetime,
+                            } if *access == formation.access
+                                && program.normalized_type_identity(*referee)
+                                    == program.normalized_type_identity(target) =>
+                            {
+                                Some(TypeReferenceNode::Reference {
+                                    referee: target,
+                                    access: *access,
+                                    lifetime: lifetime.clone(),
+                                })
+                            }
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                });
+            if let Some(reference) = requested.next() {
+                if requested.next().is_none() {
+                    return Some(reference);
+                }
+                return None;
+            }
+        }
         let carrier = program
             .type_reference_table
             .unconstrained_type_reference(target);

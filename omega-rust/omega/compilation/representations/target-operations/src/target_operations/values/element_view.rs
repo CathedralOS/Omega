@@ -39,8 +39,11 @@ pub enum TargetElementView {
         /// Runtime element displacements in source projection order. The
         /// descriptor adds each selector times its stride to the static offset.
         indices: Vec<crate::TargetStructuralRuntimeIndex>,
+        /// Captured source count. WholeRepresentation scales it by the checked
+        /// source-to-target element-size ratio when realizing the descriptor.
         extent: TargetViewExtent,
         region: TargetElementViewRegion,
+        /// Target element stride; source descriptor counts keep their own units.
         element_stride: u32,
         source: TargetStructuralArgumentSource,
     },
@@ -78,6 +81,11 @@ pub enum TargetViewExtent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetElementViewRegion {
     WholeCollection,
+    /// Reinterpret the complete captured source window with checked layout tiling.
+    WholeRepresentation {
+        source_length: ValueId,
+        obligation: ObligationId,
+    },
     RepresentationBytes {
         start: Box<TargetIntegerExpression>,
         end: Box<TargetIntegerExpression>,

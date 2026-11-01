@@ -193,6 +193,7 @@ pub(super) fn retain_backing_contents(
             type_is_inferred: false,
             is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
+            reflected_query_origin: None,
         };
         let contents = borrow_carrying_data_loans(
             program,
@@ -259,6 +260,7 @@ pub(super) fn returned_value_loans(
         type_is_inferred: false,
         is_operand_capture: false,
         relevance: language_core::BindingRelevance::Relevant,
+        reflected_query_origin: None,
     };
     let expression_loans = |expression| {
         let mut value = returned_value.clone();
@@ -593,6 +595,7 @@ fn assignment_borrow_loans(
         type_is_inferred: false,
         is_operand_capture: false,
         relevance: language_core::BindingRelevance::Relevant,
+        reflected_query_origin: None,
     };
 
     let loans = binding_borrow_loans(

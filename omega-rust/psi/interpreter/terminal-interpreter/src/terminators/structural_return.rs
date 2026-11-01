@@ -111,10 +111,12 @@ impl TerminalExecution<'_> {
             let mut value = verified_structural_place(&self.structural_values, *source).cloned()?;
             let byte_sequence = self.byte_sequence_values.get(source).cloned();
             let element_view = self.element_view_values.get(source).cloned();
-            if matches!(&byte_sequence, Some(ByteSequenceBinding::Immutable(view)) if !view.matches_descriptor_home(&value))
-                || element_view
-                    .as_ref()
-                    .is_some_and(|view| !view.matches_descriptor_home(&value))
+            if byte_sequence.as_ref().is_some_and(|binding| {
+                binding.access() == StructuralAccess::SharedBorrow
+                    && !binding.matches_shared_home(&value)
+            }) || element_view
+                .as_ref()
+                .is_some_and(|view| !view.matches_descriptor_home(&value))
             {
                 return Err(malformed());
             }
@@ -260,7 +262,7 @@ impl TerminalExecution<'_> {
                         .structural_types()
                         .get(&signature.structural_type)
                         .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
-                        && matches!(byte_sequence, Some(ref binding) if !matches!(binding, ByteSequenceBinding::Immutable(_))
+                        && matches!(byte_sequence, Some(ref binding) if binding.access() == StructuralAccess::MutableBorrow
                             && binding.validate_mutable_referent(self, &value).is_ok())));
             // Owned results leave with their exact affine complement. Borrowed
             // ingress contributes no source frontier to transfer.
@@ -382,11 +384,12 @@ impl TerminalExecution<'_> {
                 }
                 value.projected_qualifications = active;
             }
-            let byte_sequence = byte_sequence.map(|binding| match binding {
-                ByteSequenceBinding::Immutable(view) => {
-                    ByteSequenceBinding::Immutable(view.with_descriptor_home(value.clone()))
+            let byte_sequence = byte_sequence.map(|binding| {
+                if binding.access() == StructuralAccess::SharedBorrow {
+                    binding.with_descriptor_home(value.clone())
+                } else {
+                    binding
                 }
-                binding => binding,
             });
             if borrowed_descriptor && element_view.is_some() {
                 value.opaque_identity = self

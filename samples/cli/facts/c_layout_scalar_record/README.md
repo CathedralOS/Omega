@@ -100,3 +100,43 @@ arithmetic controls reject with their exact expected bounds. Preparation took
 seconds. Historical observations above retain their actual producer identities;
 the unchanged source alias and schema/policy controls are reused as described.
 No further compiler build is required for documentation or queue revisions.
+
+## Transport evidence
+
+The local, owned-field and by-value parameter places preserve the same fact.
+Their twins change only the receiving policy to a distinct named implementation
+that delegates to the public C policy method and produces identical geometry.
+Both native and Terminal execution exit 0 for all three positives, and all three
+twins reject their policy mismatch in
+[pilot 41294262072](https://github.com/CathedralOS/Omega/actions/runs/41294262072).
+The optimized Linux producer is `c3f4afa6474b746e08b92358ba96ee24db40a614`, image
+`916d7eb79e2479f18f957710b7963d724e8022b4e8f7282fa620234440f474e8`.
+Preparation took 495.891 seconds and the six cases took 30.690 seconds.
+
+The integration conflict retains main's new derived layout-dependency visits in
+the shared data traversal; authored replay disables derived references. The
+sample/library sources, member visibility lookup and constructor receiving check
+retain their tested meaning. Incoming main changes are covered by normal queue
+admission, without relabeling the earlier runtime observations as a new producer.
+
+Call results, both arms of a match join, and a named constant materializing the
+complete record also pass native/Terminal execution with exit 0. Their three
+policy twins reject in [pilot 41300391077](https://github.com/CathedralOS/Omega/actions/runs/41300391077),
+including the independently run corpus mirrors. The optimized producer is
+`cb12b89db5655e90baf284096fa6cd6ac4461c69`, image
+`0f71437986860cea454a86772caf1dbdeec1dd3f837fd968ce77b1c7b70bb7de`.
+Preparation took 714.492 seconds; corpus checking took 29.051 seconds, corpus
+native/Terminal execution 24.036 seconds, and samples 47.666 seconds. Native
+execution was on Linux x86_64; the separate corpus checking leg records its
+actual default `macos_arm64` check target. The six checking rows are copied from
+the runner's raw observations with that source stamp. No other host was executed.
+
+Constant preparation retains alias ownership, declared-type readiness, and
+transparent alias expansions during canonical payload replay. Projected source
+replay uses the same declaration visitors as current roots, retaining original
+constant inputs independently from evaluated/materialized results. This restores
+policy evidence without rooting a runtime constant or granting body authority.
+
+Nested machine, other machine and selected target implementation remain open,
+along with broader schema composition and other-host execution. These
+observations do not qualify the full compiler.

@@ -38,10 +38,12 @@ pub(super) fn lower(
         && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
             expression,
         } = subject.source
-        && matches!(
-            expansion.checked.expression_table.expression(expression),
-            checked_trees::expression::ExpressionNode::SavedSubject(_)
-        )
+        && expansion
+            .checked
+            .facts
+            .executable_bindings
+            .expression(expression)
+            .is_saved()
     {
         return unsupported("saved case observation has no completed receiver");
     }

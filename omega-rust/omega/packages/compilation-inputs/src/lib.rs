@@ -44,7 +44,6 @@ mod semantic_bindings;
 mod source_consumption;
 mod source_snapshot;
 mod target_profile_tags;
-mod wire_codec_sources;
 
 pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};

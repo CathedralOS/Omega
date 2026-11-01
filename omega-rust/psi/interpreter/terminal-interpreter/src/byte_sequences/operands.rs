@@ -72,8 +72,7 @@ impl TerminalExecution<'_> {
                     &selected,
                     StructuralAccess::SharedBorrow,
                 )?
-                .immutable()?
-                .clone()
+                .snapshot(self)?
             }
             ByteSequenceOperand::Field { source, field, .. } => {
                 let (key, capacity) =

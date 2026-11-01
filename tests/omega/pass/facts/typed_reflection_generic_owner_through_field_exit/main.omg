@@ -1,0 +1,26 @@
+// Fact: A generic owner closes reflection over the full selected data application, then checks its callback only for the actual field types and borrows every field once in declaration order.
+// Expected exit: 0
+use omega::language::core::reflect;
+data Subject<Element [copy]> { x: Element; y: Element; }
+data Holder { value: Subject<u64>; }
+data Seen [copy] { total: u64; calls: u64; }
+machine read(value: &u64, seen: &mut Seen) {
+    seen.total = (((seen.total as u64 in Wrapping) * (131u64 as u64 in Wrapping)) + (value as u64 in Wrapping)) as u64;
+    seen.calls = ((seen.calls as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+}
+machine member<Kind>(seen: &mut Seen, info: &reflect::FieldInfo, value: &Kind)
+requires Kind == u64
+{ read(value, seen); }
+machine inspect<T>(value: &T, seen: &mut Seen) {
+    reflect::visit_runtime_fields<T, member>(value, seen);
+}
+machine main() crashes Trap {
+    let subject: Subject<u64> = Subject { x: 4294967297u64, y: 3u64 };
+    let mut seen: Seen;
+    let holder: Holder = Holder { value: subject };
+    inspect(&holder.value, &mut seen);
+    // 4294967297 * 131 + 3, distinct from the reversed order and u32 truncation.
+    transition seen.total == 562640715910u64 && seen.calls == 2u64 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

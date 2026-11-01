@@ -1938,6 +1938,12 @@ impl Scope<'_> {
         required: &Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        // An exact empty static world has no runtime argument arrival. Source
+        // formation remains checked; a dead type-dispatch edge cannot require
+        // equality between two distinct applied data carriers.
+        if self.program.static_type_context_is_unreachable(expression) {
+            return;
+        }
         let Some(actual) = self.actual(expression) else {
             diagnostics.push(
                 Diagnostic::error("runtime indexed value has no retained subject provenance")

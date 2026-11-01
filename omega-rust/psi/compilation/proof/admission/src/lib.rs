@@ -36,8 +36,7 @@ mod term_matchers;
 pub use admission::evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionEvidence, AdmissionKind, AuthorizedAdmission,
     CertificateEnvelope, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
-    ProofSystemMarker, accept_source_checked_operation, verify_obligation,
-    verify_obligation_with_machine_parameters,
+    ProofSystemMarker, verify_obligation, verify_obligation_with_machine_parameters,
 };
 pub use classicality::ProofRuleFoundation;
 pub use integer_rules::closed_integer::{

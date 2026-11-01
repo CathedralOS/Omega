@@ -22,6 +22,25 @@ pub type ConformanceSite<'a> = (
     &'a ClosedConformanceApplication,
 );
 
+/// Multiplicity of executable-template relationships for one exact instance.
+/// Equal duplicate rows are ambiguous too; indexes may not deduplicate them.
+#[derive(Clone, Copy, Default)]
+pub(super) enum LifetimeTemplateCandidates {
+    #[default]
+    Absent,
+    One(symbols::SymbolHandle),
+    Ambiguous,
+}
+
+impl LifetimeTemplateCandidates {
+    pub(super) fn include(&mut self, template: symbols::SymbolHandle) {
+        *self = match self {
+            Self::Absent => Self::One(template),
+            Self::One(_) | Self::Ambiguous => Self::Ambiguous,
+        };
+    }
+}
+
 impl TypedTrees {
     /// Semantic containment is not necessarily symbol allocation containment.
     /// Owned conformance rows are allocated as root machines, but capture the
@@ -29,7 +48,13 @@ impl TypedTrees {
     /// from a map that merely selects them. Executable copies use the same
     /// authored relationship; diagnostic qualified names establish no scope.
     pub fn declaration_scope_parent(&self, owner: symbols::SymbolHandle) -> symbols::SymbolHandle {
-        let owner = self.lifetime_declaration_owner(owner);
+        self.declaration_scope_parent_for_lifetime_owner(self.lifetime_declaration_owner(owner))
+    }
+
+    pub(super) fn declaration_scope_parent_for_lifetime_owner(
+        &self,
+        owner: symbols::SymbolHandle,
+    ) -> symbols::SymbolHandle {
         if !owner.is_valid() {
             return owner;
         }
@@ -747,40 +772,67 @@ impl TypedTrees {
     /// Cyclic or malformed specialization custody has no declaration owner.
     pub fn lifetime_declaration_owner(
         &self,
+        owner: symbols::SymbolHandle,
+    ) -> symbols::SymbolHandle {
+        self.lifetime_declaration_owner_with_templates(
+            owner,
+            |owner| {
+                let mut templates = self
+                    .machine_specializations
+                    .iter()
+                    .filter(|application| application.instance == owner)
+                    .map(|application| application.template)
+                    .chain(
+                        self.captured_machine_applications
+                            .iter()
+                            .filter(|(_, application)| application.instance == owner)
+                            .map(|(_, application)| application.template),
+                    );
+                match templates.next() {
+                    None => LifetimeTemplateCandidates::Absent,
+                    Some(template) => {
+                        if templates.next().is_some() {
+                            LifetimeTemplateCandidates::Ambiguous
+                        } else {
+                            LifetimeTemplateCandidates::One(template)
+                        }
+                    }
+                }
+            },
+            |symbol| self.retained_static_machine_contract(symbol).is_some(),
+        )
+    }
+
+    // Both raw and batched readers use the same normalization and refusal
+    // rules. The batch indexes input rows, never a different ownership claim.
+    pub(super) fn lifetime_declaration_owner_with_templates(
+        &self,
         mut owner: symbols::SymbolHandle,
+        mut templates_for: impl FnMut(symbols::SymbolHandle) -> LifetimeTemplateCandidates,
+        mut retained_contract: impl FnMut(symbols::SymbolHandle) -> bool,
     ) -> symbols::SymbolHandle {
         let mut visited = Vec::new();
         if let Some(application) = self.closed_requirement_application(owner) {
             owner = application.template;
         }
         loop {
-            let mut templates = self
-                .machine_specializations
-                .iter()
-                .filter(|application| application.instance == owner)
-                .map(|application| application.template)
-                .chain(
-                    self.captured_machine_applications
-                        .iter()
-                        .filter(|(_, application)| application.instance == owner)
-                        .map(|(_, application)| application.template),
-                )
-                .chain(self.retained_static_machine_contract(owner).and_then(|_| {
-                    // Applying a logical callable freshens its nested contract
-                    // symbols, while each rigid lifetime slot keeps the exact
-                    // authored declaration. Rejoin only a retained contract's
-                    // explicit compiler derivation, never an equal signature.
+            let mut templates = templates_for(owner);
+            if let Some(original) = retained_contract(owner)
+                .then(|| {
+                    // A fresh logical callable retains the original rigid lifetime
+                    // declaration only through this exact explicit derivation.
                     let original = self.symbols.get(owner).generated_from;
-                    (original.is_valid()
-                        && self.retained_static_machine_contract(original).is_some())
-                    .then_some(original)
-                }));
-            let Some(template) = templates.next() else {
-                break;
-            };
-            if templates.next().is_some() {
-                return symbols::SymbolHandle::invalid();
+                    (original.is_valid() && retained_contract(original)).then_some(original)
+                })
+                .flatten()
+            {
+                templates.include(original);
             }
+            let template = match templates {
+                LifetimeTemplateCandidates::Absent => break,
+                LifetimeTemplateCandidates::One(template) => template,
+                LifetimeTemplateCandidates::Ambiguous => return symbols::SymbolHandle::invalid(),
+            };
             if visited.contains(&owner) {
                 return symbols::SymbolHandle::invalid();
             }

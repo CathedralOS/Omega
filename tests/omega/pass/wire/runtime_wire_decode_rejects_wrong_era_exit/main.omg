@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // Wire stage 2b: decode only accepts the schema's CURRENT era
 // (historical eras decode through format-package lineage sums). The buffer
 // is hand-built with era byte 5 where the schema's current era is 0, so the
@@ -31,14 +33,14 @@ data CounterSample {
 
 // The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
 // is the ZII zero case, so an untouched verdict reads as failure.
-data WireVerdict {
+data OwnerVerdict {
     case Invalid;
     case Sound;
 }
 
 data Main {
     read: u64;
-    verdict: WireVerdict;
+    verdict: OwnerVerdict;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -50,11 +52,11 @@ machine Main::main(main: &mut Main) reaches Console {
         flag: false
     };
 
-    CounterMessage::decode(&mut decoded, &buffer, &mut main.read, &mut main.verdict);
+    CounterMessageCodec::decode(&mut decoded, &buffer, &mut main.read, &mut main.verdict);
 
     transition main.verdict {
-        WireVerdict::Sound -> bad(main)
-        WireVerdict::Invalid -> good(main)
+        OwnerVerdict::Sound -> bad(main)
+        OwnerVerdict::Invalid -> good(main)
     }
 
     machine good(main: &mut Main) {
@@ -70,4 +72,39 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// The source-owned constructor receives carrier-validated words only.
+data CounterMessageCodec {}
+machine CounterMessageCodec::plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<CounterMessage, CompactBinary::plan_scalar>(context);
+}
+machine CounterMessageCodec::construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<CounterSample> {
+    transition fields.len == 3u64 { true -> create(fields) false -> DecodeResult::Invalid }
+    machine create(fields: &[ScalarSlot]) -> DecodeResult<CounterSample>
+    requires fields.len == 3u64
+    {
+        let counter: u64 = fields[0u64].unsigned;
+        let delta: i64 = fields[1u64].signed;
+        let flag: u64 = fields[2u64].unsigned;
+        transition counter <= 4294967295u64 && delta >= (0i64 - 2147483648i64) && delta <= 2147483647i64 && flag <= 1u64 {
+            true -> establish(counter, delta, flag)
+            false -> DecodeResult::Invalid
+        }
+    }
+    machine establish(counter: u64, delta: i64, flag: u64) -> DecodeResult<CounterSample>
+    requires counter <= 4294967295u64 && delta >= (0i64 - 2147483648i64) && delta <= 2147483647i64 && flag <= 1u64
+    { DecodeResult::Sound { value: CounterSample { counter: counter as u32, delta: delta as i32, flag: flag == 1u64 } } }
+}
+machine CounterMessageCodec::decode<const N: u64>(value: &mut CounterSample, bytes: &[u8; N], read: &mut u64, verdict: &mut OwnerVerdict) {
+    let mut fields: [ScalarSlot; 3];
+    transition CompactBinary::decode_record<CounterSample, CounterMessageCodec::plan, CounterMessageCodec::construct>(&bytes[..], &mut fields[..], read, 10000u64) {
+        DecodeResult::Sound { value as decoded } -> commit(value, decoded, verdict)
+        _ -> invalid(verdict)
+    }
+    machine commit(value: &mut CounterSample, decoded: CounterSample, verdict: &mut OwnerVerdict) {
+        value = decoded;
+        verdict = OwnerVerdict::Sound;
+    }
+    machine invalid(verdict: &mut OwnerVerdict) { verdict = OwnerVerdict::Invalid; }
 }

@@ -67,6 +67,7 @@ impl CurrentScalarValues<'_> {
         &self,
         statement: &typed_trees::statement::StatementNode,
         expression: ExpressionHandle,
+        primitive: PrimitiveType,
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> (Option<ScopedArithmeticValue>, Option<Vec<String>>) {
         let Some(frames) = frames else {
@@ -80,20 +81,34 @@ impl CurrentScalarValues<'_> {
             return (None, None);
         }
         let Some(sources) = frames
-            .reference_expression_origins_before_statement(self.machine, statement, expression)
+            .reference_expression_sources_before_statement(self.machine, statement, expression)
             .filter(|sources| !sources.is_empty())
         else {
             return (None, None);
         };
-        let dependencies = sources
-            .iter()
-            .map(|(root, path)| validation::frame_coordinate_path(self.program, *root, path))
-            .collect::<Option<Vec<_>>>();
+        let dependencies = Some(sources.iter().map(|source| source.path.clone()).collect());
         let values = sources
             .iter()
-            .map(|(root, path)| {
+            .map(|source| {
+                // Equal backing coordinates do not imply equal scalar values:
+                // a representation view can change signedness or interpretation.
+                // Its dedicated observation owner may establish that meaning;
+                // this identity route retains only unchanged interpretations.
+                if source.collection_coarse
+                    || !source
+                        .scalar_storage_coordinate(self.program, self.state)
+                        .is_some_and(|scalar| {
+                            scalar.preserves_scalar_value
+                                && scalar.source_primitive == primitive
+                                && scalar.view_primitive == primitive
+                        })
+                {
+                    return None;
+                }
+                let root = source.root;
+                let path = &source.segments;
                 if path.is_empty() {
-                    return self.current_symbol(*root);
+                    return self.current_symbol(root);
                 }
                 let path = capture_path(path, |selector| {
                     self.capture(self.program, self.machine, self.state, selector)
@@ -101,7 +116,7 @@ impl CurrentScalarValues<'_> {
                 self.fields
                     .iter()
                     .find(|field| {
-                        field.owner == *root
+                        field.owner == root
                             && same_projection(self.occurrence(), &field.path, &path)
                     })?
                     .value

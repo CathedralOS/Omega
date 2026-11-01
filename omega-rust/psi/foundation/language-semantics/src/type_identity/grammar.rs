@@ -36,17 +36,17 @@ pub(super) fn type_identity(
                 name_atom(reader, "name", visitor)?;
                 while reader.next(b',') {
                     reader.expect(b',')?;
-                    type_identity(reader, visitor)?;
+                    index::static_argument(reader, visitor)?;
                 }
             }
             "named" => const_or_name(reader, "name", visitor)?,
             "dynamic-trait" => {
-                // The renderer follows the trait name with the trait's generic
-                // arguments as type identities, in declaration order.
+                // Generic applications retain both type and const operands in
+                // declaration order. Each operand keeps its own owner grammar.
                 name_atom(reader, "name", visitor)?;
                 while reader.next(b',') {
                     reader.expect(b',')?;
-                    type_identity(reader, visitor)?;
+                    index::static_argument(reader, visitor)?;
                 }
             }
             "index-expression" => index::expression(reader, visitor)?,

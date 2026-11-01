@@ -1,0 +1,25 @@
+// Fact: A supplied static callable retains its exact applied type requirements through mutable values and calls without runtime operands.
+// Expected exit: 0
+machine increment32(value: &mut u32) { value = ((value as u32 in Wrapping) + (1u32 as u32 in Wrapping)) as u32; }
+machine increment64(value: &mut u64) { value = ((value as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64; }
+machine increment<Kind>(value: &mut Kind)
+requires Kind == u32
+{
+    transition { Kind == u32 -> increment32(value) _ -> increment64(value) }
+}
+machine mark<Kind>() requires Kind == u32 || Kind == u64 {}
+machine operate<Value, machine Op>(value: &mut Value)
+requires machine Op(value: &mut Value);
+{ Op(value); }
+machine zero<machine Op>() requires machine Op(); { Op(); }
+machine apply<Kind>(value: &mut Kind) requires Kind == u32 || Kind == u64 {
+    zero<mark<Kind>>();
+    operate<Kind, increment<Kind>>(value);
+}
+machine main() crashes Trap {
+    let mut value: u64 = 4294967295u64;
+    apply(&mut value);
+    transition value == 4294967296u64 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

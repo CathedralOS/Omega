@@ -1156,12 +1156,28 @@ impl Execution<'_, '_, '_> {
         expression: ExpressionHandle,
         constraints: HandleSpan<FlowConstraintRef>,
         referents: HandleSpan<FlowOperandReferent>,
+        source_access: arena::Handle<checked_trees::FlowCaseAccessFact>,
     ) -> HandleSpan<FlowOperandReferent> {
-        // An unknown descriptor forms nothing. The read that loaded it owns
-        // its case obligation; a second record naming no source place would
-        // only restate that read as unprovable.
-        if referents.is_empty() {
-            return referents;
+        // The descriptor's actual load already owns its carrier-case
+        // obligation. A returned slice can retain its complete input lifetime
+        // while its exact pointee window has no canonical place. Do not create
+        // another empty case obligation about that unavailable geometry. The
+        // original nonempty source access remains independently checked, and
+        // the empty referent roster still supplies no address or pointee fact.
+        // Reuse only the token produced by this exact evaluation, never an
+        // earlier read of a same-spelled descriptor or its old case epoch.
+        if referents.is_empty() && self.context.control.case_accesses.is_valid(source_access) {
+            let access = self.context.control.case_accesses.get(source_access);
+            if access.machine_symbol == self.machine.symbol
+                && access.state_symbol == self.state.symbol
+                && access.statement_index == self.statement_index
+                && access.expression == expression
+                && access.evaluation == self.evaluation
+                && access.constraints == constraints
+                && !access.places.is_empty()
+            {
+                return referents;
+            }
         }
         let access = self.record_case_access_places(expression, constraints, referents);
         if !access.is_valid() {

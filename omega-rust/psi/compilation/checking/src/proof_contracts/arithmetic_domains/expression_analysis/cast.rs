@@ -274,6 +274,12 @@ fn require_exact_integer_fit(
     primitive: Option<PrimitiveType>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
+    // A statically impossible application contributes no executable coercion
+    // obligation. Keep formation and operand analysis above, and publish no
+    // range fact for this dormant cast. Unknown runtime guards remain live.
+    if walk.program.static_type_context_is_unreachable(expression) {
+        return false;
+    }
     let Some(source_primitive) = source
         .primitive
         .filter(|source| primitive_range(*source).is_some())

@@ -189,6 +189,7 @@ fn lower_statement_node(
                 type_is_inferred: local_data.type_is_inferred,
                 is_operand_capture: local_data.is_operand_capture,
                 relevance: local_data.relevance,
+                reflected_query_origin: None,
             }))
         }
         resolved::statement::StatementNode::Transition(transition) => {

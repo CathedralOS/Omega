@@ -20,7 +20,7 @@ pub fn lower_task_activation_demands(
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<TerminalTaskActivationDemands, Vec<Diagnostic>> {
     let typed = &checked.typed;
-    let selections = start_selections::task_start_selections(typed)?;
+    let selections = start_selections::task_start_selections(checked)?;
     if selections.is_empty() {
         return Ok(TerminalTaskActivationDemands::default());
     }
@@ -79,14 +79,15 @@ pub fn lower_task_activation_demands(
     roots.sort();
     roots.dedup();
     let plans = UnitPlans::published(&checked.facts.flow);
-    let (structural_types, type_ids, structural_referents) = lower_unit_structural_type_roots(
-        identities,
-        checked,
-        &crate::unit::attached_unit::scalar_applications::SourceScalarApplications::EMPTY,
-        plans,
-        &roots,
-    )
-    .map_err(lowering_diagnostics)?;
+    let (structural_types, type_ids, structural_referents, _native_records) =
+        lower_unit_structural_type_roots(
+            identities,
+            checked,
+            &crate::unit::attached_unit::scalar_applications::SourceScalarApplications::EMPTY,
+            plans,
+            &roots,
+        )
+        .map_err(lowering_diagnostics)?;
     let target_layout_applications =
         target_layouts::project(checked, plans, &structural_types, &type_ids)?;
     let mut demands = Vec::new();
@@ -112,7 +113,6 @@ pub fn lower_task_activation_demands(
             machine,
             entry,
             contract,
-            &typed.callable_identity_text(authored),
         )?;
         let mut crossings = graph
             .crossings

@@ -448,8 +448,8 @@ fn source_type(
             .and_then(|statement| {
                 value_facts(checked)
                     .structural_values
-                    .completed_expression_dependency(
-                        &checked.expression_table,
+                    .completed_checked_expression_dependency(
+                        &checked.facts.executable_bindings,
                         state,
                         Some(statement),
                         expression,

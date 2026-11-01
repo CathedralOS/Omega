@@ -57,6 +57,14 @@ fn module() -> TerminalModule {
             storage: StructuralRecordStorage::Packed,
         },
     });
+    module.native_layouts.insert(
+        structural_type,
+        TerminalIdentityIndex(3),
+        TerminalIdentityIndex::ABSENT,
+        TerminalIdentityIndex::ABSENT,
+        [],
+        [],
+    );
     machine.parameter_order = vec![Scalar, Structural, Scalar];
     module.machines.push(machine);
     module

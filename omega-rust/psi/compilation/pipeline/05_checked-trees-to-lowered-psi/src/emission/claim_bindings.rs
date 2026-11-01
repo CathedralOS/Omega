@@ -1086,63 +1086,18 @@ pub(crate) fn lower_owned_operand_claims(
             ))?;
             if !transfer.claims.is_empty()
                 || !evaluated_transfers.is_empty()
-                || !validation::reference_result_custody::source_value_is_copied(
-                    &checked.typed,
-                    source_type,
-                )
-                || !validation::reference_result_custody::source_value_is_copied(
-                    &checked.typed,
+                || !crate::reference_custody::source_value_is_copied(checked, source_type)
+                || !crate::reference_custody::source_value_is_copied(
+                    checked,
                     transfer.source_type_reference,
                 )
             {
                 return unsupported("selected owned operand has no named source custody");
             }
         }
-        let selected = ownership
-            .selection_transfer_claims
-            .span(transfer.claims)
-            .ok_or(LoweringError::Unsupported(
-                "owned operand selection claims are stale",
-            ))?;
-        let mut selected_claims = Vec::new();
-        for claim in selected {
-            // Authenticate logical identity before resolving the current
-            // transport name: equal physical paths alone prove no lineage.
-            if !evaluated_transfers.iter().any(|event| {
-                event.claim_identity == claim.claim_identity
-                    && event.provenance == claim.provenance
-                    && ownership.segments.span_or_empty(event.segments)
-                        == ownership.segments.span_or_empty(claim.path)
-            }) {
-                return unsupported("selected claim has no matching evaluated transfer");
-            }
-            let path = validation::structural_claim_path(
-                &checked.typed,
-                root_type,
-                ownership.segments.span_or_empty(claim.path),
-            )
-            .map_err(LoweringError::Unsupported)?;
-            let relative =
-                path.strip_prefix(prefix.as_slice())
-                    .ok_or(LoweringError::Unsupported(
-                        "selected claim is outside its operand",
-                    ))?;
-            let path =
-                crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                    identities,
-                    relative,
-                    structural_type,
-                    structural_types,
-                )?;
-            let claim =
-                resolve_consumed_claim(claim.claim_identity, &path, bindings, completed_claims)?;
-            selected_claims.push(terminal_psi::StructuralResultClaimBinding { claim, path });
-        }
-        claims.sort();
-        selected_claims.sort();
-        if claims != selected_claims {
-            return unsupported("selected custody differs from its evaluated claim frontier");
-        }
+        // The evaluated event stream above owns every transferred claim.
+        // Stage 04 checked the selection receipt against that same frontier;
+        // cleanup metadata never supplies an alternative claim stream.
     }
     claims.sort();
     if claims.iter().enumerate().any(|(index, claim)| {

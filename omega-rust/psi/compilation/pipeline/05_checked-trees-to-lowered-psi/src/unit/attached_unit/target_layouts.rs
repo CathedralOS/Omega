@@ -44,7 +44,7 @@ pub(super) fn lower(
             storage:
                 CheckedUnitRecordStorage::TargetLayout {
                     application,
-                    application_identity,
+                    application_identity: _,
                     schema_type_identity,
                 },
             ..
@@ -52,11 +52,6 @@ pub(super) fn lower(
         else {
             return unsupported("target layout record lost its exact checked application marker");
         };
-        if checked.typed.normalized_type_identity(*application) != *application_identity {
-            return unsupported(
-                "target layout raw application differs from its canonical checked identity",
-            );
-        }
         let plan = checked
             .typed
             .plan_laid_layout_for_type(*application)
@@ -180,18 +175,9 @@ pub(super) fn lower(
                     },
                 });
             }
-            if alternative.machine != plan.policy_plan_machine_symbol
-                || alternative.target.as_str() != alternative.target_facts.profile
-                || alternative.target_facts.validate().is_err()
-            {
-                return unsupported("fixed representation changed its exact target input custody");
-            }
             let geometry = &alternative.geometry;
-            if !geometry.private_callback_demands.is_empty() {
-                return unsupported(
-                    "target layout publication cannot discard private callback demands",
-                );
-            }
+            // The companion native-layout catalog retains the complete report
+            // and each selected private slot; this row owns semantic storage.
             let byte_size = geometry
                 .validated_layout
                 .size

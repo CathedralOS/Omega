@@ -49,6 +49,9 @@ pub(super) fn types_match(
         }
         O::EstablishElementView { region, .. } => match region {
             terminal_psi::ElementViewRegion::WholeCollection => true,
+            terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. } => {
+                u64_scalar(source_length)
+            }
             terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } => {
                 u64_scalar(start) && u64_scalar(end)
             }

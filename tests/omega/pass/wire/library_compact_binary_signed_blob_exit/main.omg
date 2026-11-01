@@ -1,0 +1,78 @@
+// Expected exit: 0
+// Independent zigzag words include both signed extrema. Blob reads preserve
+// exact content and input loans; truncation and impossible lengths reject.
+use omega_language_std::wire;
+
+machine signed_back(bytes: &[u8], original: i64, size: u64) -> bool {
+    transition CompactBinary::read_signed(bytes, 0u64) {
+        SignedRead::Read { value, next } -> (value == original && next == size)
+        _ -> false
+    }
+}
+machine word_back(bytes: &[u8], original: i64, word: u64, size: u64) -> bool {
+    transition CompactBinary::read_unsigned(bytes, 0u64) {
+        UnsignedRead::Read { value, next } -> (value == word && next == size && signed_back(bytes, original, size))
+        _ -> false
+    }
+}
+machine signed(original: i64, word: u64, size: u64) -> bool {
+    let mut buffer: [u8; 12] = [77u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 99u8];
+    transition CompactBinary::write_signed(&mut buffer[1u64..11u64], 0u64, original) {
+        EncodeResult::Encoded { next } -> (next == size && buffer[0u64] == 77u8 && buffer[11u64] == 99u8 && word_back(&buffer[1u64..11u64], original, word, size))
+        _ -> false
+    }
+}
+machine blob_contents(bytes: &[u8], next: u64) -> bool {
+    transition bytes.len == 4u64 {
+        true -> content(bytes, next)
+        false -> false
+    }
+    machine content(bytes: &[u8], next: u64) -> bool
+    requires bytes.len == 4u64
+    {
+        next == 5u64 && bytes[0u64] == 0u8 && bytes[1u64] == 255u8 && bytes[2u64] == 42u8 && bytes[3u64] == 7u8
+    }
+}
+machine blob_back(bytes: &[u8]) -> bool {
+    transition CompactBinary::read_blob(bytes, 0u64) {
+        BlobRead::Read { value, next } -> blob_contents(value, next)
+        _ -> false
+    }
+}
+machine blob() -> bool {
+    let original: [u8; 4] = [0u8, 255u8, 42u8, 7u8];
+    let mut buffer: [u8; 8] = [77u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 99u8];
+    transition CompactBinary::write_blob(&mut buffer[1u64..7u64], 0u64, &original[..], 10u64) {
+        EncodeResult::Encoded { next } -> (next == 5u64 && buffer[0u64] == 77u8 && buffer[7u64] == 99u8 && blob_back(&buffer[1u64..6u64]))
+        _ -> false
+    }
+}
+machine rejects_truncated_blob() -> bool {
+    let bytes: [u8; 3] = [4u8, 1u8, 2u8];
+    transition CompactBinary::read_blob(&bytes[..], 0u64) {
+        BlobRead::Invalid -> true
+        _ -> false
+    }
+}
+machine accepts_empty_blob() -> bool {
+    let bytes: [u8; 1] = [0u8];
+    transition CompactBinary::read_blob(&bytes[..], 0u64) {
+        BlobRead::Read { value, next } -> (value.len == 0u64 && next == 1u64)
+        _ -> false
+    }
+}
+machine main() crashes Trap {
+    transition signed(0i64, 0u64, 1u64)
+        && signed(0i64 - 1i64, 1u64, 1u64)
+        && signed(1i64, 2u64, 1u64)
+        && signed(0i64 - 64i64, 127u64, 1u64)
+        && signed(64i64, 128u64, 2u64)
+        && signed(-9223372036854775808i64, 18446744073709551615u64, 10u64)
+        && signed(9223372036854775807i64, 18446744073709551614u64, 10u64)
+        && blob() && rejects_truncated_blob() && accepts_empty_blob() {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

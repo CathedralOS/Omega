@@ -1,0 +1,6 @@
+// A 3x2 image requires six pixels; a five-pixel view cannot satisfy it.
+use omega_language_std::macos_image;
+machine main() invokes MacosImageData invokes MacosImageObjects {
+    let pixels: [i32; 5];
+    let image: u64 = macos_image_snapshot(3, 2, &pixels[..], 0);
+}

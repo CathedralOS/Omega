@@ -40,10 +40,19 @@ pub(super) fn form(
     {
         return None;
     }
+    // Resolve access and observed types in the supplying declaration before
+    // publishing the callee's telescope. A same-spelled callee formal cannot
+    // reinterpret an actual's type or reference authority.
+    let input_types = parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| engine.call_input_type(*argument, parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
     let actuals = parameters
         .iter()
         .zip(arguments)
-        .map(|(parameter, argument)| {
+        .zip(&input_types)
+        .map(|((parameter, argument), required_type)| {
             let input = if program
                 .primitive_type_reference(parameter.type_reference)
                 .is_some()
@@ -56,15 +65,14 @@ pub(super) fn form(
                     decisions,
                 )?)
             } else {
-                engine.captured_owned_call_input(*argument)?
+                engine.captured_record_call_input(*argument)?
             };
             if !crate::has_anonymous_numeric_results(program, *argument) {
-                let actual_type = engine.source_result_type(*argument)?;
-                if !crate::declared_input_type_matches(
-                    program,
-                    actual_type,
-                    parameter.type_reference,
-                ) {
+                let actual_type = match &input {
+                    IntegerApplicationInput::Record { type_reference, .. } => *type_reference,
+                    IntegerApplicationInput::Scalar(_) => engine.source_result_type(*argument)?,
+                };
+                if !crate::declared_input_type_matches(program, actual_type, *required_type) {
                     return None;
                 }
             }
@@ -80,7 +88,9 @@ pub(super) fn form(
         parameters,
         &actuals,
         |engine| {
-            for (parameter, (_, input)) in parameters.iter().zip(&actuals) {
+            for ((parameter, (_, input)), required_type) in
+                parameters.iter().zip(&actuals).zip(&input_types)
+            {
                 match input {
                     IntegerApplicationInput::Scalar(value) => {
                         formed_type(engine, program, parameter.type_reference, value)
@@ -99,7 +109,7 @@ pub(super) fn form(
                         ) || !crate::declared_input_type_matches(
                             program,
                             *type_reference,
-                            parameter.type_reference,
+                            *required_type,
                         ) {
                             return None;
                         }
@@ -163,6 +173,7 @@ pub(super) fn form(
         expression,
         authored_target: call.target_symbol,
         arguments: call.arguments,
+        checked_arguments: arena::HandleSpan::empty(),
         target_machine: machine.symbol,
         target_state: state.symbol,
         target_contract: None,

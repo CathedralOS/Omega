@@ -104,16 +104,6 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                 "outcome-specific arm call occurrence is not unique",
             ));
         }
-        if occurrence.source_target != arm.result_call_target
-            || checked
-                .typed
-                .machine_state(callee_symbol, arm.result_call_target)
-                .is_none()
-        {
-            return Err(LoweringError::Unsupported(
-                "outcome-specific arm call disagrees with its checked target owner",
-            ));
-        }
         let operation_id =
             occurrence
                 .terminal_site

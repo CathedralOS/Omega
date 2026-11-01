@@ -171,6 +171,7 @@ pub(super) fn store_at(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEffe
         destination.root.destination(),
         projection.path,
         checked_trees::CheckedStoreLeaf::Primitive {
+            primitive_type,
             receiving_range,
             preserves_byte_memberships: facts.byte_write_is_proven(assignment.target),
         },

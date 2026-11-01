@@ -4,10 +4,11 @@
 
 use super::{
     DeclarationSelection, HashSet, StaticArgumentCall, TypeOccurrence, TypeOccurrences,
-    TypedReferences, visit_declarations, visit_machine, visit_program, visit_trait,
+    TypedReferences, visit_alias, visit_const, visit_data, visit_declarations, visit_machine,
+    visit_program, visit_trait,
 };
 use crate::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 
 #[cfg(test)]
 use super::{ExpressionNode, TypeReferenceNode, conformance_occurrence_tests};
@@ -22,19 +23,17 @@ pub fn collect_authored_program_type_occurrences(program: &TypedTrees) -> Vec<Ty
 }
 
 /// Re-derive source occurrences for exactly these lexical owners without
-/// making their bodies executable. Current declaration roots supply ordinary
-/// owners and nested signatures. Omitted machines and traits require unique
-/// original declarations; derived sidecars cannot attest their own source inputs.
+/// making their bodies executable. Current roots supply ordinary owners;
+/// omitted declarations require consistent original descriptions. Derived
+/// applications and materialized values cannot attest their own source inputs.
 pub fn authored_type_occurrences(
     program: &TypedTrees,
     owners: &[SymbolHandle],
 ) -> Vec<TypeOccurrence> {
     let mut requested = HashSet::default();
     let mut ancestors = HashSet::default();
-    let mut machines = Vec::new();
-    let mut machine_owners = HashSet::default();
-    let mut traits = Vec::new();
-    let mut trait_owners = HashSet::default();
+    let mut descriptions = Vec::new();
+    let mut description_owners = HashSet::default();
     for &owner in owners {
         if !owner.is_valid() || requested.contains(&owner) {
             continue;
@@ -45,35 +44,19 @@ pub fn authored_type_occurrences(
             scope.push(current);
             current = program.symbols.get(current).parent;
         }
-        let mut machine = None;
-        let mut trait_definition = None;
+        let mut selected = None;
         let mut ambiguous = false;
         for &ancestor in &scope {
-            if let Some(declaration) = program.machine_declaration_for_lexical_scope(ancestor) {
-                machine = Some(declaration);
-                break;
-            }
-            if program
-                .tables
-                .machines
-                .iter()
-                .any(|(_, declaration)| declaration.symbol == ancestor)
-            {
-                ambiguous = true;
-                break;
-            }
-            if let Some(declaration) = trait_declaration_for_lexical_scope(program, ancestor) {
-                trait_definition = Some(declaration);
-                break;
-            }
-            if program
-                .tables
-                .traits
-                .iter()
-                .any(|(_, declaration)| declaration.symbol == ancestor)
-            {
-                ambiguous = true;
-                break;
+            match lexical_description(program, ancestor) {
+                Ok(Some(description)) => {
+                    selected = Some((ancestor, description));
+                    break;
+                }
+                Ok(None) => {}
+                Err(()) => {
+                    ambiguous = true;
+                    break;
+                }
             }
         }
         if ambiguous {
@@ -81,36 +64,57 @@ pub fn authored_type_occurrences(
         }
         requested.insert(owner);
         ancestors.extend(scope);
-        if let Some(machine) = machine
-            && machine_owners.insert(machine.symbol)
+        if let Some((symbol, description)) = selected
+            && description_owners.insert(symbol)
         {
-            machines.push(machine);
-        }
-        if let Some(definition) = trait_definition
-            && program
-                .trait_definition_by_symbol(definition.symbol)
-                .is_none()
-            && trait_owners.insert(definition.symbol)
-        {
-            traits.push(definition);
+            descriptions.push(description);
         }
     }
     let mut source = AuthoredTypeOccurrences(TypeOccurrences {
         selection: DeclarationSelection::from_symbols(ancestors),
         ..TypeOccurrences::default()
     });
-    // Traverse current non-machine roots once, then only the exact requested
-    // machine and trait descriptions. No body or occurrence is collected from
-    // unrelated backing declarations, and no application row supplies its own
-    // evidence.
+    // Current headers are traversed once. Replay exact omitted descriptions
+    // through those same operations, without rooting unrelated arena entries.
     visit_declarations(program, &mut source);
-    for definition in traits {
-        if source.declaration(definition.symbol) {
-            visit_trait(program, &mut source, definition);
+    for description in descriptions {
+        match description {
+            SourceDescription::Machine(machine) => visit_machine(program, &mut source, machine),
+            SourceDescription::Data(definition)
+                if program
+                    .data_definition_by_symbol(definition.symbol)
+                    .is_none()
+                    && source.declaration(definition.symbol) =>
+            {
+                visit_data(program, &mut source, definition);
+            }
+            SourceDescription::Trait(definition)
+                if program
+                    .trait_definition_by_symbol(definition.symbol)
+                    .is_none()
+                    && source.declaration(definition.symbol) =>
+            {
+                visit_trait(program, &mut source, definition);
+            }
+            SourceDescription::Const(definition)
+                if program
+                    .const_declaration_by_symbol(definition.symbol)
+                    .is_none()
+                    && source.declaration(definition.symbol) =>
+            {
+                visit_const(program, &mut source, definition);
+            }
+            SourceDescription::Alias(definition)
+                if program
+                    .type_aliases()
+                    .iter()
+                    .all(|alias| alias.symbol != definition.symbol)
+                    && source.declaration(definition.symbol) =>
+            {
+                visit_alias(program, &mut source, definition);
+            }
+            _ => {}
         }
-    }
-    for machine in machines {
-        visit_machine(program, &mut source, machine);
     }
     source
         .0
@@ -120,25 +124,92 @@ pub fn authored_type_occurrences(
         .collect()
 }
 
-/// An omitted trait header remains descriptive custody only when every backing
-/// copy agrees, just as an omitted machine's lexical declaration must agree.
-fn trait_declaration_for_lexical_scope(
+enum SourceDescription<'program> {
+    Machine(&'program crate::machine::Machine),
+    Data(&'program crate::data::DataDefinition),
+    Trait(&'program crate::trait_definition::TraitDefinition),
+    Const(&'program crate::constant::ConstDeclaration),
+    Alias(&'program crate::type_aliases::TypeAliasDefinition),
+}
+
+fn lexical_description(
     program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&crate::trait_definition::TraitDefinition> {
-    if let Some(definition) = program.trait_definition_by_symbol(symbol) {
-        return Some(definition);
+) -> Result<Option<SourceDescription<'_>>, ()> {
+    macro_rules! header {
+        ($current:expr, $table:ident, $variant:ident) => {
+            consistent_header(
+                $current,
+                program
+                    .tables
+                    .$table
+                    .iter()
+                    .map(|(_, declaration)| declaration)
+                    .filter(|declaration| declaration.symbol == symbol),
+                PartialEq::eq,
+            )
+            .map(|description| description.map(SourceDescription::$variant))
+        };
     }
-    let mut declarations = program
-        .tables
-        .traits
-        .iter()
-        .map(|(_, definition)| definition)
-        .filter(|definition| definition.symbol == symbol);
-    let definition = declarations.next()?;
-    declarations
-        .all(|copy| copy == definition)
-        .then_some(definition)
+    match program.symbols.get(symbol).kind {
+        SymbolKind::Machine => header!(
+            program.machine_declaration_for_lexical_scope(symbol),
+            machines,
+            Machine
+        ),
+        SymbolKind::Data => header!(
+            program.data_definition_by_symbol(symbol),
+            data_definitions,
+            Data
+        ),
+        SymbolKind::Trait => header!(program.trait_definition_by_symbol(symbol), traits, Trait),
+        SymbolKind::TypeAlias => header!(
+            program
+                .type_aliases()
+                .iter()
+                .find(|alias| alias.symbol == symbol),
+            type_aliases,
+            Alias
+        ),
+        SymbolKind::Const => consistent_header(
+            program.const_declaration_by_symbol(symbol),
+            program
+                .tables
+                .const_declarations
+                .iter()
+                .map(|(_, declaration)| declaration)
+                .filter(|declaration| declaration.symbol == symbol),
+            |left, right| {
+                // Evaluation and materialization can update derived records.
+                // Only the original declaration inputs supply authored types.
+                left.symbol == right.symbol
+                    && left.is_public == right.is_public
+                    && left.declared_type == right.declared_type
+                    && left.initializer_source_span == right.initializer_source_span
+                    && left.authored_initializer == right.authored_initializer
+            },
+        )
+        .map(|description| description.map(SourceDescription::Const)),
+        _ => Ok(None),
+    }
+}
+
+fn consistent_header<'program, Declaration: 'program>(
+    current: Option<&'program Declaration>,
+    mut copies: impl Iterator<Item = &'program Declaration>,
+    agrees: impl Fn(&Declaration, &Declaration) -> bool,
+) -> Result<Option<&'program Declaration>, ()> {
+    if current.is_some() {
+        return Ok(current);
+    }
+    let Some(description) = copies.next() else {
+        return Ok(None);
+    };
+    if copies.all(|copy| agrees(copy, description)) {
+        Ok(Some(description))
+    } else {
+        Err(())
+    }
 }
 
 // The occurrence bookkeeping is shared with the ordinary census; only the
@@ -462,5 +533,24 @@ mod authored_type_occurrence_tests {
                     reference
                 }]
         );
+        let declaration = program
+            .const_declaration_by_symbol(constant)
+            .unwrap()
+            .clone();
+        program.roots.const_declarations = Default::default();
+        assert!(contains(&program, constant, reference));
+        let mut copy = declaration;
+        copy.materialized_initializer = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let duplicate = program.tables.const_declarations.insert(copy);
+        assert!(contains(&program, constant, reference));
+        program
+            .tables
+            .const_declarations
+            .get_mut(duplicate)
+            .declared_type = forged;
+        assert!(!contains(&program, constant, reference));
+        assert!(!contains(&program, constant, forged));
     }
 }

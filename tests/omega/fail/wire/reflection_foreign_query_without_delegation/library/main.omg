@@ -1,0 +1,8 @@
+use owner;
+use omega::language::core::reflect;
+public machine inspect<T>(value: &T, count: &mut u64) {
+    reflect::visit_runtime_fields<T, count_field>(value, count);
+}
+machine count_field<Kind>(count: &mut u64, field: &reflect::FieldInfo, value: &Kind) {
+    count = ((count as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+}

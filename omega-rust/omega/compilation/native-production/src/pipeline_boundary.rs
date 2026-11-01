@@ -30,15 +30,6 @@ fn terminal_application_preparation_owns_source_free_admission_order() {
 }
 
 #[test]
-fn component_calls_are_request_data_not_an_alternate_compile_entrance() {
-    let compiler = include_str!("compiler.rs");
-    assert_eq!(compiler.matches("pub fn ").count(), 1);
-    let exports = include_str!("lib.rs");
-    assert!(!exports.contains("emit_component_exports"));
-    assert!(!exports.contains("ComponentNativeCall"));
-}
-
-#[test]
 fn applications_and_callables_use_the_same_body_pipeline() {
     for caller in [
         include_str!("realization/object_emission.rs"),

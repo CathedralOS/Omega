@@ -175,7 +175,11 @@ fn invocation_reference_effects(
             call_expression,
             parameters,
             &mut relative,
-        )?;
+        )
+        .or_else(|| {
+            trace_refusal("output-occurrence-rebase");
+            None
+        })?;
         instantiate(
             program, machine, parameters, captures, &relative, context, symbols,
         )
@@ -197,7 +201,12 @@ fn invocation_reference_effects(
         super::caller_aliases::CallerWriteSite::Call(call)
             if !call_expression.is_valid() && call.target_symbol == target =>
         {
-            crate::CallSite::Statement(call).parameters(program, machine.symbol)?
+            crate::CallSite::Statement(call)
+                .parameters(program, machine.symbol)
+                .or_else(|| {
+                    trace_refusal("statement-parameters");
+                    None
+                })?
         }
         super::caller_aliases::CallerWriteSite::Expression(expression)
             if expression == call_expression =>
@@ -206,7 +215,12 @@ fn invocation_reference_effects(
             if call.target_symbol != target {
                 return None;
             }
-            crate::CallSite::Expression { expression, call }.parameters(program, machine.symbol)?
+            crate::CallSite::Expression { expression, call }
+                .parameters(program, machine.symbol)
+                .or_else(|| {
+                    trace_refusal("expression-parameters");
+                    None
+                })?
         }
         _ => return None,
     };
@@ -214,7 +228,10 @@ fn invocation_reference_effects(
         trace_refusal("parameter-capture-correspondence");
         return None;
     }
-    let inventory = parameter_destination_inventory(program, parameters)?;
+    let inventory = parameter_destination_inventory(program, parameters).or_else(|| {
+        trace_refusal("parameter-inventory");
+        None
+    })?;
     // Captured machine arguments are not state operands. The state-only
     // inventory cannot classify those captures; their existing relation owner
     // must still succeed below before this invocation can be complete.
@@ -257,19 +274,21 @@ fn invocation_reference_effects(
         return None;
     };
     let body_parameters = program.state_parameters(state);
-    if body_parameters.len() != arguments.len()
-        || !machine_arguments_empty
-        || !program.machine_type_parameters(callee).is_empty()
-    {
-        // An application whose destination inventory still names a type
-        // parameter sits in a template body: its selected closed instances
-        // call the concrete specialized body and publish the real relation.
-        // Only a concrete application of an uninstantiable callee fails here.
-        if inventory.template_dependent && body_parameters.len() == arguments.len() {
-            return Some(SlotRelationTransfer::unknown(context, target, true, false));
-        }
+    // This query derives a relation in the selected body's parameter
+    // namespace; it does not execute or admit its static application. A
+    // generic owner can have a complete runtime slot frontier (for example an
+    // unused captured array bound). Unknown field types, static-dependent
+    // selectors, callbacks and incomplete exits still fail in the inventory,
+    // exit solver and substitution below. Closed invocation checking separately
+    // owns the exact static application and permission to perform the call.
+    if body_parameters.len() != arguments.len() {
         trace_refusal("checked-callee-application");
         return None;
+    }
+    // Preserve main's template deferral without refusing a generic owner whose
+    // runtime destination inventory is already complete and concrete.
+    if inventory.template_dependent {
+        return Some(SlotRelationTransfer::unknown(context, target, true, false));
     }
     if matches!(
         callee.supply_mode,

@@ -1,6 +1,7 @@
 # Indirect C floating record result
 
-Parent: **NORMALIZED-ABI-LOWERING** in [TASKS.md](../../../../TASKS.md).
+Parents: **NORMALIZED-ABI-LOWERING**, **BUILD-OWNED-TARGET-SELECTION**, and
+**BUILD-OWNED-NATIVE-BINDINGS** in [TASKS.md](../../../../TASKS.md).
 
 A copyable indirect C affine record preserves all six floating fields and
 independent earlier-call contents through transport and copying into the
@@ -64,3 +65,22 @@ on macOS ARM64. Their ten copy-only controls reject after consumption. The
 matching corpus pins enforce the same authored outcomes; other-host integer
 record regressions exercise the shared admission without claiming CoreGraphics
 execution there.
+
+The migrated Build binds `AffineTransforms::make` directly to the exact
+CoreGraphics locator, with inferred byte lengths. The selected-body place uses
+the private `AffineObservation` requirement and ordinary `NativeAffineObservation`
+implementation selected by explicit rows for all four declared targets. The
+CoreGraphics native supply remains macOS ARM64 only; selection does not invent
+that library or its behavioral admission on another host. Source contains no
+target-prefixed body, native forwarding declaration or `via` clause.
+
+The match join retains its original six coefficients and both constructor calls,
+and now carries a separate branch marker into the consumer. Both inputs execute;
+returning the opposite marker must trap even though the transform values match.
+The copy-only twin still removes only `Transform`'s `[copy]` permission.
+
+Migration observations use the retained optimized producer `fbf567b724db` with
+its matching SDK, with consumer applicability reviewed against the authored
+`0f75ac521524` base. Fresh native/Terminal agreement is macOS ARM64 only. The
+remaining parent-task platform, Source migration and legacy deletion obligations
+stay open; this row supplies no foreign execution on other hosts.

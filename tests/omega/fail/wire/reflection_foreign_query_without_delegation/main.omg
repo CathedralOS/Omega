@@ -1,0 +1,7 @@
+use owner;
+use library;
+machine main() {
+    let subject: owner::Subject = owner::Subject { first: 19u64, second: 23u64 };
+    let mut count: u64 = 0u64;
+    library::inspect<owner::Subject>(&subject, &mut count);
+}

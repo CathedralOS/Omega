@@ -19,6 +19,7 @@
 //! establish arbitrary replacement freshness for those separate owners.
 
 use super::machine_declarations::MachinePositionIndex;
+use super::type_parameters::TypeParameterIndex;
 use crate::{data, machine};
 use arena::{Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
@@ -126,16 +127,6 @@ struct DomainPositionIndex {
     by_symbol: HashMap<SymbolHandle, usize>,
 }
 
-/// Exact type-parameter declaration handles, in symbol order. A flat arena
-/// includes data, machine and trait parameters; call-target indexes cover only
-/// machines and cannot answer this relationship. Stable symbol ordering retains
-/// every live arena occurrence: existing indexed readers select the last, while
-/// named value typing preserves its first-match scan before checking binder kind.
-#[derive(Clone, Default)]
-struct TypeParameterIndex {
-    rows: Vec<(SymbolHandle, Handle<data::TypeParameter>)>,
-}
-
 /// Data symbols owning an attached `::drop` machine, computed once per
 /// machine-table revision.
 #[derive(Clone, Default)]
@@ -205,7 +196,6 @@ pub struct DeclarationIndexes {
     states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,
     state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
     data_members: OwnedIndex<DataMemberIndex>,
-    type_parameters: OwnedIndex<TypeParameterIndex>,
     domains: OwnedIndex<DomainPositionIndex, DomainDeclarationScope>,
     attached_drops: OwnedIndex<AttachedDropIndex>,
     call_targets: OwnedIndex<CallTargetIndex>,
@@ -261,7 +251,7 @@ impl super::TypedTrees {
         indexes.state_declarations.seal();
         indexes.data_members.seal();
         self.tables.data_definitions.seal();
-        indexes.type_parameters.seal();
+        self.tables.data_type_parameters.seal();
         indexes.domains.seal();
         indexes.attached_drops.seal();
         indexes.call_targets.seal();
@@ -284,7 +274,7 @@ impl super::TypedTrees {
         indexes.state_declarations.unseal();
         indexes.data_members.unseal();
         self.tables.data_definitions.unseal();
-        indexes.type_parameters.unseal();
+        self.tables.data_type_parameters.unseal();
         indexes.domains.unseal();
         indexes.attached_drops.unseal();
         indexes.call_targets.unseal();
@@ -502,20 +492,19 @@ impl super::TypedTrees {
         &self,
         run: impl FnOnce(&TypeParameterIndex) -> Result,
     ) -> Result {
-        self.declaration_indexes.type_parameters.with(
-            self.data_type_parameters.revision(),
-            || {
-                let mut rows: Vec<_> = self
-                    .data_type_parameters
-                    .iter()
-                    .filter(|(_, parameter)| parameter.symbol.is_valid())
-                    .map(|(handle, parameter)| (parameter.symbol, handle))
-                    .collect();
-                relationships::sort_symbol_rows(&mut rows);
-                TypeParameterIndex { rows }
-            },
-            run,
-        )
+        self.data_type_parameters.with_index(run)
+    }
+
+    /// Visit every declaration of this exact parameter symbol in arena order.
+    /// Kind filtering belongs to the consumer; duplicates remain observable.
+    pub(super) fn with_type_parameter_declarations<R>(
+        &self,
+        symbol: SymbolHandle,
+        read: impl FnOnce(&[(SymbolHandle, Handle<data::TypeParameter>)]) -> R,
+    ) -> R {
+        self.with_type_parameter_index(|index| {
+            read(relationships::symbol_rows(&index.rows, symbol))
+        })
     }
 
     /// Resolve the last arena occurrence of this exact parameter symbol,

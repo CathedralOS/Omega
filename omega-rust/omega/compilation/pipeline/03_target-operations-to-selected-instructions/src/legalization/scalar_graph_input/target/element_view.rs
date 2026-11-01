@@ -206,6 +206,18 @@ impl Checker<'_> {
                             terminal_psi::ElementViewRegion::WholeCollection,
                         ) => true,
                         (
+                            target_operations::TargetElementViewRegion::WholeRepresentation {
+                                source_length,
+                                obligation,
+                            },
+                            terminal_psi::ElementViewRegion::WholeRepresentation {
+                                source_length: expected_length,
+                                obligation: expected_obligation,
+                            },
+                        ) => {
+                            *source_length == expected_length && *obligation == expected_obligation
+                        }
+                        (
                             target_operations::TargetElementViewRegion::RepresentationBytes {
                                 start,
                                 end,
@@ -483,6 +495,34 @@ impl Checker<'_> {
         }
         let backing = match geometry {
             terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => backing,
+            terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+                backing,
+                source: source_layout,
+                target: target_layout,
+            } => {
+                if byte_window.is_some() || access != terminal_psi::StructuralAccess::SharedBorrow {
+                    return false;
+                }
+                let Some(length_scale) = crate::structural_inputs::structural_reference_input::whole_representation_length_scale(
+                    &collection,
+                    &source_layout,
+                    element,
+                    &target_layout,
+                    self.types,
+                ) else {
+                    return false;
+                };
+                match backing.extent {
+                    terminal_semantics::CollectionExtent::Fixed(count) => {
+                        if count.checked_mul(length_scale).is_none() {
+                            return false;
+                        }
+                    }
+                    terminal_semantics::CollectionExtent::StoredLength => {}
+                    terminal_semantics::CollectionExtent::LiveLength { .. } => return false,
+                }
+                backing
+            }
             terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
                 byte_extent,
                 element: layout,

@@ -1,1 +1,1 @@
-assignment cannot write
+argument `written` for state `encode` is declared `&mut`

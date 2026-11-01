@@ -1,0 +1,102 @@
+// Offscreen images own copied native storage. No image retains an Omega loan.
+use calling;
+use darwin_calling;
+use posix_byte_view_calling;
+
+// CFDataCreate has three C arguments: allocator, byte pointer and CFIndex.
+// The explicit calling policy exports the complete shared view as pointer/count.
+// The admitted foreign promise copies those bytes before returning. The result
+// is a Create-rule owned CFData handle, or zero; it retains no input reference.
+public boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling> {
+    machine copy(allocator: u64, bytes: &[u8]) -> u64
+    requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
+    reaches;
+}
+
+// These ordinary C calls have no borrowed Omega storage. A provider preserves
+// its CFData backing independently, and an image retains its provider. Releases drop only our owned native
+// references; the successful image owns the surviving graph independently.
+public boundary trait MacosImageObjects: Calling<DarwinArm64ScalarCalling> {
+    machine provider(data: u64) -> u64
+    requires data != 0
+    reaches;
+    machine release_data(data: u64)
+    requires data != 0
+    reaches;
+    machine release_provider(provider: u64)
+    requires provider != 0
+    reaches;
+    // CGImageRelease explicitly tolerates a null image.
+    machine release_image(image: u64) reaches;
+    machine create(width: u64, height: u64, bits_per_component: u64,
+        bits_per_pixel: u64, bytes_per_row: u64, space: u64,
+        bitmap_info: u32, provider: u64, decode: u64,
+        interpolate: bool, intent: u32) -> u64
+    reaches;
+}
+
+// Copy the entire live 32-bit pixel region into native-owned immutable storage.
+// The caller supplies the existing native RGB color-space handle. A nonzero
+// result is a Create-rule owned CGImage: its caller must release it. Zero is
+// allocation/image-creation failure, with every created temporary released.
+public machine macos_image_snapshot(width: u32, height: u32,
+    pixels: &[i32], space: u64) -> u64
+requires width > 0 && width <= 8192
+requires height > 0 && height <= 8192
+requires pixels.len == (width as u64) * (height as u64)
+reaches
+invokes MacosImageData invokes MacosImageObjects
+{
+    let bytes: &[u8] = pixels as &[u8];
+    // CFIndex is signed even though Omega view lengths are unsigned counts.
+    // Validate the native scalar lane independently of the borrowed extent.
+    transition bytes.len <= 0x7fff_ffff_ffff_ffffu64 {
+        true -> copy(width, height, space, bytes)
+        _ -> (0)
+    }
+
+    machine copy(width: u32, height: u32, space: u64, bytes: &[u8]) -> u64
+    requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
+    invokes MacosImageData invokes MacosImageObjects
+    {
+        let data: u64 = MacosImageData::copy(0, bytes);
+        transition data != 0 {
+            true -> provider(width, height, space, data)
+            _ -> (0)
+        }
+    }
+
+    machine provider(width: u32, height: u32, space: u64, data: u64) -> u64
+    requires data != 0
+    invokes MacosImageObjects
+    {
+        let backing: u64 = MacosImageObjects::provider(data);
+        transition backing != 0 {
+            true -> image(width, height, space, data, backing)
+            _ -> failed_provider(data)
+        }
+    }
+
+    machine failed_provider(data: u64) -> u64
+    requires data != 0
+    invokes MacosImageObjects
+    {
+        MacosImageObjects::release_data(data);
+        0
+    }
+
+    machine image(width: u32, height: u32, space: u64,
+        data: u64, backing: u64) -> u64
+    requires data != 0 && backing != 0
+    invokes MacosImageObjects
+    {
+        let stride: u64 = (width as u64) * 4;
+        // Preserve the existing little-endian 32-bit RGB/unused-alpha format.
+        // CGImageCreate's last three C arguments occupy the ordinary stack lane.
+        let result: u64 = MacosImageObjects::create(width as u64, height as u64,
+            8, 32, stride, space, 0x2006, backing, 0, false, 0);
+        MacosImageObjects::release_provider(backing);
+        MacosImageObjects::release_data(data);
+        result
+    }
+}

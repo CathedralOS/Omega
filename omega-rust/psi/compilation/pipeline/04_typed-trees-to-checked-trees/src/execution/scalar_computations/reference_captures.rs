@@ -61,6 +61,40 @@ impl Builder<'_, '_> {
         }) {
             retain_capture(loan.root, loan.segments, &loan.kind)?;
         }
+        // A formation evaluated as part of a call operand, such as the field
+        // initializer in `consume(Input { bytes: &packet })`, installs no
+        // statement loan: it has no owning local. Borrow admission instead
+        // records the formation in that call's ordered access roster, keyed by
+        // this exact occurrence. An access still held through invocation is the
+        // descriptor's backing; one that ends earlier was an observation and
+        // cannot supply a loan, and a row of another access kind is no evidence
+        // for this view's access. Value planning runs before call-loan resources
+        // are installed, so this roster, not those resources, is the evidence
+        // available here. Only a formation can draw on it: reading a stored
+        // descriptor must keep that descriptor's own captured backing.
+        if validation::reference_formation_source(self.program, expression).is_some() {
+            for call in self
+                .borrow
+                .calls
+                .span(state.calls)?
+                .iter()
+                .filter(|call| call.statement_index == self.statement_index)
+            {
+                for access in self
+                    .borrow
+                    .argument_accesses
+                    .span(call.accesses)?
+                    .iter()
+                    .filter(|access| {
+                        access.expression == expression
+                            && access.end_before_access.is_none()
+                            && access.kind == kind
+                    })
+                {
+                    retain_capture(access.root, access.segments, &access.kind)?;
+                }
+            }
+        }
         let mut returned_site = None;
         for returned in self
             .borrow

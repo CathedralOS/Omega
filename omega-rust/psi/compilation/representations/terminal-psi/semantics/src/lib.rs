@@ -87,8 +87,9 @@ pub use reference_origins::{
     validate_dynamic_reference_regions,
 };
 pub use reference_storage_geometry::{
-    ReferenceScalarStorage, ReferenceStorageGeometry, ReferenceStorageProjection,
-    ReferenceStorageRegion, StorageGeometryError, reference_scalar_storage,
+    RecordStorageResolver, ReferenceRecordField, ReferenceRepeatedField, ReferenceScalarStorage,
+    ReferenceStorageGeometry, ReferenceStorageProjection, ReferenceStorageRegion,
+    StorageGeometryError, UnselectedRecordStorage, reference_scalar_storage,
     reference_storage_dependencies, reference_storage_layout, reference_storage_projection,
     reference_storage_region, reference_storage_size,
 };
@@ -258,6 +259,7 @@ pub use representation_regions::{
     ElementViewRegionGeometry, RepresentationElementLayout, RepresentationScalarLeaf,
     element_view_region_geometry, element_view_shape_region_geometry, representation_byte_extent,
     representation_element_layout, representation_region_goal, representation_region_length,
+    whole_representation_count_goal,
 };
 
 mod element_representation;

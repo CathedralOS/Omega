@@ -49,11 +49,12 @@ pub use language_semantics::declaration_selection::{
 };
 pub use snapshot::TypedTreesSnapshot;
 pub use typed_trees::{
-    BoundaryCompletionDeclaration, DataDefinitionTable, FrozenTypedTrees, PlanLaidBitField,
-    PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
-    PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
-    PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
-    PrivateCallbackSlotApplication, ProgramIdentity, ScalarAccessorDeclaration,
-    ScalarAccessorOperation, SymbolRebinding, TypedTreeRoots, TypedTreeTables, TypedTrees,
-    closed_conformance_applications_of, machine_specialization_matches_template_identity,
+    BoundaryCompletionDeclaration, DataDefinitionTable, FrozenTypedTrees,
+    MachineParameterSignatureQueries, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry,
+    PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField,
+    PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument, PlanLaidSchemaField,
+    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, PrivateCallbackSlotApplication, ProgramIdentity,
+    ScalarAccessorDeclaration, ScalarAccessorOperation, SymbolRebinding, TypedTreeRoots,
+    TypedTreeTables, TypedTrees, closed_conformance_applications_of,
+    machine_specialization_matches_template_identity,
 };

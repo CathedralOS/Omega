@@ -67,7 +67,6 @@ impl OperationFrame<'_, '_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         call: &checked_trees::CheckedUnitCallPlan,
-        result: &checked_trees::CheckedUnitScalarResultBindingPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let target_machine = &call.target.machine;
@@ -90,9 +89,6 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "scalar boundary call lost its result signature",
             ))?;
-        if declared_result.scalar_type != terminal_scalar_type(result.primitive_type)? {
-            return unsupported("scalar boundary result disagrees with its checked carrier");
-        }
         let value = ValueDeclaration {
             qualifications: declared_result.qualifications,
             id: value_id(allocate_dense(self.next_value)?),

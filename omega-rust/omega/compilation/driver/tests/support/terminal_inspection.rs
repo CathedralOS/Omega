@@ -26,6 +26,8 @@ mod host_provisions;
 mod indexed_family_controls;
 #[path = "mathematical_actuals.rs"]
 mod mathematical_actuals;
+#[path = "native_layout_controls.rs"]
+mod native_layout_controls;
 #[path = "provider_choice_controls.rs"]
 mod provider_choice_controls;
 #[path = "scalar_issuer_controls.rs"]
@@ -38,7 +40,7 @@ mod task_activation_controls;
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
 #[derive(Clone, Copy)]
-enum InspectionControls {
+enum InspectionControls<'selection> {
     ConformanceApplications,
     IndexedFamily,
     MathematicalActuals,
@@ -50,7 +52,8 @@ enum InspectionControls {
     ProviderChoices,
     BoundaryProviders,
     BehaviorAdmission,
-    CallbackTelescope,
+    CallbackTelescope(&'selection str),
+    NativeLayouts,
     ScalarIssuer,
 }
 
@@ -139,8 +142,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "behavior-admission-controls"] => {
                 (*machine, false, Some(InspectionControls::BehaviorAdmission))
             }
-            [machine, "callback-telescope-controls"] => {
-                (*machine, false, Some(InspectionControls::CallbackTelescope))
+            [machine, "callback-telescope-controls", policy] => (
+                *machine,
+                false,
+                Some(InspectionControls::CallbackTelescope(policy)),
+            ),
+            [machine, "native-layout-controls"] => {
+                (*machine, false, Some(InspectionControls::NativeLayouts))
             }
             [machine, "scalar-issuer-controls"] => {
                 (*machine, false, Some(InspectionControls::ScalarIssuer))
@@ -170,7 +178,8 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     | InspectionControls::ProviderChoices
                     | InspectionControls::BoundaryProviders
                     | InspectionControls::BehaviorAdmission
-                    | InspectionControls::CallbackTelescope
+                    | InspectionControls::CallbackTelescope(_)
+                    | InspectionControls::NativeLayouts
             )
         );
         let product = if provider_controls {
@@ -236,9 +245,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             drop(prepared);
             if matches!(
                 conformance_controls,
-                Some(InspectionControls::CallbackTelescope)
+                Some(InspectionControls::NativeLayouts)
             ) {
-                callback_telescope_controls::inspect(&retained)?;
+                native_layout_controls::inspect(&retained)?;
+                observations.push("native-layout-controls:match".into());
+            } else if let Some(InspectionControls::CallbackTelescope(policy)) = conformance_controls
+            {
+                callback_telescope_controls::inspect(&retained, profile, policy)?;
                 observations.push("callback-telescope-controls:match".into());
             } else if let Some(choices) = provider_choices {
                 provider_choice_controls::inspect(choices, &retained, profile.target_name())?;
@@ -352,7 +365,8 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 | InspectionControls::ProviderChoices
                 | InspectionControls::BoundaryProviders
                 | InspectionControls::BehaviorAdmission
-                | InspectionControls::CallbackTelescope
+                | InspectionControls::CallbackTelescope(_)
+                | InspectionControls::NativeLayouts
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")

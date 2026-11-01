@@ -2,6 +2,7 @@
 pub(crate) enum ExpressionContext {
     Default,
     NoStructLiteral,
+    TypeExpressionNoStructLiteral,
     NoStructLiteralOrMembership,
     ProofFact,
     GroupedProofFact,
@@ -35,7 +36,20 @@ impl ExpressionContext {
                 | Self::GroupedProofFact
                 | Self::LogicalProofFact
                 | Self::GroupedLogicalProofFact
+                | Self::TypeExpressionNoStructLiteral
         )
+    }
+
+    /// Only a complete Boolean expression enables static type operands.
+    /// Integer/index probes retain their original value-only grammar.
+    pub(crate) fn boolean(self) -> Self {
+        match self {
+            Self::Default => Self::GroupedProofFact,
+            Self::NoStructLiteral => Self::TypeExpressionNoStructLiteral,
+            Self::NoStructLiteralOrMembership => Self::ProofFact,
+            Self::LogicalValue => Self::GroupedLogicalProofFact,
+            _ => self,
+        }
     }
 
     pub(crate) fn allows_logical_subject(self) -> bool {

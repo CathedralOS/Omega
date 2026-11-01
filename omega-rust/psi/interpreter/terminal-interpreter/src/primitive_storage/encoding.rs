@@ -307,6 +307,19 @@ impl TerminalExecution<'_> {
                 }
                 *index = start;
             }
+            PrimitiveStorageEndpoint::RepresentationByte(byte) => {
+                if loan.scalar_type != byte_type()? {
+                    return Err(malformed());
+                }
+                let start = byte.index.checked_add(byte_offset).ok_or_else(malformed)?;
+                if start
+                    .checked_add(width)
+                    .is_none_or(|end| end > byte.view.len())
+                {
+                    return Err(malformed());
+                }
+                byte.index = start;
+            }
             PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
                 if loan.scalar_type != byte_type()? {
                     return Err(malformed());
@@ -509,6 +522,18 @@ pub(crate) fn shifted_byte_endpoint(
                 home: *home,
                 index: index.checked_add(byte_offset).ok_or_else(malformed)?,
             })
+        }
+        PrimitiveStorageEndpoint::RepresentationByte(byte) => {
+            let index = byte.index.checked_add(byte_offset).ok_or_else(malformed)?;
+            if index >= byte.view.len() {
+                return Err(malformed());
+            }
+            Ok(PrimitiveStorageEndpoint::RepresentationByte(
+                super::RepresentationByte {
+                    view: byte.view.clone(),
+                    index,
+                },
+            ))
         }
         PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
             Ok(PrimitiveStorageEndpoint::ViewByte {

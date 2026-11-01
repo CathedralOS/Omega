@@ -2,7 +2,8 @@ use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
-    configure_windows_time(builder);
+    configure_macos_image(builder);
+    configure_time_host(builder);
     configure_windows_filesystem(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
     Build::bind<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
@@ -91,9 +92,9 @@ machine configure_clock(builder: &mut Build) {
         ForeignBinding::Syscall { number: 101 });
 }
 
-// The raw Windows time requirements are backed here, not by forwarding
-// declarations; the TimeHost leaves call them as ordinary requirements.
-machine configure_windows_time(builder: &mut Build) {
+// TimeHost owns one target-keyed provider map and its package-local raw supply.
+// Ordinary helpers keep the activation's original mutable Build value.
+machine configure_time_host(builder: &mut Build) {
     Build::bind<WindowsTimeRead::query_performance_counter>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceCounter"
@@ -110,6 +111,35 @@ machine configure_windows_time(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "Sleep"
         } });
+    Build::select_provider<TimeHost, WindowsTimeHost>(builder, windows_x86_64);
+    Build::select_provider<TimeHost, LinuxX8664TimeHost>(builder, linux_x86_64);
+    Build::select_provider<TimeHost, LinuxArm64TimeHost>(builder, linux_arm64);
+    Build::select_provider<TimeHost, DarwinTimeHost>(builder, macos_arm64);
+    Build::select_provider<TimeHost, DarwinTimeHost>(builder, macos_x86_64);
+    Build::bind<DarwinTimeRead::clock_nanoseconds>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
+        } });
+    Build::bind<DarwinTimeRead::poll>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
+        } });
+    Build::bind<DarwinTimeRead::clock_nanoseconds>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
+        } });
+    Build::bind<DarwinTimeRead::poll>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
+        } });
+    Build::bind<LinuxX64TimeRead::clock_gettime>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 228 });
+    Build::bind<LinuxX64TimeRead::poll>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 7 });
+    Build::bind<LinuxArm64TimeRead::clock_gettime>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 113 });
+    Build::bind<LinuxArm64TimeRead::nanosleep>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 101 });
 }
 
 // The raw Windows filesystem requirements are backed here; their traits carry
@@ -283,5 +313,40 @@ machine configure_windows_filesystem(builder: &mut Build) {
     Build::bind<WindowsFilesystemIo::c_set_last_error>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetLastError"
+        } });
+}
+
+// Native object storage belongs to the image module; the original Build value
+// records its exact requirements and locators for the macOS deployment target.
+machine configure_macos_image(builder: &mut Build) {
+    Build::bind<MacosImageData::copy>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+            symbol: "_CFDataCreate"
+        } });
+    Build::bind<MacosImageObjects::provider>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGDataProviderCreateWithCFData"
+        } });
+    Build::bind<MacosImageObjects::release_data>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+            symbol: "_CFRelease"
+        } });
+    Build::bind<MacosImageObjects::release_provider>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGDataProviderRelease"
+        } });
+    Build::bind<MacosImageObjects::release_image>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGImageRelease"
+        } });
+    Build::bind<MacosImageObjects::create>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGImageCreate"
         } });
 }

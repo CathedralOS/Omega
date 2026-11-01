@@ -1,0 +1,10 @@
+machine mutate<Kind>(value: &Kind)
+requires Kind == bool
+{
+    write(value);
+    machine write(value: &mut bool) { value = true; }
+}
+machine main() {
+    let value: bool = false;
+    mutate<bool>(&value);
+}
