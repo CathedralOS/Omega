@@ -387,17 +387,6 @@ impl DirectSignatureEffects {
         let mut symbols: Vec<_> = program
             .data_type_parameters
             .iter()
-            // Only machine binders can supply a callable contract. Other
-            // parameter kinds always answer the default effect row; asking
-            // their signature first walks every machine's enclosing scopes.
-            // Keep every machine occurrence before deduplication, so shared
-            // symbols, contract selection and ambiguity retain their owner.
-            .filter(|(_, parameter)| {
-                matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Machine { .. }
-                )
-            })
             .map(|(_, parameter)| parameter.symbol)
             .chain(
                 program
@@ -415,12 +404,20 @@ impl DirectSignatureEffects {
             .collect();
         symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
         symbols.dedup();
+        // Prepare exact ancestry inputs and share scope-parent answers within this
+        // immutable batch.
+        // Every original symbol and default row remains in the roster.
+        let mut parameter_signatures = program.machine_parameter_signature_queries();
         let rows = symbols
             .into_iter()
             .map(|symbol| {
                 (
                     symbol,
-                    direct_operational_for_signature_symbol_uncached(program, symbol),
+                    direct_operational_for_signature_symbol_uncached(
+                        program,
+                        symbol,
+                        &mut parameter_signatures,
+                    ),
                 )
             })
             .collect();
@@ -442,6 +439,7 @@ impl DirectSignatureEffects {
 fn direct_operational_for_signature_symbol_uncached(
     program: &dyn CheckingInput,
     symbol: SymbolHandle,
+    parameter_signatures: &mut typed_trees::MachineParameterSignatureQueries<'_>,
 ) -> DirectCallOperational {
     if let Some(requirement) = program
         .dynamic_slot_by_symbol(symbol)
@@ -449,7 +447,7 @@ fn direct_operational_for_signature_symbol_uncached(
     {
         return signature_operational(program, requirement);
     }
-    if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
+    if let Some((_, signature)) = parameter_signatures.get(symbol) {
         return signature_operational(program, signature);
     }
 

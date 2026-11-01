@@ -122,6 +122,8 @@ pub use frozen::FrozenTypedTrees;
 pub mod control_flow;
 mod data_definitions;
 mod machine_declarations;
+mod machine_parameter_signatures;
+pub use machine_parameter_signatures::MachineParameterSignatureQueries;
 pub mod declaration_index;
 mod declaration_tables;
 mod spelled_declarations;
