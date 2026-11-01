@@ -475,6 +475,7 @@ pub use proof_contracts::arithmetic_domains::{
 pub use proof_contracts::arithmetic_domains::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
 };
+pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation as CapturedIntegerDenotation;
 pub use proof_contracts::contract_entailment::arithmetic_judgment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
@@ -528,6 +529,9 @@ pub use proof_contracts::contract_entailment::strict_arithmetic::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
     strict_arithmetic_expression_implication,
+};
+pub use proof_contracts::contract_entailment::structural_judgment::owned_snapshots::{
+    CapturedOwnedSnapshot, captured_call_owned_snapshot, captured_entry_owned_snapshot,
 };
 pub use proof_contracts::contract_entailment::transparent_applications::{
     InheritedRequirementEdge, transparent_call_requirement_entailed,

@@ -156,10 +156,12 @@ impl Subject {
 
     /// Read each destination coordinate at the completed argument cut. Entry
     /// captures are reused only for an entry, never reread after a write.
+    /// Scalar inputs do not request the whole-value prefix observation.
     pub(super) fn bindings(
         &self,
         program: &dyn validation::CheckingInput,
         application: Application,
+        snapshot: impl FnOnce() -> Option<validation::CapturedOwnedSnapshot>,
         mut value: impl FnMut(&Coordinate) -> Option<ScopedArithmeticValue>,
     ) -> Option<(TypeReferenceHandle, Vec<ScopedArithmeticBinding>)> {
         use validation::ScopedArithmeticBinder as Binder;
@@ -184,14 +186,18 @@ impl Subject {
                     return None;
                 }
                 let mut bindings = Vec::new();
+                if let Some(snapshot) = snapshot() {
+                    bindings.push(ScopedArithmeticBinding {
+                        binder: Binder::Symbol(application.parameter),
+                        value: ScopedArithmeticValue::OwnedSnapshot(snapshot),
+                    });
+                }
                 for (read, coordinate) in shape.reads.iter().zip(reads) {
                     let captured = coordinate.bounded_value(value(coordinate)?)?;
-                    bindings.extend(read.occurrences.iter().map(|source| {
-                        ScopedArithmeticBinding {
-                            binder: Binder::Occurrence(*source),
-                            value: captured.clone(),
-                        }
-                    }));
+                    bindings.push(ScopedArithmeticBinding {
+                        binder: Binder::Coordinate(read.coordinate.clone()),
+                        value: captured,
+                    });
                 }
                 Some((*input_type, bindings))
             }

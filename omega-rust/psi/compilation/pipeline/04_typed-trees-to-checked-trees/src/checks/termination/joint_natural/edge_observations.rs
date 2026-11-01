@@ -92,17 +92,29 @@ pub(super) fn compare(
     let actual = *edge.arguments.get(destination.subject.position())?;
     let initial = &source.entry_value;
     let next = if let Some(application) = destination.application {
-        let (input_type, bindings) =
-            destination
-                .subject
-                .bindings(program, application, |coordinate| {
-                    coordinate.current(
-                        &edge.values,
-                        actual,
-                        machines[edge.destination],
-                        edge.arguments,
-                    )
-                })?;
+        let (input_type, bindings) = destination.subject.bindings(
+            program,
+            application,
+            || {
+                validation::captured_call_owned_snapshot(
+                    program,
+                    machines[edge.source],
+                    edge.values.state(),
+                    edge.statement,
+                    edge.site,
+                    destination.subject.position(),
+                    &destination.subject.root().path,
+                )
+            },
+            |coordinate| {
+                coordinate.current(
+                    &edge.values,
+                    actual,
+                    machines[edge.destination],
+                    edge.arguments,
+                )
+            },
+        )?;
         application
             .observe(&edge.values, machines[edge.source], input_type, bindings)?
             .value

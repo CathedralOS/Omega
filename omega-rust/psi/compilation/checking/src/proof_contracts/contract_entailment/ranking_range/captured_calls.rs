@@ -130,14 +130,20 @@ pub(crate) fn prove_captured_rank_call(
                     component.subject,
                     &path,
                 )?;
-                reads.extend(
-                    read.occurrences
-                        .iter()
-                        .map(|source| (*source, value.clone(), read.primitive_type)),
-                );
+                reads.push((read.coordinate.clone(), value, read.primitive_type));
             }
+            let snapshot = crate::canonical_place_from_expression(program, component.subject)
+                .and_then(|mut place| {
+                    place.segments.extend_from_slice(&component.projection);
+                    judge.captured_place_projection(&place, language_semantics::content::ContentPlaceVersion::Entry)
+                }).and_then(|value| {
+                    super::super::structural_judgment::owned_snapshots::CapturedOwnedSnapshot::completed(
+                        &judge, state.symbol, actual, &value,
+                    )
+                });
             CapturedIntegerInput::Record {
                 type_reference: actual,
+                snapshot,
                 reads,
             }
         };

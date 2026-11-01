@@ -204,27 +204,34 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed structural arguments have a stale span",
                 ))?;
-        let mut structural_arguments = if let Some(source_call) = source_call {
-            structural_arguments::lower(
-                identities,
-                self.checked,
-                source_call,
-                target_machine,
-                target_state,
-                site.state,
-                structural,
-                site.bindings,
-                &self.produced_values,
-                &self.subslices,
-                &self.literals,
-                self.structural_types,
-            )?
-        } else {
-            if !structural.is_empty() {
-                return unsupported("declaration call has no structural operand custody");
+        if source_call.is_none() && !structural.is_empty() {
+            let (formation, _) = origin
+                .declaration(
+                    &self.checked.facts.termination.rank_arrivals,
+                    self.machine,
+                    site.state,
+                )
+                .map_err(LoweringError::Unsupported)?;
+            if formation.owned_copy.is_none() {
+                return unsupported(
+                    "declaration structural call has no retained whole-input copy receipt",
+                );
             }
-            Vec::new()
-        };
+        }
+        let mut structural_arguments = structural_arguments::lower(
+            identities,
+            self.checked,
+            source_call,
+            target_machine,
+            target_state,
+            site.state,
+            structural,
+            site.bindings,
+            &self.produced_values,
+            &self.subslices,
+            &self.literals,
+            self.structural_types,
+        )?;
         let scalars = plans
             .operands
             .span(arguments)

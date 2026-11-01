@@ -39,6 +39,7 @@ impl<'program> Engine<'program> {
         let previous_arguments = self.formal_arguments.replace(arguments.to_vec());
         let previous_occurrences = std::mem::take(&mut self.strict_occurrences);
         let previous_reads = std::mem::take(&mut self.formal_read_arguments);
+        let previous_owned = std::mem::take(&mut self.owned_arguments);
         let previous_conditions = std::mem::take(&mut self.saved_conditions);
         self.source_owner = owner;
         let value = query(self);
@@ -46,6 +47,7 @@ impl<'program> Engine<'program> {
         self.formal_arguments = previous_arguments;
         self.strict_occurrences = previous_occurrences;
         self.formal_read_arguments = previous_reads;
+        self.owned_arguments = previous_owned;
         self.saved_conditions = previous_conditions;
         value
     }
@@ -233,7 +235,20 @@ impl<'program> Engine<'program> {
     ) -> Option<Polynomial> {
         use crate::ScopedArithmeticValue;
         Some(match value {
-            ScopedArithmeticValue::TypeReference(_) => return None,
+            ScopedArithmeticValue::CapturedInteger(denotation) => {
+                let leaves = denotation
+                    .leaf_atoms()
+                    .iter()
+                    .map(|identity| {
+                        self.declare_atom(identity, false);
+                        (identity.clone(), Polynomial::atom(identity.clone()))
+                    })
+                    .collect();
+                self.instantiate_integer_denotation(denotation, &leaves)?
+            }
+            ScopedArithmeticValue::TypeReference(_) | ScopedArithmeticValue::OwnedSnapshot(_) => {
+                return None;
+            }
             ScopedArithmeticValue::Atom { identity, unsigned } => {
                 self.declare_atom(identity, *unsigned);
                 Polynomial::atom(identity.clone())
@@ -350,12 +365,16 @@ impl<'program> Engine<'program> {
     ) -> Option<Polynomial> {
         let previous_owner = self.source_owner;
         let previous_types = self.source_type_bindings.clone();
+        let previous_reads = self.formal_read_arguments.clone();
+        let previous_owned = self.owned_arguments.clone();
         let value = (|| {
             self.install_scoped_expression(term).then_some(())?;
             query(self)
         })();
         self.source_owner = previous_owner;
         self.source_type_bindings = previous_types;
+        self.formal_read_arguments = previous_reads;
+        self.owned_arguments = previous_owned;
         value
     }
 
@@ -647,9 +666,33 @@ impl<'program> Engine<'program> {
         let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
         self.saved_conditions.clear();
         let mut occurrences = Vec::new();
+        let mut coordinates: Vec<(crate::RankSubjectCoordinate, Polynomial)> = Vec::new();
         let mut types = Vec::new();
+        let mut owned = Vec::new();
         let mut result = None;
         for binding in bindings {
+            if let crate::ScopedArithmeticValue::OwnedSnapshot(snapshot) = &binding.value {
+                let valid = match binding.binder {
+                    ScopedArithmeticBinder::Symbol(symbol) => symbol.is_valid(),
+                    ScopedArithmeticBinder::Occurrence(expression) => {
+                        expression_table(self.program).expression_is_valid(expression)
+                    }
+                    _ => false,
+                };
+                if !valid {
+                    return false;
+                }
+                if let Some((_, existing)) =
+                    owned.iter().find(|(binder, _)| binder == &binding.binder)
+                {
+                    if existing != snapshot {
+                        return false;
+                    }
+                } else {
+                    owned.push((binding.binder.clone(), snapshot.clone()));
+                }
+                continue;
+            }
             if let ScopedArithmeticBinder::Type(symbol) = binding.binder {
                 let super::super::ScopedArithmeticValue::TypeReference(reference) = binding.value
                 else {
@@ -703,11 +746,27 @@ impl<'program> Engine<'program> {
                 ScopedArithmeticBinder::Occurrence(expression) => {
                     occurrences.push((expression, polynomial));
                 }
+                ScopedArithmeticBinder::Coordinate(ref coordinate) => {
+                    if !coordinate.parameter.is_valid() {
+                        return false;
+                    }
+                    if let Some((_, existing)) =
+                        coordinates.iter().find(|(bound, _)| bound == coordinate)
+                    {
+                        if *existing != polynomial {
+                            return false;
+                        }
+                    } else {
+                        coordinates.push((coordinate.clone(), polynomial));
+                    }
+                }
             }
         }
         self.source_type_bindings = types;
         self.strict_symbol_bindings = Some(symbols);
         self.strict_result_binding = result;
+        self.formal_read_arguments = coordinates;
+        self.owned_arguments = owned;
         // Nested terms installed their own occurrence tables. Publish only
         // this roster, including when it has no occurrence bindings at all.
         self.strict_occurrences.clear();
@@ -717,6 +776,27 @@ impl<'program> Engine<'program> {
             }
         }
         true
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn coordinate_value(
+        &self,
+        coordinate: &crate::RankSubjectCoordinate,
+    ) -> Option<Polynomial> {
+        self.formal_read_arguments
+            .iter()
+            .find(|(bound, _)| bound == coordinate)
+            .map(|(_, value)| value.clone())
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn formal_coordinate_value(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<Polynomial> {
+        let place = crate::canonical_place_from_expression(self.program, expression)?;
+        self.coordinate_value(&crate::RankSubjectCoordinate {
+            parameter: place.root.as_symbol()?,
+            path: place.segments,
+        })
     }
 
     /// The ranking owner binds a checked member projection. Keep its narrower

@@ -52,6 +52,16 @@ impl RankValue {
     }
 
     pub fn after_arrival(&self, substitutions: &BTreeMap<String, Polynomial>) -> Option<Self> {
+        // This legacy adapter substitutes a fresh invocation's scalar inputs.
+        // It has no completed destination record. Re-expressing the old read
+        // roster cannot replace whole-value identity: fields absent from the
+        // public contract may have changed too. Record arrivals use the normal
+        // operand capture path, which supplies their fresh complete snapshot.
+        if self.application.as_ref().is_some_and(|application| {
+            matches!(application.input, IntegerApplicationInput::Record { .. })
+        }) {
+            return None;
+        }
         let substitute = |value: &Polynomial| {
             super::inductive_judgment::apply_argument_map(value, substitutions)
         };

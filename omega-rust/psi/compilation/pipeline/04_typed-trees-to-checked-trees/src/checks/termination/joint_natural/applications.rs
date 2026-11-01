@@ -45,7 +45,7 @@ impl Application {
             expression: self.body,
             bindings,
         };
-        let formation = values.declared_integer_application_formation(
+        let (formation, value) = values.declared_integer_application_formation(
             machine,
             &expression,
             input_type,
@@ -58,7 +58,7 @@ impl Application {
         Some(ObservedApplication {
             formation,
             value: ScopedArithmeticValue::BoundedInteger {
-                value: Box::new(ScopedArithmeticValue::Term(expression)),
+                value: Box::new(value),
                 interval: BigIntInterval {
                     low: Some(numerics::bignum::BigInt::from_i128(minimum)),
                     high: Some(numerics::bignum::BigInt::from_i128(maximum)),

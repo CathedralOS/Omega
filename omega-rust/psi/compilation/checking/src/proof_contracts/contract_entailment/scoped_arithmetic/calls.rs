@@ -479,6 +479,17 @@ impl<'program> ScopedCalls<'program> {
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value,
             });
+            if !parameter.is_mutable {
+                bindings.extend(
+                    actuals
+                        .iter()
+                        .filter(|binding| {
+                            matches!(&binding.binder, ScopedArithmeticBinder::Coordinate(coordinate)
+                        if coordinate.parameter == parameter.symbol)
+                        })
+                        .cloned(),
+                );
+            }
         }
         Some(bindings)
     }

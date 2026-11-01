@@ -283,15 +283,26 @@ impl CallProgress {
                             .cloned()
                             .collect::<Vec<_>>();
                         let value = read(&projection)?;
-                        reads.extend(
-                            required
-                                .occurrences
-                                .iter()
-                                .map(|source| (*source, value.clone(), required.primitive_type)),
-                        );
+                        reads.push((required.coordinate.clone(), value, required.primitive_type));
                     }
+                    let snapshot = entry_observation.judge.bound_contract_term(
+                        component.subject, entry.symbol, &parameters, callee.symbol,
+                        &bindings, &[], None, 0,
+                    ).and_then(|value| {
+                        let reference = crate::project_type_reference_from_segments(
+                            program, parameters[position].type_reference, &place.segments,
+                        )?;
+                        super::super::super::observed_projections::project_observed_value_in_scope(
+                            program, &entry_observation.judge, reference, value, &component.projection,
+                        )
+                    }).and_then(|value| {
+                        super::super::super::structural_judgment::owned_snapshots::CapturedOwnedSnapshot::completed(
+                            &entry_observation.judge, state.symbol, actual, &value,
+                        )
+                    });
                     CapturedIntegerInput::Record {
                         type_reference: actual,
+                        snapshot,
                         reads,
                     }
                 };

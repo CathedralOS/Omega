@@ -97,6 +97,8 @@ pub(super) struct CaseGuarantee {
     case: SymbolHandle,
 }
 
+pub(crate) mod owned_snapshots;
+
 #[derive(Clone, PartialEq)]
 struct MembershipGuarantee {
     subject: StructuralTerm,
