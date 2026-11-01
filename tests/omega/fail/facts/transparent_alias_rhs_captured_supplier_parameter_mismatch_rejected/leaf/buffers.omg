@@ -1,0 +1,7 @@
+module buffers;
+public const Bias: u64 = 1u64;
+public data Padded<const Count: u64> = [u8; Count + Bias];
+public trait Forward<Value> {
+    machine forward<const Count: u64>(value: Value) -> Value { value }
+}
+public Selected<const Count: u64> satisfies Forward<Padded<Count>> {}
