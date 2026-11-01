@@ -582,6 +582,30 @@ fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms e
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/named_const_callable_family_cross_module_alias_rejected rejected 739ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_forwarded_family_rejected rejected 565ms expected @75dd4e483f7a
+	generic machine `apply_again` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Total` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_implementation_scope_rejected rejected 535ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `Observer::run` state `Observer::run::run`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_call_result_rejected rejected 571ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_const_name_rejected rejected 666ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_field_rejected rejected 691ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_local_rejected rejected 694ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_match_join_rejected rejected 641ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_other_machine_rejected rejected 653ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `observe` state `observe::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_other_state_rejected rejected 662ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main::check` state `main::check::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_parameter_rejected rejected 681ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `observe_four` state `observe_four::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/named_const_callable_family_through_target_body_rejected rejected 613ms expected @75dd4e483f7a
+	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `X86Observe::observe` state `X86Observe::observe::observe`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
 fail/facts/nested_machine_header_contracts_call_result_rejected rejected 225ms expected @2fc408782574
 	tests/omega/fail/facts/nested_machine_header_contracts_call_result_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
 fail/facts/nested_machine_header_contracts_const_name_rejected rejected 269ms expected @2fc408782574
@@ -7096,6 +7120,18 @@ pass/facts/named_conformance_dispatch_through_target_body_exit rejected 1533ms c
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
+pass/facts/named_const_callable_family_cross_module_alias_exit checked 7600ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_forwarded_family_exit checked 7646ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_implementation_scope_exit checked 7601ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_call_result_exit checked 8445ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_const_name_exit checked 8726ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_field_exit checked 8488ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_local_exit checked 7647ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_match_join_exit checked 9947ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_other_machine_exit checked 9988ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_other_state_exit checked 10043ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_parameter_exit checked 8703ms check-target:macos_arm64 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_target_body_exit checked 10052ms check-target:macos_arm64 @75dd4e483f7a
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_exit checked 3598ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_exit checked 4237ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit checked 3239ms check-target:macos_arm64 @ccdb99ca2214
@@ -10644,21 +10680,12 @@ pass/generics/contextual_static_machine_applications_exit checked 3622ms check-t
 pass/generics/contextual_static_machine_captured_operand_return_exit checked 3435ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_captured_operand_scope_exit checked 5353ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_conformance_application_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/contextual_static_machine_const_scopes_exit rejected 1467ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine-parameter requirement `Callback` state `Callback` parameter `value` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
-	machine `accepts$specialized$09d420216d8b7c28$0` state `entry` parameter `value` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
-	argument `value` for state `Callback` expects `&[u8; Count]`, got `named value`
-	argument `value` for state `entry` expects `&[u8; Count]`, got `named value`
-	argument `value` for state `entry` expects `&[u8; Count]`, got `named value`
+pass/generics/contextual_static_machine_const_scopes_exit checked 6639ms check-target:macos_arm64 @75dd4e483f7a
 pass/generics/contextual_static_machine_elided_result_region_exit checked 3770ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_evidence_scopes_exit checked 4029ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_explicit_lifetime_application_exit checked 4107ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_lifetime_result_sources_exit checked 3264ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/contextual_static_machine_open_const_exit rejected 1234ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine-parameter requirement `Callback` state `Callback` parameter `value` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
-	machine `accepts$specialized$09d420216d8b7c28$0` state `entry` parameter `value` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
-	argument `value` for state `Callback` expects `&[u8; Count]`, got `named value`
-	argument `value` for state `entry` expects `&[u8; Count]`, got `named value`
+pass/generics/contextual_static_machine_open_const_exit checked 5729ms check-target:macos_arm64 @75dd4e483f7a
 pass/generics/contextual_static_machine_returned_view_local_exit checked 3445ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/contextual_static_machine_universal_lifetime_application_exit checked 3705ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/core_slice_for_each rejected 2699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
