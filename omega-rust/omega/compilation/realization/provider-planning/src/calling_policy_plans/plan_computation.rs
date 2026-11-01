@@ -6,7 +6,9 @@ use crate::calling_policy_plans::boundary_signatures::{
     compatibility_call_signature, exact_compatibility_overload_index,
     materialize_prepared_signature,
 };
-use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
+use crate::calling_policy_plans::callback_bindings::{
+    close_callback_materializations, validate_retained_callback_binders,
+};
 use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
 use build_time_evaluation::BuildTimeProgram;
 use calling_conventions::callback_nominal_report_fingerprint;
@@ -148,6 +150,7 @@ pub fn prepare_boundary_calling_plans<'checked>(
                     policy_machine: policy_machine.name.as_str().to_owned(),
                     policy_symbol: policy_machine.symbol,
                     signature: boundary_signature,
+                    callback_context_closed: false,
                     relationship_span: request.span,
                     admission: Ok(()),
                 });
@@ -161,6 +164,34 @@ pub fn prepare_boundary_calling_plans<'checked>(
             pending,
             target: target_profile,
         });
+    }
+    // Complete the native telescope and private destinations before invoking
+    // any policy. A partial signature is not an earlier admissible ABI: a
+    // policy may correctly refuse it even though it accepts the actual call.
+    let layout_target = layout::LayoutTarget::for_profile(target_profile)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let callback_layout = layout::build_layout_plan_for_roots(
+        typed,
+        layout_target,
+        opaque_representation_selections,
+        pending.iter().flat_map(|policy| {
+            policy
+                .signature
+                .native_parameters
+                .iter()
+                .map(|parameter| parameter.layout_data_symbol)
+        }),
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    for policy in &mut pending {
+        policy.callback_context_closed = close_callback_materializations(
+            &mut policy.signature,
+            &callback_layout,
+            layout_target.native_target(),
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
+        })?;
     }
     // Policy helpers use ordinary target families too. Select their exact
     // retained bodies in Omega, then give admission and evaluation one shared
@@ -218,6 +249,7 @@ struct PreparedCallingPolicy {
     policy_machine: String,
     policy_symbol: symbols::SymbolHandle,
     signature: MaterializedBoundarySignature,
+    callback_context_closed: bool,
     relationship_span: source::SourceSpan,
     admission: Result<(), String>,
 }
@@ -240,6 +272,7 @@ impl PreparedBoundaryCallingPlans<'_> {
             policy_machine,
             policy_symbol,
             signature,
+            callback_context_closed,
             relationship_span,
             admission,
         } in self.pending
@@ -275,11 +308,10 @@ impl PreparedBoundaryCallingPlans<'_> {
                 validated_boundary_entry_plan: validated,
                 callback_binders: signature.callback_binders.clone(),
                 callback_demands: signature.callback_demands.clone(),
-                callback_context_closed: false,
+                callback_context_closed,
                 native_parameters: signature.native_parameters.clone(),
                 materialized_signature: signature,
                 policy_machine,
-                policy_symbol,
                 relationship_span,
             });
         }

@@ -42,8 +42,8 @@ macos_arm64 machine SortPolicies::sort(signature: BoundarySignature) -> Boundary
 satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 4 && !signature.has_result
-        && (signature.native_parameter_count == 4 || signature.native_parameter_count == 5)
-        && signature.callback_demand_count <= 1 {
+        && signature.native_parameter_count == 5
+        && signature.callback_demand_count == 1 {
         true -> accept(signature)
         _ -> reject()
     }
@@ -321,8 +321,8 @@ linux_x86_64 machine SortPolicies::comparator(signature: BoundarySignature) -> B
 linux_x86_64 machine SortPolicies::sort(signature: BoundarySignature) -> BoundaryPlanResult
 {
     transition signature.parameter_count == 4 && !signature.has_result
-        && (signature.native_parameter_count == 4 || signature.native_parameter_count == 5)
-        && signature.callback_demand_count <= 1 {
+        && signature.native_parameter_count == 5
+        && signature.callback_demand_count == 1 {
         true -> accept(signature)
         _ -> reject()
     }
