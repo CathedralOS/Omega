@@ -112,7 +112,7 @@ profile. No default-pure or unknown classification is accepted.
 Domain-qualified access retains its normalized policy and exact governed subject
 through erasure and lowering. An observed field event joins a semantic member/path
 to an independently validated layout, backing receipt, operation and lifetime;
-an access plan no longer contains that layout. Default-unrestricted caller lists
+an access plan contains no layout. Default-unrestricted caller lists
 never classify an otherwise unsupported operation as pure or permitted.
 External/destructive/atomic behavior and reach keep their existing event meaning
 under [domain access](../resources/access.md), including when source qualification
