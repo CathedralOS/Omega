@@ -8,7 +8,9 @@ use crate::preparation::generic_data::{
 };
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use syntax_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
+};
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
@@ -51,6 +53,16 @@ impl Expansion<'_, '_> {
         expressions
             .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
         for expression in expressions {
+            if let ExpressionNode::Binary(binary) =
+                syntax.expressions.expression(expression).clone()
+                && matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                )
+            {
+                self.predicate_type_operand(syntax, binary.left, bound)?;
+                self.predicate_type_operand(syntax, binary.right, bound)?;
+            }
             if let ExpressionNode::Call(mut call) =
                 syntax.expressions.expression(expression).clone()
             {
@@ -65,6 +77,92 @@ impl Expansion<'_, '_> {
             });
             for reference in references {
                 self.reference(syntax, reference, bound)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// A selected alias in a type comparison takes the ordinary source-use
+    /// expansion, retaining its original application and formation obligations.
+    /// Lexical binders remain values/types in their own scope, never aliases
+    /// selected merely because a declaration has the same spelling.
+    fn predicate_type_operand(
+        &mut self,
+        syntax: &mut SyntaxTrees,
+        expression: ExpressionHandle,
+        bound: &[String],
+    ) -> Result<(), Diagnostic> {
+        match syntax.expressions.expression(expression).clone() {
+            ExpressionNode::Name(path) => {
+                let path = syntax.expressions.identifier_path_members(path).to_vec();
+                let Some(first) = path.first() else {
+                    return Ok(());
+                };
+                let argument = StaticMachineArgument {
+                    path: path.clone().into_boxed_slice(),
+                    ..Default::default()
+                };
+                let name = argument_name(syntax, &argument, first)?;
+                if bound
+                    .iter()
+                    .any(|parameter| parameter == name.as_str(syntax))
+                    || self.selection.type_alias_source(syntax, &name).is_none()
+                {
+                    return Ok(());
+                }
+                let reference = argument_reference(syntax, &argument)?;
+                self.reference(syntax, reference, bound)?;
+                syntax
+                    .expressions
+                    .replace_expression(expression, ExpressionNode::TypeExpression(reference));
+            }
+            ExpressionNode::Borrow(borrow) => {
+                self.predicate_type_operand(syntax, borrow.target, bound)?
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                if let [element] = syntax.expressions.expression_handles(elements) {
+                    let element = *element;
+                    self.predicate_type_operand(syntax, element, bound)?;
+                }
+            }
+            ExpressionNode::Indexed(indexed)
+                if matches!(
+                    syntax.expressions.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) =>
+            {
+                self.predicate_type_operand(syntax, indexed.collection, bound)?
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub(super) fn contract_static_operands(
+        &mut self,
+        syntax: &mut SyntaxTrees,
+        contracts: arena::HandleSpan<syntax_trees::item::CapabilityContract>,
+        bound: &[String],
+    ) -> Result<(), Diagnostic> {
+        let contracts = syntax.items.capability_contracts(contracts).to_vec();
+        for contract in contracts {
+            let facts = syntax.items.proof_facts(contract.facts).to_vec();
+            for fact in facts {
+                match fact {
+                    syntax_trees::item::ProofFact::Expression(expression) => {
+                        self.expression_static_operands(syntax, expression, bound)?
+                    }
+                    syntax_trees::item::ProofFact::Membership(membership) => {
+                        self.expression_static_operands(syntax, membership.value, bound)?;
+                        let arguments = syntax
+                            .type_references
+                            .type_reference_handles(membership.domain_arguments)
+                            .to_vec();
+                        for reference in arguments {
+                            self.reference(syntax, reference, bound)?;
+                        }
+                    }
+                }
             }
         }
         Ok(())

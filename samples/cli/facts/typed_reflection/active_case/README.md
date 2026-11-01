@@ -7,3 +7,7 @@ The case callback seeds the accumulator; the two field callbacks append common t
 The [selected-layout composition](compositions/selected_layout/README.md) exercises
 an explicit const-parameterized policy in common and active-payload fields.
 Its exact application control shares geometry with the rejected application.
+
+[Alias-selected payloads](compositions/selected_layout_alias/README.md) retain the
+same active-case operation through transparent alias operands in static type
+comparisons; its changed-producer runtime observation is pending.

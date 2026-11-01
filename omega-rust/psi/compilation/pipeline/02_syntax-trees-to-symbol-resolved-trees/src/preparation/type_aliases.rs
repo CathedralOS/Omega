@@ -643,8 +643,24 @@ impl Expansion<'_, '_> {
                 &bound,
             )?;
         }
+        let mut expression_bound = bound.clone();
+        expression_bound.extend(
+            syntax
+                .items
+                .state_parameters(signature.parameters)
+                .iter()
+                .map(|handle| {
+                    syntax
+                        .items
+                        .state_parameter(*handle)
+                        .name
+                        .as_str(syntax)
+                        .to_owned()
+                }),
+        );
+        self.contract_static_operands(syntax, signature.contracts, &expression_bound)?;
         let statements = syntax.items.statements(signature.default_body).to_vec();
-        self.statements(syntax, &statements, &bound)
+        self.statements(syntax, &statements, &expression_bound)
     }
 
     fn statements(
@@ -653,10 +669,16 @@ impl Expansion<'_, '_> {
         statements: &[syntax_trees::statement::StatementHandle],
         bound: &[String],
     ) -> Result<(), Diagnostic> {
+        let mut bound = bound.to_vec();
         for statement in statements {
-            self.statement_static_operands(syntax, *statement, bound)?;
+            self.statement_static_operands(syntax, *statement, &bound)?;
             for reference in super::generic_data::statement_type_inputs(syntax, *statement) {
-                self.reference(syntax, reference, bound)?;
+                self.reference(syntax, reference, &bound)?;
+            }
+            if let syntax_trees::statement::StatementNode::LocalData(local) =
+                syntax.statements.statement(*statement)
+            {
+                bound.push(local.name.as_str(syntax).to_owned());
             }
         }
         Ok(())
@@ -670,6 +692,24 @@ impl Expansion<'_, '_> {
     ) -> Result<(), Diagnostic> {
         let bound = self.parameters(syntax, machine.type_parameters, inherited)?;
         let states = syntax.items.state_handles(machine.states).to_vec();
+        let mut entry_bound = bound.clone();
+        if let Some(entry) = states.first() {
+            entry_bound.extend(
+                syntax
+                    .items
+                    .state_parameters(syntax.items.state(*entry).parameters)
+                    .iter()
+                    .map(|handle| {
+                        syntax
+                            .items
+                            .state_parameter(*handle)
+                            .name
+                            .as_str(syntax)
+                            .to_owned()
+                    }),
+            );
+        }
+        self.contract_static_operands(syntax, machine.contracts, &entry_bound)?;
         for handle in states {
             let state = syntax.items.state(handle).clone();
             self.reference(syntax, state.return_type, &bound)?;
@@ -681,8 +721,20 @@ impl Expansion<'_, '_> {
                     &bound,
                 )?;
             }
+            let mut expression_bound = bound.clone();
+            expression_bound.extend(syntax.items.state_parameters(state.parameters).iter().map(
+                |handle| {
+                    syntax
+                        .items
+                        .state_parameter(*handle)
+                        .name
+                        .as_str(syntax)
+                        .to_owned()
+                },
+            ));
+            self.contract_static_operands(syntax, state.contracts, &expression_bound)?;
             let statements = syntax.items.statements(state.statements).to_vec();
-            self.statements(syntax, &statements, &bound)?;
+            self.statements(syntax, &statements, &expression_bound)?;
         }
         for position in 0..machine.nested_machines.count() {
             let item = syntax
