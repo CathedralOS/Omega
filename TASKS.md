@@ -545,23 +545,6 @@ receiver replay is retired while keeping the mathematical kernel and checker
 contracts, and every supported primitive operation carries its checking-time
 decision (`SourceChecked`) into stage 05 and stage 00.
 
-- **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) Complete qualification of the
-  immutable `FrozenTypedTrees` boundary between
-  `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
-  and stage 04 (`CheckFacts`), with no checking-time mutation of
-  `CheckedTrees.typed` and no `thread_local!` or `RefCell` working state in
-  checking/stage-04 production paths.
-  Acceptance: the immutable-boundary and `thread_local!`/`RefCell` source
-  guards pass; the full check corpus and focused native cohort (including
-  `runtime_computed_backing_reference_copy_exit`,
-  `runtime_boundary_range_view_exit`,
-  `runtime_case_qualified_reference_storage_exit`,
-  `runtime_linear_constructor_instances_exit`,
-  `runtime_qualified_byte_array_storage_exit`,
-  `runtime_inherited_composite_requirement_exit`, and
-  `runtime_applied_default_domain_setter_exit` with their negative controls)
-  pass without regression.
-
 - **CHECKER-CARRIES-OPERATION-DECISIONS.** (new-scope; also covers
   **STAGE-05-REFUSAL-REVALIDATIONS** and **RETIRE-EXPORTED-AUDIT-FACADE**)
   Complete checking-time discharge of primitive operation conditions into

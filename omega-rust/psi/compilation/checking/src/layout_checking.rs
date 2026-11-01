@@ -27,6 +27,22 @@ impl<'a> LayoutCheckingContext<'a> {
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
+    fn has_active_completed_case_population(&self, machine: symbols::SymbolHandle) -> bool {
+        self.input.has_active_completed_case_population(machine)
+    }
+
+    fn has_active_operand_fit_population(&self, machine: symbols::SymbolHandle) -> bool {
+        self.input.has_active_operand_fit_population(machine)
+    }
+
+    fn has_active_numeric_observation(
+        &self,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+    ) -> bool {
+        self.input.has_active_numeric_observation(machine, state)
+    }
+
     fn defers_pending_layout_geometry(&self) -> bool {
         self.input.defers_pending_layout_geometry()
     }

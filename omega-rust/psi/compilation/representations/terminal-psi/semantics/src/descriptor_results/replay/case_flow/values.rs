@@ -220,7 +220,7 @@ impl Storage {
                 continue;
             }
             contains_case(
-                replay,
+                replay.types,
                 *structural_type,
                 &mut case_types,
                 &mut BTreeSet::new(),
@@ -329,8 +329,8 @@ fn owned_arrival(machine: &DescriptorMachine, root: PlaceId) -> bool {
 
 /// Prepare only types whose value contains a tag. Scalar-only copies cannot
 /// affect a case query and must not grow replay's equality work domain.
-fn contains_case(
-    replay: &Replay<'_>,
+pub(in crate::descriptor_results::replay) fn contains_case(
+    types: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     complete: &mut BTreeMap<StructuralTypeId, bool>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -341,11 +341,11 @@ fn contains_case(
     if !active.insert(structural_type) {
         return false;
     }
-    let Some(declaration) = find_structural_type(replay.types, structural_type) else {
+    let Some(declaration) = find_structural_type(types, structural_type) else {
         return false;
     };
     let mut child = |field: &terminal_psi::StructuralFieldDeclaration| match field.field_type {
-        StructuralFieldType::Structural(child) => contains_case(replay, child, complete, active),
+        StructuralFieldType::Structural(child) => contains_case(types, child, complete, active),
         _ => false,
     };
     let result = match &declaration.shape {
@@ -361,7 +361,7 @@ fn contains_case(
             .flat_map(|case| &case.fields)
             .fold(!cases.is_empty(), |found, field| child(field) | found),
         StructuralTypeShape::FixedArray { element, .. } => {
-            contains_case(replay, *element, complete, active)
+            contains_case(types, *element, complete, active)
         }
         _ => false,
     };

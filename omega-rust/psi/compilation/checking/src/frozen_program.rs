@@ -21,6 +21,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use typed_trees::TypedTrees;
 use typed_trees::proof_only::ProofOnlyClassification;
 
+mod queries;
+pub(crate) use queries::CheckingQuery;
+
 mod sealed {
     pub trait Sealed {}
     impl Sealed for typed_trees::TypedTrees {}
@@ -29,6 +32,7 @@ mod sealed {
     impl Sealed for super::CheckingProjection<'_> {}
     impl Sealed for crate::layout_checking::LayoutCheckingContext<'_> {}
     impl Sealed for typed_trees::FrozenTypedTrees {}
+    impl Sealed for super::queries::CheckingQuery<'_> {}
 }
 
 /// Read-only source checking input. A prepared invocation owns reusable memos;
@@ -39,6 +43,29 @@ mod sealed {
 /// permission to retain this scratch in a compilation product.
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
+
+    /// An unfinished numeric observation belongs to the borrowed query chain,
+    /// not a memo answer. Re-entering that exact state supplies no evidence.
+    #[doc(hidden)]
+    fn has_active_numeric_observation(
+        &self,
+        _machine: symbols::SymbolHandle,
+        _state: symbols::SymbolHandle,
+    ) -> bool {
+        false
+    }
+
+    /// An unfinished machine population cannot supply provisional operand fits.
+    #[doc(hidden)]
+    fn has_active_operand_fit_population(&self, _machine: symbols::SymbolHandle) -> bool {
+        false
+    }
+
+    /// Completed-case population cannot borrow a provisional case from itself.
+    #[doc(hidden)]
+    fn has_active_completed_case_population(&self, _machine: symbols::SymbolHandle) -> bool {
+        false
+    }
 
     /// Preliminary source work cannot settle a pending representation's
     /// physical judgments. Strict checks and bare trees never defer them.
@@ -445,6 +472,25 @@ impl Deref for CheckingProjection<'_> {
 }
 
 impl CheckingInput for CheckingProjection<'_> {
+    fn has_active_completed_case_population(&self, machine: symbols::SymbolHandle) -> bool {
+        self.memo_source()
+            .is_some_and(|input| input.has_active_completed_case_population(machine))
+    }
+
+    fn has_active_operand_fit_population(&self, machine: symbols::SymbolHandle) -> bool {
+        self.memo_source()
+            .is_some_and(|input| input.has_active_operand_fit_population(machine))
+    }
+
+    fn has_active_numeric_observation(
+        &self,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+    ) -> bool {
+        self.memo_source()
+            .is_some_and(|input| input.has_active_numeric_observation(machine, state))
+    }
+
     fn defers_pending_layout_geometry(&self) -> bool {
         self.original.defers_pending_layout_geometry()
     }

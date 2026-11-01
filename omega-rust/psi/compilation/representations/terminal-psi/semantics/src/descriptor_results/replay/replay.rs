@@ -40,6 +40,7 @@ enum StorageResolution {
 #[derive(Clone)]
 pub(super) struct Summary {
     pub(super) result: Option<Vec<DescriptorResultSlot>>,
+    pub(super) result_cases: super::case_flow::ResultCases,
     pub(super) effects: Vec<DescriptorStoredEffect>,
     pub(super) invalidates_contents: bool,
 }
@@ -58,6 +59,7 @@ fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary>
             invalidates_contents,
         } => Some(Summary {
             result: Some(results.clone()),
+            result_cases: Default::default(),
             effects: effects.clone(),
             invalidates_contents: *invalidates_contents,
         }),
@@ -67,6 +69,7 @@ fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary>
             ..
         } => Some(Summary {
             result: Some(results.clone()),
+            result_cases: Default::default(),
             effects: Vec::new(),
             invalidates_contents: *invalidates_contents,
         }),
@@ -993,6 +996,11 @@ impl<'a> Replay<'a> {
                     }
                 }
                 Self::install_contents(&mut after, replacements);
+                if let Some(result) = &call.result {
+                    summary
+                        .result_cases
+                        .install(self, machine, &mut after, result)?;
+                }
             }
             // Membership-only edge reads observe the completed operation,
             // including descriptor/call effects. Keep only requested edge
@@ -1312,6 +1320,7 @@ impl<'a> Replay<'a> {
         // A result's carrier stays local storage. Only its exact descriptor
         // slots export backing, under the same case/field paths as construction
         // and copying. Missing live-slot contents are unknown, never empty.
+        let mut result_cases: Option<super::case_flow::ResultCases> = None;
         let result = if let Some(returns) = &machine.returns {
             let mut slots: Option<Vec<DescriptorResultSlot>> = None;
             let mut result_type = None;
@@ -1325,6 +1334,12 @@ impl<'a> Replay<'a> {
                     continue;
                 };
                 let structural_type = *machine.place_types.get(&location.root)?;
+                let cases = super::case_flow::ResultCases::capture(self, machine, state, location);
+                if let Some(accumulated) = &mut result_cases {
+                    accumulated.join(&cases);
+                } else {
+                    result_cases = Some(cases);
+                }
                 if result_type.is_some_and(|previous| previous != structural_type) {
                     return None;
                 }
@@ -1451,6 +1466,7 @@ impl<'a> Replay<'a> {
         });
         let summary = Summary {
             result,
+            result_cases: result_cases.unwrap_or_default(),
             effects,
             invalidates_contents,
         };
