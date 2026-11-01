@@ -2,13 +2,14 @@
 
 use super::build_layout_plan;
 use crate::{DataLayout, DataShape, FieldLayout, LayoutPlan};
+use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
-use typed_trees::typed_trees::{ClosedConformanceApplicationCommitment, PlanLaidLayout};
+use typed_trees::typed_trees::PlanLaidLayout;
 
 fn typed_fixture(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -44,20 +45,18 @@ fn private_callback_layout(offset: u64, size: usize) -> PlanLaidLayout {
                 align: 8,
             },
             private_callback_demands: vec![layout_plans::PrivateCallbackLayoutDemandReport {
-                slot_application: typed_trees::typed_trees::ClosedConformanceApplication {
-                    declaration: symbols::SymbolHandle::from_arena_index(7),
-                    arguments: Box::new([]),
-                    lifetime_arguments: Vec::new(),
-                    type_arguments: Vec::new(),
-                    const_arguments: Vec::new(),
-                    machine_arguments: Vec::new(),
-                    trait_definition: symbols::SymbolHandle::from_arena_index(8),
-                    trait_lifetime_arguments: Vec::new(),
-                    trait_arguments: vec!["package::WindowProcedure::call#exact".to_owned()],
-                    rows: Vec::new(),
-                    report_fingerprint: 0x91,
-                    commitment: ClosedConformanceApplicationCommitment::from_digest([0x92; 32]),
-                    ..Default::default()
+                slot_application: typed_trees::PrivateCallbackSlotApplication {
+                    application: Default::default(),
+                    selection: PrivateCallbackSlotSelection {
+                        declaration_identity: "package::Slot".into(),
+                        trait_identity: "core::layout::PrivateCallbackSlot".into(),
+                        semantic_identity: "package::ForeignRecord".into(),
+                        layout_identity: "package::Spread".into(),
+                        requirement_identity: "package::WindowProcedure::call#exact".into(),
+                        application_report_fingerprint: 0x91,
+                        application_commitment: [0x92; 32],
+                        application_encoding: vec![0x92].into(),
+                    },
                 },
                 slot_identity: "package::WndClassWindowProcedureSlot#exact".to_owned(),
                 layout_subject_identity: "package::Spread".to_owned(),
@@ -160,6 +159,7 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
             .expect("invariant fixture")
             .private_callback_demands[0]
             .slot_application
+            .selection
     );
     assert_eq!(
         closed.requirement,
@@ -183,10 +183,12 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     let mut changed_application = valid.clone();
     fixture_geometry_mut(&mut changed_application).private_callback_demands[0]
         .slot_application
-        .declaration = symbols::SymbolHandle::from_arena_index(9);
+        .selection
+        .declaration_identity = "package::OtherSlot".into();
     fixture_geometry_mut(&mut changed_application).private_callback_demands[0]
         .slot_application
-        .commitment = ClosedConformanceApplicationCommitment::from_digest([0x93; 32]);
+        .selection
+        .application_commitment = [0x93; 32];
     let changed =
         close_private_callback_demands(&changed_application, &fields, target, "package::Spread")
             .expect("retaining application custody does not re-evaluate its declaration");
@@ -196,7 +198,9 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
     assert_ne!(closed.slot_application, changed[0].slot_application);
     assert_eq!(
         changed[0].slot_application,
-        fixture_geometry_mut(&mut changed_application).private_callback_demands[0].slot_application
+        fixture_geometry_mut(&mut changed_application).private_callback_demands[0]
+            .slot_application
+            .selection
     );
 
     let unaligned = close_private_callback_demands(

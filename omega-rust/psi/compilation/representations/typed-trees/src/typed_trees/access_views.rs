@@ -7,7 +7,6 @@ pub use lifecycle_execution::AccessExecutionDeclaration;
 pub use primitive_selection::AccessorPrimitive;
 pub use sealed_accessors::{ScalarAccessorDeclaration, ScalarAccessorOperation};
 
-use crate::typed_trees::ClosedConformanceApplication;
 use crate::types::TypeReferenceHandle;
 
 /// Evaluated geometry for an exact closed lifecycle callable. This is not
@@ -395,6 +394,15 @@ impl PlanLaidLayout {
     }
 }
 
+/// Source-owned custody for a checked slot and its portable role projection.
+/// Source reach retains the application separately from the portable selection.
+/// Target consumers take `selection`, never the resolved argument tree.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct PrivateCallbackSlotApplication {
+    pub application: crate::typed_trees::ClosedConformanceApplication,
+    pub selection: language_semantics::callback_declarations::PrivateCallbackSlotSelection,
+}
+
 /// One fully static geometry, derived only from a validated policy result.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidGeometry {
@@ -402,11 +410,11 @@ pub struct PlanLaidGeometry {
     /// consumer projections below were derived.
     pub validated_layout: layout_plans::LayoutPlanReport,
     /// Source-authored semantic-field-free callback destinations. These rows
-    /// intentionally stop at exact declaration identity plus offset; the
+    /// retain the original Source telescope beside its portable selection; the
     /// selected target calling plan supplies pointer extent and completes
     /// bounds/non-overlap validation before materialization.
     pub private_callback_demands:
-        Vec<layout_plans::PrivateCallbackLayoutDemandReport<ClosedConformanceApplication>>,
+        Vec<layout_plans::PrivateCallbackLayoutDemandReport<PrivateCallbackSlotApplication>>,
     /// Byte offset of each field, in declaration order.
     pub offsets: Vec<usize>,
     /// Fragmented scalar fields keyed by declaration-order field index.

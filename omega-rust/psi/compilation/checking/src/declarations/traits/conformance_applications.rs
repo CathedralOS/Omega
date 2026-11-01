@@ -463,6 +463,7 @@ fn close_selected_conformance(
         rows: row_identities,
         report_fingerprint: identity.report_fingerprint,
         commitment: identity.commitment,
+        identity_encoding: identity.encoding,
     })
 }
 
@@ -890,6 +891,7 @@ pub fn substituted_type_identity(
 struct ApplicationIdentity {
     report_fingerprint: u64,
     commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
+    encoding: std::sync::Arc<[u8]>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1008,12 +1010,15 @@ fn application_identity(
         machine_operands,
         rows,
     };
-    let (report_fingerprint, commitment) = description.fingerprint_and_commitment();
+    let encoding = description.encoded_bytes();
+    let (report_fingerprint, commitment) =
+        language_semantics::conformance_identity::source_identity_commitments(&encoding);
     Ok(ApplicationIdentity {
         report_fingerprint,
         commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
             commitment,
         ),
+        encoding: encoding.into(),
     })
 }
 

@@ -53,7 +53,7 @@ pub use typed_trees::{
     PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
-    ProgramIdentity, ScalarAccessorDeclaration, ScalarAccessorOperation, SymbolRebinding,
-    TypedTreeRoots, TypedTreeTables, TypedTrees, closed_conformance_applications_of,
-    machine_specialization_matches_template_identity,
+    PrivateCallbackSlotApplication, ProgramIdentity, ScalarAccessorDeclaration,
+    ScalarAccessorOperation, SymbolRebinding, TypedTreeRoots, TypedTreeTables, TypedTrees,
+    closed_conformance_applications_of, machine_specialization_matches_template_identity,
 };
