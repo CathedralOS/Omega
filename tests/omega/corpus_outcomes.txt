@@ -11618,6 +11618,7 @@ pass/ownership/partial_carrier_refill_exit checked 3358ms check-target:macos_arm
 pass/ownership/partial_field_move_compile checked 2514ms @ccdb99ca2214
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 2476ms @ccdb99ca2214
 pass/ownership/registration_capacity_case_round_trip checked 12479ms check-target:macos_arm64 @ccdb99ca2214
+pass/ownership/registration_owned_claim_retains_provenance_exit checked 7936ms check-target:macos_arm64 @792437fa610e
 pass/ownership/runtime_affine_selected_field_frontier_exit checked 3716ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_captured_selector_exit checked 3871ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 11724ms check-target:macos_arm64 @ccdb99ca2214
@@ -32127,7 +32128,9 @@ fail/ownership/registration_claim_cannot_reconstruct rejected 2264ms expected @c
 	cannot prove automatic cleanup requires at selected edge from drop$specialized$4726bbffdd10bf5d$0 state entry after statement 0: value does not establish Registration::drop clause `registration.module == 0 && registration.atom == 0`
 	construction value is not proven in domain `Registration::Held` in replace state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from replace, state entry, at statement 0: Registration requires Registration::Held
-fail/ownership/registration_owned_claim_cannot_requalify checked 3667ms @ccdb99ca2214
+fail/ownership/registration_owned_claim_cannot_requalify rejected 3090ms expected @792437fa610e
+	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: capacity requires Capacity::Held
 fail/ownership/runtime_singleton_selector_moved_element rejected 2378ms expected @ccdb99ca2214
 	cannot use `tokens[0]` in machine `main` state `entry` (statement 3) after `tokens[0]` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `tokens[0]` first
 fail/ownership/runtime_unknown_selector_partial_cleanup rejected 2342ms expected @ccdb99ca2214
@@ -34144,7 +34147,8 @@ fail/termination/ranked_index_call_prefix_write rejected 2821ms unexpected @ccdb
 	cannot prove requires contract for call scan from scan: remaining - 1 <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/termination/rankless_boundary_progress_unpromised rejected 1631ms expected @ccdb99ca2214
 	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/rankless_callback_suffix checked 2251ms @ccdb99ca2214
+fail/termination/rankless_callback_suffix rejected 2572ms expected @792437fa610e
+	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/rankless_family_member_reentry checked 2793ms @ccdb99ca2214
 fail/termination/remainder_natural_descent rejected 2781ms expected @ccdb99ca2214
 	terminating machine greatest_common_divisor: cannot prove strict rank decrease on a recurrent arrival: the transition from `greatest_common_divisor` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
