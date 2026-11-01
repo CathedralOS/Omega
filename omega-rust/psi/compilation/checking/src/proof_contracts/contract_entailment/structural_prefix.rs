@@ -8,10 +8,10 @@
 mod private_arrivals;
 pub use private_arrivals::private_invocation_entry_is_closed;
 
-pub(super) use private_arrivals::{observe_private_arrivals, observe_private_arrivals_batch};
 pub(crate) use private_arrivals::{
     ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,
 };
+pub(super) use private_arrivals::{observe_private_arrivals, observe_private_arrivals_batch};
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
@@ -120,8 +120,29 @@ pub(super) type PrefixObservation<'a, 'program> = (
     &'a [(String, StructuralTerm)],
 );
 
+/// Output selection for the common statement completion, never execution policy.
+#[derive(Default)]
+pub(super) struct StatementObservationRequest {
+    pub values: Vec<typed_trees::expression::ExpressionHandle>,
+    pub operations: Vec<typed_trees::expression::ExpressionHandle>,
+}
+
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
+
+    fn statement_observations(&self) -> Option<StatementObservationRequest> {
+        None
+    }
+
+    /// The statement owner supplies the same normal completion used to advance
+    /// its frontier. The input remains the independently admitted entry cut.
+    fn observe_completed<'program>(
+        &mut self,
+        observation: PrefixObservation<'_, 'program>,
+        _completed: &super::structural_judgment::normal_returns::CompletedStatement<'program>,
+    ) {
+        self.observe(observation);
+    }
 
     /// One authenticated body arrival after its actuals completed. Coverage
     /// consumers distinguish these occurrences from lexical ancestry and from

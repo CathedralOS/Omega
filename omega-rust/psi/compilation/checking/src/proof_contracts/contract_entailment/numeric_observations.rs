@@ -16,8 +16,8 @@
 
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
-    PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
-    observe_runtime_state_prefixes,
+    PrefixObservation, StatementObservationRequest, StructuralPrefixSite, StructuralPrefixVisitor,
+    observe_runtime_state_prefix, observe_runtime_state_prefixes,
 };
 use crate::ScopedArithmeticValue;
 use crate::proof_contracts::arithmetic_domains::{
@@ -894,6 +894,77 @@ impl StructuralPrefixVisitor for Observations {
                     .iter()
                     .any(|(source, previous)| source == expression && previous.is_empty())
             })
+    }
+
+    fn statement_observations(&self) -> Option<StatementObservationRequest> {
+        let mut values = self.candidates.clone();
+        values.extend(
+            self.results
+                .iter()
+                .copied()
+                .filter(|result| !self.candidates.contains(result)),
+        );
+        Some(StatementObservationRequest {
+            values,
+            operations: self.operations.clone(),
+        })
+    }
+
+    fn observe_completed<'program>(
+        &mut self,
+        observation: PrefixObservation<'_, 'program>,
+        completed: &super::structural_judgment::normal_returns::CompletedStatement<'program>,
+    ) {
+        let (program, machine, state, judge, _) = observation;
+        if self.wants_scalar_values {
+            self.collect(program, machine, state, &judge);
+        }
+        for entry in &completed.observations.operations {
+            // An attempted operation with unavailable required operands meets
+            // Unknown; it cannot leave another arm's proved ordering standing.
+            let arguments = entry.observed_arguments().unwrap_or_default();
+            self.collect_ordering(
+                program,
+                machine,
+                state,
+                entry.expression,
+                &arguments,
+                &entry.judge,
+            );
+        }
+        for &expression in &completed.observations.values_unavailable {
+            self.complete = false;
+            if self.candidates.contains(&expression) {
+                if let Some((_, value)) = self
+                    .values
+                    .iter_mut()
+                    .find(|(source, _)| *source == expression)
+                {
+                    *value = None;
+                } else {
+                    self.values.push((expression, None));
+                }
+            }
+            if self.results.contains(&expression) {
+                self.intersect_associations(expression, Vec::new());
+            }
+        }
+        if !completed.observations_complete
+            && let Some(statement) = program
+                .statement_table
+                .statement_at(state, self.statement_index)
+        {
+            for (_, root) in program.tables.expression_roots(statement) {
+                self.invalidate_root(program, root);
+            }
+        }
+        let results = self.results.clone();
+        for outcome in &completed.observations.paths {
+            if self.wants_scalar_values {
+                self.collect(program, machine, state, outcome);
+            }
+            self.collect_associations(program, machine, state, &results, outcome);
+        }
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {

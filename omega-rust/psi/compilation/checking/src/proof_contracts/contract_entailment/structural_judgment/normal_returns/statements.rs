@@ -38,6 +38,31 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<StructuralJudge<'program>>> {
+        self.evaluate_statement_completion(
+            call,
+            statement_index,
+            environment,
+            scope,
+            OperationObservations::none(),
+            &mut NormalObservationEntries::default(),
+            &mut Vec::new(),
+            true,
+            &mut false,
+        )
+    }
+
+    pub(super) fn evaluate_statement_completion(
+        &self,
+        call: &'program TableCall,
+        statement_index: usize,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+        requested: OperationObservations<'_>,
+        entries: &mut NormalObservationEntries<'program>,
+        observations: &mut Vec<Self>,
+        advance: bool,
+        arguments_completed: &mut bool,
+    ) -> Option<Vec<StructuralJudge<'program>>> {
         let program = self.program;
         let site = crate::CallSite::Statement(call);
         let owner = selected_call_site_contract(program, scope.0.symbol, site)?;
@@ -51,13 +76,27 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let mut completed = Vec::new();
-        for entry in self.normal_argument_entries(
+        let argument_entries = self.evaluate_argument_entries(
             arguments,
             parameters.as_ref(),
             environment,
             scope,
             Some(site),
-        )? {
+            requested,
+            entries,
+        )?;
+        // All argument paths have completed before invocation admission. Their
+        // selected receipts remain valid even if an unrelated actual has no
+        // whole-value representation or the invocation cannot be advanced.
+        *arguments_completed = true;
+        if !requested.values.is_empty() || !requested.expressions.is_empty() {
+            observations.extend(argument_entries.iter().map(|entry| entry.judge.clone()));
+        }
+        for entry in argument_entries {
+            if !advance {
+                completed.push(entry.judge);
+                continue;
+            }
             let actuals = entry.observed_arguments()?;
             let mut judge = entry.judge;
             let writes = judge.frame_resolver()?.may_write_frame(scope.0, call);
