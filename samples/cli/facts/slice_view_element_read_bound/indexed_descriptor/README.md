@@ -20,14 +20,18 @@ Each positive calls the full view and the short view. The full view selects `[10
 
 Every twin changes only the establishing guard from `>= 3` to `>= 2`, retaining the consumer's `>= 3` requirement and the read/subtraction. It must reject during `omega --check` with `cannot prove requires contract for call read from read_guarded` and the missing `windows[selected].values.len >= 3` fact.
 
-All positive entries bind the four hosted `ProgramEntry` targets and declare exit 0. The root and nine places passed native and Terminal execution on Linux x86-64 with optimized producer `ce4f5f765ad1` (SHA256 `d109cb7d7512ca25e654f3d8f56b1c610aa15a51e8b6b63f7e6c16bb7add6cce`); all nine checking twins matched their diagnostics. Exact command results and source hashes are in `build/checker-qualification/indexed-descriptor-row-observations.json`. Foreign host execution remains unmeasured for this production.
+All positive entries bind the four hosted `ProgramEntry` targets and declare exit 0. The strengthened oracle returns 2 for a wrong read, distinct from the short-view fallback 1. Replacing the short descriptor extent by 3 then traps in both engines; the earlier oracle returned 1 for both paths and missed that error.
+
+The strengthened root and nine places passed native and Terminal execution on Linux x86-64 with optimized producer `5d70aa361af0c503d451ef9fefe27cfef6030764` (SHA256 `29e31c6388db5c8e0feeca796c5fb16b36b84442a1cb8247bfe743e8c792a5ad`); all nine checking twins matched their diagnostics. Exact command results and source hashes are in `build/checker-qualification/membership-indexed-descriptor-row.json`, with the counterfactual in `indexed-oracle-qualification.json`.
+
+The nine pinned positives subsequently executed at native exit 0 and Terminal exit 0, and all nine pinned twins rejected with their exact missing-bound fragments, using optimized corpus runner source `f9df9c1404e3060391dcf9fdae456416104713e9` (SHA256 `8ee625a52f26fa6801b79eee0165abba586bba225adc6211c7e1e8d7e82a6d62`). The source, Linux native and Linux both-engine goldens retain those measured rows. The later checking-time rank-publication repair does not alter this unranked descriptor path; these completed observations retain their actual producer identities. Foreign host execution remains unmeasured for this production.
 
 ```sh
 omega run --both samples/cli/facts/slice_view_element_read_bound/indexed_descriptor/<place>/main.omg
 omega --check samples/cli/facts/slice_view_element_read_bound/indexed_descriptor/<place>/invalid/main.omg
 ```
 
-The pass and fail fixture pairs are `tests/omega/{pass,fail}/facts/slice_view_indexed_descriptor_through_<place>_{exit,insufficient_guard}`. Their authored sources and Build declarations copy each place exactly; corpus recording follows measured acceptance.
+The pass and fail fixture pairs are `tests/omega/{pass,fail}/facts/slice_view_indexed_descriptor_through_<place>_{exit,insufficient_guard}`. Their authored sources and Build declarations copy each place exactly; the source, native and both-engine goldens record measured acceptance.
 
 ## Requirements and evidence
 

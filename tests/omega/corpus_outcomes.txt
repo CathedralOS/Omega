@@ -2494,6 +2494,8 @@ pass/calls/static_context_forwarded_twice_exit checked 13469ms check-target:maco
 pass/calls/static_machine_required_input_crash_refinement_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/static_state_context_field_window_exit rejected 15731ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call to `lend` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+pass/calls/stored_unsigned_as_signed_negative_requires_exit checked 24836ms check-target:macos_arm64 @5d70aa361af0
+pass/calls/stored_unsigned_as_signed_positive_requires_exit checked 26756ms check-target:macos_arm64 @5d70aa361af0
 pass/calls/structural_mut_to_shared_argument checked 4083ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/structural_self_rooted_argument checked 3453ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/subslice_argument_keeps_unrelated_facts checked 2157ms @ccdb99ca2214
@@ -15929,7 +15931,8 @@ fail/calls/closed_constructor_requires_stale_store_rejected rejected 15881ms exp
 	cannot prove requires contract for call take from Main::main: main.point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/closed_constructor_requires_symbolic_unknown rejected 17744ms expected @ccdb99ca2214
 	cannot prove requires contract for call take from symbolic: point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/calls/closed_constructor_store_recast_not_identity checked 17310ms @ccdb99ca2214
+fail/calls/closed_constructor_store_recast_not_identity rejected 26733ms expected @5d70aa361af0
+	cannot prove requires contract for call take from Main::main: view > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/closed_constructor_unused_divergence_unknown rejected 13902ms unexpected @ccdb99ca2214
 	machine `Main::main` state `main` value call to `take` violates required fact `point == Point.zero()`: the instantiated fact is structurally false (`Point { x: 1, y: 0 } == Point { x: 0, y: 0 }`)
 fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 16521ms unexpected @ccdb99ca2214
@@ -17611,7 +17614,8 @@ fail/domains/bitwise_membership_trapping_operand rejected 858ms expected @ccdb99
 fail/domains/bodyful_owner_establishment_bypass rejected 1758ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from Token::zero at statement 0: result in Token::Positive
 	cannot prove ensures contract for exit from Token::zero at statement 0: result in Token::Positive
-fail/domains/bodyless_routed_primitive_receiver_requires_issuer checked 17593ms @ccdb99ca2214
+fail/domains/bodyless_routed_primitive_receiver_requires_issuer rejected 25289ms expected @5d70aa361af0
+	cannot prove default-domain field requirement for return from replace at statement 1: row requires u64::IssuedIndex
 fail/domains/borrowed_record_domain_requires_qualified_input rejected 3997ms expected @ccdb99ca2214
 	cannot prove requires contract for call view from main: cell in Cell::Admitted in state `entry`
 fail/domains/borrowed_scalar_tag_wrong_index rejected 2062ms expected @ccdb99ca2214
