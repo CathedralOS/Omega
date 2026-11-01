@@ -201,6 +201,55 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
         self.completions.sort_unstable();
     }
 
+    /// Refuse independently ready debts before executing more scalar entries.
+    /// Entry-result debts remain pending until their complete activation returns;
+    /// final closure still discharges every selected row and the address model.
+    pub fn discharge_ready(
+        &self,
+        observations: &super::ScalarApplicationObservations<'_>,
+    ) -> Result<(), String> {
+        if !std::ptr::eq(
+            self.conditions,
+            &observations
+                .artifact()
+                .module()
+                .scalar_applications
+                .conditions,
+        ) {
+            return Err("scalar condition selection names another artifact".into());
+        }
+        for &position in &self.predicates {
+            let mut ready = true;
+            for (_, node) in self.conditions.predicates()[position].nodes().iter() {
+                if let PredicateNode::Leaf(observation) = &node.0 {
+                    ready &= observations.observation_ready(observation)?;
+                }
+            }
+            if ready {
+                observations.discharge_predicate(position)?;
+            }
+        }
+        for &position in &self.ranges {
+            let condition = &self.conditions.ranges()[position];
+            let ScalarRangeCondition::Range { requirement, .. } = condition else {
+                return Err("scalar range condition is absent".into());
+            };
+            if matches!(requirement, ScalarRangeRequirement::AddressModel) {
+                continue;
+            }
+            let mut ready = true;
+            for step in self.conditions.steps(condition)? {
+                if let IntegerBoundStep::Observation(observation) = step {
+                    ready &= observations.observation_ready(observation)?;
+                }
+            }
+            if ready {
+                observations.discharge_range(position, None)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Observe only selected debts. These include intermediate entry results,
     /// not just each application's returned scalar.
     pub fn observations(&self) -> Result<Vec<&'artifact ScalarRangeObservation>, String> {
