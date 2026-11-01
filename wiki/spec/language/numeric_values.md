@@ -579,14 +579,12 @@ conversion. Bounds must follow that selected operator's actual contract, not
 another declaration sharing its token. Bounds evidence grants no element-domain,
 borrow, mutation, or transfer authority.
 
-## Status
+## Policy realization
 
-Psi checking accepts the Exact, Wrapping, Saturating, and Trapping policies
-above; Terminal production covers part of the surface. Integer `as` coercions
-preserve denotation under every target policy and require representability.
+Integer `as` coercions preserve denotation under every target policy and require representability.
 The named machines of `core/numeric_conversion.omg` provide explicit wrapping,
 saturating, and trapping conversions across signed and unsigned fixed carriers.
-Boolean-to-integer conversion and Trapping arithmetic and shifts also lower
+Boolean-to-integer conversion and Trapping arithmetic and shifts lower
 through Terminal Psi. Trapping integer operations retain their operation-level
 `Trap` sites; native realization checks each predicate in place and stops
 through the same architectural trap as a `Crash` terminator on x86-64 and
@@ -595,6 +593,3 @@ AArch64 at every fixed 8/16/32/64-bit carrier.
 Trapping float result adapters are checked against the published `Trap`
 ceiling at their exact operation site, including nonentry states. Raw-result
 finiteness proofs retain the selected operation and original operands.
-
-The `core/numeric_*` and `core/qualified_integer_cast_*` corpus fixtures pin
-named conversion behavior and exact coercion formation separately.
