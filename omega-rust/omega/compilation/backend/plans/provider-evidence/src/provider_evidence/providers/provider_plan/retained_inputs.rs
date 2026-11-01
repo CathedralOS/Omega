@@ -453,6 +453,22 @@ mod tests {
     }
 
     #[test]
+    fn distinct_static_applications_can_share_one_physical_calling_plan() {
+        let mut plan = plan_with_calling_applications(2);
+        let first = plan.schema.calling_applications[0].clone();
+        let second = &mut plan.schema.calling_applications[1];
+        second.abi.declaring_application = first.abi.declaring_application;
+        second.abi.operands[0].identity = "static-operand-0-other".into();
+        second.plan = first.plan;
+        assert!(plan.validate_against_schema().is_empty());
+        let bytes = plan.identity_preimage();
+        let input = ProviderPlanInput::read(&bytes, plan.identity_digest().as_bytes()).unwrap();
+        assert_eq!(input.rows[0].requirement, "Boundary::consume(opaque)");
+        plan.schema.calling_applications.reverse();
+        assert_eq!(bytes, plan.identity_preimage());
+    }
+
+    #[test]
     fn calling_application_keys_reject_foreign_or_incomplete_coordinates() {
         let original = plan_with_calling_applications(1);
         let mut changed = original.clone();
