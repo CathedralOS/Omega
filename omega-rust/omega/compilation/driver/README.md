@@ -613,6 +613,13 @@ signature with invalid placeholder symbols. Preparation still reads source for o
 inline callback slots; moving those owners after Terminal publication and
 removing the separate policy-code publication remain unfinished.
 
+Native boundary packing retains no opaque source-selection record. It emits
+the recipe's exact selection ordinal and native shape root; provider planning
+joins those occurrences to the original selection roster once. Source symbols,
+lifecycle and copy disposition stay with that review/publication owner, whose
+commitment and exact-occurrence checks are unchanged. Layout geometry alone
+cannot publish selected representation custody.
+
 Retained-product callback and checked-scope composition must close through
 actual native publication, not a zero-payload layout or provider-selection check.
 Widening scalar-provider forwarding additionally requires preserved incoming

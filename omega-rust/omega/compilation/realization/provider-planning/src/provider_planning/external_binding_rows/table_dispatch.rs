@@ -75,8 +75,7 @@ pub(super) fn field_offset(
     if typed.primitive_type_reference(fields[ordinal].type_reference) != Some(PrimitiveType::Addr) {
         return Err("table dispatch field must have type addr".into());
     }
-    let (representation_types, representation_uses) =
-        crate::boundary_value_recipes::representation_inputs(selections);
+    let representation_types = crate::boundary_value_recipes::representation_types(selections);
     let mut preparation =
         checked_trees::typed_trees::boundary_values::BoundaryValuePreparation::new(
             typed,
@@ -85,7 +84,7 @@ pub(super) fn field_offset(
         );
     let recipe = preparation.value_type(table_type);
     let recipes = preparation.finish();
-    let mut layout = layout::BoundaryValueLayout::new(target, &representation_uses);
+    let mut layout = layout::BoundaryValueLayout::new(target);
     let (_, root) = layout.value_type(&recipes, recipe)?;
     let (shapes, laid_fields, _) = layout.into_parts();
     let calling_conventions::BoundaryValueClass::Record {
