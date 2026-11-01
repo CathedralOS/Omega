@@ -2,8 +2,45 @@
 
 use super::{constant, default_budget, pi, two};
 use crate::mathematical_core::{
-    Budget, CoreError, Declaration, Term, TermArena, check_signature, weak_head_normalize,
+    Budget, Context, CoreError, Declaration, Term, TermArena, check_signature, convertible,
+    weak_head_normalize,
 };
+
+#[test]
+fn deep_typed_conversion_preserves_each_questions_budget_on_the_default_stack() {
+    std::thread::spawn(|| {
+        let mut arena = TermArena::new();
+        let two = two(&mut arena);
+        let zero = arena.insert(Term::TwoZero);
+        let type_function = arena.insert(Term::Lambda {
+            domain: two,
+            body: two,
+        });
+        let mut right = arena.insert(Term::Apply {
+            function: type_function,
+            argument: zero,
+        });
+        let mut left = two;
+        for _ in 0..4096 {
+            left = pi(&mut arena, two, left);
+            right = pi(&mut arena, two, right);
+        }
+        let shared_type = super::type_sort(&mut arena, 0);
+        let context = Context::empty();
+        for (allowance, accepted) in [(1, true), (0, false)] {
+            let mut budget = Budget::new(allowance);
+            let observed = convertible(&mut arena, &context, left, right, shared_type, &mut budget);
+            if accepted {
+                assert_eq!(observed, Ok(true));
+            } else {
+                assert_eq!(observed, Err(CoreError::StepCeiling));
+            }
+            assert_eq!(budget.remaining(), 0);
+        }
+    })
+    .join()
+    .expect("typed conversion uses default-stack judgment continuations");
+}
 
 #[test]
 fn deep_neutral_application_normalization_stays_on_default_stack() {

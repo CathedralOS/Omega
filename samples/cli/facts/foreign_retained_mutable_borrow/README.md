@@ -1,6 +1,7 @@
 # Retained mutable foreign backing
 
-Parent: **NORMALIZED-ABI-LOWERING** in `TASKS.md`.
+Parents: **NORMALIZED-ABI-LOWERING**, **BUILD-OWNED-TARGET-SELECTION**, and
+**BUILD-OWNED-NATIVE-BINDINGS** in [TASKS.md](../../../../TASKS.md).
 
 A mutable foreign registration retains exclusive access to the exact original Buffer backing until completion consumes Pending; completion writes 73 while an earlier copied value remains 37.
 
@@ -103,3 +104,42 @@ protocol, permitted private snapshots, wider resident/view codecs, concurrent
 external access and write-only retention retain their separate obligations.
 Foreign behavior remains an admitted trusted provider premise. These tests do
 not prove arbitrary mathematical postconditions about C implementations.
+
+## Build-owned source migration
+
+The migrated packages record the four existing Writer operations directly in
+Build with inferred locator lengths. Mixed-issuer controls retain separate
+Reader bindings and their shared provider. Existing entry rows, complete
+qualification/preservation contracts, Content projections and issuer lists are
+unchanged. There are no per-symbol native forwarders or target-prefixed bodies.
+
+The target-body place selects ordinary PendingTransferCode for the private
+PendingTransfer requirement. Its result transfers the consumed input's existing
+loan debt; Pending::Retained still names only its original register issuers.
+The match join runs both choices and returns the same owned Pending through its
+selected arm, recording 17 or 23 in a separate scalar. Both complete the original
+37/41/73 protocol and preserve the captured 37 value. No private snapshot or new
+issuer is introduced.
+
+The full replay of 25 migrated programs on the actual `2409883f539c` producer
+observed 11 native/Terminal agreements, 13 intended Source rejections, and the
+existing uncovered-qualification native 0 / Terminal 201 refusal. The final
+`65452511bb0e` generation additionally preserves receiving-data lifetime scopes.
+Fresh recording on that generation covers all 24 Source pins,
+all 11 pinned native/Terminal agreements, public target-body/field/match/mixed
+issuer/stale-fact/uncovered cases, and Terminal marker falsifiers (positive 0,
+each wrong marker traps). Retained public observations keep their actual producer identity and require
+consumer applicability review; fresh final-producer pins cover every positive
+program body and every intended Source rejection.
+
+The general owned-carrier repair preserves an already owned Pending and its
+complete existing debt; it does not reinterpret the value as a newly created
+borrowed pointer. All original lifecycle, issuer and capacity controls remain.
+The mutable C provider passes its self-test and all nine deliberate lifecycle
+traps. The matching shared provider's existing self-test/nine-trap receipt is
+reused for mixed issuers after source/library digest verification.
+
+Fresh migration execution is macOS ARM64 only. Historical four-host observations
+and the original Windows timeout above keep their original identities. This
+cohort discharges its Source migration under the two Build-owned tasks; their
+remaining sources, compiler deletion and broader acceptance stay open.

@@ -1,6 +1,7 @@
 # Retained borrowed fixed-array views
 
-Parent: [NORMALIZED-ABI-LOWERING](../../../../../TASKS.md). This extends
+Parents: **BUILD-OWNED-TARGET-SELECTION**, **BUILD-OWNED-NATIVE-BINDINGS**, and
+[NORMALIZED-ABI-LOWERING](../../../../../TASKS.md). This extends
 [retained nested backing](../README.md) to an explicitly borrowed array.
 
 A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; completion restores the original Cell::Issued memberships and ResidentValue for observed_gap, writes 73, and preserves both neighbors, marker 91 and the earlier copy 37.
@@ -17,9 +18,11 @@ The C counterpart stores `struct cell (*cells)[3]`, an explicit pointer to a
 fixed array. Registration writes 41 and retains the original Buffer address;
 completion writes 73 through that pointer. Both neighbors (305419896 and
 1515863100) and marker 91 must survive. A private copied array cannot satisfy
-both the Buffer and original caller observations. The C source and existing
-native binding declarations are unchanged. Those legacy declarations remain
-migration inputs; this row does not establish Build-owned native binding syntax.
+both the Buffer and original caller observations. The C source is unchanged. Direct target-keyed `Build::bind<Writer::member>`
+rows now supply the original imports with inferred locator lengths. An ordinary
+private `PendingTransferCode` implementation supplies the selected-body place;
+its complete existing Pending qualification and content obligation are unchanged.
+No forwarding native declarations or counted locator helpers remain in this row.
 
 | Place | Positive | Live-loan reject twin |
 | --- | --- | --- |
@@ -101,3 +104,34 @@ Its immutable producers, raw source/engine observations and reviews remain in
 the earlier descriptor codec baseline and repair remain in
 `/Users/zcanann/Omega-build/retained-borrowed-array-view-2026-10-27/`.
 Those observations do not qualify the new routed requirement or close the parent.
+
+## Build-owned source migration
+
+The migration keeps the same fact, boundary signatures, original borrowed-array
+backing, Content projections, capacity/issuer contracts and all runtime
+observations. The selected implementation returns its exact incoming Pending;
+it establishes no new issuer, snapshot or loan. Every place retains the four
+explicit hosted entry bindings and the unchanged nine live-loan twins. The
+existing match join runs both choices with distinct route values 11 and 22.
+
+At optimized producer `4e45c0b749ed`, the unchanged baseline has 21 proper
+Source outcomes (10 checked and 11 intended rejections) and 10 native/Terminal
+exit-zero pairs on macOS ARM64. The migrated public programs produce the same
+split: all nine places and the generic borrowed-root control execute at native
+0 / Terminal 0; the nine active-loan twins, missing-mint control and missing
+ResidentValue control retain their intended Source refusals. The 21 Source pins and 10 native/Terminal pins also pass. The exact positive
+match program exits zero in Terminal; changing only route 11 to 12 or route 22
+to 23 produces a typed Terminal Trap. Selected-body Source preparation/checking
+passes for all four authored target profiles. Those source selections do not
+claim matching-host runtime execution outside macOS ARM64. The same native provider is authenticated by its original C-source
+and dylib hashes; its retained self-test and nine lifecycle traps keep their
+original observation identities. No new trap wave is inferred.
+
+This is the borrowed-view migration only. The owned-array continuation, other
+retained-registration compositions and both parent Build migrations remain
+open. Fresh runtime observations are macOS ARM64 only; the historical
+predicate-only and routed-handback observations above keep their own sources,
+producers and host limitations. Main's later mathematical judgment-worklist
+change is outside this producer's identity; the unchanged SDK and small finite
+Content obligations are recorded in the consumer-applicability review rather
+than relabeling these runs as executions of a newer compiler.
