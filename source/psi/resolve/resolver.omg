@@ -9,6 +9,7 @@ use psi::resolve::facts;
 use psi::resolve::imports;
 use psi::resolve::measures;
 use psi::resolve::names;
+use psi::resolve::pattern_scopes;
 use psi::resolve::operators;
 use psi::source::source;
 use psi::syntax::syntax;
@@ -29,7 +30,13 @@ use psi::syntax::syntax;
 // those it may be. Builtin and duplicate declarations reject before any
 // lookup, so the builtin and declaration tiers never compete for one
 // spelling; two visible declarations of one spelling reject as ambiguous.
-public data Resolver {
+public data Resolver
+where pattern_event_count <= 256, pattern_scope_depth <= 32
+{
+    pattern_events: [PatternNameEvent; 256] in Trapping;
+    pattern_event_count: u64;
+    pattern_scopes: [PatternNameFrame; 32] in Trapping;
+    pattern_scope_depth: u64;
     output: NameResolution;
     // Name-resolution scratch: what each expression's position lets it name.
     name_roles: [NameRole; 131072];
@@ -2478,7 +2485,7 @@ crashes Trap
 
 // The scope of expression `index` outside every machine: a domain's
 // predicate facts see its generic parameters, a transparent proposition's
-// fact its own, a data declaration's or case's `where` facts the data's; a
+// fact its own, and a data declaration's predicates see the data's binders; a
 // constant's value has no generic parameters. Only casts and static
 // applications ask, so the scan is rare.
 machine Resolver::detached_scope(syntax: &SyntaxTrees, index: u64 in Trapping) -> TypeScope
@@ -2534,24 +2541,7 @@ crashes Trap
         let scope: TypeScope = Resolver::data_scope(item);
         transition holds {
             true -> found(scope)
-            _ -> case_facts(syntax, index, offset, item, 0)
-        }
-    }
-
-    machine case_facts(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) -> TypeScope {
-        transition case_offset < item.case_count {
-            true -> case_holds(syntax, index, offset, item, case_offset)
             _ -> data(syntax, index, offset + 1)
-        }
-    }
-
-    machine case_holds(syntax: &SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) -> TypeScope {
-        let data_case: DataCase = SyntaxTrees::data_case(syntax, item.first_case + case_offset);
-        let holds: bool = Resolver::clauses_hold(syntax, data_case.first_clause, data_case.clause_count, index);
-        let scope: TypeScope = Resolver::data_scope(item);
-        transition holds {
-            true -> found(scope)
-            _ -> case_facts(syntax, index, offset, item, case_offset + 1)
         }
     }
 

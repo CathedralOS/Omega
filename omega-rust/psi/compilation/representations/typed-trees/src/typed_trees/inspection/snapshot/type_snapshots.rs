@@ -45,6 +45,9 @@ pub enum WireMemberSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TypeReferenceSnapshot {
+    CaseView {
+        subject: Box<TypeReferenceSnapshot>,
+    },
     Reference {
         referee: Box<TypeReferenceSnapshot>,
         access: &'static str,
@@ -202,6 +205,9 @@ pub(crate) fn type_reference_snapshot(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => TypeReferenceSnapshot::CaseView {
+            subject: Box::new(type_reference_snapshot(program, *subject)),
+        },
         TypeReferenceNode::Reference {
             referee,
             access,

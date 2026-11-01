@@ -429,7 +429,13 @@ impl StructuralJudge<'_> {
             }
             StructuralTerm::Projection { subject, path } => {
                 let subject = self.resolve_case_subject(*subject, depth + 1)?;
-                observed_projections::project_field(subject, &path)
+                let constructed = matches!(subject, StructuralTerm::Constructor { .. });
+                let selected = observed_projections::project_field(subject, &path)?;
+                if constructed {
+                    self.resolve_case_subject(selected, depth + 1)
+                } else {
+                    Some(selected)
+                }
             }
             StructuralTerm::BoundProjection { .. } => Some(term),
             StructuralTerm::IndexedValue {
@@ -452,8 +458,8 @@ impl StructuralJudge<'_> {
                 )
             }
             StructuralTerm::CallProjection { .. }
-            | StructuralTerm::Opaque(_)
             | StructuralTerm::ScalarBinary { .. }
+            | StructuralTerm::Opaque(_)
             | StructuralTerm::MathematicalBinary { .. }
             | StructuralTerm::IntegerEmbedding { .. }
             | StructuralTerm::CollectionMeasure { .. } => None,

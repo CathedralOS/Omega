@@ -320,9 +320,9 @@ impl Evaluation {
             .rev()
             .find(|(root, _)| *root == value)
             .map(|(_, binding)| binding)
-            .ok_or(LoweringError::Unsupported(
-                "saved value has not completed in this execution frame",
-            ))?;
+            .ok_or_else(|| {
+                LoweringError::Unsupported("saved value has not completed in this execution frame")
+            })?;
         if !binding.argument.path.is_empty()
             || binding.argument.access != StructuralAccess::Owned
             || self
@@ -855,8 +855,10 @@ impl Evaluation {
         if matches!(
             multiplicity,
             StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
-        ) && produced.path().is_empty()
-        {
+        ) && matches!(
+            produced,
+            crate::emission::operation_emission::buffer::StructuralBinding::OperationResult(_)
+        ) {
             self.record_owned_home(StructuralValueOwner {
                 symbol: local.symbol,
                 statement: result.statement_index,

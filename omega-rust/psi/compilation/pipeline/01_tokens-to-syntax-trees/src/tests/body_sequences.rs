@@ -169,3 +169,71 @@ fn every_machine_body_rejects_bare_arrows() {
         assert_eq!(error.source_span.span.start, source.find("->").unwrap());
     }
 }
+
+#[test]
+fn named_data_binding_captures_initializer_once_and_retains_pattern_metadata() {
+    let trees = super::parse_source(
+        "data Pair { x: u64; y: u64; } machine read() -> u64 { let Pair { x as answer, y as _ } = produce(); answer }",
+        "named data binding of a computed initializer",
+    );
+    let machine = super::root_machine(&trees, "read machine");
+    let state = super::entry_state(&trees, machine);
+    let statements = trees.items.statements(state.statements);
+    let StatementNode::LocalData(capture) = trees.statements.statement(statements[0]) else {
+        panic!("one initializer capture");
+    };
+    assert_eq!(
+        capture.role,
+        language_core::LocalBindingRole::DispatchSubject
+    );
+    assert!(matches!(
+        trees.expressions.expression(capture.initial_value),
+        syntax_trees::expression::ExpressionNode::Call(_)
+    ));
+    let pattern = capture
+        .pattern
+        .expect("explicit component roster on its capture");
+    assert_eq!(trees.display_expression_name(pattern.head), "Pair");
+    let fields = trees.expressions.match_fields(pattern.fields);
+    assert_eq!(fields.len(), 2);
+    assert_eq!(fields[0].member.as_str(&trees), "x");
+    assert_eq!(fields[1].member.as_str(&trees), "y");
+    assert!(!capture.name.as_str(&trees).contains("#x#"));
+    let StatementNode::LocalData(answer) = trees.statements.statement(statements[1]) else {
+        panic!("ordinary field binding");
+    };
+    let syntax_trees::expression::ExpressionNode::Member(member) =
+        trees.expressions.expression(answer.initial_value)
+    else {
+        panic!("captured field projection");
+    };
+    assert!(matches!(
+        trees.expressions.expression(member.receiver),
+        syntax_trees::expression::ExpressionNode::Name(_)
+    ));
+
+    let mut copied = syntax_trees::SyntaxTrees::default();
+    let Item::Machine(copied_machine) =
+        copied.copy_item_from(&trees, &Item::Machine(machine.clone()))
+    else {
+        panic!("copied machine");
+    };
+    let copied_state = super::entry_state(&copied, &copied_machine);
+    let copied_statements = copied.items.statements(copied_state.statements);
+    let StatementNode::LocalData(binding) = copied.statements.statement(copied_statements[0])
+    else {
+        panic!("copied metadata");
+    };
+    let pattern = binding.pattern.expect("copy retains selectors");
+    assert_eq!(copied.expressions.match_fields(pattern.fields).len(), 2);
+    assert_eq!(copied.display_expression_name(pattern.head), "Pair");
+}
+
+#[test]
+fn data_binding_rejects_duplicate_binding_names_at_the_pattern_site() {
+    let tokens = Lexer::new("machine read() { let Pair { x as same, y as same } = value; }")
+        .tokenize()
+        .unwrap();
+    let error = parse_syntax_trees(&tokens).expect_err("duplicate lexical bindings");
+    assert!(error.message.contains("introduced more than once"));
+}

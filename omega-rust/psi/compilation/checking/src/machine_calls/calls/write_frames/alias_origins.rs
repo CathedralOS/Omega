@@ -554,6 +554,11 @@ fn projected_member_origins(
     expression: ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Vec<FramePlaceOrigin> {
+    if member.selector == language_core::DataComponentSelector::Case {
+        // The case component retains the same descriptor and referent. It has
+        // no physical member slot whose spelling could extend this address.
+        return origins;
+    }
     origins
         .into_iter()
         .map(|receiver| {

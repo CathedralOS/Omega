@@ -14,7 +14,7 @@ from pathlib import Path
 KINDS = (
     "Absent", "Builtin", "Data", "Reference", "Array", "Slice", "GenericParameter",
     "StaticInteger", "Unit", "AnonymousInteger", "AnonymousFloat", "AnonymousChoice",
-    "AnonymousArray",
+    "AnonymousArray", "CaseView",
 )
 BUILTIN_SPELLINGS = (
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
@@ -66,7 +66,7 @@ DIAGNOSTICS = {
     41: 'MissingPatternField',
     42: 'DuplicatePatternField',
 }
-SELECTIONS = {0: "none", 1: "machine", 3: "field", 4: "length", 5: "binder"}
+SELECTIONS = {0: "none", 1: "machine", 3: "field", 4: "length", 5: "binder", 6: "payload"}
 ADAPTATIONS = ("", "landed", "lent", "qualified", "read")
 
 
@@ -124,6 +124,8 @@ class Observation:
             arguments = self.arguments[row.first_argument:row.first_argument + row.argument_count]
             applied = f"<{', '.join(self.render(argument) for argument in arguments)}>" if arguments else ""
             return f"D{row.item}{applied}"
+        if kind == "CaseView":
+            return f"case-view({self.render(row.inner)})"
         if kind == "Reference":
             access = {0: "&", 1: "&mut ", 2: "&write "}[row.access]
             return access + self.render(row.inner)
@@ -342,11 +344,35 @@ def nested_machine_cases(program: str) -> None:
     rejected(program, "shared-reborrow-does-not-insert-a-fresh-descriptor-borrow", source, "MismatchedTypes", b"cell!2")
 
 
+def data_decomposition_cases(program: str) -> None:
+    prefix = b"data T [copy] { common: u64; case Ready(payload: u64); case Empty; } "
+    for name, body in (
+        ("named-let", b"let T { common as low, case as operation } = t; match operation { T::Ready { payload as high } -> high T::Empty -> low }"),
+        ("positional-let", b"let (low, operation) = t; match operation { T::Ready { payload as high } -> high T::Empty -> low }"),
+        ("positional-transition", b"transition t { (low, operation) -> (match operation { T::Ready { payload as high } -> high T::Empty -> low }) }"),
+        ("named-expression", b"match t { T { common as low, case as operation } -> match operation { T::Ready { payload as high } -> high T::Empty -> low } }"),
+        ("positional-expression", b"match t { (low, operation) -> match operation { T::Ready { payload as high } -> high T::Empty -> low } }"),
+        ("named-rest", b"let T { common as low, .. } = t; low"),
+        ("positional-rest", b"let (low, ..) = t; low"),
+        ("nested-shadow", b"match t { T { common as value, case as operation } -> match operation { T::Ready { payload as value } -> value T::Empty -> value } }"),
+    ):
+        accepted(program, "data-decomposition-" + name, prefix + b"machine f(t: T) -> u64 { " + body + b" }", ())
+    for name, pattern, diagnostic, spelling in (
+        ("short-positional", b"(low)", "MissingPatternField", b"low"),
+        ("long-positional", b"(a, b, c)", "UnknownPatternField", b"c"),
+        ("duplicate-binding", b"T { common as x, case as x }", "DuplicatePatternField", b"case as x"),
+        ("duplicate-selector", b"T { common as a, common as b, case as c }", "DuplicatePatternField", b"common as b"),
+    ):
+        rejected(program, "data-decomposition-" + name, prefix + b"machine f(t: T) { let " + pattern + b" = t; }", diagnostic, spelling)
+    rejected(program, "data-decomposition-let-view-common", prefix + b"machine f(t: T) -> u64 { let (_, operation) = t; operation.common }", "ProjectionOfNonData", b"operation.common")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_typing.py <omega-typing-harness>")
     program = sys.argv[1]
 
+    data_decomposition_cases(program)
     accepted(program, "empty", b"", ())
     accepted(
         program,
@@ -630,16 +656,19 @@ def main() -> None:
     accepted(
         program,
         "declared-domains-qualify-their-carrier",
-        b"domain u64::Small(value)\nrequires value < 8;\ndomain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\n"
-        b"machine take(x: u64 in Small) -> u64 { x }\n"
-        b"machine show(text: &[u8] in Text) {}\n"
-        b"machine f(held: u64 in Small, bare: u64, raw: &[u8]) -> u64 {\n"
-        b"    let a: u64 = take(held);\n"
-        b"    let b: u64 = take(bare);\n"
-        b"    let c: u64 = held;\n"
-        b"    show(raw);\n"
-        b"    take(3)\n"
-        b"}",
+        b'domain u64::Small\n'
+        b'requires self < 8;\n'
+        b'domain [u8]::Text\n'
+        b'requires valid_utf8(self);\n'
+        b'machine take(x: u64 in Small) -> u64 { x }\n'
+        b'machine show(text: &[u8] in Text) {}\n'
+        b'machine f(held: u64 in Small, bare: u64, raw: &[u8]) -> u64 {\n'
+        b'    let a: u64 = take(held);\n'
+        b'    let b: u64 = take(bare);\n'
+        b'    let c: u64 = held;\n'
+        b'    show(raw);\n'
+        b'    take(3)\n'
+        b'}',
         ((b"held!2", "u64 in Domain0"), (b"bare!2", "u64"), (b"take(3)", "u64")),
         adaptations=((b"held!2", ""), (b"bare!2", "qualified"), (b"raw!2", "qualified"), (b"3", "landed")),
     )
@@ -919,9 +948,10 @@ def main() -> None:
     rejected(
         program,
         "byte-predicates-apply-to-byte-views",
-        b"domain u64::Odd(value)\nrequires valid_utf8(value);",
+        b'domain u64::Odd\n'
+        b'requires valid_utf8(self);',
         "NoMatchingMachine",
-        b"valid_utf8(value)",
+        b"valid_utf8(self)",
     )
     rejected(
         program,
@@ -989,20 +1019,27 @@ def main() -> None:
         b"g(1)",
     )
 
-    # Explicit structural omission, exhaustive common/payload fields, and
-    # duplicate waivers all obey the same field-roster rule.
+    # A case roster covers payload fields only. Common fields belong to an
+    # independent outer data pattern; omission and duplicate rules stay exact.
     packet = (
         b"data Packet [copy] { version: u8; case Data(value: u8); case Empty; }\n"
         b"machine f(packet: Packet) -> u8 { transition packet { "
         b"Packet::Data { FIELDS } -> 0 Packet::Empty -> 0 } }"
     )
-    accepted(program, "case-rest-omits-common-and-payload-fields", packet.replace(b"FIELDS", b".."), ((b"packet!2", "D0"),))
+    accepted(program, "case-rest-omits-payload-fields", packet.replace(b"FIELDS", b".."), ((b"packet!2", "D0"),))
     accepted(program, "case-rest-before-a-field", packet.replace(b"FIELDS", b".., value as _"), ((b"packet!2", "D0"),))
-    accepted(program, "complete-case-roster", packet.replace(b"FIELDS", b"version as _, value as _"), ((b"packet!2", "D0"),))
-    rejected(program, "case-roster-needs-common-fields", packet.replace(b"FIELDS", b"value as _"), "MissingPatternField", b"Packet::Data")
-    rejected(program, "case-roster-needs-payload-fields", packet.replace(b"FIELDS", b"version as _"), "MissingPatternField", b"Packet::Data")
+    accepted(program, "complete-case-roster", packet.replace(b"FIELDS", b"value as _"), ((b"packet!2", "D0"),))
+    rejected(program, "case-roster-rejects-common-fields", packet.replace(b"FIELDS", b"version as _, value as _"), "UnknownPatternField", b"version as _")
+    rejected(program, "case-roster-rejects-unknown-payload-fields", packet.replace(b"FIELDS", b"missing as _"), "UnknownPatternField", b"missing as _")
     rejected(program, "empty-braces-are-not-a-tag-only-pattern", packet.replace(b"FIELDS", b""), "MissingPatternField", b"Packet::Data")
     rejected(program, "rest-does-not-admit-duplicate-waivers", packet.replace(b"FIELDS", b"value as _, value as _, .."), "DuplicatePatternField", b"value as _!2")
+
+    # Named outer data patterns retain the case-only subject and lexical bindings.
+    accepted(program, 'data-decomposition-outer-common', b'data T [copy] { common: u64; case Ready(payload: u64); case Empty; } machine f(t: T) -> u64 { transition t { T { common as low, case as _ } -> (low) } }', ())
+    accepted(program, 'data-decomposition-outer-case', b'data T [copy] { common: u64; case Ready(payload: u64); case Empty; } machine f(t: T) -> bool { transition t { T { common as _, case as operation } -> (match operation { T::Ready -> true T::Empty -> false }) } }', ())
+    accepted(program, 'data-decomposition-outer-nested-fact-binding', b'data T [copy] { common: u64; case Ready(payload: u64); case Empty; } machine f(t: T) -> u64 { transition t { T { common as low, case as operation } -> (match operation { T::Ready -> low T::Empty -> 0 }) } }', ())
+    rejected(program, 'data-decomposition-case-common-reject', b'data T [copy] { common: u64; case Ready(payload: u64); case Empty; } machine f(t: T) -> u64 { transition t { T::Ready { common as low, payload as _ } -> (low) T::Empty -> (0) } }', 'UnknownPatternField', b'common as low')
+    rejected(program, 'data-decomposition-view-common-reject', b'data T [copy] { common: u64; case Ready(payload: u64); case Empty; } machine f(t: T) -> u64 { transition t { T { common as _, case as operation } -> (operation.common) } }', 'ProjectionOfNonData', b'operation.common')
 
     # A value-position match (wiki/spec/language/patterns.md): its patterns
     # meet its subject, its arms' values meet one type and its arms cover the
@@ -1119,8 +1156,9 @@ def main() -> None:
     rejected(
         program,
         "match-arms-of-two-domains",
-        b"domain i64::Km(value) requires value >= 0;\ndomain i64::Miles(value) requires value >= 0;\n"
-        b"machine f(b: bool, near: i64 in Km, far: i64 in Miles) -> i64 in Km { match b { true -> near, false -> far } }",
+        b'domain i64::Km requires self >= 0;\n'
+        b'domain i64::Miles requires self >= 0;\n'
+        b'machine f(b: bool, near: i64 in Km, far: i64 in Miles) -> i64 in Km { match b { true -> near, false -> far } }',
         "MismatchedTypes",
         b"far!2",
     )
@@ -1186,7 +1224,9 @@ def main() -> None:
     accepted(
         program,
         "array-literal-tree-is-its-elements",
-        b"domain u8::Small(value)\nrequires value < 4;\nmachine f() -> u8 { let a: [u8; 2] = [1, 9]; a[0] }",
+        b'domain u8::Small\n'
+        b'requires self < 4;\n'
+        b'machine f() -> u8 { let a: [u8; 2] = [1, 9]; a[0] }',
         ((b"[1, 9]", "[u8; 2]"),),
     )
     accepted(
@@ -1310,12 +1350,15 @@ def main() -> None:
     accepted(
         program,
         "quoted-literals-copy-exact-qualified-byte-arrays",
-        b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
-        b"domain [u8]::Utf8(bytes) requires valid_utf8(bytes);\n"
-        b"data M { line: [u8; 2] in Utf8; raw: [u8; 2]; }\n"
-        b"machine f(m: &mut M, view: &[u8] in Utf8) -> bool {\n"
-        b"    m.line = \"ok\";\n    m.raw = \"hi\";\n    let local: [u8; 2] in Utf8 = \"go\";\n"
-        b"    m.line == \"ok\" && view == \"ok\" && m.line.len == 2\n}",
+        b'domain [u8; 2]::Utf8 requires valid_utf8(self);\n'
+        b'domain [u8]::Utf8 requires valid_utf8(self);\n'
+        b'data M { line: [u8; 2] in Utf8; raw: [u8; 2]; }\n'
+        b'machine f(m: &mut M, view: &[u8] in Utf8) -> bool {\n'
+        b'    m.line = "ok";\n'
+        b'    m.raw = "hi";\n'
+        b'    let local: [u8; 2] in Utf8 = "go";\n'
+        b'    m.line == "ok" && view == "ok" && m.line.len == 2\n'
+        b'}',
         ((b"m.line == \"ok\"", "bool"), (b"m.line.len", "u64")),
         adaptations=((b"\"ok\"", "qualified"), (b"\"hi\"", "landed"), (b"\"go\"", "qualified")),
     )
@@ -1323,9 +1366,9 @@ def main() -> None:
         rejected(
             program,
             "qualified-quoted-width-" + str(len(literal) - 2),
-            b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
-            b"data M { line: [u8; 2] in Utf8; }\n"
-            b"machine f(m: &mut M) { m.line = " + literal + b"; }",
+            b'domain [u8; 2]::Utf8 requires valid_utf8(self);\n'
+            b'data M { line: [u8; 2] in Utf8; }\n'
+            b'machine f(m: &mut M) { m.line = ' + literal + b"; }",
             "MismatchedTypes",
             literal,
         )
@@ -1498,13 +1541,21 @@ def main() -> None:
     accepted(
         program,
         "domain-membership-fact",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(x: u64) -> u64\nrequires x in Small\n{ x }",
+        b'domain u64::Small\n'
+        b'requires self < 4;\n'
+        b'machine f(x: u64) -> u64\n'
+        b'requires x in Small\n'
+        b'{ x }',
         ((b"x in Small", "bool"),),
     )
     rejected(
         program,
         "membership-of-another-carrier",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(x: u8) -> bool\nrequires x in Small\n{ true }",
+        b'domain u64::Small\n'
+        b'requires self < 4;\n'
+        b'machine f(x: u8) -> bool\n'
+        b'requires x in Small\n'
+        b'{ true }',
         "MismatchedTypes",
         b"x!2",
     )
@@ -1575,13 +1626,15 @@ def main() -> None:
     accepted(
         program,
         "declared-domain",
-        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) -> u64 in Small { x }",
+        b'domain u64::Small requires self < 4;\n'
+        b'machine f(x: u64 in Small) -> u64 in Small { x }',
         ((b"x!2", "u64 in Domain0"),),
     )
     accepted(
         program,
         "path-qualified-declared-domain",
-        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in u64::Small) -> u64 in Small { x }",
+        b'domain u64::Small requires self < 4;\n'
+        b'machine f(x: u64 in u64::Small) -> u64 in Small { x }',
         ((b"x!2", "u64 in Domain0"),),
     )
     rejected(
@@ -1693,20 +1746,20 @@ def main() -> None:
         b"n!3",
     )
 
-    # A case's own `where` fact types over its payload fields and the
-    # declaration's fields, and is a Boolean.
+    # Established data predicates describe the exact self subject. A selected
+    # case's payload is accessed under its case conjunct, and facts are Boolean.
     accepted(
         program,
-        "case-fact-over-its-payload",
-        b"data Interval { tag: u64; case Empty; case Range(lo: u64, hi: u32) where lo <= 9 && hi > 0 && tag > 0; }",
-        ((b"lo!2", "u64"), (b"hi!2", "u32"), (b"tag!2", "u64"), (b"lo <= 9", "bool")),
+        "data-case-predicate-over-its-payload",
+        b"data Interval requires (self in Interval::Empty) || (self in Interval::Range && self.lo <= 9 && self.hi > 0 && self.tag > 0) { tag: u64; case Empty; case Range(lo: u64, hi: u32); }",
+        ((b"self.lo", "u64"), (b"self.hi", "u32"), (b"self.tag", "u64"), (b"self.lo <= 9", "bool")),
     )
     rejected(
         program,
-        "case-fact-is-a-boolean",
-        b"data I { case A(x: u64) where x + 1; }",
+        "data-predicate-is-a-boolean",
+        b"data I requires self.x + 1 { case A(x: u64); }",
         "NotBoolean",
-        b"x + 1",
+        b"self.x + 1",
     )
 
     # A range slice is the slice place of its collection's elements under

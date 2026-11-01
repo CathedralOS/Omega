@@ -106,6 +106,7 @@ pub(crate) fn peel_carrier_shells(
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..=program.type_reference_table.type_reference_count() {
         match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::CaseView { subject } => reference = *subject,
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {
                 let Some(replacement) = crate::substitutions::actual_for(substitutions, *symbol)
@@ -137,6 +138,7 @@ pub fn carrier_beneath_borrows(
     }
     for _ in 0..=program.type_reference_table.type_reference_count() {
         match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::CaseView { subject } => reference = *subject,
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             _ => return Some(reference),

@@ -89,6 +89,7 @@ pub(crate) fn mint_hoist_temp(
                 symbol: SymbolHandle::invalid(),
                 name: name.clone(),
                 storage: LocalDataStorage {
+                    pattern: None,
                     role: language_core::LocalBindingRole::Value,
                     type_reference: declared,
                     initial_value,

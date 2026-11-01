@@ -44,6 +44,9 @@ public data TypeKind [copy] {
     // unlanded type and `length` the handle of its extent's static integer
     // row. It lands element by element where its destination is known.
     case AnonymousArray;
+    // A semantic component of the exact original subject in `inner`, without
+    // a stored member or another discriminator. Zero remains Absent.
+    case CaseView;
 }
 
 // Fields a kind does not carry are zero.
@@ -84,6 +87,8 @@ public data Selection [copy] {
     // A call of a machine binder through its `requires machine` contract, by
     // generic parameter handle.
     case Binder(parameter: u64 in Trapping);
+    // Exact selected case and payload declaration; never a common-field id.
+    case PayloadField(data_case: u64 in Trapping, field: u64 in Trapping);
 }
 
 // How an expression meets its destination. `Landed` marks the root of an
@@ -99,6 +104,8 @@ public data Adaptation [copy] {
     // A reference to a builtin scalar read where the scalar is needed: the
     // value is its referent's.
     case Read;
+    // Formation records an exact type equation for checking to discharge.
+    case TypeEquation;
 }
 
 public data TypeDiagnosticCode [copy] {
@@ -169,12 +176,22 @@ public data MemberTarget [copy] {
     case Unknown;
     case Common(field: u64 in Trapping);
     case Payload(field: u64 in Trapping);
+    case Case;
 }
 
 // Typing's annotations, indexed by syntax handles: a type per type-reference
 // row, per expression and per pattern field, an expression's selection,
 // adaptation and anonymous value. `unit`, `boolean` and `anonymous` are the
 // handles of those types in `types`.
+// Typed obligations for components omitted by an explicit rest. Names have
+// resolved and static arguments have substituted before these types publish.
+public data PatternResidual [copy] {
+    pattern: SourceSpan;
+    component_kind: u64 in Trapping;
+    component: u64 in Trapping;
+    type_handle: u64 in Trapping;
+}
+
 public data Typing
 requires
     reference_count <= 65536,
@@ -183,9 +200,15 @@ requires
     construct_count <= 4096,
 {
     types: TypeTable;
+    pattern_residuals: [PatternResidual; 4096];
+    pattern_residual_count: u64 in Trapping;
+    case_view_modes: [DataMultiplicity; 8192];
     reference_types: [u64; 65536];
     reference_count: u64;
     expression_types: [u64; 131072];
+    // Proof-only operands retain exact interned types separately from values.
+    static_operand_types: [u64; 131072];
+    static_index_type: u64 in Trapping;
     selections: [Selection; 131072];
     adaptations: [Adaptation; 131072];
     values: [ExactInteger; 131072];
@@ -200,6 +223,8 @@ requires
     binder_types: [u64; 2048];
     // Each pattern field's member, indexed like `binder_types`.
     binder_members: [MemberTarget; 2048];
+    // Exact already-evaluated pattern subject for custody and loan routing.
+    binder_subjects: [u64; 2048];
     binder_count: u64;
     // Each construction field's member.
     construct_targets: [MemberTarget; 4096];
@@ -876,5 +901,110 @@ public machine TypeTable::carrier_width(row: TypeRow) -> u64 in Trapping {
 
     machine width(bytes: u64 in Trapping) -> u64 in Trapping {
         bytes
+    }
+}
+
+public machine Typing::binder_subject(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition field < typing.binder_count {
+        true -> read(typing, field)
+        _ -> invalid()
+    }
+    machine read(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping { typing.binder_subjects[field] as u64 in Trapping }
+    machine invalid() -> u64 in Trapping { crash Trap; }
+}
+public machine Typing::set_binder_subject(typing: &mut Typing, field: u64 in Trapping, subject: u64 in Trapping)
+crashes Trap
+{
+    transition field < typing.binder_count {
+        true -> write(typing, field, subject)
+        _ -> invalid()
+    }
+    machine write(typing: &mut Typing, field: u64 in Trapping, subject: u64 in Trapping) { typing.binder_subjects[field] = subject as u64; }
+    machine invalid() { crash Trap; }
+}
+
+public machine Typing::static_operand_type(typing: &Typing, expression: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition expression < typing.expression_count && expression < 131072 { true -> read(typing, expression) _ -> invalid() }
+    machine read(typing: &Typing, expression: u64 in Trapping) -> u64 in Trapping
+    requires expression < 131072
+    { typing.static_operand_types[expression] as u64 in Trapping }
+    machine invalid() -> u64 in Trapping { crash Trap; }
+}
+public machine Typing::set_static_operand_type(typing: &mut Typing, expression: u64 in Trapping, type_handle: u64 in Trapping)
+crashes Trap
+{
+    transition expression < typing.expression_count && expression < 131072 { true -> write(typing, expression, type_handle) _ -> invalid() }
+    machine write(typing: &mut Typing, expression: u64 in Trapping, type_handle: u64 in Trapping)
+    requires expression < 131072
+    { typing.static_operand_types[expression] = type_handle as u64; }
+    machine invalid() { crash Trap; }
+}
+
+public machine Typing::same_pattern(left: SourceSpan, right: SourceSpan) -> bool {
+    left.source.value == right.source.value && left.span.start == right.span.start && left.span.end == right.span.end
+}
+public machine Typing::pattern_residual(typing: &Typing, index: u64 in Trapping) -> PatternResidual
+crashes Trap
+{
+    transition index < typing.pattern_residual_count && index < 4096 { true -> read(typing, index) _ -> invalid() }
+    machine read(typing: &Typing, index: u64 in Trapping) -> PatternResidual
+    requires index < 4096
+    { typing.pattern_residuals[index] }
+    machine invalid() -> PatternResidual { crash Trap; }
+}
+public machine Typing::record_pattern_residual(typing: &mut Typing, row: PatternResidual)
+crashes Trap
+{
+    transition row.type_handle > 0 { true -> next(typing, row, 0) _ -> full(typing, row.pattern) }
+    machine next(typing: &mut Typing, row: PatternResidual, index: u64 in Trapping) {
+        transition index < typing.pattern_residual_count && index < 4096 { true -> candidate(typing, row, index) _ -> append(typing, row, index) }
+    }
+    machine candidate(typing: &mut Typing, row: PatternResidual, index: u64 in Trapping)
+    requires index < 4096
+    {
+        let previous: PatternResidual = typing.pattern_residuals[index];
+        let same: bool = Typing::same_pattern(previous.pattern, row.pattern) && previous.component_kind == row.component_kind && previous.component == row.component;
+        transition same { true -> update(typing, row, index) _ -> next(typing, row, index + 1) }
+    }
+    machine update(typing: &mut Typing, row: PatternResidual, index: u64 in Trapping)
+    requires index < 4096
+    { typing.pattern_residuals[index] = row; }
+    machine append(typing: &mut Typing, row: PatternResidual, index: u64 in Trapping) {
+        transition index < 4096 { true -> entered(typing, row, index) _ -> full(typing, row.pattern) }
+    }
+    machine entered(typing: &mut Typing, row: PatternResidual, index: u64 in Trapping)
+    requires index < 4096
+    {
+        typing.pattern_residuals[index] = row;
+        typing.pattern_residual_count = index + 1;
+    }
+    machine full(typing: &mut Typing, span: SourceSpan) { Typing::reject(typing, TypeDiagnosticCode::TypeCapacityExceeded, span); }
+}
+
+public machine Typing::case_view_multiplicity(typing: &Typing, handle: u64 in Trapping) -> DataMultiplicity
+crashes Trap
+{
+    transition handle < 8192 { true -> read(typing, handle) _ -> DataMultiplicity::Linear }
+    machine read(typing: &Typing, handle: u64 in Trapping) -> DataMultiplicity
+    requires handle < 8192
+    { typing.case_view_modes[handle] }
+}
+public machine Typing::set_case_view_multiplicity(typing: &mut Typing, handle: u64 in Trapping, mode: DataMultiplicity)
+crashes Trap
+{
+    transition handle < 8192 { true -> write(typing, handle, mode) _ -> invalid() }
+    machine write(typing: &mut Typing, handle: u64 in Trapping, mode: DataMultiplicity)
+    requires handle < 8192
+    { typing.case_view_modes[handle] = mode; }
+    machine invalid() { crash Trap; }
+}
+public machine Typing::join_multiplicity(first: DataMultiplicity, second: DataMultiplicity) -> DataMultiplicity {
+    transition first == DataMultiplicity::Linear || second == DataMultiplicity::Linear { true -> DataMultiplicity::Linear _ -> affine(first, second) }
+    machine affine(first: DataMultiplicity, second: DataMultiplicity) -> DataMultiplicity {
+        transition first == DataMultiplicity::Affine || second == DataMultiplicity::Affine { true -> DataMultiplicity::Affine _ -> DataMultiplicity::Unrestricted }
     }
 }

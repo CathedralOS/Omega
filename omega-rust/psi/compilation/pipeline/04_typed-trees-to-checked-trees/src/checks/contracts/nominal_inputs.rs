@@ -93,6 +93,7 @@ pub(super) fn check(
     state: &FlowStateFact,
     call: &FlowCallFact,
     requirements: &DeclaredFieldRequirements,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if requirements.rows.is_empty() {
@@ -188,6 +189,7 @@ pub(super) fn check(
                                         observation,
                                         *domain_symbol,
                                         *semantic_domain,
+                                        call_frames,
                                     )
                             }) {
                                 return true;

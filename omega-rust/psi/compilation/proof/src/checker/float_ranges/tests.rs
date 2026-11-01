@@ -161,6 +161,7 @@ impl Fixture {
             program
                 .expression_table
                 .insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: language_core::DataComponentSelector::Named,
                     receiver: root,
                     member_symbol: symbol,
                     member: Identifier::generated(name),
@@ -180,6 +181,7 @@ impl Fixture {
             program
                 .expression_table
                 .insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: language_core::DataComponentSelector::Named,
                     receiver: target,
                     member_symbol: fields[0],
                     member: Identifier::generated("value"),
@@ -407,10 +409,12 @@ fn reaching_float_store_invalidates_alias_rebinding_and_origin_writes() {
             .program
             .expression_table
             .insert(ExpressionNode::Member(TableMemberExpression {
+                selector: language_core::DataComponentSelector::Named,
                 receiver: alias,
                 ..original
             }));
         fixture.push(StatementNode::LocalData(TableLocalData {
+            pattern: None,
             symbol: fixture.alias,
             name: Identifier::generated("alias"),
             type_reference: fixture.reference_type,

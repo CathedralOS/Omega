@@ -660,6 +660,12 @@ impl TypedTrees {
         let reference = self
             .type_reference_table
             .unconstrained_type_reference(reference);
+        if let Some(subject) = self.type_reference_table.case_view_subject(reference) {
+            return self.data_constructor_definition(
+                self.type_reference_table.peeled_type_reference(subject),
+                authored,
+            );
+        }
         // A representation's field view keeps T's constructor authority and
         // complete generic application. Its physical application and policy
         // remain the value's type; they are not the origin of T's constructor.
@@ -688,20 +694,27 @@ impl TypedTrees {
         // only the template-to-instance direction. A sibling application must
         // still match this exact receiving type before its members correspond.
         let identity = self.normalized_type_identity(reference);
-        let declaration = |symbol| {
-            let nominal = self.unique_data_definition_by_symbol(symbol)?;
-            let Some(origin) = nominal.generic_instance else {
-                return Some(symbol);
-            };
-            if !self.type_reference_table.contains_type_reference(origin) {
-                return None;
+        let declaration = |mut symbol| {
+            // Scoped field views can retain another prepared nominal owner.
+            // Follow every retained origin, checking the receiving application
+            // at each edge; a single hop loses its authored constructor family.
+            for _ in 0..=self.data_definitions().len() {
+                let nominal = self.unique_data_definition_by_symbol(symbol)?;
+                let Some(origin) = nominal.generic_instance else {
+                    return Some(symbol);
+                };
+                if !self.type_reference_table.contains_type_reference(origin)
+                    || self.normalized_type_identity(origin) != identity
+                {
+                    return None;
+                }
+                symbol = match self.type_reference_table.type_reference(origin) {
+                    crate::types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                    crate::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    _ => return None,
+                };
             }
-            let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
-                self.type_reference_table.type_reference(origin)
-            else {
-                return None;
-            };
-            (self.normalized_type_identity(origin) == identity).then_some(*base_symbol)
+            None
         };
         (declaration(instance.symbol)? == declaration(authored)?).then_some(instance)
     }

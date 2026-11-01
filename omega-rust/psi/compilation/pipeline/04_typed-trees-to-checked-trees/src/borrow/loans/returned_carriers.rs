@@ -829,8 +829,9 @@ pub(super) fn argument_loans(
             // result_owner_path rebases its leaves only after source selection.
             // Using an outer Envelope here would erase a Held argument's
             // target leaf before an owned forwarding call could transport it.
-            let argument_owner = TableLocalData {
-                type_reference: CallViewReturnContract::carrier_reference(
+            let argument_owner = checked_trees::statement::TableLocalData {
+                pattern: None,
+                type_reference: super::call_views::CallViewReturnContract::carrier_reference(
                     program,
                     field.source_type,
                     substitutions,

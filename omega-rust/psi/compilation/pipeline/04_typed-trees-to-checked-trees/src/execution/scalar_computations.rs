@@ -99,9 +99,12 @@ pub(crate) fn build_checked_value_computation_plans(
     borrow: &BorrowFacts,
     proof: &ProofFacts,
     pure: &mut CheckedScalarExpressionPlans,
-    exact_integer_casts: &[ExactIntegerCastFact],
-) -> (CheckedScalarComputationPlans, CheckedStructuralValuePlans) {
-    dispatch_copies::withdraw_captured_pure_roots(program, flow, pure);
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> (
+    CheckedScalarComputationPlans,
+    checked_trees::CheckedStructuralValuePlans,
+) {
+    dispatch_copies::withdraw_value_dependent_pure_roots(program, flow, pure);
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = CheckedStructuralValuePlans::default();
     for machine in program.machines() {

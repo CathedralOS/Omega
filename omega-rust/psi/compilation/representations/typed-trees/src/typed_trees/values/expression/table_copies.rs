@@ -817,6 +817,7 @@ impl ExpressionTable {
                 let receiver =
                     self.copy_subtree_with_occurrences(source, member.receiver, retain, copies);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: member.selector,
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member,

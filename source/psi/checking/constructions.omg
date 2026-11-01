@@ -1,5 +1,6 @@
 use psi::checking::arrivals;
 use psi::checking::checker;
+use psi::checking::cases;
 use psi::checking::evaluation;
 use psi::checking::facts;
 use psi::checking::frames;
@@ -23,6 +24,7 @@ use psi::types::types;
 
 // A field a construction wrote and no place holds yet.
 public data PendingField [copy] {
+    kind: PlaceKind;
     // The one-based place the field lies below.
     parent: u64 in Trapping;
     // The data field's handle.
@@ -45,9 +47,11 @@ public machine Checker::construction_value(
 crashes Trap
 {
     let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-    let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
+    let selector: u64 in Trapping = match expression.kind == ExpressionKind::Path { true -> handle false -> expression.left };
+    let binding: ValueBinding = NameResolution::value_binding(resolution, selector);
     transition binding {
         ValueBinding::Data { item as _ } -> data(checker, syntax, typing, handle, expression, type_handle)
+        ValueBinding::DataCase { item as _, data_case as _ } -> data(checker, syntax, typing, handle, expression, type_handle)
         _ -> typed(checker, handle, row)
     }
 
@@ -77,12 +81,13 @@ crashes Trap
         let target: MemberTarget = Typing::construct_target(typing, expression.first + offset);
         let value: Value = Checker::value_at(checker, written.value);
         transition target {
-            MemberTarget::Common { field } -> common(checker, syntax, typing, handle, expression, place, offset, field, value)
+            MemberTarget::Common { field } -> component(checker, syntax, typing, handle, expression, place, offset, PlaceKind::Field, field, value)
+            MemberTarget::Payload { field } -> component(checker, syntax, typing, handle, expression, place, offset, PlaceKind::Payload, field, value)
             _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1)
         }
     }
 
-    machine common(
+    machine component(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         typing: &Typing,
@@ -90,16 +95,17 @@ crashes Trap
         expression: Expression,
         place: u64 in Trapping,
         offset: u64 in Trapping,
+        kind: PlaceKind,
         field: u64 in Trapping,
         value: Value
     ) {
-        let declared: DataField = SyntaxTrees::field(syntax, field);
+        let declared: DataField = match kind == PlaceKind::Payload { true -> SyntaxTrees::payload_field(syntax, field) false -> SyntaxTrees::field(syntax, field) };
         let field_type: u64 in Trapping = Typing::reference_type(typing, declared.type_reference);
         let carrier: BuiltinType = Checker::carrier(typing, field_type);
         let integer: bool = Checker::has_subject(carrier);
         transition integer {
-            true -> pending(checker, syntax, typing, handle, expression, place, offset, field, field_type, value)
-            _ -> held(checker, syntax, typing, handle, expression, place, offset, field, field_type, value)
+            true -> pending(checker, syntax, typing, handle, expression, place, offset, kind, field, field_type, value)
+            _ -> held(checker, syntax, typing, handle, expression, place, offset, kind, field, field_type, value)
         }
     }
 
@@ -111,11 +117,12 @@ crashes Trap
         expression: Expression,
         place: u64 in Trapping,
         offset: u64 in Trapping,
+        kind: PlaceKind,
         field: u64 in Trapping,
         field_type: u64 in Trapping,
         value: Value
     ) {
-        Checker::write_pending(checker, typing, place, field, field_type, value);
+        Checker::write_pending_component(checker, typing, kind, place, field, field_type, value);
         transition { _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1) }
     }
 
@@ -130,12 +137,13 @@ crashes Trap
         expression: Expression,
         place: u64 in Trapping,
         offset: u64 in Trapping,
+        kind: PlaceKind,
         field: u64 in Trapping,
         field_type: u64 in Trapping,
         value: Value
     ) {
         transition value.place > 0 {
-            true -> adopted(checker, syntax, typing, handle, expression, place, offset, field, field_type, value.place)
+            true -> adopted(checker, syntax, typing, handle, expression, place, offset, kind, field, field_type, value.place)
             _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1)
         }
     }
@@ -148,11 +156,12 @@ crashes Trap
         expression: Expression,
         place: u64 in Trapping,
         offset: u64 in Trapping,
+        kind: PlaceKind,
         field: u64 in Trapping,
         field_type: u64 in Trapping,
         source: u64 in Trapping
     ) {
-        let written: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Field, field, place, field_type);
+        let written: u64 in Trapping = Checker::place(checker, typing, kind, field, place, field_type);
         Checker::copy_fields(checker, typing, written, source);
         transition { _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1) }
     }
@@ -179,18 +188,24 @@ crashes Trap
 public machine Checker::write_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value)
 crashes Trap
 {
+    Checker::write_pending_component(checker, typing, PlaceKind::Field, parent, field, type_handle, value);
+}
+
+public machine Checker::write_pending_component(checker: &mut Checker, typing: &Typing, kind: PlaceKind, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value)
+crashes Trap
+{
     let carrier: BuiltinType = Checker::carrier(typing, type_handle);
     let integer: bool = Checker::has_subject(carrier);
     transition integer {
-        true -> located(checker, parent, field, type_handle, value)
+        true -> located(checker, kind, parent, field, type_handle, value)
         _ -> done()
     }
 
-    machine located(checker: &mut Checker, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
-        let existing: u64 in Trapping = Checker::find_place(checker, PlaceKind::Field, field, parent);
+    machine located(checker: &mut Checker, kind: PlaceKind, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
+        let existing: u64 in Trapping = Checker::find_place(checker, kind, field, parent);
         transition existing > 0 {
             true -> bound(checker, existing, value)
-            _ -> pending(checker, parent, field, type_handle, value)
+            _ -> pending(checker, kind, parent, field, type_handle, value)
         }
     }
 
@@ -199,9 +214,9 @@ crashes Trap
         Checker::equate_subject(checker, entry.subject, value);
     }
 
-    machine pending(checker: &mut Checker, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
+    machine pending(checker: &mut Checker, kind: PlaceKind, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
         transition checker.pending_count < 32 {
-            true -> stored(checker, PendingField { parent: parent, field: field, type_handle: type_handle, value: value }, checker.pending_count)
+            true -> stored(checker, PendingField { kind: kind, parent: parent, field: field, type_handle: type_handle, value: value }, checker.pending_count)
             _ -> done()
         }
     }
@@ -220,7 +235,7 @@ crashes Trap
 public machine Checker::take_pending(checker: &mut Checker, entry: Place)
 crashes Trap
 {
-    transition entry.kind == PlaceKind::Field && entry.subject > 0 {
+    transition (entry.kind == PlaceKind::Field || entry.kind == PlaceKind::Payload) && entry.subject > 0 {
         true -> next(checker, entry, 0)
         _ -> done()
     }
@@ -236,7 +251,7 @@ crashes Trap
     requires index < 32
     {
         let pending: PendingField = checker.pending[index];
-        transition pending.parent == entry.parent && pending.field == entry.handle {
+        transition pending.kind == entry.kind && pending.parent == entry.parent && pending.field == entry.handle {
             true -> taken(checker, entry, index, pending.value)
             _ -> next(checker, entry, index + 1)
         }
@@ -346,7 +361,7 @@ crashes Trap
 machine Checker::enter_pending(checker: &mut Checker, typing: &Typing, pending: PendingField)
 crashes Trap
 {
-    let field: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Field, pending.field, pending.parent, pending.type_handle);
+    let field: u64 in Trapping = Checker::place(checker, typing, pending.kind, pending.field, pending.parent, pending.type_handle);
     transition field > 0 {
         true -> entered(checker, field, pending.value)
         _ -> done()
@@ -399,7 +414,7 @@ crashes Trap
     }
 
     machine written(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField, parent: u64 in Trapping) {
-        Checker::write_pending(checker, typing, parent, pending.field, pending.type_handle, pending.value);
+        Checker::write_pending_component(checker, typing, pending.kind, parent, pending.field, pending.type_handle, pending.value);
         transition { _ -> next(checker, typing, target, source, index + 1, end) }
     }
 
@@ -439,7 +454,7 @@ crashes Trap
     {
         let pending: PendingField = checker.pending[index];
         let below: bool = pending.parent == parent || (written_only && Checker::within(checker, pending.parent, parent));
-        let selected: bool = !written_only || Checker::writes_field(checker, callee, pending.field);
+        let selected: bool = !written_only || pending.kind == PlaceKind::Payload || Checker::writes_field(checker, callee, pending.field);
         transition below && selected {
             true -> entered(checker, typing, parent, written_only, callee, index, pending)
             _ -> next(checker, typing, parent, written_only, callee, index + 1)

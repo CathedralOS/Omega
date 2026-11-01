@@ -63,7 +63,7 @@ terminates
     machine next(known: Tree) -> Tree {
         transition known {
             Tree::Empty -> (empty_only(known))
-            Tree::Node { marked as _, child } -> child
+            Tree::Node { child } -> child
         }
     }
 }

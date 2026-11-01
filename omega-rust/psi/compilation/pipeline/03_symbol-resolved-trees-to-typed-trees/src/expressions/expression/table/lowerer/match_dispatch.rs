@@ -19,7 +19,11 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         };
         let outer_captures = self.match_captures.len();
         if capture.is_valid() {
-            self.match_captures.push((dispatch.capture, capture));
+            self.match_captures.push((
+                dispatch.capture,
+                capture,
+                typed::expression::ExpressionHandle::invalid(),
+            ));
         }
         let lowered = (|| {
             let mut arms = Vec::new();
@@ -33,7 +37,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                     }
                     resolved::expression::MatchPattern::Destructure(pattern) => {
                         typed::expression::MatchPattern::Destructure(
-                            self.lower_destructure_pattern(pattern, capture)?,
+                            self.lower_destructure_pattern(pattern, capture, dispatch.subject)?,
                         )
                     }
                 };
@@ -63,6 +67,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         &mut self,
         pattern: resolved::expression::TableDestructurePattern,
         capture: Handle<typed::expression::CompletedValueCapture>,
+        source_subject: resolved::expression::ExpressionHandle,
     ) -> Result<typed::expression::TableDestructurePattern, Diagnostic> {
         let program = self.program.ok_or_else(|| {
             Diagnostic::error(
@@ -74,7 +79,11 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                 "structural match has no resolved executable predicate",
             ));
         }
-        let head = self.lower_value(pattern.head)?;
+        let head = if pattern.head.is_valid() {
+            self.lower_value(pattern.head)?
+        } else {
+            self.inferred_capture_head(capture, source_subject)?
+        };
         let mut fields = Vec::new();
         for field in self.source.match_fields(pattern.fields) {
             use typed::expression::MatchFieldAction;
@@ -87,9 +96,18 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                 }
                 resolved::expression::MatchFieldAction::Waive => MatchFieldAction::Waive,
             };
+            let projection = resolved::expression::TableMemberExpression {
+                selector: field.selector,
+                receiver: source_subject,
+                member_symbol: field.field_symbol,
+                member: field.member.clone(),
+                case_variant: None,
+            };
+            let (field_symbol, _, member, selector) = self.declared_member(&projection);
             fields.push(typed::expression::TableMatchField {
-                member: lower_name(&field.member),
-                field_symbol: field.field_symbol,
+                selector,
+                member: lower_name(&member),
+                field_symbol,
                 action,
             });
         }
@@ -153,6 +171,58 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         })
     }
 
+    /// Every alias of an inferred pattern head shares the arm's retained
+    /// identity. Authenticating the capture must not depend on authored head
+    /// syntax, and must never accept a freshly reconstructed peer handle.
+    fn inferred_capture_head(
+        &mut self,
+        capture: Handle<typed::expression::CompletedValueCapture>,
+        subject: resolved::expression::ExpressionHandle,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let position = self
+            .match_captures
+            .iter()
+            .rposition(|(_, target, _)| *target == capture)
+            .ok_or_else(|| {
+                Diagnostic::error("inferred pattern head has no enclosing typed match capture")
+            })?;
+        let retained = self.match_captures[position].2;
+        if retained.is_valid() {
+            return Ok(retained);
+        }
+        let head = self.infer_pattern_head(subject)?;
+        self.match_captures[position].2 = head;
+        Ok(head)
+    }
+
+    fn infer_pattern_head(
+        &mut self,
+        subject: resolved::expression::ExpressionHandle,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let definition = self
+            .program
+            .and_then(|program| {
+                super::super::member_binding::declared_pattern_data(program, self.source, subject)
+            })
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "positional data pattern requires its subject's exact declared carrier",
+                )
+            })?;
+        let symbol = definition.symbol;
+        let name = lower_name(&definition.name);
+        let mut members = arena::HandleSpan::empty();
+        let mut symbols = arena::HandleSpan::empty();
+        self.target().push_name_path_member(&mut members, name);
+        self.target()
+            .push_name_path_member_symbol(&mut symbols, symbol);
+        Ok(self
+            .target()
+            .insert(typed::expression::ExpressionNode::Name(
+                typed::expression::TableNamePath::new(members, symbols, symbol, symbol),
+            )))
+    }
+
     pub(super) fn lower_saved_subject(
         &mut self,
         saved: resolved::expression::TableSavedSubject,
@@ -161,11 +231,15 @@ impl ExpressionTableLowerer<'_, '_, '_> {
             .match_captures
             .iter()
             .rev()
-            .find_map(|(source, target)| (*source == saved.capture).then_some(*target))
+            .find_map(|(source, target, _)| (*source == saved.capture).then_some(*target))
             .ok_or_else(|| {
                 Diagnostic::error("saved subject has no enclosing typed match capture")
             })?;
-        let pattern_head = self.lower_value(saved.pattern_head)?;
+        let pattern_head = if saved.pattern_head.is_valid() {
+            self.lower_value(saved.pattern_head)?
+        } else {
+            self.inferred_capture_head(capture, self.source.match_subject(saved.capture).subject)?
+        };
         Ok(self
             .target()
             .insert(typed::expression::ExpressionNode::SavedSubject(

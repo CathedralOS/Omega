@@ -41,7 +41,11 @@ fn shared_case_subject_syntax() -> (SyntaxTrees, ExpressionHandle, ExpressionHan
     let payload = source
         .expressions
         .insert(ExpressionNode::Member(TableMemberExpression {
-            access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
+            selector: language_core::DataComponentSelector::Named,
+            access_source_span: source::SourceSpan::new(
+                source::SourceId(7),
+                source::Span::new(11, 15),
+            ),
             receiver: subject,
             member: Identifier::generated("a"),
             case_variant: Some(Identifier::generated("Both")),
@@ -81,7 +85,11 @@ fn expression_copy_preserves_shared_subject_and_isolates_transactions() {
         source
             .expressions
             .insert(ExpressionNode::Member(TableMemberExpression {
-                access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
+                selector: language_core::DataComponentSelector::Named,
+                access_source_span: source::SourceSpan::new(
+                    source::SourceId(7),
+                    source::Span::new(11, 15),
+                ),
                 receiver: independent,
                 member: Identifier::generated("a"),
                 case_variant: Some(Identifier::generated("Both")),
@@ -1238,7 +1246,11 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     let player_level = file
         .expressions
         .insert(ExpressionNode::Member(TableMemberExpression {
-            access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
+            selector: language_core::DataComponentSelector::Named,
+            access_source_span: source::SourceSpan::new(
+                source::SourceId(7),
+                source::Span::new(11, 15),
+            ),
             receiver: player,
             member: Identifier::generated("level"),
             case_variant: None,

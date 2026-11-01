@@ -36,11 +36,25 @@ impl<'program> StorageProjectionCursor<'program> {
 
     fn normalize(&mut self) -> Option<TypeReferenceHandle> {
         (self.reference, self.scope) = self.scopes.head(self.program, self.reference, self.scope);
-        self.reference = self
-            .program
-            .type_reference_table
-            .unconstrained_type_reference(self.reference);
-        self.reference.is_valid().then_some(self.reference)
+        // Component qualification changes exposed members, not the original
+        // storage geometry. This cursor grants no access: descriptor loads and
+        // case-selection evidence remain obligations of its caller.
+        for _ in 0..=self.program.type_reference_table.type_reference_count() {
+            self.reference = self
+                .program
+                .type_reference_table
+                .unconstrained_type_reference(self.reference);
+            if let TypeReferenceNode::CaseView { subject } = self
+                .program
+                .type_reference_table
+                .type_reference(self.reference)
+            {
+                self.reference = *subject;
+            } else {
+                return self.reference.is_valid().then_some(self.reference);
+            }
+        }
+        None
     }
 
     pub(in crate::machine_calls::calls::write_frames) fn reference_access(

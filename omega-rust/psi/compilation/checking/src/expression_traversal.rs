@@ -595,6 +595,9 @@ pub fn collect_type_expressions(
     }
     visited.push(reference);
     match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_type_expressions(program, *subject, visited, expressions)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             collect_type_expressions(program, *referee, visited, expressions);
         }

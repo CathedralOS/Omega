@@ -177,6 +177,7 @@ fn expression_places_preserve_roots_and_segments() {
     let member = program
         .expression_table
         .insert(ExpressionNode::Member(TableMemberExpression {
+            selector: language_core::DataComponentSelector::Named,
             receiver: indexed,
             member_symbol: tail_symbol,
             member: Identifier::generated("tail"),
@@ -428,6 +429,7 @@ fn expression_places_resolve_attached_data_members() {
         program
             .expression_table
             .insert(ExpressionNode::Member(TableMemberExpression {
+                selector: language_core::DataComponentSelector::Named,
                 receiver: main_expression,
                 member_symbol: SymbolHandle::invalid(),
                 member: Identifier::generated("player"),
@@ -545,6 +547,7 @@ fn expression_places_resolve_exact_local_and_collection_element_types() {
         program.statement_table.push_statement(
             &mut state.statement_nodes,
             StatementNode::LocalData(TableLocalData {
+                pattern: None,
                 symbol: local_symbol,
                 name: Identifier::generated("value"),
                 type_reference: local_type,

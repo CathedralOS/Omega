@@ -3,7 +3,6 @@
 //! no live storage read may substitute the former source after sibling effects.
 
 use super::StateGraphEmission;
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::stored_structural_identity;
@@ -36,76 +35,14 @@ impl StateGraphEmission<'_, '_> {
         let checked = self.checked;
         let state = &self.plan.states[position];
         let owner = self.admitted.authored[position].0.symbol;
-        let Some(transition) = checked
-            .facts
-            .executable_bindings
-            .transition(state.state, statement_ordinal as usize)
-        else {
-            return Ok(Vec::new());
-        };
-        let Some(flow_state) = checked.facts.flow.control.unique_state(owner, state.state) else {
-            return Ok(Vec::new());
-        };
-        let mut outgoing_rows = flow_facts(checked)
-            .control
-            .outgoing
-            .span_or_empty(flow_state.outgoing)
-            .iter()
-            .filter(|outgoing| {
-                outgoing.statement_index == statement_ordinal as usize
-                    && outgoing.transition_target == transition.primary
-            });
-        let Some(outgoing) = outgoing_rows.next() else {
-            return Ok(Vec::new());
-        };
-        if outgoing_rows.next().is_some() {
-            return unsupported("selected payload entry has ambiguous completed flow");
-        }
-        let copies = flow_facts(checked)
-            .control
-            .operands
-            .span_or_empty(outgoing.copied_payloads);
+        let roots = crate::expression_preparation::selected_values::roots(
+            checked,
+            owner,
+            state.state,
+            statement_ordinal,
+        )?;
         let mut completed = Vec::new();
-        for copy in copies {
-            if checked
-                .primitive_type_reference(copy.type_reference)
-                .is_some()
-                && validation::reference_shell(&checked.typed, copy.type_reference).is_none()
-            {
-                continue;
-            }
-            let root = value_facts(checked)
-                .structural_values
-                .root_for_captured_copy(
-                    state.state,
-                    statement_ordinal,
-                    match copy.completion {
-                        checked_trees::FlowOperandCompletion::Copied { copy, .. } => copy,
-                        _ => {
-                            return unsupported(
-                                "selected payload lost its completed copy identity",
-                            );
-                        }
-                    },
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "selected structural payload has no checked copied-value root",
-                ))?;
-            if !validation::type_satisfies_declared_property(
-                &checked.typed,
-                &[],
-                root.type_reference,
-                validation::DeclaredPropertyRequirement::Copy,
-            ) || !validation::has_contents(
-                &checked.typed,
-                root.type_reference,
-                &[],
-                validation::ContentsRequirement::DescriptorCleanup,
-            ) {
-                return unsupported(
-                    "selected copied value lost its independent copy/discard capability",
-                );
-            }
+        for root in roots {
             let structural_type = crate::terminal_identities::lookup_type_id(
                 &self.catalogs.type_ids,
                 &stored_structural_identity(checked, root.type_reference),

@@ -15,7 +15,7 @@ const RECEIVER_MEMBER_KINDS: &[SymbolKind] = &[
     SymbolKind::Variant,
 ];
 
-/// A structural head selects its common fields and this case's payload.
+/// A data head selects common fields; a case head selects only its payload.
 /// Sibling payload namespaces never participate, and duplicate spellings do
 /// not become declaration-order selection.
 pub(in crate::symbols) fn pattern_field_symbol(
@@ -26,15 +26,10 @@ pub(in crate::symbols) fn pattern_field_symbol(
     if !head.is_valid() {
         return SymbolHandle::invalid();
     }
-    let parent = if symbols.get(head).kind == SymbolKind::Variant {
-        symbols.get(head).parent
-    } else {
-        SymbolHandle::invalid()
-    };
-    let mut fields = [head, parent]
+    let mut fields = symbols
+        .child_handles(head)
         .into_iter()
-        .filter(|owner| owner.is_valid())
-        .flat_map(|owner| symbols.child_handles(owner).into_iter().flatten())
+        .flatten()
         .filter(|field| {
             symbols.get(*field).kind == SymbolKind::Field && symbols.name(*field) == spelling
         });
@@ -205,5 +200,54 @@ fn receiver_path_symbols(
             )
         }
         _ => invalid_symbol_pair(),
+    }
+}
+
+/// Publish declaration selectors once after resolving the authored head. Local
+/// destructuring metadata and expression matches share this resolution step;
+/// checking consumes these symbols and never falls back to member spelling.
+pub(in crate::symbols) fn assign_pattern_field_symbols(
+    symbols: &SymbolTable,
+    expressions: &mut symbol_resolved_trees::expression::ExpressionTable,
+    head: SymbolHandle,
+    fields: arena::HandleSpan<symbol_resolved_trees::expression::TableMatchField>,
+) {
+    for position in 0..fields.count() {
+        let field = &expressions.match_fields(fields)[position as usize];
+        let selected = match field.selector {
+            language_core::DataComponentSelector::Named => {
+                pattern_field_symbol(symbols, head, field.member.as_str())
+            }
+            language_core::DataComponentSelector::Positional(ordinal) if head.is_valid() => symbols
+                .child_handles(head)
+                .into_iter()
+                .flatten()
+                .filter(|field| symbols.get(*field).kind == SymbolKind::Field)
+                .nth(ordinal as usize)
+                .unwrap_or_default(),
+            _ => SymbolHandle::invalid(),
+        };
+        expressions
+            .match_field_mut(fields.handle_at(position))
+            .field_symbol = selected;
+    }
+}
+
+pub(in crate::symbols) fn pattern_head_symbol(
+    expressions: &symbol_resolved_trees::expression::ExpressionTable,
+    head: symbol_resolved_trees::expression::ExpressionHandle,
+) -> SymbolHandle {
+    if head.is_valid() {
+        match expressions.expression(head) {
+            symbol_resolved_trees::expression::ExpressionNode::Name(path) => path.symbol,
+            symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal)
+                if expressions.struct_fields(literal.fields).is_empty() =>
+            {
+                literal.case_symbol.unwrap_or(literal.type_symbol)
+            }
+            _ => SymbolHandle::invalid(),
+        }
+    } else {
+        SymbolHandle::invalid()
     }
 }

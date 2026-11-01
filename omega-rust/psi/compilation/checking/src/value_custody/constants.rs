@@ -193,6 +193,7 @@ fn eligible_type(
         return eligible(program, storage.semantic_type, active);
     }
     match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { .. } => false,
         TypeReferenceNode::Unit => true,
         // A selector contains code selection only: copying it neither captures
         // user state nor creates cleanup, shared ownership or interior mutation.

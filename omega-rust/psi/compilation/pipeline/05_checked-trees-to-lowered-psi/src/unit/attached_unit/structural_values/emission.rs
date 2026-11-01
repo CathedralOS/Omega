@@ -389,7 +389,13 @@ pub(crate) fn emit<'source>(
         let CheckedStructuralValueKind::Projection { source, path, .. } = &node.kind else {
             break;
         };
-        if !path.is_empty() {
+        if !path.is_empty()
+            || (checked
+                .type_reference_table
+                .case_view_subject(node.type_reference)
+                .is_some()
+                && validation::reference_shell(&checked.typed, node.type_reference).is_none())
+        {
             break;
         }
         storage_memberships.push((node.qualification_decisions, node.expression));
@@ -413,7 +419,24 @@ pub(crate) fn emit<'source>(
             projection_evaluations,
             copies_selected_value: false,
             ..
-        } if !path.is_empty()
+        } if (!path.is_empty()
+            || (checked
+                .type_reference_table
+                .case_view_subject(
+                    structural_values(checked)
+                        .nodes
+                        .get(storage_value)
+                        .type_reference,
+                )
+                .is_some()
+                && validation::reference_shell(
+                    &checked.typed,
+                    structural_values(checked)
+                        .nodes
+                        .get(storage_value)
+                        .type_reference,
+                )
+                .is_none()))
             && (production.destination == ValueDestination::Operand
                 || matches!(
                     structural_values(checked).nodes.get(source).kind,
@@ -506,12 +529,28 @@ pub(crate) fn emit<'source>(
         // existing claim below its selected path. Return-only occurrences
         // have no lexical Establish event: using that event's empty roster
         // here would erase custody rather than continue the root's identities.
+        let case_component = checked
+            .type_reference_table
+            .case_view_subject(
+                structural_values(checked)
+                    .nodes
+                    .get(storage_value)
+                    .type_reference,
+            )
+            .is_some();
         let selected_claims = published_claims
             .into_iter()
             .filter_map(|claim| {
                 claim
                     .path
                     .strip_prefix(alias_path.as_slice())
+                    .filter(|suffix| {
+                        !case_component
+                            || matches!(
+                                suffix.first(),
+                                Some(terminal_psi::StructuralPathSegment::Case(_))
+                            )
+                    })
                     .map(|suffix| terminal_psi::StructuralResultClaimBinding {
                         claim: claim.claim,
                         path: suffix.to_vec(),
@@ -2628,6 +2667,9 @@ impl Emission<'_, '_, '_> {
         )?;
         self.seal_continuation_names(&mut continuation)?;
         self.operations.arrival_claims.push((place, source_claims));
+        self.environment
+            .windows
+            .retain_transport(place, source.clone());
         self.start(block);
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;

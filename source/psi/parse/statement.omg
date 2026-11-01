@@ -1,6 +1,7 @@
 use psi::parse::expression;
 use psi::parse::input;
 use psi::parse::parser;
+use psi::parse::pattern_fields;
 use psi::parse::types;
 use psi::source::source;
 use psi::syntax::syntax;
@@ -183,9 +184,92 @@ crashes Trap
 
     machine let_name(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, mutable: bool) {
         parser.local_mutable = mutable;
+        parser.pattern_binding = false;
+        parser.pattern_positional = false;
+        let positional: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftParen);
+        let named: bool = Parser::next_is_punctuation(parser, input, PunctuationKind::LeftBrace)
+            || Parser::next_is_punctuation(parser, input, PunctuationKind::ColonColon)
+            || Parser::next_is_punctuation(parser, input, PunctuationKind::Less);
+        transition !mutable && (positional || named) {
+            true -> let_pattern(parser, input, unsupported, positional)
+            _ -> let_ordinary_name(parser, input, unsupported)
+        }
+    }
+
+    machine let_ordinary_name(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedLocalDataName);
         transition parser.output.accepted {
             true -> let_named(parser, input, unsupported)
+            _ -> done()
+        }
+    }
+
+    // A binding stores pattern metadata, then evaluates one initializer.
+    // It is not a dispatch and has no target or implicit failure edge.
+    machine let_pattern(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, positional: bool) {
+        parser.pattern_binding = true;
+        parser.arm_has_rest = false;
+        parser.arm_has_guard = false;
+        transition positional {
+            true -> positional_pattern(parser, input, unsupported, 0)
+            _ -> let_pattern_head(parser, input, unsupported)
+        }
+    }
+
+    machine let_pattern_head(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedLocalDataName, false, true);
+        transition parser.output.accepted {
+            true -> case_pattern(parser, input, unsupported, 0, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    machine let_pattern_ready(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, kind: ArmPatternKind, pattern: u64 in Trapping, first: u64 in Trapping, count: u64 in Trapping) {
+        transition parser.output.arm_count < 8192 {
+            true -> let_pattern_retained(parser, input, unsupported, kind, pattern, first, count)
+            _ -> reject(parser, input, ParseDiagnosticCode::ArmCapacityExceeded)
+        }
+    }
+
+    machine let_pattern_retained(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, kind: ArmPatternKind, pattern: u64 in Trapping, first: u64 in Trapping, count: u64 in Trapping)
+    requires parser.output.arm_count < 8192
+    {
+        let arm: TransitionArm = TransitionArm {
+            has_fields: parser.arm_has_fields, has_rest: parser.arm_has_rest,
+            kind: kind, pattern: pattern, first_field: first, field_count: count,
+            has_guard: false, guard: 0, target_kind: ArmTargetKind::Unit, target: 0,
+            source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
+        };
+        parser.pattern_binding_arm = parser.output.arm_count as u64 in Trapping;
+        parser.output.arms[parser.output.arm_count] = arm;
+        parser.output.arm_count = parser.output.arm_count + 1;
+        Parser::expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedLocalDataInitialValue);
+        transition parser.output.accepted {
+            true -> let_pattern_value(parser, input, unsupported, parser.pattern_binding_arm)
+            _ -> done()
+        }
+    }
+
+    machine let_pattern_value(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, arm: u64 in Trapping) {
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedLocalDataInitialValue, true, true);
+        transition parser.output.accepted {
+            true -> let_pattern_end(parser, input, unsupported, arm, parser.expression_result)
+            _ -> done()
+        }
+    }
+
+    machine let_pattern_end(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, arm: u64 in Trapping, value: u64 in Trapping) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedLocalDataEnd);
+        let statement: Statement = Statement {
+            kind: StatementKind::LetPattern,
+            name: Parser::identifier_span(parser, 0, 0), is_mutable: false,
+            type_reference: 0, has_value: true, value: value, target: 0,
+            cause: CrashCause::Trap, first_arm: arm, arm_count: 1,
+            source_span: Parser::source_span(parser, parser.statement_start, parser.token_end)
+        };
+        parser.pattern_binding = false;
+        transition parser.output.accepted {
+            true -> store(parser, input, unsupported, statement)
             _ -> done()
         }
     }
@@ -399,6 +483,8 @@ crashes Trap
     // -> target ... }`. The subject admits no construction: its `{` opens
     // the arms.
     machine transition_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
+        parser.pattern_binding = false;
+        parser.pattern_positional = false;
         Parser::take_current(parser, input);
         let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
         transition open {
@@ -501,6 +587,14 @@ crashes Trap
         has_subject: bool,
         subject: u64 in Trapping
     ) {
+        let positional: bool = has_subject && Parser::at_punctuation(parser, input, PunctuationKind::LeftParen);
+        transition positional {
+            true -> positional_pattern(parser, input, unsupported, subject)
+            _ -> arm_head_expression(parser, input, unsupported, has_subject, subject)
+        }
+    }
+
+    machine arm_head_expression(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, has_subject: bool, subject: u64 in Trapping) {
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionArm, false, true);
         transition parser.output.accepted {
             true -> arm_classify(parser, input, unsupported, has_subject, subject, parser.expression_result)
@@ -547,13 +641,29 @@ crashes Trap
         subject: u64 in Trapping,
         pattern: u64 in Trapping
     ) {
-        parser.pattern_first_field = parser.output.pattern_field_count as u64 in Trapping;
+        parser.pattern_positional = false;
+        parser.pattern_first_field = parser.pending_pattern_count as u64 in Trapping;
         let braced: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
         parser.arm_has_fields = braced;
         transition braced {
             true -> pattern_fields_open(parser, input, unsupported, subject, pattern)
-            _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
+            _ -> pattern_ready(parser, input, unsupported, subject, ArmPatternKind::Case, pattern,
                 parser.pattern_first_field, 0)
+        }
+    }
+
+    machine positional_pattern(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping) {
+        parser.pattern_positional = true;
+        parser.pattern_first_field = parser.pending_pattern_count as u64 in Trapping;
+        parser.arm_has_fields = true;
+        parser.arm_has_rest = false;
+        transition { _ -> pattern_fields_open(parser, input, unsupported, subject, 0) }
+    }
+
+    machine pattern_ready(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, kind: ArmPatternKind, pattern: u64 in Trapping, first: u64 in Trapping, count: u64 in Trapping) {
+        transition parser.pattern_binding {
+            true -> let_pattern_ready(parser, input, unsupported, kind, pattern, first, count)
+            _ -> arm_guard(parser, input, unsupported, true, subject, kind, pattern, first, count)
         }
     }
 
@@ -575,7 +685,8 @@ crashes Trap
         subject: u64 in Trapping,
         pattern: u64 in Trapping
     ) {
-        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        let close: PunctuationKind = match parser.pattern_positional { true -> PunctuationKind::RightParen false -> PunctuationKind::RightBrace };
+        let closing: bool = Parser::at_punctuation(parser, input, close);
         let rest: bool = Parser::at_punctuation(parser, input, PunctuationKind::DotDot);
         transition closing {
             true -> pattern_fields_close(parser, input, unsupported, subject, pattern)
@@ -609,6 +720,7 @@ crashes Trap
         subject: u64 in Trapping,
         pattern: u64 in Trapping
     ) {
+        parser.pattern_field_waived = parser.pattern_positional && Parser::at_word(parser, input, "_");
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPatternField);
         transition parser.output.accepted {
             true -> pattern_field_named(parser, input, unsupported, subject, pattern)
@@ -627,7 +739,15 @@ crashes Trap
         parser.pattern_field_end = parser.name_end;
         let valued: bool = Parser::at_punctuation(parser, input, PunctuationKind::Colon);
         let renamed: bool = Parser::at_keyword(parser, input, KeywordKind::As);
-        let binder: PatternField = Parser::pattern_binder(parser);
+        let waived: bool = parser.pattern_field_waived;
+        let mut binder: PatternField = Parser::pattern_binder(parser);
+        binder.is_waived = waived;
+        transition parser.pattern_positional && (valued || renamed) {
+            true -> reject(parser, input, ParseDiagnosticCode::ExpectedPatternFieldEnd)
+            _ -> pattern_field_form(parser, input, unsupported, subject, pattern, binder, valued, renamed)
+        }
+    }
+    machine pattern_field_form(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping, binder: PatternField, valued: bool, renamed: bool) {
         transition valued {
             true -> pattern_field_value(parser, input, unsupported, subject, pattern)
             _ -> pattern_field_binder(parser, input, unsupported, subject, pattern, binder, renamed)
@@ -719,8 +839,7 @@ crashes Trap
         pattern: u64 in Trapping,
         field: PatternField
     ) {
-        parser.output.pattern_fields[parser.output.pattern_field_count] = field;
-        parser.output.pattern_field_count = parser.output.pattern_field_count + 1;
+        Parser::stage_pattern_field(parser, input, field);
         let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
         transition separator {
             true -> pattern_field_separator(parser, input, unsupported, subject, pattern)
@@ -736,7 +855,10 @@ crashes Trap
         pattern: u64 in Trapping
     ) {
         Parser::take_current(parser, input);
-        transition { _ -> pattern_field_or_end(parser, input, unsupported, subject, pattern) }
+        transition parser.pattern_positional && parser.arm_has_rest {
+            true -> pattern_field_end(parser, input, unsupported, subject, pattern)
+            _ -> pattern_field_or_end(parser, input, unsupported, subject, pattern)
+        }
     }
 
     machine pattern_field_end(
@@ -746,7 +868,8 @@ crashes Trap
         subject: u64 in Trapping,
         pattern: u64 in Trapping
     ) {
-        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        let close: PunctuationKind = match parser.pattern_positional { true -> PunctuationKind::RightParen false -> PunctuationKind::RightBrace };
+        let closing: bool = Parser::at_punctuation(parser, input, close);
         transition closing {
             true -> pattern_fields_close(parser, input, unsupported, subject, pattern)
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedPatternFieldEnd)
@@ -761,9 +884,12 @@ crashes Trap
         pattern: u64 in Trapping
     ) {
         Parser::take_current(parser, input);
-        let count: u64 in Trapping = (parser.output.pattern_field_count as u64 in Trapping) - parser.pattern_first_field;
-        transition { _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
-            parser.pattern_first_field, count) }
+        let first: u64 in Trapping = parser.pattern_first_field;
+        Parser::commit_pattern_fields(parser, input, first);
+        let count: u64 in Trapping = parser.committed_pattern_count;
+        let kind: ArmPatternKind = match parser.pattern_positional { true -> ArmPatternKind::Positional false -> ArmPatternKind::Case };
+        transition { _ -> pattern_ready(parser, input, unsupported, subject, kind, pattern,
+            parser.committed_pattern_first, count) }
     }
 
     // `if condition` after any pattern guards the arm: the condition is an

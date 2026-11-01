@@ -241,6 +241,7 @@ pub(crate) fn collect_constraints(
     type_reference: TypeReferenceHandle,
 ) -> ConstraintBuffer {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => collect_constraints(program, *subject),
         TypeReferenceNode::Reference { referee, .. } => collect_constraints(program, *referee),
         TypeReferenceNode::Constrained {
             base_type,

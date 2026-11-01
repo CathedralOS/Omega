@@ -235,11 +235,13 @@ impl<'program> CaseEvidence<'program> {
                     continue;
                 }
             }
-            let reference = validation::peel_declared_constraints(self.program, reference);
-            // The case roster does not depend on type arguments. A template
-            // body's open application retains its substituted view, whose
-            // variants are the ones the body's claim paths name; each
-            // exclusion below still requires this cut's guard evidence.
+            // Owned-place admission above has already excluded reference
+            // crossings; retain the original case schema and open application.
+            let Some(reference) =
+                validation::field_domains::readable_type_reference(self.program, reference)
+            else {
+                continue;
+            };
             let Some(data) = self.program.closed_data_definition(reference).or_else(|| {
                 self.program
                     .typed_program()
@@ -253,8 +255,36 @@ impl<'program> CaseEvidence<'program> {
                     continue;
                 };
                 if self.has_value_for_subject(&prepared, variant.symbol, false) {
-                    path.root = subject.root;
-                    path.segments.clone_from(&subject.segments);
+                    // Permission schedules name the owned home lent to a
+                    // noncopy saved subject. Keep its authenticated capture
+                    // association; copyable captures remain independent homes.
+                    let mut owned = if let PlaceRoot::Expression(expression) = subject.root {
+                        let Some(mut owned) = validation::ownership_place_from_expression_in_state(
+                            self.program,
+                            self.state.symbol,
+                            self.statement_index,
+                            expression,
+                        ) else {
+                            continue;
+                        };
+                        owned.segments.extend_from_slice(&subject.segments);
+                        owned
+                    } else {
+                        subject.clone()
+                    };
+                    if validation::canonical_owned_place_type_reference(
+                        self.program,
+                        self.state.symbol,
+                        self.statement_index,
+                        &owned,
+                    )
+                    .is_none()
+                    {
+                        continue;
+                    }
+                    path.root = owned.root;
+                    path.segments.clear();
+                    path.segments.append(&mut owned.segments);
                     path.segments.push(PlaceSegment::Case {
                         variant: variant.symbol,
                     });
@@ -272,10 +302,32 @@ impl<'program> CaseEvidence<'program> {
             self.statement_index,
             subject,
         );
+        let only_case = required
+            && validation::canonical_place_type_reference(
+                self.program,
+                self.state.symbol,
+                self.statement_index,
+                subject,
+            )
+            .and_then(|reference| validation::unwrapped_type_reference(self.program, reference))
+            .and_then(|reference| self.program.closed_data_definition(reference))
+            .is_some_and(|data| {
+                self.program
+                    .data_members(data)
+                    .iter()
+                    .filter_map(|member| member.as_variant())
+                    .map(|variant| variant.symbol)
+                    .eq(std::iter::once(case))
+            });
         let selected = stable
             && case.is_valid()
             && self.program.symbols.get(case).kind == symbols::SymbolKind::Variant
-            && self.has_value_for_subject(&self.prepare_stable_subject(subject), case, required);
+            && (only_case
+                || self.has_value_for_subject(
+                    &self.prepare_stable_subject(subject),
+                    case,
+                    required,
+                ));
         if !selected && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
             eprintln!(
                 "CHECKSITE current-case machine={:?} state={:?} statement={} subject={subject:?} stable={stable} case={case:?} required={required} observations={:?}",

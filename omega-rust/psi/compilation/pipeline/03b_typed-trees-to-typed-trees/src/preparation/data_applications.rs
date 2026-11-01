@@ -432,6 +432,7 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
             continue;
         }
         match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::CaseView { subject } => pending.push(*subject),
             TypeReferenceNode::Named { symbol, .. } => {
                 if symbol.is_valid()
                     && matches!(
@@ -624,6 +625,9 @@ fn instantiate_type(
         .type_reference(reference)
         .clone();
     let instantiated = match original.clone() {
+        TypeReferenceNode::CaseView { subject } => TypeReferenceNode::CaseView {
+            subject: instantiate_type(program, subject, substitutions, lifetimes, children_scope),
+        },
         TypeReferenceNode::Named { symbol, .. } => {
             return substitutions
                 .iter()

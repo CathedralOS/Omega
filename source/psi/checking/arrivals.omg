@@ -17,7 +17,7 @@ use psi::types::types;
 // arrival zone's. A path one jump did not project is unknown in that jump's
 // contribution.
 public data ArrivalStep [copy] {
-    length: bool;
+    kind: PlaceKind;
     field: u64 in Trapping;
     type_handle: u64 in Trapping;
 }
@@ -204,7 +204,7 @@ crashes Trap
 public machine Checker::path_below(checker: &Checker, outer: u64 in Trapping, inner: u64 in Trapping, parameter: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
-    let empty: ArrivalStep = ArrivalStep { length: false, field: 0, type_handle: 0 };
+    let empty: ArrivalStep = ArrivalStep { kind: PlaceKind::Field, field: 0, type_handle: 0 };
     let none: ArrivalPath = ArrivalPath { parameter: parameter, depth: 0, step0: empty, step1: empty, step2: empty, step3: empty };
     transition { _ -> climb(checker, outer, inner, none, 0) }
 
@@ -220,7 +220,7 @@ crashes Trap
 
     machine step(checker: &Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
         let place: Place = Checker::place_at(checker, current - 1);
-        let projection: bool = place.kind == PlaceKind::Field || place.kind == PlaceKind::Length;
+        let projection: bool = place.kind == PlaceKind::Field || place.kind == PlaceKind::Payload || place.kind == PlaceKind::CaseTag || place.kind == PlaceKind::Length;
         transition projection && place.parent > 0 && count < 4 {
             true -> recorded(checker, outer, place, path, count)
             _ -> outside(path)
@@ -228,7 +228,7 @@ crashes Trap
     }
 
     machine recorded(checker: &Checker, outer: u64 in Trapping, place: Place, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
-        let step: ArrivalStep = ArrivalStep { length: place.kind == PlaceKind::Length, field: place.handle, type_handle: place.type_handle };
+        let step: ArrivalStep = ArrivalStep { kind: place.kind, field: place.handle, type_handle: place.type_handle };
         let extended: ArrivalPath = ArrivalPath::with_step(path, count, step);
         transition { _ -> climb(checker, outer, place.parent, extended, count + 1) }
     }
@@ -262,7 +262,7 @@ machine Checker::same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
     machine step(first: ArrivalPath, second: ArrivalPath, index: u64 in Trapping) -> bool {
         let left: ArrivalStep = ArrivalPath::step(first, index);
         let right: ArrivalStep = ArrivalPath::step(second, index);
-        transition left.length == right.length && left.field == right.field {
+        transition left.kind == right.kind && left.field == right.field {
             true -> steps(first, second, index + 1)
             _ -> no()
         }
@@ -375,24 +375,13 @@ crashes Trap
 
     machine entered(checker: &mut Checker, typing: &Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
         let projection: ArrivalStep = ArrivalPath::step(path, index);
-        let kind: PlaceKind = Checker::step_kind(projection.length);
+        let kind: PlaceKind = projection.kind;
         let place: u64 in Trapping = Checker::place(checker, typing, kind, projection.field, current, projection.type_handle);
         transition { _ -> step(checker, typing, place, path, index + 1) }
     }
 
     machine finished(current: u64 in Trapping) -> u64 in Trapping {
         current
-    }
-}
-
-machine Checker::step_kind(length: bool) -> PlaceKind {
-    transition length {
-        true -> chosen(PlaceKind::Length)
-        _ -> chosen(PlaceKind::Field)
-    }
-
-    machine chosen(kind: PlaceKind) -> PlaceKind {
-        kind
     }
 }
 

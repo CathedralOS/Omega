@@ -47,6 +47,9 @@ impl<'program> LayoutBuilder<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
+            TypeReferenceNode::CaseView { subject } => {
+                self.layout_type_reference_handle(*subject, bindings)
+            }
             TypeReferenceNode::Reference { referee, .. } => {
                 // Borrowed views retain their descriptor: `{ptr, len}` for
                 // slices/text and `{instance, table}` for dynamic traits.

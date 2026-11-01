@@ -85,6 +85,8 @@ struct ConsumedPlace {
     path: Vec<facts::PlaceSegment>,
     spelling: String,
     moved_statement: usize,
+    /// Only the tag and active case payload, independently of common fields.
+    case_component: bool,
     route: Vec<EvaluationBranch>,
 }
 
@@ -114,7 +116,7 @@ impl ConsumedOwners {
         path: &[facts::PlaceSegment],
         route: &[EvaluationBranch],
     ) {
-        self.record_owned_place(
+        self.record_owned_component(
             program,
             machine,
             state,
@@ -123,6 +125,10 @@ impl ConsumedOwners {
                 root: event.root,
                 segments: path.to_vec(),
             },
+            program
+                .type_reference_table
+                .case_view_subject(event.value_type)
+                .is_some(),
             route,
         );
     }
@@ -139,6 +145,28 @@ impl ConsumedOwners {
         source: &CanonicalPlace,
         route: &[EvaluationBranch],
     ) {
+        self.record_owned_component(
+            program,
+            machine,
+            state,
+            statement_index,
+            source,
+            false,
+            route,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn record_owned_component(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        source: &CanonicalPlace,
+        case_component: bool,
+        route: &[EvaluationBranch],
+    ) {
         let place = storage_place(program, machine, state, source);
         if !owned_custody_chain(program, machine, state, statement_index, &place) {
             return;
@@ -148,6 +176,7 @@ impl ConsumedOwners {
             root: place.root,
             path: place.segments,
             moved_statement: statement_index,
+            case_component,
             route: route.to_vec(),
         };
         self.consumed.push(consumed);
@@ -164,6 +193,7 @@ impl ConsumedOwners {
         statement: &StatementNode,
         statement_index: usize,
         use_place: &CanonicalPlace,
+        expression: typed_trees::expression::ExpressionHandle,
         route: &[EvaluationBranch],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
@@ -171,7 +201,19 @@ impl ConsumedOwners {
             return;
         }
         let place = storage_place(program, machine, state, use_place);
-        let Some(consumed) = self.consumed_through(&place, route) else {
+        let case_component = validation::expression_type_reference_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            expression,
+        )
+        .is_some_and(|reference| {
+            program
+                .type_reference_table
+                .case_view_subject(reference)
+                .is_some()
+        });
+        let Some(consumed) = self.consumed_through(&place, case_component, route) else {
             return;
         };
         let spelling = place_spelling(program, place.root, &place.segments);
@@ -211,7 +253,12 @@ impl ConsumedOwners {
         if let Some(consumed) = self.consumed.iter().find(|consumed| {
             consumed.root == target.root
                 && target.segments.len() > consumed.path.len()
-                && place_paths_overlap(&target.segments, &consumed.path)
+                && component_paths_overlap(
+                    &target.segments,
+                    false,
+                    &consumed.path,
+                    consumed.case_component,
+                )
         }) {
             let spelling = place_spelling(program, target.root, &target.segments);
             push_once(
@@ -257,14 +304,47 @@ impl ConsumedOwners {
     fn consumed_through(
         &self,
         place: &CanonicalPlace,
+        case_component: bool,
         route: &[EvaluationBranch],
     ) -> Option<&ConsumedPlace> {
         self.consumed.iter().find(|consumed| {
             routes_compatible(&consumed.route, route)
                 && consumed.root == place.root
-                && place_paths_overlap(&place.segments, &consumed.path)
+                && component_paths_overlap(
+                    &place.segments,
+                    case_component,
+                    &consumed.path,
+                    consumed.case_component,
+                )
         })
     }
+}
+
+/// A case component and its parent's common fields have disjoint custody.
+/// Whole-owner absence still overlaps every component; case/payload paths
+/// retain their ordinary selected-region overlap rules.
+fn component_paths_overlap(
+    left: &[facts::PlaceSegment],
+    left_case: bool,
+    right: &[facts::PlaceSegment],
+    right_case: bool,
+) -> bool {
+    if left_case
+        && right.starts_with(left)
+        && matches!(
+            right.get(left.len()),
+            Some(facts::PlaceSegment::Field { .. })
+        )
+        || right_case
+            && left.starts_with(right)
+            && matches!(
+                left.get(right.len()),
+                Some(facts::PlaceSegment::Field { .. })
+            )
+    {
+        return false;
+    }
+    place_paths_overlap(left, right)
 }
 
 /// Repeated occurrences of one use in a statement report once.
@@ -282,9 +362,7 @@ fn push_once(diagnostics: &mut Vec<Diagnostic>, message: String) {
 fn is_operational(statement: &StatementNode) -> bool {
     match statement {
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
-        StatementNode::LocalData(local) => {
-            local.role != language_core::LocalBindingRole::ArmPattern
-        }
+        StatementNode::LocalData(local) => local.role.has_ordinary_initializer(),
         _ => true,
     }
 }

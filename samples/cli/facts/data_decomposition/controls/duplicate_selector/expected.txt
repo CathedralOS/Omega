@@ -1,0 +1,1 @@
+selects component `left` more than once

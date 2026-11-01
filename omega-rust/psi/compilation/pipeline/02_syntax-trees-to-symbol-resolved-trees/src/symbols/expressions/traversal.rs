@@ -212,21 +212,19 @@ impl ExpressionSymbolContext<'_, '_> {
                     self.expression_table
                         .match_arm_mut(dispatch.arms.handle_at(offset))
                         .pattern = arm.pattern;
-                    if let MatchPattern::Destructure(pattern) = arm.pattern {
-                        let head = self
-                            .expression_table
-                            .name_path_node(pattern.head)
-                            .map(|path| path.symbol)
-                            .unwrap_or_default();
-                        for position in 0..pattern.fields.count() {
-                            let field = pattern.fields.handle_at(position);
-                            let spelling = self.expression_table.match_fields(pattern.fields)
-                                [position as usize]
-                                .member
-                                .as_str();
-                            let selected = pattern_field_symbol(self.symbols, head, spelling);
-                            self.expression_table.match_field_mut(field).field_symbol = selected;
-                        }
+                    if let symbol_resolved_trees::expression::MatchPattern::Destructure(pattern) =
+                        arm.pattern
+                    {
+                        let head = crate::symbols::expression_paths::pattern_head_symbol(
+                            self.expression_table,
+                            pattern.head,
+                        );
+                        crate::symbols::expression_paths::assign_pattern_field_symbols(
+                            self.symbols,
+                            self.expression_table,
+                            head,
+                            pattern.fields,
+                        );
                     }
                     self.assign_expression_table_symbols(arm.value);
                 }

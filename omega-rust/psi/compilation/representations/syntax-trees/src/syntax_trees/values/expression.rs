@@ -438,6 +438,7 @@ pub struct TableMembershipExpression {
 
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableMemberExpression {
+    pub selector: language_core::DataComponentSelector,
     pub receiver: ExpressionHandle,
     /// Authored `.` through the member token, including intervening trivia.
     /// Source reconstruction can remove this suffix without consuming grouping
@@ -660,6 +661,7 @@ pub struct TableDestructurePattern {
     Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
 )]
 pub struct TableMatchField {
+    pub selector: language_core::DataComponentSelector,
     pub member: Identifier,
     pub action: MatchFieldAction,
 }

@@ -78,6 +78,7 @@ fn copied_name_or_member(
             ExpressionNode::Name(exprs(syntax_trees).copy_identifier_path_prefix(path, path.len()))
         }
         ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
+            selector: member.selector,
             receiver: copy_compound_assignment_target(syntax_trees, member.receiver)?,
             access_source_span: member.access_source_span,
             member: member.member,
@@ -137,6 +138,7 @@ pub(crate) fn parse_local_data<'tokens, 'source>(
 
     Ok((
         TableLocalData {
+            pattern: None,
             role: language_core::LocalBindingRole::Value,
             name,
             type_reference,

@@ -802,6 +802,14 @@ impl Execution<'_, '_, '_> {
         Some(self.join_retention_profiles(&profiles))
     }
 
+    pub(super) fn capture_case_component_retention(
+        &mut self,
+        reference: typed_trees::types::TypeReferenceHandle,
+        receiver: &FlowOperandFact,
+    ) -> Handle<FlowOperandRetention> {
+        self.capture_retention_join(reference, &[(*receiver, Vec::new())])
+    }
+
     pub(super) fn capture_member_retention(
         &mut self,
         expression: ExpressionHandle,

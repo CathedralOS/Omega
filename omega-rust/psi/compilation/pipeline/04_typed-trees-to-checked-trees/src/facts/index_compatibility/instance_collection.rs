@@ -401,6 +401,9 @@ pub(super) fn collect_type_indexed_instances(
     }
     visited.push(type_reference);
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            collect_type_indexed_instances(program, *subject, instances, visited)
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             collect_type_indexed_instances(program, *referee, instances, visited)
         }

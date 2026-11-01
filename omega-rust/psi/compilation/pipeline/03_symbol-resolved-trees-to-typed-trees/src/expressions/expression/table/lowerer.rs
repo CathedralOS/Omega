@@ -55,6 +55,7 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
     match_captures: Vec<(
         arena::Handle<resolved::expression::MatchSubjectCapture>,
         arena::Handle<typed::expression::CompletedValueCapture>,
+        typed::expression::ExpressionHandle,
     )>,
 }
 
@@ -701,15 +702,17 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 {
                     self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U64)?;
                 }
-                let (member_symbol, case_variant) = self.declared_member(member);
+                let (member_symbol, case_variant, member_name, selector) =
+                    self.declared_member(member);
                 let receiver = self.lower_value(member.receiver)?;
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Member(
                         typed::expression::TableMemberExpression {
+                            selector,
                             receiver,
                             member_symbol,
-                            member: lower_name(&member.member),
+                            member: lower_name(&member_name),
                             case_variant: case_variant.as_ref().map(lower_name),
                         },
                     )))

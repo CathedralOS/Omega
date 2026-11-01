@@ -28,15 +28,9 @@ pub(super) struct DestructureBindings {
     pub(super) proof_selectors: Vec<TableOutcomeProofSelector>,
 }
 
-/// What a destructure arm SPELLED, for the exhaustiveness law: a `..`-free
-/// pattern must mention every field of the record (variant `None`) or of the
-/// named case's payload. The block parser encodes this into a marker let
-/// (`__arm_destructure#V=<variant>#<f1>#<f2>`) that the typed-stage
-/// validation resolves against the data definition.
+/// Exact structural declaration and component selectors shared with local bindings.
 pub(super) struct ArmPatternSpelling {
-    pub(super) variant: Option<Identifier>,
-    pub(super) members: Vec<Identifier>,
-    pub(super) has_rest: bool,
+    pub(super) pattern: syntax_trees::statement::TableLocalPattern,
 }
 
 pub(super) fn parse_transition_guard_node<'tokens, 'source>(
@@ -485,7 +479,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     subject: ExpressionHandle,
 ) -> Result<Option<(TransitionGuardNode, DestructureBindings)>, ParseError> {
-    if !input.at_name_like() {
+    if !input.at_name_like() && !input.at_punctuation(PunctuationKind::LeftParen) {
         return Ok(None);
     }
 
@@ -506,21 +500,29 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         None => (input, None),
     };
 
-    let (path, after_path) = parse_path_handle_span(pattern_input, |member| {
-        exprs(syntax_trees).append_identifier_path_member(member)
-    })?;
-    if !after_path.at_punctuation(PunctuationKind::LeftBrace) {
-        // Without `if` this is an ordinary pattern; with `if` the arm must be a
-        // destructure (a bare `pattern if guard` arm has no other meaning here).
-        if guard_input.is_some() {
-            return Err(after_path
-                .error_here("expected `{` to open a destructure pattern before `if` guard"));
+    let (path, parsed_fields, pattern_rest) = if pattern_input
+        .at_punctuation(PunctuationKind::LeftParen)
+    {
+        let Ok((fields, rest)) =
+            crate::patterns::parse_positional_fields(syntax_trees, pattern_input)
+        else {
+            return Ok(None);
+        };
+        (None, fields, rest)
+    } else {
+        let (path, after_path) = parse_path_handle_span(pattern_input, |member| {
+            exprs(syntax_trees).append_identifier_path_member(member)
+        })?;
+        if !after_path.at_punctuation(PunctuationKind::LeftBrace) {
+            if guard_input.is_some() {
+                return Err(after_path
+                    .error_here("expected `{` to open a destructure pattern before `if` guard"));
+            }
+            return Ok(None);
         }
-        return Ok(None);
-    }
-
-    let (parsed_fields, pattern_rest) =
-        crate::patterns::parse_destructure_fields(syntax_trees, after_path)?;
+        let (fields, rest) = crate::patterns::parse_destructure_fields(syntax_trees, after_path)?;
+        (Some(path), fields, rest)
+    };
     let fields = parsed_fields
         .fields
         .iter()
@@ -529,7 +531,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                 MatchFieldAction::Bind(binding) => Some(binding.clone()),
                 _ => None,
             };
-            (field.member.clone(), binding)
+            (field.selector, field.member.clone(), binding)
         })
         .collect::<Vec<_>>();
     let matched_fields = parsed_fields
@@ -546,27 +548,26 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     // specific CASE, so tag each binding with the variant -- the rewritten field
     // access must resolve to this variant's field, not a same-named field at a
     // different offset in another variant.
-    let case_variant: Option<Identifier> = {
+    let case_variant: Option<Identifier> = path.and_then(|path| {
         let members = exprs_of(syntax_trees).identifier_path_members(path);
-        if members.len() == 2 {
-            members.last().cloned()
-        } else {
-            None
-        }
-    };
+        (members.len() == 2)
+            .then(|| members.last().cloned())
+            .flatten()
+    });
     if !proof_selectors.is_empty() && case_variant.is_none() {
         return Err(pattern_input.error_here(
             "outcome proof selectors require an exact `Result::Case { payload; selector: local }` arm",
         ));
     }
-    // Waived fields (`as _`) are spelled but introduce NO binding; renamed
-    // fields (`as name`) bind the new name to the same `subject.member` read.
-    let spelled_members: Vec<Identifier> =
-        fields.iter().map(|(member, _)| member.clone()).collect();
+    let pattern_fields = exprs(syntax_trees).insert_match_fields(parsed_fields.fields.clone());
+    let head = path
+        .map(|path| exprs(syntax_trees).insert(ExpressionNode::Name(path)))
+        .unwrap_or_else(ExpressionHandle::invalid);
     let fields = fields
         .into_iter()
-        .filter_map(|(member, binding)| {
+        .filter_map(|(selector, member, binding)| {
             binding.map(|binding| DestructureBinding {
+                selector,
                 binding,
                 member,
                 case_variant: case_variant.clone(),
@@ -574,9 +575,12 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         })
         .collect::<Vec<_>>();
     let spelling = Some(ArmPatternSpelling {
-        variant: case_variant.clone(),
-        members: spelled_members,
-        has_rest,
+        pattern: syntax_trees::statement::TableLocalPattern {
+            head,
+            fields: pattern_fields,
+            has_rest,
+            positional: path.is_none(),
+        },
     });
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected data destructure pattern"));
@@ -587,17 +591,23 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     // starts with `subject in Type::Case`. Desugaring to membership (not
     // `==`) keeps the synthesized tag test distinct from user-written
     // equality, which rejects bare payload-bearing case names.
-    let mut combined = match exprs_of(syntax_trees).identifier_path_members(path).len() {
-        1 => ExpressionHandle::invalid(),
-        2 => exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
-            value: subject,
-            domain: path,
-        })),
-        _ => {
-            return Err(pattern_input.error_here(
-                "destructure pattern path must be `Type { .. }` or `Type::Case { .. }`",
-            ));
+    let mut combined = if let Some(path) = path {
+        match exprs_of(syntax_trees).identifier_path_members(path).len() {
+            1 => ExpressionHandle::invalid(),
+            2 => {
+                exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
+                    value: subject,
+                    domain: path,
+                }))
+            }
+            _ => {
+                return Err(pattern_input.error_here(
+                    "destructure pattern path must be `Type { .. }` or `Type::Case { .. }`",
+                ));
+            }
         }
+    } else {
+        ExpressionHandle::invalid()
     };
 
     // A value-bearing field pattern is ordinary equality over an attenuated
@@ -606,6 +616,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     // arm; no pattern-only fact channel exists.
     for (member, expected) in matched_fields {
         let projected = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
+            selector: language_core::DataComponentSelector::Named,
             receiver: subject,
             access_source_span: Default::default(),
             member,

@@ -1,0 +1,66 @@
+// Common fields and the selected payload retire exactly once after owned decomposition.
+// Expected exit: 0
+use omega::language::core::drop;
+data Counter { value: u32 in Wrapping; }
+data Token<'storage> { counter: &'storage mut Counter; }
+data Command<'common, 'payload> { common: Token<'common>; case Ready(payload: Token<'payload>); case Empty; }
+machine Token::drop(token: &mut Token<'storage>) { token.counter.value = token.counter.value + 1; }
+machine retire<'storage>(token: Token<'storage>) -> bool { drop(token); true }
+trait Reader { machine read<'common, 'payload>(command: Command<'common, 'payload>) -> bool; }
+LinuxReader satisfies Reader {
+    machine read<'common, 'payload>(command: Command<'common, 'payload>) -> bool {
+    let Command { common as selected_common, case as operation } = command;
+    drop(selected_common);
+    match operation {
+        Command::Ready { payload } -> retire(payload) && retire(payload)
+        Command::Empty -> true
+    }
+    }
+}
+LinuxArmReader satisfies Reader {
+    machine read<'common, 'payload>(command: Command<'common, 'payload>) -> bool {
+    let Command { common as selected_common, case as operation } = command;
+    drop(selected_common);
+    match operation {
+        Command::Ready { payload } -> retire(payload) && retire(payload)
+        Command::Empty -> true
+    }
+    }
+}
+MacReader satisfies Reader {
+    machine read<'common, 'payload>(command: Command<'common, 'payload>) -> bool {
+    let Command { common as selected_common, case as operation } = command;
+    drop(selected_common);
+    match operation {
+        Command::Ready { payload } -> retire(payload) && retire(payload)
+        Command::Empty -> true
+    }
+    }
+}
+WindowsReader satisfies Reader {
+    machine read<'common, 'payload>(command: Command<'common, 'payload>) -> bool {
+    let Command { common as selected_common, case as operation } = command;
+    drop(selected_common);
+    match operation {
+        Command::Ready { payload } -> retire(payload) && retire(payload)
+        Command::Empty -> true
+    }
+    }
+}
+machine exercise<Selected satisfies Reader>(ready: bool) -> bool {
+    let mut common_count: Counter = Counter { value: 0 };
+    let mut payload_count: Counter = Counter { value: 0 };
+    let retired: bool = Selected::read(match ready {
+        true -> Command::Ready { common: Token { counter: &mut common_count }, payload: Token { counter: &mut payload_count } }
+        false -> Command::Empty { common: Token { counter: &mut common_count } }
+    });
+    retired && (common_count.value as u32) == 1 && (payload_count.value as u32) == (match ready { true -> 1 false -> 0 })
+}
+machine journey<Selected satisfies Reader>() crashes Trap {
+    transition exercise<Selected>(true) && exercise<Selected>(false) { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}
+machine linux_entry() crashes Trap { journey<LinuxReader>(); }
+machine linuxarm_entry() crashes Trap { journey<LinuxArmReader>(); }
+machine mac_entry() crashes Trap { journey<MacReader>(); }
+machine windows_entry() crashes Trap { journey<WindowsReader>(); }

@@ -136,6 +136,7 @@ plain!(
 );
 plain!(
     language_core::LocalBindingRole,
+    language_core::DataComponentSelector,
     language_core::BindingRelevance,
     language_core::DataSupplyMode,
     language_core::CallOperationalAcknowledgement,

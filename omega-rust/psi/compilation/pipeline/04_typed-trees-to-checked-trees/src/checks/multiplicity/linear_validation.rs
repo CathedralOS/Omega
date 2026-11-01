@@ -16,8 +16,8 @@ pub(crate) mod loan_completions;
 mod permission_production;
 
 pub(crate) use affine_cleanup::{
-    append_owned_cleanup_permission_events, append_owned_region_cleanup_permission_events,
-    exit_evaluation,
+    append_binding_cleanup_permission_events, append_owned_cleanup_permission_events,
+    append_owned_region_cleanup_permission_events, exit_evaluation,
 };
 pub(crate) use applied_events::{
     append_borrow_permission_events, apply_recorded_state_entry_events,

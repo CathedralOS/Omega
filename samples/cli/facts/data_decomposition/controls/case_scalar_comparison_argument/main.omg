@@ -1,0 +1,16 @@
+// A case payload comparison remains available to a selected scalar argument.
+// Expected exit: 0
+data Binding [copy] { case Data(item: u64); case Other; }
+machine compare(binding: Binding, item: u64) -> bool {
+    transition binding {
+        Binding::Data { item as declared } -> observed(declared == item)
+        _ -> (false)
+    }
+    machine observed(value: bool) -> bool { value }
+}
+machine main() crashes Trap {
+    transition compare(Binding::Data { item: 17 }, 17) && !compare(Binding::Data { item: 17 }, 23) {
+        true -> done() _ -> bad()
+    }
+    machine done() {} machine bad() { crash Trap; }
+}

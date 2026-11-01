@@ -56,6 +56,26 @@ pub(super) fn borrowed_initializers(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => {
+            let mut carried =
+                borrowed_initializers(program, *subject, expression, substitutions, owner_path);
+            if validation::reference_shell(program, *subject).is_none() {
+                carried.retain_mut(|leaf| {
+                    if leaf.owner_path.len() == owner_path.len()
+                        && matches!(leaf.kind, BorrowedInitializerKind::Aggregate { .. })
+                    {
+                        leaf.kind = BorrowedInitializerKind::Aggregate { type_reference };
+                        true
+                    } else {
+                        matches!(
+                            leaf.owner_path.get(owner_path.len()),
+                            Some(BorrowOwnerSegment::Case(_))
+                        )
+                    }
+                });
+            }
+            carried
+        }
         TypeReferenceNode::Reference { access, .. } => vec![BorrowedInitializer {
             owner_path: owner_path.to_vec(),
             expression,

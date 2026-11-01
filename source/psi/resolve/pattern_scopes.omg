@@ -1,0 +1,160 @@
+use psi::resolution::resolution;
+use psi::resolve::names;
+use psi::resolve::resolver;
+use psi::syntax::syntax;
+use psi::source::source;
+
+public data PatternNameEvent [copy] {
+    first: u64 in Trapping;
+    count: u64 in Trapping;
+    start: u64 in Trapping;
+    end: u64 in Trapping;
+    source_span: SourceSpan;
+}
+public data PatternNameFrame [copy] {
+    scope: NameScope;
+    end: u64 in Trapping;
+}
+
+// Prepare one bounded event inventory per tree. Descending postorder visits
+// enclosing dispatches before nested ones; no name lookup rescans the tree.
+public machine Resolver::prepare_pattern_names(resolver: &mut Resolver, syntax: &SyntaxTrees, root: u64 in Trapping)
+crashes Trap
+{
+    resolver.pattern_event_count = 0;
+    resolver.pattern_scope_depth = 0;
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition { _ -> scan(resolver, syntax, tree.first_row, root + 1) }
+    machine scan(resolver: &mut Resolver, syntax: &SyntaxTrees, low: u64 in Trapping, next: u64 in Trapping) {
+        transition next > low && resolver.output.accepted {
+            true -> node(resolver, syntax, low, next - 1)
+            _ -> done()
+        }
+    }
+    machine node(resolver: &mut Resolver, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        transition expression.kind == ExpressionKind::Match {
+            true -> arm(resolver, syntax, low, index, expression, 0)
+            _ -> scan(resolver, syntax, low, index)
+        }
+    }
+    machine arm(resolver: &mut Resolver, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+        transition offset < expression.count && resolver.output.accepted {
+            true -> selected(resolver, syntax, low, index, expression, offset)
+            _ -> scan(resolver, syntax, low, index)
+        }
+    }
+    machine selected(resolver: &mut Resolver, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping) {
+        let selected: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
+        transition selected.kind == ArmPatternKind::Case {
+            true -> head(resolver, syntax, low, index, expression, offset, selected)
+            _ -> fields(resolver, syntax, low, index, expression, offset, selected)
+        }
+    }
+    machine head(resolver: &mut Resolver, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, selected: TransitionArm) {
+        Resolver::set_role(resolver, selected.pattern, NameRole::CasePattern);
+        transition { _ -> fields(resolver, syntax, low, index, expression, offset, selected) }
+    }
+    machine fields(resolver: &mut Resolver, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, selected: TransitionArm) {
+        transition selected.field_count > 0 {
+            true -> bounded(resolver, syntax, low, index, expression, offset, selected)
+            _ -> arm(resolver, syntax, low, index, expression, offset + 1)
+        }
+    }
+    machine bounded(resolver: &mut Resolver, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, selected: TransitionArm) {
+        transition resolver.pattern_event_count < 256 {
+            true -> stored(resolver, syntax, low, index, expression, offset, selected)
+            _ -> full(resolver, selected.source_span)
+        }
+    }
+    machine stored(resolver: &mut Resolver, syntax: &SyntaxTrees, low: u64 in Trapping, index: u64 in Trapping, expression: Expression, offset: u64 in Trapping, selected: TransitionArm)
+    requires resolver.pattern_event_count < 256
+    {
+        let value: Expression = SyntaxTrees::expression(syntax, selected.target);
+        let start: u64 in Trapping = match selected.has_guard { true -> SyntaxTrees::expression(syntax, selected.guard).first_row false -> value.first_row };
+        let event: PatternNameEvent = PatternNameEvent { first: selected.first_field, count: selected.field_count, start: start, end: selected.target, source_span: selected.source_span };
+        resolver.pattern_events[resolver.pattern_event_count] = event;
+        resolver.pattern_event_count = resolver.pattern_event_count + 1;
+        transition { _ -> arm(resolver, syntax, low, index, expression, offset + 1) }
+    }
+    machine full(resolver: &mut Resolver, source_span: SourceSpan) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::BindingScopeCapacityExceeded, source_span);
+    }
+    machine done() {}
+}
+
+public machine Resolver::pattern_scope_at(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping) -> NameScope
+crashes Trap
+{
+    transition { _ -> expire(resolver, scope, index) }
+    machine expire(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping) -> NameScope {
+        transition resolver.pattern_scope_depth > 0 {
+            true -> top(resolver, scope, index)
+            _ -> event(resolver, scope, index, 0)
+        }
+    }
+    machine top(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping) -> NameScope {
+        let frame: PatternNameFrame = resolver.pattern_scopes[resolver.pattern_scope_depth - 1];
+        transition frame.end < index {
+            true -> expired(resolver, scope, index)
+            _ -> event(resolver, scope, index, 0)
+        }
+    }
+    machine expired(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping) -> NameScope {
+        resolver.pattern_scope_depth = resolver.pattern_scope_depth - 1;
+        transition { _ -> expire(resolver, scope, index) }
+    }
+    machine event(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping, offset: u64 in Trapping) -> NameScope {
+        transition offset < resolver.pattern_event_count && offset < 256 && resolver.output.accepted {
+            true -> pending(resolver, scope, index, offset)
+            _ -> current(resolver, scope)
+        }
+    }
+    machine pending(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping, offset: u64 in Trapping) -> NameScope
+    requires offset < 256
+    {
+        let selected: PatternNameEvent = resolver.pattern_events[offset];
+        transition selected.start == index {
+            true -> bounded(resolver, scope, index, offset, selected)
+            _ -> event(resolver, scope, index, offset + 1)
+        }
+    }
+    machine bounded(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping, offset: u64 in Trapping, selected: PatternNameEvent) -> NameScope {
+        transition resolver.pattern_scope_depth < 32 {
+            true -> entered(resolver, scope, index, offset, selected)
+            _ -> full(resolver, scope, selected.source_span)
+        }
+    }
+    machine entered(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping, offset: u64 in Trapping, selected: PatternNameEvent) -> NameScope {
+        let parent: NameScope = Resolver::active_pattern_scope(resolver, scope);
+        let nested: NameScope = Resolver::with_binders(resolver, parent, selected.first, selected.count, selected.source_span);
+        transition { _ -> stored(resolver, scope, index, offset, selected, nested) }
+    }
+    machine stored(resolver: &mut Resolver, scope: NameScope, index: u64 in Trapping, offset: u64 in Trapping, selected: PatternNameEvent, nested: NameScope) -> NameScope
+    requires resolver.pattern_scope_depth < 32
+    {
+        resolver.pattern_scopes[resolver.pattern_scope_depth] = PatternNameFrame { scope: nested, end: selected.end };
+        resolver.pattern_scope_depth = resolver.pattern_scope_depth + 1;
+        transition { _ -> event(resolver, scope, index, offset + 1) }
+    }
+    machine current(resolver: &Resolver, scope: NameScope) -> NameScope { Resolver::active_pattern_scope(resolver, scope) }
+    machine full(resolver: &mut Resolver, scope: NameScope, source_span: SourceSpan) -> NameScope {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::BindingScopeCapacityExceeded, source_span);
+        scope
+    }
+}
+
+machine Resolver::active_pattern_scope(resolver: &Resolver, scope: NameScope) -> NameScope
+crashes Trap
+{
+    transition resolver.pattern_scope_depth > 0 {
+        true -> current(resolver)
+        _ -> outer(scope)
+    }
+    machine current(resolver: &Resolver) -> NameScope
+    requires resolver.pattern_scope_depth > 0
+    {
+        resolver.pattern_scopes[resolver.pattern_scope_depth - 1].scope
+    }
+    machine outer(scope: NameScope) -> NameScope { scope }
+}

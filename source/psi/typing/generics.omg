@@ -175,6 +175,7 @@ crashes Trap
         let row: TypeRow = TypeTable::row(&typer.output.types, current);
         transition row.kind {
             TypeKind::GenericParameter -> parameter(typer, root, source_span, depth, current, row)
+            TypeKind::CaseView -> wrapper(typer, root, source_span, depth, current, row, expanded)
             TypeKind::Reference -> wrapper(typer, root, source_span, depth, current, row, expanded)
             TypeKind::Array -> array(typer, root, source_span, depth, current, row, expanded)
             TypeKind::Slice -> wrapper(typer, root, source_span, depth, current, row, expanded)

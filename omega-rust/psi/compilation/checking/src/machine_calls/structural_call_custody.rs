@@ -425,11 +425,9 @@ fn declared_carrier_qualifications(
                     return Err("declared qualification span is stale");
                 }
                 for constraint in retained {
-                    // Primitive arithmetic policy belongs to the exact carrier
-                    // and its operations, rather than nominal membership.
-                    if matches!(constraint, TypeConstraintNode::ArithmeticDomain(_))
-                        && program.primitive_type_reference(reference).is_some()
-                    {
+                    // Arithmetic policy belongs to the exact carrier and its
+                    // scalar or collection-index operations, not nominal membership.
+                    if matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)) {
                         continue;
                     }
                     let TypeConstraintNode::Domain(domain) = constraint else {

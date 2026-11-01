@@ -85,7 +85,8 @@ pub(super) fn account<'calls>(
         TerminatorPlan::Guarded { .. } => None,
         _ => None,
     };
-    let construction_uses = construction_local_uses(facts, state.symbol, operations.iter())?;
+    let construction_uses =
+        construction_local_uses(facts, state.symbol, operations.iter()).or_else(|| None)?;
     let successors = terminator.successors();
     let successor_construction_uses = successors
         .iter()
@@ -121,6 +122,7 @@ pub(super) fn account<'calls>(
         let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
+
         let result_local = operation
             .statement_structural_result_binding()
             .and_then(|binding| statements.get(binding.statement_index as usize))
@@ -501,14 +503,18 @@ pub(super) fn account<'calls>(
         let storage_transfers = if result.multiplicity == Multiplicity::Unrestricted {
             None
         } else {
-            Some(super::super::storage_transfers::transfers(
-                program,
-                facts,
-                prepared_calls,
-                structural_results,
-                result.binding_ordinal,
-                operations,
-            )?)
+            Some(
+                super::super::storage_transfers::transfers(
+                    program,
+                    facts,
+                    state.symbol,
+                    prepared_calls,
+                    structural_results,
+                    result.binding_ordinal,
+                    operations,
+                )
+                .or_else(|| None)?,
+            )
         };
         let moves_occurrence = |argument: &ArgumentPlan| {
             argument.access == StructuralAccess::Owned

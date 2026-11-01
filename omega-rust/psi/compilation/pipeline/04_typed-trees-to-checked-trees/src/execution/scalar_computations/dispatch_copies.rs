@@ -367,7 +367,7 @@ pub(super) fn observes_captured_dispatch_value(
 /// to the expanded producer. Withdraw the exact pure root even if construction
 /// of its replacement later fails: the old live read is never a fallback.
 /// Conflicting custody rows remain published so ordinary ambiguity checks refuse.
-pub(super) fn withdraw_captured_pure_roots(
+pub(super) fn withdraw_value_dependent_pure_roots(
     program: &dyn validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
     pure: &mut checked_trees::CheckedScalarExpressionPlans,
@@ -391,6 +391,11 @@ pub(super) fn withdraw_captured_pure_roots(
             machine.symbol,
             binding.state,
             binding.statement_ordinal as usize,
+            binding.expression,
+        ) || super::dispatch::requires_completed_dispatch(
+            program,
+            machine.symbol,
+            binding.state,
             binding.expression,
         ) {
             withdrawn.push((binding.state, binding.statement_ordinal, binding.role));

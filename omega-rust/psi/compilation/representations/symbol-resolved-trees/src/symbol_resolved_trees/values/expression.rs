@@ -769,6 +769,7 @@ pub struct TableMembershipExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMemberExpression {
+    pub selector: language_core::DataComponentSelector,
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
     pub member: DiagnosticName,
@@ -978,6 +979,7 @@ pub struct TableDestructurePattern {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMatchField {
+    pub selector: language_core::DataComponentSelector,
     pub member: DiagnosticName,
     pub field_symbol: SymbolHandle,
     pub action: MatchFieldAction,

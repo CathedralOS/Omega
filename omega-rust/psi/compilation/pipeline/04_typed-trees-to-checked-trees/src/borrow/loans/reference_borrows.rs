@@ -134,6 +134,7 @@ pub(super) fn reference_local_borrow_loans(
             .iter()
             .flat_map(|arm| {
                 let selected_value = checked_trees::statement::TableLocalData {
+                    pattern: None,
                     initial_value: arm.value,
                     ..local_data.clone()
                 };

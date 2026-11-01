@@ -31,7 +31,19 @@ pub(crate) fn parse_destructure_fields<'tokens, 'source>(
             has_rest = true;
             input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
         } else {
+            let selector = if input.at_contextual("case") {
+                language_core::DataComponentSelector::Case
+            } else {
+                language_core::DataComponentSelector::Named
+            };
             let (member, rest) = input.take_identifier()?;
+            if selector == language_core::DataComponentSelector::Case
+                && !rest.at_keyword(KeywordKind::As)
+            {
+                return Err(rest.error_here(
+                    "the anonymous case component uses `case as binding` or `case as _`",
+                ));
+            }
             let (action, rest) = if rest.at_punctuation(PunctuationKind::Colon) {
                 let rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
                 let (value, rest) =
@@ -48,7 +60,11 @@ pub(crate) fn parse_destructure_fields<'tokens, 'source>(
             } else {
                 (MatchFieldAction::Bind(member.clone()), rest)
             };
-            fields.push(TableMatchField { member, action });
+            fields.push(TableMatchField {
+                selector,
+                member,
+                action,
+            });
             input = rest;
         }
         if input.at_punctuation(PunctuationKind::Comma) {
@@ -108,6 +124,55 @@ pub(crate) fn parse_destructure_fields<'tokens, 'source>(
             fields,
             has_rest,
             proof_selectors,
+        },
+        input,
+    ))
+}
+
+/// Positional selectors are declaration ordinals, not generated member names.
+/// Type acquisition resolves them against the original saved subject.
+pub(crate) fn parse_positional_fields<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, DestructureFields> {
+    let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+    let mut fields = Vec::new();
+    let mut has_rest = false;
+    while !input.at_punctuation(PunctuationKind::RightParen) {
+        if input.at_punctuation(PunctuationKind::DotDot) {
+            has_rest = true;
+            input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
+            if input.at_punctuation(PunctuationKind::Comma) {
+                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            }
+            break;
+        }
+        let ordinal = u32::try_from(fields.len())
+            .map_err(|_| input.error_here("too many data pattern components"))?;
+        let (member, rest) = input.take_identifier()?;
+        let action = if member.as_str(syntax_trees) == "_" {
+            MatchFieldAction::Waive
+        } else {
+            MatchFieldAction::Bind(member.clone())
+        };
+        fields.push(TableMatchField {
+            selector: language_core::DataComponentSelector::Positional(ordinal),
+            member,
+            action,
+        });
+        input = rest;
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+        } else {
+            break;
+        }
+    }
+    let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+    Ok((
+        DestructureFields {
+            fields,
+            has_rest,
+            proof_selectors: Vec::new(),
         },
         input,
     ))

@@ -214,6 +214,56 @@ pub fn has_builtin_spelled_expression_meaning(
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
+    // Wholly anonymous numeric operands already have exact meaning. They are
+    // not unresolved typed operands: visible primitive overloads cannot land
+    // them. A typed peer still uses the complete ordinary candidate tuple.
+    // Retained occurrence custody and trait meanings remain checked below.
+    let anonymous_operands = operand_types.iter().all(Option::is_none)
+        && program
+            .expression_table
+            .binary_node(expression)
+            .is_some_and(|binary| {
+                crate::closed_numeric::has_anonymous_numeric_results(program, binary.left)
+                    && crate::closed_numeric::has_anonymous_numeric_results(program, binary.right)
+            });
+    builtin_spelling_scope(
+        program,
+        owner_symbol,
+        spelling,
+        operand_types,
+        program.expression_table.source_span(expression),
+        anonymous_operands,
+    ) && crate::closed_numeric::has_builtin_anonymous_operands(program, expression, spelling)
+}
+
+/// A compiler-owned pattern comparison has no authored binary occurrence. Its
+/// complete operand tuple still selects ordinary declared and trait meanings;
+/// a primitive carrier alone never supplies builtin equality authority.
+pub fn has_builtin_spelled_operand_meaning(
+    program: &TypedTrees,
+    owner_symbol: SymbolHandle,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+    use_site: source::SourceSpan,
+) -> bool {
+    builtin_spelling_scope(
+        program,
+        owner_symbol,
+        spelling,
+        operand_types,
+        use_site,
+        false,
+    )
+}
+
+fn builtin_spelling_scope(
+    program: &TypedTrees,
+    owner_symbol: SymbolHandle,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+    use_site: source::SourceSpan,
+    anonymous_operands: bool,
+) -> bool {
     // A state retains its machine's selected implementation; an abstract
     // requirement retains the declaring trait's own applied operator scope.
     // Neither may borrow builtin laws from a matching carrier alone.
@@ -237,18 +287,6 @@ pub fn has_builtin_spelled_expression_meaning(
                         )
                 })
     };
-    // Wholly anonymous numeric operands already have exact meaning. They are
-    // not unresolved typed operands: visible primitive overloads cannot land
-    // them. A typed peer still uses the complete ordinary candidate tuple.
-    // Retained occurrence custody and trait meanings remain checked below.
-    let anonymous_operands = operand_types.iter().all(Option::is_none)
-        && program
-            .expression_table
-            .binary_node(expression)
-            .is_some_and(|binary| {
-                crate::closed_numeric::has_anonymous_numeric_results(program, binary.left)
-                    && crate::closed_numeric::has_anonymous_numeric_results(program, binary.right)
-            });
     // Existence only: both resolution walks stop at the first match instead
     // of materializing candidate sets whose per-candidate operand matching
     // allocates generic substitutions.
@@ -260,7 +298,7 @@ pub fn has_builtin_spelled_expression_meaning(
             .copied()
             .map(OperandType::from_reference)
             .collect::<Vec<_>>(),
-        program.expression_table.source_span(expression),
+        use_site,
     )) && !abstract_trait_meaning
         && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
         // Raw contracts can select an operator through a lexical implementation
@@ -272,7 +310,6 @@ pub fn has_builtin_spelled_expression_meaning(
             owner_symbol,
             spelling,
         )
-        && crate::closed_numeric::has_builtin_anonymous_operands(program, expression, spelling)
 }
 
 /// [`resolve_spelling_for_operand_types`] existence without collecting: stops
@@ -439,6 +476,7 @@ fn closed_multiplicity_carrier(
     }
     let closed = |reference| closed_multiplicity_carrier(program, reference, depth + 1);
     match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::CaseView { subject } => closed(*subject),
         TypeReferenceNode::Unit => true,
         TypeReferenceNode::Constrained { base_type, .. } => closed(*base_type),
         TypeReferenceNode::Reference {

@@ -250,6 +250,7 @@ pub(crate) fn constrained_type_reference(
     type_reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, HandleSpan<TypeConstraintNode>)> {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::CaseView { subject } => constrained_type_reference(program, *subject),
         TypeReferenceNode::Reference { referee, .. } => {
             constrained_type_reference(program, *referee)
         }

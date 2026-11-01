@@ -48,7 +48,7 @@ pub(crate) fn parse_statement_handles<'tokens, 'source>(
         parse_asm_block_statement_handles(syntax_trees, input)
     } else if let Some(parsed) = try_parse_proof_output_binding(syntax_trees, input) {
         Ok(parsed)
-    } else if let Some(parsed) = try_parse_destructure_let(syntax_trees, input) {
+    } else if let Some(parsed) = try_parse_destructure_let(syntax_trees, input)? {
         Ok(parsed)
     } else if input.at_keyword(KeywordKind::Let) {
         let input = input.take_keyword(KeywordKind::Let, "let")?;

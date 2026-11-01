@@ -180,10 +180,10 @@ fn tuple_rows_cover(
     state: &typed_trees::state::State,
     rows: &[Option<TupleRow>],
 ) -> Option<()> {
-    let rows: Vec<&TupleRow> = rows
-        .iter()
-        .map(Option::as_ref)
-        .collect::<Option<Vec<_>>>()?;
+    // An unclassified/effectful guard proves no coverage. Other authored
+    // rows can still cover every remaining value; prior alternatives may
+    // select an outcome but cannot prevent a later total row from selecting.
+    let rows: Vec<&TupleRow> = rows.iter().filter_map(Option::as_ref).collect();
     let mut subjects = Vec::new();
     for row in &rows {
         for (subject, _) in &row.columns {
@@ -288,9 +288,7 @@ fn tail(
         .count();
     let mut arms = Vec::new();
     let mut fallback = None;
-    let mut case_subject = None;
-    let mut cases = Vec::new();
-    let mut exact_cases = true;
+    let mut case_columns: Vec<(CaseSubject, Vec<symbols::SymbolHandle>)> = Vec::new();
     let mut rows = Vec::new();
     let tail = typed_trees::statement::reachable_transition_prefix(&statements[prefix..]);
     for (offset, statement) in tail.iter().enumerate() {
@@ -324,7 +322,8 @@ fn tail(
         if transition.continuation.is_valid() {
             return None;
         }
-        let destination = checked_branch_destination(program, machine, ordinal, transition, false)?;
+        let destination = checked_branch_destination(program, machine, ordinal, transition, false);
+        let destination = destination?;
         match transition.guard {
             TransitionGuardNode::Always if !arms.is_empty() => fallback = Some(destination),
             TransitionGuardNode::When(guard) => {
@@ -372,18 +371,15 @@ fn tail(
                         _ => None,
                     }
                 };
-                match case_evidence {
-                    Some((subject, case)) => {
-                        if case_subject.as_ref().is_some_and(|prior| *prior != subject) {
-                            exact_cases = false;
-                        }
-                        case_subject = Some(subject);
-                        if cases.contains(&case) {
-                            exact_cases = false;
-                        }
-                        cases.push(case);
+                if let Some((subject, case)) = case_evidence {
+                    if let Some((_, cases)) = case_columns
+                        .iter_mut()
+                        .find(|(candidate, _)| *candidate == subject)
+                    {
+                        crate::collections::push_unique(cases, case);
+                    } else {
+                        case_columns.push((subject, vec![case]));
                     }
-                    None => exact_cases = false,
                 }
                 rows.push(row);
                 arms.push(CheckedScalarGuardedExit {
@@ -405,31 +401,40 @@ fn tail(
             state,
             u32::try_from(prefix).ok()?,
         );
-    if fallback.is_none() && !complementary_pair {
-        if exact_cases {
-            let first = *cases.first()?;
-            let owner = program.symbols.get(first).parent;
-            let data = program.data_definition_by_symbol(owner)?;
-            // Coverage ranges over the owner's cases only. A mixed shape's
-            // common fields are present in every case, so they select nothing
-            // and an exhaustive dispatch names each variant exactly once.
-            let expected = program
-                .data_members(data)
-                .iter()
-                .filter_map(|member| match member {
-                    typed_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
-                    typed_trees::data::DataMember::Field(_) => None,
-                })
-                .collect::<Vec<_>>();
-            if expected.len() != cases.len() || expected.iter().any(|case| !cases.contains(case)) {
-                return None;
-            }
-        } else {
-            // A multi-subject tail has no single case owner to enumerate:
-            // closure is the Cartesian question of whether the rows' finite
-            // columns tile their subjects' domains.
-            tuple_rows_cover(program, state, &rows)?;
-        }
+    if fallback.is_none()
+        && !complementary_pair
+        && !case_columns
+            .iter()
+            .any(|(_, cases)| complete_case_column(program, cases))
+    {
+        // Independent finite columns may establish coverage together even
+        // when no single discriminator covers every admitted value.
+        tuple_rows_cover(program, state, &rows)?;
     }
     Some((arms, fallback))
+}
+
+/// Pure case guards on one exact completed subject can cover the carrier even
+/// with extra guarded/effectful alternatives interleaved. Those alternatives
+/// supply no coverage, and keep their original ordered executable outcomes.
+fn complete_case_column(
+    program: &dyn validation::CheckingInput,
+    cases: &[symbols::SymbolHandle],
+) -> bool {
+    let Some(first) = cases.first().copied() else {
+        return false;
+    };
+    let owner = program.symbols.get(first).parent;
+    let Some(data) = program.data_definition_by_symbol(owner) else {
+        return false;
+    };
+    let expected = program
+        .data_members(data)
+        .iter()
+        .filter_map(typed_trees::data::DataMember::as_variant)
+        .map(|case| case.symbol)
+        .collect::<Vec<_>>();
+    !expected.is_empty()
+        && cases.iter().all(|case| expected.contains(case))
+        && expected.iter().all(|case| cases.contains(case))
 }

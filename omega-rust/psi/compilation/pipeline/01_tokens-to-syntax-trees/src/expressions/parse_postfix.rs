@@ -245,6 +245,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             let member_span = member.source_span();
             expression =
                 exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: language_core::DataComponentSelector::Named,
                     receiver: expression,
                     access_source_span,
                     member,

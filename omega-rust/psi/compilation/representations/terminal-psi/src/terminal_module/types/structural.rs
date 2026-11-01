@@ -558,7 +558,9 @@ impl StructuralFieldType {
     /// it satisfies the field's complete copy contract. Equal-shaped catalog
     /// entries must not select an identity for an already typed operation.
     pub fn leaf_copy_type(&self, expected: Option<&StructuralTypeDeclaration>) -> Option<Self> {
-        let contract = self.leaf_copy_shape().and_then(Self::from_leaf_shape)?;
+        let contract = self
+            .canonical_leaf_type()
+            .or_else(|| self.leaf_copy_shape().and_then(Self::from_leaf_shape))?;
         if let Some(expected) = expected
             && (contract.declares_leaf(expected)
                 || self
@@ -1049,3 +1051,7 @@ macro_rules! sum_or_mixed_shape_pattern {
         $crate::StructuralTypeShape::Sum { .. } | $crate::StructuralTypeShape::Mixed { .. }
     };
 }
+
+#[cfg(test)]
+#[path = "structural/copy_contract_tests.rs"]
+mod copy_contract_tests;

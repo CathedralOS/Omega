@@ -3,6 +3,7 @@ use psi::integers::integers;
 use psi::resolution::resolution;
 use psi::syntax::syntax;
 use psi::types::types;
+use psi::types::ownership;
 
 // Owned places (wiki/spec/language/ownership.md): which places a body owns,
 // how two of them overlap, and what multiplicity a type carries. A body's
@@ -11,119 +12,11 @@ use psi::types::types;
 // collection unless two integer-literal indexes differ, and a place reached
 // through a reference belongs to its loan, not to the body.
 
-// A type's multiplicity: an integer, Boolean, float, address, reference or
-// slice view copies; data has its declared multiplicity, linear when a type
-// argument is declared linear; an array has its element's and a generic
-// parameter its bound's.
+// Type disposition is owned by the typed representation and shared with
+// formation. Checking never reconstructs a case view's payload application.
 public machine Checker::multiplicity(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> DataMultiplicity
 crashes Trap
-{
-    transition { _ -> level(syntax, typing, handle, 0) }
-
-    machine level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> DataMultiplicity {
-        let row: TypeRow = TypeTable::row(&typing.types, handle);
-        transition row.kind {
-            TypeKind::Data -> data(syntax, typing, row)
-            TypeKind::Array -> array(syntax, typing, row, depth)
-            TypeKind::GenericParameter -> generic(syntax, row)
-            _ -> answer(DataMultiplicity::Unrestricted)
-        }
-    }
-
-    machine array(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> DataMultiplicity {
-        transition depth < 16 {
-            true -> level(syntax, typing, row.inner, depth + 1)
-            _ -> answer(DataMultiplicity::Affine)
-        }
-    }
-
-    machine generic(syntax: &SyntaxTrees, row: TypeRow) -> DataMultiplicity {
-        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, row.item);
-        transition { _ -> answer(parameter.bounds) }
-    }
-
-    machine data(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow) -> DataMultiplicity {
-        let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
-        let linear: bool = Checker::linear_argument(syntax, typing, row, 0);
-        transition linear {
-            true -> answer(DataMultiplicity::Linear)
-            _ -> answer(item.multiplicity)
-        }
-    }
-
-    machine answer(multiplicity: DataMultiplicity) -> DataMultiplicity {
-        multiplicity
-    }
-}
-
-// Whether a type argument of data row `row`, from `offset`, is declared
-// linear (data, an array of it, or a generic parameter bound linear).
-machine Checker::linear_argument(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool
-crashes Trap
-{
-    transition { _ -> next(syntax, typing, row, offset) }
-
-    machine next(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
-        transition offset < row.argument_count {
-            true -> argument(syntax, typing, row, offset)
-            _ -> answer(false)
-        }
-    }
-
-    machine argument(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
-        let handle: u64 in Trapping = TypeTable::argument(&typing.types, row.first_argument + offset);
-        let declared: bool = Checker::declared_linear(syntax, typing, handle);
-        transition declared {
-            true -> answer(true)
-            _ -> next(syntax, typing, row, offset + 1)
-        }
-    }
-
-    machine answer(linear: bool) -> bool {
-        linear
-    }
-}
-
-// Whether a type is declared linear on its own: linear data, an array of
-// it, or a generic parameter bound linear.
-machine Checker::declared_linear(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
-crashes Trap
-{
-    transition { _ -> level(syntax, typing, handle, 0) }
-
-    machine level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> bool {
-        let row: TypeRow = TypeTable::row(&typing.types, handle);
-        transition row.kind {
-            TypeKind::Data -> data(syntax, row)
-            TypeKind::Array -> array(syntax, typing, row, depth)
-            TypeKind::GenericParameter -> generic(syntax, row)
-            _ -> answer(false)
-        }
-    }
-
-    machine array(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> bool {
-        transition depth < 16 {
-            true -> level(syntax, typing, row.inner, depth + 1)
-            _ -> answer(false)
-        }
-    }
-
-    machine data(syntax: &SyntaxTrees, row: TypeRow) -> bool {
-        let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
-        let linear: bool = item.multiplicity == DataMultiplicity::Linear;
-        transition { _ -> answer(linear) }
-    }
-
-    machine generic(syntax: &SyntaxTrees, row: TypeRow) -> bool {
-        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, row.item);
-        let linear: bool = parameter.bounds == DataMultiplicity::Linear;
-        transition { _ -> answer(linear) }
-    }
-
-    machine answer(linear: bool) -> bool {
-        linear
-    }
-}
+{ Typing::multiplicity(syntax, typing, handle) }
 
 // The owned root of a place expression: its root, unless a reference lies
 // on its path.

@@ -2024,6 +2024,17 @@ impl<'program> StructuralJudge<'program> {
         if matches!(value, StructuralTerm::MathematicalBinary { .. }) {
             return self.mathematical_value(value, observations, depth + 1);
         }
+        if let StructuralTerm::IntegerEmbedding { reference, value } = value {
+            // The conversion retains the completed source carrier. Observe
+            // that operand through its own admission rules before widening its
+            // mathematical value; the destination supplies no source bounds.
+            let (source, _) = super::super::structural_terms::scalar_operand_meaning(
+                self.program,
+                *reference,
+                value,
+            )?;
+            return self.integer_value(value, source, observations, depth + 1);
+        }
         if let StructuralTerm::ScalarBinary {
             references,
             operator,

@@ -84,8 +84,6 @@ public data DataCase [copy] {
     identity: SourceSpan;
     first_payload_field: u64 in Trapping;
     payload_field_count: u64 in Trapping;
-    first_clause: u64 in Trapping;
-    clause_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -300,6 +298,7 @@ public data StatementKind [copy] {
     case Crash;
     case Transition;
     case Discard;
+    case LetPattern;
 }
 
 // One arm of a `transition` block. `Guard` arms (subjectless blocks) hold a
@@ -312,6 +311,7 @@ public data ArmPatternKind [copy] {
     case Wildcard;
     case Literal;
     case Case;
+    case Positional;
 }
 
 // What an arm's target spells (wiki/spec/language/state_contracts.md). A
@@ -900,6 +900,7 @@ public data ParseDiagnosticCode [copy] {
     case RetiredWhereMachineRequirement;
     case RetiredDomainSubject;
     case RetiredCasePredicate;
+    case CommonFieldAfterCase;
 }
 
 public data ParseDiagnostic [copy] {

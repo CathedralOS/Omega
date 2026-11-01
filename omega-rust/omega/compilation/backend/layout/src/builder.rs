@@ -402,6 +402,7 @@ impl<'program> LayoutBuilder<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
+            TypeReferenceNode::CaseView { subject } => self.type_descriptor(*subject, bindings),
             TypeReferenceNode::Reference {
                 referee, access, ..
             } => TypeLayoutDescriptor::Reference {
