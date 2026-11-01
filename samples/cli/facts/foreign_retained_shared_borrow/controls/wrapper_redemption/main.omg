@@ -1,0 +1,57 @@
+// A returned loan-bearing sibling cannot supply new owned Buffer backing.
+use omega::language::core::content;
+use omega::language::core::drop;
+public data ByteUnit {}
+public data Buffer [linear] { value: u64; }
+machine Buffer::drop(buffer: &mut Buffer) {}
+public domain Buffer::Owned;
+machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Pending<'source> [linear] { slot: u64; }
+public domain Pending::Retained established by Reader::register;
+machine Retained::content<'source>(pending: &Pending<'source>) -> CountedQuantity<ByteUnit>
+satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Capacity [linear] { token: u64; }
+public domain Capacity::Available established by Reader::acquire, Reader::complete;
+public data DebtWrapper<'source> [linear] {
+    backing: Buffer in Buffer::Owned;
+    debt: Pending<'source> in Pending::Retained;
+}
+public boundary trait Reader {
+    machine acquire() -> Capacity reaches ensures result in Capacity::Available crashes Trap;
+    machine register<'source>(capacity: Capacity in Capacity::Available, buffer: &'source Buffer in Buffer::Owned) -> Pending<'source>
+    reaches
+    ensures result in Pending::Retained crashes Trap;
+    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
+    reaches
+    ensures result in Capacity::Available crashes Trap;
+    // Keeping the old debt in a sibling cannot create ownership of its backing.
+    machine redeem_wrapper<'source>(pending: Pending<'source> in Pending::Retained) -> DebtWrapper<'source>
+    reaches
+    crashes Trap;
+    machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
+}
+data Main {}
+machine run_main(main: &mut Main) reaches Reader crashes Trap {
+    let capacity: Capacity in Capacity::Available = Reader::acquire();
+    let buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
+    let pending: Pending = Reader::register(capacity, &buffer);
+    let mut observed: u64 = 0;
+    let returned: Capacity in Capacity::Available = Reader::complete(pending, &mut observed);
+    Reader::release(returned);
+    let value: u64 = buffer.value;
+    drop(buffer);
+    transition observed == 37 && value == 37 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Reader crashes Trap {
+    let mut entry_storage: Main;
+    run_main(&mut entry_storage);
+}
