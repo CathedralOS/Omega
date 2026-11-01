@@ -103,11 +103,14 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 // Named/aggregate prefixes need no selector receipt. Only an
                 // indexed destination asks the entry projection owner for its
                 // exact state-local bounds, before executable observation.
-                let values = if inputs.iter().any(|input| has_index(&input.destination)) {
-                    let paths = inputs
+                let values = if has_index(&destination)
+                    || inputs.iter().any(|input| has_index(&input.destination))
+                {
+                    let mut paths = inputs
                         .iter()
                         .map(|input| input.destination.path.clone())
                         .collect::<Vec<_>>();
+                    paths.push(destination.path.clone());
                     Some(super::super::rank_inputs::at_entry(
                         program, machine, state, frames, &paths,
                     )?)
@@ -142,7 +145,8 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     {
                         return None;
                     }
-                    let whole_input = retain_coordinate(admitted, destination.clone(), Vec::new());
+                    let whole_input =
+                        retain_observed_coordinate(admitted, destination.clone(), values.as_ref())?;
                     let owned_copy = declaration.parameter.as_ref().and_then(|formal| {
                         super::super::application_inputs::owned_copy(
                             program,
@@ -302,23 +306,12 @@ fn retain_observed_coordinate(
         return Some(retain_coordinate(admitted, coordinate, Vec::new()));
     }
     let prepared = inputs?;
-    // Copied selector expressions need not share AST handles. Retain the
-    // captured path with its own bounds; never retarget an index receipt.
-    let captured = prepared.coordinates.iter().find(|captured| {
-        captured.parameter == coordinate.parameter
-            && captured.observation == validation::RankPremiseObservation::Value
-            && prepared
-                .values
-                .same_scalar_projection(&captured.path, &coordinate.path)
-    })?;
-    Some(retain_coordinate(
-        admitted,
-        validation::RankSubjectCoordinate {
-            parameter: captured.parameter,
-            path: captured.path.clone(),
-        },
-        captured.entry_indexes.clone(),
-    ))
+    // Whole roots and scalar leaves use the same entry formation owner.
+    // No demanded descendant is needed to establish this selected root.
+    let indexes = prepared
+        .values
+        .entry_projection_indexes(coordinate.parameter, &coordinate.path)?;
+    Some(retain_coordinate(admitted, coordinate, indexes))
 }
 
 fn retain_coordinate(

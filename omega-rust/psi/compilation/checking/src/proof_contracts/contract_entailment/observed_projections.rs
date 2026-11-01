@@ -39,10 +39,17 @@ pub(super) fn project_observed_value(
     value: StructuralTerm,
     path: &[PlaceSegment],
 ) -> Option<StructuralTerm> {
-    project_observed_value_under_cases(program, reference, value, path, |value, _, variant| {
-        matches!(value.semantic_value(), StructuralTerm::Constructor { case, .. }
+    project_observed_value_under_cases(
+        program,
+        reference,
+        value,
+        path,
+        |_| None,
+        |value, _, variant| {
+            matches!(value.semantic_value(), StructuralTerm::Constructor { case, .. }
             if case.as_str() == program.symbols.name(variant))
-    })
+        },
+    )
 }
 
 /// The same typed observation operation under independently admitted case facts.
@@ -55,12 +62,44 @@ pub(super) fn project_observed_value_in_scope(
     value: StructuralTerm,
     path: &[PlaceSegment],
 ) -> Option<StructuralTerm> {
-    project_observed_value_under_cases(program, reference, value, path, |value, data, variant| {
-        matches!(
-            judge.judge_case(value.clone(), data, variant),
-            super::structural_judgment::StructuralJudgment::Proven
-        )
-    })
+    project_observed_value_under_cases(
+        program,
+        reference,
+        value,
+        path,
+        |_| None,
+        |value, data, variant| {
+            matches!(
+                judge.judge_case(value.clone(), data, variant),
+                super::structural_judgment::StructuralJudgment::Proven
+            )
+        },
+    )
+}
+
+/// Project completed invocation inputs under their exact formal substitution.
+/// The caller supplies already captured selectors, never a live storage read.
+pub(super) fn project_observed_value_with_selectors(
+    program: &dyn crate::CheckingInput,
+    judge: &super::structural_judgment::StructuralJudge<'_>,
+    reference: TypeReferenceHandle,
+    value: StructuralTerm,
+    path: &[PlaceSegment],
+    selector: impl FnMut(typed_trees::expression::ExpressionHandle) -> Option<StructuralTerm>,
+) -> Option<StructuralTerm> {
+    project_observed_value_under_cases(
+        program,
+        reference,
+        value,
+        path,
+        selector,
+        |value, data, variant| {
+            matches!(
+                judge.judge_case(value.clone(), data, variant),
+                super::structural_judgment::StructuralJudgment::Proven
+            )
+        },
+    )
 }
 
 fn project_observed_value_under_cases(
@@ -68,6 +107,7 @@ fn project_observed_value_under_cases(
     mut reference: TypeReferenceHandle,
     mut value: StructuralTerm,
     path: &[PlaceSegment],
+    mut selector: impl FnMut(typed_trees::expression::ExpressionHandle) -> Option<StructuralTerm>,
     mut case_is_proved: impl FnMut(&StructuralTerm, SymbolHandle, SymbolHandle) -> bool,
 ) -> Option<StructuralTerm> {
     for segment in path {
@@ -84,6 +124,19 @@ fn project_observed_value_under_cases(
             std::slice::from_ref(segment),
         )?;
         match segment {
+            PlaceSegment::Index { expression } => {
+                value = project_index(program, reference, value, selector(*expression)?)?;
+            }
+            PlaceSegment::FixedIndex { index } => {
+                value = project_index(
+                    program,
+                    reference,
+                    value,
+                    StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
+                        u64::try_from(*index).ok()?,
+                    )),
+                )?;
+            }
             PlaceSegment::Field { symbol }
                 if symbol.is_valid() && program.any_field_owner(*symbol).is_some() =>
             {
