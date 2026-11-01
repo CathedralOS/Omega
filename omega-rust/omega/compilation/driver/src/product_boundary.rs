@@ -897,9 +897,13 @@ fn boundary_value_layout_consumes_source_free_recipes() {
             "SymbolHandle",
             "typed_trees",
             "closed_data_definition",
+            "BoundaryOpaqueRepresentationUse",
+            "OpaqueRepresentationSelection",
+            "representation_selections",
         ],
     );
     assert!(materialization.contains("recipes: &BoundaryValueRecipes"));
+    assert!(materialization.contains("selection_ordinal: *selection_ordinal"));
     let recipes =
         include_str!("../../../../psi/foundation/language-semantics/src/boundary_values.rs");
     assert_absent(

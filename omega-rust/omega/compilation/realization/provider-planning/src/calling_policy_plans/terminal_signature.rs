@@ -43,7 +43,7 @@ impl CallingPolicySignature {
         }
         let mut recipes = layout::TerminalBoundaryRecipes::new(module, target.target_name());
         let layout_target = layout::LayoutTarget::for_profile(target)?;
-        let mut values = BoundaryValueLayout::new(layout_target, &[]);
+        let mut values = BoundaryValueLayout::new(layout_target);
         let mut parameters = Vec::with_capacity(telescope.parameters.len());
         let mut native_formals =
             Vec::<BoundaryNativeParameterGeometry>::with_capacity(telescope.parameters.len());

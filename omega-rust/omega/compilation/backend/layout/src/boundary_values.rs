@@ -4,9 +4,7 @@
 //! for a target and preserves exact occurrence coordinates. It neither chooses
 //! an opaque representation nor authorizes the resulting boundary crossing.
 
-mod opaque_representations;
 mod terminal_recipes;
-pub use opaque_representations::BoundaryOpaqueRepresentationUse;
 pub use terminal_recipes::TerminalBoundaryRecipes;
 #[cfg(test)]
 mod tests;
@@ -24,30 +22,34 @@ use target::NativeTarget;
 pub const BOUNDARY_VALUE_SHAPE_CAPACITY: usize = 256;
 pub const BOUNDARY_VALUE_FIELD_CAPACITY: usize = 256;
 
-/// Invocation-owned native graph. Recipe handles belong to the borrowed graph;
-/// equal recipes still produce distinct native roots.
-pub struct BoundaryValueLayout<'input> {
-    target: NativeTarget,
-    layout_profile: Option<target::TargetProfile>,
-    representations: &'input [BoundaryOpaqueRepresentationUse],
-    shapes: Vec<BoundaryValueShape>,
-    fields: Vec<BoundaryValueField>,
-    opaque_representations: Vec<BoundaryOpaqueRepresentationUse>,
+/// One exact opaque recipe occurrence in the emitted native shape graph.
+/// The ordinal refers to the producer's explicit selection roster, not a
+/// declaration lookup or a grant to use that representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoundaryOpaqueOccurrence {
+    pub selection_ordinal: usize,
+    pub shape_root: u16,
 }
 
-impl<'input> BoundaryValueLayout<'input> {
-    pub fn new(
-        target: impl Into<crate::LayoutTarget>,
-        representations: &'input [BoundaryOpaqueRepresentationUse],
-    ) -> Self {
+/// Invocation-owned native graph. Recipe handles belong to the borrowed graph;
+/// equal recipes still produce distinct native roots.
+pub struct BoundaryValueLayout {
+    target: NativeTarget,
+    layout_profile: Option<target::TargetProfile>,
+    shapes: Vec<BoundaryValueShape>,
+    fields: Vec<BoundaryValueField>,
+    opaque_occurrences: Vec<BoundaryOpaqueOccurrence>,
+}
+
+impl BoundaryValueLayout {
+    pub fn new(target: impl Into<crate::LayoutTarget>) -> Self {
         let (target, layout_profile) = target.into().into_parts();
         Self {
             target,
             layout_profile,
-            representations,
             shapes: Vec::new(),
             fields: Vec::new(),
-            opaque_representations: Vec::new(),
+            opaque_occurrences: Vec::new(),
         }
     }
 
@@ -63,9 +65,9 @@ impl<'input> BoundaryValueLayout<'input> {
     ) -> (
         Vec<BoundaryValueShape>,
         Vec<BoundaryValueField>,
-        Vec<BoundaryOpaqueRepresentationUse>,
+        Vec<BoundaryOpaqueOccurrence>,
     ) {
-        (self.shapes, self.fields, self.opaque_representations)
+        (self.shapes, self.fields, self.opaque_occurrences)
     }
 
     pub fn value_type(
@@ -149,18 +151,13 @@ impl<'input> BoundaryValueLayout<'input> {
                 selection_ordinal,
                 carrier,
             } => {
-                let selected = self
-                    .representations
-                    .get(*selection_ordinal)
-                    .copied()
-                    .ok_or("boundary opaque recipe has no corresponding selected representation")?;
                 let (shape, shape_root) = self.value_type(recipes, *carrier).map_err(|reason| format!("selected carrier `{carrier_name}` cannot represent boundary-opaque `{name}` by value: {reason}"))?;
-                let use_ = BoundaryOpaqueRepresentationUse {
+                let use_ = BoundaryOpaqueOccurrence {
+                    selection_ordinal: *selection_ordinal,
                     shape_root,
-                    ..selected
                 };
-                if !self.opaque_representations.contains(&use_) {
-                    self.opaque_representations.push(use_);
+                if !self.opaque_occurrences.contains(&use_) {
+                    self.opaque_occurrences.push(use_);
                 }
                 Ok((shape, shape_root))
             }
