@@ -145,9 +145,15 @@ pub fn captured_numeric_observations(
         && statement_index <= statement_count
     {
         let batch = collect_state_numeric_observations_batch(program, machine, state, demand);
-        let result = batch.get(statement_index).cloned().unwrap_or_default();
+        let result = batch
+            .get(statement_index)
+            .map(|(observations, _)| observations.clone())
+            .unwrap_or_default();
         if let Ok(mut completed) = memos.completed_numeric_observations.lock() {
-            for (index, observations) in batch.into_iter().enumerate() {
+            for (index, (observations, complete)) in batch.into_iter().enumerate() {
+                if !complete {
+                    continue;
+                }
                 completed.insert(
                     (machine.symbol, state.symbol, index, false, demand),
                     observations,
@@ -158,7 +164,7 @@ pub fn captured_numeric_observations(
     }
     // Optional memos change reuse only; one-shot inputs use the same cycle
     // fence and retain the ordinary exact-prefix selection.
-    let (observations, _complete) = collect_numeric_observations(
+    let (observations, complete) = collect_numeric_observations(
         program,
         machine,
         state,
@@ -166,7 +172,8 @@ pub fn captured_numeric_observations(
         in_transition_target,
         demand,
     );
-    if let Some(memos) = memos
+    if complete
+        && let Some(memos) = memos
         && let Ok(mut completed) = memos.completed_numeric_observations.lock()
     {
         completed.insert(site, observations.clone());
@@ -230,7 +237,7 @@ fn collect_state_numeric_observations_batch(
     machine: &Machine,
     state: &State,
     demand: NumericObservationDemand,
-) -> Vec<CapturedNumericObservations> {
+) -> Vec<(CapturedNumericObservations, bool)> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let total_sites = statements.len() + 1;
     let needs_relations = demand.integer_operations || demand.scalar_associations;
@@ -365,7 +372,7 @@ fn collect_state_numeric_observations_batch(
     }
 
     drop(_scan_guard);
-    let mut results = vec![CapturedNumericObservations::default(); total_sites];
+    let mut results = vec![(CapturedNumericObservations::default(), true); total_sites];
     if visitors.is_empty() {
         return results;
     }
@@ -380,7 +387,13 @@ fn collect_state_numeric_observations_batch(
         visitor_indices.into_iter().zip(visitors).zip(valid)
     {
         if is_valid {
-            results[statement_index] = finalize_visitor_observations(state.symbol, demand, visitor);
+            let complete = visitor.complete;
+            results[statement_index] = (
+                finalize_visitor_observations(state.symbol, demand, visitor),
+                complete,
+            );
+        } else {
+            results[statement_index] = (CapturedNumericObservations::default(), false);
         }
     }
     results
