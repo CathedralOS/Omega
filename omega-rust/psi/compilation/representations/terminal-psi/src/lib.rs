@@ -39,8 +39,10 @@ pub use native_layouts::{
 mod unoptimized_behavior;
 pub use callback_application::TerminalCallbackApplication;
 pub use calling_policies::{
-    CallingCallbackBinder, CallingDirectCallback, CallingRuntimeFormal,
-    CallingSignatureDeclaration, CallingSignatureTelescope,
+    CallingAbiDeclaration, CallingAbiParameter, CallingAbiStorage, CallingCallbackBinder,
+    CallingDirectCallback, CallingPolicyInstance, CallingPolicyRequest, CallingRuntimeFormal,
+    CallingSignatureDeclaration, CallingSignatureTelescope, CallingStaticOperand,
+    TerminalOpaqueRepresentation,
 };
 pub use unoptimized_behavior::{UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
 mod callback_declarations;

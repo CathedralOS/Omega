@@ -133,6 +133,7 @@ fn packed_record_field(
     StructuralTypeShape::Record {
         storage: terminal_psi::StructuralRecordStorage::Packed,
         fields: vec![StructuralFieldDeclaration {
+            inline_carrier: None,
             storage: None,
             id,
             identity,
@@ -241,6 +242,7 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
                 StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![StructuralFieldDeclaration {
+                        inline_carrier: None,
                         id: field,
                         identity: terminal_psi::TerminalIdentityIndex(2),
                         relevance: terminal_psi::BindingRelevance::Relevant,
@@ -931,6 +933,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
+                    inline_carrier: None,
                     storage: None,
                     id: StructuralFieldId::new(2).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(13),
@@ -953,6 +956,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
+                    inline_carrier: None,
                     storage: None,
                     id: field,
                     identity: terminal_psi::TerminalIdentityIndex(17),
@@ -1045,6 +1049,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     let mut grouped = target.clone();
     let fields = record_fields_mut(&mut grouped.graph.structural_types.make_mut()[0]).unwrap();
     fields.push(StructuralFieldDeclaration {
+        inline_carrier: None,
         storage: None,
         id: StructuralFieldId::new(3).unwrap(),
         identity: terminal_psi::TerminalIdentityIndex(18),

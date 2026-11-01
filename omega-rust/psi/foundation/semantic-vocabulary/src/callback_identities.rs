@@ -5,7 +5,9 @@
 
 macro_rules! nominal_declaration_id {
     ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+        )]
         pub struct $name(u64);
         impl $name {
             pub const fn new(value: u64) -> Option<Self> {

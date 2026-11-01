@@ -15,6 +15,7 @@ use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, Ter
 use terminal_semantics::{domain_predicate_is_closed, qualification_path_carrier};
 
 mod calling_signatures;
+mod opaque_representations;
 pub(super) use calling_signatures::validate as validate_calling_signatures;
 
 /// Every structural domain names a known carrier type.

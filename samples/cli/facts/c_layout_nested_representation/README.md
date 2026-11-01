@@ -71,6 +71,73 @@ its default-child twin and its noncopy-child control in
 Preparation took 683.172s and the three projects took 24.497s. Earlier passing
 observations remain bound to their actual b78 producer: the private property-walk
 repair changes nested representation descent, while direct child checks, scalar
-arrays, policy geometry, ABI replay and their inputs are unchanged. Call result, match join, const name, nested machine,
-other machine and selected target remain open. The full parent also retains
+arrays, policy geometry, ABI replay and their inputs are unchanged. The full parent retains
 other-host execution, complete SDK ABI records, conversions and Product parity.
+
+## Transport evidence
+
+Call-result, match-join and named-constant places pass Linux x86_64 native and
+Terminal execution with exit 0 in [pilot 41311782126](https://github.com/CathedralOS/Omega/actions/runs/41311782126).
+Their three default-child twins reject with the authored `entry_count 65 is
+outside 0..=64` diagnostic. The six exact corpus mirrors independently pass
+checking; all three positives also execute in both engines. The match case
+supplies the expected record and a first=18 decoy in opposite orders for its
+two calls: both actual arms retain the same values, but wrong-arm selection traps.
+
+Optimized source `0ca75b7285b2f2fced8ec253492d0e6e3a29d090`, CLI image
+`31721e29736b827dcb3db55b34e697de54d7789265211c4c87c3fd5bf285d5b6`, verified
+`opt_level=1`, took 1075.633s to prepare and 1.816s to authenticate. Corpus
+checking took 30.733s, corpus native/Terminal 27.348s, and sample projects
+46.812s. Canonical checking rows preserve actual raw diagnostics, timings and
+the default `macos_arm64` check target under that source stamp; native execution
+remains Linux x86_64 evidence. Raw reports and exportable source evidence are
+retained with the pilot. This batch changes no compiler or library mechanism.
+Broader parent acceptance remains open.
+
+Nested-machine, ordinary-machine and Build-selected implementation places pass
+in [pilot 41314362026](https://github.com/CathedralOS/Omega/actions/runs/41314362026).
+All three positives and independent corpus mirrors exit 0 in Linux x86_64 native
+and Terminal execution; all three sole-change default-child twins reject with
+the authored C-policy refusal. Nested invocation takes the complete record
+explicitly and owns its independent backing, with no runtime capture. Selected
+providers retain distinct 17/29 markers, so choosing the wrong provider traps
+even though both deliver the same record.
+
+Optimized source `433f783bd43e4450949f4ae7ab3d4a7b77b3e137`, CLI image
+`31721e29736b827dcb3db55b34e697de54d7789265211c4c87c3fd5bf285d5b6`, verified
+`opt_level=1`, took 733.634s to prepare and 1.302s to authenticate. Corpus
+checking took 15.233s, corpus native/Terminal execution 14.805s, and sample
+projects 25.387s. Six canonical checking records retain raw diagnostics,
+timings and their default `macos_arm64` check target under that source stamp;
+Linux x86_64 is the actual native host. The CLI bytes match the preceding batch.
+This batch changes no compiler or library mechanism; raw reports and exportable
+source evidence are retained.
+
+The complete nine-place row and its default-child twins now have focused
+observations. Historical observations above keep their original producer
+identities. Other-host execution, broader schema/case composition, complete SDK
+ABI records, conversions and Product acceptance remain parent work.
+
+## Linux ARM64 execution
+
+The complete nine-place row and all nine sole-type twins pass on native Linux
+ARM64 in [pilot 41317826843](https://github.com/CathedralOS/Omega/actions/runs/41317826843).
+The same producer observes both C-layout rows: 18 positives execute with native
+and Terminal exit 0, and all 18 twins reject their authored policy obligations.
+The source programs, four target bindings, values, backing observations and
+geometry oracles are unchanged.
+
+[Source `05bfe3d4b250f158f332757d02eb9670f3e0a7e7`](https://github.com/CathedralOS/Omega/tree/05bfe3d4b250f158f332757d02eb9670f3e0a7e7)
+produced authenticated opt-level 1 CLI
+`2ba88ac44acb292ff35f3bcebd70e7e2d39a236acf8caf04aa71acee019678f6`.
+The actual Rust host is `aarch64-unknown-linux-gnu`, the runtime target is
+`linux_arm64`, and the GitHub runner is `ubuntu-24.04-arm`. Preparation took
+984.501s, authentication 0.789s and the 36 projects 145.549s. The sample-only
+producer has no corpus runner or runner profile. Raw summary/sample JSON and an
+exportable source bundle preserve that producer identity independently of later
+documentation or queue commits. This is matching-host execution, not a cross
+compile or another host's checking record.
+
+Windows x86_64 and macOS ARM64 execution, broader schema/case composition,
+complete platform ABI records, conversions and Product acceptance remain parent
+work. Earlier Linux x86_64 observations retain their original producer identities.

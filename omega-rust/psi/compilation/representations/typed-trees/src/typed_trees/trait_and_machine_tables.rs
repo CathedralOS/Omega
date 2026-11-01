@@ -835,38 +835,34 @@ impl TypedTrees {
     }
 
     /// The machine whose state list stores `state_symbol`. A state's
-    /// retained parent names its owning machine, so the common case is one
-    /// symbol read, one machines-row scan, and one membership check. The
-    /// whole-program scan still runs when the retained parent disagrees with
-    /// storage, but only for a symbol that `may_name_stored_state`: call
-    /// targets naming a machine head, builtin, parameter or trait
-    /// requirement skip it. State spans are disjoint append-only ranges, so
-    /// at most one machine can contain a given state symbol.
+    /// retained parent names its owning machine and wins when it stores the
+    /// state. Otherwise the first machine in roster order that stores it,
+    /// other than that parent, answers, but only for a symbol that
+    /// `may_name_stored_state`: call targets naming a machine head, builtin,
+    /// parameter or trait requirement skip it. State spans are disjoint
+    /// append-only ranges, so at most one machine can contain a given state
+    /// symbol. The state-position index lists the storing machines in roster
+    /// order, so no case scans the roster.
     pub fn machine_holding_state(&self, state_symbol: SymbolHandle) -> Option<&machine::Machine> {
         if !state_symbol.is_valid() {
             return None;
         }
         let symbol = self.symbols.get(state_symbol);
         let parent = symbol.parent;
-        if let Some(machine) = self.machine(parent)
-            && self
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == state_symbol)
-        {
-            return Some(machine);
+        let parent_machine = self.machine(parent);
+        let mut other = None;
+        for (machine, _) in self.machine_states_named(state_symbol) {
+            if parent_machine.is_some_and(|candidate| std::ptr::eq(candidate, machine)) {
+                return Some(machine);
+            }
+            if other.is_none() && machine.symbol != parent {
+                other = Some(machine);
+            }
         }
         if !self.may_name_stored_state(symbol) {
             return None;
         }
-        self.machines()
-            .iter()
-            .filter(|candidate| candidate.symbol != parent)
-            .find(|machine| {
-                self.machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == state_symbol)
-            })
+        other
     }
 
     /// Whether a symbol can name a stored state row: a state symbol, or one

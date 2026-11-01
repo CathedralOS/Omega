@@ -466,6 +466,7 @@ fn sibling_extent_graph() -> CanonicalTerminalArtifact {
     let fields: Vec<_> = [5, 6]
         .into_iter()
         .map(|identity| terminal_psi::StructuralFieldDeclaration {
+            inline_carrier: None,
             id: semantic_vocabulary::StructuralFieldId::new(identity).unwrap(),
             identity: identities.intern(&format!("graph::type7::field{identity}")),
             relevance: terminal_psi::BindingRelevance::Relevant,

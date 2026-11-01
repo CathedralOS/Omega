@@ -12,8 +12,9 @@
 
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use std::collections::HashMap;
-use std::hash::{DefaultHasher, Hasher};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Mutex};
+use symbols::SymbolHandle;
 
 pub(super) struct ApplicationResolution<'program> {
     application: StructuralTerm,
@@ -69,19 +70,73 @@ struct CompletedResolution<'program> {
     value: StructuralQueryAnswer,
 }
 
-// Formatting supplies only a bucket filter; full authority-bearing equality
-// still decides reuse, including payload omitted by semantic Debug output.
+// A bucket is not an identity judgment. Recurrence and completed reuse below
+// still compare the full payload, proof context and dependency observations.
+// In particular a capture's occurrence selects its bucket without repeatedly
+// serializing the retained range proof, which full payload equality checks.
 fn fingerprint(term: &StructuralTerm) -> u64 {
-    struct Writer(DefaultHasher);
-    impl std::fmt::Write for Writer {
-        fn write_str(&mut self, text: &str) -> std::fmt::Result {
-            self.0.write(text.as_bytes());
-            Ok(())
+    fn visit(term: &StructuralTerm, hash: &mut DefaultHasher) {
+        // Observation authority remains in same_resolution_payload. Like the
+        // former semantic Debug filter, this view intentionally allows those
+        // unequal payloads to collide rather than treating a hash as evidence.
+        let term = term.semantic_value();
+        std::mem::discriminant(term).hash(hash);
+        match term {
+            StructuralTerm::Variable(name) | StructuralTerm::Opaque(name) => name.hash(hash),
+            StructuralTerm::BoundValue(symbol) => symbol.hash(hash),
+            StructuralTerm::BoundProjection { subject, path } => (subject, path).hash(hash),
+            StructuralTerm::CapturedValue {
+                expression,
+                statement,
+                callable,
+                occurrence,
+                result_type,
+                ..
+            } => (expression, statement, callable, occurrence, result_type).hash(hash),
+            StructuralTerm::Integer(value) => {
+                value.is_negative().hash(hash);
+                value.magnitude_words().hash(hash);
+            }
+            StructuralTerm::Constructor { data, case, fields } => {
+                (data, case, fields.len()).hash(hash);
+                for (field, _) in fields {
+                    field.hash(hash);
+                }
+            }
+            StructuralTerm::Application {
+                target,
+                result_type,
+                machine,
+                ..
+            } => (target, result_type, machine).hash(hash),
+            StructuralTerm::CallProjection {
+                target,
+                result_type,
+                field,
+                field_name,
+                machine,
+                ..
+            } => (target, result_type, field, field_name, machine).hash(hash),
+            StructuralTerm::Projection { path, .. } => path.hash(hash),
+            StructuralTerm::RepeatedArray { length, element } => {
+                (length, element.is_some()).hash(hash);
+            }
+            StructuralTerm::MathematicalBinary { operator, .. }
+            | StructuralTerm::ScalarBinary { operator, .. } => {
+                std::mem::discriminant(operator).hash(hash);
+            }
+            StructuralTerm::CollectionMeasure { measure, .. } => {
+                std::mem::discriminant(measure).hash(hash);
+            }
+            // Remaining type, selected-meaning and landing metadata are still
+            // required by the full comparison, not by this inexpensive filter.
+            _ => {}
         }
+        term.for_each_child(|child| visit(child, hash));
     }
-    let mut writer = Writer(DefaultHasher::new());
-    std::fmt::write(&mut writer, format_args!("{term:?}")).expect("fingerprint writer cannot fail");
-    writer.0.finish()
+    let mut hash = DefaultHasher::new();
+    visit(term, &mut hash);
+    hash.finish()
 }
 
 impl<'program> CompletedResolutions<'program> {
@@ -412,6 +467,35 @@ impl<'program> StructuralJudge<'program> {
         Some(resolving)
     }
 
+    /// Attribute a selected declaration-body read to every live field query.
+    /// Merely retaining an admitted Application description is not such a read.
+    /// This records dependency/cycle provenance, never invocation admission or
+    /// a new reason to refuse scalar unfolding.
+    pub(super) fn record_returned_field_dependency(&self, selected: SymbolHandle) {
+        fn record(context: &StructuralJudge<'_>, selected: SymbolHandle) {
+            if let Some(trace) = &context.returned_field_trace
+                && let Ok(mut trace) = trace.lock()
+            {
+                if !trace.visited_callees.contains(&selected) {
+                    trace.visited_callees.push(selected);
+                }
+                if let Some(index) = context
+                    .returned_field_owners
+                    .iter()
+                    .position(|&owner| owner == selected)
+                {
+                    trace.min_cycle_owner_index = trace.min_cycle_owner_index.min(index);
+                }
+            }
+        }
+        record(self, selected);
+        let mut ancestor = self.active_application.as_deref();
+        while let Some(frame) = ancestor {
+            record(&frame.context, selected);
+            ancestor = frame.previous.as_deref();
+        }
+    }
+
     /// Opaque leaf retention must not omit mutable dependency collection.
     pub(super) fn has_resolution_dependency_collector(&self) -> bool {
         if self.returned_field_trace.is_some() {
@@ -531,6 +615,9 @@ mod tests {
         let mut changed = judge.clone();
         changed.capture_sequence += 1;
         changed.completed_resolution(term.clone(), 0, compute);
+        let mut changed_storage = judge.clone();
+        changed_storage.storage_write_sequence += 1;
+        changed_storage.completed_resolution(term.clone(), 0, compute);
         let mut authority = term.clone();
         if let StructuralTerm::ObservedValue { observed_type, .. } = &mut authority {
             *observed_type = TypeReferenceHandle::from_arena_index(2);
@@ -538,7 +625,160 @@ mod tests {
         assert!(authority == term);
         assert_eq!(fingerprint(&authority), fingerprint(&term));
         judge.completed_resolution(authority, 0, compute);
-        assert_eq!(calls.get(), 4);
+        assert_eq!(calls.get(), 5);
+    }
+
+    #[test]
+    fn bucket_collisions_preserve_capture_proofs_and_recurrence_inputs() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let capture = |maximum| StructuralTerm::CapturedValue {
+            expression: typed_trees::expression::ExpressionHandle::from_arena_index(1),
+            statement: arena::Handle::invalid(),
+            callable: symbols::SymbolHandle::from_arena_index(2),
+            occurrence: 1,
+            result_type: TypeReferenceHandle::from_arena_index(3),
+            integer_range: Some(Arc::new(checked_trees::IntegerRangeRecipe::bounds(
+                numerics::bignum::BigInt::zero(),
+                numerics::bignum::BigInt::from_i64(maximum),
+            ))),
+        };
+        let first = capture(7);
+        let second = capture(8);
+        assert_eq!(fingerprint(&first), fingerprint(&second));
+        assert!(!first.same_resolution_payload(&second));
+        let calls = Cell::new(0);
+        let compute = |_: &StructuralJudge<'_>, value| {
+            calls.set(calls.get() + 1);
+            value
+        };
+        judge.completed_resolution(first.clone(), 0, compute);
+        judge.completed_resolution(second.clone(), 0, compute);
+        judge.completed_resolution(first.clone(), 0, compute);
+        assert_eq!(calls.get(), 2);
+        let entered = judge.resolving_application(&first, 0).unwrap();
+        assert!(entered.resolving_application(&first, 0).is_none());
+        assert!(entered.resolving_application(&second, 0).is_some());
+    }
+
+    fn static_selection_questions(
+        landed_type: numerics::literals::LandedIntegerType,
+        nested: bool,
+    ) -> [StructuralTerm; 2] {
+        let literal = typed_trees::expression::StaticMachineArgument {
+            const_literal: Some(
+                numerics::literals::IntegerLiteral::from_value(7).with_landing(
+                    numerics::literals::IntegerLanding {
+                        landed_type,
+                        domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                    },
+                ),
+            ),
+            ..Default::default()
+        };
+        let selected = if nested {
+            typed_trees::expression::StaticMachineArgument {
+                application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                    member: arena::Handle::invalid(),
+                    lifetime_arguments: Box::new([]),
+                    arguments: vec![literal].into_boxed_slice(),
+                })),
+                ..Default::default()
+            }
+        } else {
+            literal
+        };
+        [
+            StructuralTerm::Application {
+                result_type: TypeReferenceHandle::from_arena_index(1),
+                target: symbols::SymbolHandle::from_arena_index(2),
+                selections: vec![selected.clone()],
+                machine: "selected".to_owned(),
+                arguments: Vec::new(),
+            },
+            StructuralTerm::CallProjection {
+                result_type: TypeReferenceHandle::from_arena_index(1),
+                target: symbols::SymbolHandle::from_arena_index(2),
+                selections: vec![selected],
+                machine: "selected".to_owned(),
+                field: symbols::SymbolHandle::from_arena_index(3),
+                field_name: "value".to_owned(),
+                arguments: Vec::new(),
+            },
+        ]
+    }
+
+    fn selected_landing(term: &StructuralTerm) -> Option<numerics::literals::IntegerLanding> {
+        let selections = match term {
+            StructuralTerm::Application { selections, .. }
+            | StructuralTerm::CallProjection { selections, .. } => selections,
+            _ => panic!("expected selected application"),
+        };
+        let mut selected = &selections[0];
+        while let Some(application) = &selected.application {
+            selected = &application.arguments[0];
+        }
+        selected.const_literal.as_ref().unwrap().landing()
+    }
+
+    #[test]
+    fn static_selection_landings_survive_completed_query_reuse() {
+        use numerics::literals::LandedIntegerType;
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        for nested in [false, true] {
+            for (first, requested) in static_selection_questions(LandedIntegerType::U8, nested)
+                .into_iter()
+                .zip(static_selection_questions(LandedIntegerType::U64, nested))
+            {
+                assert_eq!(first, requested, "semantic literal equality is unchanged");
+                assert_eq!(fingerprint(&first), fingerprint(&requested));
+                let old_debug_bucket = |value: &StructuralTerm| {
+                    let mut hash = DefaultHasher::new();
+                    hash.write(format!("{value:?}").as_bytes());
+                    hash.finish()
+                };
+                assert_ne!(old_debug_bucket(&first), old_debug_bucket(&requested));
+                judge.completed_resolution(first, 0, |_, value| value);
+                let returned = judge.completed_resolution(requested.clone(), 0, |_, value| value);
+                assert_eq!(selected_landing(&returned), selected_landing(&requested));
+            }
+        }
+    }
+
+    #[test]
+    fn static_selection_landings_remain_distinct_recurrence_inputs() {
+        use numerics::literals::LandedIntegerType;
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        for nested in [false, true] {
+            for (first, requested) in static_selection_questions(LandedIntegerType::U8, nested)
+                .into_iter()
+                .zip(static_selection_questions(LandedIntegerType::U64, nested))
+            {
+                let entered = judge.resolving_application(&first, 0).unwrap();
+                assert!(entered.resolving_application(&requested, 0).is_some());
+                assert!(entered.resolving_application(&first, 0).is_none());
+            }
+        }
     }
 
     #[test]
@@ -815,6 +1055,46 @@ mod tests {
             4,
             "a changed recursion owner chain must recompute"
         );
+    }
+
+    #[test]
+    fn body_reads_reach_current_and_ancestor_field_observers() {
+        let program = typed_trees::TypedTrees::default();
+        let mut outer = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let owner = SymbolHandle::from_arena_index(17);
+        let new_trace = || {
+            Arc::new(Mutex::new(
+                super::super::returned_fields::ReturnedFieldTrace {
+                    min_cycle_owner_index: usize::MAX,
+                    visited_callees: Vec::new(),
+                },
+            ))
+        };
+        let outer_trace = new_trace();
+        outer.returned_field_trace = Some(Arc::clone(&outer_trace));
+        outer.returned_field_owners = Arc::new(vec![owner]);
+        let mut inner = outer
+            .resolving_application(&StructuralTerm::Variable("application".to_owned()), 0)
+            .unwrap();
+        let inner_trace = new_trace();
+        inner.returned_field_trace = Some(Arc::clone(&inner_trace));
+        inner.record_returned_field_dependency(owner);
+        inner.returned_field_trace = None;
+        let dependency = SymbolHandle::from_arena_index(19);
+        inner.record_returned_field_dependency(dependency);
+        inner.record_returned_field_dependency(dependency);
+        let current = inner_trace.lock().unwrap();
+        assert_eq!(current.visited_callees, vec![owner]);
+        assert_eq!(current.min_cycle_owner_index, 0);
+        let ancestor = outer_trace.lock().unwrap();
+        assert_eq!(ancestor.visited_callees, vec![owner, dependency]);
+        assert_eq!(ancestor.min_cycle_owner_index, 0);
     }
 
     #[test]

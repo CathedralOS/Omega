@@ -6,17 +6,77 @@
 
 use crate::TerminalIdentityIndex;
 use semantic_vocabulary::{
-    BoundaryMachineId, CallbackRequirementId, NativeParameterId, StaticMachineBinderId,
+    BoundaryMachineId, CallbackRequirementId, CallingOperandKind, CallingSignatureId,
+    NativeParameterId, StaticMachineBinderId, StructuralTypeId,
 };
+
+/// One complete declaration ABI, independently of any selected Handler.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingAbiDeclaration {
+    pub id: CallingSignatureId,
+    pub requirement_identity: TerminalIdentityIndex,
+    pub declaring_application: TerminalIdentityIndex,
+    pub operands: Vec<CallingStaticOperand>,
+    pub formals: Vec<semantic_vocabulary::CallingGenericFormal>,
+    pub default_eligible: bool,
+    pub storage: Result<CallingAbiStorage, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingStaticOperand {
+    pub ordinal: u32,
+    pub kind: CallingOperandKind,
+    pub identity: TerminalIdentityIndex,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingAbiStorage {
+    pub parameters: Vec<CallingAbiParameter>,
+    pub result: Option<StructuralTypeId>,
+    pub telescope: CallingSignatureTelescope,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingAbiParameter {
+    pub structural_type: StructuralTypeId,
+    pub access: crate::StructuralAccess,
+}
+
+/// A checked target-independent selected carrier. Native geometry still
+/// follows that carrier's complete target-layout alternative roster.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalOpaqueRepresentation {
+    pub opaque: StructuralTypeId,
+    pub carrier: StructuralTypeId,
+    /// Producer-known portable storage roles, distinct from nominal data names.
+    pub opaque_storage_identity: TerminalIdentityIndex,
+    pub carrier_storage_identity: TerminalIdentityIndex,
+    pub application: language_semantics::opaque_representations::SelectedOpaqueApplication,
+}
+
+/// Ordered explicit policy requests retain all checked-input purposes.
+/// Refusals stay dormant data until this request is consumed; publication does
+/// not turn a missing declaration or policy into an empty executable request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingPolicyRequest {
+    pub declaration: Result<TerminalIdentityIndex, String>,
+    pub display_name: String,
+    pub instances: Result<Vec<CallingPolicyInstance>, Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingPolicyInstance {
+    pub declaring_application: TerminalIdentityIndex,
+    pub policy: Result<crate::TargetMachineCallable, String>,
+    pub signatures: Result<Vec<CallingSignatureId>, String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallingSignatureDeclaration {
     pub boundary: BoundaryMachineId,
-    pub requirement_identity: TerminalIdentityIndex,
-    /// Unsupported source projections remain deferred until this exact
-    /// declaration is requested. Inventory publication cannot reject an unused
-    /// declaration merely because its native calling surface is unsupported.
-    pub telescope: Result<CallingSignatureTelescope, String>,
+    /// Invocation contracts remain on the boundary. This association names
+    /// only its declaration ABI, or its exact deferred projection refusal.
+    pub application: Result<CallingSignatureId, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

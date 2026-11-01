@@ -117,7 +117,7 @@ pub struct PreparedServiceCatalog {
     requirements: Arena<PreparedServiceRequirement>,
     arguments: Arena<TypeReferenceHandle>,
     sealed: Arena<SealedDeclaration>,
-    signatures: super::signatures::PreparedBoundarySignatures,
+    signatures: Arc<super::signatures::PreparedBoundarySignatures>,
 }
 
 /// Authenticated query entrance for one unchanged source owner and purpose.
@@ -164,6 +164,29 @@ impl PreparedServiceCatalog {
     /// Complete source formation once, preserving source order and deferred
     /// absence/refusals. The caller must finish mutable preparation first.
     pub fn prepare(context: ProviderPlanningContext<'_>) -> Self {
+        let signatures = Arc::new(super::signatures::PreparedBoundarySignatures::prepare(
+            context.typed,
+        ));
+        Self::assemble(context, signatures)
+    }
+
+    /// Reuse the census formed while checking this exact immutable input.
+    /// The address-bound service witness is still formed here, after the
+    /// frozen owner has reached its final Product allocation.
+    pub fn prepare_frozen(
+        program: &crate::FrozenTypedTrees,
+        scope: source::DependencyScope,
+    ) -> Self {
+        Self::assemble(
+            ProviderPlanningContext::new(program, scope),
+            Arc::clone(program.boundary_signatures()),
+        )
+    }
+
+    fn assemble(
+        context: ProviderPlanningContext<'_>,
+        signatures: Arc<super::signatures::PreparedBoundarySignatures>,
+    ) -> Self {
         let program = context.typed;
         let mut catalog = Self {
             owner_identity: program.identity.get(),
@@ -173,7 +196,7 @@ impl PreparedServiceCatalog {
             requirements: Arena::new(),
             arguments: Arena::new(),
             sealed: Arena::new(),
-            signatures: super::signatures::PreparedBoundarySignatures::prepare(context),
+            signatures,
         };
 
         // Open generic declarations are needed even without executable uses.

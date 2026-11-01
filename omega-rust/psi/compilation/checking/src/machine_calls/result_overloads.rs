@@ -251,22 +251,28 @@ fn record_expression_owner(
 pub fn resolve_named_result_overloads(
     program: &mut TypedTrees,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
+    let guard = phase_profile::guard("05.overloads.1_static_type_facts");
     let boolean_equalities = crate::static_type_boolean_equalities(program);
     let case_memberships = crate::case_membership_type_facts(program);
     program.prepare_static_type_contexts(&boolean_equalities, case_memberships.clone());
     program.elide_unreachable_case_arms();
+    drop(guard);
     // Full-predicate implications apply under the successful case test to
     // both expression arms and transition targets. Publish them only after
     // independent prefix queries. Do not elide again: a refuted body can
     // still have an effectful reached guard before its final rejecting test.
+    let guard = phase_profile::guard("05.overloads.2_predicate_case_contexts");
     let conditional = {
         let context = crate::CheckingContext::new(program);
         crate::proof_contracts::contract_entailment::predicate_case_type_contexts(&context)
     };
+    drop(guard);
+    let guard = phase_profile::guard("05.overloads.3_publish_case_contexts");
     program.prepare_static_type_contexts(
         &boolean_equalities,
         case_memberships.into_iter().chain(conditional).collect(),
     );
+    drop(guard);
     // Result selection needs each arm's independently proved type equation,
     // and dispatch needs the same admitted subject's possible cases. Compute
     // the whole batch against the preexisting contexts, then publish it once;
@@ -274,11 +280,16 @@ pub fn resolve_named_result_overloads(
     // Prefix observations share program-wide effect and callable indexes for
     // this immutable input epoch. Drop the context before publishing new facts;
     // those facts must not be read by a query that is establishing them.
+    let guard = phase_profile::guard("05.overloads.4_predicate_type_contexts");
     let predicate_contexts = {
         let context = crate::CheckingContext::new(program);
         crate::proof_contracts::contract_entailment::predicate_type_contexts(&context)
     };
+    drop(guard);
+    let guard = phase_profile::guard("05.overloads.5_publish_type_contexts");
     program.retain_proven_type_contexts(predicate_contexts);
+    drop(guard);
+    let guard = phase_profile::guard("05.overloads.6_expected_calls_and_owners");
     let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
         collect_expected_expression_calls(program)
             .into_iter()
@@ -286,7 +297,9 @@ pub fn resolve_named_result_overloads(
     let expression_owners = expression_owners(program);
     let machine_overloads = MachineOverloadIndex::new(program);
     let mut diagnostics = Vec::new();
+    drop(guard);
 
+    let guard = phase_profile::guard("05.overloads.7_expression_calls");
     let expression_updates = expression_table(program)
         .expression_entries()
         .filter_map(|(handle, expression)| {
@@ -309,7 +322,9 @@ pub fn resolve_named_result_overloads(
             .map(|selected| (handle, selected))
         })
         .collect::<Vec<_>>();
+    drop(guard);
 
+    let guard = phase_profile::guard("05.overloads.8_statement_calls");
     let mut statement_updates = Vec::new();
     let mut operator_statement_updates = Vec::new();
     for machine in program.machines() {
@@ -382,11 +397,15 @@ pub fn resolve_named_result_overloads(
         }
     }
 
+    drop(guard);
+    let guard = phase_profile::guard("05.overloads.9_transition_calls");
     let transition_updates = selected_transition_call_symbols(program, &mut diagnostics);
+    drop(guard);
 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
+    let _apply_guard = phase_profile::guard("05.overloads.10_apply_updates");
     let mut changed_owners = Vec::new();
     for (target, selected, owner) in transition_updates {
         let TransitionTargetNode::Named { path, .. } =

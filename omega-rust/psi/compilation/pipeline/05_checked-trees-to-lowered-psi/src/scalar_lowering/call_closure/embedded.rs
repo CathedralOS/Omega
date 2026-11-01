@@ -9,9 +9,9 @@ pub(crate) use discovery::checked_scalar_call_closure_with_structural_roots;
 
 pub(crate) struct EmbeddedScalarCalls<'catalogs> {
     terminal_machine: MachineId,
-    signatures: Vec<crate::unit::attached_unit::signatures::MachineSignature>,
-    structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
-    domain_ids: Vec<crate::terminal_identities::StructuralDomainBinding>,
+    signatures: &'catalogs [crate::unit::attached_unit::signatures::MachineSignature],
+    structural_types: &'catalogs [terminal_psi::StructuralTypeDeclaration],
+    domain_ids: &'catalogs [crate::terminal_identities::StructuralDomainBinding],
     domain_declarations: &'catalogs [terminal_psi::StructuralDomainDeclaration],
     scalar_qualifications: &'catalogs terminal_psi::ScalarQualificationCatalog,
     claim_bindings: Vec<(
@@ -27,7 +27,7 @@ pub(crate) struct EmbeddedScalarCalls<'catalogs> {
     /// The enclosing attached Unit closure's lowered boundary roster, which
     /// nested boundary applications in composed operands resolve against.
     /// A standalone helper catalog has no such closure and keeps it empty.
-    boundaries: Vec<crate::unit::attached_unit::BoundaryParameters>,
+    boundaries: &'catalogs [crate::unit::attached_unit::BoundaryParameters],
 }
 
 impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
@@ -40,9 +40,9 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
     ) -> Self {
         Self {
             terminal_machine,
-            signatures: Vec::new(),
-            structural_types: Vec::new(),
-            domain_ids: Vec::new(),
+            signatures: &[],
+            structural_types: &[],
+            domain_ids: &[],
             domain_declarations: &[],
             scalar_qualifications,
             claim_bindings: Vec::new(),
@@ -52,24 +52,24 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
             machine_ids,
             requirement_counts,
             next_call_obligation,
-            boundaries: Vec::new(),
+            boundaries: &[],
         }
     }
 
     /// Attach the enclosing closure's lowered boundary roster.
     pub(crate) fn with_callable_namespace(
         mut self,
-        boundaries: &[crate::unit::attached_unit::BoundaryParameters],
-        domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
+        boundaries: &'catalogs [crate::unit::attached_unit::BoundaryParameters],
+        domain_ids: &'catalogs [crate::terminal_identities::StructuralDomainBinding],
         domain_declarations: &'catalogs [terminal_psi::StructuralDomainDeclaration],
         cleanup_receivers: Vec<(symbols::SymbolHandle, semantic_vocabulary::PlaceId)>,
-        signatures: &[crate::unit::attached_unit::signatures::MachineSignature],
-        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+        signatures: &'catalogs [crate::unit::attached_unit::signatures::MachineSignature],
+        structural_types: &'catalogs [terminal_psi::StructuralTypeDeclaration],
     ) -> Self {
-        self.signatures = signatures.to_vec();
-        self.structural_types = structural_types.to_vec();
-        self.boundaries = boundaries.to_vec();
-        self.domain_ids = domain_ids.to_vec();
+        self.signatures = signatures;
+        self.structural_types = structural_types;
+        self.boundaries = boundaries;
+        self.domain_ids = domain_ids;
         self.domain_declarations = domain_declarations;
         self.cleanup_receivers = cleanup_receivers;
         self
@@ -84,7 +84,7 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
             terminal_machine: self.terminal_machine,
-            domain_ids: &self.domain_ids,
+            domain_ids: self.domain_ids,
             domain_declarations: self.domain_declarations,
             scalar_qualifications: self.scalar_qualifications,
             claims: crate::emission::claim_bindings::ClaimBindings::Fixed(PublishedClaims {
@@ -94,10 +94,10 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
             }),
             cleanup_receivers: &self.cleanup_receivers,
             machine_ids: &self.machine_ids,
-            signatures: &self.signatures,
-            structural_types: &self.structural_types,
+            signatures: self.signatures,
+            structural_types: self.structural_types,
             requirement_counts: &self.requirement_counts,
-            boundaries: &self.boundaries,
+            boundaries: self.boundaries,
             next_obligation_identity: self.next_call_obligation,
             obligation_limit: u64::MAX,
         }

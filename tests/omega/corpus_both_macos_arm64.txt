@@ -344,6 +344,15 @@ pass/facts/generic_terminated_array_through_other_machine_exit built 1516ms exit
 pass/facts/generic_terminated_array_through_other_state_exit built 1516ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
 pass/facts/generic_terminated_array_through_parameter_exit built 1515ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
 pass/facts/generic_terminated_array_through_target_body_exit built 1545ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
+pass/facts/guarded_call_entry_through_call_result_exit built 3533ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
+pass/facts/guarded_call_entry_through_const_name_exit built 2916ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
+pass/facts/guarded_call_entry_through_field_exit built 2672ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
+pass/facts/guarded_call_entry_through_local_exit built 2571ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
+pass/facts/guarded_call_entry_through_match_join_exit built 2982ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
+pass/facts/guarded_call_entry_through_other_machine_exit built 2454ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
+pass/facts/guarded_call_entry_through_other_state_exit built 2710ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
+pass/facts/guarded_call_entry_through_parameter_exit built 2696ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
+pass/facts/guarded_call_entry_through_target_body_exit built 2335ms exit:0 interpreter-exit:0 interpreter:agrees @dc2fba448f27
 pass/facts/ieee_guard_i32_from_f64_call_result built 2281ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_const_name built 2284ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_field built 1997ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
@@ -1042,6 +1051,17 @@ pass/facts/target_family_callback_guarantee/repeated_application built 2631ms ex
 pass/facts/target_family_callback_guarantee/sibling_helper built 2656ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
 pass/facts/target_family_callback_guarantee/target_body built 3182ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @45fb2a705c96
 pass/facts/target_family_callback_guarantee/target_values built 3221ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @45fb2a705c96
+pass/facts/target_family_contract_operand/call_result built 3034ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/callback_capability built 2848ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/const_name built 2849ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/field built 3044ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/local built 2845ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/match_join built 2861ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/other_machine built 2846ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/other_state built 2778ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/parameter built 2914ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/shadowed_scope built 3014ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
+pass/facts/target_family_contract_operand/target_body built 2855ms exit:0 interpreter-exit:0 interpreter:agrees @b0315c8f656c
 pass/facts/target_family_open_const/call_result built 1473ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
 pass/facts/target_family_open_const/const_name built 1563ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
 pass/facts/target_family_open_const/field built 1217ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e

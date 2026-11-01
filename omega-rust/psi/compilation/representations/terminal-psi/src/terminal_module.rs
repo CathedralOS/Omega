@@ -151,6 +151,9 @@ pub struct TerminalModule {
     /// Shapes and contracts remain on those declarations, not in a second type
     /// graph. These rows select no calling policy or provider implementation.
     pub calling_signatures: Vec<crate::CallingSignatureDeclaration>,
+    pub calling_abi_signatures: Vec<crate::CallingAbiDeclaration>,
+    pub calling_policy_requests: Vec<crate::CallingPolicyRequest>,
+    pub opaque_representations: Vec<crate::TerminalOpaqueRepresentation>,
     /// Source-produced potential semantic operations before optional rewrites.
     /// A missing body row supplies no evidence of absence for product policy.
     pub unoptimized_behavior: Vec<crate::UnoptimizedMachineBehavior>,
@@ -243,6 +246,16 @@ impl TerminalModule {
 
     pub fn machine(&self, id: MachineId) -> Option<&TerminalMachine> {
         self.machines.iter().find(|machine| machine.id == id)
+    }
+
+    pub fn calling_abi_signature(
+        &self,
+        id: semantic_vocabulary::CallingSignatureId,
+    ) -> Option<&crate::CallingAbiDeclaration> {
+        self.calling_abi_signatures
+            .binary_search_by_key(&id, |row| row.id)
+            .ok()
+            .map(|position| &self.calling_abi_signatures[position])
     }
 
     pub fn unoptimized_machine_behavior(
@@ -340,6 +353,9 @@ impl TerminalModule {
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
             calling_signatures: Vec::new(),
+            calling_abi_signatures: Vec::new(),
+            calling_policy_requests: Vec::new(),
+            opaque_representations: Vec::new(),
             unoptimized_behavior: Vec::new(),
             external_providers: Vec::new(),
             provider_candidates: Vec::new(),

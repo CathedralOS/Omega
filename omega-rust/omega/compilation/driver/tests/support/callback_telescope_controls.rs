@@ -12,23 +12,25 @@ fn compare_signature(
     application: &calling_conventions::BoundaryCallingApplication,
     target: target::TargetProfile,
 ) -> Result<provider_planning::calling_policy_plans::CallingPolicySignature, String> {
-    let mut declarations = module.calling_signatures.iter().filter(|declaration| {
+    let mut declarations = module.calling_abi_signatures.iter().filter(|declaration| {
         module.identities.text(declaration.requirement_identity)
             == Some(application.requirement_identity.as_str())
     });
     let (Some(declaration), None) = (declarations.next(), declarations.next()) else {
         return Err("callback signature has no unique canonical declaration association".into());
     };
-    let signature = provider_planning::calling_policy_plans::CallingPolicySignature::from_terminal(
-        module,
-        declaration.boundary,
-        target,
-        &|application| {
-            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
-                application,
-            ))
-        },
-    )?;
+    let signature =
+        provider_planning::calling_policy_plans::CanonicalCallingSignature::materialize(
+            module,
+            declaration.id,
+            target,
+            &|application| {
+                Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                    application,
+                ))
+            },
+        )?
+        .policy;
     if signature.geometry != application.signature
         || signature.callbacks != application.callback_context
     {
@@ -90,19 +92,50 @@ pub(super) fn inspect(
         if settle(calling)? != baseline {
             return Err("decoded Terminal callback placement changed".into());
         }
+        let mut wrong_ordinal = artifact.semantic_module().clone();
+        let declaration = wrong_ordinal
+            .calling_abi_signatures
+            .iter_mut()
+            .find(|signature| {
+                wrong_ordinal
+                    .identities
+                    .text(signature.requirement_identity)
+                    == Some(calling[registrar].requirement_identity.as_str())
+            })
+            .ok_or("callback ordinal control lost its declaration")?;
+        declaration
+            .storage
+            .as_mut()
+            .map_err(|reason| reason.to_owned())?
+            .telescope
+            .binders
+            .first_mut()
+            .ok_or("callback ordinal control lost its binder")?
+            .static_machine_ordinal = 99;
+        let encoded =
+            terminal_codec::encode_module(&wrong_ordinal).map_err(|error| error.to_string())?;
+        let error = terminal_codec::decode_module(&encoded)
+            .err()
+            .ok_or("callback ordinal control accepted a substituted generic position")?;
+        if !error.to_string().contains("wrong declared machine ordinal") {
+            return Err(format!(
+                "callback ordinal control reached an unrelated refusal: {error}"
+            ));
+        }
         let mut declaration = artifact.semantic_module().clone();
         let signature = declaration
-            .calling_signatures
+            .calling_abi_signatures
             .iter_mut()
             .find(|signature| {
                 declaration.identities.text(signature.requirement_identity)
                     == Some(calling[registrar].requirement_identity.as_str())
             })
             .ok_or("callback telescope control lost its exact declaration")?;
-        let telescope = signature
-            .telescope
+        let telescope = &mut signature
+            .storage
             .as_mut()
-            .map_err(|reason| reason.to_owned())?;
+            .map_err(|reason| reason.to_owned())?
+            .telescope;
         let semantic = telescope
             .parameters
             .first()

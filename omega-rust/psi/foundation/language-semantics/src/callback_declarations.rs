@@ -73,20 +73,20 @@ pub struct CallbackDeclaration<'usage> {
 /// boundary projections retain a refusal until an ABI application is requested.
 pub const BOUNDARY_NATIVE_PARAMETER_CAPACITY: usize = 32;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct BoundaryTelescope {
     pub parameters: Vec<BoundaryRuntimeFormal>,
     pub binders: Vec<BoundaryCallbackBinderDeclaration>,
     pub direct_callbacks: Vec<BoundaryDirectCallbackDeclaration>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct BoundaryRuntimeFormal {
     pub identity: semantic_vocabulary::NativeParameterId,
     pub native_ordinal: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct BoundaryCallbackBinderDeclaration {
     pub binder: semantic_vocabulary::StaticMachineBinderId,
     pub requirement: semantic_vocabulary::CallbackRequirementId,
@@ -97,7 +97,7 @@ pub struct BoundaryCallbackBinderDeclaration {
     pub invokes_synchronously: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct BoundaryDirectCallbackDeclaration {
     pub name: String,
     pub identity: semantic_vocabulary::NativeParameterId,

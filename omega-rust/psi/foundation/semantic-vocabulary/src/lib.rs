@@ -70,12 +70,13 @@ pub use content::{
 pub use fnv1a::Fnv1a;
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
-    ClaimId, ContentDomainId, ContractId, CycleComponentId, DomainSemanticId, EdgeId,
-    EvidenceIdentity, EvidenceTermId, ExternalCompletionKind, FuelScheduleIdentity, InvocationSite,
-    MachineId, ObligationId, OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId,
-    PropositionId, PsiSemanticId, RankingRelationId, RecursiveComponentId, ScalarApplicationId,
-    ScalarDomainId, ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId,
-    StructuralFieldId, StructuralTypeId, SuspensionCrossingId, ValueId,
+    CallingGenericFormal, CallingOperandKind, CallingSignatureId, CallingStaticOperand, ClaimId,
+    ContentDomainId, ContractId, CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity,
+    EvidenceTermId, ExternalCompletionKind, FuelScheduleIdentity, InvocationSite, MachineId,
+    ObligationId, OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId,
+    PsiSemanticId, RankingRelationId, RecursiveComponentId, ScalarApplicationId, ScalarDomainId,
+    ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
+    StructuralTypeId, SuspensionCrossingId, ValueId,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

@@ -406,3 +406,359 @@ fn an_implication_domain_derives_contravariantly() {
         "the crossing stays inside the function body",
     );
 }
+
+#[test]
+fn wide_connective_denotation_uses_default_stack_and_preserves_order() {
+    std::thread::spawn(|| {
+        use super::super::Denotation;
+        use crate::mathematical_core::{Context, infer_sort};
+        for disjunctive in [false, true] {
+            let mut parts = vec![Proposition::Truth; 16_384];
+            parts.push(Proposition::Falsehood);
+            let proposition = if disjunctive {
+                Proposition::Disjunction(parts)
+            } else {
+                Proposition::Conjunction(parts)
+            };
+            PropositionContext::default().validate(&proposition)
+                .expect("every ordered member is a valid proposition");
+            let parts = match &proposition {
+                Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => parts,
+                _ => unreachable!(),
+            };
+            eprintln!("ordered proposition members admitted; begin disjunctive={disjunctive} denotation");
+            let mut denotation = Denotation::new();
+            let term = if disjunctive {
+                denotation.disjunction(parts)
+            } else {
+                denotation.conjunction(parts)
+            }.expect("every ordered member denotes");
+            eprintln!("denotation complete; begin independent kernel formation");
+            let Term::Sort(expected_sort) = denotation.arena.get(denotation.type_zero) else {
+                panic!("the denotation owns Type 0");
+            };
+            let actual = infer_sort(&mut denotation.arena, &Context::empty(), term, &mut Budget::new(2_000_000))
+                .expect("the complete connective denotes a type under its exact binders");
+            assert!(crate::mathematical_core::term::sorts_equal(&actual, &expected_sort));
+            let mut tail = term;
+            for _ in 0..16_384 {
+                let Term::Sigma { domain, codomain } = denotation.arena.get(tail) else {
+                    panic!("one connective member remains before the final statement");
+                };
+                let first = if disjunctive {
+                    assert!(matches!(denotation.arena.get(domain), Term::Two));
+                    let Term::CaseTwo { zero_branch, one_branch, scrutinee, .. } = denotation.arena.get(codomain) else {
+                        panic!("the tagged sum retains its exact branch family");
+                    };
+                    assert!(matches!(denotation.arena.get(scrutinee), Term::Variable(0)));
+                    tail = one_branch;
+                    zero_branch
+                } else {
+                    tail = codomain;
+                    domain
+                };
+                let Term::Id { left, right, .. } = denotation.arena.get(first) else {
+                    panic!("every preceding member is Truth");
+                };
+                assert!(denotation.arena.structurally_equal(left, right));
+            }
+            let Term::Id { left, right, .. } = denotation.arena.get(tail) else {
+                panic!("the final member is Falsehood");
+            };
+            assert!(!denotation.arena.structurally_equal(left, right));
+            let before = denotation.arena.len();
+            let declarations = denotation.declarations.len();
+            let fresh = Proposition::Atom(PropositionId::new(9_991).expect("fresh atom"));
+            let invalid = if disjunctive {
+                denotation.disjunction(&[fresh])
+            } else {
+                denotation.conjunction(&[fresh])
+            };
+            let expected = if disjunctive { "disjunction arity" } else { "conjunction arity" };
+            assert!(matches!(invalid, Err(BoundedDenotationError::Certificate(ProofError::RuleConclusionMismatch(actual))) if actual == expected));
+            assert_eq!(denotation.arena.len(), before, "invalid arity refuses before allocating a member");
+            assert_eq!(denotation.declarations.len(), declarations);
+        }
+    }).join().expect("connective denotation and kernel formation use the default stack");
+}
+
+#[test]
+fn connective_denotation_preserves_member_failure_and_declaration_order() {
+    use super::super::Denotation;
+    for disjunctive in [false, true] {
+        let first = Proposition::Atom(PropositionId::new(10_001).expect("first atom"));
+        let last = Proposition::Atom(PropositionId::new(10_002).expect("later atom"));
+        let malformed = Proposition::Conjunction(vec![Proposition::Truth]);
+        let members = [first.clone(), malformed, last.clone()];
+        let mut denotation = Denotation::new();
+        let observed = if disjunctive {
+            denotation.disjunction(&members)
+        } else {
+            denotation.conjunction(&members)
+        };
+        assert!(matches!(
+            observed,
+            Err(BoundedDenotationError::Certificate(
+                ProofError::RuleConclusionMismatch("conjunction arity")
+            ))
+        ));
+        assert!(denotation.denotations.contains_key(&first));
+        assert!(!denotation.denotations.contains_key(&last));
+        assert_eq!(
+            denotation.declarations.len(),
+            1,
+            "the earlier declaration remains and the later declaration is never admitted"
+        );
+    }
+}
+
+#[test]
+fn deep_proof_elaboration_visits_every_premise_on_default_stack() {
+    std::thread::spawn(|| {
+        for valid in [true, false] {
+            let mut proof = ProofNode {
+                conclusion: if valid {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                },
+                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+            };
+            for _ in 0..4096 {
+                proof = ProofNode {
+                    conclusion: Proposition::Truth,
+                    rule: ProofRule::PredicateDenotation {
+                        premise: Box::new(proof),
+                    },
+                };
+            }
+            let context = PropositionContext::default();
+            context
+                .validate(&proof.conclusion)
+                .expect("outer goal is a valid statement");
+            let parameters = BTreeSet::new();
+            let mut elaboration =
+                Elaboration::new(&context, &proof.conclusion, &[], &[], &parameters)
+                    .expect("outer statement denotes independently");
+            eprintln!("4097-node proof prepared; begin valid={valid} elaboration");
+            let observed = elaboration.node(&proof);
+            if valid {
+                let term = observed.expect("every primitive premise is admitted");
+                let mut denoted = elaboration.finish(term);
+                verify_mathematical_certificate(
+                    &mut denoted.arena,
+                    &denoted.certificate,
+                    &mut budget(),
+                )
+                .expect("the independently reconstructed complete judgment re-decides");
+            } else {
+                assert!(matches!(
+                    observed,
+                    Err(BoundedDenotationError::Certificate(
+                        ProofError::PrimitiveJudgment(_)
+                    ))
+                ));
+            }
+            eprintln!("elaboration result checked; ordinary fixture teardown follows");
+        }
+    })
+    .join()
+    .expect("elaboration and its owned fixture stay on the default stack");
+}
+
+#[test]
+fn elaboration_restores_binders_after_scope_errors_and_siblings() {
+    let truth = Proposition::Truth;
+    let arrow = Proposition::Implication {
+        premise: Box::new(truth.clone()),
+        conclusion: Box::new(truth.clone()),
+    };
+    let goal = Proposition::Conjunction(vec![arrow.clone(), truth.clone()]);
+    let assumptions = [truth.clone(), truth.clone()];
+    let context = PropositionContext::default();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+    let invalid = ProofNode {
+        conclusion: arrow.clone(),
+        rule: ProofRule::ImplicationIntroduction {
+            body: Box::new(assumption_proof(truth.clone(), 3)),
+        },
+    };
+    assert!(matches!(
+        elaboration.node(&invalid),
+        Err(BoundedDenotationError::Certificate(
+            ProofError::UnknownAssumption(3)
+        ))
+    ));
+    let proof = ProofNode {
+        conclusion: goal,
+        rule: ProofRule::ConjunctionIntroduction(vec![
+            ProofNode {
+                conclusion: arrow,
+                rule: ProofRule::ImplicationIntroduction {
+                    body: Box::new(assumption_proof(truth.clone(), 2)),
+                },
+            },
+            assumption_proof(truth, 1),
+        ]),
+    };
+    let term = elaboration
+        .node(&proof)
+        .expect("later proof keeps the initial roster after failure");
+    let mut denoted = elaboration.finish(term);
+    assert_eq!(
+        denoted
+            .assumptions
+            .iter()
+            .map(|premise| premise.index)
+            .collect::<Vec<_>>(),
+        [1]
+    );
+    let Term::Pair { first, second } = denoted.arena.get(term) else {
+        panic!("conjunction retains both pieces")
+    };
+    assert!(
+        matches!(denoted.arena.get(second), Term::Variable(0)),
+        "ambient premise 1 stays the innermost original binding"
+    );
+    let Term::Lambda { body, .. } = denoted.arena.get(first) else {
+        panic!("implication evidence is a lambda")
+    };
+    assert!(
+        matches!(denoted.arena.get(body), Term::Variable(0)),
+        "the body cites only its discharged hypothesis"
+    );
+    verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
+        .unwrap();
+}
+
+#[test]
+fn elaboration_tracks_ambient_evidence_through_nested_case_binders() {
+    let truth = Proposition::Truth;
+    let disjunction = Proposition::Disjunction(vec![truth.clone(), truth.clone(), truth.clone()]);
+    let goal = Proposition::Conjunction(vec![truth.clone(), truth.clone()]);
+    let assumptions = [truth.clone(), disjunction.clone()];
+    let context = PropositionContext::default();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+    let make = |middle| ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::ConjunctionIntroduction(vec![
+            ProofNode {
+                conclusion: truth.clone(),
+                rule: ProofRule::DisjunctionElimination {
+                    disjunction: Box::new(assumption_proof(disjunction.clone(), 1)),
+                    branches: vec![
+                        assumption_proof(truth.clone(), 0),
+                        assumption_proof(truth.clone(), middle),
+                        assumption_proof(truth.clone(), 0),
+                    ],
+                },
+            },
+            assumption_proof(truth.clone(), 0),
+        ]),
+    };
+    // A tagged-sum intermediate binder is not a fourth cited premise.
+    assert!(matches!(
+        elaboration.node(&make(3)),
+        Err(BoundedDenotationError::Certificate(
+            ProofError::UnknownAssumption(3)
+        ))
+    ));
+    let proof = make(0);
+    let term = elaboration
+        .node(&proof)
+        .expect("all branches cite the exact ambient premise");
+    let mut denoted = elaboration.finish(term);
+    assert_eq!(
+        denoted
+            .assumptions
+            .iter()
+            .map(|premise| premise.index)
+            .collect::<Vec<_>>(),
+        [1, 0]
+    );
+    let Term::Pair { first, second } = denoted.arena.get(term) else {
+        panic!("conjunction keeps its later sibling")
+    };
+    assert!(
+        matches!(denoted.arena.get(second), Term::Variable(1)),
+        "case scopes end before the ambient sibling"
+    );
+    let branches = |term| {
+        let Term::Apply { function, .. } = denoted.arena.get(term) else {
+            panic!("case evidence applies its payload")
+        };
+        let Term::CaseTwo {
+            zero_branch,
+            one_branch,
+            ..
+        } = denoted.arena.get(function)
+        else {
+            panic!("the tag selects the admitted case branches")
+        };
+        (zero_branch, one_branch)
+    };
+    let (zero, one) = branches(first);
+    let Term::Lambda { body, .. } = denoted.arena.get(zero) else {
+        panic!("first branch discharges one hypothesis")
+    };
+    assert!(matches!(denoted.arena.get(body), Term::Variable(2)));
+    let Term::Lambda { body, .. } = denoted.arena.get(one) else {
+        panic!("remaining cases bind the tagged remainder")
+    };
+    let (zero, one) = branches(body);
+    for branch in [zero, one] {
+        let Term::Lambda { body, .. } = denoted.arena.get(branch) else {
+            panic!("each final branch discharges its own hypothesis")
+        };
+        assert!(
+            matches!(denoted.arena.get(body), Term::Variable(3)),
+            "intermediate binders shift the same ambient evidence without becoming premises"
+        );
+    }
+    verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
+        .unwrap();
+}
+
+#[test]
+fn repeated_disjunction_tags_preserve_the_exact_selected_member() {
+    let members = (0..64)
+        .map(|index| {
+            Proposition::Atom(PropositionId::new(20_001 + index).expect("distinct member"))
+        })
+        .collect::<Vec<_>>();
+    let goal = Proposition::Disjunction(members.clone());
+    for index in [31, 63] {
+        let context = PropositionContext::default();
+        let parameters = BTreeSet::new();
+        let assumptions = [members[index].clone()];
+        let mut elaboration =
+            Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+        let make = |index| ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::DisjunctionIntroduction {
+                disjunct: Box::new(assumption_proof(assumptions[0].clone(), 0)),
+                index,
+            },
+        };
+        assert!(matches!(
+            elaboration.node(&make((index + 1) % members.len())),
+            Err(BoundedDenotationError::Certificate(
+                ProofError::DisjunctConclusionMismatch
+            ))
+        ));
+        let proof = make(index);
+        let term = elaboration
+            .node(&proof)
+            .expect("the tag path selects this exact member");
+        let mut denoted = elaboration.finish(term);
+        assert_eq!(denoted.assumptions.len(), 1);
+        assert_eq!(denoted.assumptions[0].index, 0);
+        assert_eq!(denoted.assumptions[0].proposition, assumptions[0]);
+        verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
+            .expect("the full tagged proof checks against the original disjunction");
+    }
+}
