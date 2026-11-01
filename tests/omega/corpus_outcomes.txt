@@ -1007,6 +1007,24 @@ fail/facts/saved_observation_snapshot_indexed_handback_target_body_rejected reje
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_whole_replacement_rejected rejected 4684ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 1: holder.items[kept] == 7 && holder.items[changed] == value
+fail/facts/stored_shared_byte_view_element_lend_through_call_result_rejected rejected 4636ms expected @0fb500fb9d4b
+	cannot prove requires contract for call read from main: selected[0].len == 1 (needs fact `bytes.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `first.len == 1`
+fail/facts/stored_shared_byte_view_element_lend_through_const_name_rejected rejected 3422ms expected @0fb500fb9d4b
+	cannot prove requires contract for call read from main: windows[__hoist_2].len == 1 (needs fact `bytes.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `first.len == 1`
+fail/facts/stored_shared_byte_view_element_lend_through_field_rejected rejected 3393ms expected @0fb500fb9d4b
+	cannot prove requires contract for call read from main: bundle.windows[0].len == 1 (needs fact `bytes.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `first.len == 1`
+fail/facts/stored_shared_byte_view_element_lend_through_local_rejected rejected 2599ms expected @0fb500fb9d4b
+	cannot prove requires contract for call read from main: windows[0].len == 1 (needs fact `bytes.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `first.len == 1`
+fail/facts/stored_shared_byte_view_element_lend_through_match_join_rejected rejected 2130ms expected @0fb500fb9d4b
+	cannot prove requires contract for call read from main: selected[0].len == 1 (needs fact `bytes.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `first.len == 1`
+fail/facts/stored_shared_byte_view_element_lend_through_other_machine_rejected rejected 1953ms expected @0fb500fb9d4b
+	cannot prove requires contract for call forward from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_shared_byte_view_element_lend_through_other_state_rejected rejected 1955ms expected @0fb500fb9d4b
+	cannot prove requires contract for call inspect from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_shared_byte_view_element_lend_through_parameter_rejected rejected 1969ms expected @0fb500fb9d4b
+	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_shared_byte_view_element_lend_through_target_body_rejected rejected 1937ms expected @0fb500fb9d4b
+	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expected @45fb2a705c96
@@ -9991,6 +10009,15 @@ pass/facts/stored_exclusive_byte_view_through_other_machine_exit checked 2727ms 
 pass/facts/stored_exclusive_byte_view_through_other_state_exit checked 4014ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/stored_exclusive_byte_view_through_parameter_exit checked 3626ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/stored_exclusive_byte_view_through_target_body_exit checked 3259ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/stored_shared_byte_view_element_lend_through_call_result_exit checked 3598ms check-target:macos_arm64 @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_const_name_exit checked 3597ms check-target:macos_arm64 @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_field_exit checked 4279ms check-target:macos_arm64 @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_local_exit checked 5242ms check-target:macos_arm64 @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_match_join_exit checked 4268ms check-target:macos_arm64 @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_other_machine_exit checked 3598ms check-target:macos_arm64 @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_other_state_exit checked 5176ms check-target:macos_arm64 @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_parameter_exit checked 5128ms check-target:macos_arm64 @0fb500fb9d4b
+pass/facts/stored_shared_byte_view_element_lend_through_target_body_exit checked 3598ms check-target:macos_arm64 @0fb500fb9d4b
 pass/facts/structural_issuer_forwarding_call_result checked 3441ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_const_name checked 3736ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_field checked 3387ms check-target:macos_arm64 @ccdb99ca2214
