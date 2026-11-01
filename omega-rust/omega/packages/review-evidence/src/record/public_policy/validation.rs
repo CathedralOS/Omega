@@ -122,3 +122,67 @@ pub(in crate::record) fn scope(
         domain_subject: false,
     }
 }
+
+#[cfg(test)]
+mod constant_dependency_tests {
+    use super::*;
+    use crate::record::{
+        PackageReviewConstShape, PackageReviewContractExpression as Expression,
+        PackageReviewLayoutQueryKind, PackageReviewTypeIdentity,
+    };
+
+    #[test]
+    fn constant_dependency_receiving_rejects_runtime_scope_and_missing_identity() {
+        let package = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let api = |meaning| PackagePolicyPublicApi {
+            traits: Vec::new(),
+            conformances: Vec::new(),
+            domains: Vec::new(),
+            propositions: Vec::new(),
+            operators: Vec::new(),
+            data: Vec::new(),
+            consts: vec![PackageReviewConstShape {
+                identity: PackageReviewNominalIdentity {
+                    owner: PackageReviewNominalOwner::Package(package),
+                    path: "RAW_SIZE".to_owned(),
+                },
+                declared_type: PackageReviewTypeIdentity {
+                    canonical: "named(name(u64))".to_owned(),
+                },
+                meaning,
+            }],
+        };
+        let query = |canonical: &str| Expression::LayoutQuery {
+            kind: PackageReviewLayoutQueryKind::Size,
+            operand: PackageReviewTypeIdentity {
+                canonical: canonical.to_owned(),
+            },
+        };
+        api(PackageReviewConstMeaning::TargetDependent(query(
+            "named(name(u8))",
+        )))
+        .validate_canonical_structure(package)
+        .unwrap();
+        for expression in [
+            Expression::Result,
+            Expression::Parameter(0),
+            Expression::GenericBinder(0),
+            query(""),
+            Expression::Nominal(PackageReviewNominalIdentity {
+                owner: PackageReviewNominalOwner::Unresolved,
+                path: "Main".to_owned(),
+            }),
+        ] {
+            assert!(
+                api(PackageReviewConstMeaning::TargetDependent(expression))
+                    .validate_canonical_structure(package)
+                    .is_err()
+            );
+        }
+        assert!(
+            api(PackageReviewConstMeaning::Evaluated(String::new()))
+                .validate_canonical_structure(package)
+                .is_err()
+        );
+    }
+}
