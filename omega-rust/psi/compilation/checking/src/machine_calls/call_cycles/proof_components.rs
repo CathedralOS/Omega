@@ -3,7 +3,7 @@
 //! proves every cycle descends; computed intervals remain a separate judgment.
 
 use super::{
-    ExactProofCallEdge, collect_exact_proof_call_edges, proof_call_site_sort_key,
+    ExactProofCallEdge, collect_exact_proof_call_edges_in_machines, proof_call_site_sort_key,
     strongly_connected_components,
 };
 use std::collections::BTreeSet;
@@ -22,15 +22,57 @@ pub(super) fn complete(
     adjacency: &[Vec<usize>],
     proof_dependencies: &[Vec<usize>],
 ) -> Vec<CompleteProofCallComponent> {
+    complete_with_demand(program, proof_only, adjacency, proof_dependencies, None)
+}
+
+pub(super) fn complete_for_machine(
+    program: &dyn crate::CheckingInput,
+    proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+    adjacency: &[Vec<usize>],
+    proof_dependencies: &[Vec<usize>],
+    machine_position: usize,
+) -> Vec<CompleteProofCallComponent> {
+    complete_with_demand(
+        program,
+        proof_only,
+        adjacency,
+        proof_dependencies,
+        Some(machine_position),
+    )
+}
+
+fn complete_with_demand(
+    program: &dyn crate::CheckingInput,
+    proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+    adjacency: &[Vec<usize>],
+    proof_dependencies: &[Vec<usize>],
+    demanded: Option<usize>,
+) -> Vec<CompleteProofCallComponent> {
     let machines = program.machines();
-    let exact_edges = collect_exact_proof_call_edges(program, proof_only);
+    let components = strongly_connected_components(adjacency);
+    let demanded_members = demanded
+        .and_then(|position| {
+            components
+                .iter()
+                .find(|members| members.contains(&position))
+        })
+        .cloned();
+    if demanded.is_some() && demanded_members.is_none() {
+        return Vec::new();
+    }
+    let exact_edges = collect_exact_proof_call_edges_in_machines(
+        program,
+        proof_only,
+        demanded_members.as_deref(),
+    );
     let exact_self_recursive_members = exact_edges
         .iter()
         .filter(|edge| edge.caller == edge.callee)
         .map(|edge| edge.caller)
         .collect::<BTreeSet<_>>();
-    let mut components = strongly_connected_components(adjacency)
+    let mut components = components
         .into_iter()
+        .filter(|members| demanded.is_none_or(|position| members.contains(&position)))
         .filter(|members| {
             (members.len() > 1
                 || members

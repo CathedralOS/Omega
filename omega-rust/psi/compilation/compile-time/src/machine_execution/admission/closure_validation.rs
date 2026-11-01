@@ -194,7 +194,7 @@ struct ClosureWalk {
     completed: Vec<SymbolHandle>,
     active: Vec<SymbolHandle>,
     path: Vec<String>,
-    recursive_terminations: Option<Vec<checked_trees::CheckedRuntimeRankMember>>,
+    recursive_terminations: Vec<checked_trees::CheckedRuntimeRankMember>,
 }
 
 fn machine_termination_violation(
@@ -222,14 +222,33 @@ fn machine_termination_violation(
     }
 
     if walk.active.contains(&machine_symbol) {
-        // Re-entering an active machine is a recursive call cycle. Local state acyclicity does not
-        // prove call-cycle termination. Reuse the ranking owner's complete
-        // component judgment, including members with a joint witness.
-        let measured = walk
-            .recursive_terminations
-            .get_or_insert_with(|| infer_checked_recursive_machine_terminations(program))
-            .iter()
-            .any(|member| member.machine == machine_symbol && member.body == machine.states);
+        // Local state acyclicity does not prove call-cycle termination.
+        // Query the complete demanded component and retain all its exact body
+        // judgments. Another component owes its own query; an unproved one
+        // refuses immediately, so only successful components need caching.
+        let matches_body = |member: &checked_trees::CheckedRuntimeRankMember| {
+            member.machine == machine_symbol && member.body == machine.states
+        };
+        if !walk.recursive_terminations.iter().any(matches_body) {
+            phase_profile::count("compile_time.admission.recursive_component_queries", 1);
+            phase_profile::checkpoint(
+                "before build-time recursive component judgment",
+                "compile_time.admission.recursive_component_queries",
+            );
+            let query = phase_profile::guard("compile_time.admission.recursive_component");
+            walk.recursive_terminations
+                .extend(infer_checked_recursive_machine_terminations(
+                    program,
+                    machine_symbol,
+                    machine.states,
+                ));
+            drop(query);
+            phase_profile::checkpoint(
+                "after build-time recursive component judgment",
+                "compile_time.admission.recursive_component",
+            );
+        }
+        let measured = walk.recursive_terminations.iter().any(matches_body);
         if !measured {
             let violation = format!(
                 "recursive machine-call cycle has no ordinary termination proof along `{}`",
