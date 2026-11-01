@@ -29,10 +29,11 @@ pub fn selected_requirement_signature(
     if !binder.is_valid() || program.symbols.get(binder).kind != SymbolKind::ConformanceParameter {
         return None;
     }
-    let machine = program.machine_by_symbol(program.symbols.get(binder).parent)?;
     // Ordinary call admission reports malformed or ambiguous evidence bounds.
     // This read-only query supplies no contract when that admission cannot join.
-    let requirement = named_conformance_target_requirement(program, machine, target).ok()??;
+    let requirement = program
+        .evidence_bound_requirement(program.symbols.get(binder).parent, binder, target)
+        .ok()??;
     let application = &requirement.application;
     let signature = program
         .closed_requirement_applications()

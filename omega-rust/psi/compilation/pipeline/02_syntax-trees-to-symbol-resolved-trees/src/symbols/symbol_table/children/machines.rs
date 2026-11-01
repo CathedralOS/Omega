@@ -84,7 +84,7 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     }
 }
 
-fn collect_evidence_requirement_closure<'program>(
+pub(super) fn collect_evidence_requirement_closure<'program>(
     program: &'program SymbolResolvedTrees,
     trait_definition: &'program symbol_resolved_trees::trait_definition::TraitDefinition,
     sources: Option<&source::SourceMap>,
@@ -132,7 +132,7 @@ fn reference_can_see_declaration(
     sources.is_none_or(|sources| sources.reference_can_see_declaration(reference, declaration))
 }
 
-fn select_visible_trait_definition<'program>(
+pub(super) fn select_visible_trait_definition<'program>(
     program: &'program SymbolResolvedTrees,
     reference_name: &symbol_resolved_trees::name::DiagnosticName,
     sources: Option<&source::SourceMap>,

@@ -107,8 +107,11 @@ impl TypedTrees {
         // A source evidence child is not the declaring trait's state symbol.
         // Rejoin its exact authored bound before reading the prepared public
         // view, including when its caller-owned type operands remain symbolic.
-        if let Some(machine) = self.machine_by_symbol(lexical_owner)
-            && let Some(bound) = self.conformance_target_requirement(machine, target).ok()?
+        let binder = self.symbols.get(target).parent;
+        if binder.is_valid()
+            && let Some(bound) = self
+                .evidence_bound_requirement(self.symbols.get(binder).parent, binder, target)
+                .ok()?
         {
             if requirement_application.is_valid() {
                 let written = self

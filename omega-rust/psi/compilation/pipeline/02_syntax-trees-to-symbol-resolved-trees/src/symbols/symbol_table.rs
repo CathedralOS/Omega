@@ -31,12 +31,12 @@ pub(super) fn extend_symbol_table(
 ) {
     let has_sources = true;
     let mut extension = std::mem::take(&mut program.symbols)
-        .begin_extension(Some(sources), source_scoped_top_level_bindings);
+        .begin_extension(Some(sources.clone()), source_scoped_top_level_bindings);
 
     // Every family inserts its own symbol seed and children from the same shape;
     // only the roster, kind, and child walker differ.
     macro_rules! extend_root_family {
-        ($roster:ident, $kind:ident, $insert:path) => {
+        ($roster:ident, $kind:ident, $insert:path $(, $argument:expr)*) => {
             for index in roots.$roster..program.$roster.len() {
                 let definition = program.$roster[index].clone();
                 let symbol = extension.insert_top_level([symbol_seed(
@@ -44,7 +44,7 @@ pub(super) fn extend_symbol_table(
                     &definition.name,
                     has_sources,
                 )])[0];
-                $insert(&mut extension, program, symbol, &definition, has_sources);
+                $insert(&mut extension, program, symbol, &definition, has_sources $(, $argument)*);
                 program.$roster[index].symbol = symbol;
             }
         };
@@ -111,7 +111,12 @@ pub(super) fn extend_symbol_table(
         insert_measure_symbol_children(&mut extension, symbol, &measure, has_sources);
         program.measures[index].symbol = symbol;
     }
-    extend_root_family!(traits, Trait, insert_trait_symbol_children);
+    extend_root_family!(
+        traits,
+        Trait,
+        insert_trait_symbol_children,
+        Some(sources.as_ref())
+    );
     for index in roots.wire_schemas..program.wire_schemas.len() {
         let schema = program.wire_schemas[index].clone();
         let symbol = extension.insert_top_level([symbol_seed(
@@ -157,7 +162,7 @@ pub(super) fn build_symbol_table(
         .map(|measure| measure_symbol_name(program, measure))
         .collect::<Vec<_>>();
     let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
-        sources,
+        sources.clone(),
         source_scoped_top_level_bindings,
     );
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -263,11 +268,11 @@ pub(super) fn build_symbol_table(
     // Each family consumes its root slots in roster order through one install
     // shape; only the roster, its child walker, and the symbol slot differ.
     macro_rules! install_root_family {
-        ($roster:ident, $insert:path) => {
+        ($roster:ident, $insert:path $(, $argument:expr)*) => {
             for ordinal in 0..program.$roster.len() {
                 let item = &program.$roster[ordinal];
                 if let Some(symbol) = root_children.next() {
-                    $insert(&mut builder, program, symbol, item, has_sources);
+                    $insert(&mut builder, program, symbol, item, has_sources $(, $argument)*);
                     program.$roster[ordinal].symbol = symbol;
                 }
             }
@@ -311,7 +316,7 @@ pub(super) fn build_symbol_table(
             program.measures[ordinal].symbol = measure_symbol;
         }
     }
-    install_root_family!(traits, insert_trait_symbol_children);
+    install_root_family!(traits, insert_trait_symbol_children, sources.as_deref());
     program.wire_schemas.for_each_mut(|schema| {
         schema.symbol = root_children.next().unwrap_or_default();
     });

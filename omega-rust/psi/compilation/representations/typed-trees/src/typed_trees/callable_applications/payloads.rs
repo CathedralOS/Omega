@@ -454,13 +454,34 @@ impl CallableApplication {
                     expression::ExpressionNode::Name(path);
             }
         }
-        program
-            .expression_table
-            .remap_symbols_in(copied, &self.symbols);
+        let mut symbols = self.symbols.clone();
+        for handle in &rows {
+            if let expression::ExpressionNode::Name(path) =
+                program.expression_table.expression(*handle)
+            {
+                let binder = path.head_symbol;
+                if binder.is_valid()
+                    && program.symbols.get(binder).kind == symbols::SymbolKind::ConformanceParameter
+                    && !symbols.iter().any(|(source, _)| *source == binder)
+                {
+                    symbols.extend(self.namespace_symbols(program, binder)?);
+                }
+            }
+        }
+        program.expression_table.remap_symbols_in(copied, &symbols);
         for handle in rows {
             let node = program.expression_table.expression(handle).clone();
             let applied = match node {
                 expression::ExpressionNode::Name(path) => {
+                    // The namespace prepass applies its complete member map.
+                    // An open identity substitution remains a namespace too;
+                    // it must not enter the const/value expression channel.
+                    if path.head_symbol.is_valid()
+                        && program.symbols.get(path.head_symbol).kind
+                            == symbols::SymbolKind::ConformanceParameter
+                    {
+                        continue;
+                    }
                     if self
                         .static_arguments
                         .iter()
