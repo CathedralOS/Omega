@@ -36589,9 +36589,7 @@ run/calls/runtime_float_normalized_operand_single_evaluation_exit rejected 9316m
 	machine `observe` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 run/calls/saved_scalar_dispatch_guard_arguments_exit checked 5019ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/scalar_guard_after_borrow_parameters_exit checked 5636ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/selected_provider_range_arguments rejected 5398ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	selected provider requirement `named-callable(path(Counter::count),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-	artifact control retargeted boundary with copied declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
+run/calls/selected_provider_range_arguments checked 6040ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/calls/static_boundary_terminal_arguments checked 2950ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/table_report_call_survival checked 10101ms check-target:macos_arm64 @ccdb99ca2214
 run/contained_health_loop_command_branch checked 10574ms check-target:macos_arm64 @ccdb99ca2214
@@ -36810,8 +36808,7 @@ run/traits/named_map_record_result_contract checked 2913ms check-target:macos_ar
 run/traits/static_implementation_method_arguments rejected 1441ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call `keep` has an invalid argument correspondence: selected executable carrier differs from its exact public application
 	call `fill` has an invalid argument correspondence: selected call has no admitted public application
-run/traits/target_scoped_map_method_arguments rejected 5607ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	artifact control retargeted boundary with copied declaration refused for another reason: MalformedStructuralFoundation("proof scope callable differs from its emitted declaration")
+run/traits/target_scoped_map_method_arguments checked 6166ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/variant_decimal_runtime_division checked 10069ms check-target:linux_x86_64 @ccdb99ca2214
 run/variant_record_normalization_repeats rejected 12132ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
