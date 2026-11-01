@@ -337,6 +337,96 @@ pub(super) fn data_definition_for_type(
     }
 }
 
+/// Every completed-case occurrence this state's statements can demand, keyed
+/// exactly as the walkers pass it to
+/// `contract_entailment::completed_value_case_at_occurrence`: (statement
+/// ordinal, demanded value expression, observed reference). A batched
+/// population enumerates this set up front so each later query replays the
+/// recorded verdict. The dynamic tracked-place predicate stays with the call
+/// sites -- a verdict an occurrence never reads is simply unused, and a
+/// demand this enumeration cannot reproduce keeps the solo prefix walk.
+pub(crate) fn completed_case_occurrences(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+) -> Vec<(usize, ExpressionHandle, TypeReferenceHandle)> {
+    let mut occurrences = Vec::new();
+    for (statement_index, statement) in program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+    {
+        match statement {
+            typed_trees::statement::StatementNode::Assignment(assignment) => {
+                // `handle_assignment`'s whole-place branch asks for the
+                // stored value's completed case under exactly these gates.
+                let Some(spelling) = write_place_spelling(program, assignment.target) else {
+                    continue;
+                };
+                if spelling.contains("[*]") {
+                    continue;
+                }
+                let Some(reference) = crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    assignment.target,
+                ) else {
+                    continue;
+                };
+                if crate::reference_shell(program, reference).is_some()
+                    || data_definition_for_expression(
+                        program,
+                        machine,
+                        Some(state),
+                        assignment.target,
+                    )
+                    .is_none()
+                {
+                    continue;
+                }
+                occurrences.push((statement_index, assignment.value, reference));
+            }
+            typed_trees::statement::StatementNode::LocalData(local) => {
+                // The tracked-place push demands the initializer's completed
+                // case only for a variant-carrying owned type, and only when
+                // no literal case spelling already answers it.
+                if !local.initial_value.is_valid() {
+                    continue;
+                }
+                let Some(definition) = crate::field_domains::owned_nominal_data_definition(
+                    program,
+                    local.type_reference,
+                ) else {
+                    continue;
+                };
+                if !program
+                    .data_members(definition)
+                    .iter()
+                    .any(|member| member.as_variant().is_some())
+                {
+                    continue;
+                }
+                if let ExpressionNode::StructLiteral(literal) =
+                    expression_table(program).expression(local.initial_value)
+                    && literal
+                        .case_symbol
+                        .filter(|symbol| symbol.is_valid())
+                        .is_some()
+                {
+                    continue;
+                }
+                occurrences.push((
+                    statement_index,
+                    local.initial_value,
+                    local.type_reference,
+                ));
+            }
+            _ => {}
+        }
+    }
+    occurrences
+}
+
 pub(super) fn field_is_where_mentioned(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
