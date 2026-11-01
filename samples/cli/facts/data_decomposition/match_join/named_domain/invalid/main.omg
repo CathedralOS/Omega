@@ -11,12 +11,12 @@ machine bind_components(pair: Pair in Equal, expected: u64) -> bool {
         Pair::Empty -> false
     }
 }
-machine produce(value: u64) -> Pair in Equal { Pair::Ready { lower: value, upper: value } }
+machine produce(value: u64) -> Pair in Equal { match value == 0 { true -> Pair::Empty { lower: 0 } false -> Pair::Ready { lower: value, upper: value } } }
 machine exercise(expected: u64) -> bool {
-    bind_components(match expected == 17 { true -> produce(17) false -> produce(23) }, expected)
+    bind_components(match expected == 17 { true -> produce(17) false -> produce(expected) }, expected)
 }
 machine main() crashes Trap {
-    transition exercise(17) && exercise(23) { true -> done() _ -> bad() }
+    transition exercise(17) && exercise(23) && !exercise(0) { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
