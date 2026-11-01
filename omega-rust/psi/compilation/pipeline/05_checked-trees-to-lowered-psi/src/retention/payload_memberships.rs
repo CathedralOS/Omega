@@ -235,6 +235,9 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                 break;
             }
         }
+        // This machine has no remaining payload readers. Module-wide reuse
+        // needs call summaries, not every completed per-position replay map.
+        analysis.release_completed_snapshots();
     }
     Ok(())
 }

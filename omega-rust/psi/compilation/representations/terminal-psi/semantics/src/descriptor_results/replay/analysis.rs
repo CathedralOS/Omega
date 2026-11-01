@@ -27,6 +27,14 @@ pub struct DescriptorSourceObservation {
 }
 
 impl<'a> DescriptorAnalysis<'a> {
+    /// Release successful position maps after a consumer finishes a machine.
+    /// Exact call summaries and unavailable/in-flight replay fences survive.
+    /// Outstanding snapshot readers remain immutable; later queries rebuild
+    /// their maps from this analysis's unchanged descriptor graph.
+    pub fn release_completed_snapshots(&mut self) {
+        self.replay.release_completed_snapshots();
+    }
+
     /// Retain only descriptor slots intersecting this operation's source uses.
     /// Edge demands still observe the pre-operation frontier; a newly produced
     /// edge value must use its producer, not an entry-type reconstruction.
