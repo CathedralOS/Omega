@@ -15,6 +15,8 @@ use super::{
 use super::{ProofNode, Proposition, Term, TermHandle};
 use crate::mathematical_core::substitution::shift;
 
+mod inhabitants;
+
 #[cfg(test)]
 mod tests;
 
@@ -468,127 +470,7 @@ impl Denotation {
         &mut self,
         goal: TermHandle,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        if let Some((ty, left, right)) = self.identity_parts(goal) {
-            // A non-reflexive identity is not inhabited outright; whether
-            // it is a refutable relation is the premise side's question.
-            return if self.arena.structurally_equal(left, right) {
-                Ok(Some(self.arena.insert(Term::Refl { ty, value: left })))
-            } else {
-                Ok(None)
-            };
-        }
-        match self.integer_relation(goal) {
-            Some(IntegerRelation::LessThan { left, right }) => {
-                let (Some(lower), Some(upper)) =
-                    (self.closed_math_value(left), self.closed_math_value(right))
-                else {
-                    return Ok(None);
-                };
-                if lower >= upper {
-                    return Ok(None);
-                }
-                let (Some(lower), Some(upper)) =
-                    (integer_value_of(&lower), integer_value_of(&upper))
-                else {
-                    return Ok(None);
-                };
-                return self.literal_order(lower, upper).map(Some);
-            }
-            Some(IntegerRelation::LessOrEqual { left, right }) => {
-                let (Some(lower), Some(upper)) =
-                    (self.closed_math_value(left), self.closed_math_value(right))
-                else {
-                    return Ok(None);
-                };
-                if lower > upper {
-                    return Ok(None);
-                }
-                let evidence = if lower == upper {
-                    // `eq_le a a (refl a)` — equal endpoints need no
-                    // numeral derivation, so even an opaque closed
-                    // constant outside the literal range inhabits here.
-                    let integer = self.integer_constant()?;
-                    let reflexive = self.arena.insert(Term::Refl {
-                        ty: integer,
-                        value: left,
-                    });
-                    self.integer_law_application(
-                        IntegerLaw::EqualityToLessOrEqual,
-                        &[left, right, reflexive],
-                    )?
-                } else {
-                    let (Some(lower), Some(upper)) =
-                        (integer_value_of(&lower), integer_value_of(&upper))
-                    else {
-                        return Ok(None);
-                    };
-                    let strict = self.literal_order(lower, upper)?;
-                    self.integer_law_application(
-                        IntegerLaw::LessThanToLessOrEqual,
-                        &[left, right, strict],
-                    )?
-                };
-                return Ok(Some(evidence));
-            }
-            _ => {}
-        }
-        match self.arena.get(goal) {
-            Term::Sigma { domain, codomain } => {
-                if !self.occurs_free(codomain, 0) {
-                    let Some(first) = self.closed_inhabitant(domain)? else {
-                        return Ok(None);
-                    };
-                    let Some(second) = self.closed_inhabitant(codomain)? else {
-                        return Ok(None);
-                    };
-                    return Ok(Some(self.arena.insert(Term::Pair { first, second })));
-                }
-                // The `Σ(t : Two). caseTwo(M, d₀, rest, t)` disjunction
-                // denotation — tag whichever branch carries an inhabitant.
-                if !self.arena.structurally_equal(domain, self.two) {
-                    return Ok(None);
-                }
-                let Term::CaseTwo {
-                    zero_branch,
-                    one_branch,
-                    scrutinee,
-                    ..
-                } = self.arena.get(codomain)
-                else {
-                    return Ok(None);
-                };
-                if !matches!(self.arena.get(scrutinee), Term::Variable(0)) {
-                    return Ok(None);
-                }
-                // A branch payload mentioning the tag is a genuinely
-                // dependent family, not the disjunction denotation — the
-                // pair's `second` could not name its substituted type.
-                if !self.occurs_free(zero_branch, 0)
-                    && let Some(payload) = self.closed_inhabitant(zero_branch)?
-                {
-                    return Ok(Some(self.arena.insert(Term::Pair {
-                        first: self.two_zero,
-                        second: payload,
-                    })));
-                }
-                if !self.occurs_free(one_branch, 0)
-                    && let Some(payload) = self.closed_inhabitant(one_branch)?
-                {
-                    return Ok(Some(self.arena.insert(Term::Pair {
-                        first: self.two_one,
-                        second: payload,
-                    })));
-                }
-                Ok(None)
-            }
-            Term::Pi { domain, codomain } if !self.occurs_free(codomain, 0) => {
-                let Some(body) = self.closed_inhabitant(codomain)? else {
-                    return Ok(None);
-                };
-                Ok(Some(self.arena.insert(Term::Lambda { domain, body })))
-            }
-            _ => Ok(None),
-        }
+        inhabitants::construct(self, goal)
     }
 
     /// `goal`-typed evidence out of a denoted premise whose falsity is
@@ -1165,107 +1047,24 @@ impl Denotation {
     /// binder, which this producer's propositional connectives never
     /// generate.
     pub(super) fn occurs_free(&self, term: TermHandle, index: u32) -> bool {
-        match self.arena.get(term) {
-            Term::Variable(position) => position == index,
-            Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
-                self.occurs_free(domain, index)
-                    || index
-                        .checked_add(1)
-                        .is_some_and(|nested| self.occurs_free(codomain, nested))
+        let mut pending = vec![(term, index)];
+        while let Some((term, index)) = pending.pop() {
+            let node = self.arena.node(term);
+            if let Term::Variable(position) = node {
+                if *position == index {
+                    return true;
+                }
+                continue;
             }
-            Term::Lambda { domain, body } => {
-                self.occurs_free(domain, index)
-                    || index
-                        .checked_add(1)
-                        .is_some_and(|nested| self.occurs_free(body, nested))
+            // The term layout owns binder counts for every child. Reverse
+            // push order preserves the former left-to-right short circuit;
+            // an overflowing binder index remains ineligible as before.
+            for (child, binders) in node.subterms().iter().rev() {
+                if let Some(nested) = index.checked_add(binders) {
+                    pending.push((child, nested));
+                }
             }
-            Term::Apply { function, argument }
-            | Term::Pair {
-                first: function,
-                second: argument,
-            } => self.occurs_free(function, index) || self.occurs_free(argument, index),
-            Term::Fst { pair } | Term::Snd { pair } => self.occurs_free(pair, index),
-            Term::CaseTwo {
-                motive,
-                zero_branch,
-                one_branch,
-                scrutinee,
-            } => {
-                self.occurs_free(motive, index)
-                    || self.occurs_free(zero_branch, index)
-                    || self.occurs_free(one_branch, index)
-                    || self.occurs_free(scrutinee, index)
-            }
-            Term::Id { ty, left, right } => {
-                self.occurs_free(ty, index)
-                    || self.occurs_free(left, index)
-                    || self.occurs_free(right, index)
-            }
-            Term::Refl { ty, value } => {
-                self.occurs_free(ty, index) || self.occurs_free(value, index)
-            }
-            Term::IdElim {
-                motive,
-                base,
-                endpoint,
-                proof,
-            } => {
-                self.occurs_free(motive, index)
-                    || self.occurs_free(base, index)
-                    || self.occurs_free(endpoint, index)
-                    || self.occurs_free(proof, index)
-            }
-            Term::W { carrier, children } => {
-                self.occurs_free(carrier, index) || self.occurs_free(children, index)
-            }
-            Term::Sup {
-                carrier,
-                children,
-                label,
-                function,
-            } => {
-                self.occurs_free(carrier, index)
-                    || self.occurs_free(children, index)
-                    || self.occurs_free(label, index)
-                    || self.occurs_free(function, index)
-            }
-            Term::IndW { motive, step, tree } => {
-                self.occurs_free(motive, index)
-                    || self.occurs_free(step, index)
-                    || self.occurs_free(tree, index)
-            }
-            Term::EmptyElim { ty, scrutinee } => {
-                self.occurs_free(ty, index) || self.occurs_free(scrutinee, index)
-            }
-            Term::Squash { ty } | Term::Box { ty } => self.occurs_free(ty, index),
-            Term::SquashIntro { ty, value } | Term::BoxIntro { ty, value } => {
-                self.occurs_free(ty, index) || self.occurs_free(value, index)
-            }
-            Term::SquashElim {
-                proposition,
-                function,
-                scrutinee,
-            } => {
-                self.occurs_free(proposition, index)
-                    || self.occurs_free(function, index)
-                    || self.occurs_free(scrutinee, index)
-            }
-            Term::BoxElim {
-                motive,
-                body,
-                scrutinee,
-            } => {
-                self.occurs_free(motive, index)
-                    || self.occurs_free(body, index)
-                    || self.occurs_free(scrutinee, index)
-            }
-            Term::Dummy
-            | Term::Sort(_)
-            | Term::Constant { .. }
-            | Term::Two
-            | Term::TwoZero
-            | Term::TwoOne
-            | Term::Empty => false,
         }
+        false
     }
 }

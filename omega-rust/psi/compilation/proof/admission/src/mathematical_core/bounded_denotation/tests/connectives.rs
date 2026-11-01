@@ -762,3 +762,224 @@ fn repeated_disjunction_tags_preserve_the_exact_selected_member() {
             .expect("the full tagged proof checks against the original disjunction");
     }
 }
+
+#[test]
+fn deep_closed_inhabitants_use_default_stack_and_refuse_false_tail() {
+    std::thread::spawn(|| {
+        use super::super::Denotation;
+        use crate::mathematical_core::{Context, infer_sort};
+        // The deep row isolates construction and traverses every returned pair.
+        // Kernel-check a bounded row of the same construction: checking the
+        // full 8192-member Sigma separately used over 14 GiB in the unchanged
+        // checker, beyond what this constructor regression needs.
+        for (depth, valid) in [(8192, false), (8192, true), (64, true)] {
+            let mut denotation = Denotation::new();
+            let truth = denotation.denote(&Proposition::Truth).unwrap();
+            let mut goal = if valid {
+                truth
+            } else {
+                denotation.denote(&Proposition::Falsehood).unwrap()
+            };
+            for _ in 0..depth {
+                goal = denotation.arena.insert(Term::Sigma {
+                    domain: truth,
+                    codomain: goal,
+                });
+            }
+            infer_sort(
+                &mut denotation.arena,
+                &Context::empty(),
+                goal,
+                &mut Budget::new(2_000_000),
+            )
+            .expect("the complete independently formed goal");
+            eprintln!("{depth}-node Sigma goal formed; begin closed inhabitant valid={valid}");
+            let evidence = denotation.closed_inhabitant(goal).unwrap();
+            eprintln!("closed inhabitant returned valid={valid}");
+            if valid {
+                let mut evidence = evidence.expect("every closed true conjunct is inhabited");
+                if depth == 64 {
+                    let certificate = crate::MathematicalCertificate::with_signature(
+                        denotation.declarations.clone(),
+                        Vec::new(),
+                        evidence,
+                        goal,
+                    );
+                    verify_mathematical_certificate(
+                        &mut denotation.arena,
+                        &certificate,
+                        &mut Budget::new(2_000_000),
+                    )
+                    .expect("independent kernel checks the entire bounded control");
+                }
+                for _ in 0..depth {
+                    let Term::Pair { first, second } = denotation.arena.get(evidence) else {
+                        panic!("one evidence pair per Sigma member");
+                    };
+                    let Term::Refl { ty, value } = denotation.arena.get(first) else {
+                        panic!("every closed Truth member retains reflexive evidence");
+                    };
+                    assert_eq!(ty, denotation.two);
+                    assert_eq!(value, denotation.two_zero);
+                    evidence = second;
+                }
+                assert!(matches!(denotation.arena.get(evidence), Term::Refl { .. }));
+            } else {
+                assert!(
+                    evidence.is_none(),
+                    "the final false conjunct has no inhabitant"
+                );
+            }
+            assert!(
+                denotation.declarations.is_empty(),
+                "no opaque axiom closes the goal"
+            );
+        }
+    })
+    .join()
+    .expect("closed inhabitant construction stays on a default stack");
+}
+
+#[test]
+fn closed_inhabitants_keep_tag_preference_and_dependent_refusals() {
+    use super::super::Denotation;
+    let mut d = Denotation::new();
+    let truth = d.denote(&Proposition::Truth).unwrap();
+    let falsehood = d.denote(&Proposition::Falsehood).unwrap();
+    let bound = d.arena.insert(Term::Variable(0));
+    let dependent = d.arena.insert(Term::Id {
+        ty: d.two,
+        left: bound,
+        right: bound,
+    });
+    for (zero, one, expected) in [
+        (truth, truth, Some(false)),
+        (falsehood, truth, Some(true)),
+        (falsehood, falsehood, None),
+        (dependent, truth, Some(true)),
+        (truth, dependent, Some(false)),
+        (dependent, dependent, None),
+    ] {
+        let goal = d.tagged_sum(zero, one);
+        crate::mathematical_core::infer_sort(
+            &mut d.arena,
+            &crate::mathematical_core::Context::empty(),
+            goal,
+            &mut budget(),
+        )
+        .expect("each independent or dependent branch type forms under its tag binder");
+        let value = d.closed_inhabitant(goal).unwrap();
+        match expected {
+            Some(one) => {
+                let term = value.expect("an independent branch has a closed witness");
+                let Term::Pair { first, .. } = d.arena.get(term) else {
+                    panic!("sum witness retains a tag");
+                };
+                assert_eq!(matches!(d.arena.get(first), Term::TwoOne), one);
+                let certificate = crate::MathematicalCertificate::closed(Vec::new(), term, goal);
+                verify_mathematical_certificate(&mut d.arena, &certificate, &mut budget())
+                    .expect("selected payload checks against the original sum type");
+            }
+            None => assert!(
+                value.is_none(),
+                "false or dependent branches are not closed by this producer"
+            ),
+        }
+    }
+    for goal in [
+        d.arena.insert(Term::Pi {
+            domain: d.two,
+            codomain: dependent,
+        }),
+        d.arena.insert(Term::Sigma {
+            domain: d.two,
+            codomain: dependent,
+        }),
+    ] {
+        assert!(
+            d.closed_inhabitant(goal).unwrap().is_none(),
+            "genuinely dependent families keep their fallback"
+        );
+    }
+    let goal = d.arena.insert(Term::Pi {
+        domain: d.two,
+        codomain: truth,
+    });
+    let term = d
+        .closed_inhabitant(goal)
+        .unwrap()
+        .expect("nondependent function abstracts a closed body");
+    let certificate = crate::MathematicalCertificate::closed(Vec::new(), term, goal);
+    verify_mathematical_certificate(&mut d.arena, &certificate, &mut budget()).unwrap();
+    assert!(d.declarations.is_empty());
+}
+
+#[test]
+fn free_variable_scan_preserves_binder_indices_and_overflow() {
+    use super::super::Denotation;
+    let mut d = Denotation::new();
+    let bound = d.arena.insert(Term::Variable(0));
+    let ambient = d.arena.insert(Term::Variable(1));
+    let largest = d.arena.insert(Term::Variable(u32::MAX));
+    for binder in [
+        Term::Lambda {
+            domain: d.two,
+            body: bound,
+        },
+        Term::Pi {
+            domain: d.two,
+            codomain: bound,
+        },
+        Term::Sigma {
+            domain: d.two,
+            codomain: bound,
+        },
+    ] {
+        let term = d.arena.insert(binder);
+        assert!(
+            !d.occurs_free(term, 0),
+            "the innermost variable is locally bound"
+        );
+    }
+    for binder in [
+        Term::Lambda {
+            domain: d.two,
+            body: ambient,
+        },
+        Term::Pi {
+            domain: d.two,
+            codomain: ambient,
+        },
+        Term::Sigma {
+            domain: d.two,
+            codomain: ambient,
+        },
+    ] {
+        let term = d.arena.insert(binder);
+        assert!(
+            d.occurs_free(term, 0),
+            "an outer variable survives one binder"
+        );
+    }
+    let term = d.arena.insert(Term::Lambda {
+        domain: bound,
+        body: d.two,
+    });
+    assert!(d.occurs_free(term, 0), "the domain is outside the binder");
+    let term = d.arena.insert(Term::Lambda {
+        domain: d.two,
+        body: largest,
+    });
+    assert!(
+        !d.occurs_free(term, u32::MAX),
+        "overflowing body indices stay ineligible"
+    );
+    let term = d.arena.insert(Term::Lambda {
+        domain: largest,
+        body: d.two,
+    });
+    assert!(
+        d.occurs_free(term, u32::MAX),
+        "overflow does not skip the unshifted domain"
+    );
+}
