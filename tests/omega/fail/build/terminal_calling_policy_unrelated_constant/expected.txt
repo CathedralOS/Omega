@@ -1,2 +1,2 @@
-constant invocation of `bounded` failed checking
-structurally false (`7 <= 6`)
+constant checking: scalar predicate is false
+requires contract for call bounded
