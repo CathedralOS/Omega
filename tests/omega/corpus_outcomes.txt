@@ -12397,8 +12397,7 @@ pass/layouts/resident_initialization_ready checked 18804ms @0bb5ace2b46d+wt
 pass/layouts/resident_initialization_rejection checked 17898ms @0bb5ace2b46d+wt
 pass/layouts/resident_lifecycle_plan_discovery checked 25530ms @0bb5ace2b46d+wt
 pass/layouts/resident_qualified_schema_result checked 16846ms @0bb5ace2b46d+wt
-pass/layouts/resident_returned_field_access rejected 9753ms regressed-from:checked @0bb5ace2b46d+wt
-	exclusive call completion of `overwrite::entry` in `extract` state `entry` at statement 2 call 0 has no representable caller storage authority
+pass/layouts/resident_returned_field_access checked 4872ms @1a28de832b4c+wt
 pass/layouts/resident_signed_field_access checked 21609ms @0bb5ace2b46d+wt
 pass/layouts/resident_unused_lifecycle_scope checked 9577ms @0bb5ace2b46d+wt
 pass/layouts/resident_view_without_local_initialization checked 9399ms @0bb5ace2b46d+wt
