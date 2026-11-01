@@ -119,18 +119,31 @@ impl Captures<'_> {
         target: SymbolHandle,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT target-return-capture target={} checked={}",
+                self.program.symbols.display_path(target, "::"),
+                crate::call_target_has_checked_body_contract(self.program, target)
+            );
+        }
         if !crate::call_target_has_checked_body_contract(self.program, target) {
             // An abstract invocation owns its public lifetime relation. Its
             // result descriptor is present even though there is no private
             // return graph to inspect. The same declared frontier serves
             // direct requirements, static callbacks and dynamic slots; it
             // neither chooses a provider nor invents a concrete backing.
-            return super::declared_returns::returned_sources(
+            let declared = super::declared_returns::returned_sources(
                 self.program,
                 crate::call_target_parameters(self.program, target)?,
                 crate::call_target_return_type(self.program, target)?,
-            )
-            .ok();
+            );
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT declared-return-capture target={} result={declared:?}",
+                    self.program.symbols.display_path(target, "::")
+                );
+            }
+            return declared.ok();
         }
         self.returned(crate::call_target_state(self.program, target)?, active)
     }
@@ -170,7 +183,14 @@ impl Captures<'_> {
             .filter_map(|(_, candidate)| {
                 (candidate.state_symbol == state.symbol).then_some(candidate)
             });
-        let borrowed = states.next()?;
+        let borrowed = states.next();
+        if borrowed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT unavailable-return-borrow-state state={}",
+                self.program.symbols.display_path(state.symbol, "::")
+            );
+        }
+        let borrowed = borrowed?;
         if states.next().is_some() {
             return None;
         }

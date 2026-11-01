@@ -14,7 +14,14 @@ impl Captures<'_> {
         call: &checked_trees::FlowCallFact,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<Vec<CheckedUnitStructuralPathSegment>>> {
-        let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
+        let parameters = crate::call_target_parameters(self.program, call.target_symbol);
+        if parameters.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT unavailable-call-parameters target={}",
+                self.program.symbols.display_path(call.target_symbol, "::")
+            );
+        }
+        let parameters = parameters?;
         let sources = self.target_sources(call.target_symbol, active)?;
         let operands = self
             .facts
