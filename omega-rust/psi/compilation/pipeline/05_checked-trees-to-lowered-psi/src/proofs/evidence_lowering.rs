@@ -486,37 +486,22 @@ pub(crate) fn checked_evidence_machine_identity(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<String, LoweringError> {
-    let mut matches = checked
-        .typed
-        .machines()
-        .iter()
-        .filter(|candidate| candidate.symbol == machine);
-    let machine = matches.next().ok_or(LoweringError::Unsupported(
-        "evidence producer row has no exact realization machine",
-    ))?;
-    if matches.next().is_some() {
-        return unsupported("evidence producer row has an ambiguous realization machine");
-    }
-    let mut identity = checked
-        .typed
-        .callable_identity_text(checked.typed.machine_callable_identity(machine));
-    if checked
-        .typed
-        .executable_application_template(machine.symbol)
-        .map_err(|message| LoweringError::Unsupported(message))?
-        .is_some()
-    {
-        let checked_identity = checked
-            .facts
-            .specialization_identities
-            .for_instance(machine.symbol)
-            .ok_or(LoweringError::Unsupported(
-                "evidence machine lost its checked executable application identity",
-            ))?;
-        identity = terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
-            &identity,
-            Some(&checked_identity.commitment.as_bytes()),
-        );
-    }
-    Ok(identity)
+    // Evidence and declaration publication must name the same frozen callable.
+    // Re-querying the live source tree after checking can rebuild a different
+    // qualification spelling or lose a pruned declaration's application.
+    let declaration = checked
+        .facts
+        .declaration_descriptions
+        .for_machine(machine)
+        .map_err(LoweringError::InvalidDeclarationIdentity)?;
+    let callable = checked.callable_identity_text(declaration.callable);
+    Ok(
+        terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+            &callable,
+            declaration
+                .specialization
+                .as_ref()
+                .map(|application| &application.commitment),
+        ),
+    )
 }
