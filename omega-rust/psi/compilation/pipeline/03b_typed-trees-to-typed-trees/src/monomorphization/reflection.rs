@@ -535,6 +535,7 @@ fn emit_fields(
             let subject_value = name(program, captured_subject);
             let field_value =
                 expressions_of_mut(program).insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: language_core::DataComponentSelector::Named,
                     receiver: subject_value,
                     member_symbol: field.symbol,
                     member: field.name.clone(),
