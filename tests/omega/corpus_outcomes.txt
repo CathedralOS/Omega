@@ -170,6 +170,13 @@ fail/facts/build_activation_borrow/parameter rejected 648ms expected @3a020eca64
 	root binding requires a compiler-issued &mut Build receiver
 fail/facts/build_activation_borrow/target_body rejected 548ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
+fail/facts/c_layout_scalar_record_through_call_result_wrong_policy_rejected rejected 4945ms expected @cb12b89db565
+	machine `make` state `entry` return value expects `LayoutStorage<Record, OtherPolicy>`, but the value is delivered as `LayoutStorage<Record, CAbiPolicy<Record>>`
+	argument `value` for state `entry` expects `LayoutStorage<Record, CAbiPolicy<Record>>`, got `call expression`
+fail/facts/c_layout_scalar_record_through_const_name_wrong_policy_rejected rejected 1374ms expected @cb12b89db565
+	constant initializer: constant initializer result does not match its declared carrier
+fail/facts/c_layout_scalar_record_through_match_join_wrong_policy_rejected rejected 4615ms expected @cb12b89db565
+	machine `observe` state `entry` local `value` expects `LayoutStorage<Record, OtherPolicy>`, but the value is delivered as `LayoutStorage<Record, CAbiPolicy<Record>>`
 fail/facts/case_type_equation_recovery_through_call_result_rejected rejected 3011ms expected @0402685c2f27+wt
 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
 	match arms produce incompatible values
@@ -4225,6 +4232,9 @@ pass/facts/build_target_provider_through_other_machine_exit checked 7929ms check
 pass/facts/build_target_provider_through_other_state_exit checked 8066ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/build_target_provider_through_parameter_exit checked 8056ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/build_target_provider_through_target_body_exit checked 7404ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/c_layout_scalar_record_through_call_result_exit checked 14436ms check-target:macos_arm64 @cb12b89db565
+pass/facts/c_layout_scalar_record_through_const_name_exit checked 14247ms check-target:macos_arm64 @cb12b89db565
+pass/facts/c_layout_scalar_record_through_match_join_exit checked 12814ms check-target:macos_arm64 @cb12b89db565
 pass/facts/call_result_bound_discharge_through_call_result_exit checked 3382ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/call_result_bound_discharge_through_const_name_exit checked 3713ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/call_result_bound_discharge_through_field_exit checked 3753ms check-target:macos_arm64 @ccdb99ca2214

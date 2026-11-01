@@ -873,8 +873,8 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete the remaining call-result, match-join, const-name, nested-machine,
-    other-machine and selected-target places of the
+  - Complete the remaining nested-machine, other-machine and selected-target
+    places of the
     [C-layout row](samples/cli/facts/c_layout_scalar_record/README.md), plus
     remaining schema composition support; migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and

@@ -119,6 +119,24 @@ sample/library sources, member visibility lookup and constructor receiving check
 retain their tested meaning. Incoming main changes are covered by normal queue
 admission, without relabeling the earlier runtime observations as a new producer.
 
-Call result, match join, const name, nested machine, other machine and selected
-target implementation remain open, along with broader schema composition and
-other-host execution. These observations do not qualify the full compiler.
+Call results, both arms of a match join, and a named constant materializing the
+complete record also pass native/Terminal execution with exit 0. Their three
+policy twins reject in [pilot 41300391077](https://github.com/CathedralOS/Omega/actions/runs/41300391077),
+including the independently run corpus mirrors. The optimized producer is
+`cb12b89db5655e90baf284096fa6cd6ac4461c69`, image
+`0f71437986860cea454a86772caf1dbdeec1dd3f837fd968ce77b1c7b70bb7de`.
+Preparation took 714.492 seconds; corpus checking took 29.051 seconds, corpus
+native/Terminal execution 24.036 seconds, and samples 47.666 seconds. Native
+execution was on Linux x86_64; the separate corpus checking leg records its
+actual default `macos_arm64` check target. The six checking rows are copied from
+the runner's raw observations with that source stamp. No other host was executed.
+
+Constant preparation retains alias ownership, declared-type readiness, and
+transparent alias expansions during canonical payload replay. Projected source
+replay uses the same declaration visitors as current roots, retaining original
+constant inputs independently from evaluated/materialized results. This restores
+policy evidence without rooting a runtime constant or granting body authority.
+
+Nested machine, other machine and selected target implementation remain open,
+along with broader schema composition and other-host execution. These
+observations do not qualify the full compiler.
