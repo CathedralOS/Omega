@@ -14,7 +14,11 @@ use crate::{
     serialize_elf_dynamic_file_envelope,
 };
 use arena::Handle;
-use image::{FinalImage, FinalImageMemory};
+use image::{
+    FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
+    FinalImage, FinalImageMemory, validate_placed_data_region_inventory,
+    validate_placed_executable_region_inventory,
+};
 use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +56,19 @@ fn resolved_linkage(
         3,
     );
     crate::test_support::text_entry(&mut image, 24);
+    image.executable_regions.push(FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        byte_count: 28,
+        symbol: "relocated-caller".to_owned(),
+        footprint: None,
+    });
+    image.data_regions.push(FinalDataRegion {
+        origin: FinalDataRegionOrigin::CompilerData,
+        section_offset: 0,
+        byte_count: 13,
+        symbol: "caller-data".to_owned(),
+    });
 
     let mut imports = Vec::new();
     for (index, symbol) in imported_symbols.into_iter().enumerate() {
@@ -413,6 +430,24 @@ fn both_linux_targets_consume_the_retained_image_into_exact_admitted_bytes() {
         );
         assert!(admitted.output().bytes.starts_with(b"\x7fELF"));
         assert!(admitted.output().format.contains("dynamic-executable"));
+        let output = admitted.output();
+        validate_placed_executable_region_inventory(
+            &output.executable_regions,
+            &admitted.image().memory.text,
+        )
+        .unwrap();
+        assert!(
+            validate_placed_executable_region_inventory(
+                &output.executable_regions,
+                &original.memory.text,
+            )
+            .is_err()
+        );
+        validate_placed_data_region_inventory(&output.data_regions, &admitted.image().memory.data)
+            .unwrap();
+        assert_eq!(output.executable_regions.regions.len(), 1);
+        assert_eq!(output.executable_regions.unclassified_gaps.len(), 1);
+        assert_eq!(output.data_regions.regions.len(), 1);
     }
 }
 
@@ -424,7 +459,7 @@ fn final_byte_admission_rejects_independent_output_drift() {
         .retained_image()
         .clone();
     image.memory.text = assembled.resolved_linkage.source_text_bytes().to_vec();
-    let output = derive_executable_output(&assembled, &image).unwrap();
+    let output = derive_executable_output(&assembled).unwrap();
     validate_executable_output(&assembled, &image, &output).unwrap();
 
     let mut bytes = output.clone();
