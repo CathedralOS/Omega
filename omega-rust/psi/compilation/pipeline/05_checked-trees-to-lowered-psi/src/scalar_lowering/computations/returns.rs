@@ -54,7 +54,7 @@ impl Expansion<'_> {
             source,
             result_type,
         )?;
-        let destination = completion.destination(source)?;
+        let destination = completion.destination();
         let target_state = target
             .checked_sub(self.base)
             .and_then(|index| self.states.get(index))

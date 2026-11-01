@@ -1,51 +1,40 @@
 //! Publish checked nominal associations and complete native layout provenance.
 //! No target is selected and no policy body is evaluated during this projection.
 
-use super::{CheckedTrees, LoweringError, UnitPlans, unsupported};
-use semantic_vocabulary::StructuralTypeId;
+use super::{CheckedTrees, LoweringError, unsupported};
+use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
-    NativeLayoutCatalog, NativeLayoutFieldIdentity, NativeLayoutRealization, StructuralTypeShape,
-    TargetLayoutInput, TerminalIdentityTableBuilder,
+    NativeLayoutCatalog, NativeLayoutFieldIdentity, NativeLayoutRealization, TargetLayoutInput,
+    TerminalIdentityTableBuilder,
 };
 use typed_trees::type_identity::TypeIdentityId;
 
+/// A record's native association is produced with its Terminal fields, from
+/// the same checked record row. Carry each emitted field ID beside its native
+/// declaration identity; a later zip of independently reconstructed inventories
+/// would have to revalidate a relationship this construction already owns.
+pub(crate) struct NativeRecordProjection<'checked> {
+    pub(super) id: StructuralTypeId,
+    pub(super) source_identity: TypeIdentityId,
+    pub(super) native_identity: Option<&'checked str>,
+    pub(super) policy_identity: Option<&'checked str>,
+    pub(super) fields: Vec<(StructuralFieldId, Option<&'checked str>)>,
+}
+
 pub(super) fn lower(
     checked: &CheckedTrees,
-    plans: UnitPlans<'_>,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-    type_ids: &[(TypeIdentityId, StructuralTypeId)],
+    records: &[NativeRecordProjection<'_>],
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<NativeLayoutCatalog, LoweringError> {
     let mut catalog = NativeLayoutCatalog::default();
-    for record in types {
-        let StructuralTypeShape::Record { fields, .. } = &record.shape else {
-            continue;
-        };
-        let source_identity = type_ids
+    for record in records {
+        let source_identity = record.source_identity;
+        let fields = record
+            .fields
             .iter()
-            .find_map(|(source, id)| (*id == record.id).then_some(*source))
-            .ok_or(LoweringError::Unsupported(
-                "native record lost its checked identity association",
-            ))?;
-        let source = super::catalog::selected_declaration(plans, source_identity)?;
-        let checked_trees::CheckedUnitStructuralTypeShape::Record {
-            fields: source_fields,
-            ..
-        } = &source.shape
-        else {
-            return unsupported("native record differs from its checked shape");
-        };
-        if source_fields.len() != fields.len() {
-            return unsupported("native record changed its exact checked field inventory");
-        }
-        let fields = source_fields
-            .iter()
-            .zip(fields)
-            .map(|(source, field)| NativeLayoutFieldIdentity {
-                field: field.id,
-                declaration_identity: source
-                    .native_identity
-                    .as_deref()
+            .map(|(field, identity)| NativeLayoutFieldIdentity {
+                field: *field,
+                declaration_identity: identity
                     .map(|identity| identities.intern(identity))
                     .unwrap_or_default(),
             })
@@ -58,11 +47,11 @@ pub(super) fn lower(
             return unsupported("native record has multiple checked layout applications");
         }
         let policy = match planned {
-            Some(_) => identities.intern(source.native_policy_identity.as_deref().ok_or(
-                LoweringError::Unsupported(
+            Some(_) => {
+                identities.intern(record.policy_identity.ok_or(LoweringError::Unsupported(
                     "planned native record lost its checked policy identity",
-                ),
-            )?),
+                ))?)
+            }
             None => Default::default(),
         };
         let mut realizations = Vec::new();
@@ -100,9 +89,8 @@ pub(super) fn lower(
         }
         catalog.insert(
             record.id,
-            source
+            record
                 .native_identity
-                .as_deref()
                 .map(|identity| identities.intern(identity))
                 .unwrap_or_default(),
             policy,

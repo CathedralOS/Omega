@@ -13,6 +13,7 @@ pub struct CheckedDeclarationCall {
     pub expression: ExpressionHandle,
     pub authored_target: SymbolHandle,
     pub arguments: HandleSpan<ExpressionHandle>,
+    pub checked_arguments: HandleSpan<ExpressionHandle>,
     pub target_machine: SymbolHandle,
     pub target_state: SymbolHandle,
     /// Bound after the same checking invocation discharges its denotational

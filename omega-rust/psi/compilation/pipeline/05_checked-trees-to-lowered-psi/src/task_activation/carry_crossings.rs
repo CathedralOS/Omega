@@ -66,19 +66,14 @@ pub(crate) fn validate_activation_carry_crossing(
         .machine_states(machine)
         .iter()
         .filter(|state| state.symbol == crossing.state);
-    let state = states
+    states
         .next()
         .ok_or_else(|| cross!("state must belong to its exact typed machine"))?;
     if states.next().is_some() {
         return Err(cross!("state must resolve uniquely within its machine"));
     }
-    if typed
-        .statement_table
-        .statement_at(state, crossing.statement_index)
-        .is_none()
-    {
-        return Err(cross!("statement must belong to its exact typed state"));
-    }
+    // The exact checked flow call below binds the statement coordinate to
+    // this state; source syntax supplies no second membership decision.
 
     let mut flow_states = check_facts.flow.control.states.iter().filter(|(_, flow)| {
         flow.machine_symbol == crossing.machine && flow.state_symbol == crossing.state

@@ -338,11 +338,11 @@ pub(super) fn lower_program_local_root_introductions(
     Ok(output)
 }
 
-pub(super) fn lower_unit_structural_types(
+pub(super) fn lower_unit_structural_types<'checked>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     scalar_applications: &super::scalar_applications::SourceScalarApplications,
-    plans: UnitPlans<'_>,
+    plans: UnitPlans<'checked>,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     additional_roots: &[typed_trees::type_identity::TypeIdentityId],
@@ -351,6 +351,7 @@ pub(super) fn lower_unit_structural_types(
         Vec<StructuralTypeDeclaration>,
         Vec<(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)>,
         Vec<StructuralReferentIdentity>,
+        Vec<super::native_layouts::NativeRecordProjection<'checked>>,
     ),
     LoweringError,
 > {
@@ -528,7 +529,7 @@ pub(super) fn lower_unit_structural_types(
             )?;
         }
     }
-    let (mut declarations, mut identity_ids, referents) =
+    let (mut declarations, mut identity_ids, referents, native_records) =
         lower_unit_structural_type_roots(identities, checked, scalar_applications, plans, &roots)?;
     if literal_view {
         literal_view_type(identities, &mut declarations)?;
@@ -593,7 +594,7 @@ pub(super) fn lower_unit_structural_types(
             });
         }
     }
-    Ok((declarations, identity_ids, referents))
+    Ok((declarations, identity_ids, referents, native_records))
 }
 
 fn select_from<'a>(
@@ -628,17 +629,18 @@ pub(crate) fn selected_declaration<'a>(
     selected.ok_or_else(|| LoweringError::MissingUnitStructuralType(format!("{identity:?}")))
 }
 
-pub(crate) fn lower_unit_structural_type_roots(
+pub(crate) fn lower_unit_structural_type_roots<'checked>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     scalar_applications: &super::scalar_applications::SourceScalarApplications,
-    plans: UnitPlans<'_>,
+    plans: UnitPlans<'checked>,
     roots: &[typed_trees::type_identity::TypeIdentityId],
 ) -> Result<
     (
         Vec<StructuralTypeDeclaration>,
         Vec<(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)>,
         Vec<StructuralReferentIdentity>,
+        Vec<super::native_layouts::NativeRecordProjection<'checked>>,
     ),
     LoweringError,
 > {
@@ -816,6 +818,7 @@ pub(crate) fn lower_unit_structural_type_roots(
     let mut next_case = 1_u64;
     let mut next_layout_application = 1_u32;
     let mut declarations = Vec::with_capacity(selected.len());
+    let mut native_records = Vec::new();
     for plan in selected {
         let identity = plan.identity;
         let shape = match &plan.shape {
@@ -860,6 +863,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 access: access.map(terminal_access),
             },
             CheckedUnitStructuralTypeShape::Record { fields, storage } => {
+                let mut native_fields = Vec::with_capacity(fields.len());
                 let mut field_identities = BTreeSet::new();
                 let fields = fields.iter().map(|field| {
                 if !field.identity.is_valid() || !field_identities.insert(field.identity.spelling()) {
@@ -901,8 +905,16 @@ pub(crate) fn lower_unit_structural_type_roots(
                     relevance,
                     field_type,
                 };
+                native_fields.push((declaration.id, field.native_identity.as_deref()));
                 Ok(declaration)
                 }).collect::<Result<Vec<_>, LoweringError>>()?;
+                native_records.push(super::native_layouts::NativeRecordProjection {
+                    id: lookup_type_id(&type_ids, &identity)?,
+                    source_identity: identity,
+                    native_identity: plan.native_identity.as_deref(),
+                    policy_identity: plan.native_policy_identity.as_deref(),
+                    fields: native_fields,
+                });
                 StructuralTypeShape::Record {
                     fields,
                     storage: match storage {
@@ -1017,7 +1029,7 @@ pub(crate) fn lower_unit_structural_type_roots(
             shape,
         });
     }
-    Ok((declarations, type_ids, referents))
+    Ok((declarations, type_ids, referents, native_records))
 }
 
 pub(super) fn lower_unit_structural_domains(

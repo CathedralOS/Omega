@@ -252,6 +252,28 @@ fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms ex
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/double_indexed_rmw_through_call_result_unproved_inner_bound rejected 2538ms expected @f9df9c1404e3
+	machine `main` state `entry` value call to `rmw` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
+fail/facts/double_indexed_rmw_through_const_name_unproved_inner_bound rejected 7876ms expected @f9df9c1404e3
+	cannot prove index `4` is within length 4
+	cannot prove index `4` is within length 4
+	cannot prove index `4` is within length 4
+	cannot prove index `4` is within length 4
+fail/facts/double_indexed_rmw_through_field_unproved_inner_bound rejected 3503ms expected @f9df9c1404e3
+	machine `main` state `entry` value call to `rmw` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
+fail/facts/double_indexed_rmw_through_local_unproved_inner_bound rejected 2632ms expected @f9df9c1404e3
+	machine `main` state `entry` value call to `grid_rmw` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
+fail/facts/double_indexed_rmw_through_match_join_unproved_inner_bound rejected 2069ms expected @f9df9c1404e3
+	machine `main` state `entry` value call to `left_arm` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
+	machine `main` state `entry` value call to `right_arm` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
+fail/facts/double_indexed_rmw_through_other_machine_unproved_inner_bound rejected 4389ms expected @f9df9c1404e3
+	machine `main` state `entry` value call to `Writer::run` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
+fail/facts/double_indexed_rmw_through_other_state_unproved_inner_bound rejected 3371ms expected @f9df9c1404e3
+	machine `main` state `entry` value call to `write` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
+fail/facts/double_indexed_rmw_through_parameter_unproved_inner_bound rejected 2705ms expected @f9df9c1404e3
+	machine `main` state `entry` value call to `rmw` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
+fail/facts/double_indexed_rmw_through_target_body_unproved_inner_bound rejected 7084ms expected @f9df9c1404e3
+	cannot prove requires contract for call rmw from main: 4 <= 3 (needs fact `j <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_float_input_alias_through_call_result_weakened_input rejected 5468ms expected @da76dcbec7ab
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_float_input_alias_through_const_name_weakened_input rejected 5685ms expected @da76dcbec7ab
@@ -1192,6 +1214,24 @@ fail/facts/saved_observation_snapshot_indexed_handback_target_body_rejected reje
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_whole_replacement_rejected rejected 4684ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 1: holder.items[kept] == 7 && holder.items[changed] == value
+fail/facts/slice_view_indexed_descriptor_through_call_result_insufficient_guard rejected 6680ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_indexed_descriptor_through_const_name_insufficient_guard rejected 5917ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_indexed_descriptor_through_field_insufficient_guard rejected 6399ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_indexed_descriptor_through_local_insufficient_guard rejected 6342ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_indexed_descriptor_through_match_join_insufficient_guard rejected 8580ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_indexed_descriptor_through_other_machine_insufficient_guard rejected 6983ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_indexed_descriptor_through_other_state_insufficient_guard rejected 5889ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_indexed_descriptor_through_parameter_insufficient_guard rejected 6456ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_indexed_descriptor_through_target_body_insufficient_guard rejected 7026ms expected @f9df9c1404e3
+	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/stored_shared_byte_view_element_lend_through_call_result_rejected rejected 4636ms expected @0fb500fb9d4b
 	cannot prove requires contract for call read from main: selected[0].len == 1 (needs fact `bytes.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `first.len == 1`
 fail/facts/stored_shared_byte_view_element_lend_through_const_name_rejected rejected 3422ms expected @0fb500fb9d4b
@@ -1219,6 +1259,11 @@ fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms 
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/write_only_scalar_entry_observation rejected 5920ms expected @3bd254ac6193
 	machine `read` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expected @f9df9c1404e3
+	Exact integer cast in machine `make` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `make` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/float/constructor_case_invalid_wide_rejected rejected 2742ms expected @5163c9f60160
+	data `Choice` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/generics/constructor_inferred_byte_domain_unproved rejected 2858ms expected @b852a38544d0
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[0] requires u8::Small
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[1] requires u8::Small
@@ -2529,6 +2574,8 @@ pass/calls/static_context_forwarded_twice_exit checked 13469ms check-target:maco
 pass/calls/static_machine_required_input_crash_refinement_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/static_state_context_field_window_exit rejected 15731ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call to `lend` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+pass/calls/stored_unsigned_as_signed_negative_requires_exit checked 24836ms check-target:macos_arm64 @5d70aa361af0
+pass/calls/stored_unsigned_as_signed_positive_requires_exit checked 26756ms check-target:macos_arm64 @5d70aa361af0
 pass/calls/structural_mut_to_shared_argument checked 4083ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/structural_self_rooted_argument checked 3453ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/subslice_argument_keeps_unrelated_facts checked 2157ms @ccdb99ca2214
@@ -8829,6 +8876,15 @@ pass/facts/slice_view_element_read_bound_through_other_machine_exit checked 4024
 pass/facts/slice_view_element_read_bound_through_other_state_exit checked 4062ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_element_read_bound_through_parameter_exit checked 4295ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_element_read_bound_through_target_body_exit checked 5317ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/slice_view_indexed_descriptor_through_call_result_exit checked 23312ms check-target:macos_arm64 @f9df9c1404e3
+pass/facts/slice_view_indexed_descriptor_through_const_name_exit checked 27179ms check-target:macos_arm64 @f9df9c1404e3
+pass/facts/slice_view_indexed_descriptor_through_field_exit checked 24581ms check-target:macos_arm64 @f9df9c1404e3
+pass/facts/slice_view_indexed_descriptor_through_local_exit checked 19962ms check-target:macos_arm64 @f9df9c1404e3
+pass/facts/slice_view_indexed_descriptor_through_match_join_exit checked 20006ms check-target:macos_arm64 @f9df9c1404e3
+pass/facts/slice_view_indexed_descriptor_through_other_machine_exit checked 19355ms check-target:macos_arm64 @f9df9c1404e3
+pass/facts/slice_view_indexed_descriptor_through_other_state_exit checked 15185ms check-target:macos_arm64 @f9df9c1404e3
+pass/facts/slice_view_indexed_descriptor_through_parameter_exit checked 13200ms check-target:macos_arm64 @f9df9c1404e3
+pass/facts/slice_view_indexed_descriptor_through_target_body_exit checked 10235ms check-target:macos_arm64 @f9df9c1404e3
 pass/facts/slice_view_layout_geometry_through_call_result_exit checked 3760ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_layout_geometry_through_const_name_exit checked 4092ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_layout_geometry_through_field_exit checked 3719ms check-target:macos_arm64 @ccdb99ca2214
@@ -10014,6 +10070,10 @@ pass/float/constructed_ieee_asymmetric_join checked 4541ms @ccdb99ca2214
 pass/float/constructed_ieee_copy_before_write checked 5195ms @ccdb99ca2214
 pass/float/constructed_ieee_effectful_match_frozen checked 4849ms @ccdb99ca2214
 pass/float/constructed_ieee_predicates_exit checked 6570ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/constructor_case_direct_widen_exit checked 10687ms check-target:macos_arm64 @f9df9c1404e3
+pass/float/constructor_case_guarded_narrow_widen_exit checked 10154ms check-target:macos_arm64 @f9df9c1404e3
+pass/float/constructor_case_wrapped_local_widen_exit checked 17343ms check-target:macos_arm64 @f9df9c1404e3
+pass/float/constructor_record_direct_widen_exit checked 11348ms check-target:macos_arm64 @f9df9c1404e3
 pass/float/constructor_requirement_result_policy_exit checked 6720ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/data_where_float_field_restored_exit checked 14640ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/directed_square_root_radius_exit checked 16143ms check-target:macos_arm64 @ccdb99ca2214
@@ -15212,7 +15272,8 @@ fail/calls/closed_constructor_requires_stale_store_rejected rejected 15881ms exp
 	cannot prove requires contract for call take from Main::main: main.point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/closed_constructor_requires_symbolic_unknown rejected 17744ms expected @ccdb99ca2214
 	cannot prove requires contract for call take from symbolic: point == Point.zero() (needs fact `point == Point.zero()` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/calls/closed_constructor_store_recast_not_identity checked 17310ms @ccdb99ca2214
+fail/calls/closed_constructor_store_recast_not_identity rejected 26733ms expected @5d70aa361af0
+	cannot prove requires contract for call take from Main::main: view > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/calls/closed_constructor_unused_divergence_unknown rejected 13902ms unexpected @ccdb99ca2214
 	machine `Main::main` state `main` value call to `take` violates required fact `point == Point.zero()`: the instantiated fact is structurally false (`Point { x: 1, y: 0 } == Point { x: 0, y: 0 }`)
 fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 16521ms unexpected @ccdb99ca2214
@@ -16894,7 +16955,8 @@ fail/domains/bitwise_membership_trapping_operand rejected 858ms expected @ccdb99
 fail/domains/bodyful_owner_establishment_bypass rejected 1758ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from Token::zero at statement 0: result in Token::Positive
 	cannot prove ensures contract for exit from Token::zero at statement 0: result in Token::Positive
-fail/domains/bodyless_routed_primitive_receiver_requires_issuer checked 17593ms @ccdb99ca2214
+fail/domains/bodyless_routed_primitive_receiver_requires_issuer rejected 25289ms expected @5d70aa361af0
+	cannot prove default-domain field requirement for return from replace at statement 1: row requires u64::IssuedIndex
 fail/domains/borrowed_record_domain_requires_qualified_input rejected 3997ms expected @ccdb99ca2214
 	cannot prove requires contract for call view from main: cell in Cell::Admitted in state `entry`
 fail/domains/borrowed_scalar_tag_wrong_index rejected 2062ms expected @ccdb99ca2214

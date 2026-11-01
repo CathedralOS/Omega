@@ -16,7 +16,7 @@ use super::{
 use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::buffer::{SourceCallCoordinate, SourceInvocation};
+use crate::emission::operation_emission::buffer::SourceInvocation;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::computation_graph::reachable_nodes;

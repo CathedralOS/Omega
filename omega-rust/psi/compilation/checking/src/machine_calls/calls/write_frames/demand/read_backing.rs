@@ -217,6 +217,39 @@ impl CallFrameResolver<'_> {
         )
     }
 
+    /// Classify source substitution for this exact completed scalar read.
+    /// Numerical premises on its backing require the selected interpretation;
+    /// captured-value proofs handle a different representation separately.
+    pub fn scalar_read_changes_interpretation(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        root: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<bool> {
+        let reference =
+            crate::expression_result_type_reference(self.program, machine, state, expression)?;
+        let (expected, _) = crate::value_custody::expression_types::scalar_observation_meaning(
+            self.program,
+            reference,
+        )?;
+        let backing =
+            self.storage_read_backing_at_expression(machine, state, expression, root, path)?;
+        Some(backing.sources.iter().any(|source| {
+            source
+                .scalar_storage_coordinate(self.program, state)
+                .map_or_else(
+                    || !source.recasts.is_empty() || source.representation.is_some(),
+                    |scalar| {
+                        !scalar.preserves_scalar_value
+                            || scalar.source_primitive != expected
+                            || scalar.view_primitive != expected
+                    },
+                )
+        }))
+    }
+
     /// A completed read follows its evaluated children. Earlier operands may
     /// replace a descriptor, so its incoming statement prefix is insufficient.
     pub(crate) fn storage_read_backing_at_expression(

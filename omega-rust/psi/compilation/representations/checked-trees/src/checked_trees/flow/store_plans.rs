@@ -128,6 +128,10 @@ pub enum CheckedStoreLeaf {
     /// primitive local or borrowed primitive, or the primitive array element
     /// or plain IEEE field a primitive projection reaches.
     Primitive {
+        /// The destination and completed RHS were checked against this same
+        /// primitive carrier. Lowering transports it rather than selecting a
+        /// second carrier from a physical home or an evaluated operand.
+        primitive_type: PrimitiveType,
         /// Exact indexed write's completed byte-predicate preservation judgment.
         preserves_byte_memberships: bool,
         /// Scalar qualification constrains this source write without changing

@@ -233,6 +233,10 @@ pub(super) fn natural_rank_plans_for_fused(
 
 /// Rebind every component into the composed plan's own arena. A missing root
 /// rejects the whole tuple; it cannot shorten the relation to a passing prefix.
+/// Cloning each admitted component preserves parameter, position, measure and
+/// function identity in order; only its executable root and arena owner change.
+/// This checking-time construction owns tuple completeness, so lowering reads
+/// the published tuple without comparing it to the source prototype again.
 pub(super) fn bind_observations(
     program: &dyn validation::CheckingInput,
     admitted: &checked_trees::CheckedRankArrivalPlan,
@@ -257,7 +261,7 @@ pub(super) fn bind_observations(
                         component: u32::try_from(component).ok()?,
                     },
                 )?;
-                if root.machine != owner.symbol {
+                if root.machine != owner.symbol || !root.root.is_valid() {
                     return None;
                 }
                 let mut value = value.clone();
@@ -268,4 +272,50 @@ pub(super) fn bind_observations(
         rank.components = components.insert_many(values);
     }
     Some(components)
+}
+
+/// Publish the complete witness roster before it crosses the checking boundary.
+/// The selector and binder above preserve tuple identity by construction. Keep
+/// completeness here so a future producer change cannot publish a shortened or
+/// substituted tuple and defer the source obligation to lowering.
+pub(super) fn complete_witness_ranks(
+    fused: &FusedStates<'_>,
+    admitted: &checked_trees::CheckedRankArrivalPlan,
+    ranks: &[checked_trees::CheckedStateNaturalRank],
+    components: &arena::Arena<checked_trees::CheckedIntegerRankObservation>,
+) -> Option<()> {
+    for (owner, state) in fused {
+        if owner.termination_plan.implementation_witness.is_none() {
+            continue;
+        }
+        let judgment = admitted.judgment_for_body(owner.symbol, owner.states)?;
+        if !judgment.local_terminates {
+            return None;
+        }
+        for required in admitted
+            .observations
+            .span(judgment.observations)?
+            .iter()
+            .filter(|rank| rank.state == state.symbol)
+        {
+            let wanted = admitted.observation_components.span(required.components)?;
+            let retained = ranks
+                .iter()
+                .find(|rank| rank.state == required.state)
+                .and_then(|rank| components.span(rank.components))?;
+            if wanted.is_empty()
+                || wanted.len() != retained.len()
+                || !wanted.iter().zip(retained).all(|(wanted, actual)| {
+                    wanted.parameter == actual.parameter
+                        && wanted.parameter_position == actual.parameter_position
+                        && wanted.measure == actual.measure
+                        && wanted.function == actual.function
+                        && actual.observation.is_valid()
+                })
+            {
+                return None;
+            }
+        }
+    }
+    Some(())
 }

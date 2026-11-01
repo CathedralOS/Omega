@@ -974,6 +974,8 @@ pass/calls/static_boundary_helpers_and_cleanup_exit built 1971ms exit:0 @a92f164
 pass/calls/static_context_forwarded_through_state_arms_exit built 7688ms exit:70 @a92f16431042
 pass/calls/static_context_forwarded_twice_exit built 7203ms exit:70 @a92f16431042
 pass/calls/static_state_context_field_window_exit built 12007ms exit:70 @a92f16431042
+pass/calls/stored_unsigned_as_signed_negative_requires_exit built 24633ms exit:0 @5d70aa361af0
+pass/calls/stored_unsigned_as_signed_positive_requires_exit built 25864ms exit:0 @5d70aa361af0
 pass/calls/structural_mut_to_shared_argument built 2420ms @a92f16431042
 pass/calls/structural_self_rooted_argument built 2317ms exit:0 @a92f16431042
 pass/calls/subslice_argument_keeps_unrelated_facts checked 2394ms @a92f16431042
@@ -4354,6 +4356,15 @@ pass/facts/slice_view_element_read_bound_through_other_machine_exit built 2326ms
 pass/facts/slice_view_element_read_bound_through_other_state_exit built 2310ms exit:0 @a92f16431042
 pass/facts/slice_view_element_read_bound_through_parameter_exit built 2850ms exit:0 @a92f16431042
 pass/facts/slice_view_element_read_bound_through_target_body_exit built 2794ms exit:0 @a92f16431042
+pass/facts/slice_view_indexed_descriptor_through_call_result_exit built 13235ms exit:0 @5163c9f60160
+pass/facts/slice_view_indexed_descriptor_through_const_name_exit built 13835ms exit:0 @5163c9f60160
+pass/facts/slice_view_indexed_descriptor_through_field_exit built 14096ms exit:0 @5163c9f60160
+pass/facts/slice_view_indexed_descriptor_through_local_exit built 12712ms exit:0 @5163c9f60160
+pass/facts/slice_view_indexed_descriptor_through_match_join_exit built 10827ms exit:0 @5163c9f60160
+pass/facts/slice_view_indexed_descriptor_through_other_machine_exit built 9293ms exit:0 @5163c9f60160
+pass/facts/slice_view_indexed_descriptor_through_other_state_exit built 13925ms exit:0 @5163c9f60160
+pass/facts/slice_view_indexed_descriptor_through_parameter_exit built 12034ms exit:0 @5163c9f60160
+pass/facts/slice_view_indexed_descriptor_through_target_body_exit built 20619ms exit:0 @5163c9f60160
 pass/facts/slice_view_layout_geometry_through_call_result_exit built 2342ms exit:0 @a92f16431042
 pass/facts/slice_view_layout_geometry_through_const_name_exit built 2335ms exit:0 @a92f16431042
 pass/facts/slice_view_layout_geometry_through_field_exit built 2082ms exit:0 @a92f16431042
@@ -4946,6 +4957,10 @@ pass/float/constructed_ieee_asymmetric_join checked 6285ms @a92f16431042
 pass/float/constructed_ieee_copy_before_write checked 6020ms @a92f16431042
 pass/float/constructed_ieee_effectful_match_frozen checked 6308ms @a92f16431042
 pass/float/constructed_ieee_predicates_exit built 9076ms exit:0 @a92f16431042
+pass/float/constructor_case_direct_widen_exit built 19961ms exit:0 @5163c9f60160
+pass/float/constructor_case_guarded_narrow_widen_exit built 21356ms exit:0 @5163c9f60160
+pass/float/constructor_case_wrapped_local_widen_exit built 31803ms exit:0 @5163c9f60160
+pass/float/constructor_record_direct_widen_exit built 17634ms exit:0 @5163c9f60160
 pass/float/constructor_requirement_result_policy_exit built 8393ms exit:0 @a92f16431042
 pass/float/data_where_float_field_restored_exit built 17886ms exit:70 @a92f16431042
 pass/float/directed_square_root_radius_exit built 20294ms exit:70 @a92f16431042

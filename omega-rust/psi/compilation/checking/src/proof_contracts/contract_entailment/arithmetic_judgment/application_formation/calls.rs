@@ -173,6 +173,7 @@ pub(super) fn form(
         expression,
         authored_target: call.target_symbol,
         arguments: call.arguments,
+        checked_arguments: arena::HandleSpan::empty(),
         target_machine: machine.symbol,
         target_state: state.symbol,
         target_contract: None,

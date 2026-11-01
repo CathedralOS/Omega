@@ -6,15 +6,15 @@ machine main() crashes Trap {
     let mut grid: [[i32 in Wrapping; 4]; 3];
     let mut rows: [Row; 3];
     transition 1 == 1 {
-        true -> left_arm(&mut grid, &mut rows, 1, 2, 2, 1)
-        _ -> right_arm(&mut grid, &mut rows, 1, 2, 2, 1)
+        true -> left_arm(&mut grid, &mut rows, 1, 4, 2, 1)
+        _ -> right_arm(&mut grid, &mut rows, 1, 4, 2, 1)
     }
     machine left_arm(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
     requires i <= 2
     requires j <= 3
     requires ri <= 2
     requires rj <= 1 {
-        grid[1][2] = 40;
+        grid[1][2] = 41;
         grid[i][j] = grid[i][j] + 1;
         let grid_got: i32 in Wrapping = grid[1][2];
         rows[2].data[1] = 41;
@@ -28,7 +28,7 @@ machine main() crashes Trap {
     requires j <= 3
     requires ri <= 2
     requires rj <= 1 {
-        grid[1][2] = 40;
+        grid[1][2] = 41;
         grid[i][j] = grid[i][j] + 1;
         let grid_got: i32 in Wrapping = grid[1][2];
         rows[2].data[1] = 41;

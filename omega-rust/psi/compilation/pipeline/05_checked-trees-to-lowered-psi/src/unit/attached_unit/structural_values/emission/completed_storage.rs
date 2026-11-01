@@ -273,7 +273,7 @@ impl Emission<'_, '_, '_> {
             Self::bind_completion_claims(self.operations, place, &claims, &introductions)?;
         }
         let domains = self.checked_membership_domains(decisions, self.structural_type)?;
-        publish(self.operations, place, self.structural_type, domains)?;
+        publish(self.operations, place, domains)?;
         self.completed(identities, place, completion, continuation)
     }
 

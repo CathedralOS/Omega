@@ -849,7 +849,7 @@ pub(super) fn with_caller_origin_context<T>(
     >,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
 ) -> Option<T> {
-    let (state, _statement, index) = caller_statement_owner(program, machine, site)?;
+    let (state, _statement, index) = caller_statement_at_site(program, machine, symbols, site)?;
     let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
     // These consumers capture invocation inputs, before this invocation's
     // writes. Each rejects effects preceding/during its operand through the
@@ -872,7 +872,13 @@ fn with_retained_origin_context<T>(
     mut evidence: CallerPrefixEvidence<'_>,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
 ) -> Option<T> {
-    let owner = caller_statement_owner(program, machine, site);
+    // A tracked prefix already carries the authenticated owning state. Only
+    // an untracked prefix needs the fallback owner and its earlier locals.
+    let owner = if evidence.state.is_none() {
+        caller_statement_owner(program, machine, site)
+    } else {
+        None
+    };
     if evidence.state.is_none()
         && let Some((state, _, index)) = owner
     {

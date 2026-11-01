@@ -12,7 +12,6 @@ use semantic_vocabulary::{
 };
 
 use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
 
 // Structural Unit call requirements occupy the upper half of the module-wide
 // obligation namespace. Existing contract and cleanup producers allocate from
@@ -324,14 +323,11 @@ pub(crate) fn fresh_field_snapshot(
     qualifications: &[terminal_psi::ScalarFieldQualification],
 ) -> Result<terminal_psi::ValueDeclaration, LoweringError> {
     let qualification = qualifications.iter().find(|row| row.field == field);
-    if qualification.is_some_and(|row| row.value_type.scalar_type != scalar_type) {
-        return unsupported("field snapshot qualification changed its declared carrier");
-    }
     Ok(terminal_psi::ValueDeclaration {
         qualifications: qualification
             .map(|row| row.value_type.qualifications)
             .unwrap_or_default(),
         id: value_id(allocate_dense(next_value)?),
-        scalar_type,
+        scalar_type: qualification.map_or(scalar_type, |row| row.value_type.scalar_type),
     })
 }

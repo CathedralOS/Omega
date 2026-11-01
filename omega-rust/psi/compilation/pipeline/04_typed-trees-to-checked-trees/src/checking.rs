@@ -490,6 +490,14 @@ fn check_program(
                 &finalized,
             )
         });
+    facts.executable_bindings = phase_profile::scope("05.d.11_13.h.executable_bindings", || {
+        crate::facts::executable_bindings::record(&finalized)
+    });
+    crate::facts::executable_bindings::freeze_contract_subjects(&finalized, &mut facts.proof);
+    crate::facts::executable_bindings::freeze_declaration_arguments(
+        &finalized,
+        &mut facts.termination.rank_arrivals,
+    );
     drop(finalized);
 
     // Mathematical terms remained borrowed by every source judgment. Transfer
