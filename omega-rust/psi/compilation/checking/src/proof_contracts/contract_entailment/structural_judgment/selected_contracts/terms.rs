@@ -336,20 +336,20 @@ impl StructuralJudge<'_> {
                 let source = crate::parameter_expression_result_type_reference(
                     program, scope, parameters, cast.value,
                 )?;
-                structural_terms::denotation_preserving_conversion(program, cast, source)
-                    .then(|| {
-                        self.bound_contract_term(
-                            cast.value,
-                            scope,
-                            parameters,
-                            callable,
-                            bindings,
-                            type_bindings,
-                            result,
-                            depth + 1,
-                        )
-                    })
-                    .flatten()
+                if !structural_terms::denotation_preserving_conversion(program, cast, source) {
+                    return None;
+                }
+                let value = self.bound_contract_term(
+                    cast.value,
+                    scope,
+                    parameters,
+                    callable,
+                    bindings,
+                    type_bindings,
+                    result,
+                    depth + 1,
+                )?;
+                structural_terms::conversion_term(program, cast, source, value)
             }
             ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
                 structural_terms::structural_term(program, None, None, expression, None)
