@@ -1233,6 +1233,7 @@ pass/text/runtime_chained_string_append_exit built 4463ms exit:70 interpreter-ex
 pass/text/runtime_mutable_string_parameter_concat_write_line built 4518ms exit:77 stdout:match interpreter-exit:77 interpreter-stdout:match interpreter:agrees @90c334a2c095
 pass/text/runtime_text_builder built 4531ms exit:0 interpreter-exit:0 interpreter:agrees @90c334a2c095
 pass/text/state_parameter_byte_replacement_exit built 4541ms exit:70 interpreter-exit:70 interpreter:agrees @90c334a2c095
+pass/time/runtime_std_time_host_binding_exit built 37651ms exit:70 interpreter-exit:70 interpreter:agrees @5b3c6034e84f
 pass/traits/private_generic_requirement_owned_exit built 2366ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
 pass/traits/public_method_callback_prefix_inference_exit built 2181ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
 pass/traits/public_method_const_prefix_inference_exit built 2458ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
@@ -5170,7 +5171,7 @@ pass/text/zii_default_string_equality_exit built 1986ms exit:70 interpreter-exit
 pass/time/runtime_clock_out_parameter_loans_exit built 12826ms exit:0 interpreter-exit:0 interpreter:agrees @5dbb9140bf0a+wt
 pass/time/runtime_clock_padded_out_parameter_prefix_exit built 15753ms exit:0 interpreter-exit:0 interpreter:agrees @f84dff68876d
 pass/time/runtime_clock_shared_import_slots_exit built 11288ms exit:0 interpreter-exit:0 interpreter:agrees @b8b69519109d+wt
-pass/time/runtime_time_host_native_darwin_exit built 12509ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
+pass/time/runtime_time_host_native_darwin_exit built 31524ms exit:70 interpreter-exit:70 interpreter:agrees @5b3c6034e84f
 pass/traits/computed_static_arguments_exit built 4096ms exit:0 interpreter-exit:0 interpreter:agrees @abff0035e791
 pass/traits/contract_call_captured_trait_static_argument_exit built 1101ms exit:0 interpreter-exit:0 interpreter:agrees @a8ec2fd3489a
 pass/traits/contract_call_forwarded_static_arguments_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @a8ec2fd3489a

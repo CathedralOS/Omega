@@ -13207,9 +13207,10 @@ pass/time/runtime_duration_units_and_scaling_exit checked 50624ms check-target:m
 pass/time/runtime_fs_mtime_system_time_interop_exit rejected 76819ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` publishes service reach `Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation` but its checked body reaches undeclared service `TimeHost`
 pass/time/runtime_kernel_clock_wait_loans_exit checked 3559ms check-target:linux_x86_64 @ccdb99ca2214
+pass/time/runtime_std_time_host_binding_exit checked 32450ms check-target:macos_arm64 @5b3c6034e84f
 pass/time/runtime_time_elapsed_since_exit rejected 41635ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` publishes service reach `Clock + Console` but its checked body reaches undeclared service `TimeHost`
-pass/time/runtime_time_host_native_darwin_exit checked 13334ms check-target:macos_arm64 @ccdb99ca2214
+pass/time/runtime_time_host_native_darwin_exit checked 32180ms check-target:macos_arm64 @5b3c6034e84f
 pass/time/runtime_time_host_native_darwin_x86_64_exit checked 19924ms check-target:macos_x86_64 @ccdb99ca2214
 pass/time/runtime_time_host_native_windows_exit checked 18645ms check-target:windows_x86_64 @ccdb99ca2214
 pass/time/runtime_time_host_virtual_exit checked 16625ms @ccdb99ca2214
