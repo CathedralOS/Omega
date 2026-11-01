@@ -877,6 +877,7 @@ fn validate_specification_expression_in_scope(
         }
         ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => {
             if proposition_context
+                && !super::structural_terms::is_case_observation(program, expression)
                 && let ExpressionNode::Binary(binary) = node
                 && matches!(
                     binary.operator,

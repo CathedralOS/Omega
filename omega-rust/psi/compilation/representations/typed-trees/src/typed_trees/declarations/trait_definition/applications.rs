@@ -79,20 +79,22 @@ impl TypedTrees {
                     .iter()
                     .filter_map(|edge| AppliedTraitScope::from_conformance(self, edge)),
             )
-            .chain(self.machines().iter().flat_map(|machine| {
-                machine.conformance_bounds.iter().filter_map(move |bound| {
-                    AppliedTraitScope::new(
-                        self,
-                        self.trait_definition_by_symbol(bound.trait_symbol)?,
-                        TraitApplicationArguments {
-                            lexical_owner: machine.symbol,
-                            enclosing_data_applications: &[],
-                            arguments: &bound.arguments,
-                            lifetimes: &[],
-                        },
-                    )
-                })
-            }))
+            .chain(self.machines().iter().map(|machine| (machine.symbol, &machine.conformance_bounds))
+                .chain(self.traits().iter().map(|declaration| (declaration.symbol, &declaration.conformance_bounds)))
+                .flat_map(|(owner, bounds)| {
+                    bounds.iter().filter_map(move |bound| {
+                        AppliedTraitScope::new(
+                            self,
+                            self.trait_definition_by_symbol(bound.trait_symbol)?,
+                            TraitApplicationArguments {
+                                lexical_owner: owner,
+                                enclosing_data_applications: &[],
+                                arguments: &bound.arguments,
+                                lifetimes: &[],
+                            },
+                        )
+                    })
+                }))
             .chain(
                 self.traits()
                     .iter()
