@@ -108,7 +108,7 @@ fn produce(
         .collect();
     Ok(Some(Arc::new(CallingPolicyCode {
         source_owner: Arc::downgrade(&source.program),
-        artifact,
+        artifact: Arc::new(artifact),
         entries,
     })))
 }
