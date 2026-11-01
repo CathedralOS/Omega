@@ -282,8 +282,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
     struct GuardBound {
         place: facts::PlaceHandle,
         carrier: facts::IntegerRange,
-        lower: Option<numerics::bignum::BigInt>,
-        upper: Option<numerics::bignum::BigInt>,
+        interval: validation::BigIntInterval,
     }
     let mut bounds: Vec<GuardBound> = Vec::new();
     let literal = |operand: ExpressionHandle| match program.expression_table.expression(operand) {
@@ -305,16 +304,6 @@ pub(in crate::flow) fn append_comparison_bounds_context(
         }
         _ => None,
     };
-    let mirrored = |operator: typed_trees::expression::BinaryOperator| {
-        use typed_trees::expression::BinaryOperator as Operator;
-        match operator {
-            Operator::Less => Operator::Greater,
-            Operator::LessOrEqual => Operator::GreaterOrEqual,
-            Operator::Greater => Operator::Less,
-            Operator::GreaterOrEqual => Operator::LessOrEqual,
-            other => other,
-        }
-    };
     for conjunct in conjuncts {
         if !validation::has_builtin_decomposed_guard_meaning(
             program,
@@ -327,21 +316,16 @@ pub(in crate::flow) fn append_comparison_bounds_context(
         let Some(binary) = program.expression_table.binary_node(conjunct) else {
             continue;
         };
-        let (operand, endpoint, operator) = match (literal(binary.left), literal(binary.right)) {
-            (None, Some(endpoint)) => (binary.left, endpoint, binary.operator),
-            (Some(endpoint), None) => (binary.right, endpoint, mirrored(binary.operator)),
-            _ => continue,
-        };
-        let one = numerics::bignum::BigInt::from_u64(1);
-        let (lower, upper) = match operator {
-            typed_trees::expression::BinaryOperator::Less => (None, Some(endpoint.sub(&one))),
-            typed_trees::expression::BinaryOperator::LessOrEqual => (None, Some(endpoint)),
-            typed_trees::expression::BinaryOperator::Greater => (Some(endpoint.add(&one)), None),
-            typed_trees::expression::BinaryOperator::GreaterOrEqual => (Some(endpoint), None),
-            typed_trees::expression::BinaryOperator::Equal => {
-                (Some(endpoint.clone()), Some(endpoint))
-            }
-            _ => continue,
+        let (operand, endpoint, subject_on_left) =
+            match (literal(binary.left), literal(binary.right)) {
+                (None, Some(endpoint)) => (binary.left, endpoint, true),
+                (Some(endpoint), None) => (binary.right, endpoint, false),
+                _ => continue,
+            };
+        let Some(interval) =
+            validation::BigIntInterval::from_comparison(binary.operator, subject_on_left, endpoint)
+        else {
+            continue;
         };
         let Some(place) =
             build.completed_read_place_at(program, state_symbol, statement_index, operand)
@@ -373,33 +357,21 @@ pub(in crate::flow) fn append_comparison_bounds_context(
                 bounds.push(GuardBound {
                     place,
                     carrier,
-                    lower: None,
-                    upper: None,
+                    interval: validation::BigIntInterval::unbounded(),
                 });
                 bounds.last_mut().expect("pushed")
             }
         };
-        if let Some(lower) = lower {
-            row.lower = Some(match row.lower.take() {
-                Some(previous) => previous.max(lower),
-                None => lower,
-            });
-        }
-        if let Some(upper) = upper {
-            row.upper = Some(match row.upper.take() {
-                Some(previous) => previous.min(upper),
-                None => upper,
-            });
-        }
+        row.interval = row.interval.intersect(&interval);
     }
     let mut refs = HandleSpan::empty();
     for row in bounds {
-        if row.lower.is_none() && row.upper.is_none() {
+        if row.interval == validation::BigIntInterval::unbounded() {
             continue;
         }
         let mut range = facts::IntegerRange {
-            minimum: row.lower.unwrap_or_else(|| row.carrier.minimum.clone()),
-            maximum: row.upper.unwrap_or_else(|| row.carrier.maximum.clone()),
+            minimum: row.interval.low.unwrap_or(row.carrier.minimum),
+            maximum: row.interval.high.unwrap_or(row.carrier.maximum),
         };
         // The guard fact must refine the value's live interval, not widen it:
         // readers union every live bounds payload at the place, so a row that

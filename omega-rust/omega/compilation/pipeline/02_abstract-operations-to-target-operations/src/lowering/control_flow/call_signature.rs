@@ -5,14 +5,12 @@
 //! implementation never determines the caller's ABI.
 
 use abstract_operations::{AbstractCallSignature, StructuralCallFormal};
-use calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, ValuePlacement, ValueShape, evaluate_call_plan,
-};
+use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::ScalarType;
 use target::NativeTarget;
 
 use crate::LoweringError;
-use crate::lowering::structural_layout::internal_parameter_shape;
+use crate::lowering::structural_signature::{StructuralCallPlan, StructuralCallSignature};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 
 pub(super) struct PreparedScalarCallFormal {
@@ -26,7 +24,7 @@ pub(super) struct PreparedStructuralCallFormal {
 }
 
 pub(super) struct PreparedCallSignature {
-    pub(super) call_plan: CallPlan,
+    pub(super) call_plan: StructuralCallPlan,
     pub(super) scalar_parameters: Vec<PreparedScalarCallFormal>,
     pub(super) parameters: Vec<PreparedStructuralCallFormal>,
 }
@@ -47,35 +45,26 @@ pub(super) fn prepare(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut shapes = scalar_types
+    let scalar_shapes = scalar_types
         .iter()
         .map(|scalar_type| {
             crate::lowering::scalar_abi::fixed_native_scalar_shape(*scalar_type)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(machine))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut shape_cache = std::collections::BTreeMap::new();
-    let mut active = std::collections::BTreeSet::new();
-    for position in 0..declaration.structural_parameter_count() {
-        let parameter: StructuralCallFormal<'_> = declaration
-            .structural_parameter(position)
-            .ok_or(LoweringError::AbiParameterCountMismatch {
-                expected: declaration.structural_parameter_count(),
-                actual: position,
-            })?;
-        let referent = crate::lowering::structural_layout::structural_shape(
-            parameter.structural_type,
-            types,
-            &mut shape_cache,
-            &mut active,
-        )?;
-        shapes.push(internal_parameter_shape(
-            parameter.structural_type,
-            referent,
-            parameter.access,
-            types,
-        ));
-    }
+    let formals = (0..declaration.structural_parameter_count())
+        .map(|position| {
+            declaration
+                .structural_parameter(position)
+                .map(|parameter: StructuralCallFormal<'_>| {
+                    (parameter.structural_type, parameter.access)
+                })
+                .ok_or(LoweringError::AbiParameterCountMismatch {
+                    expected: declaration.structural_parameter_count(),
+                    actual: position,
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let result = if let Some(result) = declaration.structural_result() {
         Some(super::aggregate_results::value_home_layout(result.structural_type, types)?.shape())
     } else {
@@ -87,14 +76,16 @@ pub(super) fn prepare(
             })
             .transpose()?
     };
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: shapes.clone(),
-            result,
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let signature = StructuralCallSignature::derive(
+        &scalar_shapes,
+        formals,
+        result,
+        types,
+        &mut std::collections::BTreeMap::new(),
+        &mut std::collections::BTreeSet::new(),
+    )?;
+    let call_plan = signature.plan(target)?;
+    let shapes = [scalar_shapes.as_slice(), signature.structural_shapes()].concat();
     if call_plan.parameters.len() != shapes.len() {
         return Err(LoweringError::AbiParameterCountMismatch {
             expected: shapes.len(),

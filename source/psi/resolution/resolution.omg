@@ -23,7 +23,6 @@ public data BuiltinType [copy] {
     case F32;
     case F64;
     case Slice;
-    case Result;
     case SyscallResult;
     case Terminal;
     case Never;

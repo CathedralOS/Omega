@@ -527,12 +527,12 @@ impl ExitScalars<'_, '_> {
                 StatementNode::LocalData(local)
                     if local.symbol == symbol
                         && !local.is_mutable
-                        && local.initial_value.is_valid() =>
+                        && local.ordinary_value_initializer().is_some() =>
                 {
                     if initializer.is_some() {
                         return None;
                     }
-                    initializer = Some(local.initial_value);
+                    initializer = local.ordinary_value_initializer();
                 }
                 StatementNode::Assignment(assignment) => {
                     let target = self

@@ -17,6 +17,7 @@ mod source;
 mod structural;
 pub(crate) mod validation;
 
+pub(crate) use production::ProjectedObject;
 pub use production::{
     FunctionFragmentObjectArtifactRequest, build_function_fragment_object_artifact,
 };

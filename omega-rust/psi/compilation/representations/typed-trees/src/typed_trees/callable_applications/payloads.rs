@@ -97,6 +97,7 @@ impl CallableApplication {
             .type_reference_table
             .operand_lifetime_owner(original);
         let mut applied_lifetimes = Vec::new();
+        let mut supplied_origins = Vec::new();
         let node = match program.type_reference_node(original).clone() {
             types::TypeReferenceNode::Named { symbol, name } => {
                 if let Some((_, argument)) = self
@@ -200,6 +201,24 @@ impl CallableApplication {
                                         .type_reference_table
                                         .anonymous_numeric_literal_value(*argument)
                                     {
+                                        types::FixedArrayLength::Literal(value)
+                                    } else if let Some(value) =
+                                        crate::typed_trees::integer_const_declaration_extent(
+                                            program, *symbol,
+                                        )
+                                    {
+                                        // A selected const declaration supplies its
+                                        // evaluated value. Keeping its name would leave
+                                        // an extent that no binder in the applied
+                                        // scope can resolve; the declaration stays
+                                        // named by the argument's constant origins.
+                                        supplied_origins.extend(
+                                            program
+                                                .type_reference_table
+                                                .constant_origins(*argument)?
+                                                .iter()
+                                                .copied(),
+                                        );
                                         types::FixedArrayLength::Literal(value)
                                     } else {
                                         types::FixedArrayLength::ConstParameter {
@@ -358,10 +377,11 @@ impl CallableApplication {
             }
             types::TypeReferenceNode::Unit => types::TypeReferenceNode::Unit,
         };
-        let origins = program
+        let mut origins = program
             .type_reference_table
             .constant_origins(original)?
             .to_vec();
+        origins.extend(supplied_origins);
         let applied = program.type_reference_table.insert(node);
         let origin = program.type_reference_table.operand_origin(original);
         program

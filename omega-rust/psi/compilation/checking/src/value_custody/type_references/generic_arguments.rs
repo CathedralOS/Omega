@@ -886,7 +886,7 @@ pub(crate) fn validate_const_data_argument(
 /// Every expression operand forms before its receiving binder or selected
 /// implementation may use it. A pending const recipe retains evaluation work;
 /// it does not waive the supplying declaration's arithmetic obligations.
-pub(super) fn validate_const_argument_expression_formation(
+pub(crate) fn validate_const_argument_expression_formation(
     program: &dyn CheckingInput,
     base_name: &str,
     parameter: &TypeParameter,

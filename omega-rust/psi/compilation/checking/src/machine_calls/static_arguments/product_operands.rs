@@ -13,23 +13,21 @@ fn parameters<'a>(
     program: &'a dyn crate::CheckingInput,
     application: &ProductOperandApplication,
 ) -> Option<(&'a str, &'a [typed_trees::data::TypeParameter])> {
-    match application.role? {
-        ProductOperandRole::BoundarySubject => {
-            let definition = program.trait_definition_by_symbol(application.declaration)?;
-            Some((
-                definition.name.as_str(),
-                program.trait_type_parameters(definition),
-            ))
-        }
-        ProductOperandRole::Provider => {
-            let definition = program.conformance_by_symbol(application.declaration)?;
-            Some((
-                program.symbols.name(definition.symbol),
-                program.conformance_type_parameters(definition),
-            ))
-        }
-        _ => None,
+    // Preparation retained the exact formal table before root projection.
+    // Reading it describes the declaration; actuals and formation recipes
+    // remain obligations of this supplying checking context.
+    if !matches!(
+        application.role?,
+        ProductOperandRole::BoundarySubject | ProductOperandRole::Provider
+    ) {
+        return None;
     }
+    Some((
+        program.symbols.name(application.declaration),
+        program
+            .data_type_parameters
+            .span(application.declaration_parameters)?,
+    ))
 }
 
 fn occurrence<'a>(
@@ -64,8 +62,12 @@ pub(super) fn validate_parameter_correspondence(
         let application = typed.product_operand_applications.get(handle);
         let Some((name, parameters)) = parameters(program, application) else {
             diagnostics.push(
-                Diagnostic::error("Product nominal application lost its declared telescope")
-                    .with_source_span(application.operand.source_span),
+                Diagnostic::error(format!(
+                    "Product nominal application lost its declared telescope: `{}` ({:?})",
+                    typed.symbols.name(application.declaration),
+                    application.role,
+                ))
+                .with_source_span(application.operand.source_span),
             );
             continue;
         };

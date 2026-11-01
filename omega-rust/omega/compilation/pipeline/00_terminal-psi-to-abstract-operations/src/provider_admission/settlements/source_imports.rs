@@ -13,7 +13,7 @@ use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolic
 
 struct ImportCoverageRows<'input> {
     boundary: BoundaryMachineId,
-    boundary_count: usize,
+    requirement: &'input str,
     selected_count: usize,
     selected_external: Option<(&'input ProviderPlan, &'input ProviderPlanRow)>,
     external: Option<&'input calling_conventions::ExternalBindingRow>,
@@ -31,8 +31,7 @@ struct ImportCoverageRows<'input> {
 /// Each leaf must still resolve to one selected row, one Terminal boundary
 /// and, for an import, one external implementation contract to derive from.
 pub(super) fn derive_source_evaluated_mechanisms(
-    plan: &abstract_operations::AbstractOperationPlan,
-    module: &terminal_psi::TerminalModule,
+    input: &crate::VerifiedNativeArtifactInput,
     selected_plans: &effects::SelectedProviderPlanFacts,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     native_callbacks: &[crate::NativeCallbackArgumentProposal],
@@ -43,6 +42,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
     ),
     Vec<Diagnostic>,
 > {
+    let plan = input.plan();
     let demanded = join_import_coverage_rows(
         plan,
         selected_plans,
@@ -54,23 +54,24 @@ pub(super) fn derive_source_evaluated_mechanisms(
     // classify beside the supplied receiving policy rather than requiring
     // the receiver to spell them.
     let mut cohort_rows: Vec<TerminalAuthorityPolicyRow> = Vec::new();
-    for (requirement, rows) in demanded {
+    for rows in demanded.into_values() {
+        let requirement = rows.requirement;
         let Some((provider_plan, row)) = rows.selected_external else {
             continue;
         };
-        let abi = module
-            .calling_abi_identity(rows.boundary)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let abi = input
+            .optimization_input()
+            .selected_calling_abi_identity(rows.boundary)
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "source import settlement for `{requirement}` at {:?}: {reason}",
+                    rows.boundary
+                ))]
+            })?;
         if rows.selected_count > 1 {
             return Err(vec![Diagnostic::error(format!(
                 "demanded external binding `{requirement}` resolves to {} selected provider rows",
                 rows.selected_count,
-            ))]);
-        }
-        if rows.boundary_count != 1 {
-            return Err(vec![Diagnostic::error(format!(
-                "demanded external binding `{requirement}` resolves to {} Terminal boundaries",
-                rows.boundary_count,
             ))]);
         }
         let mechanism = match &row.binding {
@@ -218,24 +219,31 @@ fn settled_host_cohort_row(
     )
 }
 
-/// Join only demanded requirements; counts retain malformed duplicate evidence
-/// without collecting temporary match vectors or changing diagnostic order.
+/// Keep each reached boundary occurrence beside its exact declaration. Counts
+/// retain competing selected providers and external contracts without allowing
+/// another same-named declaration to replace the call's ABI application.
 fn join_import_coverage_rows<'input>(
     plan: &'input abstract_operations::AbstractOperationPlan,
     selected_plans: &'input effects::SelectedProviderPlanFacts,
     external_binding_rows: &'input [calling_conventions::ExternalBindingRow],
     native_callbacks: &'input [NativeCallbackArgumentProposal],
-) -> Result<BTreeMap<&'input str, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
-    let boundary_identities = plan
-        .boundary_machines
-        .iter()
-        .map(|boundary| {
-            (
-                boundary.id,
-                plan.identities.text(boundary.identity).unwrap_or_default(),
-            )
-        })
-        .collect::<std::collections::BTreeMap<_, _>>();
+) -> Result<BTreeMap<BoundaryMachineId, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
+    let mut boundary_identities = BTreeMap::new();
+    for boundary in &plan.boundary_machines {
+        let requirement = plan.identities.text(boundary.identity).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "external-binding boundary lost its exact requirement identity",
+            )]
+        })?;
+        if boundary_identities
+            .insert(boundary.id, requirement)
+            .is_some()
+        {
+            return Err(vec![Diagnostic::error(
+                "external-binding plan repeats a boundary declaration identity",
+            )]);
+        }
+    }
     let mut demanded = BTreeMap::new();
     // Only callbacks requested by this invocation need an occurrence join.
     let mut callback_boundaries = native_callbacks
@@ -268,10 +276,10 @@ fn join_import_coverage_rows<'input>(
             ))]);
         };
         demanded
-            .entry(*requirement)
+            .entry(*boundary)
             .or_insert_with(|| ImportCoverageRows {
                 boundary: *boundary,
-                boundary_count: 0,
+                requirement: *requirement,
                 selected_count: 0,
                 selected_external: None,
                 external: None,
@@ -296,7 +304,8 @@ fn join_import_coverage_rows<'input>(
         for row in &provider_plan.rows {
             // Calls retain their original contract identity. The selected
             // closure relates each family or specialization to this exact row.
-            for (requirement, rows) in &mut demanded {
+            for rows in demanded.values_mut() {
+                let requirement = rows.requirement;
                 if selected_plans.selected_row_matches_requirement(
                     requirement,
                     provider_plan.identities.text(row.requirement_identity),
@@ -318,16 +327,11 @@ fn join_import_coverage_rows<'input>(
         }
     }
     if has_external_demand {
-        // Preserve the original last-declaration-wins boundary-ID association and
-        // count every distinct ID, including declarations without a call.
-        for (boundary, requirement) in &boundary_identities {
-            if let Some(rows) = demanded.get_mut(requirement) {
-                rows.boundary = *boundary;
-                rows.boundary_count += 1;
-            }
-        }
+        // Each demand keeps the boundary from its executable occurrence.
+        // An unused family/interface declaration cannot replace that owner.
         for external in external_binding_rows {
-            for (requirement, rows) in &mut demanded {
+            for rows in demanded.values_mut() {
+                let requirement = rows.requirement;
                 let Some((provider_plan, _)) = rows.selected_external else {
                     continue;
                 };
@@ -363,7 +367,7 @@ fn join_import_coverage_rows<'input>(
                 boundary,
             ))]
         })?;
-        let rows = demanded.get_mut(requirement).ok_or_else(|| {
+        let rows = demanded.get_mut(&boundary).ok_or_else(|| {
             vec![Diagnostic::error(
                 "native callback has no demanded selected registrar",
             )]

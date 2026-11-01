@@ -1,0 +1,57 @@
+// Fact: a runtime dyn trait selector dispatches an inline conformance member over explicit data arguments to establish 100u64 when subtracting 100u64.
+// Place: target_body.
+// Expected exit: 0
+
+trait WeightedCombine {
+    machine combine(left: u64, right: u64) -> u64
+    requires left >= 60u64 && left <= 60u64
+    requires right >= 40u64 && right <= 40u64
+    ensures result >= 100u64 && result <= 100u64;
+    machine marker() -> u64;
+}
+UnitCombine satisfies WeightedCombine {
+    machine combine(left: u64, right: u64) -> u64
+    requires left >= 60u64 && left <= 60u64
+    requires right >= 40u64 && right <= 40u64
+    ensures result >= 100u64 && result <= 100u64 { left + right }
+    machine marker() -> u64 { 11 }
+}
+OtherCombine satisfies WeightedCombine {
+    machine combine(p: u64, q: u64) -> u64
+    requires p >= 60u64 && p <= 60u64
+    requires q >= 40u64 && q <= 40u64
+    ensures result >= 100u64 && result <= 100u64 { q + p }
+    machine marker() -> u64 { 13 }
+}
+machine accept(value: u64) requires value >= 100u64 && value <= 100u64 {}
+machine probe(selected: dyn WeightedCombine, a: u64, b: u64) -> u64
+requires a >= 59u64 && a <= 60u64
+requires a + 1u64 >= 61u64
+requires b >= 40u64 && b <= 40u64
+ensures result >= 100u64 && result <= 100u64
+{ WeightedCombine::combine(selected, a, b) }
+
+boundary trait Hosted {
+    machine choose() -> dyn WeightedCombine reaches;
+}
+X86 satisfies Hosted {
+    machine choose() -> dyn WeightedCombine { UnitCombine as dyn WeightedCombine }
+}
+Arm satisfies Hosted {
+    machine choose() -> dyn WeightedCombine { OtherCombine as dyn WeightedCombine }
+}
+machine run(expected: u64) crashes Trap {
+    let selected: dyn WeightedCombine = Hosted::choose();
+    let observed: u64 = probe(selected, 60u64, 40u64);
+    accept(observed);
+    let observed_difference: u64 = observed - 100u64;
+    let marker: u64 = WeightedCombine::marker(selected);
+    transition observed_difference == 0u64 && marker == expected {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap { run(11); }
+machine arm_main() crashes Trap { run(13); }

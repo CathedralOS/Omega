@@ -10,9 +10,10 @@
 //! every type parameter that is rigid where the store happens and of every
 //! applied data argument.
 //!
-//! A type parameter is rigid inside the body of the machine that declares it:
-//! there it names one unknown type, equal only to itself. Another
-//! declaration's parameter seen unsubstituted is not a type at the store: in
+//! A type parameter is rigid inside its declaring scope and nested scopes:
+//! there it names one unknown type, equal only to itself unless a checked
+//! premise refines it. An unrelated declaration's parameter seen unsubstituted
+//! is not a type at the store: in
 //! a destination it is an open slot (a constructor field, a trait
 //! requirement, a callee formal without an application) judged by the
 //! application that closes it; in a delivered type it is an application its
@@ -161,6 +162,23 @@ fn carrier(program: &dyn crate::CheckingInput, reference: TypeReferenceHandle) -
     }
 }
 
+/// Nested bodies inherit static binders through semantic declaration ownership,
+/// including owned implementation members, not through rendered symbol names.
+fn parameter_is_in_scope(
+    program: &dyn crate::CheckingInput,
+    parameter: SymbolHandle,
+    mut scope: SymbolHandle,
+) -> bool {
+    let owner = program.symbols.get(parameter).parent;
+    while scope.is_valid() {
+        if scope == owner || program.lifetime_declaration_owner(scope) == owner {
+            return true;
+        }
+        scope = program.declaration_scope_parent(scope);
+    }
+    false
+}
+
 /// Whether a by-value `actual` contradicts `required` under the binders
 /// that are rigid in `scope`. Declared-domain shells qualify a carrier
 /// without changing it; applied data arguments and array elements compare
@@ -224,7 +242,7 @@ fn carrier_conflict(
     let required = program.statically_refined_type_reference(context, unconstrained(required));
     let rigid = |carrier: Carrier| {
         matches!(carrier, Carrier::Parameter(parameter)
-            if program.symbols.get(parameter).parent == scope)
+            if parameter_is_in_scope(program, parameter, scope))
     };
     match (
         program.type_reference_table.type_reference(actual),
@@ -261,7 +279,7 @@ fn carrier_conflict(
     else {
         return false;
     };
-    // A parameter another declaration owns is not a type at this store: in
+    // A parameter outside the lexical declaration chain is not a type at this store: in
     // the destination it is an open slot, in a delivered type an application
     // the producer left incomplete. Neither is judged here.
     let foreign = |carrier: Carrier| matches!(carrier, Carrier::Parameter(_)) && !rigid(carrier);

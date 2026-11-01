@@ -33,6 +33,7 @@ impl SelectedIndependentComponent {
         component: Arc<component_description::VerifiedComponent>,
         product: &IndependentComponentProduct,
         plan: effects::provider_plan::ProviderPlan,
+        selecting_declaration: &str,
         receiving_identities: Arc<terminal_psi::TerminalIdentityTable>,
         applications: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Self, String> {
@@ -40,6 +41,7 @@ impl SelectedIndependentComponent {
             component,
             Arc::clone(&product.retained),
             &plan,
+            selecting_declaration,
             applications,
         )?;
         Ok(Self {

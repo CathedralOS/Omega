@@ -322,6 +322,30 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    recognize_structural_state_prefix_batched(
+        program,
+        machine,
+        state,
+        judge,
+        classification,
+        diagnostics,
+        std::slice::from_mut(&mut requirement),
+    )
+}
+
+/// One state-prefix walk for several visitors. The walk prunes by each
+/// visitor's site and completion, and its verdict and diagnostics are shared,
+/// so it matches every visitor's solo walk only when they all sit at one site
+/// and complete alike.
+pub(super) fn recognize_structural_state_prefix_batched<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    judge: &StructuralJudge<'a>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
         .iter()
@@ -349,7 +373,7 @@ pub(super) fn recognize_structural_state_prefix<'a>(
         &mut StructuralArrivalLog::new(),
         usize::MAX,
         &mut 0,
-        std::slice::from_mut(&mut requirement),
+        visitors,
         CitationFacts::default(),
     )
 }
@@ -817,30 +841,11 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             }
             match statement {
                 StatementNode::LocalData(local) => {
-                    let Some(mut outcomes) = (if local.initial_value.is_valid() {
-                        path.completion
-                            .take()
-                            .and_then(|completed| completed.outcomes)
-                            .and_then(|outcomes| {
-                                outcomes
-                                    .into_iter()
-                                    .map(|outcome| {
-                                        Some((
-                                            Some(outcome.observed_value()?.clone()),
-                                            outcome.judge,
-                                        ))
-                                    })
-                                    .collect::<Option<Vec<_>>>()
-                            })
-                    } else {
-                        Some(vec![(
-                            super::structural_terms::zero_value_structural_term(
-                                program,
-                                local.type_reference,
-                            ),
-                            path.judge.clone(),
-                        )])
-                    }) else {
+                    let Some(mut outcomes) = path
+                        .completion
+                        .take()
+                        .and_then(|completed| completed.binding_outcomes())
+                    else {
                         return valid;
                     };
                     if outcomes.len() > 1
@@ -1548,33 +1553,17 @@ fn recognize_structural_state_leaves_from<'a>(
                 StatementNode::LocalData(local) if !saw_transition => {
                     let mut outcomes =
                         phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
-                            if local.initial_value.is_valid() {
-                                judge
-                                    .normal_return_paths(
-                                        local.initial_value,
-                                        &environment,
-                                        (invocation, state, local.type_reference),
-                                    )
-                                    .map(|outcomes| {
-                                        outcomes
-                                            .into_iter()
-                                            .map(|outcome| (Some(outcome.value), outcome.judge))
-                                            .collect::<Vec<_>>()
-                                    })
-                            } else {
-                                // Zero storage has no expression to execute. Retain
-                                // the preceding path even when its contents have no
-                                // established mathematical value. Only the ordinary
-                                // zero-value owner may contribute equations; omission
-                                // must not establish a gated domain or invent a value.
-                                Some(vec![(
-                                    super::structural_terms::zero_value_structural_term(
-                                        program,
-                                        local.type_reference,
-                                    ),
-                                    judge.clone(),
-                                )])
-                            }
+                            judge
+                                .complete_prefix_statement(
+                                    statement,
+                                    statement_index,
+                                    &environment,
+                                    (invocation, state, local.type_reference),
+                                    &[],
+                                    &[],
+                                    true,
+                                )
+                                .and_then(|completed| completed.binding_outcomes())
                         })?;
 
                     if outcomes.len() > 1
