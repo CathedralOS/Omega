@@ -17,6 +17,33 @@ pub struct TerminalCallingTelescope {
 }
 
 impl TerminalCallingTelescope {
+    /// Rejoin every retained binder to its complete requirement identity,
+    /// including unused binders. Both policy input and proposal comparison use
+    /// this declaration projection rather than rebuilding source correspondence.
+    pub fn callback_bindings(
+        module: &TerminalModule,
+        telescope: &terminal_psi::CallingSignatureTelescope,
+    ) -> Result<Vec<BoundaryCallbackBinding>, String> {
+        telescope
+            .binders
+            .iter()
+            .map(|binder| {
+                Ok(BoundaryCallbackBinding {
+                    binder: binder.binder,
+                    requirement: binder.requirement,
+                    static_machine_ordinal: binder.static_machine_ordinal,
+                    requirement_identity: module
+                        .identities
+                        .text(binder.requirement_identity)
+                        .filter(|identity| !identity.is_empty())
+                        .ok_or("Terminal callback binder lost its exact requirement identity")?
+                        .to_owned(),
+                    invokes_synchronously: binder.invokes_synchronously,
+                })
+            })
+            .collect()
+    }
+
     /// Recover the declaration and check that the proposed ABI application is
     /// for that exact telescope before native consumers use its placements.
     pub fn for_application(
@@ -131,23 +158,7 @@ impl TerminalCallingTelescope {
                 return Err("calling application reference geometry differs from the Terminal transport role".into());
             }
         }
-        let binders = telescope
-            .binders
-            .iter()
-            .map(|binder| {
-                Ok(BoundaryCallbackBinding {
-                    binder: binder.binder,
-                    requirement: binder.requirement,
-                    static_machine_ordinal: binder.static_machine_ordinal,
-                    requirement_identity: module
-                        .identities
-                        .text(binder.requirement_identity)
-                        .ok_or("Terminal callback binder lost its exact requirement identity")?
-                        .to_owned(),
-                    invokes_synchronously: binder.invokes_synchronously,
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
+        let binders = Self::callback_bindings(module, telescope)?;
         let proposed = application
             .signature
             .callback_bindings

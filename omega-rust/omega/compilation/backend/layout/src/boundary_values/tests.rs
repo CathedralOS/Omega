@@ -8,6 +8,67 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 
 #[test]
+fn canonical_array_recipes_consume_only_completed_extent_inputs() {
+    use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
+    use terminal_psi::{
+        ArrayExtent, StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
+    };
+    let mut module = terminal_psi::TerminalModule::declarations();
+    let element = StructuralTypeId::new(1).unwrap();
+    let array = StructuralTypeId::new(2).unwrap();
+    let application = ScalarApplicationId::new(1).unwrap();
+    for (id, shape) in [
+        (
+            element,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+        ),
+        (
+            array,
+            StructuralTypeShape::FixedArray {
+                element,
+                length: ArrayExtent::Application(application),
+            },
+        ),
+    ] {
+        module.structural_types.push(StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id,
+            identity: TerminalIdentityIndex::ABSENT,
+            owns_linear_claim: false,
+            copyable: true,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: false,
+            shape,
+            scalar_restriction: None,
+        });
+    }
+    for count in [2, 5] {
+        let extent = |requested| {
+            assert_eq!(requested, application);
+            Ok(count)
+        };
+        let mut recipes = super::TerminalBoundaryRecipes::new(&module, "macos_arm64", &extent);
+        let recipe = recipes.value(array).unwrap();
+        let mut layout =
+            BoundaryValueLayout::new(target::TargetProfile::MacosArm64.native_target());
+        let (shape, _) = layout.value_type(recipes.recipes(), recipe).unwrap();
+        assert_eq!(u64::from(shape.byte_size), count);
+        assert_eq!(shape.alignment, 1);
+    }
+    let mut pending = super::TerminalBoundaryRecipes::new(&module, "macos_arm64", &|requested| {
+        Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+            requested,
+        ))
+    });
+    assert!(
+        pending
+            .value(array)
+            .unwrap_err()
+            .contains("UnresolvedExtent")
+    );
+}
+
+#[test]
 fn identity_only_reference_transport_closes_geometry_but_not_owned_storage() {
     for descriptor in [false, true] {
         let referent = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
@@ -19,7 +80,12 @@ fn identity_only_reference_transport_closes_geometry_but_not_owned_storage() {
                 identity: terminal_psi::TerminalIdentityIndex::ABSENT,
                 foreign_descriptor: descriptor,
             });
-        let mut recipes = super::TerminalBoundaryRecipes::new(&module, "macos_arm64");
+        let mut recipes =
+            super::TerminalBoundaryRecipes::new(&module, "macos_arm64", &|application| {
+                Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                    application,
+                ))
+            });
         let recipe = recipes
             .reference(referent)
             .expect("explicit transport role");

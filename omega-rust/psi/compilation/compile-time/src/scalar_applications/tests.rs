@@ -477,6 +477,7 @@ fn sibling_extent_graph() -> CanonicalTerminalArtifact {
         record.id,
         record.identity,
         terminal_psi::TerminalIdentityIndex::ABSENT,
+        terminal_psi::TerminalIdentityIndex::ABSENT,
         fields
             .iter()
             .map(|field| terminal_psi::NativeLayoutFieldIdentity {

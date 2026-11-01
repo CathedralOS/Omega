@@ -7,9 +7,40 @@ use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, settle_native_callback_placements,
 };
 
+fn compare_signature(
+    module: &terminal_psi::TerminalModule,
+    application: &calling_conventions::BoundaryCallingApplication,
+    target: target::TargetProfile,
+) -> Result<provider_planning::calling_policy_plans::CallingPolicySignature, String> {
+    let mut declarations = module.calling_signatures.iter().filter(|declaration| {
+        module.identities.text(declaration.requirement_identity)
+            == Some(application.requirement_identity.as_str())
+    });
+    let (Some(declaration), None) = (declarations.next(), declarations.next()) else {
+        return Err("callback signature has no unique canonical declaration association".into());
+    };
+    let signature = provider_planning::calling_policy_plans::CallingPolicySignature::from_terminal(
+        module,
+        declaration.boundary,
+        target,
+        &|application| {
+            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                application,
+            ))
+        },
+    )?;
+    if signature.geometry != application.signature
+        || signature.callbacks != application.callback_context
+    {
+        return Err("canonical callback signature differs from its native application".into());
+    }
+    Ok(signature)
+}
+
 pub(super) fn inspect(
     retained: &RetainedTerminalArtifact,
     target: target::TargetProfile,
+    policy_selector: &str,
 ) -> Result<(), String> {
     let proposal = retained
         .native_realization_proposal()
@@ -45,26 +76,14 @@ pub(super) fn inspect(
         .ok_or("callback telescope controls need a direct callback argument")?;
 
     for artifact in [retained.artifact(), &loaded] {
-        let module = artifact.semantic_module();
-        let declaration = module
-            .calling_signatures
-            .iter()
-            .find(|declaration| {
-                module.identities.text(declaration.requirement_identity)
-                    == Some(calling[registrar].requirement_identity.as_str())
-            })
-            .ok_or("callback signature lost its canonical declaration association")?;
-        let signature =
-            provider_planning::calling_policy_plans::CallingPolicySignature::from_terminal(
-                module,
-                declaration.boundary,
-                target,
-            )?;
-        if signature.geometry != calling[registrar].signature
-            || signature.callbacks != calling[registrar].callback_context
-        {
-            return Err("canonical callback signature differs from its native application".into());
-        }
+        let signature = compare_signature(artifact.semantic_module(), &calling[registrar], target)?;
+        execute_policy(
+            artifact,
+            target,
+            policy_selector,
+            &signature,
+            &calling[registrar],
+        )?;
         let settle = |calling: &[_]| {
             settle_native_callback_placements(artifact.semantic_module(), selected, calling)
         };
@@ -200,6 +219,101 @@ pub(super) fn inspect(
             settle(&changed),
             "native parameters differ from the Terminal telescope",
         )?;
+    }
+    Ok(())
+}
+
+fn execute_policy(
+    artifact: &CanonicalTerminalArtifact,
+    target: target::TargetProfile,
+    selector: &str,
+    signature: &provider_planning::calling_policy_plans::CallingPolicySignature,
+    application: &calling_conventions::BoundaryCallingApplication,
+) -> Result<(), String> {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    use provider_planning::calling_policy_plans::{
+        TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy,
+    };
+    use terminal_psi::TargetMachineCallable;
+    let module = artifact.semantic_module();
+    // This selector is authored inspection data, not production policy lookup.
+    // A family is one logical callable; select its member through the ordinary
+    // Terminal target installation instead of matching a target's display name.
+    let logical = module
+        .target_machine_families
+        .iter()
+        .map(|family| family.canonical)
+        .chain(module.machines.iter().filter_map(|machine| {
+            let callable = TargetMachineCallable::Machine(machine.id);
+            (!module.target_machine_families.iter().any(|family| {
+                family.canonical == callable
+                    || family
+                        .members
+                        .iter()
+                        .any(|member| member.callable == callable)
+            }))
+            .then_some(callable)
+        }));
+    let identity = |callable| {
+        let identity = match callable {
+            TargetMachineCallable::Machine(machine) => module
+                .machine(machine)
+                .and_then(|row| row.declaration.as_ref())
+                .map(|row| row.semantic_declaration),
+            TargetMachineCallable::Boundary(boundary) => module
+                .boundary_machine(boundary)
+                .and_then(|row| row.declaration.as_ref())
+                .map(|row| row.source.semantic_declaration),
+        };
+        identity.and_then(|identity| module.identities.text(identity))
+    };
+    let suffix = format!("::{selector}");
+    let mut matching = logical
+        .clone()
+        .filter(|callable| identity(*callable).is_some_and(|identity| identity.ends_with(&suffix)));
+    let (Some(entry), None) = (matching.next(), matching.next()) else {
+        let namespace = selector.split("::").next().unwrap_or(selector);
+        let related = logical
+            .filter_map(identity)
+            .filter(|identity| identity.contains(namespace))
+            .take(6)
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "callback policy selector `{selector}` has no unique retained logical callable; namespace candidates: {related:?}"
+        ));
+    };
+    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+    };
+    let sponsor = BuildEvaluationSponsor::new_with_measurement(
+        BuildEvaluationSponsorLimits::new(
+            1_000_000, 64, 64, 64, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
+        )
+        .ok_or("invalid callback policy inspection limits")?,
+        measurement,
+    )
+    .map_err(|error| error.to_string())?;
+    let account = sponsor
+        .begin_invocation(measurement, 1_000_000)
+        .map_err(|error| error.to_string())?;
+    let (plan, fuel) = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+        artifact,
+        entry,
+        target,
+        signature,
+        account,
+    })?;
+    if plan != application.plan || fuel.total_units() == 0 {
+        return Err(
+            "canonical callback input did not execute the actual native calling policy".into(),
+        );
+    }
+    if sponsor.live_storage_cells() != 0 || sponsor.live_payload_bytes() != 0 {
+        return Err("callback policy inspection retained invocation storage".into());
     }
     Ok(())
 }

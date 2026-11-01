@@ -28,7 +28,11 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         let StructuralTypeShape::Record { fields, storage } = &record.shape else {
             return Err(fail("native layout names a non-record"));
         };
-        for identity in [native.data_identity, native.policy_identity] {
+        for identity in [
+            native.data_identity,
+            native.policy_identity,
+            native.semantic_identity,
+        ] {
             if module.identities.text(identity).is_none() {
                 return Err(fail("native layout has an out-of-range nominal identity"));
             }
@@ -106,6 +110,10 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             .identities
             .text(native.policy_identity)
             .ok_or_else(|| fail("native layout lost its policy identity"))?;
+        let semantic_identity = module
+            .identities
+            .text(native.semantic_identity)
+            .ok_or_else(|| fail("native layout lost its semantic argument identity"))?;
         for realization in realizations {
             let report = &realization.report;
             let physical = match &realization.target {
@@ -151,14 +159,16 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 slot.slot_application
                     .validate_identity_encoding()
                     .map_err(CodecError::NativeLayout)?;
-                if slot.slot_identity
-                    != format!(
-                        "{}#{:016x}",
-                        slot.slot_application.declaration_identity,
-                        slot.slot_application.application_report_fingerprint
-                    )
+                if semantic_identity.is_empty()
+                    || slot.slot_identity
+                        != format!(
+                            "{}#{:016x}",
+                            slot.slot_application.declaration_identity,
+                            slot.slot_application.application_report_fingerprint
+                        )
                     || slot.layout_subject_identity != policy
                     || slot.slot_application.layout_identity != policy
+                    || slot.slot_application.semantic_identity != semantic_identity
                     || slot.callback_requirement_identity
                         != slot.slot_application.requirement_identity
                 {
