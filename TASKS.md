@@ -338,11 +338,10 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 63 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 5 facts spell it in all nine places
+    Frontier: 62 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 4 facts spell it in all nine places
     (`generic_calling_policy`,
     `opaque_closed_carrier_exchange`,
-    `selected_provider_issuance`,
     `target_layout_derived_constant`,
     `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
