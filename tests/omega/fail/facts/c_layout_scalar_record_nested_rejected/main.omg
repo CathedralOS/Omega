@@ -1,0 +1,7 @@
+// Library C layout preserves scalar values with C ABI field offsets, trailing padding and transparent alias identity.
+// Unsupported C ABI schema must reject before storage exists.
+use omega::language::core::layout;
+use omega::language::core::c_layout;
+data Child [copy] { value: u64; }
+data Record [copy] { child: Child; }
+machine main() { let record: CLayout<Record>; }
