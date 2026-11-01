@@ -30,5 +30,8 @@ calling declarations supply binder identity, synchronous invocation, and native
 argument order (including the function-pointer argument). Controls change the
 proposed synchronous contract, binder ordinal, requirement identity, pointer
 width, and argument ordinals; each must refuse against the retained declaration.
+A separate control changes the canonical declaration itself to overlap a hidden
+callback argument with a semantic argument; telescope construction must refuse
+before admitting the proposed placements.
 Value and inline-slot layouts remain
 separate inputs; this does not establish source-free layout planning.

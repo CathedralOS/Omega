@@ -5,7 +5,7 @@
 //! callback declarations refuse rather than dropping their hidden arguments.
 
 use super::CallingPolicySignature;
-use super::policy_signature::validate_fresh_native_parameter_report_identity;
+use calling_conventions::validate_fresh_native_parameter_identity;
 use calling_conventions::{
     BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
 };
@@ -74,7 +74,7 @@ impl CallingPolicySignature {
                 }
             };
             let (_, root) = values.value_type(recipes.recipes(), recipe)?;
-            validate_fresh_native_parameter_report_identity(
+            validate_fresh_native_parameter_identity(
                 native_formals.iter().map(|parameter| parameter.identity),
                 formal.identity,
                 formal.native_ordinal,
@@ -114,8 +114,13 @@ impl CallingPolicySignature {
             .filter(|identity| !identity.is_empty())
             .ok_or("calling signature has no exact requirement identity")?;
         let (shapes, fields, _) = values.into_parts();
-        let mut native_parameters = arena::Arena::with_capacity(native_formals.len());
-        let native_parameter_rows = native_parameters.insert_many(native_formals);
+        let closed = calling_conventions::NativeParameterTelescope::close(
+            native_formals,
+            telescope.direct_callbacks.iter().cloned(),
+            target.native_target(),
+        )?;
+        let mut native_parameters = arena::Arena::with_capacity(closed.parameters.len());
+        let native_parameter_rows = native_parameters.insert_many(closed.parameters);
         Ok(Self {
             target: target.native_target(),
             geometry: calling_conventions::BoundarySignatureGeometry {
@@ -130,10 +135,7 @@ impl CallingPolicySignature {
                 callback_layouts: arena::Arena::new(),
                 callback_layout_rows: arena::HandleSpan::empty(),
             },
-            callbacks: calling_conventions::CallbackMaterializationContext {
-                binders: Vec::new(),
-                demands: Vec::new(),
-            },
+            callbacks: calling_conventions::CallbackMaterializationContext::default(),
         })
     }
 }

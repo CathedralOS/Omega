@@ -66,18 +66,12 @@ impl TerminalCallingTelescope {
                 },
             });
         }
-        for callback in &telescope.direct_callbacks {
-            parameters.push(BoundaryNativeParameterGeometry {
-                identity: callback.identity,
-                native_ordinal: callback.native_ordinal,
-                shape: BoundaryNativeParameterShape::function_pointer(application.target)?,
-                origin: BoundaryNativeParameterOrigin::PrivateCallback {
-                    binder: callback.binder,
-                    requirement: callback.requirement,
-                },
-            });
-        }
-        parameters.sort_unstable_by_key(|parameter| parameter.native_ordinal);
+        let parameters = super::NativeParameterTelescope::close(
+            parameters,
+            telescope.direct_callbacks.iter().cloned(),
+            application.target,
+        )?
+        .parameters;
         let proposed = application
             .signature
             .native_parameters
@@ -167,23 +161,6 @@ impl TerminalCallingTelescope {
         Ok(Self {
             parameters,
             binders,
-        })
-    }
-}
-
-impl BoundaryNativeParameterShape {
-    /// The currently admitted native targets represent a function pointer by
-    /// one 64-bit scalar. Refuse new pointer geometry until its ABI is admitted.
-    pub fn function_pointer(target: target::NativeTarget) -> Result<Self, String> {
-        if target.pointer_size != 8 || target.pointer_alignment != 8 {
-            return Err(format!(
-                "direct callback parameters currently require an admitted 8/8 target function-pointer shape, got {}/{}",
-                target.pointer_size, target.pointer_alignment,
-            ));
-        }
-        Ok(Self::TargetFunctionPointer {
-            byte_size: 8,
-            alignment: 8,
         })
     }
 }
