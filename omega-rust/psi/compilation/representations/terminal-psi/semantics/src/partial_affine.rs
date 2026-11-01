@@ -211,7 +211,7 @@ fn fields_residuals(
             scalar if scalar.scalar_type().is_some() => None,
             bytes => match bytes.byte_sequence_carrier()? {
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
-                carrier => Some(crate::byte_carrier_field_declaration(types.iter(), carrier)?.id),
+                _ => Some(crate::inline_carrier_declaration(types.iter(), field)?.id),
             },
         };
         if let Some(child_type) = child_type {

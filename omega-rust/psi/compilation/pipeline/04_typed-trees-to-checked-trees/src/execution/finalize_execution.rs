@@ -4,6 +4,7 @@ use diagnostics::Diagnostic;
 pub(crate) fn finalize_execution(
     program: &dyn ::validation::CheckingInput,
     mut facts: CheckFacts,
+    calling_declarations: &typed_trees::service_declarations::signatures::PreparedBoundarySignatures,
 ) -> Result<CheckFacts, Vec<Diagnostic>> {
     // Execution planning runs in its own immutable window, after the
     // contract-identity mutation that ends the check pass's resolver lifetime.
@@ -53,6 +54,7 @@ pub(crate) fn finalize_execution(
             crate::execution::terminal_unit::build_checked_unit_effect_plans(
                 program,
                 &facts,
+                calling_declarations,
                 &boundary_signature_reaches,
                 crate::execution::terminal_unit::ScalarCalleeClosure,
                 call_frames.as_ref(),

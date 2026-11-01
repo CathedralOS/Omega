@@ -6,7 +6,8 @@ use evaluation_accounting::{
     TerminalStorageScheduleIdentity,
 };
 use provider_planning::calling_policy_plans::{
-    CallingPolicySignature, TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy,
+    CallingPolicySignature, CanonicalCallingSignature, TerminalCallingPolicyInvocation,
+    evaluate_terminal_calling_policy,
 };
 use terminal_codec::CanonicalTerminalArtifact;
 
@@ -40,11 +41,19 @@ pub(super) fn observe(
         let accepted = description(accepted)?;
         let rejected = description(rejected)?;
         let description = accepted;
+        let declaration_id = *module
+            .calling_signatures
+            .iter()
+            .find(|signature| signature.boundary == description)
+            .ok_or("calling fixture lost its exact ABI correspondence")?
+            .application
+            .as_ref()
+            .map_err(Clone::clone)?;
         let mut substituted = module.clone();
         substituted
-            .calling_signatures
+            .calling_abi_signatures
             .iter_mut()
-            .find(|signature| signature.boundary == description)
+            .find(|signature| signature.id == declaration_id)
             .ok_or("calling fixture lost its published source telescope")?
             .requirement_identity = terminal_psi::TerminalIdentityIndex::ABSENT;
         let encoded =
@@ -59,13 +68,14 @@ pub(super) fn observe(
         }
         let mut substituted = module.clone();
         let telescope = substituted
-            .calling_signatures
+            .calling_abi_signatures
             .iter_mut()
-            .find(|signature| signature.boundary == description)
+            .find(|signature| signature.id == declaration_id)
             .ok_or("calling fixture lost its published source telescope")?
-            .telescope
+            .storage
             .as_mut()
             .map_err(|error| error.to_owned())?;
+        let telescope = &mut telescope.telescope;
         let [left, right] = telescope.parameters.as_mut_slice() else {
             return Err("calling fixture did not retain its two distinct native formals".into());
         };
@@ -80,8 +90,13 @@ pub(super) fn observe(
                 "calling formal control reached an unrelated refusal: {error}"
             ));
         }
-        let signature =
-            CallingPolicySignature::from_terminal(module, description, target, &unresolved_extent)?;
+        let signature = CanonicalCallingSignature::materialize(
+            module,
+            declaration_id,
+            target,
+            &unresolved_extent,
+        )?
+        .policy;
         let argument = module
             .boundary_machine(description)
             .and_then(|boundary| boundary.structural_parameters.first())
@@ -208,7 +223,7 @@ pub(super) fn observe(
                 .map_err(|error| format!("false calling artifact: {error:?}"))?;
         let false_artifact = CanonicalTerminalArtifact::from_bytes(&false_artifact.to_bytes())
             .map_err(|error| format!("false calling transport: {error:?}"))?;
-        let false_signature = CallingPolicySignature::from_terminal(
+        let false_signature = signature_for_boundary(
             false_artifact.semantic_module(),
             description,
             target,
@@ -270,12 +285,8 @@ pub(super) fn observe(
             ("fuel", description, 1),
             ("target", description, 1_000_000),
         ] {
-            let signature = CallingPolicySignature::from_terminal(
-                module,
-                description,
-                target,
-                &unresolved_extent,
-            )?;
+            let signature =
+                signature_for_boundary(module, description, target, &unresolved_extent)?;
             let selected_target = if control == "target" {
                 target::TargetProfile::from_canonical_target_name("linux_x86_64")
                     .map_err(|error| error.message)?
@@ -310,6 +321,28 @@ pub(super) fn observe(
         }
     }
     Ok(())
+}
+
+fn signature_for_boundary(
+    module: &terminal_psi::TerminalModule,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    target: target::TargetProfile,
+    extents: &dyn Fn(
+        semantic_vocabulary::ScalarApplicationId,
+    ) -> Result<u64, terminal_semantics::StorageGeometryError>,
+) -> Result<CallingPolicySignature, String> {
+    let declaration = module
+        .calling_signatures
+        .iter()
+        .find(|row| row.boundary == boundary)
+        .ok_or("calling fixture lost its declaration ABI association")?;
+    Ok(CanonicalCallingSignature::materialize(
+        module,
+        *declaration.application.as_ref().map_err(Clone::clone)?,
+        target,
+        extents,
+    )?
+    .policy)
 }
 
 fn unresolved_extent(

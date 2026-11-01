@@ -107,6 +107,11 @@ pub enum OptimizationUnitValidationError {
         structural_type: StructuralTypeId,
         field: semantic_vocabulary::StructuralFieldId,
     },
+    InvalidInlineCarrier {
+        structural_type: StructuralTypeId,
+        field: semantic_vocabulary::StructuralFieldId,
+        reason: &'static str,
+    },
     InvalidStructuralCaseIdentity {
         structural_type: StructuralTypeId,
         case: semantic_vocabulary::StructuralCaseId,

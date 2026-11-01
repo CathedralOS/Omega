@@ -20,6 +20,7 @@
 pub(crate) use optimization::codec_bytes;
 pub mod boundary_values;
 pub mod callback_declarations;
+pub mod opaque_representations;
 
 mod boundary_bodies;
 pub mod build_requests;

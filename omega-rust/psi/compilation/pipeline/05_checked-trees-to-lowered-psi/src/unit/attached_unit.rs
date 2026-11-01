@@ -68,6 +68,7 @@ mod call_catalog;
 mod call_closure;
 pub(crate) mod call_parameters;
 pub(crate) mod call_results;
+mod calling_signatures;
 pub(crate) mod catalog;
 mod claims;
 pub(crate) mod completion_cleanup;
@@ -296,6 +297,37 @@ pub(crate) fn lower_unit_closure(
                 &scalar_applications.type_roots().collect::<Vec<_>>(),
             )
         })?;
+    let calling_abi_signatures = calling_signatures::lower(identities, plans, &type_ids)?;
+    let mut opaque_representations = Vec::new();
+    for relation in plans.opaque_representations() {
+        // A relation is published only with its actual opaque storage demand.
+        let Some((_, opaque)) = type_ids
+            .iter()
+            .find(|(source, _)| *source == relation.opaque)
+        else {
+            continue;
+        };
+        opaque_representations.push(terminal_psi::TerminalOpaqueRepresentation {
+            opaque: *opaque,
+            carrier: lookup_type_id(&type_ids, &relation.carrier)?,
+            opaque_storage_identity: identities.intern(
+                &checked
+                    .type_identity_text(relation.opaque)
+                    .ok_or(LoweringError::Unsupported(
+                        "opaque representation lost its portable storage identity",
+                    ))?,
+            ),
+            carrier_storage_identity: identities.intern(
+                &checked
+                    .type_identity_text(relation.carrier)
+                    .ok_or(LoweringError::Unsupported(
+                        "opaque representation lost its carrier storage identity",
+                    ))?,
+            ),
+            application: relation.application.clone(),
+        });
+    }
+    opaque_representations.sort_by_key(|row| row.opaque);
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
@@ -665,6 +697,7 @@ pub(crate) fn lower_unit_closure(
         indexed_theorems(checked, identities, exact_toolchain_sources, &machine_ids)?;
     let lowered = LoweredPsi {
         source_boundary_declarations: Vec::new(),
+        source_machine_declarations: Vec::new(),
         build_provider_requirements: Vec::new(),
         semantic_module: TerminalModule {
             scalar_applications: scalar_applications.publish(
@@ -709,6 +742,9 @@ pub(crate) fn lower_unit_closure(
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines,
             calling_signatures: Vec::new(),
+            calling_abi_signatures,
+            calling_policy_requests: Vec::new(),
+            opaque_representations,
             unoptimized_behavior: Vec::new(),
             external_providers: Vec::new(),
             provider_candidates,

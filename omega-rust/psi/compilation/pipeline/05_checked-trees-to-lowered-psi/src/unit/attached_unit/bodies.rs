@@ -61,6 +61,14 @@ impl<'a> UnitPlans<'a> {
         &self.checked.boundary_machines
     }
 
+    pub(crate) fn calling_signatures(self) -> &'a [checked_trees::CheckedCallingSignaturePlan] {
+        &self.checked.calling_signatures
+    }
+
+    pub(crate) fn opaque_representations(self) -> &'a [checked_trees::CheckedOpaqueRepresentation] {
+        &self.checked.opaque_representations
+    }
+
     pub(crate) fn structural_domains(self) -> &'a [checked_trees::CheckedUnitStructuralDomainPlan] {
         &self.checked.structural_domains
     }

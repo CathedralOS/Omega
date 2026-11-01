@@ -172,6 +172,8 @@ pub struct CheckedUnitStructuralCasePlan {
 
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub struct CheckedUnitStructuralFieldPlan {
+    /// Exact declared scalar storage, independent of field-only predicates.
+    pub scalar_carrier_identity: TypeIdentityId,
     /// Exact authored receiving type; numeric storage restrictions do not
     /// replace its independent nominal scalar memberships.
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -206,6 +208,7 @@ impl PartialEq for CheckedUnitStructuralFieldPlan {
         // qualifications or requiring independently cloned references to alias.
         self.receiving_type_identity == other.receiving_type_identity
             && self.identity == other.identity
+            && self.scalar_carrier_identity == other.scalar_carrier_identity
             && self.native_identity == other.native_identity
             && self.relevance == other.relevance
             && self.field_type == other.field_type
@@ -230,6 +233,11 @@ impl CheckedUnitStructuralFieldPlan {
                     .then_some(self.byte_sequence_type_identity),
             )
             .chain(self.qualification_carriers.iter().copied())
+            .chain(
+                self.scalar_carrier_identity
+                    .is_valid()
+                    .then_some(self.scalar_carrier_identity),
+            )
     }
 
     /// A field with its own disposal region. Inline scalars and owned bytes
@@ -689,6 +697,7 @@ mod field_identity_tests {
         let counter_reader = identities.intern("dyn Reader<Counter>");
         let other_reader = identities.intern("dyn Reader<Other>");
         let field = CheckedUnitStructuralFieldPlan {
+            scalar_carrier_identity: Default::default(),
             native_identity: None,
             type_reference: crate::types::TypeReferenceHandle::from_parts(1, 1),
             receiving_type_identity: counter_reader,

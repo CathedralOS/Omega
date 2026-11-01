@@ -59,12 +59,15 @@ impl TerminalCallingTelescope {
             .iter()
             .find(|declaration| declaration.boundary == boundary)
             .ok_or("callback boundary has no Terminal calling declaration")?;
-        if module.identities.text(declaration.requirement_identity)
+        let signature = module
+            .calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
+            .ok_or("calling boundary lost its exact declaration ABI")?;
+        if module.identities.text(signature.requirement_identity)
             != Some(application.requirement_identity.as_str())
         {
             return Err("calling application names a different Terminal requirement".into());
         }
-        let telescope = declaration.telescope.as_ref().map_err(Clone::clone)?;
+        let telescope = &signature.storage.as_ref().map_err(Clone::clone)?.telescope;
         let boundary = module
             .boundary_machine(declaration.boundary)
             .ok_or("Terminal calling telescope lost its boundary declaration")?;

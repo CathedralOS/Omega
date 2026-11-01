@@ -85,6 +85,7 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in super::super) program: &'program dyn ::validation::CheckingInput,
     pub(in super::super) types: BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
     pub(in super::super) domains: Vec<CheckedUnitStructuralDomainPlan>,
+    pub(in super::super) opaque_representations: Vec<checked_trees::CheckedOpaqueRepresentation>,
     pub(in super::super) cleanup_control: checked_trees::CheckedCleanupControlPlans,
     // Compiler-owned handles select arena slots; the small bucket retains
     // exact generation/telescope/substitution contexts for that source row.
@@ -109,6 +110,7 @@ impl<'program> ShapeCollector<'program> {
             program,
             types: BTreeMap::new(),
             domains: Vec::new(),
+            opaque_representations: Vec::new(),
             cleanup_control: Default::default(),
             completed_requests: Vec::new(),
             in_progress: BTreeSet::new(),
@@ -1075,6 +1077,24 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     ) -> Option<TypeIdentityId> {
+        let already_in_progress = self.in_progress.contains(&identity);
+        let result = self.collect_data_shape(identity, data, binders, substitutions);
+        // A refused optional declaration must not leave a recursion marker
+        // behind and poison a later independent storage demand. Never clear
+        // a marker owned by an enclosing collection of this same identity.
+        if !already_in_progress {
+            self.in_progress.remove(&identity);
+        }
+        result
+    }
+
+    fn collect_data_shape(
+        &mut self,
+        identity: TypeIdentityId,
+        data: DataDefinition,
+        binders: &[(SymbolHandle, String)],
+        substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    ) -> Option<TypeIdentityId> {
         // Copy permission belongs to the logical declaration, never a chosen
         // opaque representation or a quotient's cloned physical carrier.
         let copyable = data.properties.multiplicity == Multiplicity::Unrestricted;
@@ -1160,7 +1180,54 @@ impl<'program> ShapeCollector<'program> {
                 self.in_progress.remove(&identity);
                 return None;
             };
-            data = carrier.clone();
+            let application =
+                language_semantics::opaque_representations::SelectedOpaqueApplication {
+                    opaque_identity: self
+                        .program
+                        .typed_program()
+                        .normalized_hermetic_symbol_identity(selection.opaque())
+                        .ok()?,
+                    carrier_identity: self
+                        .program
+                        .typed_program()
+                        .normalized_hermetic_symbol_identity(selection.carrier())
+                        .ok()?,
+                    conformance_identity: self
+                        .program
+                        .typed_program()
+                        .normalized_hermetic_symbol_identity(selection.application().declaration)
+                        .ok()?,
+                    application_report_fingerprint: selection.application().report_fingerprint,
+                    conformance_application_commitment: selection
+                        .application()
+                        .commitment
+                        .as_bytes(),
+                    identity_encoding: selection.application().identity_encoding.to_vec(),
+                    schema_version: selection.schema_version(),
+                    origin: selection.origin(),
+                    lifecycle: selection.lifecycle(),
+                    copy_disposition: selection.copy_disposition(),
+                    selected_application_commitment: selection.selected_application_commitment(),
+                };
+            let carrier = carrier.clone();
+            let carrier_identity = self.add_type(selection.carrier_type(), &[], &[])?;
+            let relation = checked_trees::CheckedOpaqueRepresentation {
+                opaque: identity,
+                carrier: carrier_identity,
+                application,
+            };
+            if let Some(existing) = self
+                .opaque_representations
+                .iter()
+                .find(|row| row.opaque == identity)
+            {
+                if existing != &relation {
+                    return None;
+                }
+            } else {
+                self.opaque_representations.push(relation);
+            }
+            data = carrier;
         }
         let no_code_affine_cleanup = !owns_linear_claim
             && data_has_contents(
@@ -1506,21 +1573,22 @@ impl<'program> ShapeCollector<'program> {
         // carries the membership checking decided for it even when no
         // signature or local spells the qualified carrier.
         let mut qualification_carriers = Vec::new();
-        if !field.relevance.is_erased()
+        let scalar_carrier_identity = if !field.relevance.is_erased()
             && matches!(
                 field_type,
-                CheckedUnitStructuralFieldType::BoundedInteger(_)
+                CheckedUnitStructuralFieldType::Scalar(_)
+                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
                     | CheckedUnitStructuralFieldType::RefinedScalar { .. }
-            )
-        {
+            ) {
             // The inline field restriction includes this owner's stated bounds.
             // Qualification lowering also needs the declared scalar restriction
             // under its exact type identity after the mathematical view expires.
             // Register that declaration separately and keep its dependency with
             // the field; do not import field-only bounds into the scalar type.
-            let carrier = self.add_type(field_type_reference, binders, substitutions)?;
-            qualification_carriers.push(carrier);
-        }
+            self.add_type(field_type_reference, binders, substitutions)?
+        } else {
+            Default::default()
+        };
         if !field.relevance.is_erased()
             && matches!(
                 field_type,
@@ -1550,6 +1618,7 @@ impl<'program> ShapeCollector<'program> {
             }
         }
         Some(CheckedUnitStructuralFieldPlan {
+            scalar_carrier_identity,
             native_identity: self
                 .program
                 .typed_program()
@@ -1644,6 +1713,13 @@ impl<'program> ShapeCollector<'program> {
         loop {
             let old_len = retained.len();
             for identity in retained.clone() {
+                if let Some(representation) = self
+                    .opaque_representations
+                    .iter()
+                    .find(|row| row.opaque == identity)
+                {
+                    retained.insert(representation.carrier);
+                }
                 let Some(plan) = self.types.get(&identity) else {
                     continue;
                 };

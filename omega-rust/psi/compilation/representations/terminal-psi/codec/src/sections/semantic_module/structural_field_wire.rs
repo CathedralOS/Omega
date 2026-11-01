@@ -216,6 +216,7 @@ pub(crate) fn encode_structural_field(
         BindingRelevance::Relevant => 1,
         BindingRelevance::Erased => 2,
     });
+    super::wire::encode_optional_id(writer, field.inline_carrier);
     encode_structural_field_type(writer, &field.field_type)
 }
 
@@ -287,8 +288,10 @@ pub(crate) fn decode_structural_field(
         2 => BindingRelevance::Erased,
         tag => return Err(CodecError::InvalidTag("BindingRelevance", tag)),
     };
+    let inline_carrier = super::wire::decode_optional_id(reader, "StructuralTypeId")?;
     let field_type = decode_structural_field_type(reader)?;
     Ok(StructuralFieldDeclaration {
+        inline_carrier,
         storage: None,
         id,
         identity,

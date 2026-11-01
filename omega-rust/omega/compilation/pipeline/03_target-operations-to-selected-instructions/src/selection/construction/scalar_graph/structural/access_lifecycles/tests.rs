@@ -732,6 +732,7 @@ fn resident_array_transfer_keeps_source_and_destination_strides_independent() {
         ),
     ];
     let field = StructuralFieldDeclaration {
+        inline_carrier: None,
         id: StructuralFieldId::new(1).unwrap(),
         identity: TerminalIdentityIndex(1),
         relevance: BindingRelevance::Relevant,
@@ -818,6 +819,7 @@ fn image_fixture() -> (Vec<StructuralTypeDeclaration>, TerminalAccessLifecyclePl
     let array = StructuralTypeId::new(3).unwrap();
     let scalar = |sign, width| ScalarType::Integer(IntegerType::new(sign, width).unwrap());
     let field = |number, field_type| StructuralFieldDeclaration {
+        inline_carrier: None,
         id: StructuralFieldId::new(number).unwrap(),
         identity: TerminalIdentityIndex(u32::try_from(number).unwrap()),
         relevance: BindingRelevance::Relevant,

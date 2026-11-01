@@ -117,6 +117,7 @@ pub(crate) fn test_byte_read_declaration(
                     id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(3),
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        inline_carrier: None,
                         storage: None,
                         id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
                         identity: terminal_psi::TerminalIdentityIndex(4),
