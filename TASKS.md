@@ -524,10 +524,8 @@ narrows realization only.
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
-  - Publish boundary-value storage recipes, calling telescopes, the explicit
-    calling-policy application census and exact callback/policy captures in
-    canonical Terminal Psi, and move opaque selection, source-qualified review
-    and default ABI signature materialization onto them, so target planning
+  - Move opaque selection, source-qualified review and default ABI signature
+    materialization onto canonical Terminal Psi, so target planning
     drops its source-side signature preparation and passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
     declarations: host classification's catalog-local source join, typed
