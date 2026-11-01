@@ -2,7 +2,7 @@
 
 **Fact and operation:** Selected<Base + 4> at Base = 3 supplies at least seven before exact value - 7.
 
-This row advances `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` in
+This row advances `STATIC-MACHINE-MIGRATION` in
 [TASKS.md](../../../../TASKS.md). Its distinct mechanism is an open, typed const
 expression in a selected named implementation's explicit argument tuple. The
 compiler must preserve the expected `u64` carrier, exact binder declarations,
@@ -18,6 +18,32 @@ beside it. Every twin changes only the construct's nested `Selected<Base + 4>`
 to `Selected<Base + 3>`; the required minimum, construct guarantee, and consuming
 subtraction remain unchanged. The [root](main.omg) retains its original source.
 Each positive binds all four hosted `ProgramEntry` targets and expects exit 0.
+
+The [field place](field/main.omg) surrounds the carried value with nonzero
+neighbor canaries and checks both neighbors after projection. The
+[match join](match_join/main.omg) invokes both Boolean paths; each carries the
+same value and lower bound, while distinct tags (17 and 29) make inverted or
+wildcard dispatch observable. Both still consume the unchanged `value - 7`
+operation directly.
+
+Two additional productions stay in this fact:
+
+- [Private package projection](const_name/package_projection/main.omg) evaluates
+  the selected implementation through a package that retains a private helper
+  and a copyable record constant's `amount` projection. Its
+  [twin](const_name/package_projection/invalid/main.omg) changes only the
+  implementation's const argument in the package's `construct` call.
+- [Statement result](const_name/statement_result/main.omg) calls the selected
+  member in statement position. Its exact public write guarantee establishes
+  the scalar later returned and evaluated as a constant. Its
+  [twin](const_name/statement_result/invalid/main.omg) changes the same const
+  argument, preserving the bound and subtraction.
+
+The [private result guarantee control](controls/private_result_guarantee/main.omg)
+asks a generic wrapper for equality where its public requirement promises only
+a lower bound. It must reject even though the selected concrete member has a
+stronger equality guarantee. A prepared executable target does not donate that
+private contract to the generic caller.
 
 Applicable requirements:
 
@@ -49,6 +75,24 @@ The governing clauses are [generics](../../../../wiki/spec/language/generics.md)
 [dependent values](../../../../wiki/spec/language/dependent_values.md),
 [evaluation](../../../../wiki/spec/language/evaluation.md), and
 [constants](../../../../wiki/spec/language/constants.md).
+
+At fixed base `bfcffe6bcfcedb6fd60713e223408566c6c4e10d`, the unchanged
+local witness wrongly refuses at `selected`'s `result >= Minimum` guarantee.
+Borrow analysis names the exact applied public requirement signature, while
+capture preservation compared the authored evidence child. After that join is
+repaired, the unchanged const-name place exposes a second refusal: semantic
+evaluation executes the original map-row template and loses `Value`, although
+the call already retains its prepared capture entry. Both failures were recorded
+before their respective compiler edits, with unchanged source and oracles.
+
+Optimized producer `2de5d6af94b2460e5c85e5162a72a1fbd568eee1` observes native
+and Terminal exit 0 for the unchanged root and all nine original places; all ten
+original reject controls still refuse for their authored tuple mismatch. Those
+original sources and observations remain in the claim evidence, before the
+field/join runtime oracles were strengthened. The additional productions and
+private-guarantee boundary retain their own current observations there. This is
+Linux x86-64 evidence; declarations for the other hosted targets do not supply
+new execution observations.
 
 The optimized reference producer `5df98d50e149` has actual Linux x86-64
 native and Terminal exit 0 for the unchanged root and all nine places, with
