@@ -40,10 +40,12 @@ pub use checked_trees_to_lowered_psi::{
     project_external_provider_declarations,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
-pub use composition_roots::{TerminalAdmissionRoot, TerminalCompositionRoots};
+pub use composition_roots::{
+    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,
+};
 pub use custody::{
     PortableTerminalProgram, ProducedTerminalApplication, ProducedTerminalProgram,
-    TerminalApplicationCustody, TerminalProductionCustody,
+    TerminalProductionCustody,
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use terminal_production::{

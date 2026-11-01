@@ -221,20 +221,23 @@ impl<'a> PreparedTerminalProduct<'a> {
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
 
-    fn custody(&self) -> TerminalApplicationCustody<'_> {
-        TerminalApplicationCustody {
-            composition: self
-                .policy
+    fn prepare_application(
+        &self,
+        observer: &mut impl psi_compiler::PsiCompilationObserver,
+    ) -> TerminalApplicationCustody<'_> {
+        TerminalApplicationCustody::prepare(
+            self.request.view.program,
+            psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
+            self.signature_identity,
+            self.policy
                 .as_ref()
                 .map(|_| psi_compiler::TerminalCompositionRoots {
                     callbacks: Some(self.request.view.callbacks),
                     physical_adapter: self.physical_adapter,
                 }),
-            entry_identity: self.signature_identity,
-            entry_machine: self.selected_machine.is_valid().then_some(
-                psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
-            ),
-        }
+            self.request.view.sources.exact_toolchain_sources(),
+            observer,
+        )
     }
 }
 
@@ -398,7 +401,9 @@ fn produce_shared_terminal(
     }
     let mut machines = view.build.config.program_roots();
     if machines.is_empty() {
-        machines.push(first.selected_machine);
+        return Err(vec![Diagnostic::error(
+            "executable Terminal production has no authored ProgramEntry root",
+        )]);
     }
     machines.extend(
         typed
@@ -425,10 +430,13 @@ fn produce_shared_terminal(
                     .is_some_and(|machine| machine.target_family_interface)
         })
         .map_or(default, |family| family.canonical);
-    let applications = cohort
-        .iter()
-        .map(PreparedTerminalProduct::custody)
-        .collect::<Vec<_>>();
+    let applications = {
+        let mut observer = PsiStageTimings::new(timings);
+        cohort
+            .iter()
+            .map(|application| application.prepare_application(&mut observer))
+            .collect::<Vec<_>>()
+    };
     produce_terminal(
         view,
         first.request.selections,

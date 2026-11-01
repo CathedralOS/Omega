@@ -755,7 +755,12 @@ fn terminal_composition_admission_follows_canonical_publication() {
     let producer = include_str!(
         "../../../../psi/compilation/driver/terminal-production/src/terminal_production.rs"
     );
-    assert_eq!(producer.matches("application.prepare_roots(").count(), 1);
+    assert_eq!(producer.matches("application.attach(").count(), 1);
+    assert_in_order(
+        producer,
+        "application attachment",
+        &["finalize_terminal_program(", "application.attach("],
+    );
     assert_absent(
         &[producer],
         "Psi production runs Omega policy:",
@@ -776,7 +781,28 @@ fn terminal_composition_admission_follows_canonical_publication() {
             "for machine in std::iter::once(selection.machine)",
         ],
     );
+    let attachment = composition.split("pub(crate) fn attach(").nth(1).unwrap();
+    assert_absent(
+        &[attachment],
+        "post-publication application attachment reopens source",
+        &[
+            "CheckedTrees",
+            "SymbolHandle",
+            "select_terminal_machine",
+            "exact_owner_nominal_identity",
+        ],
+    );
+    assert_in_order(
+        attachment,
+        "application roots",
+        &[
+            "roots.push(project_root(module, provenance, entry))",
+            "callbacks.retained_roots(module)",
+            "if let Some(adapter)",
+        ],
+    );
     let product = include_str!("terminal/terminal_artifact.rs");
+    assert!(!product.contains("machines.push(first.selected_machine)"));
     assert_in_order(
         product,
         "terminal product",

@@ -6,11 +6,9 @@ use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
 use terminal_psi::TerminalMachineProvenance;
 
-pub fn lowered_machine_provenance(
+pub fn lowered_module_provenance(
     checked: &CheckedTrees,
     lowered: &lowered_psi::LoweredPsi,
-    entry: MachineId,
-    entry_name: Option<(&str, Option<source::SourceSpan>)>,
 ) -> TerminalMachineProvenance {
     let module = &lowered.semantic_module;
     let mut callee_by_operation = BTreeMap::new();
@@ -24,9 +22,6 @@ pub fn lowered_machine_provenance(
         }
     }
     let mut provenance = TerminalMachineProvenance::default();
-    if let Some((name, span)) = entry_name {
-        provenance.name(entry, name.to_owned(), span);
-    }
     for occurrence in &lowered.source_call_occurrences {
         if let Some(operation) = occurrence.terminal_site.operation()
             && let Some(callee) = callee_by_operation.get(&operation)
@@ -62,40 +57,6 @@ pub fn lowered_machine_provenance(
                     .unwrap_or_default(),
             ) {
                 name(&mut provenance, checked, candidate.candidate, *symbol);
-            }
-        }
-    }
-    // Static call parents from the entry, so an unnamed helper can be
-    // attributed through the named machine that reaches it.
-    let mut pending = std::collections::VecDeque::from([entry]);
-    let mut visited = std::collections::BTreeSet::from([entry]);
-    while let Some(current) = pending.pop_front() {
-        let Some(machine) = module.machine(current) else {
-            continue;
-        };
-        for block in &machine.blocks {
-            for operation in &block.operations {
-                if let Some(callee) = direct_call_parts(&operation.kind).map(|call| call.callee)
-                    && visited.insert(callee)
-                {
-                    provenance.record_caller(callee, current);
-                    pending.push_back(callee);
-                }
-                // A boundary call reaches its candidate bodies through
-                // dispatch, the same edge the absence walk follows.
-                if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind
-                {
-                    for candidate in module
-                        .provider_candidates
-                        .iter()
-                        .filter(|candidate| candidate.boundary == *boundary)
-                    {
-                        if visited.insert(candidate.candidate) {
-                            provenance.record_caller(candidate.candidate, current);
-                            pending.push_back(candidate.candidate);
-                        }
-                    }
-                }
             }
         }
     }

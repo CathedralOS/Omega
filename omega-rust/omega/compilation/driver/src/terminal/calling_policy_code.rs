@@ -55,10 +55,15 @@ fn produce(
     }
     let applications = machines
         .iter()
-        .map(|machine| psi_compiler::TerminalApplicationCustody {
-            entry_machine: Some(psi_compiler::TerminalMachineSelection::Symbol(*machine)),
-            composition: Some(psi_compiler::TerminalCompositionRoots::default()),
-            ..Default::default()
+        .map(|machine| {
+            psi_compiler::TerminalApplicationCustody::prepare(
+                &source.program,
+                psi_compiler::TerminalMachineSelection::Symbol(*machine),
+                None,
+                Some(psi_compiler::TerminalCompositionRoots::default()),
+                source.sources.exact_toolchain_sources(),
+                &mut psi_compiler::UnmeasuredProduction,
+            )
         })
         .collect::<Vec<_>>();
     let mut request = psi_compiler::TerminalProductionRequest::new(
