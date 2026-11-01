@@ -15,35 +15,6 @@ pub(crate) type ExitValueCache<'program> = Option<
     )>,
 >;
 
-/// Current-state proof only. The exit owner separately requires exact incoming
-/// origins for every immutable invocation formal named by the guarantee.
-pub(crate) fn proves_exit<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
-    exit: &checked_trees::FlowExitFact,
-    fact: &facts::Fact,
-    frames: Option<&validation::CallFrameResolver<'program>>,
-    cached_exit_values: &mut ExitValueCache<'program>,
-) -> bool {
-    let facts::FactPayload::ContractBooleanExpression {
-        expression,
-        fact: contract,
-        ..
-    } = fact.payload
-    else {
-        return false;
-    };
-    proves_exit_expression(
-        program,
-        facts,
-        exit,
-        contract,
-        expression,
-        frames,
-        cached_exit_values,
-    )
-}
-
 /// A Boolean contract's atoms consume the same completed frontier as its whole
 /// proposition. Case and scalar conjuncts keep their independent proof owners;
 /// no conjunction is assumed merely to form a result-field observation.

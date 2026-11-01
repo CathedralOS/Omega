@@ -32,7 +32,7 @@ native oracles. Archive and remove the diagnostic patch before any A/B candidate
 Nested timers are attribution children, not additional elapsed work. Stop a
 direction if its removable complete-invocation cost cannot support the target.
 
-[Startup evidence](startup.json.gz) includes exact producer/source inputs,
+[Startup evidence](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/invocation_setup_2026_10_29/startup.json.gz) includes exact producer/source inputs,
 all observations and logs. No Rust change or speed improvement is established
 by this startup diagnostic.
 
@@ -47,8 +47,8 @@ evidence. Session resource-grant creation was also only 0.8–1.3 ms.
 Compiler storage preparation took 74.0–77.4 ms, graph-lane construction
 15.8–18.5 ms, and acquisition's optional cache-coordinate setup 93.7–129.3 ms.
 Library identity and graph custody are separate children, not extra time to
-add to their parents. [Scope values](diagnostic-summary.json) and
-[exact diagnostic patch, optimized producer receipt and raw observations](diagnostic.json.gz)
+add to their parents. [Scope values](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/invocation_setup_2026_10_29/diagnostic-summary.json) and
+[exact diagnostic patch, optimized producer receipt and raw observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/invocation_setup_2026_10_29/diagnostic.json.gz)
 retain the attribution. The four temporary Rust timer edits were removed.
 
 Source tracing identifies repeated resolver verification of four sibling roots:

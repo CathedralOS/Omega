@@ -522,6 +522,19 @@ impl Scope<'_> {
             return Some(Application::bare(reference, 0));
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Cast(cast)
+                if cast.form.is_recast()
+                    && !self
+                        .program
+                        .type_application_value_indices(reference)
+                        .has_runtime_values() =>
+            {
+                // The prepared recast produces this exact loan application.
+                // Its backing place is not a value of the target shape; the
+                // recast judgment separately owes representation and authority.
+                // Runtime value indices still require source capture below.
+                Some(Application::bare(reference, self.statement))
+            }
             ExpressionNode::Name(path) => {
                 let formation = self
                     .program
@@ -1826,6 +1839,16 @@ impl Scope<'_> {
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
                     self.check(arm.value, required.clone(), diagnostics);
                 }
+                return;
+            }
+            ExpressionNode::Cast(cast)
+                if cast.form.is_recast()
+                    && !self
+                        .program
+                        .type_application_value_indices(cast.target_type)
+                        .has_runtime_values() =>
+            {
+                self.check_completed_value(expression, &required, diagnostics);
                 return;
             }
             ExpressionNode::Cast(cast) => {

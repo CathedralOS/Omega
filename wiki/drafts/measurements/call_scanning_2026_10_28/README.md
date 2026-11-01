@@ -11,7 +11,7 @@ same isolated worktree and does not update or enqueue that PR.
 **Inconclusive; remove the candidate from production source.** The six-run
 ABBAAB screen does not establish a repeatable reduction in value-call scanning.
 Do not retain a new fast path on the strength of overlapping timing ranges.
-The candidate remains reproducible in [candidate.patch](candidate.patch).
+The candidate remains reproducible in [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/candidate.patch).
 No compiler speedup, diagnostic parity, general contract acceptance, release
 qualification or new language capability is claimed.
 
@@ -21,9 +21,9 @@ The unchanged representative is
 `samples/cli/facts/thirtytwo_arg_stack_calling_plan/other_machine/main.omg`.
 Its exact source, build, producer and image identities are in the records below.
 
-The [first diagnostic](scanner-profile.json) measured 517.653 ms in call-bound
+The [first diagnostic](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/scanner-profile.json) measured 517.653 ms in call-bound
 validation out of 578.157 ms in value-position scanning. The [second
-diagnostic](detail-profile.json) measured 484.386 ms in
+diagnostic]([detail-profile.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/detail-profile.json)) measured 484.386 ms in
 `reject_refuted_value_call_requires` out of 536.922 ms in call bounds. Argument
 checking was 44.674 ms; constant-range call handling was 0.134 ms. These are
 inclusive scopes, not independent contributions to process wall time.
@@ -69,17 +69,17 @@ semantic equivalence of the shortcut.
 
 ## Replay and evidence
 
-- [Metadata](metadata.json): exact producers, optimized profiles, fixed source
+- [Metadata](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/metadata.json): exact producers, optimized profiles, fixed source
   base, toolchain, target, build command and exit status.
-- [Raw observations](screen-runs.json), [summary](summary.json),
-  [console output](screen.txt). The existing
-  [ABBAAB harness](../spill_loop_2026_10_28/ablate.py) and
-  [profile runner](../spill_loop_2026_10_28/profile.py) create fresh projects and
+- [Raw observations](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/screen-runs.json), [summary](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/summary.json),
+  [console output](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/screen.txt). The existing
+  [ABBAAB harness](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/ablate.py) and
+  [profile runner](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/spill_loop_2026_10_28/profile.py) create fresh projects and
   Windows source caches for every observation and perform ordinary package
   review before the measured compile. Historical harness names do not imply
   that this experiment changes spilling.
-- [First instrumentation](diagnostic.patch), [detailed instrumentation](detail.patch),
-  and [candidate](candidate.patch) are independent zero-context patches against
+- [First instrumentation](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/diagnostic.patch), [detailed instrumentation](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/detail.patch),
+  and [candidate](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/call_scanning_2026_10_28/candidate.patch) are independent zero-context patches against
   the fixed base. Replay with `git apply --unidiff-zero`. Instrumentation was
   removed before building B. Candidate reverse application and application
   checks passed; the working compiler source was restored exactly to the base.

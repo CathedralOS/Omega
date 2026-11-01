@@ -32,6 +32,9 @@ pub struct LoweredSourceCustody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPsi {
     pub semantic_module: TerminalModule,
+    /// Geometry-free producer joins retained only for source review. Native
+    /// selection and layout consume the canonical module, not this companion.
+    pub source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
     /// Exact source owners of emitted opaque declarations. Source publication
     /// consumes this producer association rather than reconstructing ownership
     /// from callable spelling or storage shape. Publication discards the map.

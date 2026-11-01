@@ -14,7 +14,7 @@ bottleneck. Fixed base 2a087aa3ec325cfab27afae8f51b2f358b3bfc1d. The intervening
 PR evidence correction changes documentation only, not compiler inputs.
 Baseline A is the retained optimized dev convergence producer:
 5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308.
-Candidate B is the same source plus candidate.patch, optimized dev build:
+Candidate B is the same source plus [candidate.patch](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/candidate.patch), optimized dev build:
 1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60.
 Build took 5m06s; its exact source patch was checked before and after validation.
 
@@ -79,11 +79,11 @@ belong to PR #822, not these counts.
 ## Harness correction and evidence boundary
 
 Raw review found that run --both with explicit --target only compiles. The
-original compare.py calls and three diagnostic runs used that combination;
+original [compare.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/compare.py) calls and three diagnostic runs used that combination;
 they are not Terminal execution evidence. Separate native exe executions remain
-valid. Those raw commands/logs are preserved unchanged. host.py replays all four
+valid. Those raw commands/logs are preserved unchanged. [host.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/host.py) replays all four
 comparison projects without --target and requires actual native exit 0 and
-interp exit: 0 reports. quality.py uses the corrected host invocation too.
+interp exit: 0 reports. [quality.py](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/quality.py) uses the corrected host invocation too.
 All eight real host comparisons pass. The convergence PR receives its own
 correction and nine actual host replays in the neighboring evidence folder.
 
@@ -101,7 +101,7 @@ candidate native images at source checkpoint
 308d50d1b7c08a575c57deffda5662cd50f3aebf. Each image digest and its authored
 exit oracle are checked. Exit 0, no input invalidations; source, producer
 optimization profile and actual executable digests are pinned. See
-qualification-summary.json, qualification-native.stdout and producer-receipt.json.
+[qualification-summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/qualification-summary.json), [qualification-native.stdout](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/qualification-native.stdout) and [producer-receipt.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/first_checking_2026_10_29/producer-receipt.json).
 The full immutable receipt/state stays in ignored build/first-checking as the
 qualification tool requires. Its capture overhead is not a compiler timing.
 This is native qualification only; the eight actual host/Terminal observations

@@ -203,10 +203,9 @@ committed realizations. CI may cross-compile several targets on one host or
 check without physical realization; neither activity creates a language
 support set.
 
-The Rust reference compiler does not implement this contract yet. It still
-accepts target-prefixed declarations and carries deployment-tagged family
-members and synthesized portable family heads. Those are migration machinery,
-not a second supported selection model. `BUILD-OWNED-TARGET-SELECTION` in the
+Target-prefixed declarations, deployment-tagged family members and synthesized
+portable family heads are migration machinery, not a second supported selection
+model. `BUILD-OWNED-TARGET-SELECTION` in the
 [pipeline route items](../../../TASKS.md#pipeline-route) owns their removal and
 the migration to explicit requirements and named implementations. Callers must
 use the requirement's public contract, never a selected implementation's private

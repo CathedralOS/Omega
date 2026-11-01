@@ -86,7 +86,22 @@ pub fn place_executable_regions(
     image: &FinalImage,
     layout: FinalImageLayout,
 ) -> Result<PlacedExecutableRegionInventory, Diagnostic> {
-    let mut regions = image.executable_regions.clone();
+    place_executable_extent(
+        &image.memory.text,
+        image.executable_regions.clone(),
+        layout.text_address,
+    )
+}
+
+/// Place classified executable regions over their exact final bytes. Writers
+/// that retain unrelocated source memory can supply resolved text without
+/// cloning the complete image or replacing its symbol and relocation owners.
+/// Bounds, overlap, gaps and byte commitments use the supplied extent only.
+pub fn place_executable_extent(
+    text_bytes: &[u8],
+    mut regions: Vec<FinalExecutableRegion>,
+    text_address: u64,
+) -> Result<PlacedExecutableRegionInventory, Diagnostic> {
     regions.sort_by_key(|region| region.section_offset);
 
     let mut placed = Vec::with_capacity(regions.len());
@@ -108,13 +123,13 @@ pub fn place_executable_regions(
                     region.symbol
                 ))
             })?;
-        if end > image.memory.text.len() {
+        if end > text_bytes.len() {
             return Err(Diagnostic::error(format!(
                 "final executable region `{}` [{}..{}) exceeds .text size {}",
                 region.symbol,
                 region.section_offset,
                 end,
-                image.memory.text.len()
+                text_bytes.len()
             )));
         }
         if region.section_offset < cursor {
@@ -124,19 +139,18 @@ pub fn place_executable_regions(
             )));
         }
         if region.section_offset > cursor {
-            unclassified_gaps.push(placed_gap(
-                image,
-                layout,
+            unclassified_gaps.push(placed_gap_from_bytes(
+                text_address,
+                text_bytes,
                 cursor,
                 region.section_offset - cursor,
             )?);
         }
-        let address = layout
-            .text_address
+        let address = text_address
             .checked_add(region.section_offset as u64)
             .ok_or_else(|| Diagnostic::error("final executable region address overflows"))?;
         cursor = end;
-        let region_bytes = &image.memory.text[region.section_offset..end];
+        let region_bytes = &text_bytes[region.section_offset..end];
         placed.push(PlacedExecutableRegion {
             origin: region.origin,
             section_offset: region.section_offset,
@@ -151,37 +165,37 @@ pub fn place_executable_regions(
             footprint: region.footprint,
         });
     }
-    if cursor < image.memory.text.len() {
-        unclassified_gaps.push(placed_gap(
-            image,
-            layout,
+    if cursor < text_bytes.len() {
+        unclassified_gaps.push(placed_gap_from_bytes(
+            text_address,
+            text_bytes,
             cursor,
-            image.memory.text.len() - cursor,
+            text_bytes.len() - cursor,
         )?);
     }
 
     let text_digest = FinalExecutableTextDigest::from_digest(digest_bytes(
         b"omega.final-executable-text.sha256.v1\0",
-        &image.memory.text,
+        text_bytes,
     ));
-    let text_report_fingerprint = byte_report_fingerprint(&image.memory.text);
+    let text_report_fingerprint = byte_report_fingerprint(text_bytes);
     let inventory_report_fingerprint = executable_inventory_report_fingerprint(
-        layout.text_address,
-        image.memory.text.len(),
+        text_address,
+        text_bytes.len(),
         text_report_fingerprint,
         &placed,
         &unclassified_gaps,
     );
     let inventory_digest = executable_inventory_digest(
-        layout.text_address,
-        image.memory.text.len(),
+        text_address,
+        text_bytes.len(),
         text_digest,
         &placed,
         &unclassified_gaps,
     );
     Ok(PlacedExecutableRegionInventory {
-        text_address: layout.text_address,
-        text_byte_count: image.memory.text.len(),
+        text_address,
+        text_byte_count: text_bytes.len(),
         text_digest,
         text_report_fingerprint,
         inventory_digest,
@@ -323,20 +337,6 @@ pub fn validate_placed_executable_region_inventory(
         ));
     }
     Ok(())
-}
-
-fn placed_gap(
-    image: &FinalImage,
-    layout: FinalImageLayout,
-    section_offset: usize,
-    byte_count: usize,
-) -> Result<PlacedExecutableGap, Diagnostic> {
-    placed_gap_from_bytes(
-        layout.text_address,
-        &image.memory.text,
-        section_offset,
-        byte_count,
-    )
 }
 
 fn placed_gap_from_bytes(

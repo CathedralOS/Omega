@@ -10,7 +10,7 @@ use terminal_installation::{
 
 /// All work uses the invocation's existing meter. Neither a selected entry nor
 /// a target layout supplies the retained predicates that must be re-decided.
-/// Policies have the exact empty provider selection used by their activation;
+/// Policies use the exact checked provider selection used by their activation;
 /// completion cannot install a host import or borrow another Product's grants.
 pub(super) fn complete_policy_scalar_inputs(
     artifact: &CanonicalTerminalArtifact,

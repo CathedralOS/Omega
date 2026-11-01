@@ -43,7 +43,7 @@ hashes and verified optimization profiles are recorded in the producer receipts.
 Pinned qualification captures the focused comparisons and timing experiment on one
 clean candidate with full compiler, bundled source, fixture, harness and toolchain
 input identities. The local immutable qualification state is digest-bound in
-`qualification.json`. Ordinary exact-SHA landing verification remains separate.
+[`qualification.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_integration_2026_10_22/qualification.json). Ordinary exact-SHA landing verification remains separate.
 
 Edited-file Rust 2024 formatting, `git diff --check`, and scoped Clippy pass.
 Package-wide formatting reports pre-existing blank lines in untouched
@@ -58,7 +58,7 @@ and native executions. Every image exits zero, and every image for each subject
 has identical bytes across producers. No own build or corpus process overlaps
 this timing capture. External workstation activity is left untouched and load
 averages are retained. CPU, memory, full ranges and every trial remain in
-`paired.json`; this is warm-filesystem, fresh-process behavior on macOS ARM64,
+[`paired.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_integration_2026_10_22/paired.json); this is warm-filesystem, fresh-process behavior on macOS ARM64,
 not a Windows/Linux or cold-start claim.
 
 | Workload | Main median, ms | Optimized median, ms | Reduction |
@@ -100,7 +100,7 @@ mandatory landing verification bind it to the publication candidate.
 The paired experiment is repeated against this actual main producer after the
 checks finish: 78 successful native executions and identical image bytes within
 each subject. All warmups and 12 alternating pairs are retained in
-`latest-main/paired.json`, including CPU, memory, load and timing ranges.
+[`latest-main/paired.json`](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_throughput_integration_2026_10_22/latest-main/paired.json), including CPU, memory, load and timing ranges.
 
 | Workload | Latest main median, ms | Optimized median, ms | Reduction |
 | --- | --- | --- | --- |

@@ -1,8 +1,0 @@
-{
-  "revision": "e8a7205c2959f3bace92f8def8c3eca34070b6a7",
-  "path": "target/debug/build/compiler/c201e0d2316cf1f8/out/corpus_runner-c201e0d2316cf1f8",
-  "sha256": "b562ec05af4c029e6412e4d2e4e181234b0887d5c8e46c327e8bb9c57afed112",
-  "record_check_exit": 0,
-  "record_both_exit": 3,
-  "reason": "Repository runner records the same four known positive refusals. Code 3 on both engine recording reports these baseline refusals; no infrastructure error or lost success."
-}

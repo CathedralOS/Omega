@@ -1,2 +1,0 @@
-use omega_language_std::math;
-machine main() {}

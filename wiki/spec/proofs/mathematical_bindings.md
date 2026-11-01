@@ -2,8 +2,8 @@
 
 ## Scope
 
-This is the selected source model for the [mathematical foundation](foundation.md),
-not a claim of complete compiler support. Ordinary machines establish contracts;
+This is the selected source model for the [mathematical foundation](foundation.md).
+Ordinary machines establish contracts;
 mathematical definitions name terms; ordinary data and squash carry witnesses
 and existence evidence. No `forall`, `exists`, `claim`, `proposition`, or
 `implies` syntax is added by this settlement. Dedicated formula declarations and

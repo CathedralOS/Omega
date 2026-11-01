@@ -109,6 +109,10 @@ impl OperationFrame<'_, '_> {
         // same scalar evaluator every ordinary operand uses: the slot's base
         // position names the first tuple slot, and dispatch matches these
         // values against each family slot's declared tuple identities.
+        // These reads occur after the data operands, which can have written
+        // their backing. Use the complete current evaluation namespace, just
+        // like ordinary operands, rather than an entry-only scalar roster.
+        let bindings = self.evaluation.contextual_bindings();
         let mut family_actuals = Vec::new();
         for operand in match call.route() {
             checked_trees::CheckedUnitCallRoute::Dynamic {
@@ -120,7 +124,7 @@ impl OperationFrame<'_, '_> {
                 checked_trees::CheckedCallScalarArgument::Pure(expression) => expression,
                 _ => return unsupported("dynamic family operand is not a pure scalar expression"),
             };
-            let lowered = self.evaluation.scalar_bindings.expression(
+            let lowered = bindings.expression(
                 identities,
                 &checked.facts.proven_scalar_indexes,
                 expression,

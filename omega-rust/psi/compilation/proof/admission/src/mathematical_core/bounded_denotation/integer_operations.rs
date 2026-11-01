@@ -1,7 +1,8 @@
 //! Uninterpreted fixed-integer operations keep applicative denotations.
 //!
-//! Only addition and subtraction carry arithmetic laws; every other
-//! operation is an opaque *function* — one assumption constant per
+//! Exact addition, subtraction and multiplication retain their existing
+//! arithmetic functions in `fixed_scalar`. Other operations are opaque
+//! *functions* — one assumption constant per
 //! constructor and its machine types — applied to the denoted operands.
 //! Keeping operands inside the application rather than interning the whole
 //! applied term as one unrelated constant is what lets value-equation
@@ -22,6 +23,8 @@ use numerics::bignum::BigInt;
 use semantic_vocabulary::{IntegerType, IntegerValue};
 
 use super::{BoundedDenotationError, Denotation, ScalarTerm, Term, TermHandle, unbounded_integer};
+
+pub(super) mod fixed_scalar;
 
 /// One fixed-integer operation's identity: constructor and machine types,
 /// so `u16` and `u32` multiplications remain distinct opaque functions.
@@ -55,7 +58,6 @@ pub(super) enum IntegerOperation {
         value: IntegerType,
         count: IntegerType,
     },
-    ExactMultiply(IntegerType),
     ExactDivide(IntegerType),
     ExactRemainder(IntegerType),
     WrappingAdd(IntegerType),
@@ -92,9 +94,49 @@ macro_rules! integer_operation_table {
             $(
                 ScalarTerm::$variant { $($field),+ } => ($operation, $left, $right),
             )+
-            _ => return Ok(None),
+            _ => return None,
         }
     };
+}
+
+/// One source operation's exact identity and borrowed operands. Projection
+/// publishes no declaration and performs no evaluation.
+struct IntegerApplication<'source> {
+    operation: IntegerOperation,
+    left: &'source ScalarTerm,
+    right: Option<&'source ScalarTerm>,
+}
+
+fn application(term: &ScalarTerm) -> Option<IntegerApplication<'_>> {
+    let (operation, left, right) = integer_operation_table! { term;
+        IntegerBitwiseNot { scalar_type, operand } => (IntegerOperation::BitwiseNot(*scalar_type), operand, None),
+        IntegerWiden { source_type, target_type, operand } => (IntegerOperation::Widen { source: *source_type, target: *target_type }, operand, None),
+        IntegerExactCast { source_type, target_type, operand } => (IntegerOperation::ExactCast { source: *source_type, target: *target_type }, operand, None),
+        IntegerBitwiseAnd { scalar_type, left, right } => (IntegerOperation::BitwiseAnd(*scalar_type), left, Some(right)),
+        IntegerBitwiseOr { scalar_type, left, right } => (IntegerOperation::BitwiseOr(*scalar_type), left, Some(right)),
+        IntegerBitwiseXor { scalar_type, left, right } => (IntegerOperation::BitwiseXor(*scalar_type), left, Some(right)),
+        WrappingIntegerShiftLeft { value_type, count_type, value, count } => (IntegerOperation::WrappingShiftLeft { value: *value_type, count: *count_type }, value, Some(count)),
+        WrappingIntegerShiftRight { value_type, count_type, value, count } => (IntegerOperation::WrappingShiftRight { value: *value_type, count: *count_type }, value, Some(count)),
+        ExactIntegerShiftLeft { value_type, count_type, value, count } => (IntegerOperation::ExactShiftLeft { value: *value_type, count: *count_type }, value, Some(count)),
+        ExactIntegerShiftRight { value_type, count_type, value, count } => (IntegerOperation::ExactShiftRight { value: *value_type, count: *count_type }, value, Some(count)),
+        ExactIntegerDivide { scalar_type, left, right } => (IntegerOperation::ExactDivide(*scalar_type), left, Some(right)),
+        ExactIntegerRemainder { scalar_type, left, right } => (IntegerOperation::ExactRemainder(*scalar_type), left, Some(right)),
+        WrappingIntegerAdd { scalar_type, left, right } => (IntegerOperation::WrappingAdd(*scalar_type), left, Some(right)),
+        WrappingIntegerSubtract { scalar_type, left, right } => (IntegerOperation::WrappingSubtract(*scalar_type), left, Some(right)),
+        WrappingIntegerMultiply { scalar_type, left, right } => (IntegerOperation::WrappingMultiply(*scalar_type), left, Some(right)),
+        WrappingIntegerDivide { scalar_type, left, right } => (IntegerOperation::WrappingDivide(*scalar_type), left, Some(right)),
+        WrappingIntegerRemainder { scalar_type, left, right } => (IntegerOperation::WrappingRemainder(*scalar_type), left, Some(right)),
+        SaturatingIntegerAdd { scalar_type, left, right } => (IntegerOperation::SaturatingAdd(*scalar_type), left, Some(right)),
+        SaturatingIntegerSubtract { scalar_type, left, right } => (IntegerOperation::SaturatingSubtract(*scalar_type), left, Some(right)),
+        SaturatingIntegerMultiply { scalar_type, left, right } => (IntegerOperation::SaturatingMultiply(*scalar_type), left, Some(right)),
+        SaturatingIntegerDivide { scalar_type, left, right } => (IntegerOperation::SaturatingDivide(*scalar_type), left, Some(right)),
+        SaturatingIntegerRemainder { scalar_type, left, right } => (IntegerOperation::SaturatingRemainder(*scalar_type), left, Some(right)),
+    };
+    Some(IntegerApplication {
+        operation,
+        left,
+        right: right.map(|term| term.as_ref()),
+    })
 }
 
 impl Denotation {
@@ -133,51 +175,20 @@ impl Denotation {
         )
     }
 
-    /// `op l' r'` — the applicative denotation of one open arithmetic
-    /// operation, or `None` when the term is not such an operation.
-    /// Closed operations never reach here: `integer_value` already
-    /// evaluated them to their literal denotation.
-    pub(super) fn integer_operation_term(
+    /// Function publication follows both operands, retaining the original
+    /// declaration and arena-allocation order for unary and binary operations.
+    pub(super) fn apply_integer_operation(
         &mut self,
-        term: &ScalarTerm,
-    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let (operation, left, right) = integer_operation_table! { term;
-            IntegerBitwiseNot { scalar_type, operand } => (IntegerOperation::BitwiseNot(*scalar_type), operand, None),
-            IntegerWiden { source_type, target_type, operand } => (IntegerOperation::Widen { source: *source_type, target: *target_type }, operand, None),
-            IntegerExactCast { source_type, target_type, operand } => (IntegerOperation::ExactCast { source: *source_type, target: *target_type }, operand, None),
-            IntegerBitwiseAnd { scalar_type, left, right } => (IntegerOperation::BitwiseAnd(*scalar_type), left, Some(right)),
-            IntegerBitwiseOr { scalar_type, left, right } => (IntegerOperation::BitwiseOr(*scalar_type), left, Some(right)),
-            IntegerBitwiseXor { scalar_type, left, right } => (IntegerOperation::BitwiseXor(*scalar_type), left, Some(right)),
-            WrappingIntegerShiftLeft { value_type, count_type, value, count } => (IntegerOperation::WrappingShiftLeft { value: *value_type, count: *count_type }, value, Some(count)),
-            WrappingIntegerShiftRight { value_type, count_type, value, count } => (IntegerOperation::WrappingShiftRight { value: *value_type, count: *count_type }, value, Some(count)),
-            ExactIntegerShiftLeft { value_type, count_type, value, count } => (IntegerOperation::ExactShiftLeft { value: *value_type, count: *count_type }, value, Some(count)),
-            ExactIntegerShiftRight { value_type, count_type, value, count } => (IntegerOperation::ExactShiftRight { value: *value_type, count: *count_type }, value, Some(count)),
-            ExactIntegerMultiply { scalar_type, left, right } => (IntegerOperation::ExactMultiply(*scalar_type), left, Some(right)),
-            ExactIntegerDivide { scalar_type, left, right } => (IntegerOperation::ExactDivide(*scalar_type), left, Some(right)),
-            ExactIntegerRemainder { scalar_type, left, right } => (IntegerOperation::ExactRemainder(*scalar_type), left, Some(right)),
-            WrappingIntegerAdd { scalar_type, left, right } => (IntegerOperation::WrappingAdd(*scalar_type), left, Some(right)),
-            WrappingIntegerSubtract { scalar_type, left, right } => (IntegerOperation::WrappingSubtract(*scalar_type), left, Some(right)),
-            WrappingIntegerMultiply { scalar_type, left, right } => (IntegerOperation::WrappingMultiply(*scalar_type), left, Some(right)),
-            WrappingIntegerDivide { scalar_type, left, right } => (IntegerOperation::WrappingDivide(*scalar_type), left, Some(right)),
-            WrappingIntegerRemainder { scalar_type, left, right } => (IntegerOperation::WrappingRemainder(*scalar_type), left, Some(right)),
-            SaturatingIntegerAdd { scalar_type, left, right } => (IntegerOperation::SaturatingAdd(*scalar_type), left, Some(right)),
-            SaturatingIntegerSubtract { scalar_type, left, right } => (IntegerOperation::SaturatingSubtract(*scalar_type), left, Some(right)),
-            SaturatingIntegerMultiply { scalar_type, left, right } => (IntegerOperation::SaturatingMultiply(*scalar_type), left, Some(right)),
-            SaturatingIntegerDivide { scalar_type, left, right } => (IntegerOperation::SaturatingDivide(*scalar_type), left, Some(right)),
-            SaturatingIntegerRemainder { scalar_type, left, right } => (IntegerOperation::SaturatingRemainder(*scalar_type), left, Some(right)),
-        };
-        let left = self.fixed_scalar_term(left)?;
-        let right = match right {
-            Some(right) => Some(self.fixed_scalar_term(right)?),
-            None => None,
-        };
+        operation: IntegerOperation,
+        left: TermHandle,
+        right: Option<TermHandle>,
+    ) -> Result<TermHandle, BoundedDenotationError> {
         let position = self.integer_operation(operation)?;
         let function = self.constant(position);
-        let term = match right {
+        Ok(match right {
             Some(right) => self.arena.apply_arguments(function, &[left, right]),
             None => self.arena.apply_arguments(function, &[left]),
-        };
-        Ok(Some(term))
+        })
     }
 
     /// `op l' r'` for the value-level comparisons `IntegerEqual`,

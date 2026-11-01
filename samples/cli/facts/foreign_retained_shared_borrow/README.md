@@ -1,6 +1,15 @@
 # Retained shared foreign backing
 
-Parent: **FOREIGN-RETAINED-ARGUMENT-BACKING** in `TASKS.md`.
+Parents: **FOREIGN-RETAINED-ARGUMENT-BACKING**,
+**BUILD-OWNED-TARGET-SELECTION**, and **BUILD-OWNED-NATIVE-BINDINGS** in
+`TASKS.md`.
+
+The migration requirement is to preserve this entire shared-loan row and its
+composition controls while ordinary named implementations replace target-prefixed
+bodies and direct target-keyed `Build::bind` rows replace native helper forwarders.
+Locator byte lengths are inferred from the original fixed-byte values. The same
+four hosted locators, public contracts, provider authority, backing and loan
+occurrences remain the executable obligation.
 
 A shared foreign registration retains the exact original `Buffer` backing until
 completion consumes `Pending`; completion observes the original value 37.
@@ -95,12 +104,38 @@ into ownership. The generic owned-sibling declaration under
 `tests/omega/pass/core/content_owned_sibling_in_loan_carrier` pins the converse:
 a disjoint borrowed field does not take away an actual owned content source.
 
+The [persistent-slot control](controls/persistent_retention/main.omg) replaces
+caller-owned storage through an ordinary helper, completes the old registration,
+and then observes 91 through the new registration. Its
+[twin](controls/persistent_retention/invalid/main.omg) writes that new backing
+while the stored loan is still live. The
+[restore control](controls/persistent_restore/main.omg) instead restores the old
+slot and completes the temporarily installed registration; its
+[twin](controls/persistent_restore/invalid/main.omg) writes the still-retained
+original backing. Distinct 37/91 values and opposite permitted writes make the
+current slot and loan epoch observable. Both pairs have matching pass/fail pins.
+
+The [borrowed-slot swap](controls/borrowed_slot_swap/main.omg) moves both tokens
+through a borrowed parameter and exchanges their caller-owned slots. Completing
+the swapped 91 token permits its backing write while the remaining token still
+observes 37. Its [twin](controls/borrowed_slot_swap/invalid/main.omg) writes the
+still-retained 37 backing. The matching pass/fail pins require logical contents
+to cross the borrowed parameter without retaining the address of the token slot.
+
+The former receiver-namespace refusal was an implementation limit: matching
+explicit lifetimes permit the helper once its complete normal-exit loan relation
+is carried to the caller. A historical install that is subsequently consumed or
+replaced cannot supply that relation, and an unrelated loan at the same path
+cannot cover its source. These controls require actual loan transport rather
+than preservation of the obsolete namespace restriction.
+
 The controls additionally require early disposal, capacity reuse, repeated
-completion, call-scoped retention and unsupported persistent retention
-to reject for their stated obligations. Two simultaneous registrations remain
+completion and call-scoped retention to reject for their stated obligations. Two simultaneous registrations remain
 independent; completing one leaves the other loan live. A post-completion write
 and raw values of the same carrier (including a factory with an unused borrow)
-remain valid. Returning local backing or redeeming borrowed content as independent
+remain valid. The [raw borrowed-input control](controls/raw_same_carrier_borrow/main.omg)
+also replaces a raw token in caller storage and checks marker 11; its known empty
+loan frontier cannot acquire a loan from the helper's unused Buffer borrow. Returning local backing or redeeming borrowed content as independent
 owned custody rejects. A separate phantom control needs no
 foreign effects and executes in both engines.
 
@@ -112,7 +147,10 @@ foreign effects and executes in both engines.
   nesting, calls, joins and state transfers. Mutable access and disposal conflict;
   completion ends only the consumed occurrence.
 - Composition: the consuming completion receives the retained token through the
-  nine places. No caller guard re-establishes the loan or authorizes a write.
+  nine places. The match join exercises both inputs and records different effects
+  in caller storage before completion. The target-body place selects an ordinary
+  `PendingTransferCode` implementation and retains the full applied carrier and
+  loan. No caller guard re-establishes the loan or authorizes a write.
 - Authority: nonspatial dependencies cannot supply reference-result pointers or
   spatial access exemptions. Phantom lifetime spelling supplies no loan. Unpropagated
   persistent stores remain rejected.
@@ -126,6 +164,12 @@ foreign effects and executes in both engines.
   suspended callers retain their frame backing while helpers transport tokens.
 - Omega 07–09/emission: both Linux ELF profiles, macOS Mach-O and Windows PE
   imports execute the authored C lifecycle with native/Terminal agreement.
+
+The hosted execution links above are retained evidence for the original row;
+migration qualification records identify the actual producer and matching host.
+This row establishes the shared retained-borrow requirement of the two Build
+migrations; unrelated source cohorts, retired-syntax deletion, audio acceptance
+and other hosted migration executions remain their parent tasks' acceptance.
 
 This covers the direct shared fixed-record rung. The whole-move control covers
 ordinary owned movement between completed registrations. Transferring backing

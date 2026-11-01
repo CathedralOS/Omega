@@ -179,6 +179,7 @@ fn walk_declared_origins(
     detail: OriginDetail,
 ) -> Option<StoredLocalOrigins> {
     let root_reference = reference;
+    let retained_paths = crate::borrow_contracts::retained_lifetime_owner_paths(program, reference);
     let mut origins = StoredLocalOrigins::new(super::StoredOriginRecord {
         local_symbol: symbol,
         references: Vec::new(),
@@ -190,7 +191,9 @@ fn walk_declared_origins(
     // reference-free shape contributes no loan identity, even when its arrays
     // contain many scalar cases. Reuse the capability proof (which excludes
     // opaque and unresolved storage) before materializing any slot paths.
-    if super::super::type_capabilities::type_is_reference_free_value(program, reference, &[]) {
+    if super::super::type_capabilities::type_is_reference_free_value(program, reference, &[])
+        && retained_paths.as_ref().is_some_and(Vec::is_empty)
+    {
         // This complete shape proof establishes an empty binding inventory;
         // it is not an unresolved symbolic descriptor frontier.
         origins.symbolic = false;
@@ -234,7 +237,7 @@ fn walk_declared_origins(
                         program, name, &segments,
                     );
                     origins.references.push(StoredWriteOrigin {
-                        lifetime_dependencies: Vec::new(),
+                        lifetime_dependencies: Some(Vec::new()),
                         kind: super::StoredOriginKind::Reference(*access),
                         local_symbol: symbol,
                         local_path: path.clone(),
@@ -307,7 +310,7 @@ fn walk_declared_origins(
                                 program, name, &segments,
                             );
                             origins.references.push(StoredWriteOrigin {
-                                lifetime_dependencies: Vec::new(),
+                                lifetime_dependencies: Some(Vec::new()),
                                 kind: super::StoredOriginKind::OpaqueRegion,
                                 local_symbol: symbol,
                                 local_path: path,
@@ -331,7 +334,7 @@ fn walk_declared_origins(
                                 program, name, &segments,
                             );
                             origins.references.push(StoredWriteOrigin {
-                                lifetime_dependencies: Vec::new(),
+                                lifetime_dependencies: Some(Vec::new()),
                                 kind: super::StoredOriginKind::OpaqueRegion,
                                 local_symbol: symbol,
                                 local_path: path,
@@ -418,6 +421,56 @@ fn walk_declared_origins(
                 }
             }
             _ => return None,
+        }
+    }
+    if detail == OriginDetail::Paths && retained_paths.is_none() {
+        // A successful physical walk does not close an unknown logical
+        // frontier. Preserve each opaque region beside known siblings; if
+        // no region names the incompleteness, withhold the entire query.
+        let mut retained_unknown = false;
+        for leaf in &mut origins.references {
+            if leaf.kind == super::StoredOriginKind::OpaqueRegion {
+                leaf.lifetime_dependencies = None;
+                retained_unknown = true;
+            }
+        }
+        if !retained_unknown {
+            return None;
+        }
+    }
+    // Protocol lifetime debt is independent of the carrier's scalar layout.
+    // The canonical loan frontier owns these paths and phantom distinctions.
+    if detail == OriginDetail::Paths
+        && let Some(retained_paths) = retained_paths
+    {
+        for owner_path in retained_paths {
+            let segments = super::super::stored_calls::owner_segments(&owner_path)?;
+            let (path, precision) =
+                super::super::place_paths::coordinate_storage_path(program, name, &segments);
+            let dependencies = (symbol.is_valid()
+                && program.symbols.get(symbol).kind == SymbolKind::Parameter)
+                .then(|| {
+                    vec![super::super::stored_calls::SlotSource::from_place(
+                        program,
+                        super::super::FrameSourcePlace {
+                            root: symbol,
+                            segments: segments.clone(),
+                            builtin_coordinates: true,
+                            ..Default::default()
+                        },
+                        precision,
+                        Some(language_semantics::ReferenceAccess::Shared),
+                    )]
+                });
+            origins.references.push(StoredWriteOrigin {
+                kind: super::StoredOriginKind::LifetimeDependency,
+                local_symbol: symbol,
+                local_path: path,
+                local_segments: segments,
+                may_select: false,
+                origin: None,
+                lifetime_dependencies: dependencies,
+            });
         }
     }
     Some(origins)

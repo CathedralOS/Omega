@@ -132,9 +132,8 @@ public data LayoutQuery [copy] {
 }
 
 // What a `::` name path denotes, indexed like `SyntaxTrees::name_paths`: a
-// machine (both sides of a conformance's reference row, a domain's
-// establishment route; a trait requirement is a machine) or a domain (an
-// alias constituent).
+// machine (a domain's establishment route; a trait requirement is a machine)
+// or a domain (an alias constituent).
 public data PathBinding [copy] {
     case Unresolved;
     case Machine(handle: u64 in Trapping);
@@ -229,8 +228,7 @@ public data ResolveDiagnosticCode [copy] {
     case NotAType;
     // A trait position names something other than a trait.
     case NotATrait;
-    // A reference row's left side, or a `satisfies` clause, names no
-    // requirement of its trait.
+    // A `satisfies` clause names no requirement of its trait.
     case NotARequirement;
     // A token-bound machine whose owner is not a data declaration of its own
     // package: only a closed family's semantic home publishes its tokens.

@@ -151,10 +151,10 @@ process CPU is separate from wall time and does not establish a serial fraction.
 ## Identity, behavior and archive checks
 
 All 16 observations use the unchanged Dungeon EOF program and its 203 authored
-inputs from the [fixed manifest](../input-manifest.json). Fixed semantic Rust
+inputs from the [fixed manifest](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/input-manifest.json). Fixed semantic Rust
 base is `456c5e984452a45d977295e254b3ca9ae3cc7750`; measurement patch base is
 documentation descendant `9901ccc4146b00fdcc4e4280be12fd57a79ceab5`.
-[identities.json](identities.json) records each optimization-level-1 executable
+[identities.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/terminal_reconciliation/identities.json) records each optimization-level-1 executable
 and its normal producer-specific accepted lock. Timing producer SHA-256:
 `20518efd27fcb0afce5d940f050a2f576883d98d5c073f3983932c463fbb410f`;
 demand producer:
@@ -172,7 +172,7 @@ not cold-cache performance observations.
 The timing build passed 22 focused payload tests (6 filtered) and one probe
 bookkeeping test (6 filtered). Both optimized CLI builds succeeded; the demand
 refinement was then exercised by its real cold/warm program and engine checks.
-Both complete [timing](timing.patch) and [demand](instrumentation.patch) patches
+Both complete [timing](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/terminal_reconciliation/timing.patch) and [demand](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/terminal_reconciliation/instrumentation.patch) patches
 apply independently to the recorded base; scratch-index application checks
 passed. All eight temporary source files were restored/removed afterward, and
 the compiler tree matches the fixed semantic base. Shared main was untouched.
@@ -181,7 +181,7 @@ The initial outer-only observation compiled and executed successfully, then a
 harness postcondition incorrectly required source-detail windows while that
 mode was disabled. Corrected the mode assertion and finalized those existing
 raw bytes without rerunning or excluding the observation. The initial failure
-log and [resume script](resume.py) preserve this distinction.
+log and [resume script](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/terminal_reconciliation/resume.py) preserve this distinction.
 
 Replay archive verification from the repository root:
 
@@ -192,8 +192,8 @@ python wiki/drafts/measurements/proof_parallelism_2026_10_28/terminal_reconcilia
 The analyzer checks every manifest digest, all 16 records, producer/lock and
 program identities, disjoint/nested accounting, cold/warm cache markers, matching
 counter rosters, graph/demand rows, actual native outcomes and both-engine
-agreement. [summary.json](summary.json) separates all cohorts.
-[Raw streams](raw/) and compressed build/run/update logs preserve provenance.
+agreement. [summary.json](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/terminal_reconciliation/summary.json) separates all cohorts.
+[Raw streams](https://github.com/CathedralOS/Omega/tree/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/proof_parallelism_2026_10_28/terminal_reconciliation/raw) and compressed build/run/update logs preserve provenance.
 Large producers, accepted locks and private caches stay ignored under
 `build/proof-profile/`. [Research](research.md) includes the prior experiment
 reuse, exact new primary-source queries, applicability and stopping rule.

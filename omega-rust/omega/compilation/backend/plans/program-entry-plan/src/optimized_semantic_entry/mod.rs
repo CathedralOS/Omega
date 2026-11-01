@@ -53,10 +53,8 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
 /// namespaces and could only ever match a fabricated schema row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizedProgramStorageSemanticCallingApplication<'plan> {
-    boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
+    application: &'plan calling_conventions::BoundaryCallingApplication,
     physical_boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
-    report_fingerprint: u64,
-    commitment: BoundaryCallingPlanCommitment,
 }
 
 impl<'plan> OptimizedProgramStorageSemanticCallingApplication<'plan> {
@@ -64,26 +62,22 @@ impl<'plan> OptimizedProgramStorageSemanticCallingApplication<'plan> {
     /// plan the commitment covers. Entry settlement establishes their join;
     /// this pair only transports the result to contract construction.
     pub const fn new(
-        boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
+        application: &'plan calling_conventions::BoundaryCallingApplication,
         physical_boundary_entry_plan: &'plan ValidatedBoundaryEntryPlan,
-        report_fingerprint: u64,
-        commitment: BoundaryCallingPlanCommitment,
     ) -> Self {
         Self {
-            boundary_entry_plan,
+            application,
             physical_boundary_entry_plan,
-            report_fingerprint,
-            commitment,
         }
     }
 
     /// The exact canonical ABI plan the retained application commits to.
     pub const fn boundary_entry_plan(&self) -> &'plan BoundaryEntryPlan {
-        self.boundary_entry_plan.plan()
+        self.application.plan.plan()
     }
 
     pub(super) const fn admitted_boundary_entry_plan(&self) -> &'plan ValidatedBoundaryEntryPlan {
-        self.boundary_entry_plan
+        &self.application.plan
     }
 
     pub(super) const fn admitted_physical_entry_plan(&self) -> &'plan ValidatedBoundaryEntryPlan {
@@ -92,12 +86,16 @@ impl<'plan> OptimizedProgramStorageSemanticCallingApplication<'plan> {
 
     /// Compact report coordinate of the complete calling-plan application.
     pub const fn report_fingerprint(&self) -> u64 {
-        self.report_fingerprint
+        self.application.report_fingerprint
     }
 
     /// Domain-separated commitment to the complete calling-plan application.
     pub const fn commitment(&self) -> BoundaryCallingPlanCommitment {
-        self.commitment
+        BoundaryCallingPlanCommitment::from_digest(self.application.commitment)
+    }
+
+    pub const fn abi(&self) -> &semantic_vocabulary::CallingAbiIdentity {
+        &self.application.abi
     }
 }
 

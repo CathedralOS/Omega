@@ -1,0 +1,36 @@
+// A scalar store of zero through the u32 view restores Pair.start and its mixed parent predicate before returning the parent.
+// Expected exit: 0
+public data Pair [copy]
+requires self.start >= 0 && self.start <= self.end,
+{
+    before: u32;
+    start: i32;
+    end: i32;
+    after: u32;
+    marker: u32;
+    origin: u32;
+}
+public machine inspect(pair: &mut Pair, replacement: u32)
+requires replacement == 0xFFFFFFFFu32
+{
+    pair.marker = 11;
+    let view: &mut u32 = &mut pair.start as &mut u32;
+    view = 0xFFFFFFFFu32;
+    view = replacement;
+    pair.end = 10;
+}
+machine main() crashes Trap {
+    let mut first: Pair = Pair { before: 0x13579BDF, start: 3, end: 10, after: 0x2468ACE0, marker: 0, origin: 11 };
+    inspect(&mut first, 0xFFFFFFFFu32);
+    let mut second: Pair = Pair { before: 0x13579BDF, start: 5, end: 10, after: 0x2468ACE0, marker: 0, origin: 13 };
+    inspect(&mut second, 0xFFFFFFFFu32);
+    transition first.start == 0 && first.end == 10 && first.marker == 11 && first.origin == 11
+        && second.start == 0 && second.end == 10 && second.marker == 11 && second.origin == 13
+        && first.before == 0x13579BDF && first.after == 0x2468ACE0
+        && second.before == 0x13579BDF && second.after == 0x2468ACE0 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

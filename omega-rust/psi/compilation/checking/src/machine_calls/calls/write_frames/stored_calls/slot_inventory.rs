@@ -137,14 +137,54 @@ pub(super) fn parameter_destination_inventory(
                 return None;
             }
             visited.push(reference);
-            let inventory = stored_origins::declared_origins_for_query(
+            let Some(inventory) = stored_origins::declared_origins_for_query(
                 program,
                 parameter.symbol,
                 parameter.name.as_str(),
                 reference,
                 true,
-            )?;
+            ) else {
+                // An owned recursive carrier has no finite slot paths. When its
+                // only undecided leaves are type parameters, it has no known
+                // slots here, and every selected closed instance re-checks the
+                // concrete carrier. Any other incomplete inventory stays unknown.
+                let mut open = Vec::new();
+                mentioned_type_parameters(program, reference, &mut open);
+                if !open.is_empty()
+                    && matches!(
+                        crate::borrow_contracts::declaration_lifetime_frontier(
+                            program, reference, &open
+                        ),
+                        crate::borrow_contracts::DeclarationLifetimeFrontier::TemplateDependent {
+                            has_borrows: false
+                        }
+                    )
+                {
+                    template_dependent = true;
+                    continue;
+                }
+                return None;
+            };
             for mut leaf in inventory.into_owned().references {
+                if leaf.kind == stored_origins::StoredOriginKind::LifetimeDependency {
+                    if borrowed {
+                        let mut segments = prefix.clone();
+                        segments.extend_from_slice(&leaf.local_segments);
+                        leaf.local_segments = segments.clone();
+                        leaf.local_path = frames::place_paths::coordinate_storage_path(
+                            program,
+                            parameter.name.as_str(),
+                            &segments,
+                        )
+                        .0;
+                        leaves.push(SlotInventory {
+                            origin: leaf,
+                            kind: stored_origins::StoredOriginKind::LifetimeDependency,
+                            ancestors: ancestors.clone(),
+                        });
+                    }
+                    continue;
+                }
                 let leaf_type = stored_origins::projected_storage_type(
                     program,
                     reference,
@@ -160,6 +200,9 @@ pub(super) fn parameter_destination_inventory(
                     {
                         template_dependent = true;
                         continue;
+                    }
+                    if leaf.lifetime_dependencies.is_none() {
+                        return None;
                     }
                     let (definition, _) = frames::type_instantiation::DeclarationScopes::default()
                         .definition(program, leaf_type, 0)?;
@@ -181,7 +224,7 @@ pub(super) fn parameter_destination_inventory(
                 if borrowed {
                     leaves.push(SlotInventory {
                         origin: leaf,
-                        access: shell.access,
+                        kind: stored_origins::StoredOriginKind::Reference(shell.access),
                         ancestors: ancestors.clone(),
                     });
                 }
@@ -227,7 +270,7 @@ pub(crate) fn provider_completion_covers_writable_slots(
                 .is_some_and(|parameter| parameter.symbol == slot.origin.local_symbol)
                 && opaque_outputs::owner_segments(&output.owner_path).as_ref()
                     == Some(&slot.origin.local_segments)
-                && output.access == slot.access
+                && slot.kind == stored_origins::StoredOriginKind::Reference(output.access)
         })
     }) {
         return None;
@@ -269,6 +312,22 @@ pub(in crate::machine_calls::calls::write_frames) fn seed_incoming_slots(
         {
             continue;
         }
+        if slot.kind == stored_origins::StoredOriginKind::LifetimeDependency {
+            slot.origin = None;
+            slot.lifetime_dependencies = Some(vec![SlotSource::from_place(
+                program,
+                FrameSourcePlace {
+                    root: slot.local_symbol,
+                    segments: slot.local_segments.clone(),
+                    builtin_coordinates: true,
+                    ..Default::default()
+                },
+                FramePathPrecision::Exact,
+                Some(language_semantics::ReferenceAccess::Shared),
+            )]);
+            record.references.push(slot);
+            continue;
+        }
         slot.origin = Some(FramePlaceOrigin {
             path: slot.local_path.clone(),
             precision: FramePathPrecision::Exact,
@@ -280,5 +339,47 @@ pub(in crate::machine_calls::calls::write_frames) fn seed_incoming_slots(
             },
         });
         record.references.push(slot);
+    }
+}
+
+/// Type parameters a type spells, through its applications and shells.
+fn mentioned_type_parameters(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    open: &mut Vec<symbols::SymbolHandle>,
+) {
+    use typed_trees::types::TypeReferenceNode;
+    let mut pending = vec![reference];
+    let mut remaining = program.type_reference_table.type_reference_count();
+    while let Some(reference) = pending.pop() {
+        if remaining == 0
+            || !program
+                .type_reference_table
+                .contains_type_reference(reference)
+        {
+            return;
+        }
+        remaining -= 1;
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. }
+                if program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter =>
+            {
+                if !open.contains(symbol) {
+                    open.push(*symbol);
+                }
+            }
+            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .copied(),
+            ),
+            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            _ => {}
+        }
     }
 }

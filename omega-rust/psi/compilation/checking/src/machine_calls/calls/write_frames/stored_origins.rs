@@ -133,9 +133,10 @@ pub(super) struct StoredWriteOrigin {
     /// survive transport and prevent overlapping writes from being discarded
     /// as private local storage; it proves no actual referent identity.
     pub origin: Option<FramePlaceOrigin>,
-    /// Opaque completion's retained lifetime debt, never spatial alternatives.
-    /// An absent origin remains unknown even when these dependencies are known.
-    pub lifetime_dependencies: Vec<super::stored_calls::SlotSource>,
+    /// Complete retained lifetime debt, never spatial alternatives. None
+    /// withholds the frontier; Some([]) establishes a value with no debt.
+    /// An absent physical origin remains unknown beside known dependencies.
+    pub lifetime_dependencies: Option<Vec<super::stored_calls::SlotSource>>,
 }
 
 /// A possible hidden pointer contributes a conservative write footprint, but
@@ -143,7 +144,29 @@ pub(super) struct StoredWriteOrigin {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StoredOriginKind {
     Reference(language_semantics::ReferenceAccess),
+    /// A retained carrier holds debt without containing a pointer descriptor.
+    LifetimeDependency,
     OpaqueRegion,
+}
+
+impl StoredOriginKind {
+    /// Physical descriptors and opaque possible pointers participate in alias
+    /// expansion. A logical debt has no address that can redirect a write.
+    pub(super) fn may_indirect_storage(self) -> bool {
+        match self {
+            Self::Reference(_) | Self::OpaqueRegion => true,
+            Self::LifetimeDependency => false,
+        }
+    }
+
+    /// Normal-exit equations describe these slots' complete current contents.
+    /// A possible hidden pointer remains outside that modeled relation.
+    pub(super) fn is_modeled_slot(self) -> bool {
+        match self {
+            Self::Reference(_) | Self::LifetimeDependency => true,
+            Self::OpaqueRegion => false,
+        }
+    }
 }
 
 /// The type supplies a reference frontier even when value transfer cannot
@@ -526,6 +549,12 @@ fn overlapping_origins(
         .flat_map(|local| &local.references)
         .enumerate()
     {
+        // A retained token's debt keeps its backing live; it is not an address
+        // stored in the token. Writing the token cannot write that backing.
+        // Its own slot replacement is transported by the normal-exit relation.
+        if !leaf.kind.may_indirect_storage() {
+            continue;
+        }
         if !include_shared
             && matches!(leaf.kind, StoredOriginKind::Reference(access) if !access.is_exclusive())
         {

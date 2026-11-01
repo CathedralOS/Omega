@@ -21,8 +21,8 @@ use psi::syntax::syntax;
 // (domains.omg), then type references: data declarations', the other
 // declarations' (trait parents, satisfied traits, constant and proposition
 // types), machine signatures' and body types (`let` types, cast targets and
-// static arguments); then machine namespaces, name paths (reference rows,
-// routes and alias constituents) and expression names. The first rejection
+// static arguments); then machine namespaces, name paths (routes and alias
+// constituents) and expression names. The first rejection
 // is the diagnostic. A type name binds an enclosing generic parameter, then a
 // builtin type, then a data, trait or conformance declaration the
 // reference's unit can see (imports.omg); where it stands decides which of
@@ -181,14 +181,6 @@ crashes Trap
 
     machine operators(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_operator_homes(resolver, sources, syntax);
-        transition resolver.output.accepted {
-            true -> paths(resolver, sources, syntax)
-            _ -> done()
-        }
-    }
-
-    machine paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
-        Resolver::bind_conformance_rows(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domain_paths(resolver, sources, syntax)
             _ -> done()

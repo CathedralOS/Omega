@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/jarod/.codex/worktrees/resolution-measurement/Omega/wiki/drafts/measurements/resolution_boundary_2026_10_22/placed_discovery/summarize.py", line 46, in <module>
-    assert clean(baseline['output'])==clean(full['output']),name
-AssertionError: wrong_backing

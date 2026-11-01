@@ -147,6 +147,17 @@ pub(super) fn carried_lifetimes(
     storage_lifetimes(program, reference, LifetimeFrontier::Value)
 }
 
+/// A destination inventory walks stored elements, including the unknown-index
+/// paths of a slice referent. This differs from a value frontier: a bare slice
+/// is storage rather than a complete value descriptor. Symbolic elements still
+/// leave this query incomplete; they do not establish an empty debt roster.
+pub(super) fn stored_lifetimes(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<CarriedLifetime>> {
+    storage_lifetimes(program, reference, LifetimeFrontier::BorrowedStorage)
+}
+
 fn storage_lifetimes(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,

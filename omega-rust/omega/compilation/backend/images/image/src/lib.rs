@@ -167,7 +167,7 @@ pub use final_image::{
     PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, PlacedExecutableGapBytesDigest,
     PlacedExecutableRegion, PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
     PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, final_image_symbol_digest,
-    place_data_extent, place_data_regions, place_executable_regions,
+    place_data_extent, place_data_regions, place_executable_extent, place_executable_regions,
     validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
 };
 pub use output::{

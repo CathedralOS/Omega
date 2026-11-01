@@ -69,11 +69,3 @@ crashes Trap
 
     machine done() {}
 }
-
-// Where a retained name path starts.
-machine Parser::name_path_start(parser: &Parser, handle: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    let path: NamePath = SyntaxTrees::name_path(&parser.output, handle);
-    path.source_span.span.start
-}

@@ -24,7 +24,7 @@ pub(crate) use paths::{
     EntryPaths, capture_entry_expression, capture_entry_guard, conjunction, entry_path_condition,
     entry_path_necessary_condition, seed_entry_paths,
 };
-pub(crate) use retention::retained;
+pub(crate) use retention::{retained, retained_at_root};
 use symbols::SymbolHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 

@@ -93,7 +93,6 @@ That host was not re-executed here.
 Remaining on **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**: const-expression
 closure and package projection outside the qualified scalar inline path;
 calling-policy and member kinds beyond the closed inline path; product-producer
-parity; retirement of `Trait::member = Existing::machine` reference rows,
-including boundary roots; other hosts for this row and the earlier binder,
+parity for evidence binders; other hosts for this row and the earlier binder,
 open-const, and calling-policy rows. `open_record_const_implementation` is a
 separate witness.

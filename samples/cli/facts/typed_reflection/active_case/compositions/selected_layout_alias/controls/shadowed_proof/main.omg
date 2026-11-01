@@ -1,0 +1,4 @@
+// A local erased proof binding cannot be replaced by a same-named global type alias.
+data Selected = u64;
+machine compare<Kind>() -> bool requires Selected: true { Kind == Selected }
+machine main() { let observed: bool = compare<u64>(); }

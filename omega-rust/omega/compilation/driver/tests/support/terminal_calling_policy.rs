@@ -90,6 +90,53 @@ pub(super) fn observe(
                 "calling formal control reached an unrelated refusal: {error}"
             ));
         }
+        for replacement in [
+            None,
+            Some(semantic_vocabulary::StructuralTypeId::new(u64::MAX).ok_or("invalid control id")?),
+        ] {
+            let mut substituted = module.clone();
+            let storage = substituted
+                .calling_abi_signatures
+                .iter_mut()
+                .find(|signature| signature.id == declaration_id)
+                .ok_or("calling fixture lost its declaration ABI")?
+                .storage
+                .as_mut()
+                .map_err(|reason| reason.clone())?;
+            storage
+                .parameters
+                .first_mut()
+                .ok_or("calling fixture lost its record formal")?
+                .callback_backing = replacement;
+            let encoded =
+                terminal_codec::encode_module(&substituted).map_err(|error| error.to_string())?;
+            let error = terminal_codec::decode_module(&encoded)
+                .err()
+                .ok_or("calling ABI accepted an omitted or substituted represented backing")?;
+            if !error.to_string().contains("callback backing") {
+                return Err(format!(
+                    "calling backing control reached another refusal: {error}"
+                ));
+            }
+        }
+        if !module
+            .calling_abi_signatures
+            .iter()
+            .filter_map(|row| row.storage.as_ref().ok())
+            .flat_map(|storage| &storage.parameters)
+            .any(|parameter| {
+                parameter.access != terminal_psi::StructuralAccess::Owned
+                    && parameter.callback_backing.is_none()
+                    && module.structural_type(parameter.structural_type).is_none()
+                    && module
+                        .foreign_reference_descriptor(parameter.structural_type)
+                        .is_some()
+            })
+        {
+            return Err(
+                "calling fixture lost abstract pointer transport without invented backing".into(),
+            );
+        }
         let signature = CanonicalCallingSignature::materialize(
             module,
             declaration_id,
@@ -123,6 +170,37 @@ pub(super) fn observe(
                 "reference calling fixture did not preserve its identity-only pointer target"
                     .into(),
             );
+        }
+        if module
+            .structural_referents
+            .iter()
+            .any(|row| row.id == *referent && row.abstract_opaque)
+        {
+            return Err(
+                "ordinary nominal pointer was marked as an abstract opaque referent".into(),
+            );
+        }
+        let mut substituted = module.clone();
+        let abstract_parameter = substituted
+            .calling_abi_signatures
+            .iter_mut()
+            .filter_map(|row| row.storage.as_mut().ok())
+            .flat_map(|storage| &mut storage.parameters)
+            .find(|parameter| {
+                parameter.callback_backing.is_none()
+                    && parameter.access != terminal_psi::StructuralAccess::Owned
+            })
+            .ok_or("calling fixture lost its abstract borrowed formal")?;
+        abstract_parameter.structural_type = *referent;
+        let encoded =
+            terminal_codec::encode_module(&substituted).map_err(|error| error.to_string())?;
+        let error = terminal_codec::decode_module(&encoded)
+            .err()
+            .ok_or("ordinary identity-only pointer claimed abstract calling backing exemption")?;
+        if !error.to_string().contains("callback backing") {
+            return Err(format!(
+                "abstract referent control reached another refusal: {error}"
+            ));
         }
         let record = signature
             .geometry

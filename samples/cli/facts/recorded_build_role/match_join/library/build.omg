@@ -1,0 +1,7 @@
+// An executed Build package name survives ordinary value transport, so the product imports that exact package and historical review reuses its recorded description at the verified source pin.
+machine choose<'name>(name: &'name [u8], first: bool) -> &'name [u8] {
+    match first { true -> name, false -> name }
+}
+machine build(builder: &mut Build) {
+    Build::package(builder, choose("my_library", true));
+}

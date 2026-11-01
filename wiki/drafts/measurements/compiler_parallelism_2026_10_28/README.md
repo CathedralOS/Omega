@@ -63,7 +63,7 @@ thread observations qualify the active path; they are not timed samples. Phase
 durations are captured separately from wall time; overlapping work must not be
 added as if sequential.
 
-The [runner](sweep.py) reuses existing optimized-profile admission, timing parsing,
+The [runner](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_parallelism_2026_10_28/sweep.py) reuses existing optimized-profile admission, timing parsing,
 native-image checks and Windows job accounting. Its self-check verifies nonzero
 exit capture, missing-artifact refusal, output capture, CPU accounting and a known
 32 MiB allocation. No library, compiler, fixture or task-board source is changed.
@@ -77,7 +77,7 @@ python tools/build_slot.py --timeout 600 -- python wiki/drafts/measurements/comp
 python tools/build_slot.py --timeout 600 -- python wiki/drafts/measurements/compiler_parallelism_2026_10_28/sweep.py --cold build/parallelism-target/release/omega.exe
 ```
 
-The [build chain](build_and_sweep.py) holds one build slot through construction,
+The [build chain](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_parallelism_2026_10_28/build_and_sweep.py) holds one build slot through construction,
 profile verification, self-check and sweep. It writes an immutable producer
 receipt and raw logs under `build/parallelism-first`; it refuses an already-used
 sample output directory. Run in a fresh evidence directory/check-out when
@@ -200,10 +200,10 @@ single-program latency still needs a matched experiment.
   excluded. The runner now records the exact absolute artifact path and tests
   a valid executable outside the checkout as well as failed/missing artifacts.
 
-[Compressed evidence](evidence.json.gz) contains the unrounded observations,
+[Compressed evidence](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_parallelism_2026_10_28/evidence.json.gz) contains the unrounded observations,
 source/oracle hashes, benchmark/profiling logs (including the excluded pilot), exact warm
 and cold runner sources, host/probe records and the verified
-[producer receipt](producer.json). The optimized producer, build log, native
+[producer receipt](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/compiler_parallelism_2026_10_28/producer.json). The optimized producer, build log, native
 images and private caches remain in this worktree's `build/parallelism-first`
 and `build/parallelism-target`. The receipt and packet identify those original
 paths and bytes; no remote/main or other-host result is claimed.

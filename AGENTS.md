@@ -216,8 +216,7 @@ capability.
      authored `.omg` files (such as `NESTED-MACHINE-UNIFICATION` replacing
      `state` with nested `machine` across 100% of `.omg` files,
      `CANONICALIZE-SCALAR-RANGE-CONTRACTS` removing `T [lo..hi]` suffixes across
-     ~25% of `.omg` files, `DOMAIN-DEFAULT-PREDICATE-UNIFICATION`,
-     `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
+     ~25% of `.omg` files, `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
      `BUILD-OWNED-NATIVE-BINDINGS`, and
      `TOP-LEVEL-BOUNDARY-REQUIREMENTS`), ordered by `.omg` blast radius so new
      witnesses and samples are not continually authored in deprecated syntax.
@@ -449,7 +448,11 @@ owning task and exact requirement, link the positive witnesses and fact-sensitiv
 reject twins, and list how each applicable requirement above is established and
 what remains open.
 Keep run records in the existing qualification/claim record or commit, with
-producer revision and target; distinguish fresh results, applicable retained
+producer revision and target. Raw run data (CSV, JSON, logs, per-fixture
+output, archives) stays out of git: commit a summary, and link raw data by a
+pinned commit or keep it in the claim note. `tools/check_rules.py` rejects any
+added file under `wiki/drafts/measurements/` that is not a `.md` file of about
+300 lines or fewer. Distinguish fresh results, applicable retained
 evidence and unverified cases. A missing or unrelated reject diagnostic is not
 evidence that the fact is enforced. Subtract only the acceptance demonstrated.
 A filled row does not close its parent requirement or the check/proof layer
@@ -648,9 +651,9 @@ The rules that touch every edit:
   per-API intrinsics. Float extrema are finite; exact bit/classification APIs
   preserve their promised sign/payload/kind without strengthening arithmetic
   NaN guarantees. Payload constructors are conveniences, not permanent compiler
-  mechanisms. Follow [numeric APIs](wiki/spec/language/numeric_values.md#core-integer-and-float-apis);
-  `CORE-INTEGER-FLOAT-APIS` owns implementation and migration, without admitting
-  arbitrary-width integer families or general owned aggregate casts.
+  mechanisms. Follow [numeric APIs](wiki/spec/language/numeric_values.md#core-integer-and-float-apis),
+  without admitting arbitrary-width integer families or general owned aggregate
+  casts.
 - Source `state` declarations are retired in favor of arbitrarily nested
   machines. Nesting scopes names, never runtime data or implicit authority.
   All runtime arguments are explicit; ordinary calls resume, terminal calls
@@ -687,7 +690,12 @@ The rules that touch every edit:
   it names unfinished work and is deleted when its acceptance passes; state
   its current frontier once, replacing the paragraph rather than appending
   history. Owner decisions go to `OWNER_QUESTIONS.md`. Nobody owns the boards;
-  reconcile concurrent edits at rebase.
+  reconcile concurrent edits at rebase. Implementation status belongs on the
+  board, not in `omega-rust/pipeline.md` or `wiki/spec`: those are contracts,
+  and `tools/check_rules.py` fails admission when a contract file's status
+  phrasing grows. It also fails when this file, a skill, `pipeline.md`, the
+  specification or a fact README cites a task ID no board holds, so the change
+  that deletes or merges an item repoints or deletes its citations.
 - Windows and macOS are both supported development hosts; shared tooling
   needs a documented usable entrypoint on each — a `.ps1` alone is not
   macOS support; either document `pwsh` as an explicit prerequisite or
@@ -832,9 +840,10 @@ To publish a PR, push HEAD directly to origin:
 `git push origin HEAD:refs/heads/work/<short-name>`.
 On that first push, open the pull request as a draft and return its URL in the
 same turn. Later pushes update that same draft. A request to "push" includes
-this step; no separate confirmation is needed. Mark the draft ready only when
-it is mergeable and `compiler-check` is green, then enqueue it. A draft cannot
-enter the queue, and it is not a place to leave the work.
+this step; no separate confirmation is needed. Right after that push, run
+`python tools/landing.py land <number> --expected-head <sha>` in the background:
+it waits for `compiler-check`, marks the draft ready, enqueues and waits for
+MERGED. A draft cannot enter the queue, and it is not a place to leave the work.
 
 **Retain and reuse warm worktrees as workbenches.** Teardown is never mandatory.
 Reusing an existing worktree preserves its pre-compiled `target/` directory and
@@ -1006,9 +1015,10 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
 - **Every delivery push must have a draft until it can merge.** A user request
   to "push" means push the committed work and open or update its pull request
   in the same turn. The first push opens a draft (`gh pr create --draft`).
-  Later pushes update that same draft. Mark it ready (`gh pr ready`) only when
-  it is mergeable and `compiler-check` is green, then enqueue it
-  ([tools/landing.md](tools/landing.md)). A draft cannot enter the queue. Reuse
+  Later pushes update that same draft. Right after the push, run
+  `python tools/landing.py land <number> --expected-head <sha>` in the background
+  ([tools/landing.md](tools/landing.md)); it waits for `compiler-check`, marks the
+  draft ready, enqueues and waits for MERGED. A draft cannot enter the queue. Reuse
   the existing pull request, verify its head matches the pushed commit, and
   return the PR URL. A draft is not a place to leave the work: the session
   still lands it and does not leave the draft across unrelated landings. Do

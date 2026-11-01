@@ -12,6 +12,11 @@
 //! inspection snapshots. Contracts, ownership, and proofs are checked later.
 
 pub mod boundary_values;
+mod source_review;
+pub use source_review::{
+    SourceFieldCorrespondence, SourceLayoutPlanCoordinate, SourceLayoutRealizationCoordinate,
+    SourceRecordCorrespondence, SourceTypeApplication,
+};
 pub mod direct_calls;
 pub mod provider_declarations;
 pub mod references;

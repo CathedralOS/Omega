@@ -13,6 +13,7 @@
 /// One by-value boundary edge's exact selected opaque application.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BoundaryOpaqueRepresentationApplication {
+    pub abi: semantic_vocabulary::CallingAbiIdentity,
     /// Module identity-table index of the boundary requirement whose signature
     /// materialized this use.
     pub requirement_identity: terminal_psi::TerminalIdentityIndex,
@@ -45,13 +46,14 @@ impl BoundaryOpaqueRepresentationApplications {
     pub fn new(
         mut rows: Vec<BoundaryOpaqueRepresentationApplication>,
     ) -> Result<Self, &'static str> {
+        for row in &rows {
+            row.abi.validate()?;
+        }
         rows.sort();
         rows.dedup();
         for pair in rows.windows(2) {
             let [left, right] = pair else { unreachable!() };
-            if left.requirement_identity == right.requirement_identity
-                && left.shape_root == right.shape_root
-            {
+            if left.abi == right.abi && left.shape_root == right.shape_root {
                 return Err(
                     "boundary opaque custody carries two different applications at one edge",
                 );

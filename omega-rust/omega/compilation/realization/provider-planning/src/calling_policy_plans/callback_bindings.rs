@@ -2,21 +2,17 @@
 //! binders and the closure of
 //! outbound and direct callback materializations.
 
-use crate::calling_policy_plans::build_time_decoding::CALLBACK_MATERIALIZATION_CAPACITY;
 use crate::calling_policy_plans::callback_layout_catalog;
-use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
 use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use crate::calling_policy_plans::{
-    BoundaryCallbackBinder, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
-    MaterializedBoundarySignature,
+    BoundaryCallbackBinder, BoundaryNativeParameter, MaterializedBoundarySignature,
 };
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallbackBinderRequirement, CallbackMaterializationContext,
     CallbackRequirementId, NativeCallbackDemand, ValidatedBoundaryEntryPlan,
-    callback_requirement_id, validate_boundary_entry_plan_with_callback_materializations,
+    validate_boundary_entry_plan_with_callback_materializations,
 };
 use checked_trees::typed_trees::types::TypeReferenceHandle;
-use target::NativeTarget;
 
 /// Omega-owned realization state for one canonical source boundary contract.
 ///
@@ -25,6 +21,7 @@ use target::NativeTarget;
 /// consumes them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanRealization {
+    pub declaration: semantic_vocabulary::CallingSignatureId,
     pub boundary_trait: symbols::SymbolHandle,
     pub boundary_arguments: Vec<TypeReferenceHandle>,
     /// Supplying declaration for lifetime-bearing type operands. An argument
@@ -206,25 +203,6 @@ pub(crate) fn validate_retained_callback_binders(
     Ok(())
 }
 
-fn exact_callback_requirement_catalog(
-    binders: &[BoundaryCallbackBinder],
-) -> Result<Vec<(CallbackRequirementId, String)>, String> {
-    let mut catalog = Vec::with_capacity(binders.len());
-    for binder in binders {
-        let exact = &binder.requirement_identity;
-        let report = callback_requirement_id(exact);
-        if report != binder.requirement {
-            return Err(
-                "evaluated callback binder requirement report drifted from its exact requirement"
-                    .to_owned(),
-            );
-        }
-        validate_callback_requirement_report_collision(&catalog, report, exact)?;
-        catalog.push((report, exact.clone()));
-    }
-    Ok(catalog)
-}
-
 pub(crate) fn validate_callback_requirement_report_collision(
     exact_catalog: &[(CallbackRequirementId, String)],
     report: CallbackRequirementId,
@@ -240,138 +218,6 @@ pub(crate) fn validate_callback_requirement_report_collision(
         );
     }
     Ok(())
-}
-
-/// Close a signature's native telescope and private destinations before its
-/// policy is invoked. Geometry cannot depend on an earlier accepted plan:
-/// the policy must see the complete declared demand on its only invocation.
-/// This creates placement input, not checked callback authority.
-pub(super) fn close_callback_materializations(
-    signature: &mut MaterializedBoundarySignature,
-    layout_plan: &layout::LayoutPlan,
-    target: NativeTarget,
-) -> Result<bool, String> {
-    let direct_demands = close_direct_callback_parameters(signature, target)?;
-    // Keep each named catalog entry paired with its exact native demand
-    // through sorting. Equal compact IDs must never select a different row.
-    let mut demands = direct_demands
-        .into_iter()
-        .map(|demand| (demand, None))
-        .collect::<Vec<_>>();
-    let binder_requirement_catalog =
-        exact_callback_requirement_catalog(&signature.callback_binders)?;
-    let mut demand_requirement_catalog = Vec::new();
-    for parameter in &signature.native_parameters {
-        for layout in layout_plan
-            .private_callback_layouts
-            .iter()
-            .filter(|layout| layout.root_layout().data_symbol == parameter.layout_data_symbol)
-        {
-            let terminal = layout.terminal_slot();
-            validate_callback_requirement_report_collision(
-                &binder_requirement_catalog,
-                terminal.requirement,
-                &terminal.callback_requirement_identity,
-            )
-            .and_then(|()| {
-                validate_callback_requirement_report_collision(
-                    &demand_requirement_catalog,
-                    terminal.requirement,
-                    &terminal.callback_requirement_identity,
-                )
-            })?;
-            demand_requirement_catalog.push((
-                terminal.requirement,
-                terminal.callback_requirement_identity.to_string(),
-            ));
-            let entry = BoundaryCallbackLayoutEntry::from_layout(parameter, layout)?;
-            demands.push((layout.native_demand(parameter.identity)?, Some(entry)));
-        }
-    }
-    if demands.is_empty() && signature.callback_binders.is_empty() {
-        return Ok(false);
-    }
-    if demands.len() > CALLBACK_MATERIALIZATION_CAPACITY {
-        return Err(format!(
-            "boundary registrar has {} target-closed private callback demands; calling policies currently support at most {CALLBACK_MATERIALIZATION_CAPACITY}",
-            demands.len()
-        ));
-    }
-    demands.sort_unstable_by(|left, right| left.0.destination.cmp(&right.0.destination));
-    if demands
-        .windows(2)
-        .any(|pair| pair[0].0.destination == pair[1].0.destination)
-    {
-        return Err(
-            "boundary registrar target closure repeats one exact private callback demand"
-                .to_owned(),
-        );
-    }
-
-    let (demands, entries): (Vec<_>, Vec<_>) = demands.into_iter().unzip();
-    signature.callback_demands = demands;
-    signature.callback_layout_catalog = entries.into_iter().flatten().collect();
-    Ok(true)
-}
-
-fn close_direct_callback_parameters(
-    signature: &mut MaterializedBoundarySignature,
-    target: NativeTarget,
-) -> Result<Vec<NativeCallbackDemand>, String> {
-    let semantic = signature
-        .native_parameters
-        .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.origin,
-                BoundaryNativeParameterOrigin::SemanticFormal { .. }
-            )
-        })
-        .map(
-            |parameter| calling_conventions::BoundaryNativeParameterGeometry {
-                identity: parameter.identity,
-                native_ordinal: parameter.native_ordinal,
-                shape: parameter.shape,
-                origin: parameter.origin,
-            },
-        );
-    let callbacks = signature.direct_callback_parameters.iter().map(|direct| {
-        terminal_psi::CallingDirectCallback {
-            identity: direct.identity,
-            native_ordinal: direct.native_ordinal,
-            binder: direct.binder,
-            requirement: direct.requirement,
-        }
-    });
-    let closed = calling_conventions::NativeParameterTelescope::close(semantic, callbacks, target)?;
-    let demands = closed.direct_demands().collect();
-    let mut parameters = Vec::with_capacity(closed.parameters.len());
-    for parameter in closed.parameters {
-        let layout_data_symbol = match parameter.origin {
-            BoundaryNativeParameterOrigin::SemanticFormal { .. } => {
-                signature
-                    .native_parameters
-                    .iter()
-                    .find(|source| {
-                        source.identity == parameter.identity && source.origin == parameter.origin
-                    })
-                    .ok_or("native telescope lost its exact semantic layout correspondence")?
-                    .layout_data_symbol
-            }
-            BoundaryNativeParameterOrigin::PrivateCallback { .. } => {
-                symbols::SymbolHandle::invalid()
-            }
-        };
-        parameters.push(BoundaryNativeParameter {
-            identity: parameter.identity,
-            native_ordinal: parameter.native_ordinal,
-            shape: parameter.shape,
-            origin: parameter.origin,
-            layout_data_symbol,
-        });
-    }
-    signature.native_parameters = parameters;
-    Ok(demands)
 }
 
 pub(crate) fn callback_materialization_context(
@@ -399,6 +245,7 @@ pub(super) fn source_free_application(
 ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
     let policy = signature.policy_signature()?;
     Ok(calling_conventions::BoundaryCallingApplication {
+        abi: signature.abi.clone(),
         requirement_identity: signature.owner_requirement_identity().to_owned(),
         target: policy.target, report_fingerprint: 0, commitment: [0;32],
         plan: validated.clone(),
