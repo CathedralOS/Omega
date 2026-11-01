@@ -399,8 +399,10 @@ mod tests {
         let mut descriptor = signature.clone();
         let mut referents = descriptor.structural_types.referents().to_vec();
         referents[0].foreign_descriptor = true;
-        descriptor.structural_types =
-            StructuralTypeCatalog::new(signature.structural_types.to_vec(), referents);
+        descriptor.structural_types = abstract_operations::StructuralTypeCatalog::new(
+            signature.structural_types.to_vec(),
+            referents,
+        );
         let mut descriptor_bytes = Vec::new();
         encode_signature(&mut descriptor_bytes, &descriptor).unwrap();
         assert_ne!(bytes, descriptor_bytes);
