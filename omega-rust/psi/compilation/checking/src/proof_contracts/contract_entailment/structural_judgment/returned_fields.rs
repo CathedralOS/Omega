@@ -78,22 +78,8 @@ impl StructuralJudge<'_> {
         {
             return decline("selected operands do not bind this body's entry telescope");
         }
-        if let Some(trace) = &self.returned_field_trace
-            && let Ok(mut guard) = trace.lock()
-            && !guard.visited_callees.contains(&callee.symbol)
-        {
-            guard.visited_callees.push(callee.symbol);
-        }
-        if let Some(pos) = self
-            .returned_field_owners
-            .iter()
-            .position(|&sym| sym == callee.symbol)
-        {
-            if let Some(trace) = &self.returned_field_trace
-                && let Ok(mut guard) = trace.lock()
-            {
-                guard.min_cycle_owner_index = guard.min_cycle_owner_index.min(pos);
-            }
+        self.record_returned_field_dependency(callee.symbol);
+        if self.returned_field_owners.contains(&callee.symbol) {
             return decline("recursive field correspondence");
         }
         // Scalar results have no construction fields. This is also the common
@@ -125,14 +111,8 @@ impl StructuralJudge<'_> {
                 .all(|visited| !self.returned_field_owners.contains(visited))
         {
             drop(cached);
-            if let Some(trace) = &self.returned_field_trace
-                && let Ok(mut guard) = trace.lock()
-            {
-                for &visited in &entry_memo.1 {
-                    if !guard.visited_callees.contains(&visited) {
-                        guard.visited_callees.push(visited);
-                    }
-                }
+            for &visited in &entry_memo.1 {
+                self.record_returned_field_dependency(visited);
             }
             return entry_memo
                 .0

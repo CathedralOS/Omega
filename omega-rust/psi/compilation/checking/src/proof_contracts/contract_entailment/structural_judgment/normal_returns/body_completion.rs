@@ -41,13 +41,17 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
-    pub(super) fn completed_body_paths(
+    pub(super) fn observed_body_paths(
         &self,
         expression: ExpressionHandle,
         actuals: Option<&[StructuralTerm]>,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         writes: &NormalizedWriteFrame,
+        public_capture: Option<(
+            &call_completion::PreparedNormalCall<'program, '_>,
+            &super::super::selected_contracts::PreparedSelectedGuarantees<'_>,
+        )>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
         if !self.requires_value_preservation() {
             return None;
@@ -83,17 +87,9 @@ impl<'program> StructuralJudge<'program> {
                 program.state_parameters(entry),
             )
             .unwrap_or_default();
-        // Public completion evidence and executed-body observations describe
-        // the same occurrence. Capture its contract against incoming actuals,
-        // then refine that occurrence with the independently observed body.
-        let mut caller = self.clone();
-        let post_storage =
-            caller.capture_normal_call(expression, actuals, environment, scope, writes);
-        let result = caller
-            .normal_results
-            .iter()
-            .find(|(source, _)| *source == expression)
-            .map(|(_, value)| value.clone());
+        // Preparation already froze the call inputs. Body admission remains
+        // independent of whether its optional public capture was available.
+        let caller = self;
         let (incoming, captured) =
             caller
                 .clone()
@@ -104,7 +100,14 @@ impl<'program> StructuralJudge<'program> {
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect::<Vec<_>>();
+        let integer_result =
+            crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                .and_then(|reference| program.primitive_type_reference(reference))
+                .filter(|primitive| primitive.integer_bounds().is_some());
         let mut diagnostics = Vec::new();
+        // This operation reads the selected body directly, rather than through
+        // application unfolding or a returned-field correspondence query.
+        captured.record_returned_field_dependency(callee.symbol);
         let arms = phase_profile::scope("05.bc.recognize", || {
             recognize_structural_state_leaves(
                 program,
@@ -133,18 +136,30 @@ impl<'program> StructuralJudge<'program> {
         }
         arms.into_iter()
             .map(|arm| {
+                // Freeze scalar metadata while this completed result still
+                // has its actual callee environment; leaving scope reads no home.
+                let result = call_completion::CompletedBodyResult {
+                    integer_range: integer_result
+                        .and_then(|_| arm.normal_judge.completed_integer_range_recipe(&arm.value)),
+                    value: arm.value,
+                };
                 let mut judge = arm
                     .normal_judge
-                    .complete_invocation(&caller, scope.1, &subjects, writes)?;
-                if let Some(result) = &result {
-                    judge.assume_normal_equation(result.clone(), arm.value.clone());
-                }
-                for storage in post_storage.iter().flatten() {
-                    judge.install_post_call_storage(scope.1, storage.clone());
+                    .complete_invocation(caller, scope.1, &subjects, writes)?;
+                let completed = public_capture.and_then(|(prepared, guarantees)| {
+                    judge.capture_prepared_normal_call(prepared, guarantees, Some(&result), scope)
+                });
+                if let Some(completed) = completed {
+                    if let Some(captured) = completed.result {
+                        judge.assume_normal_equation(captured, result.value.clone());
+                    }
+                    for storage in completed.post_storage {
+                        judge.install_post_call_storage(scope.1, storage);
+                    }
                 }
                 std::sync::Arc::make_mut(&mut judge.normal_results)
-                    .push((expression, arm.value.clone()));
-                Some(NormalReturnPath::observed(arm.value, judge))
+                    .push((expression, result.value.clone()));
+                Some(NormalReturnPath::observed(result.value, judge))
             })
             .collect()
     }

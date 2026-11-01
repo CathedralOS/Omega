@@ -2121,6 +2121,7 @@ impl<'program> StructuralJudge<'program> {
                 .zip(arguments)
                 .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
                 .collect::<Vec<_>>();
+            self.record_returned_field_dependency(machine.symbol);
             let [StatementNode::Transition(transition)] =
                 program.statement_table.statements(state.statement_nodes)
             else {
@@ -2366,6 +2367,7 @@ impl<'program> StructuralJudge<'program> {
         let specification = specification.resolving_application(application, depth)?;
 
         let mut environment = environment;
+        specification.record_returned_field_dependency(machine.symbol);
         let statements = program.statement_table.statements(state.statement_nodes);
         for (index, statement) in statements.iter().enumerate() {
             // A `let` (spelled, or the lowering's __hoist_N of a call-valued
