@@ -19,6 +19,7 @@ pub(crate) mod proposition;
 pub(crate) mod state;
 pub(crate) mod statement;
 pub(crate) mod trait_definition;
+pub(crate) mod type_aliases;
 pub(crate) mod type_reference;
 pub(crate) mod wire;
 

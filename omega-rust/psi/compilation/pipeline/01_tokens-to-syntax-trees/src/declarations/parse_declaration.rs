@@ -190,6 +190,7 @@ pub(crate) fn parse_item<'tokens, 'source>(
                 Item::Conformance(conformance) => conformance.is_public = true,
                 Item::Const(constant) => constant.is_public = true,
                 Item::Data(data) => data.is_public = true,
+                Item::TypeAlias(alias) => alias.is_public = true,
                 Item::Domain(domain) => domain.is_public = true,
                 Item::Machine(machine) => machine.is_public = true,
                 Item::Operator(operator) => operator.is_public = true,
@@ -318,8 +319,7 @@ fn parse_declared_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Data) {
         let input = input.take_keyword(KeywordKind::Data, "data")?;
-        let (item, rest) = parse_data_definition(syntax_trees, input)?;
-        return Ok((Item::Data(item), rest));
+        return parse_data_definition(syntax_trees, input);
     }
 
     if input.at_contextual("domain") {

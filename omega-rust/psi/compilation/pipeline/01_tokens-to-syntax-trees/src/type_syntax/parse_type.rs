@@ -5,9 +5,8 @@
 //! every other value tree is retained without parser-side evaluation.
 
 use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
-use crate::expressions::parse_expression::{
-    parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
-};
+use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals;
+use crate::expressions::static_argument_values::parse_static_argument_expression;
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::tables::type_refs;
 use arena::HandleSpan;
@@ -311,7 +310,8 @@ fn parse_static_argument_reference<'tokens, 'source>(
         || input.at_contextual("true")
         || input.at_contextual("false")
     {
-        let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+        let (expression, rest) = parse_static_argument_expression(syntax_trees, input)?
+            .ok_or_else(|| input.error_here("expected static argument expression"))?;
         if let ExpressionNode::Name(_) = syntax_trees.expressions.expression(expression) {
             // Parentheses do not turn a direct binder or named constant into
             // a computed index. Retain the same leaf as its unparenthesized
@@ -338,7 +338,8 @@ fn parse_static_argument_reference<'tokens, 'source>(
         // Retain a delimiter-safe expression recipe until the receiving
         // binder determines its Value/Const role. A lone name remains
         // ambiguous with a type and keeps the ordinary resolved leaf.
-        let const_expression = parse_const_integer_expression_handle(syntax_trees, input).ok();
+        let checkpoint = syntax_trees.append_checkpoint();
+        let const_expression = parse_static_argument_expression(syntax_trees, input)?;
         if let Some((expression, expression_rest)) = const_expression
             && !matches!(
                 syntax_trees.expressions.expression(expression),
@@ -352,6 +353,7 @@ fn parse_static_argument_reference<'tokens, 'source>(
                 expression_rest,
             ))
         } else {
+            syntax_trees.rewind_appended(checkpoint);
             parse_type_reference_handle(syntax_trees, input)
         }
     } else {

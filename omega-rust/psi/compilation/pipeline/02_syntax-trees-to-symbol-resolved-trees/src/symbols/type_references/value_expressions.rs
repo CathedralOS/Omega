@@ -59,6 +59,37 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 &mut declaration.declared_type,
             );
         });
+    program.roots.type_aliases.for_each_mut(|alias| {
+        let parameters = declarations
+            .data_type_parameters
+            .span_or_empty(alias.type_parameters)
+            .to_vec();
+        let scope = MachineScope {
+            symbol: alias.symbol,
+            lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
+            attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
+            type_parameters: &parameters,
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions: &program.roots.data_definitions,
+            data_members: &declarations.data_members,
+            data_type_parameters: &declarations.data_type_parameters,
+            data_payload_fields: &declarations.data_payload_fields,
+            type_constraints: &program.tables.types.constraints,
+        };
+        assign_type_value_expression_symbols(
+            symbols,
+            &scope,
+            &[],
+            SymbolHandle::invalid(),
+            &mut program.tables.bodies.expressions,
+            &mut declarations.child_type_references,
+            &mut alias.expansion,
+        );
+    });
     let mut field_updates = Vec::new();
     let mut payload_updates = Vec::new();
     for definition in program.roots.data_definitions.iter() {
@@ -263,6 +294,30 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 expressions,
                 child_types,
                 expression.expression,
+            );
+        }
+        TypeReference::AliasUse {
+            expansion,
+            application,
+            ..
+        } => {
+            assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expressions,
+                child_types,
+                application,
+            );
+            assign_type_value_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expressions,
+                child_types,
+                expansion,
             );
         }
         TypeReference::Named { .. } | TypeReference::DynamicTrait { .. } | TypeReference::Unit => {}

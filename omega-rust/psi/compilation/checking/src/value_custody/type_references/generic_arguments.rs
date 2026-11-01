@@ -117,6 +117,18 @@ pub(crate) fn validate_machine_data_argument(
                 .trait_definition_by_symbol(base_symbol)
                 .map(|definition| program.trait_type_parameters(definition))
         })
+        .or_else(|| {
+            program
+                .type_aliases()
+                .iter()
+                .find(|alias| alias.symbol == base_symbol)
+                .map(|alias| {
+                    program
+                        .tables
+                        .data_type_parameters
+                        .span_or_empty(alias.type_parameters)
+                })
+        })
         .unwrap_or(&[])
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))

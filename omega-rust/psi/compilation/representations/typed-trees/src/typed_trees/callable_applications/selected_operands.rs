@@ -20,6 +20,19 @@ impl TypedTrees {
         if !reference.is_valid() || !self.type_reference_table.contains_type_reference(reference) {
             return Err("static operand has no retained type payload");
         }
+        // Alias source obligations belong to this occurrence even when its
+        // expansion is a plain name or literal. Keep the complete payload.
+        if self
+            .type_reference_table
+            .type_alias_applications(reference)
+            .next()
+            .is_some()
+        {
+            return Ok(StaticMachineArgument {
+                type_reference: reference,
+                ..StaticMachineArgument::default()
+            });
+        }
         if let Some(literal) = self.static_const_literal_from_type_reference(reference) {
             return Ok(StaticMachineArgument {
                 const_literal: Some(literal),

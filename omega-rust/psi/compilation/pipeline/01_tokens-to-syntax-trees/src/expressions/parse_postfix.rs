@@ -763,49 +763,10 @@ fn parse_static_value_alternatives<'tokens, 'source>(
     scratch: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
-    let whole_attempt = scratch.append_checkpoint();
-    let parsed = super::parse_expression::parse_const_integer_expression_handle(scratch, input);
-    let (expression, rest) = match parsed {
-        Ok(parsed)
-            if parsed.1.at_punctuation(PunctuationKind::Comma)
-                || parsed.1.at_punctuation(PunctuationKind::Greater) =>
-        {
-            parsed
-        }
-        _ => {
-            scratch.rewind_appended(whole_attempt);
-            // A lexed `>>` may close two applications instead of shifting.
-            // Prefer a complete expression; otherwise retry the delimited
-            // prefix transactionally, leaving both closers for their owners.
-            let mut boundaries = Vec::new();
-            let mut remaining = input;
-            while let Ok((_, boundary)) = remaining.split_at_top_level_punctuation(
-                PunctuationKind::GreaterGreater,
-                "static argument delimiter",
-            ) {
-                boundaries.push(boundary);
-                remaining = boundary.take_punctuation(PunctuationKind::GreaterGreater, ">>")?;
-            }
-            let mut selected = None;
-            for rest in boundaries.into_iter().rev() {
-                let mut prefix = input;
-                prefix.tokens = &input.tokens[..input.tokens.len() - rest.tokens.len()];
-                let attempt = scratch.append_checkpoint();
-                if let Ok((expression, end)) =
-                    super::parse_expression::parse_const_integer_expression_handle(scratch, prefix)
-                    && end.tokens.is_empty()
-                    && !end.at_punctuation(PunctuationKind::Greater)
-                {
-                    selected = Some((expression, rest));
-                    break;
-                }
-                scratch.rewind_appended(attempt);
-            }
-            let Some(selected) = selected else {
-                return Ok(None);
-            };
-            selected
-        }
+    let Some((expression, rest)) =
+        super::static_argument_values::parse_static_argument_expression(scratch, input)?
+    else {
+        return Ok(None);
     };
     if !(rest.at_punctuation(PunctuationKind::Comma)
         || rest.at_punctuation(PunctuationKind::Greater))

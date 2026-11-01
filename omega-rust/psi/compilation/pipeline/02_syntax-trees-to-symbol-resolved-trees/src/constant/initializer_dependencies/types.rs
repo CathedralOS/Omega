@@ -90,6 +90,14 @@ impl<'program> Collector<'program, '_> {
         reference: &'program TypeReference,
     ) -> Result<(), String> {
         match reference {
+            TypeReference::AliasUse {
+                expansion,
+                application,
+                ..
+            } => {
+                self.types.push(expansion);
+                self.types.push(application);
+            }
             TypeReference::Reference(reference) => self.type_child(reference.referee)?,
             TypeReference::Slice(reference) => self.type_child(reference.element_type)?,
             TypeReference::FixedArray(array) => {
@@ -160,6 +168,29 @@ impl<'program> Collector<'program, '_> {
     pub(super) fn type_declaration(&mut self, symbol: SymbolHandle) -> Result<(), String> {
         if self.program.symbols.get(symbol).kind == SymbolKind::Conformance {
             return self.conformance_declaration(symbol);
+        }
+        if self.program.symbols.get(symbol).kind == SymbolKind::TypeAlias {
+            if !self.follow_dependencies || self.visited_type_declarations.contains(&symbol) {
+                return Ok(());
+            }
+            let mut aliases = self
+                .program
+                .type_aliases
+                .iter()
+                .filter(|alias| alias.symbol == symbol);
+            let alias = aliases
+                .next()
+                .ok_or("constant dependency lost its selected alias declaration")?;
+            if aliases.next().is_some() {
+                return Err("constant dependency has ambiguous alias declaration custody".into());
+            }
+            self.visited_type_declarations.push(symbol);
+            self.type_parameters(alias.type_parameters)?;
+            for bound in &alias.conformance_bounds {
+                self.type_arguments(bound.arguments)?;
+            }
+            self.types.push(&alias.expansion);
+            return Ok(());
         }
         if !self.follow_dependencies
             || self.program.symbols.get(symbol).kind != SymbolKind::Data

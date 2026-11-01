@@ -68,6 +68,18 @@ pub(crate) fn state_value_root_is_known(
     if root.is_valid() && kind == SymbolKind::Unknown {
         return false;
     }
+    // A resolved constant is a declaration value, not storage introduced by
+    // this state. Its exact header establishes scope; readiness, carrier and
+    // value formation remain separate checks. Never borrow a same-named
+    // constant for a foreign local or parameter handled above.
+    if root.is_valid() && kind == SymbolKind::Const {
+        return program
+            .const_declarations()
+            .iter()
+            .filter(|declaration| declaration.symbol == root)
+            .count()
+            == 1;
+    }
     // Generated case operands retain the selected declaration even when their
     // diagnostic carrier includes a package prefix absent from the roster name.
     // Storage roots above must still belong to this exact state.
@@ -260,3 +272,6 @@ pub(crate) fn validate_local_data_names(
         }
     }
 }
+
+#[cfg(test)]
+mod value_scope_tests;

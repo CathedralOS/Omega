@@ -661,6 +661,13 @@ fn substitute_call_type_arguments(
     substitutions: &[(symbols::SymbolHandle, typed::types::TypeReferenceHandle)],
 ) -> Result<(), Diagnostic> {
     use typed::types::TypeReferenceNode as Node;
+    let applications = table
+        .type_alias_applications(reference)
+        .map(|application| application.application)
+        .collect::<Vec<_>>();
+    for application in applications {
+        substitute_call_type_arguments(table, application, substitutions)?;
+    }
     match table.type_reference(reference).clone() {
         Node::Named { symbol, .. } => {
             if let Some((_, concrete)) = substitutions

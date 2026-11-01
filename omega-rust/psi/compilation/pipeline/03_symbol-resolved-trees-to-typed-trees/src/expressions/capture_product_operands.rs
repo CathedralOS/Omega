@@ -356,6 +356,11 @@ impl Capture<'_> {
             Source::ConstExpression(value) => {
                 ProductOperandType::ConstExpression(self.expression(value.expression)?)
             }
+            Source::AliasUse { .. } => {
+                // This graph has no place for the independent source
+                // application. Capturing only expansion would erase bounds.
+                return Err(Diagnostic::error("captured Product static type cannot yet retain transparent alias application obligations"));
+            }
         };
         Ok(self.graph.types.insert(value))
     }

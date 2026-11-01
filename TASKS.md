@@ -861,6 +861,12 @@ helper that passes does not close an item.
     and conformance selection, lifetime/value-subject preservation, public
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
+    The [imported transparent-family rung](samples/cli/facts/transparent_generic_aliases/imported_representation/README.md)
+    now interchanges partial aliases and explicit `LayoutStorage` applications
+    with a caller-computed const policy, value 42 and byte-offset oracles in
+    Linux x86_64 native/Terminal execution; all seven intended controls reject.
+    The complete alias row, remaining binder/case/pattern cases, alias-RHS
+    expression operands and captured Product/Build alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
     through authorized schema reflection, explicit target facts, pure terminating
     compile-time evaluation, complete plan validation, field/case projection,

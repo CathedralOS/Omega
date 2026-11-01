@@ -520,6 +520,9 @@ fn extend_name_positions<'program>(
     positions: &mut Vec<TypePosition<'program>>,
 ) {
     match reference {
+        TypeReference::AliasUse { expansion, .. } => {
+            extend_name_positions(program, expansion, scope, positions);
+        }
         TypeReference::Named { symbol, .. } => {
             positions.push(TypePosition::Declaration { symbol: *symbol });
         }
@@ -857,6 +860,7 @@ impl<'program> ShapeNormalizer<'program> {
 
     fn type_shape(&mut self, type_reference: &TypeReference) -> String {
         match type_reference {
+            TypeReference::AliasUse { expansion, .. } => self.type_shape(expansion),
             TypeReference::Reference(reference) => {
                 let access = match reference.access {
                     ReferenceAccess::Shared => "&",

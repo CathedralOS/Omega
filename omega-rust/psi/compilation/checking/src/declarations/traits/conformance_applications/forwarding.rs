@@ -42,6 +42,12 @@ pub(crate) fn validate_forwarded_argument(
                 .iter()
                 .flat_map(|definition| definition.conformance_bounds.iter()),
         )
+        .chain(
+            program
+                .type_aliases()
+                .iter()
+                .flat_map(|definition| definition.conformance_bounds.iter()),
+        )
         .find(|actual| actual.binder == selected.symbol)
         .ok_or_else(|| "forwarded implementation binder has no declared contract".to_owned())?;
     let demanded = crate::refinement_fit::resolve_bound_carrier(program, required.trait_symbol);
@@ -159,4 +165,95 @@ pub(crate) fn applied_trait_argument_identities(
             ),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use symbols::{SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::{
+        TypedTrees, data::DataDefinition, name::Identifier, type_aliases::TypeAliasDefinition,
+    };
+
+    #[test]
+    fn forwarded_promises_include_data_and_alias_headers_without_weakening_checks() {
+        for kind in [SymbolKind::Data, SymbolKind::TypeAlias] {
+            let mut builder = SymbolTableBuilder::default();
+            let owner = builder.insert_root(kind, SymbolNameRef::Static("Owner"));
+            let binder = builder
+                .insert_children(
+                    owner,
+                    [(
+                        SymbolKind::ConformanceParameter,
+                        SymbolNameRef::Static("Policy"),
+                    )],
+                )
+                .start();
+            let required_trait =
+                builder.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Required"));
+            let other_trait =
+                builder.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Other"));
+            let mut program = TypedTrees::default();
+            program.symbols = builder.finish();
+            let promised = GenericConformanceBound {
+                binder,
+                binder_name: Identifier::generated("Policy"),
+                trait_symbol: required_trait,
+                trait_name: Identifier::generated("Required"),
+                arguments: Vec::new(),
+            };
+            if kind == SymbolKind::TypeAlias {
+                program.push_type_alias_definition(TypeAliasDefinition {
+                    symbol: owner,
+                    conformance_bounds: vec![promised.clone()],
+                    ..Default::default()
+                });
+            } else {
+                program.push_data_definition(DataDefinition {
+                    symbol: owner,
+                    conformance_bounds: vec![promised.clone()],
+                    ..Default::default()
+                });
+            }
+            let selected = StaticMachineArgument {
+                symbol: binder,
+                ..Default::default()
+            };
+            assert!(
+                validate_forwarded_argument(&program, &promised, &selected, |actual| actual
+                    == &promised)
+                .is_ok()
+            );
+            assert!(
+                validate_forwarded_argument(&program, &promised, &selected, |_| false).is_err()
+            );
+            let mut incompatible = promised.clone();
+            incompatible.trait_symbol = other_trait;
+            incompatible.trait_name = Identifier::generated("Other");
+            assert!(
+                validate_forwarded_argument(&program, &incompatible, &selected, |_| panic!(
+                    "trait mismatch must precede tuple comparison"
+                ))
+                .is_err()
+            );
+            let mut applied = selected.clone();
+            applied.application = Some(Box::default());
+            assert!(
+                validate_forwarded_argument(&program, &promised, &applied, |_| panic!(
+                    "an applied binder must refuse first"
+                ))
+                .unwrap_err()
+                .contains("already selected")
+            );
+            let mut missing = TypedTrees::default();
+            missing.symbols = program.symbols.clone();
+            assert!(
+                validate_forwarded_argument(&missing, &promised, &selected, |_| panic!(
+                    "a missing promise must refuse first"
+                ))
+                .unwrap_err()
+                .contains("no declared contract")
+            );
+        }
+    }
 }

@@ -548,10 +548,15 @@ pub(crate) fn known_u64_value(
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
 ) -> Option<u64> {
-    literal_u64(program, expression).or_else(|| {
-        let path = place_path(program, expression)?;
-        environment.known_u64_values.get(&path).copied()
-    })
+    literal_u64(program, expression)
+        .or_else(|| {
+            let path = place_path(program, expression)?;
+            environment.known_u64_values.get(&path).copied()
+        })
+        .or_else(|| {
+            crate::value_custody::constants::completed_integer_constant(program, expression)
+                .and_then(|value| value.value.to_u64())
+        })
 }
 
 /// Source bounds at this use, through the ordinary arithmetic analysis and

@@ -17,6 +17,7 @@ pub(crate) mod machine_equations;
 pub(crate) mod module_normalization;
 pub(crate) mod target_families;
 pub(crate) mod trait_defaults;
+pub(crate) mod type_aliases;
 pub(crate) mod type_equations;
 
 use declaration_selection::ConstantSelection;
@@ -50,8 +51,13 @@ pub(crate) fn prepare(
     base: Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>>,
 ) -> Result<Prepared, Vec<Diagnostic>> {
     target_families::normalize(&mut syntax, sources.as_deref())?;
-    let constant_selection =
-        ConstantSelection::with_shared_base(&syntax, sources, top_level_bindings, base)?;
+    let constant_selection = declaration_selection::ConstantSelection::with_shared_base(
+        &syntax,
+        sources,
+        top_level_bindings,
+        base,
+    )?;
+    type_aliases::normalize(&mut syntax, &constant_selection)?;
     // Initializer-selection probes can arrive before generic synthesis. Their
     // module constant admission needs the same lexical carrier-head binding.
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;

@@ -14,3 +14,4 @@ pub(crate) mod state_signatures;
 pub(crate) mod symbols;
 pub(crate) mod traits;
 pub(crate) mod transitions;
+pub(crate) mod type_aliases;

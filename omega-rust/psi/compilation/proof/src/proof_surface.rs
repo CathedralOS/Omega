@@ -79,6 +79,31 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
             // Consts substitute away at symbol resolution; their literal
             // initializers carry no bounded-type surface of their own.
             Item::Const(_) => {}
+            Item::TypeAlias(alias) => {
+                collect_bounded_type_site(
+                    &mut report,
+                    syntax_trees,
+                    alias.expansion,
+                    &format!("type alias `{}` expansion", alias.name.as_str(syntax_trees)),
+                );
+                for parameter in syntax_trees.items.type_parameters(alias.type_parameters) {
+                    if let syntax_trees::item::TypeParameterKind::Const { type_reference }
+                    | syntax_trees::item::TypeParameterKind::Value { type_reference } =
+                        parameter.kind
+                    {
+                        collect_bounded_type_site(
+                            &mut report,
+                            syntax_trees,
+                            type_reference,
+                            &format!(
+                                "type alias `{}` parameter `{}`",
+                                alias.name.as_str(syntax_trees),
+                                parameter.name.as_str(syntax_trees)
+                            ),
+                        );
+                    }
+                }
+            }
             Item::Data(data_definition) => {
                 for member in syntax_trees.items.data_members(data_definition.members) {
                     if let DataMember::Field(field) = member {

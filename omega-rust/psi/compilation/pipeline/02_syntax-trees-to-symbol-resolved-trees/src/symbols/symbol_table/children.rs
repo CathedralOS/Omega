@@ -25,6 +25,7 @@ mod mathematical;
 mod operators;
 mod propositions;
 mod traits;
+mod type_aliases;
 
 pub(super) use builtin::insert_builtin_type_symbol_children;
 pub(super) use data::insert_data_symbol_children;
@@ -33,6 +34,7 @@ pub(super) use mathematical::insert_mathematical_symbol_children;
 pub(super) use operators::{insert_domain_symbol_children, insert_operator_symbol_children};
 pub(super) use propositions::insert_proposition_symbol_children;
 pub(super) use traits::insert_trait_symbol_children;
+pub(super) use type_aliases::insert_type_alias_symbol_children;
 
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolTableAppender, SymbolTableBuilder};
