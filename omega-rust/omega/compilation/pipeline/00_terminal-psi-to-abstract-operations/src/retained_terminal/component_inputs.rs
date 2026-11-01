@@ -233,12 +233,22 @@ impl RetainedComponentNativeInputs {
             let abi = component
                 .module()
                 .calling_abi_identity(candidate.boundary)?;
+            let expected = plan.schema.calling_application(&abi);
+            let target = proposal.target_profile().native_target();
             let (producer_position, producer) = one_application(
                 &proposal.boundary_applications().calling,
                 &abi,
+                expected,
+                target,
                 "component export",
             )?;
-            let (_, receiver) = one_application(receiving_applications, &abi, "component import")?;
+            let (_, receiver) = one_application(
+                receiving_applications,
+                &abi,
+                expected,
+                target,
+                "component import",
+            )?;
             for application in [producer, receiver] {
                 if application.recomputed_commitment()? != application.commitment {
                     return Err(format!(
@@ -265,12 +275,21 @@ impl RetainedComponentNativeInputs {
 fn one_application<'input>(
     applications: &'input [BoundaryCallingApplication],
     abi: &semantic_vocabulary::CallingAbiIdentity,
+    expected: Option<&effects::provider_plan::ServiceCallingPlan>,
+    target: target::NativeTarget,
     role: &str,
 ) -> Result<(usize, &'input BoundaryCallingApplication), String> {
-    let mut matching = applications
-        .iter()
-        .enumerate()
-        .filter(|(_, row)| &row.abi == abi);
+    let mut matching = applications.iter().enumerate().filter(|(_, row)| {
+        &row.abi == abi
+            && row.target == target
+            && expected.map_or_else(
+                || {
+                    row.plan.plan().call.policy
+                        == calling_conventions::CallingPolicy::native_for_target(target)
+                },
+                |expected| row.commitment == expected.commitment.as_bytes(),
+            )
+    });
     let requirement = &abi.requirement_identity;
     let application = matching
         .next()
@@ -278,6 +297,13 @@ fn one_application<'input>(
     if matching.next().is_some() {
         return Err(format!(
             "{role} `{requirement}` has competing calling applications"
+        ));
+    }
+    if expected
+        .is_some_and(|expected| expected.report_fingerprint != application.1.report_fingerprint)
+    {
+        return Err(format!(
+            "{role} `{requirement}` has a stale calling report coordinate"
         ));
     }
     Ok(application)

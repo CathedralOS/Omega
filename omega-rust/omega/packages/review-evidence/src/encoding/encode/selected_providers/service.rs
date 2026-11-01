@@ -134,5 +134,5 @@ pub(in crate::encoding::encode) fn method(
             })
         })
     })?;
-    encoder.option_field("calling", method.calling.as_ref(), encode_application)
+    encoder.sequence_field("calling", &method.calling, encode_application)
 }

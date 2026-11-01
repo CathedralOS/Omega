@@ -77,7 +77,7 @@ pub(in crate::encoding::recovery) fn method(
             })
         })?,
         identities,
-        calling: reader.option(calling_application::application)?,
+        calling: reader.sequence(1, calling_application::application)?,
     })
 }
 

@@ -113,7 +113,7 @@ fn project_inner(
                 "uninstantiated generic service carries a closed calling application",
             ));
         }
-        None
+        Vec::new()
     } else {
         calling::project(
             compilation,
@@ -121,16 +121,11 @@ fn project_inner(
             provider_type,
             requirement,
             service_schema,
+            method.requirement_identity,
         )?
     };
     let signature = if declaration_mode {
-        signature::project_declaration(
-            projection,
-            schema.symbol(),
-            requirement,
-            &identity,
-            calling.as_ref(),
-        )?
+        signature::project_declaration(projection, schema.symbol(), requirement, &identity, None)?
     } else {
         signature::project(
             projection,
@@ -138,7 +133,7 @@ fn project_inner(
             provider_type,
             requirement,
             &identity,
-            calling.as_ref(),
+            None,
         )?
     };
     // Declaration and operator policies retain typed binder coordinates rather

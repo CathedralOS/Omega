@@ -9,6 +9,10 @@ use crate::record::public_policy::validation::scope;
 
 impl PackagePolicyCallingPlan {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
+        self.abi.validate()?;
+        if self.abi.requirement_identity != self.requirement.path {
+            return Err("calling ABI key changes its source-qualified requirement");
+        }
         target::validate(self.target)?;
         let application_scope = self
             .boundary_lifetime_parameter_count

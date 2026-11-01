@@ -99,7 +99,7 @@ pub(crate) fn settle_callback_registrar_imports(
             .filter(|realization| {
                 realization.abi == abi
                     && realization.callback_context_closed
-                    && realization.plan.plan() == &materialization.registrar_boundary_entry_plan
+                    && realization == &&materialization.registrar_application
             })
             .collect::<Vec<_>>();
         let [_] = matching_realizations.as_slice() else {
@@ -130,7 +130,14 @@ pub(crate) fn settle_callback_registrar_imports(
                 matching_rows.len(),
             ));
         };
-        row.calling_application = Some(materialization.registrar_application.clone());
+        let mut applications = row
+            .calling_applications
+            .iter_mut()
+            .filter(|application| application.abi == abi);
+        let (Some(application), None) = (applications.next(), applications.next()) else {
+            return Err("callback registrar external row lost its exact ABI application".into());
+        };
+        *application = materialization.registrar_application.clone();
     }
 
     Ok(rows)

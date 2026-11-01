@@ -15,6 +15,7 @@ pub(super) fn rejoin_component_call(
     identities: &terminal_psi::TerminalIdentityTable,
     receiver: terminal_psi::TerminalPsiIdentity,
     profile: target::TargetProfile,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<target_operations::NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let selection = call.selection();
     let application = call.application();
@@ -30,6 +31,7 @@ pub(super) fn rejoin_component_call(
         || selection.provider() != call.component().subject()
         || call.plan_digest() != &selected_plan.identity_digest()
         || application.requirement_identity != requirement
+        || &application.abi != abi
         || application.target != profile.native_target()
         || locator.target() != profile
         || locator.slot_commitment()
