@@ -1136,12 +1136,31 @@ defines the complete product bar.
   oracles; invalid arrivals, unclosed invariant windows, stale aliases, and
   wrong UTF-8/ASCII writes reject.
 
-- **DOMAIN-ACCESS-AUTHORITY.** (also covers **DOMAIN-ISSUER-ROUTES**)
-  Implement the settled
-  [domain read/write policy](wiki/spec/language/domains.md#domain-owned-read-and-write-authority)
-  (`read by` and `written by`, independent of `established by`) and
+- **DOMAIN-ACCESS-AUTHORITY.** (also covers **DOMAIN-ISSUER-ROUTES** and
+  **DOMAIN-ACCESS-UNIFICATION**)
+  Migrate to the ratified
+  [domain access policy](wiki/spec/resources/access.md) and
   [requirement, exact-machine and boundary establishment](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
   end to end through `samples/cli/facts/` witnesses and `omega run --both`.
+  - Replace `established by`, `read by`, `written by` and the `Access<P,T>`
+    source wrapper with domain `access Policy`; migrate core/library, product
+    source, samples and fixtures together and remove the retired parser,
+    synthesis and checking paths, not retain compatibility modes. Keep source
+    polarity, resident custody and initialization/validation/retirement outcomes.
+  - Implement typed `reflect::field` / `reflect::callable` selectors and their
+    homogeneous descriptor lists, exact generic/owner/member identity, requirement
+    versus concrete invocation semantics, private route metadata and rejection
+    of field-as-caller, wrong owner/application, ambiguity and forged descriptors.
+  - Make `AccessPlan::new` default-unrestricted for caller authorization;
+    `establish`, `allow_readers` and `allow_writers` narrow it. Normalize empty
+    denial, whole-object/field/inherited intersections and invocation-scoped
+    helper delegation without order-dependent overrides or runtime permission bits.
+  - Separate the semantic access plan from `LayoutPlan` across compile-time
+    policy evaluation, Terminal occurrences, interpreter and native realization.
+    Establishment must join exact schema/field identities to independent layouts
+    and admitted supply, retaining transfer widths/alignment, required reach,
+    External/destructive/Atomic observations and schema correspondence. Carry one
+    field restriction across two valid layouts and fragmented-field storage.
   - Carry normalized exact route identities and subject-bound access restrictions
     through the common permission/loan model without extra runtime permission
     fields or a changed carrier layout, starting with the guide's
@@ -1162,14 +1181,22 @@ defines the complete product bar.
     `tests/omega/pass/domains/bodyless_owner_establishment`, and exercise
     admitted provider issuance for core's protected `Vacant`/`Resident` routes
     with **BUMP-ALLOCATOR-CANARY**.
-  Acceptance: the controlled cell, `bodyless_owner_establishment` (issuer →
+  Acceptance: the controlled cell and whole-object/field controller examples,
+  `bodyless_owner_establishment` (issuer →
   forwarder → consumer), and the nine-place fact rows execute via
   `omega run --both` across nested fields, whole-place replacement, requirement
   dispatch, helper calls, reflection, and codecs; unauthorized reads/writes,
   missing/forged/rebound issuer evidence, same-spelled issuer substitution,
   writer-only routes reading through `&mut`, wrong-subject or escaped helper
   grants, and bypass through bare helper parameters, explicit domain erasure,
-  byte views, or atomic recasts reject.
+  byte views, or atomic recasts reject. Existing access-view executable positives
+  run `--both` after migration; existing reject twins (`placed_shared_write_rejected`,
+  `placed_helper_exclusive_alias_rejected`, `placed_atomic_load_denied`,
+  `placed_atomic_store_denied`, `placed_external_array_denied_read` and the
+  `placed_factory_*` family) retain their exact rejection obligations. Update
+  fixture paths and golden rows if moved; renamed diagnostics alone are not
+  acceptance. No old source clauses/wrapper or layout-containing AccessPlan
+  remains, and no missing caller row fabricates backing/observation authority.
 
 - **TERMINATION-RANKING-CHECKS.** (also covers **GENERAL-CYCLIC-EXECUTION** and
   **TPR6**)
