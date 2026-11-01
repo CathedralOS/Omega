@@ -13,7 +13,10 @@ The retained optimized compiler at source `2938be01c249` refuses all nine
 positive places with “a computed natural rank application has no independent
 entry formation.” The fixed development base is `644dce3eeeae`; the retained
 producer's digest is `d92a688b16822571a58aded260c4e6dd2a51b54e9e2b81139c93a61924e03e71`.
-The repair is in progress; candidate execution is not yet qualified.
+Source `4b17be01af7f` runs all nine positive places with Terminal/native exit
+zero on macOS ARM64; all nine zero-step twins reject for missing strict cycle
+descent. The field-prefix composition agrees in both engines, and its twin,
+missing-bound, missing-order and wrong-element controls reject.
 
 Each place selects both array elements, takes both active and already-finished
 paths, and starts the counter at three. Slot zero advances seven times to ten;
@@ -50,3 +53,29 @@ nesting adds no activation.
 Acceptance is `omega run --both <place>/.../indexed/main.omg` with exit zero,
 plus fact-sensitive checking rejection for every twin and control. Each Build
 binds all four hosted targets; native execution evidence is host-specific.
+
+Applicable requirement layers:
+
+- Establishment: preceding formed entry facts prove nonnegative, in-range
+  selectors and endpoint order before the view/helper application forms.
+- Identity and lifetime: the entry and ordered call cut capture their own whole
+  inputs. Executed writes replace the selected scalar value; independently
+  disjoint current fields retain their captured values and dependencies.
+- Composition: every actual SCC edge substitutes the complete formal telescope;
+  the helper's public Requires/Ensures supplies the result equation. Rank
+  preservation on one edge still requires strict descent on every full cycle.
+- Soundness: snapshots describe values and confer no storage permission. Runtime
+  copies separately require owned access, Copy, unrestricted multiplicity and
+  borrow-free contents. The controls cannot establish their own premises.
+- Psi 05–07: ordinary structural arguments and explicit selector computations
+  produce Terminal Psi and use the same call scheduler as statement calls.
+  Interpreter/native agreement is the runtime oracle; no new runtime opcode or
+  declaration-specific interpreter is introduced.
+- Omega 00–02: the existing fixed-array/record layout and helper calling plan
+  realize the selected whole record; both slot choices and the field prefix
+  exercise that geometry.
+- Omega 03–06: ordinary dynamic indexing, captured parameter homes and the
+  existing activation planner realize the constant-stack private cycle.
+- Omega 07–09 and emission: the native image must execute with the same authored
+  exit as Terminal Psi. Hosted target bindings are explicit; execution on other
+  hosts is unverified by this local macOS ARM64 run.
