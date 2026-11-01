@@ -122,6 +122,7 @@ impl StructuralJudge<'_> {
                 stored.backing = Some(CapturedScalarReadBacking {
                     dependencies: backing,
                     identity: None,
+                    representation: None,
                 });
             }
         }
