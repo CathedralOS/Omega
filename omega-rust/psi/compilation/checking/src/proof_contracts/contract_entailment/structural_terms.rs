@@ -900,14 +900,8 @@ pub(super) fn structural_term(
             }
             let declared_field = receiver_type
                 .and_then(|reference| {
-                    let data =
-                        crate::value_custody::places::data_definition_for_type(program, reference)?;
-                    crate::value_custody::places::exact_data_member_field(
-                        program,
-                        data,
-                        member.member_symbol,
-                        member.member.as_str(),
-                        member.case_variant.as_ref().map(|case| case.as_str()),
+                    crate::value_custody::places::applied_data_member_field(
+                        program, reference, member,
                     )
                 })
                 .is_some();

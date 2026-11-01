@@ -1,0 +1,18 @@
+data Interval<const Bound: u64> [copy]
+    requires (self in Interval::Empty)
+        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+{
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 { hi - lo }
+machine invalid(span: Interval<64>) -> u64 {
+    match span {
+        Interval::Empty -> 77
+        Interval::Range { lo, hi } -> width_range(lo, hi)
+    }
+}
+machine main() {
+    let valid: Interval<64> = Interval::Range { lo: 1, hi: 40 };
+    _ = invalid(valid);
+}

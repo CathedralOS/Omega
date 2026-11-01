@@ -1,1 +1,1 @@
-match arms produce incompatible values
+cannot prove requires contract for call width_range
