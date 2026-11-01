@@ -41,6 +41,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let binding = components.get_mut(boundary).ok_or_else(|| {
             reject("component invocation has no established producing instance binding".to_owned())
         })?;
+        let caller = self.component_call_scope();
         let selected = binding.selected();
         let expected_supply = AdmittedBoundarySupply::ComponentProvider {
             provider: selected.provider(),
@@ -66,14 +67,11 @@ impl<'artifact> TerminalExecution<'artifact> {
             )?;
             binding
                 .prepare(
+                    caller,
                     operation.id,
                     arguments,
                     structural_arguments,
-                    crate::TerminalStructuralInputs {
-                        arguments: &prepared.values,
-                        contents: &prepared.contents,
-                        ..crate::TerminalStructuralInputs::default()
-                    },
+                    prepared.custody,
                     self.account.as_ref(),
                 )
                 .map_err(&reject)?;
@@ -89,7 +87,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             }
         }
         match binding
-            .invoke(operation.id, arguments, structural_arguments, meter)
+            .invoke(caller, operation.id, arguments, structural_arguments, meter)
             .map_err(&reject)?
         {
             Some(

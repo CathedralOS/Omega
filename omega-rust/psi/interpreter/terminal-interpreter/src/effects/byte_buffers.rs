@@ -39,13 +39,13 @@ pub(crate) struct BoundaryArguments {
 }
 
 impl BoundaryArguments {
-    /// Consume a tuple only when no separate backing, loan, staged allocation
-    /// or writeback evidence would be lost. Atom-only transport cannot rebuild
-    /// those sidecars from a carrier identity in another execution.
-    pub(crate) fn into_opaque_values(
-        self,
+    /// Inspect an atom-only tuple without discarding its captured custody.
+    /// A component retains this owner through the real child and acknowledgement;
+    /// a carrier identity cannot reconstruct storage or loan companions.
+    pub(crate) fn opaque_values(
+        &self,
         original_identity_cursor: Option<u64>,
-    ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
+    ) -> Result<&[TerminalStructuralValue], TerminalInterpretError> {
         if self.local_identity_cursor != original_identity_cursor
             || self.aggregate_backings.iter().any(Option::is_some)
             || self.bytes.iter().any(Option::is_some)
@@ -60,7 +60,7 @@ impl BoundaryArguments {
                 "opaque argument transport cannot discard storage or loan companions",
             ));
         }
-        Ok(self.values)
+        Ok(&self.values)
     }
 
     pub(crate) fn reserve_host_result(
