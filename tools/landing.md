@@ -54,10 +54,10 @@ python tools/landing.py land NUMBER --expected-head FULL_HEAD_SHA
 conflict, a closed PR or a head that differs from `--expected-head`, without
 changing anything. Otherwise it runs `gh pr ready` (skipped if the PR is already
 ready) and either enqueues at once, when the check on that head is already
-green, or asks the queue to take the PR when the check passes. On a merge-queue
-branch that request is the queue's own "merge when ready", which GitHub honours
-with repository auto-merge disabled. It returns in seconds and prints the PR,
-exit 0. No session has to stay alive, poll CI or be woken for its work to land;
+green, or asks the queue to take the PR when the check passes (GitHub's
+auto-merge request, which on this merge-queue branch means "add to the queue when
+ready"; the repository allows it since 2026-11-01, and it bypasses nothing). It
+returns in seconds and prints the PR, exit 0. No session has to stay alive, poll CI or be woken for its work to land;
 before this, 9 of 70 PRs from desktop sessions sat green for 66 to 262 minutes
 because nothing woke the session that had to enqueue them.
 
@@ -83,11 +83,11 @@ unrelated local commits. Keep the candidate clean and committed before push.
 
 `land` is the check and ready steps, then `enqueue` or the queue request, then
 optionally `wait`; `enqueue` and `wait` remain for observing or resuming by hand. The enqueue helper uses GitHub's
-native `enqueuePullRequest` mutation, fenced by the expected source head. It does not enable repository-wide auto-merge, bypass
-checks, jump the queue, push, rebase or compile. GitHub refuses ineligible PRs.
-The UI's **Merge when ready / Add to merge queue** route is also supported.
-`gh pr merge` may try to enable auto-merge even for an eligible PR; use the
-documented helper instead of changing repository settings.
+native `enqueuePullRequest` mutation, and the queue request is
+`enablePullRequestAutoMerge`; both are fenced by the expected source head. Neither
+bypasses checks, jumps the queue, pushes, rebases or compiles. GitHub refuses
+ineligible PRs. The UI's **Merge when ready / Add to merge queue** route is also
+supported.
 
 `wait` returns 0 only for MERGED, 1 for a closed/conflicting/unqueued PR or an
 error, and 2 while still queued at its deadline. A timeout is not a failed

@@ -169,9 +169,10 @@ def mark_ready(repository, remote, number):
 def merge_when_green(repository, pull, expected):
     """Ask GitHub to add the PR to the queue once the required check passes.
 
-    On a merge-queue branch this is the queue's own "merge when ready", which
-    GitHub honours even with repository-wide auto-merge disabled. The request
-    is fenced by the head; a red check leaves the PR out of the queue.
+    On a merge-queue branch an auto-merge request means "add to the queue when
+    ready". GitHub accepts it only when the repository allows auto-merge, which
+    it does since 2026-11-01. The request is fenced by the head; a red check
+    leaves the PR out of the queue.
     """
     query = """mutation($pullRequest:ID!,$head:GitObjectID!){enablePullRequestAutoMerge(
       input:{pullRequestId:$pullRequest,expectedHeadOid:$head}){
