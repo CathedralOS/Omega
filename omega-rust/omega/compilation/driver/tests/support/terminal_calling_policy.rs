@@ -8,7 +8,6 @@ use evaluation_accounting::{
 use provider_planning::calling_policy_plans::{
     CallingPolicySignature, TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy,
 };
-use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
 
 pub(super) fn observe(
@@ -19,12 +18,9 @@ pub(super) fn observe(
 ) -> Result<(), String> {
     let target =
         target::TargetProfile::from_canonical_target_name(target).map_err(|error| error.message)?;
-    let transported = Arc::new(
-        CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
-            .map_err(|error| error.to_string())?,
-    );
-    let retained = Arc::new(artifact.clone());
-    for artifact in [&retained, &transported] {
+    let transported = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+        .map_err(|error| error.to_string())?;
+    for artifact in [artifact, &transported] {
         let module = artifact.semantic_module();
         // Authored inspection selectors are presentation labels, not compiler
         // semantic matching. The selected declaration supplies every real ID.

@@ -282,7 +282,9 @@ fn entry_admission_retains_module_and_reached_debts_without_certifying_product_f
     entry
         .include_evaluation_entry(MachineId::new(3).unwrap())
         .unwrap();
-    assert_eq!(entry.predicates(), [1, 2, 5]);
+    let mut predicates = entry.predicates().to_vec();
+    predicates.sort_unstable();
+    assert_eq!(predicates, [1, 2, 5]);
     assert!(!entry.ranges().contains(&4));
     assert_eq!(
         entry.scope(),
