@@ -553,36 +553,6 @@ receiver replay is retired while keeping the mathematical kernel and checker
 contracts, and every supported primitive operation carries its checking-time
 decision (`SourceChecked`) into stage 05 and stage 00.
 
-- **CHECKER-CARRIES-OPERATION-DECISIONS.** (new-scope; also covers
-  **STAGE-05-REFUSAL-REVALIDATIONS** and **RETIRE-EXPORTED-AUDIT-FACADE**)
-  Complete checking-time discharge of primitive operation conditions into
-  `SourceChecked` across stage 04, stage 05, and stage 00, remove the remaining
-  12 stage-05 plan-revalidation refusal sites so
-  `lowering_refusals_do_not_revalidate_the_plan` passes, and retire or wire
-  unreached audit facades end to end (`omega run --both`).
-  Owners: stage 04 `CheckFacts`,
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/source_guards.rs`,
-  and stage 00 optimization-unit construction.
-  - **STAGE-05-REFUSAL-REVALIDATIONS:** publish needed carrier/root invariants
-    in stage 04 and delete the 12 plan-revalidation comparisons in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/`
-    so `lowering_refusals_do_not_revalidate_the_plan` and
-    `mbx nextest run -p checked-trees-to-lowered-psi` pass.
-  - Carry exact checking decisions (`ArithmeticDecisions`,
-    `proven_scalar_indexes`, `proven_byte_writes`, `decided_call_requires`)
-    through inner element-path runtime selectors (`CheckedRuntimeIndex`),
-    view-range segments, record-loan element reads, synthesized widenings,
-    scalar-graph casts, bounded stores, affine aggregate entries, and
-    invocation-entry/arrival obligations.
-  - **RETIRE-EXPORTED-AUDIT-FACADE:** connect `accept_source_checked_operation`
-    and `verify_target_operation_plan` or retire unreached audit facades.
-  Acceptance: `lowering_refusals_do_not_revalidate_the_plan` is green; every
-  supported primitive operation reaches stage 05 and stage 00 with its exact
-  `SourceChecked` decision; corpus failures for missing decisions reject from
-  `omega --check` with checking diagnostics while preserving all
-  `arithmetic/*`, `collections/*`, `slices/*`, `calls/*`, `float/*`, and
-  `domains/*` positive and negative controls.
-
 - **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
   emission build their final image once (only retained/admitted replay entrypoints
   rebuild and compare).
