@@ -71,6 +71,12 @@ The independent [primitive shadow control](controls/primitive_shadow/invalid/mai
 continues to reject an ordinary declaration named `Int`; retiring `Result` does
 not weaken the actual primitive fence.
 
+The [stored-output control](controls/stored_output/invalid/main.omg) installs a
+reference through a selected generic map, then tries to mutate that reference's
+backing before the destination's last read. Retained Mac090 rejects that exact
+conflict in 7.064 seconds. The repaired query must retain the same refusal;
+joining an evidence edge must not erase a concrete output slot or its loans.
+
 The remaining six transport places, other hosts, universal agreement proofs,
 the `Representation` agreement bundle, reflection-specialized generic codecs,
 independent-package/resource-backed adapters and the parent capability remain
