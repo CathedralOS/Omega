@@ -203,11 +203,15 @@ retired-syntax deletions to completion.
     must not justify `require_nonnegative(saved)`. Both the fixed `225551dd818`
     baseline and the captured-read repair currently accept that invalid control;
     the ordinary arithmetic read query remains to repair.
-    The integrated `6c8950d4825` producer also refuses the unchanged guarded
-    `frame_fields` / `parse` calls after opaque callbacks in
-    [CompactBinary](source/library/std/wire.omg); SDK checking stops there before
-    WindowDemo qualification. Preserve those caller guards and callback contracts
-    while repairing this remaining call-fact frontier.
+    [Guarded call entry](samples/cli/facts/guarded_call_entry/README.md) establishes
+    fresh referent guards and immutable scalar facts at opaque invocations across
+    the nine places, with nine fact-sensitive rejects and stale-storage controls.
+    It repairs the integrated `6c8950d4825` producer's refusal of the unchanged
+    `frame_fields` / `parse` guards after opaque callbacks in
+    [CompactBinary](source/library/std/wire.omg), without changing those callers
+    or callback contracts. WindowDemo now clears source checking and Terminal
+    production; ordinary package-policy review and native GUI execution remain
+    open, alongside the mixed-predicate restoration-window issue above.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
