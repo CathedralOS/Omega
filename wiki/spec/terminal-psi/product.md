@@ -224,8 +224,9 @@ artifact; they cannot supply executable choices absent from Terminal.
 
 The stage order is lowering, selected Psi optimization, then Terminal
 publication. An empty selection is the identity transformation of the same
-phase: validate input and output without constructing rule candidates,
-transformations, or pass manifests. Selection does not choose an alternate
+phase: it constructs no rule candidates, transformations, or pass manifests.
+Input and output validators run in the corpus runner and the tests, not on the
+default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Selection does not choose an alternate
 pipeline.
 
 Later Omega phases optimize their own representations while retaining the

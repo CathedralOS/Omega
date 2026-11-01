@@ -596,8 +596,10 @@ fields must not carry one. Independent reconstruction derives the conjunction
 of the destination declaration's lower and upper bounds on the exact stored
 SSA value, using only pre-write facts. The completed write's new field equality
 cannot prove its own validity. The canonical certificate is checked before
-execution, and Omega's current-IR validation binds the retained obligation to
-the current destination, value and bounds before native lowering. Accepting
+execution. Omega's current-IR validation binds the retained obligation to the
+current destination, value and bounds; the corpus runner and the tests run
+it, not the default compile path before native lowering
+([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Accepting
 only the underlying scalar carrier would invalidate later range snapshots.
 Scalar and Boolean field observations
 remain distinct operations and require readable access. A field or primitive
@@ -803,8 +805,9 @@ custody and predicate checks. Descriptor replacement is the
 `StructuralByteViewFieldStore` above. Qualified mutable, write-only, and access-unspecified
 view fields remain unsupported. The supported predicates are
 valid UTF-8, ASCII-only, no NUL, and nonempty. Receiving validation checks these
-invariants independently of source checking and repeats the check after
-optimization. Zero-initialized attachment storage requires every contained byte
+invariants independently of source checking. The rewrite validator repeats
+the check after optimization in the corpus runner and the tests, not on the
+default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement)). Zero-initialized attachment storage requires every contained byte
 field predicate to hold for the empty sequence. Every write keeps every declared
 predicate true: Terminal Psi opens no invariant window on a field, so reads and
 calls may rely on the declaration at any point.
@@ -828,8 +831,10 @@ ASCII, and operations disjoint from the field may intervene. A replacement
 from a source not proved ASCII, a projected move, an overlapping mutable or
 write-only call argument, and dynamic dispatch each reject. The machine entry
 supplies only the declaration, never ASCII contents. The Omega consumer
-requires the accepted obligation to be exactly this goal and replays the
-carrier rule on its current graph after every rewrite.
+requires the accepted obligation to be exactly this goal. Its rewrite
+validator replays the carrier rule on the current graph after every rewrite;
+the corpus runner and the tests run it, not the default compile path
+([verification placement](../../../omega-rust/pipeline.md#verification-placement)).
 
 `ByteSequenceLength` on a whole bounded owner observes current live-length
 metadata through shared, mutable, or write-only access. Metadata access grants
