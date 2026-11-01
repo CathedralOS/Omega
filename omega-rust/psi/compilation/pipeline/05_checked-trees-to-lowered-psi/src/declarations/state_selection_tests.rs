@@ -46,7 +46,8 @@ fn fixture() -> TypedTrees {
             },
         ],
         7,
-    );
+    )
+    .into();
     program.roots.machines = span(1, 3, 7);
     program
 }
@@ -137,7 +138,8 @@ fn frozen_state_selection_matches_original_scan_after_equal_revision_replacement
             Machine::default(),
         ],
         7,
-    );
+    )
+    .into();
     assert_eq!(warmed.tables.machines.revision(), machine_revision);
     let rebuilt = CheckedTrees::with_roots(warmed, Default::default());
     compare(&rebuilt);
