@@ -17,7 +17,7 @@ fn prepare(relative: &str) -> fixture_package_inputs::ReviewedFixtureCompilation
 #[test]
 fn late_application_attachment_outlives_source_and_preserves_recovered_attribution() {
     // Descriptions escape this scope without borrowing the checked program.
-    let (program, recovered, valid, invalid) = {
+    let (program, recovered, valid, invalid, source_owner) = {
         let prepared = prepare("tests/omega/pass/build/retained_behavior_admission/main.omg");
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"));
         request.package_inputs = prepared.package_inputs;
@@ -25,6 +25,7 @@ fn late_application_attachment_outlives_source_and_preserves_recovered_attributi
             .result
             .expect("source checks");
         let source = checked.execution().provider_source.program();
+        let source_owner = std::sync::Arc::downgrade(source);
         let sources = checked.sources().exact_toolchain_sources();
         let describe = |name| {
             psi_compiler::TerminalApplicationCustody::prepare(
@@ -55,8 +56,14 @@ fn late_application_attachment_outlives_source_and_preserves_recovered_attributi
             recovered.into_shared_portable().unwrap(),
             valid,
             invalid,
+            source_owner,
         )
     };
+    assert!(
+        source_owner.upgrade().is_none(),
+        "published code must not retain checked source"
+    );
+    let mut original_labels = None;
     for published in [&program, &recovered] {
         let identity = published.artifact().view().identity();
         assert!(
@@ -70,6 +77,27 @@ fn late_application_attachment_outlives_source_and_preserves_recovered_attributi
         let [root] = <[_; 1]>::try_from(application.roots).expect("one exact root");
         let root = root.expect("root retained");
         assert!(root.provenance.label(root.machine).contains("main"));
+        let helper_labels = published
+            .artifact()
+            .semantic_module()
+            .machines
+            .iter()
+            .filter(|machine| machine.id != root.machine)
+            .map(|machine| root.provenance.label(machine.id))
+            .collect::<Vec<_>>();
+        assert!(
+            helper_labels
+                .iter()
+                .any(|label| label.starts_with("machine `") && label.contains("check")),
+            "a non-entry source label must survive without borrowing or reconstructing it from the entry: {helper_labels:?}"
+        );
+        match &original_labels {
+            None => original_labels = Some(helper_labels),
+            Some(original) => assert_eq!(
+                &helper_labels, original,
+                "recovery must preserve the shared diagnostic companion"
+            ),
+        }
         assert_eq!(
             published.artifact().view().identity(),
             identity,
