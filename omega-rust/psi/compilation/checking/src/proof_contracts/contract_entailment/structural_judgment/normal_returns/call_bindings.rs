@@ -36,12 +36,11 @@ impl<'program> StructuralJudge<'program> {
             return None;
         };
         let frames = self.frame_resolver();
-        // An opaque frame establishes no preservation or post-call reference
-        // correspondence. Isolated operand snapshots and independent result
-        // guarantees remain usable, but no live referent is reintroduced.
+        // The frame owner captures entry subjects independently of future
+        // writes. Its return flags withhold correspondence for an opaque frame;
+        // that cannot erase the current arguments' entry requirements.
         let subjects = frames
-            .filter(|_| writes.is_complete())
-            .and_then(|frames| frames.call_reference_subjects(machine, site, parameters));
+            .and_then(|frames| frames.call_reference_subjects(machine, site, parameters, writes));
         if !independent_call_application(
             program,
             self.machine_symbol,
