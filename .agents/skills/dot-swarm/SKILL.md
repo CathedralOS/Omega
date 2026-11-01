@@ -255,6 +255,11 @@ request source-backed findings and actual checks they can safely execute; missin
 binaries or dependencies are named blockers, not permission to fabricate a run.
 For code work, validate affected behavior per `tools/testing.md`: focused
 regression, affected crate checks/tests, and corpus/native checks when applicable.
+Assignments select affected-path tests and relevant positive/rejection controls;
+retain and reuse valid completed evidence when its inputs and consumers apply.
+Do not default to huge corpus or workspace gates. A broader run needs a concrete
+change-specific reason and follows [the sweep rules](../../../AGENTS.md#commands);
+required GitHub `compiler-check` still applies.
 Use `mbx` when present and record revision, command, host, exit, and counts.
 Run one host build at a time; the shared computer is not six independent VMs.
 
