@@ -9469,51 +9469,15 @@ pass/facts/target_layout_derived_constant_through_other_state_exit rejected 1558
 	exact arithmetic in machine `verify` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/facts/target_layout_derived_constant_through_parameter_exit checked 3934ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_layout_derived_constant_through_target_body_exit checked 4434ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_recursive_bound_through_call_result_exit rejected 2963ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_const_name_exit rejected 2968ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_field_exit rejected 2457ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_local_exit rejected 2848ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_match_join_exit rejected 2534ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_other_machine_exit rejected 2381ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_other_state_exit rejected 2329ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_parameter_exit rejected 2918ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/facts/target_recursive_bound_through_target_body_exit rejected 2448ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `step` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+pass/facts/target_recursive_bound_through_call_result_exit checked 2615ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_const_name_exit checked 2615ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_field_exit checked 2541ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_local_exit checked 2541ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_match_join_exit checked 2689ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_other_machine_exit checked 2686ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_other_state_exit checked 2491ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_parameter_exit checked 3034ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_recursive_bound_through_target_body_exit checked 2554ms check-target:macos_arm64 @5dc7fa33c4de
 pass/facts/target_scoped_constant_multi_method_exit checked 4107ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_scoped_constant_realization_exit checked 3677ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/target_scoped_constant_realization_through_call_result_exit checked 5061ms check-target:macos_arm64 @ccdb99ca2214
@@ -30287,52 +30251,24 @@ fail/facts/target_layout_derived_constant_through_parameter_reject rejected 4822
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/facts/target_layout_derived_constant_through_target_body_reject rejected 4672ms unexpected @ccdb99ca2214
 	constant checking: scalar range condition 4: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_recursive_bound_through_call_result_rejected rejected 1542ms expected @ccdb99ca2214
-	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_const_name_rejected rejected 1494ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_field_rejected rejected 2007ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_local_rejected rejected 1770ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_match_join_rejected rejected 1728ms expected @ccdb99ca2214
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_other_machine_rejected rejected 1240ms expected @ccdb99ca2214
+fail/facts/target_recursive_bound_through_call_result_rejected rejected 1876ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from deliver: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_const_name_rejected rejected 1653ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_field_rejected rejected 1521ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_local_rejected rejected 1665ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_match_join_rejected rejected 1664ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from record_result: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_other_machine_rejected rejected 751ms expected @5dc7fa33c4de
 	machine `main` state `entry` value call to `Worker::deliver` violates required fact `value <= 60`: the instantiated fact is structurally false (`61 <= 60`)
-fail/facts/target_recursive_bound_through_other_state_rejected rejected 1460ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_parameter_rejected rejected 1081ms expected @ccdb99ca2214
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_target_body_rejected rejected 1347ms expected @ccdb99ca2214
-	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
+fail/facts/target_recursive_bound_through_other_state_rejected rejected 1692ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_parameter_rejected rejected 1545ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from main: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/target_recursive_bound_through_target_body_rejected rejected 1416ms expected @5dc7fa33c4de
+	cannot prove requires contract for call countdown from EvaluationCode::evaluate: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `evaluate`
 fail/facts/target_scoped_constant_false_contract rejected 3347ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from Small::get at statement 0: result == 5
 fail/facts/target_scoped_constant_missing_method rejected 616ms expected @ccdb99ca2214
