@@ -56,7 +56,12 @@ impl<'input> AdmittedNativeComponentCall<'input> {
 
     pub(crate) fn replaces_local_adapter(&self, adapter: &crate::SelectedProviderAdapter) -> bool {
         adapter.provider_plan_digest == self.plan_digest
-            && adapter.requirement_identity == self.application.requirement_identity
+            && self
+                .component
+                .module()
+                .boundary_machine(self.selected.provider_boundary())
+                .and_then(|boundary| self.component.module().identities.text(boundary.identity))
+                == Some(adapter.requirement_identity.as_str())
     }
 }
 
@@ -105,14 +110,20 @@ impl<'input> ComponentNativeInputs<'input> {
         self.exports
             .iter()
             .map(|export| {
-                let requirement = &export.calling_application.requirement_identity;
+                // Invocation identity still includes callback actuals. Several
+                // invocations can deliberately share one declaration ABI.
+                let requirement = module
+                    .identities
+                    .text(export.candidate.requirement_identity)
+                    .ok_or("component export lost its exact invocation identity")?;
                 let mut receiving = receiver
                     .module()
                     .boundary_machines
                     .iter()
                     .filter(|boundary| {
-                        receiver.module().calling_abi_identity(boundary.id).as_ref()
-                            == Ok(&export.calling_application.abi)
+                        receiver.module().identities.text(boundary.identity) == Some(requirement)
+                            && receiver.module().calling_abi_identity(boundary.id).as_ref()
+                                == Ok(&export.calling_application.abi)
                     });
                 let boundary = receiving.next().ok_or_else(|| {
                     format!(

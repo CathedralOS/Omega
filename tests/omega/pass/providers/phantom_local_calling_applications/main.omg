@@ -2,16 +2,28 @@
 // Distinct phantom locals retain distinct ABI/review keys despite equal storage.
 use omega_language_std::calling;
 
+public boundary trait Callback: Calling<WordCalling> {
+    machine value() -> u64 reaches;
+}
+machine first_handler() -> u64 satisfies Callback::value { 11u64 }
+machine second_handler() -> u64 satisfies Callback::value { 22u64 }
+
 public boundary trait Probe<Owner>: Calling<WordCalling> {
-    machine inspect<Phantom>() -> u64 reaches;
+    machine inspect<Phantom, machine Handler>(native callback value from Handler) -> u64
+    requires machine Handler satisfies Callback::value;
+    reaches
+    invokes Callback;
 }
 public ProbeMap satisfies Probe<u8> {
-    machine inspect<Phantom>() -> u64 { 73u64 }
+    machine inspect<Phantom, machine Handler>() -> u64
+    requires machine Handler satisfies Callback::value;
+    { Handler() }
 }
 
 public WordCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        transition signature.parameter_count == 0 && signature.has_result {
+        transition signature.parameter_count == 0 && signature.has_result
+            && signature.native_parameter_count <= 1 && signature.callback_demand_count <= 1 {
             true -> select_result(signature, signature.result)
             _ -> reject()
         }
@@ -21,6 +33,17 @@ public WordCalling satisfies CallingPolicy {
     machine accept(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.convention = CallingConvention::Aapcs64;
+        plan.call.parameter_count = signature.native_parameter_count;
+        plan.call.parameters[0].shape.class = AbiValueClass::Integer;
+        plan.call.parameters[0].shape.byte_size = 8;
+        plan.call.parameters[0].shape.alignment = 8;
+        plan.call.parameters[0].location_count = 1;
+        plan.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8
+        };
+        plan.call.callback_materialization_count = signature.callback_demand_count;
+        plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+        plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
         plan.call.has_result = true;
         plan.call.result.shape.class = AbiValueClass::Integer;
         plan.call.result.shape.byte_size = signature.shapes[result].byte_size;
@@ -44,10 +67,11 @@ public WordCalling satisfies CallingPolicy {
     }
 }
 
-machine main() reaches Probe crashes Trap {
-    let first: u64 = Probe<u8>::inspect<u32>();
-    let second: u64 = Probe<u8>::inspect<u64>();
-    transition first == 73u64 && second == 73u64 { true -> done() _ -> bad() }
+machine main() reaches Probe + Callback crashes Trap {
+    let first: u64 = Probe<u8>::inspect<u32, first_handler>();
+    let second: u64 = Probe<u8>::inspect<u64, first_handler>();
+    let third: u64 = Probe<u8>::inspect<u32, second_handler>();
+    transition first == 11u64 && second == 11u64 && third == 22u64 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

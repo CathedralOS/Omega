@@ -37,18 +37,51 @@ fn review_retains_exact_same_geometry_phantom_local_applications() {
         Some("macos_arm64"),
     )
     .expect("phantom application fixture inputs");
+    let inputs = prepared
+        .package_inputs
+        .expect("package-aware phantom fixture");
+    let package = inputs.root();
     let mut session = CompilationSession::default();
     let build = execute_build(
         &mut session,
         CheckedCompileRequest {
-            package_inputs: prepared.package_inputs,
+            package_inputs: Some(inputs),
             ..CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"))
         },
     );
-    let reviewed = session
-        .review_package_build(build, usize::MAX)
-        .expect("capture every exact local application");
-    let policy = &reviewed.evidence.policy;
+    let checked = session
+        .check_package_build(build)
+        .expect("checked phantom applications");
+    let native = checked
+        .providers()
+        .calling_applications(&[])
+        .expect("complete native catalog");
+    for realization in &checked.providers().boundary_calling_plan_realizations {
+        assert!(
+            native.contains(&realization.native_application().unwrap()),
+            "deduplication must retain every distinct complete policy application"
+        );
+    }
+    let mut repeated = checked.providers().clone();
+    repeated.boundary_calling_plan_realizations.extend(
+        checked
+            .providers()
+            .boundary_calling_plan_realizations
+            .iter()
+            .cloned(),
+    );
+    assert_eq!(
+        native,
+        repeated.calling_applications(&[]).unwrap(),
+        "repeating complete applications cannot create ambiguous catalog entries"
+    );
+    let captured = package_evidence::project_checked_package_policy(
+        &checked,
+        target::TargetProfile::MacosArm64,
+        package,
+    )
+    .expect("capture every exact local application");
+    let policy = &captured;
     let provider = policy
         .selected_providers()
         .plans()
@@ -66,6 +99,14 @@ fn review_retains_exact_same_geometry_phantom_local_applications() {
         2,
         "review must not drop or collapse either local application"
     );
+    for application in applications {
+        assert_eq!(
+            application.abi().operands.len(),
+            1,
+            "callback actuals are not declaration ABI operands"
+        );
+        assert_eq!(application.abi().operands[0].ordinal, 0);
+    }
     let first = &applications[0];
     let second = &applications[1];
     assert_eq!(

@@ -320,11 +320,17 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
         &self,
         exported: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, String> {
-        let mut applications = self
+        let explicit = self
             .boundary_calling_plan_realizations
             .iter()
             .map(BoundaryCallingPlanRealization::native_application)
             .collect::<Result<Vec<_>, _>>()?;
+        let mut applications = Vec::with_capacity(explicit.len());
+        for application in explicit {
+            if !applications.contains(&application) {
+                applications.push(application);
+            }
+        }
         for application in self
             .external_binding_rows
             .iter()

@@ -94,7 +94,8 @@ pub(super) fn settle_boundary<'request>(
         .boundary_machines
         .iter()
         .filter(|boundary| {
-            request
+            (!matches!(settlement.realization, NativeBoundaryRealization::Component { call, .. } if boundary.id != call.selection().receiving_boundary()))
+            && request
                 .selected_provider_plans
                 .selected_row_matches_requirement(
                     input
@@ -125,13 +126,6 @@ pub(super) fn settle_boundary<'request>(
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
             )?,
         };
-        if let NativeBoundaryRealization::Component { call, .. } = settlement.realization
-            && boundary.id != call.selection().receiving_boundary()
-        {
-            return Err(vec![Diagnostic::error(
-                "component execution cannot cover another artifact-local boundary occurrence",
-            )]);
-        }
         if !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
             boundary,
             selected_plan,
