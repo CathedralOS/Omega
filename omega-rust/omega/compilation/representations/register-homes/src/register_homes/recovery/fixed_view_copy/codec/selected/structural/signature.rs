@@ -33,6 +33,7 @@ pub(super) fn encode_signature(
         push_encoded(bytes, referent.id.get().to_le_bytes());
         push_encoded(bytes, referent.identity.0.to_le_bytes());
         bytes.push(u8::from(referent.foreign_descriptor));
+        bytes.push(u8::from(referent.abstract_opaque));
     }
     let quotients = terminal_codec::encode_quotient_catalog(value.structural_types.quotients())?;
     length(bytes, quotients.len());
@@ -111,6 +112,7 @@ pub(super) fn decode_signature(
             id: decode_id(cursor, StructuralTypeId::new)?,
             identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
             foreign_descriptor: decode_bool(cursor)?,
+            abstract_opaque: decode_bool(cursor)?,
         })
     })?;
     let count = cursor.length()?;
@@ -332,6 +334,7 @@ mod tests {
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(2),
                     foreign_descriptor: false,
+                    abstract_opaque: false,
                 }],
             ),
             parameters: Vec::new(),
@@ -390,6 +393,7 @@ mod tests {
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(3),
                 foreign_descriptor: false,
+                abstract_opaque: false,
             }],
         );
         let mut changed = Vec::new();

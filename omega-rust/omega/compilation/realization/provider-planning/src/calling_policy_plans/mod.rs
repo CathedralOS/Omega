@@ -29,6 +29,7 @@ mod policy_code;
 mod policy_signature;
 mod scalar_completion;
 mod selected_application;
+mod signature_source;
 mod terminal_execution;
 mod terminal_signature;
 mod terminal_values;
@@ -45,7 +46,10 @@ pub use boundary_signatures::{
 };
 pub(crate) use boundary_signatures::{BoundaryDirectCallbackParameter, BoundaryNativeParameter};
 pub use callback_bindings::BoundaryCallingPlanRealization;
-pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
+pub use callback_layout_catalog::{
+    BoundaryCallbackLayoutEntry, CallbackFieldReviewSource, CallbackLayoutReviewSource,
+    CallbackRecordReviewSource, CallbackSlotReviewSource,
+};
 pub use opaque_representations::{
     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
     BoundaryOpaqueRepresentationUse,

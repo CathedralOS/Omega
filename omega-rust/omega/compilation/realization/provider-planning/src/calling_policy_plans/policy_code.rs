@@ -5,7 +5,7 @@
 //! precedes each activation; retaining code
 //! grants neither invocation nor provider authority.
 
-use super::{MaterializedBoundarySignature, TerminalCallingPolicyInvocation};
+use super::{CanonicalCallingSignature, TerminalCallingPolicyInvocation};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use diagnostics::Diagnostic;
 use evaluation_accounting::{
@@ -21,6 +21,7 @@ pub struct CallingPolicyCode {
     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
     pub entries: Vec<(SymbolHandle, Result<MachineId, Vec<Diagnostic>>)>,
+    pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
 }
 
 impl CallingPolicyCode {
@@ -36,14 +37,15 @@ impl CallingPolicyCode {
 
     pub(crate) fn evaluate(
         &self,
-        policy: SymbolHandle,
+        source_policy: SymbolHandle,
+        policy: terminal_psi::TargetMachineCallable,
         target: target::TargetProfile,
-        signature: &MaterializedBoundarySignature,
-    ) -> Result<ValidatedBoundaryEntryPlan, String> {
+        declaration: semantic_vocabulary::CallingSignatureId,
+    ) -> Result<(CanonicalCallingSignature, ValidatedBoundaryEntryPlan), String> {
         let entry = self
             .entries
             .iter()
-            .find(|(source, _)| *source == policy)
+            .find(|(source, _)| *source == source_policy)
             .ok_or("calling policy has no exact published entry")?
             .1
             .as_ref()
@@ -65,14 +67,80 @@ impl CallingPolicyCode {
         let account = sponsor
             .begin_invocation(measurement, limits.maximum_fuel_units())
             .map_err(|error| error.to_string())?;
-        let signature = signature.policy_signature()?;
-        super::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
-            artifact: &self.artifact,
-            entry: terminal_psi::TargetMachineCallable::Machine(*entry),
+        let selected = terminal_installation::admit_target_machine_selections(
+            self.artifact.view(),
+            target.target_name(),
+        );
+        let selected_entry = selected
+            .entry(
+                selected.terminal_psi(),
+                self.artifact.semantic_module(),
+                policy,
+            )
+            .map_err(|error| format!("calling policy canonical selection: {error}"))?;
+        if selected_entry != *entry {
+            return Err(
+                "calling policy canonical body differs from its admitted source entry".into(),
+            );
+        }
+        let requested = CanonicalCallingSignature::extent_demands(
+            self.artifact.semantic_module(),
+            declaration,
             target,
-            signature: &signature,
+        )?;
+        let mut extents = Vec::with_capacity(requested.len());
+        if !requested.is_empty() {
+            let providers =
+                terminal_installation::admit_provider_installation(self.artifact.view(), &[], &[])
+                    .map_err(|error| format!("calling ABI scalar providers: {error:?}"))?;
+            let mut meter =
+                terminal_fuel::TerminalFuelMeter::with_invocation(account.clone(), None)
+                    .map_err(|error| format!("calling ABI scalar fuel: {error:?}"))?;
+            let values = super::scalar_completion::complete_policy_scalar_inputs(
+                &self.artifact,
+                target,
+                policy,
+                &requested,
+                &providers,
+                &mut meter,
+            )?;
+            for application in requested {
+                let value = match values.values().value(application) {
+                    Some(terminal_installation::TerminalScalarValue::Integer {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                        ..
+                    }) => u64::try_from(value).map_err(|_| "calling ABI extent exceeds u64")?,
+                    Some(terminal_installation::TerminalScalarValue::Integer {
+                        value: semantic_vocabulary::IntegerValue::Signed(value),
+                        ..
+                    }) => u64::try_from(value)
+                        .map_err(|_| "calling ABI extent is negative or exceeds u64")?,
+                    _ => return Err("calling ABI extent has no completed integer value".into()),
+                };
+                extents.push((application, value));
+            }
+        }
+        let canonical = CanonicalCallingSignature::materialize(
+            self.artifact.semantic_module(),
+            declaration,
+            target,
+            &|application| {
+                extents
+                    .iter()
+                    .find(|(identity, _)| *identity == application)
+                    .map(|(_, value)| *value)
+                    .ok_or(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                        application,
+                    ))
+            },
+        )?;
+        let (plan, _) = super::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+            artifact: &self.artifact,
+            entry: policy,
+            target,
+            signature: &canonical.policy,
             account,
-        })
-        .map(|(plan, _usage)| plan)
+        })?;
+        Ok((canonical, plan))
     }
 }

@@ -364,7 +364,13 @@ impl<'program> ShapeCollector<'program> {
             return None;
         }
         let identity = closed_data_identity(self.program, data, binders);
-        self.add_data_shape(identity, data.clone(), binders, Vec::new())
+        self.add_data_shape(
+            identity,
+            data.clone(),
+            binders,
+            Vec::new(),
+            typed_trees::SourceTypeApplication::default(),
+        )
     }
 
     /// A access-view plan's generated accessor shell stays `BoundaryOpaque`
@@ -418,6 +424,8 @@ impl<'program> ShapeCollector<'program> {
         };
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
+            source_declaration: Default::default(),
+            source_application: Default::default(),
             native_identity: None,
             native_policy_identity: None,
             native_semantic_identity: None,
@@ -547,7 +555,18 @@ impl<'program> ShapeCollector<'program> {
         // Source application equality and formation/loan custody stay separate.
         let identity =
             stored_structural_type_identity(self.program, reference, binders, substitutions);
+        let referee = substituted_formal_type(
+            self.program,
+            reference_shell(self.program, reference)?.referee,
+            substitutions,
+        );
+        let abstract_referent = self
+            .program
+            .closed_data_definition(referee)
+            .is_some_and(|data| data.supply_mode == DataSupplyMode::BoundaryOpaque);
         let plan = CheckedUnitStructuralTypePlan {
+            source_declaration: Default::default(),
+            source_application: Default::default(),
             native_identity: None,
             native_policy_identity: None,
             native_semantic_identity: None,
@@ -561,6 +580,7 @@ impl<'program> ShapeCollector<'program> {
                 referent_identity,
                 access,
                 foreign_descriptor,
+                abstract_referent,
             },
         };
         self.register_type(identity, plan)?;
@@ -598,6 +618,62 @@ impl<'program> ShapeCollector<'program> {
             Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)) => Some(*primitive),
             _ => None,
         }
+    }
+
+    /// Boundary formals transport their actual carrier. Only represented
+    /// backing supplies an inline callback path; an abstract foreign pointee
+    /// has neither fields nor private slots to materialize.
+    pub(in super::super) fn add_calling_parameter(
+        &mut self,
+        reference: TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<checked_trees::CheckedCallingParameter> {
+        let identity = self.add_type(reference, &[], substitutions);
+        let logical = self.add_logical_type(reference, &[], substitutions);
+        let mut reference_custody = None;
+        if logical.is_none() {
+            let mut referee = substituted_formal_type(self.program, reference, substitutions);
+            let mut borrowed = false;
+            let mut visited = Vec::new();
+            while let Some(shell) = reference_shell(self.program, referee) {
+                if visited.contains(&referee) {
+                    return None;
+                }
+                visited.push(referee);
+                borrowed = true;
+                referee = substituted_formal_type(self.program, shell.referee, substitutions);
+            }
+            let symbol = match self.program.type_reference_table.type_reference(referee) {
+                TypeReferenceNode::Named { symbol, .. } => *symbol,
+                TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                _ => SymbolHandle::invalid(),
+            };
+            if !borrowed || self.unselected_opaque != Some(symbol) {
+                return None;
+            }
+            // Retain the exact pointer/descriptor judgment even though the
+            // abstract pointee has no storage declaration to publish.
+            reference_custody = Some(self.add_stored_type(reference, &[], substitutions)?);
+            self.unselected_opaque = None;
+        }
+        let identity = identity.unwrap_or_else(|| {
+            structural_type_identity(self.program, reference, &[], substitutions)
+        });
+        // `add_type` has already removed the formal's ordinary loan shell.
+        // An inner pointer is a physical leaf, not an implicit dereference
+        // itinerary for writing a private slot into its final pointee.
+        let callback_backing = self.types.contains_key(&identity).then_some(identity);
+        if callback_backing.is_none() && logical.is_some() {
+            return None;
+        }
+        let effective = substituted_formal_type(self.program, reference, substitutions);
+        let access = super::structural_access_for_type_reference(self.program, effective)?;
+        Some(checked_trees::CheckedCallingParameter {
+            type_identity: identity,
+            callback_backing,
+            reference_custody,
+            access,
+        })
     }
 
     /// Collect the value held in a field or element, rather than the storage
@@ -796,6 +872,8 @@ impl<'program> ShapeCollector<'program> {
                 }
             }
             let plan = CheckedUnitStructuralTypePlan {
+                source_declaration: Default::default(),
+                source_application: Default::default(),
                 native_identity: None,
                 native_policy_identity: None,
                 native_semantic_identity: None,
@@ -828,6 +906,8 @@ impl<'program> ShapeCollector<'program> {
             let element_type_identity = self.add_type(element, binders, substitutions);
             self.in_progress.remove(&identity);
             let plan = CheckedUnitStructuralTypePlan {
+                source_declaration: Default::default(),
+                source_application: Default::default(),
                 native_identity: None,
                 native_policy_identity: None,
                 native_semantic_identity: None,
@@ -883,6 +963,8 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    source_declaration: Default::default(),
+                    source_application: Default::default(),
                     native_identity: None,
                     native_policy_identity: None,
                     native_semantic_identity: None,
@@ -970,6 +1052,8 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    source_declaration: Default::default(),
+                    source_application: Default::default(),
                     native_identity: None,
                     native_policy_identity: None,
                     native_semantic_identity: None,
@@ -992,7 +1076,16 @@ impl<'program> ShapeCollector<'program> {
         // template symbol, so nominal lookup would reopen those fields under
         // a flattened telescope and capture a recursive application's binder.
         if let Some(data) = self.program.closed_data_definition(type_reference) {
-            return self.add_data_shape(identity, data.clone(), binders, Vec::new());
+            return self.add_data_shape(
+                identity,
+                data.clone(),
+                binders,
+                Vec::new(),
+                typed_trees::SourceTypeApplication {
+                    reference: type_reference,
+                    substitutions: substitutions.to_vec(),
+                },
+            );
         }
         let (data_symbol, arguments) = match self
             .program
@@ -1043,7 +1136,16 @@ impl<'program> ShapeCollector<'program> {
                 .zip(arguments)
                 .map(|(parameter, argument)| (parameter.symbol, argument)),
         );
-        self.add_data_shape(identity, data, binders, local_substitutions)
+        self.add_data_shape(
+            identity,
+            data,
+            binders,
+            local_substitutions,
+            typed_trees::SourceTypeApplication {
+                reference: type_reference,
+                substitutions: substitutions.to_vec(),
+            },
+        )
     }
 
     pub(in super::super) fn add_partial_affine_type(
@@ -1076,9 +1178,13 @@ impl<'program> ShapeCollector<'program> {
         data: DataDefinition,
         binders: &[(SymbolHandle, String)],
         substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+        source_application: typed_trees::SourceTypeApplication,
     ) -> Option<TypeIdentityId> {
         let already_in_progress = self.in_progress.contains(&identity);
         let result = self.collect_data_shape(identity, data, binders, substitutions);
+        if let Some(plan) = result.and_then(|identity| self.types.get_mut(&identity)) {
+            plan.source_application = source_application;
+        }
         // A refused optional declaration must not leave a recursion marker
         // behind and poison a later independent storage demand. Never clear
         // a marker owned by an enclosing collection of this same identity.
@@ -1146,6 +1252,8 @@ impl<'program> ShapeCollector<'program> {
                 self.types.insert(
                     identity,
                     CheckedUnitStructuralTypePlan {
+                        source_declaration: Default::default(),
+                        source_application: Default::default(),
                         native_identity: None,
                         native_policy_identity: None,
                         native_semantic_identity: None,
@@ -1180,35 +1288,9 @@ impl<'program> ShapeCollector<'program> {
                 self.in_progress.remove(&identity);
                 return None;
             };
-            let application =
-                language_semantics::opaque_representations::SelectedOpaqueApplication {
-                    opaque_identity: self
-                        .program
-                        .typed_program()
-                        .normalized_hermetic_symbol_identity(selection.opaque())
-                        .ok()?,
-                    carrier_identity: self
-                        .program
-                        .typed_program()
-                        .normalized_hermetic_symbol_identity(selection.carrier())
-                        .ok()?,
-                    conformance_identity: self
-                        .program
-                        .typed_program()
-                        .normalized_hermetic_symbol_identity(selection.application().declaration)
-                        .ok()?,
-                    application_report_fingerprint: selection.application().report_fingerprint,
-                    conformance_application_commitment: selection
-                        .application()
-                        .commitment
-                        .as_bytes(),
-                    identity_encoding: selection.application().identity_encoding.to_vec(),
-                    schema_version: selection.schema_version(),
-                    origin: selection.origin(),
-                    lifecycle: selection.lifecycle(),
-                    copy_disposition: selection.copy_disposition(),
-                    selected_application_commitment: selection.selected_application_commitment(),
-                };
+            let application = selection
+                .portable_application(self.program.typed_program())
+                .ok()?;
             let carrier = carrier.clone();
             let carrier_identity = self.add_type(selection.carrier_type(), &[], &[])?;
             let relation = checked_trees::CheckedOpaqueRepresentation {
@@ -1328,6 +1410,8 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    source_declaration: Default::default(),
+                    source_application: Default::default(),
                     native_identity: None,
                     native_policy_identity: None,
                     native_semantic_identity: None,
@@ -1444,6 +1528,8 @@ impl<'program> ShapeCollector<'program> {
         self.types.insert(
             identity,
             CheckedUnitStructuralTypePlan {
+                source_declaration: data.symbol,
+                source_application: Default::default(),
                 native_policy_identity: native_policy_identity.clone(),
                 native_semantic_identity: authored_layout
                     .and_then(|plan| plan.native_semantic_identity(program.typed_program()).ok()),
@@ -1618,6 +1704,7 @@ impl<'program> ShapeCollector<'program> {
             }
         }
         Some(CheckedUnitStructuralFieldPlan {
+            source_declaration: field.symbol,
             scalar_carrier_identity,
             native_identity: self
                 .program
@@ -1654,6 +1741,8 @@ impl<'program> ShapeCollector<'program> {
             ..TypeIdentityRequest::ordinary(type_reference)
         });
         let plan = CheckedUnitStructuralTypePlan {
+            source_declaration: Default::default(),
+            source_application: Default::default(),
             native_identity: None,
             native_policy_identity: None,
             native_semantic_identity: None,

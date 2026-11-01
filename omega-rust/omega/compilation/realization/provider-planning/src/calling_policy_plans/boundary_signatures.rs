@@ -7,7 +7,6 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-use crate::provider_planning::type_reference_node;
 use calling_conventions::validate_fresh_native_parameter_identity;
 pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
@@ -16,11 +15,7 @@ use calling_conventions::{
     BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
     NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan,
 };
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::boundary_values::{
-    BoundaryTypeBinding, BoundaryValuePreparation, substitute_boundary_type_reference,
-};
-use checked_trees::typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::typed_trees::boundary_values::{BoundaryTypeBinding, BoundaryValuePreparation};
 use layout::BoundaryValueLayout;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
@@ -259,7 +254,6 @@ pub struct BoundaryNativeParameter {
     pub(crate) native_ordinal: u32,
     pub(crate) shape: BoundaryNativeParameterShape,
     pub(crate) origin: BoundaryNativeParameterOrigin,
-    pub(crate) layout_data_symbol: symbols::SymbolHandle,
 }
 
 pub use calling_conventions::BoundaryNativeParameterShape;
@@ -382,8 +376,6 @@ pub(crate) fn materialize_prepared_signature(
         let recipe = preparation.value_type(type_reference);
         let (_, root) = values.value_type(preparation.recipes(), recipe)?;
         parameters.push(root);
-        let applied_type = substitute_boundary_type_reference(typed, type_reference, bindings);
-        let layout_data_symbol = exact_boundary_layout_root_symbol(typed, applied_type);
         let formal_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "boundary signature has too many runtime parameters")?;
         validate_fresh_native_parameter_identity(
@@ -396,7 +388,6 @@ pub(crate) fn materialize_prepared_signature(
             native_ordinal: formal.native_ordinal,
             shape: BoundaryNativeParameterShape::Semantic(root),
             origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal },
-            layout_data_symbol,
         });
     }
     let result = if prepared.return_type.is_valid() {
@@ -424,23 +415,4 @@ pub(crate) fn materialize_prepared_signature(
         direct_callback_parameters: telescope.direct_callbacks.clone(),
         result,
     })
-}
-
-pub(crate) fn exact_boundary_layout_root_symbol(
-    typed: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
-) -> symbols::SymbolHandle {
-    loop {
-        match type_reference_node(typed, type_reference) {
-            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Named { symbol, .. } => return *symbol,
-            TypeReferenceNode::Generic { base_symbol, .. } => return *base_symbol,
-            TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::Unit => return symbols::SymbolHandle::invalid(),
-        }
-    }
 }
