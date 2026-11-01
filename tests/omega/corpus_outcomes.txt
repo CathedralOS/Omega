@@ -1327,6 +1327,10 @@ fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expec
 fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_contract_operand/callback_capability rejected 517ms expected @b0315c8f656c
+	machine argument `bounded_matches` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/facts/target_family_contract_operand/stronger_provider_requirement rejected 1609ms expected @b0315c8f656c
+	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/write_only_scalar_entry_observation rejected 5920ms expected @3bd254ac6193
 	machine `read` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expected @f9df9c1404e3
@@ -9196,16 +9200,17 @@ pass/facts/target_family_callback_guarantee/repeated_application checked 3268ms 
 pass/facts/target_family_callback_guarantee/sibling_helper checked 4062ms check-target:macos_arm64 @45fb2a705c96
 pass/facts/target_family_callback_guarantee/target_body checked 4071ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45fb2a705c96
 pass/facts/target_family_callback_guarantee/target_values checked 4627ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45fb2a705c96
-pass/facts/target_family_contract_operand/call_result checked 3674ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/const_name checked 4293ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/field checked 3412ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/local checked 3836ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/match_join checked 3778ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/other_machine checked 3596ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/other_state checked 4188ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/parameter checked 3656ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/shadowed_scope checked 4190ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/target_body checked 3968ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/target_family_contract_operand/call_result checked 2876ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/callback_capability checked 2745ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/const_name checked 2749ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/field checked 2757ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/local checked 2654ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/match_join checked 2713ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/other_machine checked 2756ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/other_state checked 2741ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/parameter checked 2693ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/shadowed_scope checked 2735ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/target_body checked 2829ms check-target:macos_arm64 @b0315c8f656c
 pass/facts/target_family_invocation_lifetime/call_result incomplete 3772ms check-target:macos_arm64 @ccdb99ca2214
 	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `main::entry`, statement 3
 pass/facts/target_family_invocation_lifetime/const_name incomplete 3587ms check-target:macos_arm64 @ccdb99ca2214
@@ -28572,41 +28577,26 @@ fail/facts/target_family_callback_guarantee/stronger_precondition rejected 738ms
 	machine argument `identity` for `apply` does not refine `Selected`: its requires facts are not a conservative refinement
 fail/facts/target_family_callback_guarantee/target_body rejected 709ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
-fail/facts/target_family_contract_operand/call_result rejected 1591ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `main` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$997f461343a61c6e$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/const_name rejected 1742ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `main` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$e1ddb164ca91109c$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/field rejected 1410ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$6b3089ac704802ae$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/local rejected 1535ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `main` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$73560fad5fb2dcc7$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/match_join rejected 1425ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$b3374726ab6470e6$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/other_machine rejected 1715ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `direct` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$9ad17f30df71ed93$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/other_state rejected 1839ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `direct` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$98be59bbd6dba67d$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/parameter rejected 1528ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$9287fa3ae65e8257$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/shadowed_scope rejected 1410ms expected @ccdb99ca2214
+fail/facts/target_family_contract_operand/call_result rejected 1554ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/const_name rejected 1559ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/field rejected 1621ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/local rejected 1655ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/match_join rejected 1563ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/other_machine rejected 1593ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/other_state rejected 1651ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/parameter rejected 1599ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/shadowed_scope rejected 747ms expected @b0315c8f656c
 	machine `foreign_scope` state `entry` uses `number`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/facts/target_family_contract_operand/target_body rejected 1358ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `direct` state `entry` value call to `choose::windows_x86_64` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$452045884909051c$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
+fail/facts/target_family_contract_operand/target_body rejected 1548ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/facts/target_family_invocation_lifetime/call_result rejected 1167ms expected @ccdb99ca2214
 	machine argument `pick$specialized$258dd2c270f5182b$0` for `apply` does not refine `Selected`: callable returned view has a different input-source relation
 	machine argument `pick$specialized$258dd2c270f5182b$0` for `apply` does not refine `Selected`: callable returned view has a different input-source relation
