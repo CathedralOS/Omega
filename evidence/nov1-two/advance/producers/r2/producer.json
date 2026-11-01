@@ -1,0 +1,7 @@
+{
+  "revision": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+  "cli": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+  "runner": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/corpus_runner",
+  "cli_sha256": "661ba42466b14f31b2af5e4546b1fae6de81e16b51751e7a7f4f484dbcc59df6",
+  "runner_sha256": "42d891a5c45561e26b37a176b7808e7ea978a50ddea0b4aba6c3da0f3b36cc5e"
+}

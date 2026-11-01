@@ -1,0 +1,5 @@
+corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 20169 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
+corpus_gate: recorded 20 fixture outcomes to /home/jarod/development/Omega/.agents/worktree/nov1-two/tests/omega/corpus_outcomes.txt; 0 unimplemented rows remain, 903 rows record a lost success
+corpus_gate: measured at jobs=2, golden jobs=runner default
+corpus_gate: 1053 pass/run row(s) pinned without a success and 73 fail row(s) pinned as a success (891 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions

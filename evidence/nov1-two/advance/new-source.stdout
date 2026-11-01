@@ -1,0 +1,28 @@
+corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 20169 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
++ pass/facts/dynamic_float_input_alias_through_call_result_exit: new fixture (checked)
++ pass/facts/dynamic_float_input_alias_through_const_name_exit: new fixture (checked)
++ pass/facts/dynamic_float_input_alias_through_field_exit: new fixture (checked)
++ pass/facts/dynamic_float_input_alias_through_local_exit: new fixture (checked)
++ pass/facts/dynamic_float_input_alias_through_match_join_exit: new fixture (checked)
++ pass/facts/dynamic_float_input_alias_through_other_machine_exit: new fixture (checked)
++ pass/facts/dynamic_float_input_alias_through_other_state_exit: new fixture (checked)
++ pass/facts/dynamic_float_input_alias_through_parameter_exit: new fixture (checked)
++ pass/facts/dynamic_float_input_alias_through_target_body_exit: new fixture (checked)
++ pass/proofs/dynamic_float_input_boolean_disjunction_exit: new fixture (checked)
++ pass/proofs/dynamic_float_input_single_relations_exit: new fixture (checked)
++ fail/facts/dynamic_float_input_alias_through_call_result_weakened_input: new fixture (rejected)
++ fail/facts/dynamic_float_input_alias_through_const_name_weakened_input: new fixture (rejected)
++ fail/facts/dynamic_float_input_alias_through_field_weakened_input: new fixture (rejected)
++ fail/facts/dynamic_float_input_alias_through_local_weakened_input: new fixture (rejected)
++ fail/facts/dynamic_float_input_alias_through_match_join_weakened_input: new fixture (rejected)
++ fail/facts/dynamic_float_input_alias_through_other_machine_weakened_input: new fixture (rejected)
++ fail/facts/dynamic_float_input_alias_through_other_state_weakened_input: new fixture (rejected)
++ fail/facts/dynamic_float_input_alias_through_parameter_weakened_input: new fixture (rejected)
++ fail/facts/dynamic_float_input_alias_through_target_body_weakened_input: new fixture (rejected)
+corpus_gate: 20 structural move(s), 0 perf move(s) — 20 fixtures ({'checked': 11, 'rejected': 9}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; verdicts {'new': 20}
+corpus_gate: of those — 20 fixture added, golden not recorded
+corpus_gate: golden provenance: 0 rows stamped, 0 legacy (unstamped)
+corpus_gate: measured at jobs=2, golden jobs=runner default
+corpus_gate: 1053 pass/run row(s) pinned without a success and 73 fail row(s) pinned as a success (891 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions
+corpus_gate: wrote 20 moved fixture(s) to build/advance-input-alias/new-source-moves.json

@@ -1,0 +1,73 @@
+{
+  "schema": "omega-independent-semantic-review-v1",
+  "reviewer": "Codex native collaboration /root/worker_two (independent of worker_one implementation)",
+  "candidate": "4346be521f6912f1dbbd210e453d44325bd99c6e",
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "decision": "accepted",
+  "blocking_findings": [],
+  "reviewed_source": "Complete six-Rust-file delta; affected source/checking and declaration call-plan/lowering consumers; new nine-place source/twins/control pins and runtime oracles.",
+  "accepted_context": "Exact canonical passages and blob identities from both implementation-handoff files. Nested inputs remain explicit; independent formation, purity/totality, exact snapshots and every-cycle strict descent remain debts.",
+  "reasoning": [
+    "call_input_type resolves supplying-namespace access and referent type before callee telescope substitution; only shared reference formals admit explicit shared observations. Borrow-to-owned, exclusive and write-only authority are not inferred from numeric equality.",
+    "captured_record_call_input still requires complete owned snapshot identity and separately retained typed scalar coordinates. Read rosters cannot synthesize backing, and executable lowering independently uses the checked SharedBorrow plan on the complete Copy entry input.",
+    "Completed ordinary primitive conversions lacking symbolic meaning produce an unknown result only in runtime-body observation after operands/effects have completed. Recasts remain excluded; proof-only evaluation does not gain meaning or scalar facts from a reference descriptor.",
+    "Each new nonprogress twin changes only next lower increment1 to0; exact diagnostics refuse every-edge/every-cycle ranking. Seven-step and empty paths differ observably and are both invoked; counter3to10, equal endpoints and canary641 challenge missing iterations or storage clobber.",
+    "Ordinary helper precondition is formed before result guarantees; dedicated missing-formation/owned-transfer/write-only/mutating-helper controls and five retained purity/crash/loan controls remain rejecting."
+  ],
+  "evidence": {
+    "implementation-handoff.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/implementation-handoff.json",
+      "sha256": "d9f8532ab009b3ca68d987de4624c13d13fc38d4b55aaabd5dd52b5441ff521b"
+    },
+    "prefix-implementation-handoff.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/prefix-implementation-handoff.json",
+      "sha256": "17bd6e8b8a1f4fdfeedbf1b80b4eebdc175928d17d0d519853e4ca596e86e968"
+    },
+    "evidence-ledger.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/evidence-ledger.json",
+      "sha256": "9bbbdbdacbf8e65d4527fed271dcab6154868910f342f1cf24cc0a76d59ddf7c"
+    },
+    "candidate3/probe.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/candidate3/probe.json",
+      "sha256": "bc1ddb1ee746a70cade2e83291c4203e2f1f04721fa23abfd16133806199de12"
+    },
+    "samples.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/samples.json",
+      "sha256": "bda56f07cc7cfaf6bf606d0ec720ec94292cb22d81163a12986fb41f73d723ce"
+    },
+    "corpus-both.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/corpus-both.json",
+      "sha256": "7aa54b61c41c912690b6eeb8927b6b2dd16bcf40022eea8887e3350695175a2e"
+    },
+    "corpus-source.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/corpus-source.json",
+      "sha256": "52ffe96f2daec8a882383ef27bccee98218b1698e2c7d392c5f11454d6255d75"
+    },
+    "regression-source.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/regression-source.json",
+      "sha256": "b70b0acadbc6925cacdb37e2f4e3e81cccb18e2551530648ec447d449949bca8"
+    },
+    "owned_prerequisite.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/owned_prerequisite.json",
+      "sha256": "f69bb7ba77a27f9457abaabe5ba5797155b87bdcb0723a881f7c7679ac74abc2"
+    },
+    "oracle_counterfactual.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/oracle_counterfactual.json",
+      "sha256": "96da955b23593e5ac44e0d350b632f6948cd96421a0f163da7b0857dcb1e2f0c"
+    }
+  },
+  "raw_observations_verified": [
+    "Baseline source refusal exit200 with immutable optimized base producer.",
+    "Current original probe native0/Terminal0.",
+    "10 positive runtime corpus observations each exit0 and interpreter-exit0/agrees;23 source records:10checked,13intendedrejected with no reason gaps.",
+    "Nearest existing owned-input prerequisite native0/Terminal0 and five original rejection controls clean.",
+    "Independently corrupted counter expectation native signal4 and interpTrap.",
+    "Both immutable candidate binary digests match ledger; all118 source/oracle hashes match; no compiler/library/toolchain/manifest delta after producer a17219c1."
+  ],
+  "additional_replay": "No redundant execution requested: raw current observations, exact input hashes and genuine counterfactual already cover the affected debts.",
+  "limitations": [
+    "Linux x86_64 actual native execution only; four authored bindings do not qualify other hosts.",
+    "Clippy remains non-green on202 existing crate style errors outside added Rust lines; no blanket lint-clean claim.",
+    "Only borrow-free Copy owned entry inputs shared temporarily are established. Parent noncopy/reference-bearing/exclusive/affine/nonscalar/product/application acceptance remains open."
+  ]
+}

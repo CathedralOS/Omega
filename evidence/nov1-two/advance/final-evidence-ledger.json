@@ -1,0 +1,329 @@
+{
+  "schema": "omega-advance-evidence-ledger-v1",
+  "fixed_base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "producer": {
+    "revision": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+    "cli": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+    "runner": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/corpus_runner",
+    "cli_sha256": "661ba42466b14f31b2af5e4546b1fae6de81e16b51751e7a7f4f484dbcc59df6",
+    "runner_sha256": "42d891a5c45561e26b37a176b7808e7ea978a50ddea0b4aba6c3da0f3b36cc5e"
+  },
+  "documentation_revision": "da76dcbec7ab23b3f402d67b1b7edfdb7f8a5fb1",
+  "host": "Linux-7.1.5-1-cachyos-x86_64-with-glibc2.44",
+  "target": "linux_x86_64",
+  "toolchain": "[toolchain]\nchannel = \"nightly-2026-09-04\"\nprofile = \"minimal\"\ncomponents = [\"clippy\", \"rustfmt\"]\n",
+  "library_tree": "fcebe49a300e70d5002096b2c63cca581094ac8d",
+  "fixture_count": 48,
+  "current_observations": {
+    "sample-evidence.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/sample-evidence.json",
+      "sha256": "abbd0306d46bf40a56e752a96a78ad860c0fe021ae9b5a9866893513816a41cb"
+    },
+    "control-evidence.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/control-evidence.json",
+      "sha256": "08eba576c4e93674658e4a804e024d9898aa237097e20a7e8daccdb7eac1fa7b"
+    },
+    "fixture-integrity.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/fixture-integrity.json",
+      "sha256": "e257ca368c226293bc9c32ba4632ac8b9fdc38ce2108e25dc02f9f0f9138886c"
+    },
+    "corpus-verdict.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/corpus-verdict.json",
+      "sha256": "7bb63f9092d9f3bed5024d8f0730a0ff24a0a9c42ca2620188d95ae35eb20811"
+    },
+    "corpus-command.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/corpus-command.json",
+      "sha256": "2bb2ef99af3a9844d9cbb0383255775c56c6f0f68b5551c2e7b2f89320fb659e"
+    },
+    "corpus.stdout": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/corpus.stdout",
+      "sha256": "8a6d2bc2baf96a07f51b7dccac542eb048acd288f478e1646a27ecf8f8795123"
+    },
+    "corpus.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/corpus.stderr",
+      "sha256": "4f3a8185e7262282bdd99cecf26389b5dd0306545f35f63a97540ccb060cb6ac"
+    },
+    "source-verdict.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/source-verdict.json",
+      "sha256": "b22e1c1b4d8fd030673f4db3d09560b21535c0b483f8a8a7a9952bc75c9c3132"
+    },
+    "source-command.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/source-command.json",
+      "sha256": "086efc4654be01acf40c5aabc938e0311d3c05dafb29a86d649d55db84a392f0"
+    },
+    "source.stdout": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/source.stdout",
+      "sha256": "17e6b400ad5ae5edd9ad0ecee1027ed9d053ad3a6ed72a0a3b4d755e44f0d22b"
+    },
+    "source.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/source.stderr",
+      "sha256": "046347f01bde3cb574a383255138338a09b75a2ef05cc6e17c59aa6bf4b58d91"
+    },
+    "new-source-verdict.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/new-source-verdict.json",
+      "sha256": "a76ecbf33df3d509b72a38ecc6238a89f62d0b05417504e1972391b2f76325ca"
+    },
+    "new-source.stdout": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/new-source.stdout",
+      "sha256": "77f8a0d5b342c28538b562f2f5b47781816c8fd282ed6f98e44fc1fdb103df1f"
+    },
+    "new-source.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/new-source.stderr",
+      "sha256": "9aad515f12fc5c87a5a5fec14180e229e9064b65afab1504619cbfc03677e50a"
+    },
+    "new-runtime-verdict.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/new-runtime-verdict.json",
+      "sha256": "b45b5a1c923b2a2716ad8bfe8e65c2235b6345482cf28f65417627f1f4e98f0e"
+    },
+    "new-runtime-moves.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/new-runtime-moves.json",
+      "sha256": "260b1fe550c55d1fd1ce83d401cb12bcc234ac52a7ed107e50f467081ec7d8a9"
+    },
+    "clippy-attribution.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/clippy-attribution.json",
+      "sha256": "217bfc42ebe6ec8fd9308e64019295e847dae7f18d6f94813eed862a6a65efe7"
+    },
+    "producers/r2/producer.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/producer.json",
+      "sha256": "283451d0707ab12005bbefc5ef286f762b132d315724fa280952cfd7ba2efc5a"
+    },
+    "producers/r2/chain.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/chain.json",
+      "sha256": "f692f256982d7ff447036b64eed5727bcf66170c9086814f6d84234366b1a791"
+    },
+    "producers/r2/cli-build.stdout": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/cli-build.stdout",
+      "sha256": "c547e0259995de70682a7d7264c93134a5b150841982f6d449f68b5fe853739a"
+    },
+    "producers/r2/cli-build.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/cli-build.stderr",
+      "sha256": "cdfd5493b23f5291efcc7b737379ea586c6ebd4c24faaca805beb255569a728e"
+    },
+    "producers/r2/runner-build.stdout": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/runner-build.stdout",
+      "sha256": "cf4096512f70e1647663ab95bae131687ca2ee1b95dc929881a3df94da1d0dbb"
+    },
+    "producers/r2/runner-build.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/runner-build.stderr",
+      "sha256": "c57d7efdb744d7df9a7bf30e030e0c0957c747d97d94c24a42c796cc3e572942"
+    },
+    "producers/r2/validation-check.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/validation-check.stderr",
+      "sha256": "3826b3e44a62c189854468a31ac8717e0996a3e2423f05b300f6f05021235d98"
+    },
+    "producers/r2/validation-clippy.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/validation-clippy.stderr",
+      "sha256": "ab74018a12ca5b27cefb35f41929b57cb9d34133cd9d621eaae5d3ce14cf2d21"
+    },
+    "record-source-verdict.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/record-source-verdict.json",
+      "sha256": "ba73477ff272f02f64062cc709b68632c4e5a502c71183ca06dd1749bbf0194d"
+    },
+    "record-source-command.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/record-source-command.json",
+      "sha256": "9b536adf651691d8a2c2bd0e9a073c0c88c01378cfd8411178ef03fa167a3fff"
+    },
+    "record-source.stdout": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/record-source.stdout",
+      "sha256": "cc3a87936763d7892395e1be943e92f026945971639a3e1a09d5b758cfa4e24d"
+    },
+    "record-source.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/record-source.stderr",
+      "sha256": "f2e15978729d12a950d0a6ef4f0840ddf6e45be5b2b83e36354e3e58e790ee56"
+    },
+    "record-runtime-verdict.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/record-runtime-verdict.json",
+      "sha256": "d17406f8c9df581d668db413cf71ed23d0d22e2cb9bf1ae62e9197bb0b505dda"
+    },
+    "record-runtime-command.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/record-runtime-command.json",
+      "sha256": "799c6d7552e134fc09417344e0f6e6714e1e81a0a8c9acf4816b3eca7894c984"
+    },
+    "record-runtime.stdout": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/record-runtime.stdout",
+      "sha256": "788fcc854da5fca8b8b6a9fb0b1a0fcc175bb75bea68d53d588d080558596be6"
+    },
+    "record-runtime.stderr": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/record-runtime.stderr",
+      "sha256": "863643db3b3c8868cf950f2a9860ef5e574428e6f9a7b6e0a20e6fcced4cb190"
+    },
+    "golden-integrity.json": {
+      "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/golden-integrity.json",
+      "sha256": "02a2dc6e754e92fe72b7a5dcdabd571f4ace3021e512bc1708a5be71d7ae13dc"
+    }
+  },
+  "source_oracle_sha256": {
+    "tests/omega/fail/facts/dynamic_float_alias_through_local_outside_interval/build.omg": "cc7bea64727955ff5b6712a90a4fb7e1be16cde378f4d09498ae97b60e8f0830",
+    "tests/omega/fail/facts/dynamic_float_alias_through_local_outside_interval/expected.txt": "4c72201f6854caa9381f8d7ffe972295a8ecfff8fad9a432132bc9856f85d486",
+    "tests/omega/fail/facts/dynamic_float_alias_through_local_outside_interval/main.omg": "93d76b3ece94aba34a33721ee753227ae3d80f6875871aef91cd53d429c444d4",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_call_result_weakened_input/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_call_result_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_call_result_weakened_input/main.omg": "87cd3661002d669f7f712e0a9d52059d72cc9d3b6e4814f5aa357e1cf47be3e3",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_other_state_weakened_input/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_other_state_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_other_state_weakened_input/main.omg": "1e4d95cc26b072109976dedb34beeaf6e3a5b3c25702c51eac02a47dd0fecf30",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_parameter_weakened_input/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_parameter_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_parameter_weakened_input/main.omg": "9eab7acf941d13dd983b653e183ef0640b376ab9d42387319c33c86635a75b93",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_match_join_weakened_input/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_match_join_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_match_join_weakened_input/main.omg": "f4661b4c7a8bd9f10b3e84ccc16908132e7787811af5ae1df68778b71d89771e",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_other_machine_weakened_input/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_other_machine_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_other_machine_weakened_input/main.omg": "59a16a34498d6db811f7f549049a20269eab00dc1abf7665b720ca94c5d55f43",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_field_weakened_input/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_field_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_field_weakened_input/main.omg": "970ca855a7d4eca92f8e94f440f4b19792161ea42482aedc1d57842833973f14",
+    "tests/omega/fail/facts/dynamic_float_refinement_through_local_outside_interval/build.omg": "cc7bea64727955ff5b6712a90a4fb7e1be16cde378f4d09498ae97b60e8f0830",
+    "tests/omega/fail/facts/dynamic_float_refinement_through_local_outside_interval/expected.txt": "9fd78b714bc50b2abdf1b49827b1673538e28911e8fea0d0900e1ce0e4bb7aa5",
+    "tests/omega/fail/facts/dynamic_float_refinement_through_local_outside_interval/main.omg": "2637ede5da0046a0ba1cf02c74122335076354b2a49868c449fc1fadf7365b98",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_local_weakened_input/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_local_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_local_weakened_input/main.omg": "cc3f6449192940779e7bf4a9ad3b35aa03ce5d69c415bbdc19076568e0ef61d6",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_const_name_weakened_input/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_const_name_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_const_name_weakened_input/main.omg": "dc7fa04b079bda07bd97ca0ed08cfcf7ad21426f79c07d0741f3dc3b9f634c19",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_target_body_weakened_input/build.omg": "fd9e8e02dc2c4ab5533e64fd61887036c6053977539f3625b5b71af264d4b528",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_target_body_weakened_input/expected.txt": "f4083eec4b1e60275d1ec6c61f853347f92a103fb305478c24890747660f36ad",
+    "tests/omega/fail/facts/dynamic_float_input_alias_through_target_body_weakened_input/main.omg": "371533ad2cf3095b86c63d7560bdc449540696a892731ee5e156b2070332abf7",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_negated/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_negated/expected.txt": "0cb191e462e2467eb45fdb77f2609269248465c171cbce678fcd87e2fc686155",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_negated/main.omg": "08a5c1b564ff8e1546fc063b4401d5482a5cb7609cfb979ab9d02846ac6e514f",
+    "tests/omega/fail/proofs/dyn_requirement_float_nonreflexive/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/fail/proofs/dyn_requirement_float_nonreflexive/expected.txt": "c11f7f5ed838a2a9a8c0dbe6a34228038f78f42f48fdb459f531cf9e1a9b5938",
+    "tests/omega/fail/proofs/dyn_requirement_float_nonreflexive/main.omg": "e0d7e10bf09d5cb7334c7b7d16948092f25d7b28b5f54e1a5818ac8199759434",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_strict/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_strict/expected.txt": "0cb191e462e2467eb45fdb77f2609269248465c171cbce678fcd87e2fc686155",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_strict/main.omg": "7913b952e29ab67d6a23b19bd53bd67177fca026b2f7af9edbf7c788c31f929c",
+    "tests/omega/fail/proofs/mathematical_negated_changed_operand/build.omg": "64d941f5717c4b0e871388cffb0d42b4084f5aa4ec8ddc9886a287139a607c65",
+    "tests/omega/fail/proofs/mathematical_negated_changed_operand/expected.txt": "0628264b1ab6fb8aaf0b9745cf209618b4031eea49a6f5929f7b8d9b0b72b049",
+    "tests/omega/fail/proofs/mathematical_negated_changed_operand/main.omg": "6636f725806ba5138a40d1fa1ad7f7bf3abf0161fb7870cfe29949f8f170e8e7",
+    "tests/omega/fail/proofs/mathematical_mutated_capture/expected.txt": "8f54c2e840c6953b97e3b15f85aa6c66aaacd552776062db2a853171c2af17c2",
+    "tests/omega/fail/proofs/mathematical_mutated_capture/main.omg": "02f45461fad2327d7f06e2f0a5c324b953fb36893bdca940a55cba5af578ab4a",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_inequality/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_inequality/expected.txt": "0cb191e462e2467eb45fdb77f2609269248465c171cbce678fcd87e2fc686155",
+    "tests/omega/fail/proofs/dyn_requirement_float_alias_inequality/main.omg": "0685f987c9117674fb51bce4aeb5544631a4f8a5854a7dd6ee4bedb90f63870a",
+    "tests/omega/fail/proofs/structural_mathematical_predicate_wrong_polarity/expected.txt": "55fcba286cab7f16fae0dbda34e9d2dad989fe19b04fc30add986d53a48ec5ce",
+    "tests/omega/fail/proofs/structural_mathematical_predicate_wrong_polarity/main.omg": "8a4eb3c0c2f3d3eeb4072ec9867288fa83ae319db78328854337220a7641d421",
+    "tests/omega/fail/proofs/mathematical_opaque_operation_source_meaning/expected.txt": "c107253aae1a3c4789500b188e339aeffc2cb63b6774f11911c02ce611597a4f",
+    "tests/omega/fail/proofs/mathematical_opaque_operation_source_meaning/main.omg": "4e50cbbacf881124a8fcaa92a907ef31c3a1e085adfa9bb9902c8d07bdfd3576",
+    "tests/omega/fail/proofs/dyn_requirement_float_literal_qualification/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/fail/proofs/dyn_requirement_float_literal_qualification/expected.txt": "8dbae9473c5b9b025857b76e598d9f97ed316563033d432a2c5f069297feb3ed",
+    "tests/omega/fail/proofs/dyn_requirement_float_literal_qualification/main.omg": "af4d4c28a3d96a34fc6081947fefd7bfb29bd0146d03dc9e03b2b483e838e0da",
+    "tests/omega/fail/proofs/dyn_requirement_float_nonhost_wider/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/fail/proofs/dyn_requirement_float_nonhost_wider/expected.txt": "d53fc00773a96d069715557d2dcf7c90e38da3d96391f5431661c912470acbfb",
+    "tests/omega/fail/proofs/dyn_requirement_float_nonhost_wider/main.omg": "31f503a94bca1baa2df9e78154837fd914e0c1d6874e2200ecb23c0781427b3b",
+    "tests/omega/fail/proofs/mathematical_negated_false_call/build.omg": "64d941f5717c4b0e871388cffb0d42b4084f5aa4ec8ddc9886a287139a607c65",
+    "tests/omega/fail/proofs/mathematical_negated_false_call/expected.txt": "0b835e496066132f45d1badd67ee52db8e345341c02fa02511b96b506c4af064",
+    "tests/omega/fail/proofs/mathematical_negated_false_call/main.omg": "8d4e58e319a01a36f5fe6b276e1fc12e4f9ccba7e89dcd35af9522313f774c30",
+    "tests/omega/fail/proofs/dyn_requirement_float_public_only/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/fail/proofs/dyn_requirement_float_public_only/expected.txt": "d53fc00773a96d069715557d2dcf7c90e38da3d96391f5431661c912470acbfb",
+    "tests/omega/fail/proofs/dyn_requirement_float_public_only/main.omg": "54c2a9a8e673166731be2907be25bc25a07bb9df37eb939c7770891f11238fd8",
+    "tests/omega/fail/proofs/mathematical_negated_custom_order/build.omg": "64d941f5717c4b0e871388cffb0d42b4084f5aa4ec8ddc9886a287139a607c65",
+    "tests/omega/fail/proofs/mathematical_negated_custom_order/expected.txt": "775ef0d82d2a26c7668f3e36d8f11bfcb30244d7421486861fa10155667605ae",
+    "tests/omega/fail/proofs/mathematical_negated_custom_order/main.omg": "ba3c8c76b9bc75482e3711538e9a93abe4b850232c03fca3d9b7a94d954d358c",
+    "tests/omega/fail/proofs/dyn_requirement_float_literal_wrong_format/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/fail/proofs/dyn_requirement_float_literal_wrong_format/expected.txt": "8dbae9473c5b9b025857b76e598d9f97ed316563033d432a2c5f069297feb3ed",
+    "tests/omega/fail/proofs/dyn_requirement_float_literal_wrong_format/main.omg": "2be18d4dccf65635b5f069dfc777dbda4e3587e44b7e3ecbbb8e5e495bb0c6a2",
+    "tests/omega/fail/proofs/mathematical_wrapping_capture/expected.txt": "8f54c2e840c6953b97e3b15f85aa6c66aaacd552776062db2a853171c2af17c2",
+    "tests/omega/fail/proofs/mathematical_wrapping_capture/main.omg": "f5dc5128a13aefd39a250cbbaf08f32df96e3d078c497940d62dd17aedc8e33e",
+    "tests/omega/fail/proofs/mathematical_negated_ieee_order/build.omg": "64d941f5717c4b0e871388cffb0d42b4084f5aa4ec8ddc9886a287139a607c65",
+    "tests/omega/fail/proofs/mathematical_negated_ieee_order/expected.txt": "900604804e1a4a34d4deac88f93af117767399e7e03f7817a016d2cf762b17e7",
+    "tests/omega/fail/proofs/mathematical_negated_ieee_order/main.omg": "3562e3c4266ffaf88515c1b94095aeda05e19daa9a07f7da69c1c3555a66d4c9",
+    "tests/omega/pass/facts/dynamic_float_refinement_through_local_exit/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/pass/facts/dynamic_float_refinement_through_local_exit/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_refinement_through_local_exit/main.omg": "a43c1765129cfeb9282e7d39e8dbc4b2815f96d71db494274c3da6c6c0d3dcd7",
+    "tests/omega/pass/facts/dynamic_float_refinement_through_local_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_call_result_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_call_result_exit/main.omg": "e3510ee233415c73c225f0f3562b4b9668021bf7ed31e5dfdf324c44194bffa1",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_call_result_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_target_body_exit/build.omg": "fd9e8e02dc2c4ab5533e64fd61887036c6053977539f3625b5b71af264d4b528",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_target_body_exit/main.omg": "803e99455fb597e4ec054355dab377a9156fb33022d388c84caa32199abde8f2",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_target_body_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_match_join_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_match_join_exit/main.omg": "e9bb46005e81a191baa1b4a8380433af9219395662fbc73a214601fe2f3c68b4",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_match_join_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_local_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_local_exit/main.omg": "fc09e6d92f2eef4a475fe8563aa78674eda9afcfed0900328a5f61596e88f4c7",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_local_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_other_machine_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_other_machine_exit/main.omg": "d11b325e1227b2cf024b5910857c18c2e4ae53870e20cfff1b57db512eb10c8b",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_other_machine_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_parameter_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_parameter_exit/main.omg": "73f8d21be27aac18aab6ba75acb30d59c71d99679a464619e6cd4326ec56ea44",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_parameter_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_alias_through_local_exit/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/pass/facts/dynamic_float_alias_through_local_exit/main.omg": "f702d806ded9bdef8db20dbfb473dc1ed88bf84033f8230b6d7c1392872cd05c",
+    "tests/omega/pass/facts/dynamic_float_alias_through_local_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_other_state_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_other_state_exit/main.omg": "1117867f805e0404684d4748d951511ca89509ed4a1f6ec124af582b60d62ce0",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_other_state_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_const_name_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_const_name_exit/main.omg": "1c97c7f40f9305290ae8d56cef8d1b465c36074f5e6c81ed9a80e1464575e2a8",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_const_name_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_field_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_field_exit/main.omg": "a30b0b8873baf5729a840a13fbf83e419b61a74adb20c4efc506b20545bb88d3",
+    "tests/omega/pass/facts/dynamic_float_input_alias_through_field_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/dyn_requirement_float_alias_rounding_exit/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/pass/proofs/dyn_requirement_float_alias_rounding_exit/main.omg": "5741c87f1cf1e2ef9b9f351727d6d3ccb00ff683150668277cb95fda265d14bd",
+    "tests/omega/pass/proofs/dyn_requirement_float_alias_rounding_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/mathematical_predicate_contract_import_exit/helpers.omg": "6116d2f2d18aacbd3496cc459f11cc1e739f9aa485ab330e30cf1f1207fea919",
+    "tests/omega/pass/proofs/mathematical_predicate_contract_import_exit/build.omg": "a3d748cb8d764a2501b8ddc53c1817fc171c5393892cbef4a4442c05d489cecc",
+    "tests/omega/pass/proofs/mathematical_predicate_contract_import_exit/main.omg": "f7e86ce522482a9f157d7bb26d38ddf1fa58b8418d65d1e68c2742d4ad622da2",
+    "tests/omega/pass/proofs/mathematical_predicate_contract_import_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/mathematical_negated_integer_order_exit/build.omg": "64d941f5717c4b0e871388cffb0d42b4084f5aa4ec8ddc9886a287139a607c65",
+    "tests/omega/pass/proofs/mathematical_negated_integer_order_exit/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/mathematical_negated_integer_order_exit/main.omg": "3f744ae0fcc5b70a79ad488f365d88b9a21dba9ddd97d8a49e080e2f0aea9b5b",
+    "tests/omega/pass/proofs/mathematical_negated_integer_order_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/mathematical_negated_integer_order_double_exit/build.omg": "64d941f5717c4b0e871388cffb0d42b4084f5aa4ec8ddc9886a287139a607c65",
+    "tests/omega/pass/proofs/mathematical_negated_integer_order_double_exit/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/mathematical_negated_integer_order_double_exit/main.omg": "039bac1256bbfe2d0cf2eba3da65b13534162c76cbcfafc3b43451a64dcbbc2d",
+    "tests/omega/pass/proofs/mathematical_negated_integer_order_double_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/dynamic_float_input_single_relations_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/proofs/dynamic_float_input_single_relations_exit/main.omg": "c6685a5c885f746bd9cadf623c6b3745347ad27ad90df473cfe2b95a4e831e48",
+    "tests/omega/pass/proofs/dynamic_float_input_single_relations_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/mathematical_prepared_scalar_interval/build.omg": "91a812d347a69b4f50be89122f44e064999039fa64fc826edb4e9d2f74bb1694",
+    "tests/omega/pass/proofs/mathematical_prepared_scalar_interval/main.omg": "b5ca138978ad1db8a4a432d05d990d4af56f202c38f22ac00f51b097d335ede3",
+    "tests/omega/pass/proofs/dyn_requirement_float_raw_use_exit/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/pass/proofs/dyn_requirement_float_raw_use_exit/main.omg": "6e80011b3576ab9cf68d633d920f2dc013dc29da65a99b7c9aa263476c531e9e",
+    "tests/omega/pass/proofs/dyn_requirement_float_raw_use_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/dyn_requirement_float_provider_alias_exit/build.omg": "d9212a260f0dce7bfcfad818b43c70fa9dcb312d0259de1390d7cb4d11317199",
+    "tests/omega/pass/proofs/dyn_requirement_float_provider_alias_exit/main.omg": "72e95dcb42ee6d7efc46222f985a613621a6401f59dec330383d412cb12dfaeb",
+    "tests/omega/pass/proofs/dyn_requirement_float_provider_alias_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/dynamic_float_input_boolean_disjunction_exit/build.omg": "0b80f018fa6609f11302c451a48bdc6d123597739c315659376208234b856064",
+    "tests/omega/pass/proofs/dynamic_float_input_boolean_disjunction_exit/main.omg": "ca07a1af1afb43f0374cc9ece49ceea2a93fd20a7d37daeadab64a2a175cc870",
+    "tests/omega/pass/proofs/dynamic_float_input_boolean_disjunction_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/structural_mathematical_predicate_polarity_exit/build.omg": "c2f1b3f62f0b7831ff34fd2df537decd430a05dd0163789b6b6ed7366457a0ae",
+    "tests/omega/pass/proofs/structural_mathematical_predicate_polarity_exit/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/proofs/structural_mathematical_predicate_polarity_exit/main.omg": "de692f500f64d10e064e3121cc99b692a20a92980cd9209ea0e53f0e899d3cfc",
+    "tests/omega/pass/proofs/structural_mathematical_predicate_polarity_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  },
+  "original_baseline_receipt": "build/selection-case-replacement/qualification.records/557c32cd9f1a4a2fb83a83e9c422aff9.json",
+  "inline_baseline_control_receipt": "build/selection-case-replacement/qualification.records/6a7d3c5575ff4b3893d4026beabdf50e.json",
+  "reuse": "After d8105b3 only TASKS and fact README changed; compiler, library, manifests, source witnesses, oracles and host closure remain unchanged. These observations name the immutable optimized d8105b3 producer, not a later compiler.",
+  "limits": [
+    "Linux_x86_64 runtime observations; otherhost ProgramEntry bindings authored only.",
+    "Jev advisory requested but unavailable without key.",
+    "No-deps Clippy non-green on202 existing style errors; all located diagnostics unchanged by source-byte attribution.",
+    "48sourcecheck/21runtime comparisons have zero losses vs fixedbase; new20source/11runtime scopes have no oracle or intended-reason failures.",
+    "Parent integer arithmetic,IEEEweakening/other mechanisms/finite families/table/product/otherhost acceptance remains open."
+  ],
+  "submitted_revision": "d657e6e632aec920577405c1fdfdb19a194bb3e6",
+  "compiler_closure_delta_after_producer": [],
+  "source_evidence_bundles": {
+    "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/corpus-source/db86310583684bfdd2c384293a67fa254325643d.bundle": "ff39369681fcdd43f9f515afd5a4afcce12dd4d1586ea9aa5ca56c1f284da48d",
+    "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/corpus-source/da76dcbec7ab23b3f402d67b1b7edfdb7f8a5fb1.bundle": "77738cdce6e7b9479877b85b8cf12fb168eac33c983d97a9f6bb404dbcfa425f"
+  },
+  "substantive_review": {
+    "candidate": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+    "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/review-worker-two-d810.json",
+    "sha256": "b9f2e09058a8dbc6351161d6d22c11bdfb351a9144fdd0a94f399d3eede5be57",
+    "decision": "accepted"
+  },
+  "final_review": {
+    "candidate": "d657e6e632aec920577405c1fdfdb19a194bb3e6",
+    "path": "/home/jarod/development/Omega/.agents/worktree/nov1-one/build/swarm/nov1/borrowed-input/review-worker-two-d657.json",
+    "sha256": "d236c5b2428ee1dd1bf0696d8f3710d925dd1511fc3b411005ac8d8b5545bf76",
+    "decision": "accepted"
+  }
+}

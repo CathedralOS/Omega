@@ -1,0 +1,50 @@
+[
+  {
+    "implementation": [
+      "omega-rust/psi/compilation/checking/src/machine_calls",
+      "omega-rust/psi/compilation/checking/src/proof_contracts"
+    ],
+    "contract": "wiki/spec/terminal-psi/dynamic_dispatch.md",
+    "classification": "missing_implementation",
+    "reason": "Dynamic selector-call requirements must use the public requirement and explicit data argument; a proved narrower IEEE interval must satisfy its public wider precondition through an alias without importing implementation-private guarantees.",
+    "passages": [
+      "The slot's call shape is the requirement instantiated under the selector's\ntrait application. Checking plans each dynamic call against that shape with\nthe selector as its first operand, so argument custody, borrows and write\nframes treat the call like any call to a bodyless checked callee. Every row\nof every table realizes the shape exactly."
+    ]
+  },
+  {
+    "implementation": [
+      "omega-rust/psi/compilation/checking/src/machine_calls",
+      "omega-rust/psi/compilation/checking/src/proof_contracts"
+    ],
+    "contract": "wiki/spec/language/machines.md",
+    "classification": "missing_implementation",
+    "reason": "The implementation admits the exact public input interval and proves quarter-valued output; conformance and caller obligations remain independent.",
+    "passages": [
+      "| Preconditions | Requirement premises imply provider premises. |\n| Result/state guarantees | Provider guarantees imply requirement guarantees. |"
+    ]
+  },
+  {
+    "implementation": [
+      "omega-rust/psi/compilation/checking/src/machine_calls",
+      "omega-rust/psi/compilation/checking/src/proof_contracts"
+    ],
+    "contract": "wiki/spec/proofs/mathematical_bindings.md",
+    "classification": "missing_implementation",
+    "reason": "Transparent public_interval and quarter mathematical definitions retain exact substituted float subjects and bounds at dynamic calls.",
+    "passages": [
+      "Mathematical conversion unfolds checked definitions and uses the selected beta\nand typed-eta rules."
+    ]
+  },
+  {
+    "implementation": [
+      "omega-rust/psi/compilation/checking/src/machine_calls",
+      "omega-rust/psi/compilation/checking/src/proof_contracts"
+    ],
+    "contract": "wiki/spec/language/numeric_values.md",
+    "classification": "missing_implementation",
+    "reason": "The narrow interval proves ordered finite input; weakening to literal inclusive bounds must retain IEEE semantics and cannot treat equality as unconditional reflexivity.",
+    "passages": [
+      "Under IEEE comparison, ordered relations are false on NaN, `==` is false,\nand `!=` is true. Signed zeros compare equal. Integer order complements and\nunconditional self-comparison folding therefore do not apply."
+    ]
+  }
+]

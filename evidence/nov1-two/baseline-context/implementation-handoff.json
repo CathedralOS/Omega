@@ -1,0 +1,277 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "source_revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "changed_paths": [],
+  "canonical_context": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/terminal-psi/dynamic_dispatch.md",
+      "classification": "missing_implementation",
+      "reason": "Dynamic selector-call requirements must use the public requirement and explicit data argument; a proved narrower IEEE interval must satisfy its public wider precondition through an alias without importing implementation-private guarantees.",
+      "passages": [
+        "The slot's call shape is the requirement instantiated under the selector's\ntrait application. Checking plans each dynamic call against that shape with\nthe selector as its first operand, so argument custody, borrows and write\nframes treat the call like any call to a bodyless checked callee. Every row\nof every table realizes the shape exactly."
+      ],
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "3b2a50977724c63609ff8c21981c1a07fb8c58f3"
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/language/machines.md",
+      "classification": "missing_implementation",
+      "reason": "The implementation admits the exact public input interval and proves quarter-valued output; conformance and caller obligations remain independent.",
+      "passages": [
+        "| Preconditions | Requirement premises imply provider premises. |\n| Result/state guarantees | Provider guarantees imply requirement guarantees. |"
+      ],
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a"
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/proofs/mathematical_bindings.md",
+      "classification": "missing_implementation",
+      "reason": "Transparent public_interval and quarter mathematical definitions retain exact substituted float subjects and bounds at dynamic calls.",
+      "passages": [
+        "Mathematical conversion unfolds checked definitions and uses the selected beta\nand typed-eta rules."
+      ],
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "63d3b0272904fcf49648410e4a0ec4c8c90cf9d5"
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/language/numeric_values.md",
+      "classification": "missing_implementation",
+      "reason": "The narrow interval proves ordered finite input; weakening to literal inclusive bounds must retain IEEE semantics and cannot treat equality as unconditional reflexivity.",
+      "passages": [
+        "Under IEEE comparison, ordered relations are false on NaN, `==` is false,\nand `!=` is true. Signed zeros compare equal. Integer order complements and\nunconditional self-comparison folding therefore do not apply."
+      ],
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "11df4bfa0bb7502c476b192950748a9bd449b8a1"
+    }
+  ],
+  "context_fingerprint": "095bb0854a0d186ee9b8c1cfd3aea696fe23e4ef64ac1100b46586b9c041b687",
+  "reinject_context": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/terminal-psi/dynamic_dispatch.md",
+      "classification": "missing_implementation",
+      "reason": "Dynamic selector-call requirements must use the public requirement and explicit data argument; a proved narrower IEEE interval must satisfy its public wider precondition through an alias without importing implementation-private guarantees.",
+      "passages": [
+        "The slot's call shape is the requirement instantiated under the selector's\ntrait application. Checking plans each dynamic call against that shape with\nthe selector as its first operand, so argument custody, borrows and write\nframes treat the call like any call to a bodyless checked callee. Every row\nof every table realizes the shape exactly."
+      ],
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "3b2a50977724c63609ff8c21981c1a07fb8c58f3"
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/language/machines.md",
+      "classification": "missing_implementation",
+      "reason": "The implementation admits the exact public input interval and proves quarter-valued output; conformance and caller obligations remain independent.",
+      "passages": [
+        "| Preconditions | Requirement premises imply provider premises. |\n| Result/state guarantees | Provider guarantees imply requirement guarantees. |"
+      ],
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "4476178d6726aeb9ef3025dfb304f19230ad479a"
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/proofs/mathematical_bindings.md",
+      "classification": "missing_implementation",
+      "reason": "Transparent public_interval and quarter mathematical definitions retain exact substituted float subjects and bounds at dynamic calls.",
+      "passages": [
+        "Mathematical conversion unfolds checked definitions and uses the selected beta\nand typed-eta rules."
+      ],
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "63d3b0272904fcf49648410e4a0ec4c8c90cf9d5"
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/language/numeric_values.md",
+      "classification": "missing_implementation",
+      "reason": "The narrow interval proves ordered finite input; weakening to literal inclusive bounds must retain IEEE semantics and cannot treat equality as unconditional reflexivity.",
+      "passages": [
+        "Under IEEE comparison, ordered relations are false on NaN, `==` is false,\nand `!=` is true. Signed zeros compare equal. Integer order complements and\nunconditional self-comparison folding therefore do not apply."
+      ],
+      "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+      "blob": "11df4bfa0bb7502c476b192950748a9bd449b8a1"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "dyn-selector-weakening",
+      "kind": "native",
+      "command": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "run",
+        "--both",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-weakening/main.omg"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "TASKS.md",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "samples/cli/facts/dynamic_float_refinement",
+        "source/library",
+        "tools/qualification.py",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/language/numeric_values.md",
+        "wiki/spec/proofs/mathematical_bindings.md",
+        "wiki/spec/terminal-psi/dynamic_dispatch.md"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/READY",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-weakening/main.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-weakening/build.omg"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml",
+          "omega-rust",
+          "source/library"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "Fixed-base exact-source dynamic IEEE selector-call production with public requirement inputs and result, complete compiler/library/profile closure, frozen mathematical aliases, actual native/Terminal crash oracle and immutable shared generation.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    },
+    {
+      "id": "dyn-selector-alias-weakening",
+      "kind": "native",
+      "command": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "run",
+        "--both",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-alias-weakening/main.omg"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "TASKS.md",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "samples/cli/facts/dynamic_float_refinement",
+        "source/library",
+        "tools/qualification.py",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/language/numeric_values.md",
+        "wiki/spec/proofs/mathematical_bindings.md",
+        "wiki/spec/terminal-psi/dynamic_dispatch.md"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/READY",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-alias-weakening/main.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-alias-weakening/build.omg"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml",
+          "omega-rust",
+          "source/library"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "Fixed-base exact-source dynamic IEEE selector-call production with public requirement inputs and result, complete compiler/library/profile closure, frozen mathematical aliases, actual native/Terminal crash oracle and immutable shared generation.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    },
+    {
+      "id": "dyn-selector-inline-narrow",
+      "kind": "native",
+      "command": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "run",
+        "--both",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-inline-narrow/main.omg"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "TASKS.md",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "samples/cli/facts/dynamic_float_refinement",
+        "source/library",
+        "tools/qualification.py",
+        "wiki/spec/language/machines.md",
+        "wiki/spec/language/numeric_values.md",
+        "wiki/spec/proofs/mathematical_bindings.md",
+        "wiki/spec/terminal-psi/dynamic_dispatch.md"
+      ],
+      "artifacts": [
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/GENERATION",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/READY",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/cli-build.jsonl",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-inline-narrow/main.omg",
+        "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-inline-narrow/build.omg"
+      ],
+      "producer": {
+        "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+        "inputs": [
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml",
+          "omega-rust",
+          "source/library"
+        ],
+        "executables": [
+          "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega"
+        ]
+      },
+      "closure_reason": "Fixed-base exact-source dynamic IEEE selector-call production with public requirement inputs and result, complete compiler/library/profile closure, frozen mathematical aliases, actual native/Terminal crash oracle and immutable shared generation.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 90
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

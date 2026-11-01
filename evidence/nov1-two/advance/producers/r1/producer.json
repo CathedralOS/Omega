@@ -1,0 +1,6 @@
+{
+  "revision": "8b718834cd0ba8305477a319f04f7fa3f84d6750",
+  "cli": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r1/omega",
+  "sha256": "4f8071616a691fe6a9cd4639ca21d656eae579377522713231c9e6fe650dc9d5",
+  "frozen_positive": "quarter(0.25) entry proved; dynamic precondition still refused"
+}

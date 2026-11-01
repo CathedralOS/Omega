@@ -1,0 +1,62 @@
+[
+  {
+    "label": "frozen-public-alias",
+    "command": [
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+      "run",
+      "--both",
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-alias-weakening/main.omg"
+    ],
+    "exit": 0,
+    "oracle_satisfied": true,
+    "seconds": 9.721578084048815,
+    "source_sha256": "eb0281933cf7340d9fbf013c05dc10e4c610b9d510b6fe24fd8634d4821cdfbd",
+    "producer": {
+      "revision": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+      "cli": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+      "runner": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/corpus_runner",
+      "cli_sha256": "661ba42466b14f31b2af5e4546b1fae6de81e16b51751e7a7f4f484dbcc59df6",
+      "runner_sha256": "42d891a5c45561e26b37a176b7808e7ea978a50ddea0b4aba6c3da0f3b36cc5e"
+    }
+  },
+  {
+    "label": "frozen-inline",
+    "command": [
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+      "run",
+      "--both",
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-inline-narrow/main.omg"
+    ],
+    "exit": 0,
+    "oracle_satisfied": true,
+    "seconds": 9.469624595018104,
+    "source_sha256": "3a3e08bbf8aa4b28ba43f47bc77c6aa64c9e0bd9953a9d613b64ce0bf0567368",
+    "producer": {
+      "revision": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+      "cli": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+      "runner": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/corpus_runner",
+      "cli_sha256": "661ba42466b14f31b2af5e4546b1fae6de81e16b51751e7a7f4f484dbcc59df6",
+      "runner_sha256": "42d891a5c45561e26b37a176b7808e7ea978a50ddea0b4aba6c3da0f3b36cc5e"
+    }
+  },
+  {
+    "label": "wrong-second-marker",
+    "command": [
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+      "run",
+      "--both",
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/runtime-counterfactual/main.omg"
+    ],
+    "exit": 255,
+    "oracle_satisfied": true,
+    "seconds": 10.26442559598945,
+    "source_sha256": "1e32f0760d16c9693e4b6a5cfefcef5f5dd8778c85d6c4dec3e5ec975e5b31ec",
+    "producer": {
+      "revision": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+      "cli": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+      "runner": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/corpus_runner",
+      "cli_sha256": "661ba42466b14f31b2af5e4546b1fae6de81e16b51751e7a7f4f484dbcc59df6",
+      "runner_sha256": "42d891a5c45561e26b37a176b7808e7ea978a50ddea0b4aba6c3da0f3b36cc5e"
+    }
+  }
+]

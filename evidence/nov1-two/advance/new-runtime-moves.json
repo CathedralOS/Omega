@@ -1,0 +1,134 @@
+[
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_call_result_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_const_name_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_field_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_local_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_match_join_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_other_machine_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_other_state_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_parameter_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/facts/dynamic_float_input_alias_through_target_body_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/proofs/dynamic_float_input_boolean_disjunction_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  },
+  {
+    "fixture": "pass/proofs/dynamic_float_input_single_relations_exit",
+    "verdict": "new",
+    "before": {
+      "status": "absent"
+    },
+    "after": {
+      "status": "built",
+      "expected_satisfied": null,
+      "diagnostics": []
+    }
+  }
+]

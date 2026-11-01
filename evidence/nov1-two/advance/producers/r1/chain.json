@@ -1,0 +1,25 @@
+[
+  {
+    "label": "cli-build",
+    "command": [
+      "mbx",
+      "build",
+      "-p",
+      "omega",
+      "--message-format=json"
+    ],
+    "exit": 0,
+    "duration_seconds": 281.4764716179343
+  },
+  {
+    "label": "frozen-positive",
+    "command": [
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/target/debug/omega",
+      "run",
+      "--both",
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-weakening/main.omg"
+    ],
+    "exit": 200,
+    "duration_seconds": 4.901110898004845
+  }
+]

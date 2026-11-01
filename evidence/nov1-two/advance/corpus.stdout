@@ -1,0 +1,12 @@
++ pass/facts/dynamic_float_input_alias_through_call_result_exit: new built
++ pass/facts/dynamic_float_input_alias_through_const_name_exit: new built
++ pass/facts/dynamic_float_input_alias_through_field_exit: new built
++ pass/facts/dynamic_float_input_alias_through_local_exit: new built
++ pass/facts/dynamic_float_input_alias_through_match_join_exit: new built
++ pass/facts/dynamic_float_input_alias_through_other_machine_exit: new built
++ pass/facts/dynamic_float_input_alias_through_other_state_exit: new built
++ pass/facts/dynamic_float_input_alias_through_parameter_exit: new built
++ pass/facts/dynamic_float_input_alias_through_target_body_exit: new built
++ pass/proofs/dynamic_float_input_boolean_disjunction_exit: new built
++ pass/proofs/dynamic_float_input_single_relations_exit: new built
+corpus_gate: compared 21 fixtures against bfcffe6bcfce: 0 lost, 11 gained

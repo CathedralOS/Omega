@@ -1,0 +1,44 @@
+{
+  "decision": "accepted",
+  "reviewer": "Codex native worker /root/worker_one",
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "candidate": "d657e6e632aec920577405c1fdfdb19a194bb3e6",
+  "scope": "Complete affected final-candidate delta: TASKS clause, fact README,20 new source records with intended diagnostics,11 native/Terminal exit0 agreement records. No compiler/library/fixture/oracle change since substantive review.",
+  "blocking_findings": [],
+  "canonical_context": "build/selection-dynamic-contracts/implementation-handoff.json",
+  "semantic_findings": [
+    "Prepared mathematical applications substitute exact observed caller actuals through the existing shared reader; fixed integer captures retain embedding and float captures retain selected IEEE carrier/format.",
+    "Checked predicate classification admits a question, not truth or formation authority. Conjunction truth decomposes only conjunction; disjunction does not publish either arm as a hypothesis. IEEE comparison leaves remain scalar meanings and do not acquire identity or integer complement laws.",
+    "Runtime alias application and instantiated public contract use the same prepared term reader; no source-body fallback or integer-only capture rebinding remains. Existing observation/invalidation and case-only fences are retained.",
+    "Nine place positives preserve the same input alias and public dynamic precondition; every twin changes only quarter upper bound0.25to0.75 and reaches the intended public call requirement diagnostic.",
+    "Runtime match uses two distinct selector markers11/13 and both choices; field canaries17/29 are observed. The independently corrupted second marker reports native signal4 and Terminal Trap."
+  ],
+  "evidence_inspected": [
+    "All18 sample source hashes and raw native/Terminal or intended rejection streams verified independently against files.",
+    "Both immutable optimized producer binary digests verified independently.",
+    "21-fixture runtime fixed-base comparison has zero losses;48-fixture source fixed-base comparison has zero losses.",
+    "Original baseline receipts/accepted spec passages and fresh frozen named/public-alias/inline observations inspected.",
+    "Byte-identical corpus main/build pins and exact one-bound twin deltas checked independently for allnine places."
+  ],
+  "rust_source_sha256": {
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/call_requirements.rs": "698fe868ec34f066ac045616337a5b05d9bbf591005ba0415625cf5f40ff425c",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs": "7576a6280d9da60d074d28536069b1d82861a4e7cf5cd89bc576474af56981e5",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates.rs": "a63f2e6082d11e0ff72f2c41f46971e3e35fcfcee6f0eced280e1c3f8000c2d6",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/mathematical_predicates.rs": "96ba5ff6638d29d4401908b45f0eef31bc3dd8259bb73c226cd7638becbbc4aa",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs": "71685eeb26e74821bec6c85a699210bcbb475876d9c2869b7c91273acd2fb185",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms/mathematical.rs": "9a91c3284d216f8702a08965ea7437282438ee2decbbbc278260ff6eef7f3d97"
+  },
+  "limitations": [
+    "Linux x86-64 execution only; four other hosted entry declarations do not establish other-host runtime acceptance.",
+    "Clippy remains non-green on202 standing validation style lints, attributed to unchanged source; crate check passes.",
+    "Broader parent dynamic contract/custody/product/other-host acceptance remains open."
+  ],
+  "replay_decision": "No additional replay needed: actual raw outcomes, exact source/producer bindings and counterfactual cover the changed meaning; no unresolved behavioral concern remains.",
+  "prior_substantive_candidate": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+  "affected_confirmation": [
+    "Inspected complete four-file delta from prior reviewed candidate. Board retains parent outcome and other requirement mechanisms; README states demonstrated IEEE input-predicate scope and remaining acceptance.",
+    "All golden changes are additions:20 source rows (11 checked/9 intended rejected) and11 built runtime rows with both exits0/agreement. Original rows and continuation diagnostics remain byte-identical.",
+    "Both actual record verdicts are recorded/exit0 with zero wrong reasons, oracle failures or lost successes. Historical producer/stamp identities are preserved.",
+    "Substantive review applies unchanged; no extra replay required for prose and additive record retention."
+  ]
+}

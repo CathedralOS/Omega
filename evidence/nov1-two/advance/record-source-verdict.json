@@ -1,0 +1,300 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "da76dcbec7ab23b3f402d67b1b7edfdb7f8a5fb1",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 20189
+  },
+  "subset": true,
+  "filter": "facts/dynamic_float_input_alias,proofs/dynamic_float_input_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 20,
+    "by_status": {
+      "checked": 11,
+      "rejected": 9
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8818,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8817,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8859,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8845,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8961,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8963,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8858,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 9841,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/facts/dynamic_float_input_alias_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8580,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/proofs/dynamic_float_input_boolean_disjunction_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8482,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "pass/proofs/dynamic_float_input_single_relations_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8482,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_call_result_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5468,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_const_name_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5685,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_field_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5247,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_local_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5445,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_match_join_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5547,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_other_machine_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5462,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_other_state_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 7308,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_parameter_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5365,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    },
+    {
+      "fixture": "fail/facts/dynamic_float_input_alias_through_target_body_weakened_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5124,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "da76dcbec7ab"
+    }
+  ],
+  "fixtures": []
+}

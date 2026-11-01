@@ -1,0 +1,56 @@
+[
+  {
+    "place": "local",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  },
+  {
+    "place": "field",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  },
+  {
+    "place": "parameter",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  },
+  {
+    "place": "call_result",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  },
+  {
+    "place": "match_join",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  },
+  {
+    "place": "const_name",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  },
+  {
+    "place": "other_state",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  },
+  {
+    "place": "other_machine",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  },
+  {
+    "place": "target_body",
+    "twin_diff": "quarter upper .25 to .75 only",
+    "pins_byte_identical": true,
+    "four_hosted_entries": true
+  }
+]

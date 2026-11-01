@@ -1,0 +1,56 @@
+{
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "board": "TASKS.md",
+  "item": "RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY",
+  "remaining": "Extend selector-call requirement checking to transparent proposition aliases while preserving public input/result contracts, exact .25\u2192[0,.5] IEEE refinement and independent private implementation guarantees. Existing return-alias production is complete; this is the same fact produced through a transparent input precondition.",
+  "reviewed_by": "local:/root/worker_two exact-baseline read-only selection",
+  "specs": [
+    "wiki/spec/terminal-psi/dynamic_dispatch.md",
+    "wiki/spec/language/machines.md",
+    "wiki/spec/proofs/mathematical_bindings.md",
+    "wiki/spec/language/numeric_values.md"
+  ],
+  "paths": [
+    "omega-rust/psi/compilation/checking/src/proof_contracts",
+    "omega-rust/psi/compilation/checking/src/machine_calls",
+    "samples/cli/facts/dynamic_float_refinement",
+    "tests/omega/pass/facts",
+    "tests/omega/fail/facts"
+  ],
+  "source_inputs": {
+    "TASKS.md": "70821e7b9b08e5688926c6cb05f410e9f6bd5943",
+    "samples/cli/facts/dynamic_float_refinement": "3a4113a30614b3fe44e85341871c37a1ce2a832d",
+    "wiki/spec/terminal-psi/dynamic_dispatch.md": "3b2a50977724c63609ff8c21981c1a07fb8c58f3",
+    "wiki/spec/language/machines.md": "4476178d6726aeb9ef3025dfb304f19230ad479a",
+    "wiki/spec/proofs/mathematical_bindings.md": "63d3b0272904fcf49648410e4a0ec4c8c90cf9d5",
+    "wiki/spec/language/numeric_values.md": "11df4bfa0bb7502c476b192950748a9bd449b8a1"
+  },
+  "failure": {
+    "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-case-replacement/qualification.records/557c32cd9f1a4a2fb83a83e9c422aff9.json",
+    "sha256": "ce6cfd34380c5d4bd10f2a0add5d02d725752e93b0c683d30a5f0428a6dc4e97"
+  },
+  "failure_review": "Valid source uses transparent quarter(input) = input>=0.25 && input<=0.25. Baseline refuses the public dynamic-call precondition input>=0.0 && input<=0.5 and the ordinary entry call quarter(0.25), exit200, no qualification invalidations. The inline-narrow control differs only by expanding requires quarter(input) into that exact checked body, then runs native0/Terminal0. Thus literal IEEE weakening works; the demonstrated missing mechanism is transparent precondition alias unfolding/transport, broader than dynamic-call checking alone. The public-alias variant also refuses, so this is not tied to the public requirement spelling. No timing, parse, or infrastructure failure is asserted.",
+  "control": {
+    "path": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-case-replacement/qualification.records/6a7d3c5575ff4b3893d4026beabdf50e.json",
+    "sha256": "4339e2c4d076de235e4de49827a9f43f8e5328398cafdb8dd4bfcde942bf416f",
+    "observed": "native exit0; interp exit0"
+  },
+  "fact": "samples/cli/facts/dynamic_float_refinement",
+  "existing_production": "samples/cli/facts/dynamic_float_refinement/alias_contract",
+  "fact_sentence": "Inline exact IEEE value 0.25 guarantee refines public inclusive f64 interval [0, 0.5]; the dyn call preserves the public interval for a precondition and observes 0.25.",
+  "frozen_positive": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-weakening/main.omg",
+  "missing_places": "Existing canonical row and alias_contract production each already have9 places. New transparent-input production is not authored in tracked source; receipt supplies measured-gap eligibility. Carry it within existing fact, never a renamed fact.",
+  "acceptance_command": [
+    "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/omega",
+    "run",
+    "--both",
+    "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-weakening/main.omg"
+  ],
+  "oracle": "Expected exit0 in native and Terminal; dynamic Fraction::get returns0.25; accept consumes only the public [0,.5] result interval; wrong runtime result crashes Trap.",
+  "negative_plan": "Within same new production, weaken only the caller transparent input proposition upper bound so it admits0.75; preserve requirement\u22640.5 and expected rejection at call dyn Fraction::get. Retain existing provider0.75 outside-public-result twins and NaN/wrong-format controls.",
+  "ownership_review": "Read /tmp/omega-claims-nov1.json: no live or expired exact fact/item/path claim for dynamic_float_refinement or its alias_contract production. Old dynamic_trait_dispatch/suspension/crash/ranking parent scopes are not recovered or reimplemented. Parent coordinator must validate fresh registry at reserve.",
+  "external_blockers": [
+    "No external blocker to this focused source/checking mechanism observed.",
+    "Full parent also requires other hosts/product parity; Linux x86_64 is the only host executed for this selection."
+  ]
+}

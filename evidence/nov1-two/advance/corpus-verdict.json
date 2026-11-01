@@ -1,0 +1,22 @@
+{
+  "schema": "omega-corpus-compare-v1",
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "head": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+  "dirty": false,
+  "leg": "both",
+  "losses": [],
+  "gains": [
+    "pass/facts/dynamic_float_input_alias_through_call_result_exit: new built",
+    "pass/facts/dynamic_float_input_alias_through_const_name_exit: new built",
+    "pass/facts/dynamic_float_input_alias_through_field_exit: new built",
+    "pass/facts/dynamic_float_input_alias_through_local_exit: new built",
+    "pass/facts/dynamic_float_input_alias_through_match_join_exit: new built",
+    "pass/facts/dynamic_float_input_alias_through_other_machine_exit: new built",
+    "pass/facts/dynamic_float_input_alias_through_other_state_exit: new built",
+    "pass/facts/dynamic_float_input_alias_through_parameter_exit: new built",
+    "pass/facts/dynamic_float_input_alias_through_target_body_exit: new built",
+    "pass/proofs/dynamic_float_input_boolean_disjunction_exit: new built",
+    "pass/proofs/dynamic_float_input_single_relations_exit: new built"
+  ],
+  "fixtures": 21
+}

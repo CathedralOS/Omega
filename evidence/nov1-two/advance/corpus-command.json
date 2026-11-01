@@ -1,0 +1,32 @@
+{
+  "command": [
+    "python3",
+    "tools/corpus_gate.py",
+    "--runner",
+    "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/corpus_runner",
+    "--baseline-runner",
+    "/home/jarod/development/Omega/.agents/worktree/nov1-coord/build/swarm/nov1/producers/gen-bfcffe6bcfc/corpus_runner",
+    "--compare",
+    "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+    "--both",
+    "--filter",
+    "facts/dynamic_float_input_alias,proofs/dyn_requirement_float,proofs/mathematical_negated,proofs/mathematical_predicate_contract_import,proofs/mathematical_prepared_scalar_interval,proofs/structural_mathematical_predicate,facts/dynamic_float_refinement_through_local,facts/dynamic_float_alias_through_local,proofs/dynamic_float_input_,proofs/mathematical_mutated_capture,proofs/mathematical_wrapping_capture,proofs/mathematical_opaque_operation_source_meaning",
+    "--jev",
+    "--write-moves",
+    "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/corpus-moves.json",
+    "--json",
+    "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/corpus-verdict.json"
+  ],
+  "exit": 0,
+  "duration_seconds": 143.21729768801015,
+  "environment": {
+    "OMEGA_CORPUS_JOBS": "2"
+  },
+  "producer": {
+    "revision": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+    "cli": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/omega",
+    "runner": "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/advance-input-alias/producers/r2/corpus_runner",
+    "cli_sha256": "661ba42466b14f31b2af5e4546b1fae6de81e16b51751e7a7f4f484dbcc59df6",
+    "runner_sha256": "42d891a5c45561e26b37a176b7808e7ea978a50ddea0b4aba6c3da0f3b36cc5e"
+  }
+}

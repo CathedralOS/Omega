@@ -1,0 +1,1626 @@
+[
+  {
+    "path": "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/control_flow/statement/payloads.rs",
+    "line": 7,
+    "column": 5,
+    "message": "    Checking phase-profile v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/phase-profile)",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/declarations/operators/uses.rs",
+    "line": 402,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/declarations/traits/trait_implementation_arguments.rs",
+    "line": 222,
+    "column": 17,
+    "message": "error: redundant field names in struct initialization",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/effect_inference/invocations.rs",
+    "line": 563,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/result_overloads.rs",
+    "line": 249,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/fields.rs",
+    "line": 724,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range.rs",
+    "line": 768,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs",
+    "line": 392,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs",
+    "line": 433,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/expression_owners/call_targets.rs",
+    "line": 255,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/conversion_contracts.rs",
+    "line": 210,
+    "column": 17,
+    "message": "error: redundant field names in struct initialization",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/correspondence_certificate.rs",
+    "line": 537,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/runtime_correspondence.rs",
+    "line": 272,
+    "column": 1,
+    "message": "error: empty line after outer attribute",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/expression_types/value_classification.rs",
+    "line": 290,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/storage_contents.rs",
+    "line": 739,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/type_shapes.rs",
+    "line": 10,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/write_only_borrows.rs",
+    "line": 1345,
+    "column": 1,
+    "message": "error: empty line after doc comment",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_origins/storage_projection.rs",
+    "line": 63,
+    "column": 22,
+    "message": "error: unused variable: `access`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/borrow_contracts/callable_refinement.rs",
+    "line": 200,
+    "column": 27,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/borrow_contracts/callable_refinement.rs",
+    "line": 200,
+    "column": 68,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/borrow_contracts/callable_refinement.rs",
+    "line": 276,
+    "column": 28,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/borrow_contracts/callable_refinement.rs",
+    "line": 277,
+    "column": 26,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/borrow_contracts/provider_outputs.rs",
+    "line": 105,
+    "column": 22,
+    "message": "error: unnecessary closure used to substitute value for `Option::None`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/declarations/operators/contracts.rs",
+    "line": 32,
+    "column": 44,
+    "message": "error: unnecessary use of `first().is_none()` to check if slice is empty",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/declarations/operators/uses.rs",
+    "line": 195,
+    "column": 17,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/expression_traversal.rs",
+    "line": 444,
+    "column": 30,
+    "message": "error: the following explicit lifetimes could be elided: 'a",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/layout_checking.rs",
+    "line": 112,
+    "column": 1,
+    "message": "error: this returns a `Result<_, ()>`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/projection.rs",
+    "line": 260,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking.rs",
+    "line": 695,
+    "column": 27,
+    "message": "error: called `.iter().count()` on a `slice`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking.rs",
+    "line": 907,
+    "column": 17,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs",
+    "line": 269,
+    "column": 12,
+    "message": "error: this block may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs",
+    "line": 559,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs",
+    "line": 838,
+    "column": 5,
+    "message": "error: parameter is only used in recursion",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/closed_dispatch.rs",
+    "line": 209,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/signature_queries.rs",
+    "line": 86,
+    "column": 38,
+    "message": "error: the following explicit lifetimes could be elided: 'p",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/boundary_calls.rs",
+    "line": 659,
+    "column": 72,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/call_targets.rs",
+    "line": 41,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/call_origins.rs",
+    "line": 154,
+    "column": 17,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/parameter_relative_origins.rs",
+    "line": 132,
+    "column": 17,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/reference_subjects.rs",
+    "line": 808,
+    "column": 12,
+    "message": "error: redundant pattern matching",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/result_origins.rs",
+    "line": 132,
+    "column": 31,
+    "message": "error: called `.iter().count()` on a `slice`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/result_origins.rs",
+    "line": 844,
+    "column": 27,
+    "message": "error: called `.iter().count()` on a `slice`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_calls/captured_inputs.rs",
+    "line": 235,
+    "column": 9,
+    "message": "error: for loop over a single element",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_calls/invocation_contract.rs",
+    "line": 31,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/topology.rs",
+    "line": 17,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/topology.rs",
+    "line": 18,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/topology.rs",
+    "line": 25,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/contract_identities.rs",
+    "line": 313,
+    "column": 35,
+    "message": "error: this method chain can be written more clearly with `if .. else ..`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/effect_inference/service_reach.rs",
+    "line": 622,
+    "column": 9,
+    "message": "error: this `if let` can be collapsed into the outer `if let`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/fact_only_citations.rs",
+    "line": 37,
+    "column": 22,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/invocations.rs",
+    "line": 101,
+    "column": 33,
+    "message": "error: called `.iter().nth()` on a slice",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/invocations.rs",
+    "line": 172,
+    "column": 21,
+    "message": "error: called `.iter().count()` on a `slice`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/invocations.rs",
+    "line": 250,
+    "column": 61,
+    "message": "error: called `.iter().nth()` on a slice",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/machine_parameters.rs",
+    "line": 509,
+    "column": 37,
+    "message": "error: the following explicit lifetimes could be elided: 'p",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/machine_parameters.rs",
+    "line": 1344,
+    "column": 33,
+    "message": "error: match expression looks like `matches!` macro",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs",
+    "line": 273,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs",
+    "line": 377,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs",
+    "line": 528,
+    "column": 30,
+    "message": "error: the following explicit lifetimes could be elided: 'p",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs",
+    "line": 1206,
+    "column": 5,
+    "message": "error: returning the result of a `let` binding from a block",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/static_arguments.rs",
+    "line": 348,
+    "column": 27,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/static_arguments.rs",
+    "line": 758,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs",
+    "line": 156,
+    "column": 30,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs",
+    "line": 914,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs",
+    "line": 196,
+    "column": 21,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/program_validation/dependency_bodies.rs",
+    "line": 698,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs",
+    "line": 131,
+    "column": 32,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs",
+    "line": 180,
+    "column": 32,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs",
+    "line": 212,
+    "column": 36,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/cited_element_bounds.rs",
+    "line": 326,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_products.rs",
+    "line": 178,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_products.rs",
+    "line": 197,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs",
+    "line": 224,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs",
+    "line": 310,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs",
+    "line": 861,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs",
+    "line": 930,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs",
+    "line": 953,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs",
+    "line": 1046,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/invariant_bounds.rs",
+    "line": 317,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/monotonic_update.rs",
+    "line": 29,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/slice_lengths.rs",
+    "line": 99,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes/source_geometry.rs",
+    "line": 39,
+    "column": 1,
+    "message": "error: this returns a `Result<_, ()>`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes.rs",
+    "line": 155,
+    "column": 1,
+    "message": "error: this returns a `Result<_, ()>`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes.rs",
+    "line": 236,
+    "column": 13,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes.rs",
+    "line": 265,
+    "column": 1,
+    "message": "error: this returns a `Result<_, ()>`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes.rs",
+    "line": 506,
+    "column": 34,
+    "message": "error: manual implementation of `.is_multiple_of()`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/collection_predicates/implication.rs",
+    "line": 1661,
+    "column": 25,
+    "message": "error: this `if` can be collapsed into the outer `match`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/collection_predicates.rs",
+    "line": 47,
+    "column": 22,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/strict_bindings.rs",
+    "line": 821,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/strict_bindings.rs",
+    "line": 845,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/strict_bindings.rs",
+    "line": 870,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/citations.rs",
+    "line": 401,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/citations.rs",
+    "line": 478,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/const_ranges.rs",
+    "line": 54,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/content_conservation.rs",
+    "line": 106,
+    "column": 76,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/exit_coverage.rs",
+    "line": 47,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/exit_coverage.rs",
+    "line": 75,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/law_conformance.rs",
+    "line": 253,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/numeric_observations.rs",
+    "line": 449,
+    "column": 83,
+    "message": "error: this `if` has identical blocks",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/operand_fits.rs",
+    "line": 230,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/operand_fits.rs",
+    "line": 241,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/operand_fits.rs",
+    "line": 592,
+    "column": 17,
+    "message": "error: deref which would be done by auto-deref",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/proof_edges.rs",
+    "line": 64,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/proof_edges.rs",
+    "line": 75,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/quotient_congruence.rs",
+    "line": 148,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/calls.rs",
+    "line": 1316,
+    "column": 12,
+    "message": "error: redundant pattern matching",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/calls.rs",
+    "line": 1323,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/coordinate.rs",
+    "line": 290,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/fields.rs",
+    "line": 950,
+    "column": 30,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs",
+    "line": 225,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs",
+    "line": 296,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs",
+    "line": 597,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/meanings.rs",
+    "line": 207,
+    "column": 13,
+    "message": "error: unnecessary closure used with `bool::then`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/meanings.rs",
+    "line": 305,
+    "column": 29,
+    "message": "error: this `match` expression can be replaced with `?`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/requirements.rs",
+    "line": 260,
+    "column": 8,
+    "message": "error: called `.iter().count()` on a `slice`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/captured_calls/observation.rs",
+    "line": 70,
+    "column": 37,
+    "message": "error: called `.iter().cloned().collect()` on a slice to create a `Vec`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/identity_views.rs",
+    "line": 268,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/result_bounds.rs",
+    "line": 654,
+    "column": 17,
+    "message": "error: this block may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/calls.rs",
+    "line": 582,
+    "column": 17,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/formation.rs",
+    "line": 28,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/formation.rs",
+    "line": 41,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/formation.rs",
+    "line": 44,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls/applied_bindings.rs",
+    "line": 1407,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls/applied_bindings.rs",
+    "line": 1425,
+    "column": 13,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs",
+    "line": 531,
+    "column": 25,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs",
+    "line": 101,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs",
+    "line": 440,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs",
+    "line": 781,
+    "column": 25,
+    "message": "error: the function `establish_citation` doesn't need a mutable reference",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs",
+    "line": 1569,
+    "column": 82,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/cases.rs",
+    "line": 89,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/cases.rs",
+    "line": 97,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/cases.rs",
+    "line": 134,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/licenses.rs",
+    "line": 455,
+    "column": 24,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs",
+    "line": 35,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs",
+    "line": 48,
+    "column": 26,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs",
+    "line": 61,
+    "column": 55,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs",
+    "line": 62,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs",
+    "line": 78,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs",
+    "line": 112,
+    "column": 17,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs",
+    "line": 193,
+    "column": 40,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs",
+    "line": 816,
+    "column": 9,
+    "message": "error: enclosing `Some` and `?` operator are unneeded",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs",
+    "line": 752,
+    "column": 13,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/value_predicates.rs",
+    "line": 250,
+    "column": 81,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/term_identity.rs",
+    "line": 234,
+    "column": 42,
+    "message": "error: redundant closure",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs",
+    "line": 2084,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": true,
+    "unchanged_base_line": 2069
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs",
+    "line": 2436,
+    "column": 25,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": true,
+    "unchanged_base_line": 2421
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs",
+    "line": 2931,
+    "column": 21,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": true,
+    "unchanged_base_line": 2916
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs",
+    "line": 2939,
+    "column": 21,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": true,
+    "unchanged_base_line": 2924
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs",
+    "line": 3085,
+    "column": 29,
+    "message": "error: using `clone` on type `Option<Handle<Symbol>>` which implements the `Copy` trait",
+    "touched_file": true,
+    "unchanged_base_line": 3070
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_prefix/private_arrivals/scope.rs",
+    "line": 297,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms/binary.rs",
+    "line": 72,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms/binary.rs",
+    "line": 264,
+    "column": 36,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms/constructors.rs",
+    "line": 96,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs",
+    "line": 401,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/float_predicates.rs",
+    "line": 39,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/place_queries.rs",
+    "line": 599,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/state_flow.rs",
+    "line": 72,
+    "column": 17,
+    "message": "error: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/symbolic_values.rs",
+    "line": 231,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/where_fact_intervals.rs",
+    "line": 527,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains.rs",
+    "line": 1077,
+    "column": 21,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/domain_weakening.rs",
+    "line": 423,
+    "column": 33,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/domains/runtime_predicates.rs",
+    "line": 249,
+    "column": 17,
+    "message": "error: this block may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/domains/runtime_predicates.rs",
+    "line": 501,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/domains/runtime_predicates.rs",
+    "line": 541,
+    "column": 16,
+    "message": "error: this block may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/conversion_contracts.rs",
+    "line": 272,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/semantic_values.rs",
+    "line": 32,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/mathematical_applications/logical_bodies.rs",
+    "line": 233,
+    "column": 9,
+    "message": "error: returning the result of a `let` binding from a block",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/mathematical_applications/logical_bodies.rs",
+    "line": 231,
+    "column": 17,
+    "message": "error: returning the result of a `let` binding from a block",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/proof_facts.rs",
+    "line": 593,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/qualification_evidence.rs",
+    "line": 242,
+    "column": 66,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/proof_fact_identity.rs",
+    "line": 246,
+    "column": 59,
+    "message": "error: redundant closure",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/proof_contracts/relevance.rs",
+    "line": 210,
+    "column": 9,
+    "message": "error: called `.iter().nth()` on a slice",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/cleanup.rs",
+    "line": 471,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/cleanup_selection.rs",
+    "line": 58,
+    "column": 36,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/content_projections.rs",
+    "line": 743,
+    "column": 32,
+    "message": "error: the following explicit lifetimes could be elided: 'a",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/expression_types/match_dispatch/structural_patterns.rs",
+    "line": 212,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/expression_types/reference_values.rs",
+    "line": 837,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/expression_types/reference_values.rs",
+    "line": 846,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/field_domains/declared_fields.rs",
+    "line": 231,
+    "column": 29,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/access_views.rs",
+    "line": 403,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/literals/integer_landing.rs",
+    "line": 64,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/partial_affine_residuals.rs",
+    "line": 458,
+    "column": 56,
+    "message": "error: usage of `bool::then` in `filter_map`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/partial_affine_residuals.rs",
+    "line": 462,
+    "column": 60,
+    "message": "error: usage of `bool::then` in `filter_map`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/places.rs",
+    "line": 250,
+    "column": 13,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/places/exact_self_field.rs",
+    "line": 28,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/places/structural_scalar_field.rs",
+    "line": 779,
+    "column": 9,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/places/contextual_projection.rs",
+    "line": 213,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/places/member_resolution.rs",
+    "line": 930,
+    "column": 5,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/places/member_resolution.rs",
+    "line": 937,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/plan_laid.rs",
+    "line": 169,
+    "column": 29,
+    "message": "error: redundant closure",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/recasts/record_representation.rs",
+    "line": 290,
+    "column": 24,
+    "message": "error: the following explicit lifetimes could be elided: 'program",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/recasts/record_representation.rs",
+    "line": 1061,
+    "column": 56,
+    "message": "error: manual implementation of `.is_multiple_of()`",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/recasts/record_representation.rs",
+    "line": 1199,
+    "column": 43,
+    "message": "error: this expression creates a reference which is immediately dereferenced by the compiler",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/reference_access.rs",
+    "line": 190,
+    "column": 16,
+    "message": "error: redundant guard",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/reference_access.rs",
+    "line": 301,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/struct_literals/field_obligations.rs",
+    "line": 649,
+    "column": 13,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/type_references/generic_arguments.rs",
+    "line": 544,
+    "column": 25,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/type_shapes.rs",
+    "line": 177,
+    "column": 33,
+    "message": "error: the following explicit lifetimes could be elided: 'p",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/type_shapes.rs",
+    "line": 213,
+    "column": 44,
+    "message": "error: the following explicit lifetimes could be elided: 'p",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/write_only_borrows/local_formation.rs",
+    "line": 67,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/write_only_borrows/receiver.rs",
+    "line": 85,
+    "column": 5,
+    "message": "error: this `let...else` may be rewritten with the `?` operator",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/completed_storage/backing.rs",
+    "line": 444,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/completed_storage/reference_captures.rs",
+    "line": 363,
+    "column": 13,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  },
+  {
+    "path": "omega-rust/psi/compilation/checking/src/value_custody/completed_storage/frozen_references.rs",
+    "line": 67,
+    "column": 9,
+    "message": "error: this `if` statement can be collapsed",
+    "touched_file": false,
+    "file_blob_unchanged": true
+  }
+]

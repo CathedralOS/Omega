@@ -1,0 +1,27 @@
+{
+  "base": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "candidate": "d8105b3feb7899b2948107c1fbe5c6fe99555ef7",
+  "target": "linux_x86_64",
+  "engine": [
+    "Terminal Psi",
+    "native"
+  ],
+  "profile": "opt-level 1",
+  "source_trees": {
+    "Cargo.toml": "2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a",
+    "Cargo.lock": "fd98fb0b45525fca93b5a2308431544bc3aad1ce",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+    "omega-rust": "07155048abb1c89c3794d73d62295434bfc83e22",
+    "source/library": "fcebe49a300e70d5002096b2c63cca581094ac8d",
+    "samples/cli/facts/dynamic_float_refinement": "1f8a637bf1ff775f5f923cb806d0499b07480361",
+    "tests/omega/pass/facts": "018ec4c8c7f3880c43465462b2404eed45ee03d9",
+    "tests/omega/fail/facts": "fc9020b0ab46169bdf1629b3680b814f99228cf0",
+    "wiki/spec/terminal-psi/dynamic_dispatch.md": "3b2a50977724c63609ff8c21981c1a07fb8c58f3",
+    "wiki/spec/language/machines.md": "4476178d6726aeb9ef3025dfb304f19230ad479a",
+    "wiki/spec/proofs/mathematical_bindings.md": "63d3b0272904fcf49648410e4a0ec4c8c90cf9d5",
+    "wiki/spec/language/numeric_values.md": "11df4bfa0bb7502c476b192950748a9bd449b8a1",
+    "tools/corpus_gate.py": "dc074eb8dc513d8a4fe184ff4e14567ba8b7d9a3",
+    "tools/corpus_records.py": "1006b5a2a9b4054dd04b48eef171acf504f2780d"
+  },
+  "scope": "48 focused fixtures: nine input aliases and controls, existing dynamic result/inline local rows, IEEE/authenticated predicate/epoch/selected-operation boundaries. No broad corpus or product run."
+}

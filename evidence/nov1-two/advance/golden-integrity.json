@@ -1,0 +1,45 @@
+{
+  "tests/omega/corpus_outcomes.txt": {
+    "new_records": 20,
+    "outside_rows_byte_identical": true,
+    "new_lines": [
+      "fail/facts/dynamic_float_input_alias_through_call_result_weakened_input rejected 5468ms expected @da76dcbec7ab",
+      "fail/facts/dynamic_float_input_alias_through_const_name_weakened_input rejected 5685ms expected @da76dcbec7ab",
+      "fail/facts/dynamic_float_input_alias_through_field_weakened_input rejected 5247ms expected @da76dcbec7ab",
+      "fail/facts/dynamic_float_input_alias_through_local_weakened_input rejected 5445ms expected @da76dcbec7ab",
+      "fail/facts/dynamic_float_input_alias_through_match_join_weakened_input rejected 5547ms expected @da76dcbec7ab",
+      "fail/facts/dynamic_float_input_alias_through_other_machine_weakened_input rejected 5462ms expected @da76dcbec7ab",
+      "fail/facts/dynamic_float_input_alias_through_other_state_weakened_input rejected 7308ms expected @da76dcbec7ab",
+      "fail/facts/dynamic_float_input_alias_through_parameter_weakened_input rejected 5365ms expected @da76dcbec7ab",
+      "fail/facts/dynamic_float_input_alias_through_target_body_weakened_input rejected 5124ms expected @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_call_result_exit checked 8818ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_const_name_exit checked 8817ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_field_exit checked 8859ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_local_exit checked 8845ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_match_join_exit checked 8961ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_other_machine_exit checked 8963ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_other_state_exit checked 8858ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_parameter_exit checked 9841ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/facts/dynamic_float_input_alias_through_target_body_exit checked 8580ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/proofs/dynamic_float_input_boolean_disjunction_exit checked 8482ms check-target:macos_arm64 @da76dcbec7ab",
+      "pass/proofs/dynamic_float_input_single_relations_exit checked 8482ms check-target:macos_arm64 @da76dcbec7ab"
+    ]
+  },
+  "tests/omega/corpus_both_linux_x86_64.txt": {
+    "new_records": 11,
+    "outside_rows_byte_identical": true,
+    "new_lines": [
+      "pass/facts/dynamic_float_input_alias_through_call_result_exit built 8611ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/facts/dynamic_float_input_alias_through_const_name_exit built 8610ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/facts/dynamic_float_input_alias_through_field_exit built 8515ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/facts/dynamic_float_input_alias_through_local_exit built 8500ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/facts/dynamic_float_input_alias_through_match_join_exit built 8214ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/facts/dynamic_float_input_alias_through_other_machine_exit built 8173ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/facts/dynamic_float_input_alias_through_other_state_exit built 8604ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/facts/dynamic_float_input_alias_through_parameter_exit built 8582ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/facts/dynamic_float_input_alias_through_target_body_exit built 8755ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/proofs/dynamic_float_input_boolean_disjunction_exit built 8710ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368",
+      "pass/proofs/dynamic_float_input_single_relations_exit built 7485ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368"
+    ]
+  }
+}

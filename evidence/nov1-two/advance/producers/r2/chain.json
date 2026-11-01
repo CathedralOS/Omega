@@ -1,0 +1,66 @@
+[
+  {
+    "label": "cli-build",
+    "command": [
+      "mbx",
+      "build",
+      "-p",
+      "omega",
+      "--message-format=json"
+    ],
+    "exit": 0,
+    "duration_seconds": 202.53763135289773
+  },
+  {
+    "label": "frozen-positive",
+    "command": [
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/target/debug/omega",
+      "run",
+      "--both",
+      "/home/jarod/development/Omega/.agents/worktree/nov1-two/build/selection-dynamic-contracts/selector-weakening/main.omg"
+    ],
+    "exit": 0,
+    "duration_seconds": 7.997817056020722
+  },
+  {
+    "label": "runner-build",
+    "command": [
+      "mbx",
+      "test",
+      "--no-run",
+      "--message-format=json",
+      "-p",
+      "compiler",
+      "--test",
+      "corpus_runner"
+    ],
+    "exit": 0,
+    "duration_seconds": 63.80742318904959
+  },
+  {
+    "label": "validation-check",
+    "command": [
+      "mbx",
+      "check",
+      "-p",
+      "validation"
+    ],
+    "exit": 0,
+    "duration_seconds": 35.369619556935504
+  },
+  {
+    "label": "validation-clippy",
+    "command": [
+      "mbx",
+      "clippy",
+      "-p",
+      "validation",
+      "--no-deps",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 101,
+    "duration_seconds": 34.80039746989496
+  }
+]

@@ -1,0 +1,3253 @@
+    Checking phase-profile v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/phase-profile)
+   Compiling compiler-storage-derive v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/compiler-storage/derive)
+    Checking optimization v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/optimization-selections)
+    Checking compiler-storage v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/compiler-storage)
+    Checking arena v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/arena)
+    Checking numerics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/numerics)
+    Checking extents v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/extents)
+    Checking semantic-vocabulary v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/semantic-vocabulary)
+    Checking language-core v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/language-core)
+    Checking source v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/source)
+    Checking layout-plans v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/layout-plans)
+    Checking symbols v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/symbols)
+    Checking diagnostics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/diagnostics)
+    Checking build-time-values v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/build-time-values)
+    Checking access-plans v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/access-plans)
+    Checking language-semantics v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/language-semantics)
+    Checking flow-effects v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/foundation/flow-effects)
+    Checking terminal-psi v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/compilation/representations/terminal-psi)
+    Checking typed-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/compilation/representations/typed-trees)
+warning: unused import: `symbols::SymbolHandle`
+ --> omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/control_flow/statement/payloads.rs:7:5
+  |
+7 | use symbols::SymbolHandle;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+    Checking proof-admission v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/compilation/proof/admission)
+warning: `typed-trees` (lib) generated 1 warning (run `cargo clippy --fix --lib -p typed-trees -- --no-deps -D warnings` to apply 1 suggestion)
+    Checking facts v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/compilation/representations/checked-trees/facts)
+    Checking representation-selections v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/compilation/checking/representation-planning/selections)
+    Checking checked-trees v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/compilation/representations/checked-trees)
+warning: unused import: `numerics::bignum::BigInt`
+  --> omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/constant_predicate_obligations.rs:15:5
+   |
+15 | use numerics::bignum::BigInt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `checked-trees` (lib) generated 1 warning (run `cargo clippy --fix --lib -p checked-trees -- --no-deps -D warnings` to apply 1 suggestion)
+    Checking validation v0.1.0 (/home/jarod/development/Omega/.agents/worktree/nov1-two/omega-rust/psi/compilation/checking)
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/declarations/operators/uses.rs:402:1
+    |
+402 | / /// mints, and signature `requires` but never flow facts.
+403 | |
+    | |_^
+404 |   /// Candidate count and arena span for a resolved spelling candidate set.
+405 |   fn checked_candidate_span(
+    |   ------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = note: `-D clippy::empty-line-after-doc-comments` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::empty_line_after_doc_comments)]`
+    = help: if the empty line is unintentional, remove it
+help: if the documentation should include the empty line include it in the comment
+    |
+403 | ///
+    |
+
+error: redundant field names in struct initialization
+   --> omega-rust/psi/compilation/checking/src/declarations/traits/trait_implementation_arguments.rs:222:17
+    |
+222 |                 declaration: declaration,
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `declaration`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_field_names
+    = note: `-D clippy::redundant-field-names` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_field_names)]`
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/machine_calls/effect_inference/invocations.rs:563:1
+    |
+563 | / /// the declaration table per member hop.
+564 | |
+    | |_^
+565 |   fn push_call(
+    |   ------------ the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/machine_calls/result_overloads.rs:249:1
+    |
+249 | / /// or unspelled boundary-operator result overload before downstream consumers.
+250 | |
+    | |_^
+251 |   pub fn resolve_named_result_overloads(
+    |   ------------------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/fields.rs:724:1
+    |
+724 | / /// as `(resolved field symbol, spelling)`. Case projections are not fields.
+725 | |
+    | |_^
+...
+731 |   pub(super) struct MemberCoordinateParts<'program> {
+    |   --------------------------------------- the comment documents this struct
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+help: if the documentation should include the empty line include it in the comment
+    |
+725 | ///
+    |
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range.rs:768:1
+    |
+768 | / /// fails the edge rather than borrowing a foreign record's lineage.
+769 | |
+    | |_^
+...
+773 |   pub(super) fn dependency_binary(operator: BinaryOperator) -> bool {
+    |   ------------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+help: if the documentation should include the empty line include it in the comment
+    |
+769 | ///
+    |
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs:392:1
+    |
+392 | / /// semantic premises/goals must use the state or parameter-frame entry point.
+393 | |
+    | |_^
+...
+396 |   pub(super) fn structural_term_pair(
+    |   ---------------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+help: if the documentation should include the empty line include it in the comment
+    |
+393 | ///
+    |
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs:433:1
+    |
+433 | / /// use the parameter-frame form of `structural_term` and never borrow a caller's state.
+434 | |
+    | |_^
+...
+439 |   pub(crate) fn source_operations_have_same_meaning(
+    |   ------------------------------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+help: if the documentation should include the empty line include it in the comment
+    |
+434 | ///
+    |
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/expression_owners/call_targets.rs:255:1
+    |
+255 | / /// environment extended by the `LocalData` bindings preceding the statement.
+256 | |
+    | |_^
+257 |   pub(super) fn call_target_in_environment(
+    |   ---------------------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+
+error: redundant field names in struct initialization
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/conversion_contracts.rs:210:17
+    |
+210 |                 expression: expression,
+    |                 ^^^^^^^^^^^^^^^^^^^^^^ help: replace it with: `expression`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_field_names
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/correspondence_certificate.rs:537:1
+    |
+537 | / /// The shared per-position arithmetic binding arms: a public parameter
+538 | |
+    | |_^
+...
+542 |   fn push_exact_position_arithmetic_bindings(
+    |   ------------------------------------------ the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+help: if the documentation should include the empty line include it in the comment
+    |
+538 | ///
+    |
+
+error: empty line after outer attribute
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/runtime_correspondence.rs:272:1
+    |
+272 | / #[allow(clippy::too_many_arguments)]
+273 | |
+    | |_^
+...
+276 |   fn closed_array_elements(
+    |   ------------------------ the attribute applies to this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_outer_attr
+    = note: `-D clippy::empty-line-after-outer-attr` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::empty_line_after_outer_attr)]`
+    = help: if the empty line is unintentional, remove it
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/value_custody/expression_types/value_classification.rs:290:1
+    |
+290 | / /// one is open (the declaration slice is otherwise re-scanned per query).
+291 | |
+    | |_^
+292 |   pub(super) fn concrete_data_type_name(
+    |   ------------------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+
+error: empty line after doc comment
+   --> omega-rust/psi/compilation/checking/src/value_custody/storage_contents.rs:739:1
+    |
+739 | / /// shape nor which owner keeps the backing.
+740 | |
+    | |_^
+741 |   pub(crate) fn is_plain_value_domain(
+    |   ----------------------------------- the comment documents this function
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+    = help: if the empty line is unintentional, remove it
+
+error: empty line after doc comment
+  --> omega-rust/psi/compilation/checking/src/value_custody/type_shapes.rs:10:1
+   |
+10 | / /// constrained shells.
+11 | |
+   | |_^
+...
+16 |   pub(crate) fn exact_integer_primitive(
+   |   ------------------------------------- the comment documents this function
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+   = help: if the empty line is unintentional, remove it
+help: if the documentation should include the empty line include it in the comment
+   |
+11 | ///
+   |
+
+error: empty line after doc comment
+    --> omega-rust/psi/compilation/checking/src/value_custody/write_only_borrows.rs:1345:1
+     |
+1345 | / /// The callee parameters an argument list corresponds to, in authored order.
+1346 | |
+     | |_^
+...
+1349 |   fn validate_arguments_against_parameters(
+     |   ---------------------------------------- the comment documents this function
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#empty_line_after_doc_comments
+     = help: if the empty line is unintentional, remove it
+help: if the documentation should include the empty line include it in the comment
+     |
+1346 | ///
+     |
+
+mbx[progress]: 15s elapsed; 0 hits, 3 misses, 0 bypassed, 21 not looked up; ~0s compiler work saved
+error: unused variable: `access`
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_origins/storage_projection.rs:63:22
+   |
+63 |             referee, access, ..
+   |                      ^^^^^^ help: try ignoring the field: `access: _`
+   |
+   = note: `-D unused-variables` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_variables)]`
+
+mbx[progress]: 30s elapsed; 0 hits, 3 misses, 0 bypassed, 21 not looked up; ~0s compiler work saved
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/borrow_contracts/callable_refinement.rs:200:27
+    |
+200 |         if own_parameters(&required)?.is_empty() && own_parameters(&actual)?.is_empty() {
+    |                           ^^^^^^^^^ help: change this to: `required`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+    = note: `-D clippy::needless-borrow` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_borrow)]`
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/borrow_contracts/callable_refinement.rs:200:68
+    |
+200 |         if own_parameters(&required)?.is_empty() && own_parameters(&actual)?.is_empty() {
+    |                                                                    ^^^^^^^ help: change this to: `actual`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/borrow_contracts/callable_refinement.rs:276:28
+    |
+276 |             required: rows(&required, &required_frontier.regions, false)?,
+    |                            ^^^^^^^^^ help: change this to: `required`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/borrow_contracts/callable_refinement.rs:277:26
+    |
+277 |             actual: rows(&actual, &actual_frontier.regions, true)?,
+    |                          ^^^^^^^ help: change this to: `actual`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: unnecessary closure used to substitute value for `Option::None`
+   --> omega-rust/psi/compilation/checking/src/borrow_contracts/provider_outputs.rs:105:22
+    |
+105 |           let leaves = carried_lifetimes::declaration_lifetime_inventory(
+    |  ______________________^
+106 | |             program,
+107 | |             reference,
+108 | |             carried_lifetimes::LifetimeFrontier::BorrowedStorage,
+109 | |         )
+110 | |         .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure { subject })?;
+    | |____________________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#unnecessary_lazy_evaluations
+    = note: `-D clippy::unnecessary-lazy-evaluations` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unnecessary_lazy_evaluations)]`
+help: use `ok_or` instead
+    |
+110 -         .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure { subject })?;
+110 +         .ok_or(ViewReturnAmbiguity::IncompleteStructure { subject })?;
+    |
+
+error: unnecessary use of `first().is_none()` to check if slice is empty
+  --> omega-rust/psi/compilation/checking/src/declarations/operators/contracts.rs:32:44
+   |
+32 |         if program.machine_states(machine).first().is_none() {
+   |                                            ^^^^^^^^^^^^^^^^^ help: replace this with: `is_empty()`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#unnecessary_first_then_check
+   = note: `-D clippy::unnecessary-first-then-check` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::unnecessary_first_then_check)]`
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/declarations/operators/uses.rs:195:17
+    |
+195 | /                 if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+196 | |                     if floating_subject && let Ok(ordinal) = u32::try_from(ordinal) {
+197 | |                         let source_arm = dispatch.arms.handle_at(ordinal);
+198 | |                         let mut equality = operator_use_fact(
+...   |
+213 | |                 }
+    | |_________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+195 ~                 if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+196 ~                     && floating_subject && let Ok(ordinal) = u32::try_from(ordinal) {
+197 |                         let source_arm = dispatch.arms.handle_at(ordinal);
+...
+211 |                         sink.uses.append(equality);
+212 ~                     }
+    |
+
+error: the following explicit lifetimes could be elided: 'a
+   --> omega-rust/psi/compilation/checking/src/expression_traversal.rs:444:30
+    |
+444 | pub fn name_path_last_member<'a>(
+    |                              ^^
+445 |     program: &'a dyn crate::CheckingInput,
+    |               ^^
+446 |     value: ExpressionHandle,
+447 | ) -> Option<&'a str> {
+    |              ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+    = note: `-D clippy::needless-lifetimes` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_lifetimes)]`
+help: elide the lifetimes
+    |
+444 ~ pub fn name_path_last_member(
+445 ~     program: &dyn crate::CheckingInput,
+446 |     value: ExpressionHandle,
+447 ~ ) -> Option<&str> {
+    |
+
+error: this returns a `Result<_, ()>`
+   --> omega-rust/psi/compilation/checking/src/layout_checking.rs:112:1
+    |
+112 | / pub fn layout_checking_targets(
+113 | |     program: &dyn CheckingInput,
+114 | |     roots: impl IntoIterator<Item = TypeReferenceHandle>,
+115 | | ) -> Result<Vec<Option<&str>>, ()> {
+    | |__________________________________^
+    |
+    = help: use a custom `Error` type instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#result_unit_err
+    = note: `-D clippy::result-unit-err` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::result_unit_err)]`
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/projection.rs:260:13
+    |
+260 | /             let Some(component) = expression_table(program).name_path_node(*component) else {
+261 | |                 return None;
+262 | |             };
+    | |______________^ help: replace it with: `let component = expression_table(program).name_path_node(*component)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+    = note: `-D clippy::question-mark` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::question_mark)]`
+
+error: called `.iter().count()` on a `slice`
+   --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking.rs:695:27
+    |
+695 |     if arguments.len() != parameters.iter().count() {
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `parameters.len()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_count
+    = note: `-D clippy::iter-count` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::iter_count)]`
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking.rs:907:17
+    |
+907 | /                 if let Some((path, arguments)) =
+908 | |                     program.statement_table.named_transition_target(target)
+909 | |                 {
+910 | |                     if let Some(destination) = internal_state_index(program, machine, path.symbol) {
+...   |
+920 | |                 }
+    | |_________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+908 ~                     program.statement_table.named_transition_target(target)
+909 ~                     && let Some(destination) = internal_state_index(program, machine, path.symbol) {
+910 |                         arrivals.push(InternalArrival {
+...
+917 |                         });
+918 ~                     }
+    |
+
+error: this block may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs:269:12
+    |
+269 |       } else if let Some(proposition) = program
+    |  ____________^
+270 | |         .propositions()
+271 | |         .iter()
+272 | |         .find(|proposition| proposition.symbol == symbol)
+...   |
+287 | |         return None;
+288 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+269 ~     } else {
+270 +         let proposition = program
+271 +         .propositions()
+272 +         .iter()
+273 +         .find(|proposition| proposition.symbol == symbol)?;
+274 +         if let typed_trees::proposition::PropositionBody::Transparent { proposition } =
+275 +             &proposition.body
+276 +         {
+277 +             match proposition {
+278 +                 typed_trees::proposition::PropositionFormula::BooleanExpression(expression) => {
+279 +                     collect_expression_dependency_symbols(program, *expression, &mut dependencies);
+280 +                 }
+281 +                 typed_trees::proposition::PropositionFormula::Application(application) => {
+282 +                     collect_proposition_dependency_symbols(program, application, &mut dependencies);
+283 +                 }
+284 +             }
+285 +         }
+286 +     }
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs:559:9
+    |
+559 | /         if members
+560 | |             .iter()
+561 | |             .all(|member| proof_only.is_proof_machine(program, &machines[*member]))
+...   |
+584 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+561 ~             .all(|member| proof_only.is_proof_machine(program, &machines[*member]))
+562 ~             && !proof_components.iter().any(|component| {
+563 |                 component.members.len() == members.len()
+...
+581 |                 )));
+582 ~             }
+    |
+
+error: parameter is only used in recursion
+   --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs:838:5
+    |
+838 |     machine: &Machine,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_machine`
+    |
+note: parameter used here
+   --> omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs:855:17
+    |
+855 |                 machine,
+    |                 ^^^^^^^
+...
+870 |                 recurse!(child);
+    |                 --------------- in this macro invocation
+...
+888 |             recurse!(call.receiver);
+    |             ----------------------- in this macro invocation
+889 |             for argument in expression_table(program).expression_handles(call.arguments) {
+890 |                 recurse!(*argument);
+    |                 ------------------- in this macro invocation
+...
+894 |             recurse!(child);
+    |             --------------- in this macro invocation
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#only_used_in_recursion
+    = note: `-D clippy::only-used-in-recursion` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::only_used_in_recursion)]`
+    = note: this error originates in the macro `recurse` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/closed_dispatch.rs:209:5
+    |
+209 | /     if count != 0 {
+210 | |         if !application.callable_application.is_valid()
+211 | |             || selected
+212 | |                 != expression_table(program)
+...   |
+219 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+209 ~     if count != 0
+210 ~         && (!application.callable_application.is_valid()
+211 |             || selected
+212 |                 != expression_table(program)
+213 ~                     .static_machine_application_selected_machines(application.callable_application))
+214 |         {
+...
+217 |             );
+218 ~         }
+    |
+
+error: the following explicit lifetimes could be elided: 'p
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/signature_queries.rs:86:38
+   |
+86 | pub(crate) fn unique_state_by_symbol<'p>(
+   |                                      ^^
+87 |     program: &'p dyn crate::CheckingInput,
+   |               ^^
+88 |     symbol: symbols::SymbolHandle,
+89 | ) -> Option<&'p typed_trees::state::State> {
+   |              ^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+   |
+86 ~ pub(crate) fn unique_state_by_symbol(
+87 ~     program: &dyn crate::CheckingInput,
+88 |     symbol: symbols::SymbolHandle,
+89 ~ ) -> Option<&typed_trees::state::State> {
+   |
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/boundary_calls.rs:659:72
+    |
+659 |         let parameter_type = substituted_head(program, parameter_type, &bindings);
+    |                                                                        ^^^^^^^^^ help: change this to: `bindings`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this `if` statement can be collapsed
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/call_targets.rs:41:5
+   |
+41 | /     if let Some(call_site) = call_site
+42 | |         && typed_trees::operator::declaration_by_symbol(program, call_site.target_symbol(program))
+43 | |             .is_some()
+...  |
+57 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+   |
+43 ~             .is_some()
+44 ~         && let Some(parameters) = call_site.parameters(program, current_machine.symbol)
+45 |             && parameters.len()
+...
+54 |                 .collect();
+55 ~         }
+   |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/call_origins.rs:154:17
+    |
+154 | /                 let Some(call) = expression_table(program).call_node(expression) else {
+155 | |                     return None;
+156 | |                 };
+    | |__________________^ help: replace it with: `let call = expression_table(program).call_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/parameter_relative_origins.rs:132:17
+    |
+132 | /                 let Some(machine_symbols) =
+133 | |                     super::demand::machine_symbols(program, current_machine)
+134 | |                 else {
+135 | |                     return None;
+136 | |                 };
+    | |__________________^ help: replace it with: `let machine_symbols = super::demand::machine_symbols(program, current_machine)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: redundant pattern matching
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/reference_subjects.rs:808:12
+    |
+808 |     if let Some(_) = expression_table(program).call_node(expression) {
+    |            ^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_pattern_matching
+    = note: `-D clippy::redundant-pattern-matching` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_pattern_matching)]`
+help: consider using `is_some()`
+    |
+808 -     if let Some(_) = expression_table(program).call_node(expression) {
+808 +     if expression_table(program).call_node(expression).is_some() {
+    |
+
+error: called `.iter().count()` on a `slice`
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/result_origins.rs:132:31
+    |
+132 |         || arguments.len() != parameters.iter().count()
+    |                               ^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `parameters.len()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_count
+
+error: called `.iter().count()` on a `slice`
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/result_origins.rs:844:27
+    |
+844 |     if arguments.len() != parameters.iter().count() {
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `parameters.len()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_count
+
+error: for loop over a single element
+   --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_calls/captured_inputs.rs:235:9
+    |
+235 | /         for mut source in [candidate] {
+236 | |             if !has_captured_namespace(&source.origin.source)
+237 | |                 || !source.origin.source.builtin_coordinates
+238 | |                 || !has_captured_namespace(&source.carrier)
+...   |
+253 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#single_element_loop
+    = note: `-D clippy::single-element-loop` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::single_element_loop)]`
+help: try
+    |
+235 ~         {
+236 +             let mut source = candidate;
+237 +             if !has_captured_namespace(&source.origin.source)
+238 +                 || !source.origin.source.builtin_coordinates
+239 +                 || !has_captured_namespace(&source.carrier)
+240 +                 || !source.carrier.builtin_coordinates
+241 +             {
+242 +                 return None;
+243 +             }
+244 +             source.lifetime_access = source.lifetime_access.or(supplied.lifetime_access);
+245 +             let substitutions = substitution.clone().into_iter().collect();
+246 +             if !sources.iter().any(|prior: &InstantiatedSource| {
+247 +                 prior.source == source && prior.substitutions == substitutions
+248 +             }) {
+249 +                 sources.push(InstantiatedSource {
+250 +                     source,
+251 +                     substitutions,
+252 +                 });
+253 +             }
+254 +         }
+    |
+
+error: this `if` statement can be collapsed
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/stored_calls/invocation_contract.rs:31:5
+   |
+31 | /     if let Some((callee, selected)) = super::super::machine_state_by_symbol(program, target) {
+32 | |         if callee.body_is_present && callee.supply_mode.is_checked_body() {
+33 | |             return Some(ReferenceSlotContract::CheckedBody {
+34 | |                 machine: callee,
+...  |
+38 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+   |
+31 ~     if let Some((callee, selected)) = super::super::machine_state_by_symbol(program, target)
+32 ~         && callee.body_is_present && callee.supply_mode.is_checked_body() {
+33 |             return Some(ReferenceSlotContract::CheckedBody {
+...
+36 |             });
+37 ~         }
+   |
+
+error: this `if` statement can be collapsed
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/topology.rs:17:5
+   |
+17 | /     if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+18 | |         if let Ok(cache) = memos.normal_completion_possible.lock() {
+19 | |             if let Some(&cached) = cache.get(&initial.symbol) {
+20 | |                 return cached;
+...  |
+23 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+   |
+17 ~     if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+18 ~         && let Ok(cache) = memos.normal_completion_possible.lock() {
+19 |             if let Some(&cached) = cache.get(&initial.symbol) {
+20 |                 return cached;
+21 |             }
+22 ~         }
+   |
+
+error: this `if` statement can be collapsed
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/topology.rs:18:9
+   |
+18 | /         if let Ok(cache) = memos.normal_completion_possible.lock() {
+19 | |             if let Some(&cached) = cache.get(&initial.symbol) {
+20 | |                 return cached;
+21 | |             }
+22 | |         }
+   | |_________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+   |
+18 ~         if let Ok(cache) = memos.normal_completion_possible.lock()
+19 ~             && let Some(&cached) = cache.get(&initial.symbol) {
+20 |                 return cached;
+21 ~             }
+   |
+
+error: this `if` statement can be collapsed
+  --> omega-rust/psi/compilation/checking/src/machine_calls/calls/topology.rs:25:5
+   |
+25 | /     if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+26 | |         if let Ok(mut cache) = memos.normal_completion_possible.lock() {
+27 | |             cache.insert(initial.symbol, result);
+28 | |         }
+29 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+   |
+25 ~     if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+26 ~         && let Ok(mut cache) = memos.normal_completion_possible.lock() {
+27 |             cache.insert(initial.symbol, result);
+28 ~         }
+   |
+
+error: this method chain can be written more clearly with `if .. else ..`
+   --> omega-rust/psi/compilation/checking/src/machine_calls/contract_identities.rs:313:35
+    |
+313 |               let supplying_owner = capture.supplying_application.is_valid().then(|| {
+    |  ___________________________________^
+314 | |                 let source = expression_table(program).static_machine_application(capture.supplying_application);
+315 | |                 program.symbols.display_path(source.lexical_owner, "::").to_string()
+316 | |             }).unwrap_or_else(|| "<missing>".into());
+    | |____________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#obfuscated_if_else
+    = note: `-D clippy::obfuscated-if-else` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::obfuscated_if_else)]`
+help: try
+    |
+313 ~             let supplying_owner = if capture.supplying_application.is_valid() { {
+314 +                 let source = expression_table(program).static_machine_application(capture.supplying_application);
+315 +                 program.symbols.display_path(source.lexical_owner, "::").to_string()
+316 ~             } } else { "<missing>".into() };
+    |
+
+error: this `if let` can be collapsed into the outer `if let`
+   --> omega-rust/psi/compilation/checking/src/machine_calls/effect_inference/service_reach.rs:622:9
+    |
+622 | /         if let typed_trees::data::MachineParameterContractView::Structural(signature) = contract {
+623 | |             extend_signature_service_rows(program, signature, &mut reach);
+624 | |             record_signature_reach(program, signature, &mut reach);
+625 | |         }
+    | |_________^
+    |
+help: the outer pattern can be modified to include the inner pattern
+   --> omega-rust/psi/compilation/checking/src/machine_calls/effect_inference/service_reach.rs:617:17
+    |
+617 |     if let Some(contract) = with_call_target_index(program, |index| {
+    |                 ^^^^^^^^ replace this binding
+...
+622 |         if let typed_trees::data::MachineParameterContractView::Structural(signature) = contract {
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ with this pattern
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_match
+    = note: `-D clippy::collapsible-match` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_match)]`
+
+error: the following explicit lifetimes could be elided: 'program
+  --> omega-rust/psi/compilation/checking/src/machine_calls/fact_only_citations.rs:37:22
+   |
+37 | fn machine_by_target<'program>(
+   |                      ^^^^^^^^
+38 |     program: &'program dyn crate::CheckingInput,
+   |               ^^^^^^^^
+39 |     target: SymbolHandle,
+40 | ) -> Option<&'program Machine> {
+   |              ^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+   |
+37 ~ fn machine_by_target(
+38 ~     program: &dyn crate::CheckingInput,
+39 |     target: SymbolHandle,
+40 ~ ) -> Option<&Machine> {
+   |
+
+error: called `.iter().nth()` on a slice
+   --> omega-rust/psi/compilation/checking/src/machine_calls/invocations.rs:101:33
+    |
+101 |                 let parameter = parameters.iter().nth(ordinal as usize);
+    |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_nth
+    = note: `-D clippy::iter-nth` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::iter_nth)]`
+help: `get` is equivalent but more concise
+    |
+101 -                 let parameter = parameters.iter().nth(ordinal as usize);
+101 +                 let parameter = parameters.get(ordinal as usize);
+    |
+
+error: called `.iter().count()` on a `slice`
+   --> omega-rust/psi/compilation/checking/src/machine_calls/invocations.rs:172:21
+    |
+172 |                     parameters.iter().count(),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `parameters.len()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_count
+
+error: called `.iter().nth()` on a slice
+   --> omega-rust/psi/compilation/checking/src/machine_calls/invocations.rs:250:61
+    |
+250 |           flow_effects::InvocationTarget::Parameter(index) => parameters
+    |  _____________________________________________________________^
+251 | |             .iter()
+252 | |             .nth(index as usize)
+    | |________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_nth
+help: `get` is equivalent but more concise
+    |
+251 -             .iter()
+252 -             .nth(index as usize)
+251 +             .get(index as usize)
+    |
+
+error: the following explicit lifetimes could be elided: 'p
+   --> omega-rust/psi/compilation/checking/src/machine_calls/machine_parameters.rs:509:37
+    |
+509 |     fn contract_and_type_parameters<'p>(
+    |                                     ^^
+510 |         parameters: &'p [TypeParameter],
+    |                      ^^
+511 |     ) -> (
+512 |         Vec<(&'p TypeParameter, &'p MachineParameterContract)>,
+    |               ^^                 ^^
+513 |         Vec<&'p TypeParameter>,
+    |              ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+509 ~     fn contract_and_type_parameters(
+510 ~         parameters: &[TypeParameter],
+511 |     ) -> (
+512 ~         Vec<(&TypeParameter, &MachineParameterContract)>,
+513 ~         Vec<&TypeParameter>,
+    |
+
+error: match expression looks like `matches!` macro
+    --> omega-rust/psi/compilation/checking/src/machine_calls/machine_parameters.rs:1344:33
+     |
+1344 |               .filter(|parameter| match (kind, &parameter.kind) {
+     |  _________________________________^
+1345 | |                 (StaticOperandCategory::Type, TypeParameterKind::Type)
+1346 | |                 | (
+1347 | |                     StaticOperandCategory::Const,
+...    |
+1351 | |                 _ => false,
+1352 | |             })
+     | |_____________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#match_like_matches_macro
+     = note: `-D clippy::match-like-matches-macro` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::match_like_matches_macro)]`
+help: use `matches!` directly
+     |
+1344 ~             .filter(|parameter| matches!((kind, &parameter.kind), (StaticOperandCategory::Type, TypeParameterKind::Type)
+1345 +                 | (
+1346 +                     StaticOperandCategory::Const,
+1347 +                     TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+1348 +                 )
+1349 ~                 | (StaticOperandCategory::Machine, TypeParameterKind::Machine { .. })))
+     |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs:273:5
+    |
+273 | /     let Some((path, name)) = expression_table(program).single_name_member(expression) else {
+274 | |         return None;
+275 | |     };
+    | |______^ help: replace it with: `let (path, name) = expression_table(program).single_name_member(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs:377:5
+    |
+377 | /     let Some(borrow) = expression_table(program).borrow_expression(expression) else {
+378 | |         return None;
+379 | |     };
+    | |______^ help: replace it with: `let borrow = expression_table(program).borrow_expression(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: the following explicit lifetimes could be elided: 'p
+   --> omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs:528:30
+    |
+528 | fn nominal_member_owner_type<'p>(
+    |                              ^^
+529 |     program: &'p dyn CheckingInput,
+    |               ^^
+530 |     mut reference: TypeReferenceHandle,
+531 | ) -> Option<&'p typed_trees::data::DataDefinition> {
+    |              ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+528 ~ fn nominal_member_owner_type(
+529 ~     program: &dyn CheckingInput,
+530 |     mut reference: TypeReferenceHandle,
+531 ~ ) -> Option<&typed_trees::data::DataDefinition> {
+    |
+
+error: returning the result of a `let` binding from a block
+    --> omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs:1206:5
+     |
+1197 | /     let result = named_place_loans(
+1198 | |         program,
+1199 | |         facts,
+1200 | |         machine,
+...    |
+1204 | |         &[],
+1205 | |     );
+     | |______- unnecessary `let` binding
+1206 |       result
+     |       ^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#let_and_return
+     = note: `-D clippy::let-and-return` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::let_and_return)]`
+help: return the expression directly
+     |
+1197 ~     
+1198 ~     named_place_loans(
+1199 +         program,
+1200 +         facts,
+1201 +         machine,
+1202 +         state,
+1203 +         local.symbol,
+1204 +         statement_index,
+1205 +         &[],
+1206 +     )
+     |
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/machine_calls/static_arguments.rs:348:27
+    |
+348 | fn expression_call_states<'program>(
+    |                           ^^^^^^^^
+349 |     program: &'program dyn CheckingInput,
+    |               ^^^^^^^^
+350 | ) -> Vec<(typed_trees::expression::ExpressionHandle, &'program State)> {
+    |                                                       ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+348 ~ fn expression_call_states(
+349 ~     program: &dyn CheckingInput,
+350 ~ ) -> Vec<(typed_trees::expression::ExpressionHandle, &State)> {
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/machine_calls/static_arguments.rs:758:9
+    |
+758 | /         if (argument.type_reference.is_valid() && !admitted_runtime) || (named_type && has_types) {
+759 | |             if !parameters
+760 | |                 .get(ordinal)
+761 | |                 .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+...   |
+769 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+758 ~         if ((argument.type_reference.is_valid() && !admitted_runtime) || (named_type && has_types)) {
+759 ~             && !parameters
+760 |                 .get(ordinal)
+...
+767 |                 )));
+768 ~             }
+    |
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs:156:30
+    |
+156 | fn parameter_data_definition<'program>(
+    |                              ^^^^^^^^
+157 |     program: &'program dyn crate::CheckingInput,
+    |               ^^^^^^^^
+158 |     referee: TypeReferenceHandle,
+159 | ) -> Option<&'program DataDefinition> {
+    |              ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+156 ~ fn parameter_data_definition(
+157 ~     program: &dyn crate::CheckingInput,
+158 |     referee: TypeReferenceHandle,
+159 ~ ) -> Option<&DataDefinition> {
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs:914:13
+    |
+914 | /             let Some(binary) = expression_table(self.program).binary_node(authored) else {
+915 | |                 return None;
+916 | |             };
+    | |______________^ help: replace it with: `let binary = expression_table(self.program).binary_node(authored)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs:196:21
+    |
+196 | /                     let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(
+197 | |                         program,
+198 | |                         membership.value,
+199 | |                     ) else {
+200 | |                         return None;
+201 | |                     };
+    | |______________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+196 ~                     let symbol = crate::expression_traversal::single_segment_name_symbol(
+197 +                         program,
+198 +                         membership.value,
+199 +                     )?;
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/program_validation/dependency_bodies.rs:698:5
+    |
+698 | /     if let Some(machine_index) = machine_slot(machine_of_symbol, symbol) {
+699 | |         if let Some(identity) = identities.get(machine_index).and_then(Option::as_ref) {
+700 | |             hash.byte(1);
+701 | |             hash.string_terminated(identity);
+...   |
+704 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+698 ~     if let Some(machine_index) = machine_slot(machine_of_symbol, symbol)
+699 ~         && let Some(identity) = identities.get(machine_index).and_then(Option::as_ref) {
+700 |             hash.byte(1);
+701 |             hash.string_terminated(identity);
+702 |             return;
+703 ~         }
+    |
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs:131:32
+    |
+131 |                     .unwrap_or(&narrowed);
+    |                                ^^^^^^^^^ help: change this to: `narrowed`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs:180:32
+    |
+180 |                     .unwrap_or(&narrowed);
+    |                                ^^^^^^^^^ help: change this to: `narrowed`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/program_validation/statements/transition_statements.rs:212:36
+    |
+212 |                         .unwrap_or(&narrowed);
+    |                                    ^^^^^^^^^ help: change this to: `narrowed`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/cited_element_bounds.rs:326:9
+    |
+326 | /         if argument.type_reference.is_valid() {
+327 | |             if let typed_trees::types::TypeReferenceNode::ConstExpression(expression) = self
+328 | |                 .program
+329 | |                 .type_reference_table
+...   |
+340 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+326 ~         if argument.type_reference.is_valid()
+327 ~             && let typed_trees::types::TypeReferenceNode::ConstExpression(expression) = self
+328 |                 .program
+...
+338 |                 );
+339 ~             }
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_products.rs:178:5
+    |
+178 | /     let Some(binary) = program.expression_table.binary_node(guard) else {
+179 | |         return None;
+180 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(guard)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/dependent_products.rs:197:13
+    |
+197 | /             let Some(product) = program.expression_table.binary_node(binary.left) else {
+198 | |                 return None;
+199 | |             };
+    | |______________^ help: replace it with: `let product = program.expression_table.binary_node(binary.left)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs:224:5
+    |
+224 | /     let Some(binary) = program.expression_table.binary_node(expression) else {
+225 | |         return None;
+226 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs:310:5
+    |
+310 | /     let Some(binary) = program.expression_table.binary_node(expression) else {
+311 | |         return None;
+312 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs:861:5
+    |
+861 | /     let Some(binary) = program.expression_table.binary_node(bound) else {
+862 | |         return None;
+863 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(bound)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs:930:5
+    |
+930 | /     let Some(add) = program.expression_table.binary_node(bound) else {
+931 | |         return None;
+932 | |     };
+    | |______^ help: replace it with: `let add = program.expression_table.binary_node(bound)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs:953:5
+    |
+953 | /     let Some(extreme) = signed_primitive_bound(left_primitive, lower) else {
+954 | |         return None;
+955 | |     };
+    | |______^ help: replace it with: `let extreme = signed_primitive_bound(left_primitive, lower)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing.rs:1046:5
+     |
+1046 | /     let Some(boundary) = signed_primitive_bound(left_primitive, use_minimum) else {
+1047 | |         return None;
+1048 | |     };
+     | |______^ help: replace it with: `let boundary = signed_primitive_bound(left_primitive, use_minimum)?;`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/invariant_bounds.rs:317:5
+    |
+317 | /     let Some(binary) = program.expression_table.binary_node(expression) else {
+318 | |         return None;
+319 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/monotonic_update.rs:29:5
+   |
+29 | /     let Some(binary) = program.expression_table.binary_node(expression) else {
+30 | |         return None;
+31 | |     };
+   | |______^ help: replace it with: `let binary = program.expression_table.binary_node(expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/slice_lengths.rs:99:5
+    |
+ 99 | /     if let Some(path) = super::place_path(program, collection) {
+100 | |         if let Some(interval) = environment.get(&format!("{path}.len")) {
+101 | |             return Some(interval);
+102 | |         }
+103 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+ 99 ~     if let Some(path) = super::place_path(program, collection)
+100 ~         && let Some(interval) = environment.get(&format!("{path}.len")) {
+101 |             return Some(interval);
+102 ~         }
+    |
+
+error: this returns a `Result<_, ()>`
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes/source_geometry.rs:39:1
+   |
+39 | / pub fn stored_integer_source_reach(
+40 | |     program: &dyn crate::CheckingInput,
+41 | |     state: &State,
+42 | |     source: &crate::LocalWriteSource,
+43 | | ) -> Result<StoredIntegerReach, ()> {
+   | |___________________________________^
+   |
+   = help: use a custom `Error` type instead
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#result_unit_err
+
+error: this returns a `Result<_, ()>`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes.rs:155:1
+    |
+155 | / pub fn stored_integer_source_projections(
+156 | |     program: &dyn crate::CheckingInput,
+157 | |     state: &State,
+158 | |     source: &crate::LocalWriteSource,
+159 | |     suffix: &[PlaceSegment],
+160 | | ) -> Result<Vec<(SymbolHandle, IntegerType)>, ()> {
+    | |_________________________________________________^
+    |
+    = help: use a custom `Error` type instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#result_unit_err
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes.rs:236:13
+    |
+236 | /             if let Some(projection) =
+237 | |                 stored_integer_source_projection(program, state, source, &segments[longest..])?
+238 | |             {
+239 | |                 if !projections.contains(&projection) {
+...   |
+242 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+237 ~                 stored_integer_source_projection(program, state, source, &segments[longest..])?
+238 ~                 && !projections.contains(&projection) {
+239 |                     projections.push(projection);
+240 ~                 }
+    |
+
+error: this returns a `Result<_, ()>`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes.rs:265:1
+    |
+265 | / pub fn stored_integer_source_projection(
+266 | |     program: &dyn crate::CheckingInput,
+267 | |     state: &State,
+268 | |     source: &crate::LocalWriteSource,
+269 | |     suffix: &[PlaceSegment],
+270 | | ) -> Result<Option<(SymbolHandle, IntegerType)>, ()> {
+    | |____________________________________________________^
+    |
+    = help: use a custom `Error` type instead
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#result_unit_err
+
+error: manual implementation of `.is_multiple_of()`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/stored_integer_writes.rs:506:34
+    |
+506 |     if bits == 0 || bits > 64 || bits % 8 != 0 {
+    |                                  ^^^^^^^^^^^^^ help: replace with: `!bits.is_multiple_of(8)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#manual_is_multiple_of
+    = note: `-D clippy::manual-is-multiple-of` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_is_multiple_of)]`
+
+error: this `if` can be collapsed into the outer `match`
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/collection_predicates/implication.rs:1661:25
+     |
+1661 | /                         if self.record_observes_integer(*identity, projection, value, path)? {
+1662 | |                             return Some(true);
+1663 | |                         }
+     | |_________________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_match
+help: collapse nested if block
+     |
+1660 ~                     }
+1661 ~                         if self.record_observes_integer(*identity, projection, value, path)? => {
+1662 |                             return Some(true);
+1663 ~                         }
+     |
+
+error: the following explicit lifetimes could be elided: 'program
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/collection_predicates.rs:47:22
+   |
+47 | pub fn length_member<'program>(
+   |                      ^^^^^^^^
+48 |     program: &'program dyn crate::CheckingInput,
+   |               ^^^^^^^^
+49 |     expression: ExpressionHandle,
+50 | ) -> Option<&'program typed_trees::expression::TableMemberExpression> {
+   |              ^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+   |
+47 ~ pub fn length_member(
+48 ~     program: &dyn crate::CheckingInput,
+49 |     expression: ExpressionHandle,
+50 ~ ) -> Option<&typed_trees::expression::TableMemberExpression> {
+   |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/strict_bindings.rs:821:9
+    |
+821 | /         let Some(binary) = expression_table(self.program).binary_node(expression) else {
+822 | |             return None;
+823 | |         };
+    | |__________^ help: replace it with: `let binary = expression_table(self.program).binary_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/strict_bindings.rs:845:9
+    |
+845 | /         let Some(binary) = expression_table(self.program).binary_node(expression) else {
+846 | |             return None;
+847 | |         };
+    | |__________^ help: replace it with: `let binary = expression_table(self.program).binary_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/strict_bindings.rs:870:9
+    |
+870 | /         let Some(binary) = expression_table(self.program).binary_node(expression) else {
+871 | |             return None;
+872 | |         };
+    | |__________^ help: replace it with: `let binary = expression_table(self.program).binary_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/citations.rs:401:5
+    |
+401 | /     let Some(binary) = program.expression_table.binary_node(fact) else {
+402 | |         return None;
+403 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(fact)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/citations.rs:478:5
+    |
+478 | /     let Some(binary) = program.expression_table.binary_node(lemma_fact) else {
+479 | |         return None;
+480 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(lemma_fact)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/const_ranges.rs:54:5
+   |
+54 | /     let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, expression)
+55 | |     else {
+56 | |         return None;
+57 | |     };
+   | |______^ help: replace it with: `let symbol = crate::expression_traversal::single_segment_name_symbol(program, expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/content_conservation.rs:106:76
+    |
+106 |         ContentAlgebraIdentity::IntervalSet { .. } => interval_sets::judge(&evaluator, plan),
+    |                                                                            ^^^^^^^^^^ help: change this to: `evaluator`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/exit_coverage.rs:47:13
+   |
+47 | /             let Some(comparison) = expression_table(program).binary_node(*expression) else {
+48 | |                 return None;
+49 | |             };
+   | |______________^ help: replace it with: `let comparison = expression_table(program).binary_node(*expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/exit_coverage.rs:75:9
+   |
+75 | /         let Some(case) = expression_table(program).name_path_node(comparison.right) else {
+76 | |             return None;
+77 | |         };
+   | |__________^ help: replace it with: `let case = expression_table(program).name_path_node(comparison.right)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/law_conformance.rs:253:13
+    |
+253 | /             let Some(proven_binary) = program.expression_table.binary_node(*proven) else {
+254 | |                 return None;
+255 | |             };
+    | |______________^ help: replace it with: `let proven_binary = program.expression_table.binary_node(*proven)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` has identical blocks
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/numeric_observations.rs:449:83
+    |
+449 |                   let is_candidate = if needs_relations && index == statement_index {
+    |  ___________________________________________________________________________________^
+450 | |                     super::observed_projections::integer_storage_read(
+451 | |                         program, machine, state, expression,
+...   |
+454 | |                 } else if demand.scalar_values.requested() {
+    | |_________________^
+    |
+note: same as this
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/numeric_observations.rs:454:60
+    |
+454 |                   } else if demand.scalar_values.requested() {
+    |  ____________________________________________________________^
+455 | |                     super::observed_projections::integer_storage_read(
+456 | |                         program, machine, state, expression,
+...   |
+459 | |                 } else {
+    | |_________________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#if_same_then_else
+    = note: `-D clippy::if-same-then-else` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::if_same_then_else)]`
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/operand_fits.rs:230:9
+    |
+230 | /         let Some(peer) = references[1 - position].and_then(|reference| {
+231 | |             crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+232 | |                 .map(|(primitive, _)| primitive)
+233 | |         }) else {
+234 | |             return None;
+235 | |         };
+    | |__________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+230 ~         let peer = references[1 - position].and_then(|reference| {
+231 +             crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+232 +                 .map(|(primitive, _)| primitive)
+233 +         })?;
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/operand_fits.rs:241:9
+    |
+241 | /         let Some(atom) = carrier
+242 | |             .landed_landing()
+243 | |             .map(typed_trees::types::builtin_type_atom)
+244 | |         else {
+245 | |             return None;
+246 | |         };
+    | |__________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+241 ~         let atom = carrier
+242 +             .landed_landing()
+243 +             .map(typed_trees::types::builtin_type_atom)?;
+    |
+
+error: deref which would be done by auto-deref
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/operand_fits.rs:592:17
+    |
+592 |                 *state,
+    |                 ^^^^^^ help: try: `state`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#explicit_auto_deref
+    = note: `-D clippy::explicit-auto-deref` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::explicit_auto_deref)]`
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/proof_edges.rs:64:5
+   |
+64 | /     let Some(entry) = program.machine_states(machine).first() else {
+65 | |         return None;
+66 | |     };
+   | |______^ help: replace it with: `let entry = program.machine_states(machine).first()?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/proof_edges.rs:75:5
+   |
+75 | /     let Some(relation) = selected_decrease_relation(program, machine, state, measure) else {
+76 | |         return None;
+77 | |     };
+   | |______^ help: replace it with: `let relation = selected_decrease_relation(program, machine, state, measure)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/quotient_congruence.rs:148:5
+    |
+148 | /     let Some(binary) = program.expression_table.binary_node(fact) else {
+149 | |         return None;
+150 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(fact)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: redundant pattern matching
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/calls.rs:1316:12
+     |
+1316 |     if let Some(_) = expression_table(program).member_node(subject) {
+     |            ^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_pattern_matching
+help: consider using `is_some()`
+     |
+1316 -     if let Some(_) = expression_table(program).member_node(subject) {
+1316 +     if expression_table(program).member_node(subject).is_some() {
+     |
+
+error: this `let...else` may be rewritten with the `?` operator
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/calls.rs:1323:5
+     |
+1323 | /     let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, subject)
+1324 | |     else {
+1325 | |         return None;
+1326 | |     };
+     | |______^ help: replace it with: `let symbol = crate::expression_traversal::single_segment_name_symbol(program, subject)?;`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/coordinate.rs:290:13
+    |
+290 | /             let Some(next) = self.kind.step_owner(program, field) else {
+291 | |                 return None;
+292 | |             };
+    | |______________^ help: replace it with: `let next = self.kind.step_owner(program, field)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/fields.rs:950:30
+    |
+950 | pub(super) fn declared_field<'program>(
+    |                              ^^^^^^^^
+951 |     program: &'program dyn crate::CheckingInput,
+    |               ^^^^^^^^
+...
+954 | ) -> Option<&'program DataField> {
+    |              ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+950 ~ pub(super) fn declared_field(
+951 ~     program: &dyn crate::CheckingInput,
+952 |     owner: SymbolHandle,
+953 |     symbol: SymbolHandle,
+954 ~ ) -> Option<&DataField> {
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs:225:9
+    |
+225 | /         let Some(indexed) = expression_table(program).indexed_node(expression) else {
+226 | |             return None;
+227 | |         };
+    | |__________^ help: replace it with: `let indexed = expression_table(program).indexed_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs:296:13
+    |
+296 | /             let Some(symbol) =
+297 | |                 crate::expression_traversal::single_segment_name_symbol(program, expression)
+298 | |             else {
+299 | |                 return None;
+300 | |             };
+    | |______________^ help: replace it with: `let symbol = crate::expression_traversal::single_segment_name_symbol(program, expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs:597:13
+    |
+597 | /             let Some(borrow) = expression_table(program).borrow_expression(current) else {
+598 | |                 return None;
+599 | |             };
+    | |______________^ help: replace it with: `let borrow = expression_table(program).borrow_expression(current)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: unnecessary closure used with `bool::then`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/meanings.rs:207:13
+    |
+207 |             (integer_target && integer_source).then(|| Some(cast.target_type))
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#unnecessary_lazy_evaluations
+help: use `then_some` instead
+    |
+207 -             (integer_target && integer_source).then(|| Some(cast.target_type))
+207 +             (integer_target && integer_source).then_some(Some(cast.target_type))
+    |
+
+error: this `match` expression can be replaced with `?`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/meanings.rs:305:29
+    |
+305 |                   operator => match typed_trees::operator::binary_operator_spelling(operator) {
+    |  _____________________________^
+306 | |                     Some(spelling) => spelling,
+307 | |                     None => return None,
+308 | |                 },
+    | |_________________^ help: try instead: `typed_trees::operator::binary_operator_spelling(operator)?`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: called `.iter().count()` on a `slice`
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/requirements.rs:260:8
+    |
+260 |     if parameters.iter().count() != arguments.len()
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `parameters.len()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_count
+
+error: called `.iter().cloned().collect()` on a slice to create a `Vec`
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/captured_calls/observation.rs:70:37
+   |
+70 |               .state_parameters(entry)
+   |  _____________________________________^
+71 | |             .iter()
+72 | |             .cloned()
+73 | |             .collect::<Vec<_>>();
+   | |________________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_cloned_collect
+   = note: `-D clippy::iter-cloned-collect` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::iter_cloned_collect)]`
+help: calling `.to_vec()` is both faster and more readable
+   |
+70 -             .state_parameters(entry)
+71 -             .iter()
+72 -             .cloned()
+73 -             .collect::<Vec<_>>();
+70 +             .state_parameters(entry).to_vec();
+   |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/identity_views.rs:268:9
+    |
+268 | /         let Some(next) = program
+269 | |             .type_reference_table
+270 | |             .unconstrained_named_symbol(field.type_reference)
+271 | |         else {
+272 | |             return None;
+273 | |         };
+    | |__________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+268 ~         let next = program
+269 +             .type_reference_table
+270 +             .unconstrained_named_symbol(field.type_reference)?;
+    |
+
+error: this block may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/result_bounds.rs:654:17
+    |
+654 | /                 if crate::expression_traversal::single_segment_name_symbol(self.program, expression)
+655 | |                     .is_none()
+656 | |                 {
+657 | |                     return None;
+658 | |                 }
+    | |_________________^ help: replace it with: `crate::expression_traversal::single_segment_name_symbol(self.program, expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/calls.rs:582:17
+    |
+582 | /                 if result_length.is_none()
+583 | |                     && !bindings
+584 | |                         .iter()
+585 | |                         .any(|binding| binding.binder == ScopedArithmeticBinder::Result)
+...   |
+594 | |                 }
+    | |_________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+585 ~                         .any(|binding| binding.binder == ScopedArithmeticBinder::Result)
+586 ~                     && !result_observations::result_uses_are_bound(
+587 |                         self.program,
+...
+591 |                         continue;
+592 ~                     }
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/formation.rs:28:5
+   |
+28 | /     let Some(declaration) = program
+29 | |         .measures()
+30 | |         .iter()
+31 | |         .find(|definition| definition.symbol == expression.owner)
+32 | |     else {
+33 | |         return None;
+34 | |     };
+   | |______^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+   |
+28 ~     let declaration = program
+29 +         .measures()
+30 +         .iter()
+31 +         .find(|definition| definition.symbol == expression.owner)?;
+   |
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/formation.rs:41:5
+   |
+41 | /     let Some(expression) = calls.expression(expression) else {
+42 | |         return None;
+43 | |     };
+   | |______^ help: replace it with: `let expression = calls.expression(expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/formation.rs:44:5
+   |
+44 | /     let Some(hypotheses) = calls.hypotheses(hypotheses) else {
+45 | |         return None;
+46 | |     };
+   | |______^ help: replace it with: `let hypotheses = calls.hypotheses(hypotheses)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` statement can be collapsed
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls/applied_bindings.rs:1407:9
+     |
+1407 | /         if parameter.name.as_str() == name && matches!(parameter.kind, TypeParameterKind::Type) {
+1408 | |             if let Some(reference) = program
+1409 | |                 .type_reference_table
+1410 | |                 .find_named_type_reference(parameter.symbol)
+...    |
+1414 | |         }
+     | |_________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+     |
+1407 ~         if parameter.name.as_str() == name && matches!(parameter.kind, TypeParameterKind::Type)
+1408 ~             && let Some(reference) = program
+1409 |                 .type_reference_table
+ ...
+1412 |                 return Some(reference);
+1413 ~             }
+     |
+
+error: this `if` statement can be collapsed
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls/applied_bindings.rs:1425:13
+     |
+1425 | /             if binder.name.as_str() == name && matches!(binder.kind, TypeParameterKind::Type) {
+1426 | |                 if let Some(reference) = program
+1427 | |                     .type_reference_table
+1428 | |                     .find_named_type_reference(binder.symbol)
+...    |
+1432 | |             }
+     | |_____________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+     |
+1425 ~             if binder.name.as_str() == name && matches!(binder.kind, TypeParameterKind::Type)
+1426 ~                 && let Some(reference) = program
+1427 |                     .type_reference_table
+ ...
+1430 |                     return Some(reference);
+1431 ~                 }
+     |
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs:531:25
+    |
+531 | fn pending_data_subject<'program>(
+    |                         ^^^^^^^^
+532 |     program: &'program dyn crate::CheckingInput,
+    |               ^^^^^^^^
+...
+535 | ) -> Option<&'program typed_trees::data::DataDefinition> {
+    |              ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+531 ~ fn pending_data_subject(
+532 ~     program: &dyn crate::CheckingInput,
+533 |     owner: SymbolHandle,
+534 |     mut expression: ExpressionHandle,
+535 ~ ) -> Option<&typed_trees::data::DataDefinition> {
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs:101:9
+    |
+101 | /         let Some(equality) = program.expression_table.binary_node(guard) else {
+102 | |             return None;
+103 | |         };
+    | |__________^ help: replace it with: `let equality = program.expression_table.binary_node(guard)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs:440:9
+    |
+440 | /         if in_state_prefix_only {
+441 | |             if let StatementNode::Transition(transition) = stmt {
+442 | |                 if let TransitionGuardNode::When(guard) = transition.guard
+443 | |                     && mentions_local(guard)
+...   |
+449 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+440 ~         if in_state_prefix_only
+441 ~             && let StatementNode::Transition(transition) = stmt {
+442 |                 if let TransitionGuardNode::When(guard) = transition.guard
+...
+447 |                 continue;
+448 ~             }
+    |
+
+error: the function `establish_citation` doesn't need a mutable reference
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs:781:25
+    |
+781 |                         &mut path.judge,
+    |                         ^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#unnecessary_mut_passed
+    = note: `-D clippy::unnecessary-mut-passed` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unnecessary_mut_passed)]`
+help: remove this `mut`
+    |
+781 -                         &mut path.judge,
+781 +                         &path.judge,
+    |
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs:1569:82
+     |
+1569 | ...                   outcome_judge.has_no_new_effects_or_guarantees_since(&judge)
+     |                                                                            ^^^^^^ help: change this to: `judge`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/cases.rs:89:9
+   |
+89 | /         let Some(binary) = self.program.expression_table.binary_node(fact) else {
+90 | |             return None;
+91 | |         };
+   | |__________^ help: replace it with: `let binary = self.program.expression_table.binary_node(fact)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/cases.rs:97:9
+    |
+ 97 | /         let Some((definition, variant)) =
+ 98 | |             structural_terms::case_classifier(self.program, binary.right)
+ 99 | |         else {
+100 | |             return None;
+101 | |         };
+    | |__________^ help: replace it with: `let (definition, variant) = structural_terms::case_classifier(self.program, binary.right)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/cases.rs:134:9
+    |
+134 | /         let Some(subject) = structural_terms::structural_term(
+135 | |             self.program,
+136 | |             None,
+137 | |             Some((scope, parameters)),
+...   |
+141 | |             return None;
+142 | |         };
+    | |__________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+134 ~         let subject = structural_terms::structural_term(
+135 +             self.program,
+136 +             None,
+137 +             Some((scope, parameters)),
+138 +             binary.left,
+139 +             None,
+140 +         )?;
+    |
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/licenses.rs:455:24
+    |
+455 | fn algebraic_law_slots<'program>(
+    |                        ^^^^^^^^
+456 |     program: &'program dyn crate::CheckingInput,
+    |               ^^^^^^^^
+457 | ) -> Vec<(
+458 |     &'program TraitDefinition,
+    |      ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+455 ~ fn algebraic_law_slots(
+456 ~     program: &dyn crate::CheckingInput,
+457 | ) -> Vec<(
+458 ~     &TraitDefinition,
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs:35:9
+   |
+35 | /         let Some(machine) = program.machine(scope.0.symbol) else {
+36 | |             return None;
+37 | |         };
+   | |__________^ help: replace it with: `let machine = program.machine(scope.0.symbol)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs:48:26
+   |
+48 |             owner_symbol(&owner),
+   |                          ^^^^^^ help: change this to: `owner`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs:61:55
+   |
+61 |         let leading_operands = owner_leading_operands(&owner);
+   |                                                       ^^^^^^ help: change this to: `owner`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs:62:9
+   |
+62 | /         let Some(arguments) =
+63 | |             crate::call_site_argument_expressions(program, &site).get(leading_operands..)
+64 | |         else {
+65 | |             return None;
+66 | |         };
+   | |__________^ help: replace it with: `let arguments = crate::call_site_argument_expressions(program, &site).get(leading_operands..)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs:78:9
+   |
+78 | /         let Some(actuals) = completed_arguments
+79 | |             .get(leading_operands..)
+80 | |             .filter(|actuals| actuals.len() == arguments.len())
+81 | |         else {
+82 | |             return None;
+83 | |         };
+   | |__________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+   |
+78 ~         let actuals = completed_arguments
+79 +             .get(leading_operands..)
+80 +             .filter(|actuals| actuals.len() == arguments.len())?;
+   |
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs:112:17
+    |
+112 |                 &owner,
+    |                 ^^^^^^ help: change this to: `owner`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs:193:40
+    |
+193 |                 callable: owner_symbol(&owner),
+    |                                        ^^^^^^ help: change this to: `owner`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: enclosing `Some` and `?` operator are unneeded
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs:816:9
+    |
+816 | /         Some(
+817 | |             self.clone()
+818 | |                 .evaluate_normal_operands(
+819 | |                     &operands,
+...   |
+839 | |                 .collect::<Option<Vec<_>>>()?,
+840 | |         )
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_question_mark
+    = note: `-D clippy::needless-question-mark` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_question_mark)]`
+help: remove the enclosing `Some` and `?` operator
+    |
+816 ~         self.clone()
+817 |                 .evaluate_normal_operands(
+...
+837 |                 })
+838 ~                 .collect::<Option<Vec<_>>>()
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs:752:13
+    |
+752 | /             if written.is_none() {
+753 | |                 if let Some(data) =
+754 | |                     crate::value_custody::places::machine_attached_data(program, machine)
+...   |
+762 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+752 ~             if written.is_none()
+753 ~                 && let Some(data) =
+754 |                     crate::value_custody::places::machine_attached_data(program, machine)
+...
+760 |                     }
+761 ~                 }
+    |
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/value_predicates.rs:250:81
+    |
+250 |                 match language_semantics::const_value::boolean_literal_spelling(&case) {
+    |                                                                                 ^^^^^ help: change this to: `case`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: redundant closure
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/term_identity.rs:234:42
+    |
+234 |                     arguments.iter().any(|argument| visit(argument))
+    |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `&mut visit`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_closure
+    = note: `-D clippy::redundant-closure` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure)]`
+
+error: this `let...else` may be rewritten with the `?` operator
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs:2084:9
+     |
+2084 | /         let Some((machine, state)) =
+2085 | |             crate::machine_calls::calls::machine_state_by_symbol(program, target)
+2086 | |         else {
+2087 | |             return None;
+2088 | |         };
+     | |__________^ help: replace it with: `let (machine, state) = crate::machine_calls::calls::machine_state_by_symbol(program, target)?;`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs:2436:25
+     |
+2436 | /                         let Some(comparison) = expression_table(program).binary_node(guard) else {
+2437 | |                             return None;
+2438 | |                         };
+     | |__________________________^ help: replace it with: `let comparison = expression_table(program).binary_node(guard)?;`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs:2931:21
+     |
+2931 | /                     let Some(state) =
+2932 | |                         crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
+2933 | |                             program,
+2934 | |                             call.target_symbol,
+...    |
+2937 | |                         return None;
+2938 | |                     };
+     | |______________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+     |
+2931 ~                     let state = crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
+2932 +                             program,
+2933 +                             call.target_symbol,
+2934 +                         )?;
+     |
+
+error: this `let...else` may be rewritten with the `?` operator
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs:2939:21
+     |
+2939 | /                     let Some(data_symbol) = crate::value_custody::type_shapes::head_data_symbol(
+2940 | |                         program,
+2941 | |                         state.return_type,
+2942 | |                     ) else {
+2943 | |                         return None;
+2944 | |                     };
+     | |______________________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+     |
+2939 ~                     let data_symbol = crate::value_custody::type_shapes::head_data_symbol(
+2940 +                         program,
+2941 +                         state.return_type,
+2942 +                     )?;
+     |
+
+error: using `clone` on type `Option<Handle<Symbol>>` which implements the `Copy` trait
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment.rs:3085:29
+     |
+3085 |                     target: realization.clone().unwrap_or_else(|| {
+     |                             ^^^^^^^^^^^^^^^^^^^ help: try removing the `clone` call: `realization`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#clone_on_copy
+     = note: `-D clippy::clone-on-copy` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::clone_on_copy)]`
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_prefix/private_arrivals/scope.rs:297:5
+    |
+297 | /     if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+298 | |         if let Ok(guard) = memos.private_closed_arrivals.lock()
+299 | |             && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
+...   |
+303 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+297 ~     if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+298 ~         && let Ok(guard) = memos.private_closed_arrivals.lock()
+299 |             && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
+300 |         {
+301 |             return cached.clone();
+302 ~         }
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms/binary.rs:72:5
+   |
+72 | /     let Some(binary) = program.expression_table.binary_node(expression) else {
+73 | |         return None;
+74 | |     };
+   | |______^ help: replace it with: `let binary = program.expression_table.binary_node(expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms/binary.rs:264:36
+    |
+264 | pub(super) fn scoped_machine_state<'program>(
+    |                                    ^^^^^^^^
+265 |     program: &'program dyn crate::CheckingInput,
+    |               ^^^^^^^^
+266 |     symbol: SymbolHandle,
+267 | ) -> Option<(&'program Machine, &'program State)> {
+    |               ^^^^^^^^           ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+264 ~ pub(super) fn scoped_machine_state(
+265 ~     program: &dyn crate::CheckingInput,
+266 |     symbol: SymbolHandle,
+267 ~ ) -> Option<(&Machine, &State)> {
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms/constructors.rs:96:5
+   |
+96 | /     let Some(comparison) = expression_table(program).binary_node(expression) else {
+97 | |         return None;
+98 | |     };
+   | |______^ help: replace it with: `let comparison = expression_table(program).binary_node(expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment.rs:401:13
+    |
+401 | /             let Some(binary) = expression_table(program).binary_node(*fact) else {
+402 | |                 return None;
+403 | |             };
+    | |______________^ help: replace it with: `let binary = expression_table(program).binary_node(*fact)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/float_predicates.rs:39:5
+   |
+39 | /     let Some(binary) = expression_table(program).binary_node(conjunct) else {
+40 | |         return None;
+41 | |     };
+   | |______^ help: replace it with: `let binary = expression_table(program).binary_node(conjunct)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/place_queries.rs:599:9
+    |
+599 | /         if let Some(field) = receiving_field(symbol) {
+600 | |             if !reads.fields.contains(&field) {
+601 | |                 reads.fields.push(field);
+602 | |             }
+603 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+599 ~         if let Some(field) = receiving_field(symbol)
+600 ~             && !reads.fields.contains(&field) {
+601 |                 reads.fields.push(field);
+602 ~             }
+    |
+
+error: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/state_flow.rs:72:17
+   |
+72 | /                 match program.statement_table.transition_target(handle) {
+73 | |                     // Resolve by SYMBOL first (the termination graph's proven
+74 | |                     // rule), name as the fallback.
+75 | |                     TransitionTargetNode::Named { path, .. } => {
+...  |
+93 | |                     _ => {}
+94 | |                 }
+   | |_________________^
+   |
+   = note: you might want to preserve the comments from inside the `match`
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#single_match
+   = note: `-D clippy::single-match` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::single_match)]`
+help: try
+   |
+72 ~                 if let TransitionTargetNode::Named { path, .. } = program.statement_table.transition_target(handle) {
+73 +                     let to = states
+74 +                         .iter()
+75 +                         .position(|candidate| candidate.symbol == path.symbol)
+76 +                         .or_else(|| {
+77 +                             expression_table(program)
+78 +                                 .name_path_members(path.members)
+79 +                                 .last()
+80 +                                 .and_then(|target_name| {
+81 +                                     states
+82 +                                         .iter()
+83 +                                         .position(|candidate| candidate.name == *target_name)
+84 +                                 })
+85 +                         });
+86 +                     if let Some(to) = to {
+87 +                         edges.push((from, to));
+88 +                     }
+89 +                 }
+   |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/symbolic_values.rs:231:13
+    |
+231 | /             let Some(path) = expression_table(program).name_path_node(member.receiver) else {
+232 | |                 return None;
+233 | |             };
+    | |______________^ help: replace it with: `let path = expression_table(program).name_path_node(member.receiver)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/where_fact_intervals.rs:527:9
+    |
+527 | /         let Some(binary) = expression_table(program).binary_node(conjunct) else {
+528 | |             return None;
+529 | |         };
+    | |__________^ help: replace it with: `let binary = expression_table(program).binary_node(conjunct)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+    --> omega-rust/psi/compilation/checking/src/proof_contracts/default_domains.rs:1077:21
+     |
+1077 |                     &state_to_machine,
+     |                     ^^^^^^^^^^^^^^^^^ help: change this to: `state_to_machine`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/domain_weakening.rs:423:33
+    |
+423 | fn callable_signature_contracts<'program>(
+    |                                 ^^^^^^^^
+424 |     program: &'program dyn CheckingInput,
+    |               ^^^^^^^^
+425 |     target: SymbolHandle,
+426 | ) -> Option<Vec<&'program typed_trees::signature::SignatureContract>> {
+    |                  ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+423 ~ fn callable_signature_contracts(
+424 ~     program: &dyn CheckingInput,
+425 |     target: SymbolHandle,
+426 ~ ) -> Option<Vec<&typed_trees::signature::SignatureContract>> {
+    |
+
+error: this block may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/domains/runtime_predicates.rs:249:17
+    |
+249 | /                 if crate::exact_domain_subject_type(program, domain, nested.value).is_none() {
+250 | |                     return None;
+251 | |                 }
+    | |_________________^ help: replace it with: `crate::exact_domain_subject_type(program, domain, nested.value)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/domains/runtime_predicates.rs:501:9
+    |
+501 | /         if let Some(dispatch) = &call.static_requirement_dispatch {
+502 | |             if dispatch.evidence_parameter.is_valid()
+503 | |                 || !dispatch.realization_state.is_valid()
+504 | |                 || dispatch.realization_state != call.target_symbol
+...   |
+508 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+501 ~         if let Some(dispatch) = &call.static_requirement_dispatch
+502 ~             && (dispatch.evidence_parameter.is_valid()
+503 |                 || !dispatch.realization_state.is_valid()
+504 ~                 || dispatch.realization_state != call.target_symbol)
+505 |             {
+506 |                 return None;
+507 ~             }
+    |
+
+error: this block may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/domains/runtime_predicates.rs:541:16
+    |
+541 |           } else if let Some(transition) = statement.as_transition() {
+    |  ________________^
+542 | |             if transition.continuation.is_valid()
+543 | |                 || !matches!(transition.guard, TransitionGuardNode::Always)
+...   |
+556 | |             return None;
+557 | |         };
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+541 ~         } else {
+542 +             let transition = statement.as_transition()?;
+543 +             if transition.continuation.is_valid()
+544 +                 || !matches!(transition.guard, TransitionGuardNode::Always)
+545 +             {
+546 +                 return None;
+547 +             }
+548 +             let typed_trees::statement::TransitionTargetNode::Value(value) = self
+549 +                 .program
+550 +                 .statement_table
+551 +                 .transition_target(transition.target)
+552 +             else {
+553 +                 return None;
+554 +             };
+555 +             *value
+556 ~         };
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/conversion_contracts.rs:272:9
+    |
+272 | /         let Some(selected) = candidate.selected else {
+273 | |             return None;
+274 | |         };
+    | |__________^ help: replace it with: `let selected = candidate.selected?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/semantic_values.rs:32:5
+   |
+32 | /     let Some(binary) = program.expression_table.binary_node(expression) else {
+33 | |         return None;
+34 | |     };
+   | |______^ help: replace it with: `let binary = program.expression_table.binary_node(expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: returning the result of a `let` binding from a block
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/mathematical_applications/logical_bodies.rs:233:9
+    |
+137 | /         let admitted = program.state_contracts(state).iter().all(|contract| {
+138 | |                 matches!(
+139 | |                     contract.kind,
+140 | |                     SignatureContractKind::Requires | SignatureContractKind::Ensures
+...   |
+231 | |                 admitted
+232 | |                 });
+    | |___________________- unnecessary `let` binding
+233 |           admitted
+    |           ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#let_and_return
+help: return the expression directly
+    |
+137 ~         
+138 ~         program.state_contracts(state).iter().all(|contract| {
+139 +                 matches!(
+140 +                     contract.kind,
+141 +                     SignatureContractKind::Requires | SignatureContractKind::Ensures
+142 +                 )
+143 +             })
+144 +             && program.state_parameters(state).iter().all(|parameter| {
+145 +                 !parameter.is_mutable
+146 +                     && !parameter.is_const
+147 +                     && logical_carrier(program, parameter.type_reference)
+148 +             })
+149 +             && program
+150 +                 .statement_table
+151 +                 .statements(state.statement_nodes)
+152 +                 .iter()
+153 +                 .all(|statement| { let admitted = match statement {
+154 +                     StatementNode::Assignment(_)
+155 +                     | StatementNode::Assembly(_) => false,
+156 +                     StatementNode::AssemblyFact(_) => true,
+157 +                     StatementNode::Call(call) => {
+158 +                         call.receiver.is_empty()
+159 +                             && !call.receiver_symbol.is_valid()
+160 +                             && !call.receiver_root_symbol.is_valid()
+161 +                             && call.static_requirement_dispatch.is_none()
+162 +                             && call.evidence_arguments.is_empty()
+163 +                             && !call.operational_acknowledgement.acknowledges_suspend
+164 +                             && !call.operational_acknowledgement.acknowledges_block
+165 +                             && target_machine(program, call.target_symbol)
+166 +                                 .is_some_and(|callee| candidates.contains(&callee.symbol))
+167 +                             && program
+168 +                                 .statement_table
+169 +                                 .expression_handles(call.arguments)
+170 +                                 .iter()
+171 +                                 .all(|argument| {
+172 +                                     logical_expression(
+173 +                                         program, machine, state, *argument, candidates,
+174 +                                     )
+175 +                                 })
+176 +                     }
+177 +                     StatementNode::LocalData(local) => {
+178 +                         !local.is_mutable
+179 +                             // Exhaustiveness markers carry validation metadata,
+180 +                             // not a produced value or storage carrier. Their
+181 +                             // subject still obeys logical expression custody.
+182 +                             && (crate::proof_contracts::contract_entailment::is_arm_pattern_marker(statement)
+183 +                                 || logical_carrier(program, local.type_reference))
+184 +                             && logical_expression(
+185 +                                 program,
+186 +                                 machine,
+187 +                                 state,
+188 +                                 local.initial_value,
+189 +                                 candidates,
+190 +                             )
+191 +                     }
+192 +                     StatementNode::Expression(expression) => {
+193 +                         logical_expression(program, machine, state, *expression, candidates)
+194 +                     }
+195 +                     StatementNode::Transition(transition) => {
+196 +                         transition.exit == typed_trees::statement::TransitionExit::Ordinary
+197 +                             && program.tables.expression_roots(statement).iter().all(
+198 +                                 |(_, expression)| {
+199 +                                     logical_expression(
+200 +                                         program,
+201 +                                         machine,
+202 +                                         state,
+203 +                                         *expression,
+204 +                                         candidates,
+205 +                                     )
+206 +                                 },
+207 +                             )
+208 +                             && transition.targets().all(|target| {
+209 +                                 match program.statement_table.transition_target(target) {
+210 +                                     TransitionTargetNode::Named {
+211 +                                         path,
+212 +                                         operational_acknowledgement,
+213 +                                         static_machine_parameter,
+214 +                                         evidence_arguments,
+215 +                                         ..
+216 +                                     } => {
+217 +                                         !operational_acknowledgement.acknowledges_suspend
+218 +                                             && !operational_acknowledgement.acknowledges_block
+219 +                                             && !static_machine_parameter.is_valid()
+220 +                                             && evidence_arguments.is_empty()
+221 +                                             && program
+222 +                                                 .machine_states(machine)
+223 +                                                 .iter()
+224 +                                                 .any(|state| state.symbol == path.symbol)
+225 +                                     }
+226 +                                     TransitionTargetNode::Terminal => true,
+227 +                                     TransitionTargetNode::Value(_) => false,
+228 +                                 }
+229 +                             })
+230 +                     }
+231 +                 };
+232 +                 admitted
+233 +                 })
+    |
+
+error: returning the result of a `let` binding from a block
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/mathematical_applications/logical_bodies.rs:231:17
+    |
+152 |                   .all(|statement| { let admitted = match statement {
+    |  ____________________________________-
+153 | |                     StatementNode::Assignment(_)
+154 | |                     | StatementNode::Assembly(_) => false,
+155 | |                     StatementNode::AssemblyFact(_) => true,
+...   |
+230 | |                 };
+    | |__________________- unnecessary `let` binding
+231 |                   admitted
+    |                   ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#let_and_return
+help: return the expression directly
+    |
+152 ~                 .all(|statement| { 
+153 ~                 match statement {
+154 +                     StatementNode::Assignment(_)
+155 +                     | StatementNode::Assembly(_) => false,
+156 +                     StatementNode::AssemblyFact(_) => true,
+157 +                     StatementNode::Call(call) => {
+158 +                         call.receiver.is_empty()
+159 +                             && !call.receiver_symbol.is_valid()
+160 +                             && !call.receiver_root_symbol.is_valid()
+161 +                             && call.static_requirement_dispatch.is_none()
+162 +                             && call.evidence_arguments.is_empty()
+163 +                             && !call.operational_acknowledgement.acknowledges_suspend
+164 +                             && !call.operational_acknowledgement.acknowledges_block
+165 +                             && target_machine(program, call.target_symbol)
+166 +                                 .is_some_and(|callee| candidates.contains(&callee.symbol))
+167 +                             && program
+168 +                                 .statement_table
+169 +                                 .expression_handles(call.arguments)
+170 +                                 .iter()
+171 +                                 .all(|argument| {
+172 +                                     logical_expression(
+173 +                                         program, machine, state, *argument, candidates,
+174 +                                     )
+175 +                                 })
+176 +                     }
+177 +                     StatementNode::LocalData(local) => {
+178 +                         !local.is_mutable
+179 +                             // Exhaustiveness markers carry validation metadata,
+180 +                             // not a produced value or storage carrier. Their
+181 +                             // subject still obeys logical expression custody.
+182 +                             && (crate::proof_contracts::contract_entailment::is_arm_pattern_marker(statement)
+183 +                                 || logical_carrier(program, local.type_reference))
+184 +                             && logical_expression(
+185 +                                 program,
+186 +                                 machine,
+187 +                                 state,
+188 +                                 local.initial_value,
+189 +                                 candidates,
+190 +                             )
+191 +                     }
+192 +                     StatementNode::Expression(expression) => {
+193 +                         logical_expression(program, machine, state, *expression, candidates)
+194 +                     }
+195 +                     StatementNode::Transition(transition) => {
+196 +                         transition.exit == typed_trees::statement::TransitionExit::Ordinary
+197 +                             && program.tables.expression_roots(statement).iter().all(
+198 +                                 |(_, expression)| {
+199 +                                     logical_expression(
+200 +                                         program,
+201 +                                         machine,
+202 +                                         state,
+203 +                                         *expression,
+204 +                                         candidates,
+205 +                                     )
+206 +                                 },
+207 +                             )
+208 +                             && transition.targets().all(|target| {
+209 +                                 match program.statement_table.transition_target(target) {
+210 +                                     TransitionTargetNode::Named {
+211 +                                         path,
+212 +                                         operational_acknowledgement,
+213 +                                         static_machine_parameter,
+214 +                                         evidence_arguments,
+215 +                                         ..
+216 +                                     } => {
+217 +                                         !operational_acknowledgement.acknowledges_suspend
+218 +                                             && !operational_acknowledgement.acknowledges_block
+219 +                                             && !static_machine_parameter.is_valid()
+220 +                                             && evidence_arguments.is_empty()
+221 +                                             && program
+222 +                                                 .machine_states(machine)
+223 +                                                 .iter()
+224 +                                                 .any(|state| state.symbol == path.symbol)
+225 +                                     }
+226 +                                     TransitionTargetNode::Terminal => true,
+227 +                                     TransitionTargetNode::Value(_) => false,
+228 +                                 }
+229 +                             })
+230 +                     }
+231 +                 }
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/proof_facts.rs:593:13
+    |
+593 | /             let Some(path) = expression_table(program).name_path_node(member.receiver) else {
+594 | |                 return None;
+595 | |             };
+    | |______________^ help: replace it with: `let path = expression_table(program).name_path_node(member.receiver)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/qualification_evidence.rs:242:66
+    |
+242 | ...                   if language_core::is_reserved_result(&subject_name) {
+    |                                                            ^^^^^^^^^^^^^ help: change this to: `subject_name`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: redundant closure
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/proof_fact_identity.rs:246:59
+    |
+246 |                     .map(|row| array_trace(row.iter().map(|element| element_trace(element)))),
+    |                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `&element_trace`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_closure
+
+error: called `.iter().nth()` on a slice
+   --> omega-rust/psi/compilation/checking/src/proof_contracts/relevance.rs:210:9
+    |
+210 | /         parameters
+211 | |             .iter()
+212 | |             .nth(position)
+    | |__________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#iter_nth
+help: `get` is equivalent but more concise
+    |
+211 -             .iter()
+212 -             .nth(position)
+211 +             .get(position)
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/value_custody/cleanup.rs:471:5
+    |
+471 | /     let Some(candidates) = nominal_cleanup_candidates(program).get(&owner).cloned() else {
+472 | |         return None;
+473 | |     };
+    | |______^ help: replace it with: `let candidates = nominal_cleanup_candidates(program).get(&owner).cloned()?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: the following explicit lifetimes could be elided: 'program
+  --> omega-rust/psi/compilation/checking/src/value_custody/cleanup_selection.rs:58:36
+   |
+58 | pub(super) fn selected_application<'program>(
+   |                                    ^^^^^^^^
+59 |     program: &'program dyn CheckingInput,
+   |               ^^^^^^^^
+60 |     reference: TypeReferenceHandle,
+61 | ) -> Result<Option<&'program CleanupSelection>, Diagnostic> {
+   |                     ^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+   |
+58 ~ pub(super) fn selected_application(
+59 ~     program: &dyn CheckingInput,
+60 |     reference: TypeReferenceHandle,
+61 ~ ) -> Result<Option<&CleanupSelection>, Diagnostic> {
+   |
+
+error: the following explicit lifetimes could be elided: 'a
+   --> omega-rust/psi/compilation/checking/src/value_custody/content_projections.rs:743:32
+    |
+743 | fn declared_domain_constraints<'a>(
+    |                                ^^
+744 |     program: &'a dyn CheckingInput,
+    |               ^^
+745 |     type_reference: TypeReferenceHandle,
+746 | ) -> Vec<&'a typed_trees::types::DomainConstraint> {
+    |           ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+743 ~ fn declared_domain_constraints(
+744 ~     program: &dyn CheckingInput,
+745 |     type_reference: TypeReferenceHandle,
+746 ~ ) -> Vec<&typed_trees::types::DomainConstraint> {
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/value_custody/expression_types/match_dispatch/structural_patterns.rs:212:9
+    |
+212 | /         if let MatchFieldAction::Equal(value) = field.action {
+213 | |             if let Some(declared) = exact {
+214 | |                 let carrier = crate::value_custody::places::assignment_value_type(
+215 | |                     program,
+...   |
+235 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+212 ~         if let MatchFieldAction::Equal(value) = field.action
+213 ~             && let Some(declared) = exact {
+214 |                 let carrier = crate::value_custody::places::assignment_value_type(
+...
+233 |                 );
+234 ~             }
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/value_custody/expression_types/reference_values.rs:837:5
+    |
+837 | /     let Some(selected) = selected_value_type(
+838 | |         program,
+839 | |         expression,
+840 | |         &mut substitutions,
+...   |
+844 | |         return None;
+845 | |     };
+    | |______^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+837 ~     let selected = selected_value_type(
+838 +         program,
+839 +         expression,
+840 +         &mut substitutions,
+841 +         Some((root, root_type)),
+842 +         &mut ProjectionContext::requiring(ReferenceAccess::Mutable),
+843 +     )?;
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/value_custody/expression_types/reference_values.rs:846:5
+    |
+846 | /     let Some(selected) = substituted_reference(program, selected, &substitutions) else {
+847 | |         return None;
+848 | |     };
+    | |______^ help: replace it with: `let selected = substituted_reference(program, selected, &substitutions)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/value_custody/field_domains/declared_fields.rs:231:29
+    |
+231 | pub fn exact_declared_field<'program>(
+    |                             ^^^^^^^^
+232 |     program: &'program dyn crate::CheckingInput,
+    |               ^^^^^^^^
+233 |     symbol: SymbolHandle,
+234 | ) -> Option<&'program typed_trees::data::DataField> {
+    |              ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+231 ~ pub fn exact_declared_field(
+232 ~     program: &dyn crate::CheckingInput,
+233 |     symbol: SymbolHandle,
+234 ~ ) -> Option<&typed_trees::data::DataField> {
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/value_custody/access_views.rs:403:5
+    |
+403 | /     let Some(binary) = program.expression_table.binary_node(expression) else {
+404 | |         return None;
+405 | |     };
+    | |______^ help: replace it with: `let binary = program.expression_table.binary_node(expression)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/value_custody/literals/integer_landing.rs:64:5
+   |
+64 | /     let Some(binary) = program.expression_table.binary_node(expression) else {
+65 | |         return None;
+66 | |     };
+   | |______^ help: replace it with: `let binary = program.expression_table.binary_node(expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: usage of `bool::then` in `filter_map`
+   --> omega-rust/psi/compilation/checking/src/value_custody/partial_affine_residuals.rs:458:56
+    |
+458 |                   let payload_moves = moved_paths.iter().filter_map(|(path, identity)| {
+    |  ________________________________________________________^
+459 | |                     matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)
+460 | |                         .then(|| (&path[1..], *identity))
+461 | |                 }).collect::<Vec<_>>();
+    | |__________________^ help: use `filter` then `map` instead: `filter(|&(path, identity)| matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)).map(|(path, identity)| (&path[1..], *identity))`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#filter_map_bool_then
+    = note: `-D clippy::filter-map-bool-then` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::filter_map_bool_then)]`
+
+error: usage of `bool::then` in `filter_map`
+   --> omega-rust/psi/compilation/checking/src/value_custody/partial_affine_residuals.rs:462:60
+    |
+462 |                   let payload_boundaries = boundaries.iter().filter_map(|(path, identity)| {
+    |  ____________________________________________________________^
+463 | |                     matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)
+464 | |                         .then(|| (&path[1..], *identity))
+465 | |                 }).collect::<Vec<_>>();
+    | |__________________^ help: use `filter` then `map` instead: `filter(|&(path, identity)| matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)).map(|(path, identity)| (&path[1..], *identity))`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#filter_map_bool_then
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/value_custody/places.rs:250:13
+    |
+250 | /             let Some(path) = expression_table(program).name_path_node(member.receiver) else {
+251 | |                 return None;
+252 | |             };
+    | |______________^ help: replace it with: `let path = expression_table(program).name_path_node(member.receiver)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/value_custody/places/exact_self_field.rs:28:5
+   |
+28 | /     let Some(receiver) = program.expression_table.name_path_node(member.receiver) else {
+29 | |         return None;
+30 | |     };
+   | |______^ help: replace it with: `let receiver = program.expression_table.name_path_node(member.receiver)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/value_custody/places/structural_scalar_field.rs:779:9
+    |
+779 | /         let Some(binary) = table.binary_node(guard) else {
+780 | |             return None;
+781 | |         };
+    | |__________^ help: replace it with: `let binary = table.binary_node(guard)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/value_custody/places/contextual_projection.rs:213:5
+    |
+213 | /     if case_variant.is_none() {
+214 | |         if retained.is_valid() {
+215 | |             return Some(retained);
+216 | |         }
+217 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+213 ~     if case_variant.is_none()
+214 ~         && retained.is_valid() {
+215 |             return Some(retained);
+216 ~         }
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/value_custody/places/member_resolution.rs:930:5
+    |
+930 | /     if let Some(data) = program.data_definition_by_symbol(type_symbol) {
+931 | |         if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+932 | |             return Some(symbol);
+933 | |         }
+934 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+930 ~     if let Some(data) = program.data_definition_by_symbol(type_symbol)
+931 ~         && let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+932 |             return Some(symbol);
+933 ~         }
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/value_custody/places/member_resolution.rs:937:9
+    |
+937 | /         if let Some(data) = program.attached_data_definition(machine) {
+938 | |             if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+939 | |                 return Some(symbol);
+940 | |             }
+941 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+937 ~         if let Some(data) = program.attached_data_definition(machine)
+938 ~             && let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+939 |                 return Some(symbol);
+940 ~             }
+    |
+
+error: redundant closure
+   --> omega-rust/psi/compilation/checking/src/value_custody/plan_laid.rs:169:29
+    |
+169 |                 .is_none_or(|argument| matches(argument));
+    |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the function itself: `&matches`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_closure
+
+error: the following explicit lifetimes could be elided: 'program
+   --> omega-rust/psi/compilation/checking/src/value_custody/recasts/record_representation.rs:290:24
+    |
+290 | fn unique_record_field<'program>(
+    |                        ^^^^^^^^
+291 |     program: &'program dyn crate::CheckingInput,
+    |               ^^^^^^^^
+...
+294 | ) -> Option<&'program typed_trees::data::DataField> {
+    |              ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+290 ~ fn unique_record_field(
+291 ~     program: &dyn crate::CheckingInput,
+292 |     carrier: TypeReferenceHandle,
+293 |     select: impl Fn(&typed_trees::data::DataField) -> bool,
+294 ~ ) -> Option<&typed_trees::data::DataField> {
+    |
+
+error: manual implementation of `.is_multiple_of()`
+    --> omega-rust/psi/compilation/checking/src/value_custody/recasts/record_representation.rs:1061:56
+     |
+1061 |     source.size == target.size && target.align != 0 && source.align % target.align == 0
+     |                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with: `source.align.is_multiple_of(target.align)`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#manual_is_multiple_of
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+    --> omega-rust/psi/compilation/checking/src/value_custody/recasts/record_representation.rs:1199:43
+     |
+1199 |     let leaves = expand_replicated_leaves(&element, count, stride)?;
+     |                                           ^^^^^^^^ help: change this to: `element`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: redundant guard
+   --> omega-rust/psi/compilation/checking/src/value_custody/reference_access.rs:190:16
+    |
+190 |             if access == language_semantics::ReferenceAccess::WriteOnly =>
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_guards
+    = note: `-D clippy::redundant-guards` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_guards)]`
+help: try
+    |
+189 -         ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { access, .. }
+190 -             if access == language_semantics::ReferenceAccess::WriteOnly =>
+189 +         ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { access: language_semantics::ReferenceAccess::WriteOnly, .. } =>
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/value_custody/reference_access.rs:301:5
+    |
+301 | /     let Some((root, binding_type, _)) = source_place_root(
+302 | |         program,
+303 | |         current_machine,
+304 | |         current_state,
+...   |
+308 | |         return None;
+309 | |     };
+    | |______^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+help: replace it with
+    |
+301 ~     let (root, binding_type, _) = source_place_root(
+302 +         program,
+303 +         current_machine,
+304 +         current_state,
+305 +         prior_statements,
+306 +         argument,
+307 +     )?;
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/value_custody/struct_literals/field_obligations.rs:649:13
+    |
+649 | /             if let Some(selected) = selection.target().as_resolved() {
+650 | |                 if let Some(declaration) =
+651 | |                     program.const_declaration_by_symbol(selected.selected_symbol())
+...   |
+655 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+649 ~             if let Some(selected) = selection.target().as_resolved()
+650 ~                 && let Some(declaration) =
+651 |                     program.const_declaration_by_symbol(selected.selected_symbol())
+652 |                 {
+653 |                     return declaration.declared_type;
+654 ~                 }
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+   --> omega-rust/psi/compilation/checking/src/value_custody/type_references/generic_arguments.rs:544:25
+    |
+544 | /                         let Some(actual) = self.type_argument(program, position) else {
+545 | |                             return None;
+546 | |                         };
+    | |__________________________^ help: replace it with: `let actual = self.type_argument(program, position)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: the following explicit lifetimes could be elided: 'p
+   --> omega-rust/psi/compilation/checking/src/value_custody/type_shapes.rs:177:33
+    |
+177 | pub fn exact_constrained_shells<'p>(
+    |                                 ^^
+178 |     program: &'p dyn crate::CheckingInput,
+    |               ^^
+179 |     mut handle: TypeReferenceHandle,
+180 | ) -> Option<Vec<&'p [TypeConstraintNode]>> {
+    |                  ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+177 ~ pub fn exact_constrained_shells(
+178 ~     program: &dyn crate::CheckingInput,
+179 |     mut handle: TypeReferenceHandle,
+180 ~ ) -> Option<Vec<&[TypeConstraintNode]>> {
+    |
+
+error: the following explicit lifetimes could be elided: 'p
+   --> omega-rust/psi/compilation/checking/src/value_custody/type_shapes.rs:213:44
+    |
+213 | pub fn exact_shells_symbolic_range_maximum<'p>(
+    |                                            ^^
+214 |     program: &'p dyn crate::CheckingInput,
+    |               ^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_lifetimes
+help: elide the lifetimes
+    |
+213 ~ pub fn exact_shells_symbolic_range_maximum(
+214 ~     program: &dyn crate::CheckingInput,
+    |
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/value_custody/write_only_borrows/local_formation.rs:67:5
+   |
+67 | /     let Some(borrow) = expression_table(program).borrow_expression(local.initial_value) else {
+68 | |         return None;
+69 | |     };
+   | |______^ help: replace it with: `let borrow = expression_table(program).borrow_expression(local.initial_value)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `let...else` may be rewritten with the `?` operator
+  --> omega-rust/psi/compilation/checking/src/value_custody/write_only_borrows/receiver.rs:85:5
+   |
+85 | /     let Some((path, name)) = expression_table(program).single_name_member(expression) else {
+86 | |         return None;
+87 | |     };
+   | |______^ help: replace it with: `let (path, name) = expression_table(program).single_name_member(expression)?;`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#question_mark
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/value_custody/completed_storage/backing.rs:444:9
+    |
+444 | /         if referent.formation.is_valid() {
+445 | |             if !control.referent_formations.is_valid(referent.formation)
+446 | |                 || control
+447 | |                     .referent_formations
+...   |
+454 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+444 ~         if referent.formation.is_valid()
+445 ~             && (!control.referent_formations.is_valid(referent.formation)
+446 |                 || control
+...
+449 |                     .owner
+450 ~                     .is_valid())
+451 |             {
+452 |                 return None;
+453 ~             }
+    |
+
+error: this `if` statement can be collapsed
+   --> omega-rust/psi/compilation/checking/src/value_custody/completed_storage/reference_captures.rs:363:13
+    |
+363 | /             if leaf_path.len() <= whole_path.len()
+364 | |                 && leaf_path.iter().zip(&whole_path).all(|(left, right)| {
+365 | |                     crate::storage_path_relations::canonical_place_segments_equal(
+366 | |                         self.program,
+...   |
+375 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+370 ~                 })
+371 ~                 && matched.replace((*leaf, leaf_path.to_vec())).is_some() {
+372 |                     return Some(Selection::Unavailable);
+373 ~                 }
+    |
+
+error: this `if` statement can be collapsed
+  --> omega-rust/psi/compilation/checking/src/value_custody/completed_storage/frozen_references.rs:67:9
+   |
+67 | /         if leaf_path.len() <= path.len()
+68 | |             && leaf_path.iter().zip(&path).all(|(left, right)| {
+69 | |                 crate::storage_path_relations::canonical_place_segments_equal(
+70 | |                     program, *left, *right,
+...  |
+77 | |         }
+   | |_________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+   |
+72 ~             })
+73 ~             && selected.replace((*leaf, leaf_path)).is_some() {
+74 |                 return Unavailable;
+75 ~             }
+   |
+
+error: could not compile `validation` (lib) due to 202 previous errors
+mbx[cache]: 0 hits, 3 misses, 21 not looked up; 0 B downloaded, 0 B uploaded, 27.6 MiB stored locally
+mbx[savings]: across 802 builds, rustc has been excused from 16h 14m of its duties.

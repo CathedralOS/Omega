@@ -1,0 +1,14 @@
+{
+  "revision": "bfcffe6bcfcedb6fd60713e223408566c6c4e10d",
+  "artifacts": {
+    "omega": {
+      "source": "/home/jarod/development/Omega/.agents/worktree/nov1-coord/target/debug/omega",
+      "sha256": "e3c6d5bc0b1c6865555e13b7374695ce62108052f6457a64f797d82714377271"
+    },
+    "corpus_runner": {
+      "source": "/home/jarod/development/Omega/.agents/worktree/nov1-coord/target/debug/build/compiler/80b35a5e83aab51a/out/corpus_runner-80b35a5e83aab51a",
+      "sha256": "3bae5d18f0065f472c4249ab232ba2664ea7546194d9868976a9c37d8feee150"
+    }
+  },
+  "elapsed_seconds": 80.64743756805547
+}

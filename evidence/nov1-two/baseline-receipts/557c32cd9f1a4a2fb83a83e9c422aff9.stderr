@@ -1,0 +1,4 @@
+native compile FAILED:
+  error: cannot compile admitted project: checked compilation failed for package `dynamic_float_refinement_local` with 2 diagnostic(s)
+  error: cannot prove requires contract for call dyn Fraction::get from probe: input >= 0.0 && input <= 0.5 (needs fact `input >= 0.0 && input <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call probe from main: quarter(0.25) (needs fact `quarter(input)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
