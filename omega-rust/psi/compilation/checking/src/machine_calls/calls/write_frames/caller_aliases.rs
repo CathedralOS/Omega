@@ -193,13 +193,6 @@ pub struct ReferenceResultLeafOrigin {
 #[derive(Debug, Clone)]
 pub enum ReferenceResultTransport {
     Reference(ReferenceResultLeafOrigin),
-    /// The body retains this descriptor slot, but spatial frame inference has
-    /// no declaration-relative origin for it. A capture consumer must discharge
-    /// the slot from its complete checked result relation; other consumers
-    /// continue to refuse it. Unknown never means an absent descriptor.
-    UnresolvedReference {
-        result_path: Vec<facts::PlaceSegment>,
-    },
     Value {
         result_path: Vec<facts::PlaceSegment>,
         source: LocalWriteSource,

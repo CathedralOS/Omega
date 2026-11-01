@@ -15,7 +15,6 @@
 
 mod descriptor_sources;
 mod incoming_origins;
-mod invocation_descriptors;
 mod invocation_returns;
 mod presence;
 
@@ -119,31 +118,18 @@ impl Captures<'_> {
         target: SymbolHandle,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-            eprintln!(
-                "STRUCT target-return-capture target={} checked={}",
-                self.program.symbols.display_path(target, "::"),
-                crate::call_target_has_checked_body_contract(self.program, target)
-            );
-        }
         if !crate::call_target_has_checked_body_contract(self.program, target) {
             // An abstract invocation owns its public lifetime relation. Its
             // result descriptor is present even though there is no private
             // return graph to inspect. The same declared frontier serves
             // direct requirements, static callbacks and dynamic slots; it
             // neither chooses a provider nor invents a concrete backing.
-            let declared = super::declared_returns::returned_sources(
+            return super::declared_returns::returned_sources(
                 self.program,
                 crate::call_target_parameters(self.program, target)?,
                 crate::call_target_return_type(self.program, target)?,
-            );
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-                eprintln!(
-                    "STRUCT declared-return-capture target={} result={declared:?}",
-                    self.program.symbols.display_path(target, "::")
-                );
-            }
-            return declared.ok();
+            )
+            .ok();
         }
         self.returned(crate::call_target_state(self.program, target)?, active)
     }
@@ -159,13 +145,6 @@ impl Captures<'_> {
         active.push(state.symbol);
         let result = self.normal_returns(state, active, None);
         active.pop();
-        if result.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-            eprintln!(
-                "STRUCT unavailable-return-capture state={} symbol={:?}",
-                self.program.symbols.display_path(state.symbol, "::"),
-                state.symbol,
-            );
-        }
         result
     }
 
@@ -183,14 +162,7 @@ impl Captures<'_> {
             .filter_map(|(_, candidate)| {
                 (candidate.state_symbol == state.symbol).then_some(candidate)
             });
-        let borrowed = states.next();
-        if borrowed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-            eprintln!(
-                "STRUCT unavailable-return-borrow-state state={}",
-                self.program.symbols.display_path(state.symbol, "::")
-            );
-        }
-        let borrowed = borrowed?;
+        let borrowed = states.next()?;
         if states.next().is_some() {
             return None;
         }
@@ -200,12 +172,6 @@ impl Captures<'_> {
             .returned_loans
             .span(borrowed.returned_loans)?;
         let leaves = self.reference_leaves(state)?;
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-            eprintln!(
-                "STRUCT normal-return-capture state={} loans={loans:?} leaves={leaves:?}",
-                self.program.symbols.display_path(state.symbol, "::"),
-            );
-        }
         let statements = typed_trees::statement::reachable_state_statements(
             self.program
                 .statement_table
@@ -223,8 +189,13 @@ impl Captures<'_> {
                     if statement_index + 1 == statements.len() =>
                 {
                     let target = Default::default();
-                    let call =
-                        self.ordinary_return_call(state, statement_index, target, *expression)?;
+                    let call = self.ordinary_return_call(
+                        state,
+                        statement_index,
+                        target,
+                        *expression,
+                        loans,
+                    )?;
                     sites.push((target, Some(*expression), call));
                 }
                 StatementNode::Transition(transition) => {
@@ -242,6 +213,7 @@ impl Captures<'_> {
                                     statement_index,
                                     target,
                                     *expression,
+                                    loans,
                                 )?;
                                 sites.push((target, Some(*expression), call));
                             }
@@ -328,28 +300,13 @@ impl Captures<'_> {
                             }
                         }
                     }
-                    let capture = self.completed_return_value(
-                        state,
-                        statement_index,
-                        transition_target,
-                        expression,
-                    )?;
-                    if let Some(source) =
-                        self.completed_invocation_descriptor(capture, leaf, active)?
-                    {
-                        let returned = CheckedReturnedReferencePlan {
-                            path: leaf.path.clone(),
-                            source,
-                        };
-                        if !output.contains(&returned) {
-                            output.push(returned);
-                            if output.len() > super::MAX_REFERENCE_ORIGIN_LEAVES {
-                                return None;
-                            }
-                        }
-                        captured = true;
-                    }
                     if !captured {
+                        let capture = self.completed_return_value(
+                            state,
+                            statement_index,
+                            transition_target,
+                            expression,
+                        )?;
                         let present = self.expression_leaf_present(
                             state,
                             statement_index,
@@ -372,14 +329,16 @@ impl Captures<'_> {
         completed.then_some(output)
     }
 
-    /// Whole ordinary results use the callee's complete body relation. Abstract
-    /// requirements retain the existing captured-expression contract owner.
+    /// Input-relative ordinary results use the callee's finite body relation.
+    /// Already formed independent permissions use the common captured-loan
+    /// projection, as do abstract invocations and constructors.
     fn ordinary_return_call(
         &self,
         state: &State,
         statement_index: usize,
         target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
+        loans: &[checked_trees::BorrowReturnedLoanFact],
     ) -> Option<Option<&checked_trees::FlowCallFact>> {
         let Some(call) = expression_table(self.program).call_node(expression) else {
             return Some(None);
@@ -393,8 +352,35 @@ impl Captures<'_> {
         {
             return Some(None);
         }
-        self.return_call(state, statement_index, target, expression)
-            .map(Some)
+        let occurrence = self.return_call(state, statement_index, target, expression)?;
+        let mut supplied = false;
+        let independent = loans.iter().filter(|loan| {
+            loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                && loan.statement_index == statement_index
+                && loan.transition_target == target
+        }).all(|loan| {
+            supplied = true;
+            loan.root == facts::PlaceRoot::Expression(expression)
+                && self.facts.borrow.incoming_references.is_valid(loan.incoming_reference)
+                && matches!(self.facts.borrow.incoming_references.get(loan.incoming_reference),
+                    checked_trees::IncomingReferenceIdentity {
+                        state_symbol,
+                        origin: checked_trees::IncomingReferenceOrigin::Invocation {
+                            expression: actual,
+                            target: actual_target,
+                        }, ..
+                    } if *state_symbol == state.symbol && *actual == expression
+                        && crate::call_target_entry_symbol(self.program, *actual_target) == occurrence.target_symbol)
+        });
+        // Formation has already established these exact independent descriptor
+        // permissions. Consume the same returned-loan roster as a constructor
+        // or abstract call; no input substitution or private backing is owed.
+        // Every other relation keeps the finite ordinary-call/SCC transport.
+        if supplied && independent {
+            Some(None)
+        } else {
+            Some(Some(occurrence))
+        }
     }
 
     fn return_call(
@@ -646,7 +632,7 @@ impl Captures<'_> {
             if let IncomingReferenceOrigin::Invocation { expression, target } = incoming.origin {
                 if incoming.state_symbol != state.symbol
                     || loan.root != facts::PlaceRoot::Expression(expression)
-                    || !matches!(expression_table(self.program).expression(expression), typed_trees::expression::ExpressionNode::Call(call) if call.target_symbol == target)
+                    || !matches!(expression_table(self.program).expression(expression), typed_trees::expression::ExpressionNode::Call(call) if crate::call_target_symbol(self.program, call) == target)
                 {
                     return None;
                 }
@@ -654,8 +640,26 @@ impl Captures<'_> {
                 if !reference_access_can_supply(shell.access.into(), leaf.source.access) {
                     return None;
                 }
+                let references =
+                    super::super::declared_carrier_references(self.program, incoming.carrier_type)?;
+                let [reference] = references.as_slice() else {
+                    return None;
+                };
+                if !reference.path.is_empty() {
+                    return None;
+                }
+                let (selected, prefix) = if reference.crosses_reference {
+                    (
+                        shell.referee,
+                        vec![CheckedReferenceOriginProjection::Exact(
+                            CheckedUnitStructuralPathSegment::Referent,
+                        )],
+                    )
+                } else {
+                    (incoming.carrier_type, Vec::new())
+                };
                 let (suffix, endpoint, extent) =
-                    super::reference_origin_path(self.program, shell.referee, segments)?;
+                    super::reference_origin_path(self.program, selected, segments)?;
                 let identity = self.program.normalized_type_identity(endpoint);
                 if identity != leaf.source.type_identity {
                     return None;
@@ -665,11 +669,7 @@ impl Captures<'_> {
                         carrier_type: self.program.normalized_type_identity(incoming.carrier_type),
                     },
                     entry_reference_hops: 0,
-                    path: std::iter::once(CheckedReferenceOriginProjection::Exact(
-                        CheckedUnitStructuralPathSegment::Referent,
-                    ))
-                    .chain(suffix)
-                    .collect(),
+                    path: prefix.into_iter().chain(suffix).collect(),
                     extent,
                     type_identity: identity,
                     access: leaf.source.access,

@@ -244,7 +244,6 @@ pub(in crate::flow) fn call_result_captured_sources(
     let mut sources = Vec::with_capacity(transports.len());
     for transport in transports {
         let (result_path, source, kind) = match transport {
-            validation::ReferenceResultTransport::UnresolvedReference { .. } => return None,
             validation::ReferenceResultTransport::Reference(origin) => (
                 origin.result_path,
                 origin.source,

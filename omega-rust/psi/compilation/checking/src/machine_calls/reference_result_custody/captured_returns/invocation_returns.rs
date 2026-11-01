@@ -25,23 +25,11 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let target = crate::call_target_state(self.program, call.target_symbol)?;
         let frames = crate::CallFrameResolver::new(self.program)?;
-        let transports = frames.reference_result_transports(target.symbol);
-        if transports.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-            eprintln!(
-                "STRUCT unavailable-return-transports caller={} target={}",
-                self.program.symbols.display_path(state.symbol, "::"),
-                self.program.symbols.display_path(target.symbol, "::"),
-            );
-        }
-        let transports = transports?;
+        let transports = frames.reference_result_transports(target.symbol)?;
         let mut relative = Vec::new();
-        let mut unresolved = Vec::new();
         for transport in transports {
             match transport {
                 crate::ReferenceResultTransport::Reference(leaf) => relative.push(leaf),
-                crate::ReferenceResultTransport::UnresolvedReference { result_path } => {
-                    unresolved.push(result_path);
-                }
                 crate::ReferenceResultTransport::Value {
                     result_path,
                     source,
@@ -78,7 +66,7 @@ impl Captures<'_> {
             return None;
         }
         let mut origins = Vec::new();
-        for candidate in &relative {
+        for candidate in relative {
             let (result_path, _) = super::super::source_paths::structural_path(
                 self.program,
                 target.return_type,
@@ -131,15 +119,11 @@ impl Captures<'_> {
             })
             .cloned()
             .collect();
-        let mut output = if unresolved.is_empty() {
-            Vec::new()
-        } else {
-            self.unresolved_return_sources(state, call, &unresolved, &relative, active)?
-        };
+        let mut output = Vec::new();
         for leaf in leaves {
             let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
             let owner_path = loan_owner_path(self.program, state.return_type, &leaf.path)?;
-            let mut captured = output.iter().any(|source| source.path == leaf.path);
+            let mut captured = false;
             for origin in origins
                 .iter()
                 .filter(|origin| origin.result_path == result_path)
@@ -182,95 +166,6 @@ impl Captures<'_> {
             // establish that no activation-relative capture is owed here.
             if !captured && self.call_paths(call, active)?.contains(&leaf.path) {
                 return None;
-            }
-        }
-        Some(output)
-    }
-
-    /// An ordinary helper can return an independently received descriptor.
-    /// Spatial inference cannot name that backing as one of the helper's
-    /// parameters. Its complete checked return relation retains the distinction;
-    /// the current occurrence's returned loan authenticates the new invocation
-    /// namespace. An unavailable body relation never falls back to its signature.
-    fn unresolved_return_sources(
-        &self,
-        state: &typed_trees::state::State,
-        call: &checked_trees::FlowCallFact,
-        unresolved: &[Vec<facts::PlaceSegment>],
-        relative: &[crate::ReferenceResultLeafOrigin],
-        active: &mut Vec<SymbolHandle>,
-    ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        let target = crate::call_target_state(self.program, call.target_symbol)?;
-        let sources = self.target_sources(target.symbol, active)?;
-        let leaves = self.reference_leaves(state)?;
-        let parameters = self.program.state_parameters(target);
-        let mut output = Vec::new();
-        for source in sources {
-            let path = loan_place_segments(self.program, target.return_type, &source.path)?;
-            if !unresolved.contains(&path) {
-                continue;
-            }
-            match source.source.root {
-                checked_trees::CheckedReferenceOriginRoot::Parameter { index } => {
-                    // A joined route may also return an input-relative leaf.
-                    // The ordinary transport loop must retain that same exact
-                    // origin; an independent invocation cannot mask its debt.
-                    let parameter = parameters
-                        .iter()
-                        .filter(|parameter| {
-                            super::super::is_mutable_structural_parameter(self.program, parameter)
-                        })
-                        .nth(index as usize)?;
-                    let covered = relative.iter().any(|candidate| {
-                        candidate.result_path == path
-                            && candidate.source.root == parameter.symbol
-                            && super::super::parameter_reference_origin_path(
-                                self.program,
-                                parameter.type_reference,
-                                &candidate.source.segments,
-                            )
-                            .is_some_and(
-                                |(hops, projected, endpoint, extent)| {
-                                    hops == source.source.entry_reference_hops
-                                        && projected == source.source.path
-                                        && self.program.normalized_type_identity(endpoint)
-                                            == source.source.type_identity
-                                        && extent == source.source.extent
-                                },
-                            )
-                    });
-                    if !covered {
-                        return None;
-                    }
-                }
-                checked_trees::CheckedReferenceOriginRoot::Invocation { .. } => {
-                    let leaf = leaves.iter().find(|leaf| leaf.path == source.path)?;
-                    if leaf.source.type_identity != source.source.type_identity
-                        || !super::super::reference_access_can_supply(
-                            source.source.access,
-                            leaf.source.access,
-                        )
-                    {
-                        return None;
-                    }
-                    // This is an independently supplied descriptor, not a
-                    // caller-relative loan. Its complete checked body relation
-                    // and this retained normal-return occurrence establish its
-                    // result carrier; no fictitious input loan is introduced.
-                    if call.authored_result == checked_trees::FlowCallResult::Discarded {
-                        return None;
-                    }
-                    let returned = CheckedReturnedReferencePlan {
-                        path: leaf.path.clone(),
-                        source: self.invocation_descriptor_origin(state.return_type, leaf)?,
-                    };
-                    if !output.contains(&returned) {
-                        output.push(returned);
-                        if output.len() > MAX_REFERENCE_ORIGIN_LEAVES {
-                            return None;
-                        }
-                    }
-                }
             }
         }
         Some(output)

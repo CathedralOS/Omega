@@ -35,17 +35,15 @@ impl CallFrameResolver<'_> {
             return self.reference_result_transports(symbol);
         }
         if let Some(ordinary) = self.reference_result_transports(symbol)
-            && !ordinary.iter().any(|transport| match transport {
-                ReferenceResultTransport::UnresolvedReference { .. } => true,
-                ReferenceResultTransport::Reference(leaf) => leaf
-                    .source
+            && !ordinary.iter().any(|transport| {
+                let source = match transport {
+                    ReferenceResultTransport::Reference(leaf) => &leaf.source,
+                    ReferenceResultTransport::Value { source, .. } => source,
+                };
+                source
                     .segments
                     .iter()
-                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. })),
-                ReferenceResultTransport::Value { source, .. } => source
-                    .segments
-                    .iter()
-                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. })),
+                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
             })
         {
             return Some(ordinary);
@@ -70,8 +68,7 @@ impl CallFrameResolver<'_> {
             .into_iter()
             .map(|transport| match transport {
                 ReferenceResultTransport::Reference(leaf) => Some(leaf),
-                ReferenceResultTransport::Value { .. }
-                | ReferenceResultTransport::UnresolvedReference { .. } => None,
+                ReferenceResultTransport::Value { .. } => None,
             })
             .collect()
     }
@@ -98,16 +95,12 @@ impl CallFrameResolver<'_> {
             // cannot mask a constructed or unresolved leaf on another.
             // Unknown reference origins therefore still refuse here;
             // the capture consumer independently checks case presence.
-            let source = leaf.origin.and_then(|origin| origin.into_symbolic_place());
-            transports.push(match source {
-                Some(source) => ReferenceResultTransport::Reference(ReferenceResultLeafOrigin {
+            transports.push(ReferenceResultTransport::Reference(
+                ReferenceResultLeafOrigin {
                     result_path: leaf.local_segments,
-                    source: LocalWriteSource::from(source),
-                }),
-                None => ReferenceResultTransport::UnresolvedReference {
-                    result_path: leaf.local_segments,
+                    source: LocalWriteSource::from(leaf.origin?.into_symbolic_place()?),
                 },
-            });
+            ));
         }
         for moved in relation.moves {
             transports.push(ReferenceResultTransport::Value {

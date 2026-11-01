@@ -746,6 +746,18 @@ pub(super) fn relative_result_loans(
             _ => return None,
         };
         let contract = call_view_return_contract(program, state_symbol, call)?;
+        if matches!(contract.source(program), ViewReturnSource::NotApplicable) {
+            return super::independent_invocations::form(
+                program,
+                state_symbol,
+                machine_symbol,
+                local_data,
+                expression,
+                validation::call_target_symbol(program, call),
+                contract.return_type_reference(program),
+            )
+            .map(|loans| limit_access(loans, &access_limits));
+        }
         let fields = contract.reference_sources(program)?;
         let mut loans = result_source_loans(
             program,
