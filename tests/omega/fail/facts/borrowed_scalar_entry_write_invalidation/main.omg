@@ -1,0 +1,4 @@
+// Expected error contains: cannot prove ensures
+machine overwrite(value: &mut u64) { value = 5; }
+machine preserve(value: &mut u64) requires value == 4 ensures value == 4 { overwrite(value); }
+machine main() {}

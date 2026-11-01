@@ -185,3 +185,41 @@ All 72 sources are pinned under
 `tests/omega/{pass,fail}/facts/nested_machine_signed_rank_negated_requirement_*`.
 The broader parent acceptance, other-host execution and independent proof-kernel
 qualification remain open.
+
+## Borrowed scalar entry observations
+
+Fixed baseline `ba463c24b33331134d484d784ca267d74a0bd961` refuses the unchanged
+local place at the counter update: the scalar rank call has no complete
+executed-prefix observation. A standalone shared-input version of `rank` also
+refuses its otherwise identical result equation. Neither caller supplies a
+constant counter premise.
+
+The normal-return owner retains initialized scalar parameter contents only when
+the existing entry-backing reader authenticates every reference crossing. This
+is an unknown entry value, not an executed read, a loan, or a new predicate.
+Writes still invalidate its live contents. Primitive conversion then consumes
+that independently observed referent carrier; the type-only conversion predicate
+still cannot erase a reference read, and an unobserved returned descriptor does
+not supply contents or an origin.
+
+The following checking controls challenge those boundaries:
+
+- [Unknown input](../../../../tests/omega/fail/facts/borrowed_scalar_entry_unknown_value/main.omg) cannot establish a chosen constant.
+- [Callee write](../../../../tests/omega/fail/facts/borrowed_scalar_entry_write_invalidation/main.omg) retires the prior value.
+- [Write-only input](../../../../tests/omega/fail/facts/write_only_scalar_entry_observation/main.omg) cannot be observed.
+- [IEEE input](../../../../tests/omega/fail/facts/borrowed_scalar_entry_ieee_reflexivity/main.omg) does not establish reflexive equality when NaN is possible.
+
+These repairs preserve the existing row's fact, bounds, counter updates and
+canaries. Declared measure calls that themselves need borrowed or affine
+arguments remain part of the open parent acceptance.
+
+Linux x86_64 requalification restores all nine unchanged places at native exit 0
+and Terminal exit 0; their nine increment-zero twins still reject the preserving
+cycle. A minimized shared-input result program also agrees at exit 0. All four
+controls above reject, and their focused corpus run records four intended
+refusals with no wrong-reason failures. The runtime producer's SHA-256 is
+`1befb40109e2e9f6d48aa5fe01940825923ed7a29c024a373a0dc36c32a59489`; its
+compiler source is retained by checkpoint `3bd254ac6193`. Raw observations and
+the exact source bundle are retained under `build/advance/` and
+`build/corpus-source/` in the owning worktree. Other hosts and the broader parent
+acceptance remain unqualified by this run.
