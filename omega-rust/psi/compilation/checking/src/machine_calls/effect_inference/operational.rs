@@ -387,6 +387,17 @@ impl DirectSignatureEffects {
         let mut symbols: Vec<_> = program
             .data_type_parameters
             .iter()
+            // Only machine binders can supply a callable contract. Other
+            // parameter kinds always answer the default effect row; asking
+            // their signature first walks every machine's enclosing scopes.
+            // Keep every machine occurrence before deduplication, so shared
+            // symbols, contract selection and ambiguity retain their owner.
+            .filter(|(_, parameter)| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
             .map(|(_, parameter)| parameter.symbol)
             .chain(
                 program
