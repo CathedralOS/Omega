@@ -2,7 +2,7 @@
 
 **Fact and operation:** Selected<Base + 4> at Base = 3 supplies at least seven before exact value - 7.
 
-This row advances `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` in
+This row advances `STATIC-MACHINE-MIGRATION` in
 [TASKS.md](../../../../TASKS.md). Its distinct mechanism is an open, typed const
 expression in a selected named implementation's explicit argument tuple. The
 compiler must preserve the expected `u64` carrier, exact binder declarations,
@@ -19,6 +19,40 @@ to `Selected<Base + 3>`; the required minimum, construct guarantee, and consumin
 subtraction remain unchanged. The [root](main.omg) retains its original source.
 Each positive binds all four hosted `ProgramEntry` targets and expects exit 0.
 
+The [field place](field/main.omg) surrounds the carried value with nonzero
+neighbor canaries and checks both neighbors after projection. The
+[match join](match_join/main.omg) invokes both Boolean paths; each carries the
+same value and lower bound, while distinct tags (17 and 29) make inverted or
+wildcard dispatch observable. Both still consume the unchanged `value - 7`
+operation directly.
+
+Two additional productions stay in this fact:
+
+- [Private package projection](const_name/package_projection/main.omg) evaluates
+  the selected implementation through a package that retains a private helper
+  and a copyable record constant's `amount` projection. Its
+  [twin](const_name/package_projection/invalid/main.omg) changes only the
+  implementation's const argument in the package's `construct` call.
+- [Statement result](const_name/statement_result/main.omg) calls the selected
+  member in statement position. Its exact public write guarantee establishes
+  the scalar later returned and evaluated as a constant. Its
+  [twin](const_name/statement_result/invalid/main.omg) changes the same const
+  argument, preserving the bound and subtraction. The
+  [saved-output composition](const_name/statement_result/saved_output/main.omg)
+  copies the completed scalar before overwriting the original; its
+  [twin](const_name/statement_result/saved_output/invalid/main.omg) changes the
+  same selected argument.
+
+The [private result guarantee control](controls/private_result_guarantee/main.omg)
+asks a generic wrapper for equality where its public requirement promises only
+a lower bound. It must reject even though the selected concrete member has a
+stronger equality guarantee. A prepared executable target does not donate that
+private contract to the generic caller. The
+[current-output write](controls/changed_statement_output/main.omg) and
+[outgoing return write](controls/return_write_output/main.omg) controls reject
+at the public postcondition after a write retires its current-storage truth.
+The saved scalar keeps its historical guarantee independently of that truth.
+
 Applicable requirements:
 
 - **Establishment:** the checked `Selected` member and its complete `Reading`
@@ -26,7 +60,9 @@ Applicable requirements:
   formation; a caller guard supplies no subtraction premise.
 - **Identity and lifetime:** immutable const binders and completed scalar values
   keep their declaration/occurrence identities. No storage or borrow authority
-  follows from an equal scalar value.
+  follows from an equal scalar value. Normal mutable-output guarantees name
+  the exact call-return version; copies retain it, while overlapping writes
+  retire its association with current storage.
 - **Composition:** simultaneous actual substitution transports `Base + 4`;
   calls, joins, and state arrivals retain the same lower bound. The operation
   `value - 7` consumes that bound directly.
@@ -48,7 +84,55 @@ The governing clauses are [generics](../../../../wiki/spec/language/generics.md)
 [conformances](../../../../wiki/spec/language/conformances.md),
 [dependent values](../../../../wiki/spec/language/dependent_values.md),
 [evaluation](../../../../wiki/spec/language/evaluation.md), and
-[constants](../../../../wiki/spec/language/constants.md).
+[constants](../../../../wiki/spec/language/constants.md), and
+[normal return contracts](../../../../wiki/spec/language/state_contracts.md#returns-and-proof-use).
+
+At fixed base `bfcffe6bcfcedb6fd60713e223408566c6c4e10d`, the unchanged
+local witness wrongly refuses at `selected`'s `result >= Minimum` guarantee.
+Borrow analysis names the exact applied public requirement signature, while
+capture preservation compared the authored evidence child. After that join is
+repaired, the unchanged const-name place exposes a second refusal: semantic
+evaluation executes the original map-row template and loses `Value`, although
+the call already retains its prepared capture entry. Both failures were recorded
+before their respective compiler edits, with unchanged source and oracles.
+
+Optimized producer `2de5d6af94b2460e5c85e5162a72a1fbd568eee1` observes native
+and Terminal exit 0 for the unchanged root and all nine original places; all ten
+original reject controls still refuse for their authored tuple mismatch. Those
+original sources and observations remain in the claim evidence, before the
+field/join runtime oracles were strengthened. The additional productions and
+private-guarantee boundary retain their own current observations there. This is
+Linux x86-64 evidence; declarations for the other hosted targets do not supply
+new execution observations.
+
+The statement production exposed two further obligations before edits: readable
+scalar output equality must imply the published lower bound during declaration
+refinement, and the caller must join its returned scalar to that exact completed
+output version. Current-storage association cannot outlive a later write, even
+when a saved copy retains the old proposition. The frozen direct statement and
+saved-output sources passed checking before runtime calls were added to their
+oracles. All intermediate refusals, corrected probe formation errors, and the
+stale return-write acceptance are retained with their actual producer identities
+in the qualification record.
+
+Optimized producer `ea132c1fff8bccd603ac18adb83691ee4d2e8f23` observes
+native and Terminal exit 0 for all thirteen current positive productions and
+matches all sixteen intended refusals. The related open-record row's root and
+nine places also agree in both engines, with all ten twins refusing. The fixed-base
+consumer comparisons observe 81 source fixtures and 34 native/Terminal fixtures
+with zero losses; all 34 execution pairs exit 0 and agree.
+
+Forty source records and fourteen records in each Linux native/both leg retain
+the actual improvements, new productions and changed field/match oracles. Every
+outside golden byte is unchanged. Three diagnostic differences and one missing
+runtime pin already occur in the measured baseline and are left untouched; an
+existing wrong-literal-tuple fixture also retains its old statement-index
+expectation mismatch. Those cases do not establish this row's reject evidence.
+Exact source/oracle hashes, accepted locks, producer profiles, raw streams and
+independent review remain in the qualification/claim evidence, with each
+observation's original revision. These are Linux x86-64 observations; the other
+three hosted targets and the parent's wider acceptance remain open.
+
 
 The optimized reference producer `5df98d50e149` has actual Linux x86-64
 native and Terminal exit 0 for the unchanged root and all nine places, with
