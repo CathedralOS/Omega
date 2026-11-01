@@ -502,6 +502,7 @@ narrows realization only.
     coordinators and stage tests, `name.as_str() == "string"` spelling checks
     are replaced by representation classes, and 256 MiB thread stacks are
     replaced by arena-handle worklists on platform default stacks.
+  - Remove stage vocabulary from shared product representations.
   Acceptance: a two-target integration fixture proves with invocation counters
   that source/Psi `00–07`, Build, and Terminal publication each execute once and
   Omega `00–09` executes once per requested target, producing bytes equal to
@@ -528,6 +529,21 @@ narrows realization only.
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
+  - Publish boundary-value storage recipes, calling telescopes, the explicit
+    calling-policy application census and exact callback/policy captures in
+    canonical Terminal Psi, and move opaque selection, source-qualified review
+    and default ABI signature materialization onto them, so target planning
+    drops its source-side signature preparation and passes source-discard/reload.
+  - Move the remaining source-reading provider consumers onto prepared
+    declarations: host classification's catalog-local source join, typed
+    constant/comparison evaluation (including Early Build's typed-only
+    comparison path), general review call coordinates, source-dependent
+    direct-call preparation, and the initial source-aware calling-policy
+    selection and planning.
+  - Move review-only products' complete conformance evidence from checked
+    source custody into Terminal Psi.
+  - Publish portable dormant-use and checked-instance records, and the
+    trust-model accepted-machine roster, canonically with source-discard replay.
   - **OPERATOR-BOUNDARY-CALLS:** complete float/receiver signatures, directed
     FMA builtins, member-call borrowed-field planning, Windows GUI provider
     selection (`samples/gui/{window_app,windowed_calculator}`), and specialized
@@ -662,6 +678,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and static syntax projection in
     `omega-rust/omega/packages/build-declarations`.
+  - Complete applied/inherited multi-slot provider readiness.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
