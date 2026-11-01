@@ -606,7 +606,10 @@ obligations. Its input encoder and returned-plan validator live together in
 [policy_signature.rs](../realization/provider-planning/src/calling_policy_plans/policy_signature.rs).
 Native application publication uses that same geometry projection. Source
 symbols used by package review and layout preparation never enter the policy
-activation. Preparation still reads source for ordinary/opaque layouts and
+activation. The canonical catalog materializer in
+[terminal_signature.rs](../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs)
+produces that policy input directly; it never constructs a source-bearing
+signature with invalid placeholder symbols. Preparation still reads source for ordinary/opaque layouts and
 inline callback slots; moving those owners after Terminal publication and
 removing the separate policy-code publication remain unfinished.
 

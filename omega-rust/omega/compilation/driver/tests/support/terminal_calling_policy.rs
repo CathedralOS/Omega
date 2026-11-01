@@ -6,8 +6,7 @@ use evaluation_accounting::{
     TerminalStorageScheduleIdentity,
 };
 use provider_planning::calling_policy_plans::{
-    MaterializedBoundarySignature, TerminalCallingPolicyInvocation,
-    evaluate_terminal_calling_policy,
+    CallingPolicySignature, TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy,
 };
 use terminal_codec::CanonicalTerminalArtifact;
 
@@ -81,7 +80,7 @@ pub(super) fn observe(
                 "calling formal control reached an unrelated refusal: {error}"
             ));
         }
-        let signature = MaterializedBoundarySignature::from_terminal(module, description, target)?;
+        let signature = CallingPolicySignature::from_terminal(module, description, target)?;
         let argument = module
             .boundary_machine(description)
             .and_then(|boundary| boundary.structural_parameters.first())
@@ -110,9 +109,10 @@ pub(super) fn observe(
             );
         }
         let record = signature
-            .parameters()
+            .geometry
+            .parameters
             .first()
-            .and_then(|root| signature.shapes().get(usize::from(*root)))
+            .and_then(|root| signature.geometry.shapes.get(usize::from(*root)))
             .ok_or("reference calling fixture lost its record argument")?;
         let calling_conventions::BoundaryValueClass::Record {
             first_field,
@@ -122,9 +122,10 @@ pub(super) fn observe(
             return Err("reference calling fixture lost its stored reference field".into());
         };
         let field = signature
-            .fields()
+            .geometry
+            .fields
             .get(usize::from(first_field))
-            .and_then(|field| signature.shapes().get(usize::from(field.shape)))
+            .and_then(|field| signature.geometry.shapes.get(usize::from(field.shape)))
             .ok_or("reference calling fixture lost its field geometry")?;
         if field.class != calling_conventions::BoundaryValueClass::Reference
             || field.byte_size != 8
@@ -147,7 +148,6 @@ pub(super) fn observe(
         let account = sponsor
             .begin_invocation(measurement, 1_000_000)
             .map_err(|error| error.to_string())?;
-        let signature = signature.policy_signature()?;
         let (plan, usage) = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
             artifact,
             entry: module.entry.ok_or("calling fixture has no policy entry")?,
@@ -216,9 +216,7 @@ pub(super) fn observe(
             ("fuel", description, 1),
             ("target", description, 1_000_000),
         ] {
-            let signature =
-                MaterializedBoundarySignature::from_terminal(module, description, target)?
-                    .policy_signature()?;
+            let signature = CallingPolicySignature::from_terminal(module, description, target)?;
             let selected_target = if control == "target" {
                 target::TargetProfile::from_canonical_target_name("linux_x86_64")
                     .map_err(|error| error.message)?
