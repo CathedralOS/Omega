@@ -407,6 +407,26 @@ fail/facts/induction_call_guarantee_through_parameter_rejected rejected 634ms ex
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
 fail/facts/induction_call_guarantee_through_target_body_rejected rejected 633ms expected @961147032a93+wt
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/inline_member_helper_through_call_result_rejected rejected 2264ms expected @95f64c0356c6
+	machine `supply_right` ensures contract proof fact `0 <= result && result <= 50` is disproved by constant arithmetic on the transition arm guarded by `<always>`
+	machine `probe` state `entry` value call to `apply` violates required fact `0 <= right && right <= 50`: the instantiated fact is structurally false (`0 <= 51 && 51 <= 50`)
+fail/facts/inline_member_helper_through_const_name_rejected rejected 5410ms expected @95f64c0356c6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= a && a <= 50 (needs fact `0 <= left && left <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_member_helper_through_field_rejected rejected 6703ms expected @95f64c0356c6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= operands.right && operands.right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_member_helper_through_local_rejected rejected 6435ms expected @95f64c0356c6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_member_helper_through_match_join_rejected rejected 5648ms expected @95f64c0356c6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_member_helper_through_other_machine_rejected rejected 5533ms expected @95f64c0356c6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from forward: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_member_helper_through_other_state_rejected rejected 5736ms expected @95f64c0356c6
+	cannot prove requires contract for call step from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_member_helper_through_parameter_rejected rejected 5055ms expected @95f64c0356c6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_member_helper_through_target_body_rejected rejected 5338ms expected @95f64c0356c6
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/machine_tuple_dispatch_through_call_result_rejected rejected 1956ms expected @dacae466db1d+wt
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/machine_tuple_dispatch_through_const_name_rejected rejected 1807ms expected @dacae466db1d+wt
@@ -6271,6 +6291,15 @@ pass/facts/inline_byte_view_argument_snapshot_through_other_machine_exit checked
 pass/facts/inline_byte_view_argument_snapshot_through_other_state_exit checked 3664ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/inline_byte_view_argument_snapshot_through_parameter_exit checked 3992ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/inline_byte_view_argument_snapshot_through_target_body_exit checked 4019ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/inline_member_helper_through_call_result_exit checked 7932ms check-target:macos_arm64 @95f64c0356c6
+pass/facts/inline_member_helper_through_const_name_exit checked 8160ms check-target:macos_arm64 @95f64c0356c6
+pass/facts/inline_member_helper_through_field_exit checked 7957ms check-target:macos_arm64 @95f64c0356c6
+pass/facts/inline_member_helper_through_local_exit checked 8780ms check-target:macos_arm64 @95f64c0356c6
+pass/facts/inline_member_helper_through_match_join_exit checked 12890ms check-target:macos_arm64 @95f64c0356c6
+pass/facts/inline_member_helper_through_other_machine_exit checked 9576ms check-target:macos_arm64 @95f64c0356c6
+pass/facts/inline_member_helper_through_other_state_exit checked 10525ms check-target:macos_arm64 @95f64c0356c6
+pass/facts/inline_member_helper_through_parameter_exit checked 9289ms check-target:macos_arm64 @95f64c0356c6
+pass/facts/inline_member_helper_through_target_body_exit checked 8548ms check-target:macos_arm64 @95f64c0356c6
 pass/facts/installed_entry_storage_through_call_result_exit checked 4705ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/installed_entry_storage_through_const_name_exit checked 4339ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/installed_entry_storage_through_field_exit checked 3884ms check-target:macos_arm64 @ccdb99ca2214
