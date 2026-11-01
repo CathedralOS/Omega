@@ -92,7 +92,18 @@ backing before the destination's last read. Retained Mac090 rejects that exact
 conflict in 7.064 seconds. The repaired query must retain the same refusal;
 joining an evidence edge must not erase a concrete output slot or its loans.
 
-The remaining six transport places, other hosts, universal agreement proofs,
+The remaining places now have authored source and matching endpoint twins:
+[call result](call_result/main.omg), [match join](match_join/main.omg),
+[named constant](const_name/main.omg), [nested machine](other_state/main.omg),
+[another machine](other_machine/main.omg) and
+[selected target implementation](target_body/main.omg). Their execution is pending.
+The call-result and match places exercise both valid and malformed outcomes;
+swapping their routes changes 43 to 0 and traps. Constants retain whole first-frame
+values; nested and relay calls carry the same explicit frame into conversion.
+Build selects named frame-delivery implementations for the target place, and
+separate 17/29 markers make the selected provider observable.
+
+Other hosts, universal agreement proofs,
 the `Representation` agreement bundle, reflection-specialized generic codecs,
 independent-package/resource-backed adapters and the parent capability remain
 open. Finite runtime observations do not establish derived codec trust or a
