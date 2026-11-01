@@ -35,6 +35,29 @@ pub struct OpaqueRepresentationSelection {
 }
 
 impl OpaqueRepresentationSelection {
+    /// Portable descriptive roles of this exact admitted selection. The
+    /// original Source-v4 and selected v1 byte protocols remain unchanged.
+    pub fn portable_application(
+        &self,
+        typed: &typed_trees::TypedTrees,
+    ) -> Result<language_semantics::opaque_representations::SelectedOpaqueApplication, String> {
+        Ok(
+            language_semantics::opaque_representations::SelectedOpaqueApplication {
+                opaque_identity: typed.normalized_hermetic_symbol_identity(self.opaque())?,
+                carrier_identity: typed.normalized_hermetic_symbol_identity(self.carrier())?,
+                conformance_identity: typed
+                    .normalized_hermetic_symbol_identity(self.application().declaration)?,
+                application_report_fingerprint: self.application().report_fingerprint,
+                conformance_application_commitment: self.application().commitment.as_bytes(),
+                identity_encoding: self.application().identity_encoding.to_vec(),
+                schema_version: self.schema_version(),
+                origin: self.origin(),
+                lifecycle: self.lifecycle(),
+                copy_disposition: self.copy_disposition(),
+                selected_application_commitment: self.selected_application_commitment(),
+            },
+        )
+    }
     /// Retain an application after the build-planning owner has validated it.
     pub fn from_validated_application(
         opaque: SymbolHandle,

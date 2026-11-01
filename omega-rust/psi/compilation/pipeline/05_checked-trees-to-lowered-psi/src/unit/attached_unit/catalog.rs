@@ -358,17 +358,10 @@ pub(super) fn lower_unit_structural_types<'checked>(
     let mut roots = additional_roots.to_vec();
     for signature in plans.calling_signatures() {
         if let Ok(storage) = &signature.storage {
-            for parameter in &storage.parameters {
-                roots.push(parameter.type_identity);
-                projection_types::collect_boundary_backing(
-                    plans,
-                    parameter.type_identity,
-                    &mut roots,
-                )?;
-            }
-            // Returned references retain pointer geometry, not an independent
-            // demand to expand firmware- or provider-owned pointee storage.
-            roots.extend(storage.result);
+            // The producing judgment records carrier and callback-backing
+            // dependencies separately. An abstract referent is an identity,
+            // not another by-value storage root to rediscover here.
+            roots.extend(storage.type_roots());
         }
     }
     let mut literal_view = false;
@@ -816,16 +809,19 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                 CheckedUnitStructuralTypeShape::Reference {
                     referent_identity,
                     foreign_descriptor,
+                    abstract_referent,
                     ..
-                } if *referent_identity == identity => Some(*foreign_descriptor),
+                } if *referent_identity == identity => {
+                    Some((*foreign_descriptor, *abstract_referent))
+                }
                 _ => None,
             });
-            let foreign_descriptor = representations.next().ok_or_else(|| {
+            let representation = representations.next().ok_or_else(|| {
                 LoweringError::MissingUnitStructuralType(
                     "referent has no reference transport declaration".into(),
                 )
             })?;
-            if representations.any(|other| other != foreign_descriptor) {
+            if representations.any(|other| other != representation) {
                 return unsupported(
                     "one referent identity has conflicting foreign reference representations",
                 );
@@ -833,7 +829,8 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
             Ok(StructuralReferentIdentity {
                 id: lookup_type_id(&type_ids, &identity)?,
                 identity: identities.intern(&identity_text(identity)),
-                foreign_descriptor,
+                foreign_descriptor: representation.0,
+                abstract_opaque: representation.1,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -929,10 +926,17 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                     relevance,
                     field_type,
                 };
-                native_fields.push((declaration.id, field.native_identity.as_deref()));
+                native_fields.push(super::native_layouts::NativeFieldProjection {
+                    field: declaration.id,
+                    native_identity: field.native_identity.as_deref(),
+                    declaration: field.source_declaration,
+                    relevance: field.relevance,
+                });
                 Ok(declaration)
                 }).collect::<Result<Vec<_>, LoweringError>>()?;
                 native_records.push(super::native_layouts::NativeRecordProjection {
+                    source_declaration: plan.source_declaration,
+                    source_application: &plan.source_application,
                     id: lookup_type_id(&type_ids, &identity)?,
                     source_identity: identity,
                     native_identity: plan.native_identity.as_deref(),

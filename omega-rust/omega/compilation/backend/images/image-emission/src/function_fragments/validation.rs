@@ -30,13 +30,12 @@ pub(crate) fn validate_function_fragment_object_artifact(
         }
         return Ok(());
     }
-    validate(source, artifact, None)
+    validate(source, artifact)
 }
 
 fn validate(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     artifact: &ObjectArtifact,
-    private_functions: Option<&[machine_code::CompilerPrivateMachineCodeFunction]>,
 ) -> Result<(), Error> {
     object_file::validate_optimized_relocation_free_object_container(source)
         .map_err(Error::Source)?;
@@ -90,8 +89,6 @@ fn validate(
         || !artifact.text_bytes.starts_with(&text.bytes)
         || artifact.relocations.target != text.target
         || artifact.x86_feature_profile.is_some()
-        || artifact.private_functions.len()
-            != private_functions.map_or(artifact.private_functions.len(), |roster| roster.len())
         || artifact.port_effects != super::port_effects::produce(source)?
         || layout.function_symbols.len() != callback_reference_count(artifact)
         || layout.sections.len() != 1 + usize::from(table_count + native_count != 0)
@@ -238,14 +235,12 @@ fn validate(
     }
     // Private carriers join by position: their symbol rows sit between the
     // program symbols and the import tail. The carrier/symbol/region join is
-    // self-evident on the object; when the materialized roster is supplied
-    // each row must additionally equal the record that produced it.
+    // self-evident on the object.
     let mut private_symbols = layout.symbols.iter().skip(text.functions.len());
     let mut private_offset = text.bytes.len();
-    for ((index, carrier), (_, function_symbol)) in artifact
+    for (carrier, (_, function_symbol)) in artifact
         .private_functions
         .iter()
-        .enumerate()
         .zip(layout.function_symbols.iter())
     {
         let length = carrier.function.byte_count;
@@ -269,20 +264,6 @@ fn validate(
         {
             return Err(Error::Mismatch(
                 "private function carrier is inconsistent with the emitted object",
-            ));
-        }
-        if let Some(private) = private_functions.and_then(|roster| roster.get(index))
-            && (carrier.identity != private.identity
-                || carrier.source_psi != private.source_psi
-                || carrier.function.machine != private.function.machine
-                || carrier.function.scalar_abi != private.function.scalar_abi
-                || length != private.function.bytes.len()
-                || symbol.name != private.private_symbol.as_ref()
-                || artifact.text_bytes[private_offset..private_offset + length]
-                    != private.function.bytes[..])
-        {
-            return Err(Error::Mismatch(
-                "private function carrier differs from the materialized record",
             ));
         }
         private_offset = private_offset.checked_add(length).ok_or(Error::Overflow)?;

@@ -514,10 +514,8 @@ narrows realization only.
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
-  - Publish boundary-value storage recipes, calling telescopes, the explicit
-    calling-policy application census and exact callback/policy captures in
-    canonical Terminal Psi, and move opaque selection, source-qualified review
-    and default ABI signature materialization onto them, so target planning
+  - Move opaque selection, source-qualified review and default ABI signature
+    materialization onto canonical Terminal Psi, so target planning
     drops its source-side signature preparation and passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
     declarations: host classification's catalog-local source join, typed
@@ -837,7 +835,10 @@ helper that passes does not close an item.
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
-    expression operands and captured Product/Build alias transport remain open.
+    expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md)
+    and [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md) places,
+    including owner-preserving mixed-scope transport, and captured Product/Build
+    alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
     through authorized schema reflection, explicit target facts, pure terminating
     compile-time evaluation, complete plan validation, field/case projection,
@@ -846,12 +847,12 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete remaining schema/case composition support;
-    migrate complete platform ABI records;
-    retain explicit named policies for sparse views. Darwin timestamp pairs and
-    the complete stat extent must agree with the SDK rather than inferring
-    missing fields from the current seconds-only record.
-  - Supply ordinary Representation/TryFrom contracts and reflection-specialized
+  - Complete remaining schema/case composition support and platform ABI
+    migrations; retain explicit named policies for sparse views. Complete the
+    remaining six transport places for
+    [the shared Darwin stat ABI](samples/cli/facts/darwin_stat_abi/README.md),
+    preserving complete SDK fields, timestamp pairs and signed carriers.
+  - Supply ordinary Representation agreement contracts and reflection-specialized
     library adapters with explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
     forwarding. Demonstrate a separately authored encoded format family and
@@ -1873,6 +1874,12 @@ defines the complete product bar.
     breadth/set-file-time/metadata fixtures (exit 70), and Linux
     `write_all_full_device_exit`, and provide trusted Terminal adapters for the
     exact authored foreign bindings.
+  - Supply Darwin `_futimens` through the existing matching-host filesystem
+    adapter with its exact OS signature, guest descriptor custody and explicit
+    metadata-mutation delegation; keep missing-delegation rejection. Complete
+    `tests/omega/pass/filesystem/runtime_portable_metadata_exit` in Terminal as
+    well as native execution. The private native sponsor supplies no extra
+    filesystem capability.
   - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
     Windows) and wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
@@ -1983,13 +1990,13 @@ defines the complete product bar.
 - **BUMP-ALLOCATOR-CANARY.** (Also covers **`VEC-NATIVE-GROWTH`**.) Deliver an
   executable package allocator (`source/library/alloc/bump.omg`) and native
   growable `Vec` (`source/library/alloc/vec.omg`) over qualified `Extent` and
-  **`PLAN-LAID-VIEWS`** end to end (`Psi 04–07` and `Omega 00–09`) under
+  access views end to end (`Psi 04–07` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
   - Complete `ExtentPartition` conservation and every-retired-extent `reset`
     recomposition over real `Vacant`/`Resident` backing in
     `tests/omega/pass/memory/bump_allocator_canary`, replacing fixture-local
-    `ResidentStorage` with **`PLAN-LAID-VIEWS`** establishment, element
+    `ResidentStorage` with `Access` establishment, element
     transfer, and retirement.
   - Connect `Vec` growth/reallocation/drop to the real backing allocator so
     dynamic `Vec` growth executes natively across hosts.

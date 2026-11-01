@@ -8,21 +8,22 @@
 mod private_arrivals;
 pub use private_arrivals::private_invocation_entry_is_closed;
 
-pub(super) use private_arrivals::{observe_private_arrivals, observe_private_arrivals_batch};
 pub(crate) use private_arrivals::{
     ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,
 };
+pub(super) use private_arrivals::{observe_private_arrivals, observe_private_arrivals_batch};
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
     recognize_structural_case_arms, recognize_structural_case_arms_batched,
-    recognize_structural_state_prefix, recognize_structural_state_prefixes, structural_arm_judge,
+    recognize_structural_state_prefix_batched, recognize_structural_state_prefixes,
+    structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use symbols::SymbolHandle;
 use typed_trees::{machine::Machine, state::State};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct StructuralPrefixSite {
     pub state: SymbolHandle,
     pub statement_index: usize,
@@ -108,6 +109,48 @@ pub(super) fn expression_prefix_roots(
     Some(roots)
 }
 
+/// Maximal compatible schedules supplied by the existing prefix owner. Guard,
+/// target and continuation boundaries remain exactly those of that operation;
+/// grouping does not infer execution order from an inventory of syntax.
+#[derive(Default)]
+pub(super) struct ExpressionPrefixGroups {
+    pub groups: Vec<Vec<typed_trees::expression::ExpressionHandle>>,
+    pub unavailable: Vec<typed_trees::expression::ExpressionHandle>,
+}
+
+pub(super) fn expression_prefix_groups(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    statement_index: usize,
+) -> ExpressionPrefixGroups {
+    let mut plan = ExpressionPrefixGroups::default();
+    let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
+        return plan;
+    };
+    for (_, expression) in program.tables.expression_roots(statement) {
+        if !expression.is_valid() {
+            continue;
+        }
+        let Some(prefix) = expression_prefix_roots(program, state, statement_index, expression)
+        else {
+            plan.unavailable.push(expression);
+            continue;
+        };
+        if let Some(group) = plan
+            .groups
+            .iter_mut()
+            .find(|group| group.starts_with(&prefix) || prefix.starts_with(group))
+        {
+            if prefix.len() > group.len() {
+                *group = prefix;
+            }
+        } else {
+            plan.groups.push(prefix);
+        }
+    }
+    plan
+}
+
 /// One reached arm of a visited prefix, in `observe`'s reading order: the
 /// program facts, the site's machine and resolved state, the arm's substitute
 /// judge carrying the selected call's published guarantees, and the
@@ -120,8 +163,29 @@ pub(super) type PrefixObservation<'a, 'program> = (
     &'a [(String, StructuralTerm)],
 );
 
+/// Output selection for the common statement completion, never execution policy.
+#[derive(Default)]
+pub(super) struct StatementObservationRequest {
+    pub values: Vec<typed_trees::expression::ExpressionHandle>,
+    pub operations: Vec<typed_trees::expression::ExpressionHandle>,
+}
+
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
+
+    fn statement_observations(&self) -> Option<StatementObservationRequest> {
+        None
+    }
+
+    /// The statement owner supplies the same normal completion used to advance
+    /// its frontier. The input remains the independently admitted entry cut.
+    fn observe_completed<'program>(
+        &mut self,
+        observation: PrefixObservation<'_, 'program>,
+        _completed: &super::structural_judgment::normal_returns::CompletedStatement<'program>,
+    ) {
+        self.observe(observation);
+    }
 
     /// One authenticated body arrival after its actuals completed. Coverage
     /// consumers distinguish these occurrences from lexical ancestry and from
@@ -252,7 +316,23 @@ pub(super) fn observe_runtime_state_prefix(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    visitor: &mut dyn StructuralPrefixVisitor,
+    mut visitor: &mut dyn StructuralPrefixVisitor,
+) -> Option<()> {
+    observe_runtime_state_prefix_batched(
+        program,
+        machine,
+        state,
+        std::slice::from_mut(&mut visitor),
+    )
+}
+
+/// One walk of `state`'s prefix shared by visitors that sit at one site and
+/// complete alike; each receives what its own walk would have delivered.
+pub(super) fn observe_runtime_state_prefix_batched(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
 ) -> Option<()> {
     let entry = program.machine_states(machine).first()?;
     let mut requires = if state.symbol == entry.symbol {
@@ -269,14 +349,14 @@ pub(super) fn observe_runtime_state_prefix(
     );
     let judge = StructuralJudge::from_runtime_state_requires(program, machine, state, &requires);
     let mut diagnostics = Vec::new();
-    recognize_structural_state_prefix(
+    recognize_structural_state_prefix_batched(
         program,
         machine,
         state,
         &judge,
         &crate::proof_only_classification(program),
         &mut diagnostics,
-        visitor,
+        visitors,
     )?;
     diagnostics.is_empty().then_some(())
 }

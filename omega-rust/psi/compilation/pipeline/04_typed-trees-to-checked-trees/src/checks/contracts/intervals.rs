@@ -119,8 +119,8 @@ fn comparison_bound(
         _ => return None,
     };
     let value = validation::closed_integer_range_bound(program, literal)?;
-    let (low, high) =
-        validation::closed_interval_from_comparison(binary.operator, subject_on_left, value)
-            .unwrap_or((None, None));
-    Some(BigIntInterval { low, high })
+    Some(
+        BigIntInterval::from_comparison(binary.operator, subject_on_left, value)
+            .unwrap_or_else(BigIntInterval::unbounded),
+    )
 }

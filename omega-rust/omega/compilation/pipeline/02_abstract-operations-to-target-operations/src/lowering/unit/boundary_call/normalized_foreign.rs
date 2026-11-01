@@ -9,8 +9,7 @@ use super::super::super::control_flow::scalar_sources::{
 };
 use super::super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::super::structural_layout::{
-    reference_referent_projection, resolve_structural_projection_path, structural_parameter_shape,
-    structural_shape,
+    reference_referent_projection, resolve_structural_projection_path, structural_shape,
 };
 use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
@@ -170,7 +169,14 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     active,
                 )
                 .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
-                let shape = structural_parameter_shape(carrier, parameter.access);
+                let shape =
+                    crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+                        crate::lowering::structural_signature::ParameterLane::Foreign,
+                        parameter.structural_type,
+                        carrier,
+                        parameter.access,
+                        structural_types,
+                    );
                 // Fixed and dynamic byte loans use the same checked backing
                 // presentation. Only a dynamic view carries a runtime extent;
                 // a fixed view crosses the native ABI as one pointer.
@@ -372,7 +378,14 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
-            let parameter_shape = structural_parameter_shape(projected_shape, parameter.access);
+            let parameter_shape =
+                crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+                    crate::lowering::structural_signature::ParameterLane::Foreign,
+                    parameter.structural_type,
+                    projected_shape,
+                    parameter.access,
+                    structural_types,
+                );
             let destination = operands
                 .get(native_position)
                 .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;

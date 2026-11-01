@@ -1100,9 +1100,10 @@ impl<'program> CallFrameResolver<'program> {
         super::assignment_addresses::binding_preserved(&before, &prefix.stored, root, path)
     }
 
-    /// Performed destinations and reference origins share the captured store
-    /// prefix and exposure checks. An empty destination set denotes binding
-    /// replacement; unavailable provenance stays `None`.
+    /// Declared fixed homes retain their typed addresses independently of
+    /// reference-prefix availability. Interior reference loads and aliases
+    /// still require the captured prefix and exposure checks; unknown reference
+    /// inventory remains explicit. An empty set denotes binding replacement.
     pub fn assignment_storage_origins(
         &self,
         machine: &Machine,

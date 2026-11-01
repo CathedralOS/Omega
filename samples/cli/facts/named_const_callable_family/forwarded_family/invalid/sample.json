@@ -1,0 +1,9 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "Const slot",
+    "named(integer-const(5))",
+    "named(integer-const(4))"
+  ]
+}
