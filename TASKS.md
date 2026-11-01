@@ -865,6 +865,10 @@ helper that passes does not close an item.
     now interchanges partial aliases and explicit `LayoutStorage` applications
     with a caller-computed const policy, value 42 and byte-offset oracles in
     Linux x86_64 native/Terminal execution; all seven intended controls reject.
+    An [imported borrowed alias](samples/cli/facts/transparent_generic_aliases/borrowed_view/README.md)
+    also preserves its own lifetime/Type telescope through a generic call and
+    explicit-reference interchange: Linux native/Terminal observe 42/17, while
+    wrong returned input and undeclared-region controls reject.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
     expression operands and captured Product/Build alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
