@@ -12038,10 +12038,16 @@ pass/layouts/runtime_offset_encoded_reference_exit checked 3337ms check-target:m
 pass/layouts/runtime_placed_accessor_writeback_exit checked 4637ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_placed_external_array_snapshot_exit checked 8103ms check-target:macos_arm64 @b43a5fa574e6
 pass/layouts/runtime_placed_external_nested_array_exit checked 4648ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/runtime_placed_outcome_array_read_exit incomplete 9702ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @0bb5ace2b46d+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 1
-pass/layouts/runtime_placed_outcome_nested_array_read_exit incomplete 10228ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @0bb5ace2b46d+wt
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 1
+pass/layouts/runtime_placed_outcome_array_read_exit rejected 3578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#87.view`: no captured source place is available
+	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#87.view.entries`: no captured source place is available
+	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#87.view.entries[1]`: no captured source place is available
+	machine `main` state `entry` statement 4: cannot prove selected case for payload access `&__transition_subject#87.view.entries[1]`: no captured source place is available
+pass/layouts/runtime_placed_outcome_nested_array_read_exit rejected 3307ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#90.view`: no captured source place is available
+	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#90.view.entries`: no captured source place is available
+	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#90.view.entries[1]`: no captured source place is available
+	machine `main` state `entry` statement 4: cannot prove selected case for payload access `&__transition_subject#90.view.entries[1]`: no captured source place is available
 pass/layouts/runtime_plan_laid_compact_bits_exit rejected 7950ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	plan-laid value type `CompactBits<PackedFlags>`: error: policy `CompactBits::plan` produced an invalid plan: field `mode` source fragments end at bit 3, expected 8
 pass/layouts/runtime_plan_laid_erased_field_exit checked 12041ms check-target:macos_arm64 @ccdb99ca2214
