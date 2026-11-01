@@ -2,23 +2,28 @@
 //! into a view still needs a live-length proof: normalize that coordinate to
 //! the existing runtime-index operation contract, not a fixed-array extent.
 
-use super::{Emission, LoweringError, StructuralAccess, StructuralArgument};
+use super::{Emission, LoweringError, StructuralArgument};
 use crate::emission::operation_emission::expressions::{emit_element_length, emit_scalar_leaf};
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
 
 impl Emission<'_, '_, '_> {
-    /// Bind both a direct copy and a projected copy through the same exact
-    /// authored root and ordered runtime-selector evaluation.
-    pub(super) fn copied_place_argument(
+    /// Complete a readable storage projection before its consumer observes or
+    /// lends it. Copies and view establishment share the original home and
+    /// ordered selector evaluations; neither reconstructs an unevaluated path.
+    pub(super) fn readable_place_argument(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: checked_trees::expression::ExpressionHandle,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
-        if source.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
-            return super::unsupported("copied value requires readable source custody");
+        if !matches!(
+            source.access,
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::MutableBorrow
+        ) {
+            return super::unsupported("storage projection requires readable source custody");
         }
         let authored = crate::declarations::state_declaration(self.checked, self.state)?;
         let bindings = self.structural_bindings();
@@ -27,7 +32,7 @@ impl Emission<'_, '_, '_> {
         let root = bindings
             .structural_argument_type(&home)
             .ok_or(LoweringError::Unsupported(
-                "indexed copy lost its published root type",
+                "readable projection lost its published root type",
             ))?;
         let prepared =
             crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
@@ -45,7 +50,9 @@ impl Emission<'_, '_, '_> {
             expression,
             home.place,
             prepared,
-            StructuralAccess::SharedBorrow,
+            crate::expression_preparation::bindings::structural_paths::terminal_access(
+                source.access,
+            ),
         )
     }
 

@@ -21,7 +21,7 @@ pub(crate) fn retain(
         identities,
         checked,
         sources,
-        |identities, callable| {
+        |identities, _, _, callable| {
             module
                 .boundary_machines
                 .iter()
@@ -40,7 +40,12 @@ pub(crate) fn project(
     identities: &mut TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
-    include: impl Fn(&TerminalIdentityTableBuilder, &str) -> bool,
+    include: impl Fn(
+        &TerminalIdentityTableBuilder,
+        symbols::SymbolHandle,
+        symbols::SymbolHandle,
+        &str,
+    ) -> bool,
     mut retain_declaration: impl FnMut(symbols::SymbolHandle, terminal_psi::NominalDeclarationIdentity),
 ) -> Result<Vec<ExternalProviderConformance>, LoweringError> {
     let typed = &checked.typed;
@@ -99,7 +104,7 @@ pub(crate) fn project(
                     }
                     _ => checked_unit_boundary_identity(checked, requirement)?.render(checked)?,
                 };
-                if !include(identities, &callable) {
+                if !include(identities, machine.symbol, requirement, &callable) {
                     continue;
                 }
                 let provider = if machine.attached_data_symbol.is_valid() {

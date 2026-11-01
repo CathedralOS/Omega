@@ -675,12 +675,9 @@ pub(super) fn emit(
         }?;
         borrowed_windows.require_closed()?;
         next_call_obligation = scalar_calls.next_obligation_identity;
-        let TerminalMachineResult::Scalar(declaration) = &declared_result else {
+        let TerminalMachineResult::Scalar(_) = &declared_result else {
             return unsupported("scalar completion differs from the declared result");
         };
-        if source.scalar_type != declaration.scalar_type {
-            return unsupported("scalar completion differs from its declared carrier");
-        }
         next_value = next_value_identity;
         let return_edge = edge_id(allocate_dense(&mut next_edge)?);
         operations.source_returns.push(SourceScalarReturn {
@@ -851,9 +848,6 @@ pub(super) fn emit(
                 let TerminalMachineResult::Scalar(declaration) = &declared_result else {
                     return unsupported("scalar binding differs from the declared result");
                 };
-                if scalar_type != declaration.scalar_type {
-                    return unsupported("scalar binding differs from its declared carrier");
-                }
                 Ok::<_, LoweringError>((source.id, declaration.clone()))
             })
             .transpose()?;

@@ -1,10 +1,12 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // RUN CANARY (exit 70) + interpreter differential. The decode-boundary
 // UTF-8 validator's edge classes, one leg each over hand-crafted wire
 // buffers: the euro sign E2 82 AC decodes SOUND (honest 3-byte); the
 // overlong E0 80 80, the UTF-16 surrogate ED A0 80, the beyond-U+10FFFF
 // F4 90 80, and the truncated F0 90 all decode INVALID. Pins the aarch64
-// compare/branch walk (label-resolved, 77 instructions) against the
-// interp's std::str::from_utf8 -- the two must agree on every class.
+// source-owned byte classifier in native and interpreted execution. Both
+// engines must agree on every class before the owner establishes Utf8.
 // exits: 71 = euro wrongly refused; 72/73/74/75 = the respective
 // adversarial class wrongly accepted.
 domain [u8]::Utf8
@@ -19,14 +21,14 @@ data LabelSample {
     count: u32;
     label: &[u8] in Utf8;
 }
-data WireVerdict {
+data LabelVerdict {
     case Invalid;
     case Sound;
 }
 data Main {
     buffer: [u8; 16];
     read: u64;
-    verdict: WireVerdict;
+    verdict: LabelVerdict;
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.buffer[0] = 0;
@@ -40,8 +42,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let decoded: LabelSample;
     decoded.count = 0;
     decoded.label = "";
-    LabelMessage::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
-    transition main.verdict == WireVerdict::Sound {
+    LabelCodec::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
+    transition main.verdict == LabelVerdict::Sound && LabelCodec::valid_euro(&decoded) {
         true -> overlong(main)
         false -> bad_euro(main)
     }
@@ -52,8 +54,8 @@ machine Main::main(main: &mut Main) reaches Console {
         let d2: LabelSample;
         d2.count = 0;
         d2.label = "";
-        LabelMessage::decode(&mut d2, &main.buffer, &mut main.read, &mut main.verdict);
-        transition main.verdict == WireVerdict::Invalid {
+        LabelCodec::decode(&mut d2, &main.buffer, &mut main.read, &mut main.verdict);
+        transition main.verdict == LabelVerdict::Invalid && d2.count == 0u32 && d2.label.len == 0u64 && main.read == 8u64 {
             true -> surrogate(main)
             false -> bad_overlong(main)
         }
@@ -65,8 +67,8 @@ machine Main::main(main: &mut Main) reaches Console {
         let d3: LabelSample;
         d3.count = 0;
         d3.label = "";
-        LabelMessage::decode(&mut d3, &main.buffer, &mut main.read, &mut main.verdict);
-        transition main.verdict == WireVerdict::Invalid {
+        LabelCodec::decode(&mut d3, &main.buffer, &mut main.read, &mut main.verdict);
+        transition main.verdict == LabelVerdict::Invalid && d3.count == 0u32 && d3.label.len == 0u64 && main.read == 8u64 {
             true -> beyond(main)
             false -> bad_surrogate(main)
         }
@@ -78,8 +80,8 @@ machine Main::main(main: &mut Main) reaches Console {
         let d4: LabelSample;
         d4.count = 0;
         d4.label = "";
-        LabelMessage::decode(&mut d4, &main.buffer, &mut main.read, &mut main.verdict);
-        transition main.verdict == WireVerdict::Invalid {
+        LabelCodec::decode(&mut d4, &main.buffer, &mut main.read, &mut main.verdict);
+        transition main.verdict == LabelVerdict::Invalid && d4.count == 0u32 && d4.label.len == 0u64 && main.read == 8u64 {
             true -> truncated(main)
             false -> bad_beyond(main)
         }
@@ -91,8 +93,8 @@ machine Main::main(main: &mut Main) reaches Console {
         let d5: LabelSample;
         d5.count = 0;
         d5.label = "";
-        LabelMessage::decode(&mut d5, &main.buffer, &mut main.read, &mut main.verdict);
-        transition main.verdict == WireVerdict::Invalid {
+        LabelCodec::decode(&mut d5, &main.buffer, &mut main.read, &mut main.verdict);
+        transition main.verdict == LabelVerdict::Invalid && d5.count == 0u32 && d5.label.len == 0u64 && main.read == 8u64 {
             true -> good(main)
             false -> bad_truncated(main)
         }
@@ -109,4 +111,65 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// Byte grammar and classification are source library operations. Only this
+// owner establishes its qualified value after a complete, bounded document.
+data LabelCodec {}
+machine LabelCodec::plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<LabelMessage, LabelCodec::plan_member>(context);
+}
+machine LabelCodec::plan_member<Kind>(context: &mut ScalarPlanContext, info: &reflect::FieldInfo) {
+    transition { Kind == u32 -> CompactBinary::plan_scalar<Kind>(context, info)
+        _ -> CompactBinary::plan_payload<Kind>(context, info) }
+}
+machine LabelCodec::decode<const N: u64>(value: &mut LabelSample, bytes: &[u8; N], read: &mut u64, verdict: &mut LabelVerdict) {
+    let mut slots: [ScalarSlot; 2];
+    transition CompactBinary::read_record<LabelCodec::plan>(&bytes[..], &mut slots[..], 10000u64) {
+        FrameRead::Read { next } -> LabelCodec::shape(value, &bytes[..], &slots[..], read, verdict, next)
+        _ -> LabelCodec::invalid(verdict)
+    }
+}
+machine LabelCodec::shape(value: &mut LabelSample, bytes: &[u8], slots: &[ScalarSlot], read: &mut u64, verdict: &mut LabelVerdict, next: u64) {
+    transition slots.len == 2u64 { true -> LabelCodec::region(value, bytes, slots, read, verdict, next) false -> LabelCodec::invalid(verdict) }
+}
+machine LabelCodec::region(value: &mut LabelSample, bytes: &[u8], slots: &[ScalarSlot], read: &mut u64, verdict: &mut LabelVerdict, next: u64)
+requires slots.len == 2u64
+{
+    let start: u64 = slots[1u64].start;
+    let end: u64 = slots[1u64].end;
+    let count: u64 = slots[0u64].unsigned;
+    transition start <= end && end <= bytes.len && count <= 4294967295u64 {
+        true -> LabelCodec::validate(value, bytes, read, verdict, next, start, end, count)
+        false -> LabelCodec::invalid(verdict)
+    }
+}
+machine LabelCodec::validate(value: &mut LabelSample, bytes: &[u8], read: &mut u64, verdict: &mut LabelVerdict, next: u64, start: u64, end: u64, count: u64)
+requires start <= end && end <= bytes.len && count <= 4294967295u64
+{
+    let label: &[u8] = &bytes[start..end];
+    transition CompactBinary::valid_utf8(label) && (label in Utf8) {
+        true -> LabelCodec::establish(value, label, read, verdict, next, count)
+        false -> LabelCodec::invalid(verdict)
+    }
+}
+machine LabelCodec::establish(value: &mut LabelSample, label: &[u8] in Utf8, read: &mut u64, verdict: &mut LabelVerdict, next: u64, count: u64)
+requires count <= 4294967295u64
+{
+    value.count = count as u32;
+    value.label = label;
+    read = next;
+    verdict = LabelVerdict::Sound;
+}
+machine LabelCodec::invalid(verdict: &mut LabelVerdict) { verdict = LabelVerdict::Invalid; }
+
+// Observe the established borrowed value, not only its verdict. A decoder
+// which leaves the original empty label intact must fail this control.
+machine LabelCodec::valid_euro(value: &LabelSample) -> bool {
+    transition value.count == 7u32 && value.label.len == 3u64 {
+        true -> contents(value) false -> false
+    }
+    machine contents(value: &LabelSample) -> bool requires value.label.len == 3u64 {
+        value.label[0u64] == 226u8 && value.label[1u64] == 130u8 && value.label[2u64] == 172u8
+    }
 }

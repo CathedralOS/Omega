@@ -2097,6 +2097,7 @@ fn reference_custody(
             .map(|(referent, _)| referent)
             .unwrap_or_else(TypeReferenceHandle::invalid),
         is_reference_record: is_reference_record(program, reference),
+        source_value_is_copied: source_value_is_copied(program, reference),
         binding_multiplicity: binding_multiplicity(program, reference),
         result_multiplicity: result_multiplicity(program, reference),
     }

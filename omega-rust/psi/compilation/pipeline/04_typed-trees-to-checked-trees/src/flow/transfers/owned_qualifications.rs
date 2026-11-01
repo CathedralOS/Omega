@@ -56,7 +56,15 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
     ) {
         return;
     }
-    let candidates = crate::flow::active_context_facts(contexts, semantic, active);
+    let candidates =
+        crate::flow::context::active_context_facts_matching(contexts, semantic, active, |fact| {
+            (fact.payload.domain_membership().is_some()
+                || matches!(fact.payload, FactPayload::FloatPredicate { .. }))
+                && fact
+                    .place
+                    .as_place()
+                    .is_some_and(|place| semantic.places.get(place).root == source.root)
+        });
     for fact in candidates {
         let payload = if let Some((_, domain, domain_symbol, semantic_domain)) =
             fact.payload.domain_membership()

@@ -2,6 +2,7 @@ use super::*;
 use typed_trees::constant_recipes::{
     ConstantExpressionContext, RetainedConstantRecipe, create_evaluation_entry,
 };
+use typed_trees::expression::ExpressionNode;
 use typed_trees::expression::{BinaryOperator, TableBinaryExpression};
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceNode;

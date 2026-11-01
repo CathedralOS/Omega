@@ -41,7 +41,7 @@ machine probe(a: i32, b: i32) -> i32
 blocks
 requires 0 <= a && a <= 50
 requires 0 <= b && b <= 50
-ensures result == a + b
+ensures (result as i64) == (a as i64) + (b as i64)
 {
     let left: i32 = a;
     let right: i32 = b;

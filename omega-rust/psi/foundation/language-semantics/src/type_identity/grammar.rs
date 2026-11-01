@@ -36,17 +36,17 @@ pub(super) fn type_identity(
                 name_atom(reader, "name", visitor)?;
                 while reader.next(b',') {
                     reader.expect(b',')?;
-                    generic_argument(reader, visitor)?;
+                    index::static_argument(reader, visitor)?;
                 }
             }
             "named" => const_or_name(reader, "name", visitor)?,
             "dynamic-trait" => {
-                // The renderer follows the trait name with the trait's generic
-                // arguments as type identities, in declaration order.
+                // Generic applications retain both type and const operands in
+                // declaration order. Each operand keeps its own owner grammar.
                 name_atom(reader, "name", visitor)?;
                 while reader.next(b',') {
                     reader.expect(b',')?;
-                    type_identity(reader, visitor)?;
+                    index::static_argument(reader, visitor)?;
                 }
             }
             "index-expression" => index::expression(reader, visitor)?,
@@ -54,36 +54,6 @@ pub(super) fn type_identity(
         }
         reader.expect(b')')
     })
-}
-
-/// The renderer writes a type parameter's argument as a type identity and a
-/// const or value parameter's argument through the index grammar
-/// (`integer(50)`, `const-name(..)`), in declaration order. The two tag sets
-/// are disjoint, so the leading tag selects the production.
-fn generic_argument(
-    reader: &mut Reader<'_>,
-    visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
-) -> Result {
-    const TYPE_TAGS: [&str; 13] = [
-        "unit",
-        "nominal(",
-        "compiler-type(",
-        "ref(",
-        "ref-mut(",
-        "ref-write(",
-        "slice(",
-        "array(",
-        "constrained(",
-        "generic(",
-        "named(",
-        "dynamic-trait(",
-        "index-expression(",
-    ];
-    if TYPE_TAGS.iter().any(|tag| reader.starts(tag)) {
-        type_identity(reader, visitor)
-    } else {
-        index::expression(reader, visitor)
-    }
 }
 
 pub(super) fn const_or_name(

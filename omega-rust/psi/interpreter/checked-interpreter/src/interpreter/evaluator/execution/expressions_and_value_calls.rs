@@ -503,8 +503,7 @@ impl<'program> Evaluator<'program> {
         let Some(subject_type) = self.expression_type_reference(binary.left, frame) else {
             return trap("case membership subject has no exact receiving type");
         };
-        let subject_type =
-            type_reference_table(self.program).unconstrained_type_reference(subject_type);
+        let subject_type = type_reference_table(self.program).peeled_type_reference(subject_type);
         let Some(selected_owner) = self
             .program
             .closed_data_constructor_definition(subject_type, owner.symbol)

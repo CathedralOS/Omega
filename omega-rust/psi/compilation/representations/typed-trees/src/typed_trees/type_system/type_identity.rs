@@ -909,6 +909,109 @@ impl TypedTrees {
             .then_some(field)
     }
 
+    /// Specialization changes a field's receiving type, not the declaration
+    /// coordinate consumed by native layout. Translate only through retained
+    /// applications and exact member positions; generated spellings grant no
+    /// correspondence, including for same-named fields in different cases.
+    fn data_field_declaration_symbol(
+        &self,
+        mut symbol: SymbolHandle,
+    ) -> Result<SymbolHandle, String> {
+        if !symbol.is_valid() || self.symbols.get(symbol).kind != symbols::SymbolKind::Field {
+            return Ok(symbol);
+        }
+        for _ in 0..=self.data_definitions().len() {
+            let parent = self.symbols.get(symbol).parent;
+            if !parent.is_valid() {
+                return Err("a field declaration has no retained owner".to_owned());
+            }
+            let owner = if self.symbols.get(parent).kind == symbols::SymbolKind::Variant {
+                self.symbols.get(parent).parent
+            } else {
+                parent
+            };
+            if !owner.is_valid() || self.symbols.get(owner).kind != symbols::SymbolKind::Data {
+                return Ok(symbol);
+            }
+            let data = self
+                .unique_data_definition_by_symbol(owner)
+                .ok_or_else(|| "a field has no unique retained declaration owner".to_owned())?;
+            let Some(origin) = data.generic_instance else {
+                return Ok(symbol);
+            };
+            if !self.contains_type_reference(origin) {
+                return Err("a specialized field lost its owner application".to_owned());
+            }
+            if self
+                .closed_data_definition(origin)
+                .is_none_or(|instance| instance.symbol != data.symbol)
+            {
+                return Err(
+                    "a specialized field origin does not retain its exact data instance".to_owned(),
+                );
+            }
+            let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
+                self.type_reference_table.type_reference(origin)
+            else {
+                return Err("a specialized field owner is not a generic application".to_owned());
+            };
+            let template = self
+                .unique_data_definition_by_symbol(*base_symbol)
+                .ok_or_else(|| {
+                    "a specialized field has no unique original declaration owner".to_owned()
+                })?;
+            let mut correspondence = None;
+            for (ordinal, member) in self.data_members(data).iter().enumerate() {
+                match member {
+                    data::DataMember::Field(selected) if selected.symbol == symbol => {
+                        if let Some(data::DataMember::Field(original)) =
+                            self.data_members(template).get(ordinal)
+                        {
+                            correspondence = Some((selected, original, template.symbol));
+                        }
+                        break;
+                    }
+                    data::DataMember::Variant(selected_case) if selected_case.symbol == parent => {
+                        if let Some(data::DataMember::Variant(original_case)) =
+                            self.data_members(template).get(ordinal)
+                            && selected_case.name == original_case.name
+                            && selected_case.identity == original_case.identity
+                            && let Some((field_ordinal, selected)) = self
+                                .data_payload_fields(selected_case)
+                                .iter()
+                                .enumerate()
+                                .find(|(_, field)| field.symbol == symbol)
+                            && let Some(original) =
+                                self.data_payload_fields(original_case).get(field_ordinal)
+                        {
+                            correspondence = Some((selected, original, original_case.symbol));
+                        }
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            let Some((selected, original, original_parent)) = correspondence else {
+                return Err("a specialized field lost its original member coordinate".to_owned());
+            };
+            if selected.name != original.name
+                || selected.identity != original.identity
+                || selected.relevance != original.relevance
+                || !original.symbol.is_valid()
+                || self.symbols.get(original.symbol).parent != original_parent
+                || !self
+                    .symbols
+                    .same_symbol_source_package(symbol, original.symbol)
+            {
+                return Err(
+                    "a specialized field changed its original declaration custody".to_owned(),
+                );
+            }
+            symbol = original.symbol;
+        }
+        Err("a field declaration has a cyclic specialization origin".to_owned())
+    }
+
     /// Canonical identity for an exact resolved declaration that may cross a
     /// target-neutral/target-closed compiler boundary. Managed package symbols
     /// retain their package digest; toolchain symbols retain their closed
@@ -917,6 +1020,7 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Result<String, String> {
+        let symbol = self.data_field_declaration_symbol(symbol)?;
         if !symbol.is_valid() {
             return Err("a hermetic identity contains an unresolved declaration".to_owned());
         }
@@ -1117,6 +1221,38 @@ impl TypedTrees {
             SubstitutionSemantics::Transitive,
             &[],
         )
+    }
+
+    /// Exact argument correspondence under already established static type
+    /// equations at this occurrence. Delivered substitutions are transitive;
+    /// receiving substitutions are simultaneous caller operands. Every nested
+    /// carrier and qualification uses the same normalizer. This proves type
+    /// correspondence only; access, loans and runtime facts remain independent.
+    pub fn type_identities_match_in_static_context(
+        &self,
+        expression: crate::expression::ExpressionHandle,
+        actual: TypeIdentityRequest<'_>,
+        required: TypeIdentityRequest<'_>,
+    ) -> bool {
+        if self.static_type_context_is_unreachable(expression) {
+            return true;
+        }
+        let normalize = |request: TypeIdentityRequest<'_>, semantics| {
+            normalize_type_reference(
+                self,
+                request.type_reference,
+                &TypeIdentityContext {
+                    binders: request.binders,
+                    substitutions: request.substitutions,
+                    qualification: request.qualification,
+                    substitution_semantics: semantics,
+                    static_context: expression,
+                    ..TypeIdentityContext::default()
+                },
+            )
+        };
+        normalize(actual, SubstitutionSemantics::Transitive)
+            == normalize(required, SubstitutionSemantics::Simultaneous)
     }
 
     /// Identity for a retained storage plan, never application compatibility.

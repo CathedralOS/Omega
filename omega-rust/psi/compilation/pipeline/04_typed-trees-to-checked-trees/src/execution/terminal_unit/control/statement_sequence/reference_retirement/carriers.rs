@@ -26,6 +26,7 @@ impl Retirement<'_> {
         &self,
         parent: &CheckedUnitStructuralResultBindingPlan,
     ) -> bool {
+        let _profile = phase_profile::guard("05.unit.reference_retirement.carrier_children");
         let mut operations = self
             .operations
             .iter()

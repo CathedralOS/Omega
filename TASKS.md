@@ -163,7 +163,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    declaration calls needing loan or affine input custody or declaration-local
+    declaration calls borrowing reference-bearing inputs or needing exclusive-loan
+    or affine input custody or declaration-local
     selectors, other remaining declared body forms, nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
@@ -191,8 +192,23 @@ retired-syntax deletions to completion.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
     remaining case/aggregate writes, record-field and owned-array
-    predicate handback with current storage versions,
-    reads, calls, state joins,
+    predicate handback with current storage versions, including `window_demo`'s
+    guarded `pumped + 1` / `frame + 1` writes at the unchanged 16-message and
+    60-frame bounds; preserve that sample's existing guards and operation.
+    [Captured storage bounds](samples/cli/facts/captured_storage_bounds/README.md)
+    establishes the nine-place captured-read prerequisite after disjoint writes;
+    full GUI qualification remains open. Mixed-predicate restoration windows
+    must still withhold temporarily false bounds from scalar snapshots:
+    `start = -1; let saved = start;` followed by restoring `start >= 0 && start <= end`
+    must not justify `require_nonnegative(saved)`. Both the fixed `225551dd818`
+    baseline and the captured-read repair currently accept that invalid control;
+    the ordinary arithmetic read query remains to repair.
+    The integrated `6c8950d4825` producer also refuses the unchanged guarded
+    `frame_fields` / `parse` calls after opaque callbacks in
+    [CompactBinary](source/library/std/wire.omg); SDK checking stops there before
+    WindowDemo qualification. Preserve those caller guards and callback contracts
+    while repairing this remaining call-fact frontier.
+    Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
@@ -282,8 +298,8 @@ retired-syntax deletions to completion.
   - **Psi checking, contracts, and package review
     (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
     - Extend requirement-contract checking at selector calls beyond exact fact
-      correspondence to transparent proposition aliases, supported integer
-      arithmetic, and literal IEEE-bound weakening while preserving the
+      correspondence to supported integer arithmetic and literal IEEE-bound
+      weakening while preserving the
       requirement's public contract independently of stronger implementation
       guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
       all nine places).
@@ -334,13 +350,12 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 73 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 14 facts spell it in all nine places
-    (`foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
-    `generic_calling_policy`, `nested_zero_leaf_array_storage`,
+    Frontier: 66 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 8 facts spell it in all nine places
+    (`generic_calling_policy`, `nested_zero_leaf_array_storage`,
     `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
     `selected_provider_issuance`, `target_family_contract_operand`,
-    `target_layout_derived_constant`, `target_recursive_bound`,
+    `target_layout_derived_constant`,
     `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
@@ -552,36 +567,6 @@ engine over frozen typed trees (`FrozenTypedTrees`), proof-carrying code (PCC)
 receiver replay is retired while keeping the mathematical kernel and checker
 contracts, and every supported primitive operation carries its checking-time
 decision (`SourceChecked`) into stage 05 and stage 00.
-
-- **CHECKER-CARRIES-OPERATION-DECISIONS.** (new-scope; also covers
-  **STAGE-05-REFUSAL-REVALIDATIONS** and **RETIRE-EXPORTED-AUDIT-FACADE**)
-  Complete checking-time discharge of primitive operation conditions into
-  `SourceChecked` across stage 04, stage 05, and stage 00, remove the remaining
-  12 stage-05 plan-revalidation refusal sites so
-  `lowering_refusals_do_not_revalidate_the_plan` passes, and retire or wire
-  unreached audit facades end to end (`omega run --both`).
-  Owners: stage 04 `CheckFacts`,
-  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/source_guards.rs`,
-  and stage 00 optimization-unit construction.
-  - **STAGE-05-REFUSAL-REVALIDATIONS:** publish needed carrier/root invariants
-    in stage 04 and delete the 12 plan-revalidation comparisons in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/`
-    so `lowering_refusals_do_not_revalidate_the_plan` and
-    `mbx nextest run -p checked-trees-to-lowered-psi` pass.
-  - Carry exact checking decisions (`ArithmeticDecisions`,
-    `proven_scalar_indexes`, `proven_byte_writes`, `decided_call_requires`)
-    through inner element-path runtime selectors (`CheckedRuntimeIndex`),
-    view-range segments, record-loan element reads, synthesized widenings,
-    scalar-graph casts, bounded stores, affine aggregate entries, and
-    invocation-entry/arrival obligations.
-  - **RETIRE-EXPORTED-AUDIT-FACADE:** connect `accept_source_checked_operation`
-    and `verify_target_operation_plan` or retire unreached audit facades.
-  Acceptance: `lowering_refusals_do_not_revalidate_the_plan` is green; every
-  supported primitive operation reaches stage 05 and stage 00 with its exact
-  `SourceChecked` decision; corpus failures for missing decisions reject from
-  `omega --check` with checking diagnostics while preserving all
-  `arithmetic/*`, `collections/*`, `slices/*`, `calls/*`, `float/*`, and
-  `domains/*` positive and negative controls.
 
 - **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
   emission build their final image once (only retained/admitted replay entrypoints
@@ -873,8 +858,12 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete the [C-layout transport row](samples/cli/facts/c_layout_scalar_record/README.md)
-    and remaining schema composition support; migrate complete platform ABI records;
+  - Complete other-host execution for the
+    [C-layout row](samples/cli/facts/c_layout_scalar_record/README.md). Finish
+    call-result, match-join, const-name, nested-machine, other-machine and selected
+    target transport for [explicit nested representations](samples/cli/facts/c_layout_nested_representation/README.md),
+    plus other-host execution and remaining schema/case composition support;
+    migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring
     missing fields from the current seconds-only record.

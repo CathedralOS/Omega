@@ -112,7 +112,7 @@ impl SealedAccessor {
 
     /// Independently rejoin one retained plan at a receiving declaration gate.
     /// The catalog role is not inferred from an equal callable signature.
-    pub fn rejoin_plan(
+    pub(crate) fn rejoin_plan(
         context: ProviderPlanningContext<'_>,
         plan: &effects::provider_plan::ProviderPlan,
     ) -> Result<Option<Self>, Diagnostic> {

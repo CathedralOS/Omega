@@ -59,6 +59,21 @@ fn module() -> TerminalModule {
         },
     ];
     for (position, shape) in shapes.into_iter().enumerate() {
+        if let StructuralTypeShape::Record { fields, .. } = &shape {
+            module.native_layouts.insert(
+                type_id(position as u64 + 1),
+                TerminalIdentityIndex(position as u32 + 4),
+                TerminalIdentityIndex::ABSENT,
+                TerminalIdentityIndex::ABSENT,
+                fields
+                    .iter()
+                    .map(|field| terminal_psi::NativeLayoutFieldIdentity {
+                        field: field.id,
+                        declaration_identity: field.identity,
+                    }),
+                [],
+            );
+        }
         module.structural_types.push(StructuralTypeDeclaration {
             id: type_id(position as u64 + 1),
             identity: TerminalIdentityIndex(position as u32 + 4),

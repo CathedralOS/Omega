@@ -395,3 +395,55 @@ fn primitive_reference_publication_preserves_original_home_and_total_view() {
         &duplicate
     ));
 }
+
+#[test]
+fn inherited_root_membership_preserves_exact_primitive_transport() {
+    // Membership admission belongs to the Terminal source. This physical
+    // projection must account for the same executed store with inherited root
+    // metadata, while neither issuing a membership nor transporting claims.
+    let (mut function, selected) = fixture();
+    let domain = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
+    let place = PlaceId::new(1).unwrap();
+    let AbstractOperation::EstablishPrimitiveLocal { result, .. } = &mut function.operations[0]
+    else {
+        unreachable!()
+    };
+    result.qualifications.push(domain);
+    assert_eq!(
+        establishment(&function, &selected, place),
+        Some((OperationId::new(1).unwrap(), 8))
+    );
+
+    for mutation in 0..4 {
+        let mut changed = function.clone();
+        let AbstractOperation::EstablishPrimitiveLocal { result, .. } = &mut changed.operations[0]
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => result.multiplicity = StructuralMultiplicity::Affine,
+            1 => result
+                .qualification_establishments
+                .push(terminal_psi::ResultQualificationEstablishment { domain, route: 0 }),
+            2 => result
+                .projected_qualifications
+                .push(terminal_psi::StructuralPathQualification {
+                    path: vec![terminal_psi::StructuralPathSegment::Referent],
+                    domain,
+                }),
+            _ => result
+                .claims
+                .push(terminal_psi::StructuralResultClaimBinding {
+                    claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+                    path: Vec::new(),
+                }),
+        }
+        assert!(
+            establishment(&changed, &selected, place).is_none(),
+            "custody mutation {mutation}"
+        );
+    }
+    let mut changed = selected.clone();
+    changed.blocks[0].instructions[1].provenance.values.clear();
+    assert!(establishment(&function, &changed, place).is_none());
+}

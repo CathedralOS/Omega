@@ -3,14 +3,14 @@
 //! must preserve regions. Borrow the original nodes and simultaneous scopes;
 //! an executable carrier view cannot represent mixed captured/fresh binders.
 
-use crate::borrow_contracts::{CallableBorrowContract, validate_callable_borrow_refinement};
+use crate::borrow_contracts::CallableBorrowContract;
 use typed_trees::data::TypeParameter;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::trait_definition::AppliedTraitScope;
 
-pub(super) fn validate(
+pub(super) fn with_contracts<R>(
     program: &dyn crate::CheckingInput,
     application: &AppliedTraitScope<'_>,
     requirement: &StateSignature,
@@ -18,7 +18,8 @@ pub(super) fn validate(
     state: &State,
     actual_parameters: &[StateParameter],
     actual_type_parameters: &[TypeParameter],
-) -> Result<(), String> {
+    judge: impl FnOnce(CallableBorrowContract<'_>, CallableBorrowContract<'_>) -> Result<R, String>,
+) -> Result<R, String> {
     let binders = program
         .state_signature_type_parameters(requirement)
         .iter()
@@ -30,8 +31,7 @@ pub(super) fn validate(
         })
         .collect::<Vec<_>>();
     application.with_identity_scopes(program.typed_program(), |scopes| {
-        validate_callable_borrow_refinement(
-            program,
+        judge(
             CallableBorrowContract {
                 lexical_owner: requirement.symbol,
                 lifetime_parameters: &requirement.lifetime_parameters,

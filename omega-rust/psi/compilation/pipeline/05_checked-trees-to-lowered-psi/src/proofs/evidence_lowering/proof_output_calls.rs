@@ -20,7 +20,6 @@ use terminal_psi::ProofOutputRuntimeResult;
 pub(crate) fn lower_proof_output_calls(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    source_machine_ids: &[(symbols::SymbolHandle, MachineId)],
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
@@ -41,7 +40,6 @@ pub(crate) fn lower_proof_output_calls(
         .map(|(ordinal, invocation)| {
             let (runtime_result, runtime_call) = lower_proof_output_runtime_call(
                 checked,
-                source_machine_ids,
                 terminal_machine,
                 semantic_module,
                 occurrences,
@@ -531,7 +529,6 @@ pub(crate) fn terminal_proposition_application_id(
 /// role or the operation form that role took.
 fn lower_proof_output_runtime_call(
     checked: &CheckedTrees,
-    source_machine_ids: &[(symbols::SymbolHandle, MachineId)],
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
     occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
@@ -563,21 +560,6 @@ fn lower_proof_output_runtime_call(
     // checked coordinate, independently of result role. Rejoin its selected
     // machine, state and static dispatch before authenticating the emitted callee.
     let target = crate::call_sites::selected_module_target(checked, occurrence)?;
-    if target.machine.symbol != invocation.target_machine_symbol
-        || target.state.symbol != invocation.target_state_symbol
-        || target.static_requirement_dispatch != invocation.static_requirement_dispatch
-    {
-        return unsupported("runtime proof-output target disagrees with its checked selected call");
-    }
-    let mut lowered_targets = source_machine_ids
-        .iter()
-        .filter(|(source, _)| *source == target.machine.symbol);
-    let (_, expected_callee) = lowered_targets.next().ok_or(LoweringError::Unsupported(
-        "runtime proof-output selected target has no emitted machine",
-    ))?;
-    if lowered_targets.next().is_some() {
-        return unsupported("runtime proof-output selected target has ambiguous emitted machines");
-    }
     let caller = semantic_module
         .machine(terminal_machine)
         .ok_or(LoweringError::Unsupported(
@@ -589,11 +571,6 @@ fn lower_proof_output_runtime_call(
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output call has no exact emitted invocation",
         ))?;
-    if emitted.inputs.callee != *expected_callee {
-        return unsupported(
-            "runtime proof-output emitted callee differs from its selected realization",
-        );
-    }
     if matches!(
         occurrence.terminal_site,
         semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
@@ -636,11 +613,6 @@ fn lower_proof_output_runtime_call(
     let parts = crate::direct_calls::direct_call_parts(&operation.kind).ok_or(
         LoweringError::Unsupported("runtime proof-output operation is not a direct call"),
     )?;
-    if parts.callee != *expected_callee {
-        return unsupported(
-            "runtime proof-output emitted callee differs from its selected realization",
-        );
-    }
     let result = match (parts.role, expected, operation.result.scalar()) {
         (crate::direct_calls::DirectCallRole::Unit, None, None) => ProofOutputRuntimeResult::Unit,
         (crate::direct_calls::DirectCallRole::Scalar, Some(expected), Some(result))

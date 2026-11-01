@@ -146,6 +146,10 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             start, end, length, ..
         } => vec![*start, *end, *length],
         O::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
+            ..
+        } => vec![*source_length],
+        O::EstablishElementView {
             region: terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. },
             ..
         } => vec![*start, *end],

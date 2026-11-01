@@ -1,0 +1,44 @@
+// Expected exit: 0
+// Independent byte frames exercise sorted tags, narrow carrier bounds and
+// malformed input; decoded words supply no destination predicate authority.
+use omega_language_std::wire;
+machine slot(number: u64, signed: bool) -> ScalarSlot {
+    ScalarSlot { number: number, is_signed: signed, is_payload: false, start: 0u64, end: 0u64, minimum: -128i64,
+        maximum: 127i64, unsigned_maximum: 4294967295u64,
+        signed: 0i64, unsigned: 0u64 }
+}
+machine invalid(bytes: &[u8]) -> bool {
+    let mut fields: [ScalarSlot; 2] = [slot(1u64, true), slot(0u64, false)];
+    transition CompactBinary::read_scalar_fields(bytes, &mut fields[..], 2u64, 0u64, 100u64) {
+        FrameRead::Invalid -> true
+        _ -> false
+    }
+}
+machine main() crashes Trap {
+    let bytes: [u8; 5] = [0u8, 0u8, 50u8, 1u8, 9u8];
+    let mut fields: [ScalarSlot; 3] = [slot(1u64, true), slot(0u64, false), slot(999u64, false)];
+    let signed_overflow: [u8; 6] = [0u8, 0u8, 50u8, 1u8, 128u8, 2u8];
+    let unsigned_overflow: [u8; 9] = [0u8, 0u8, 128u8, 128u8, 128u8, 128u8, 16u8, 1u8, 9u8];
+    let wrong_tag: [u8; 5] = [0u8, 0u8, 50u8, 2u8, 9u8];
+    let wrong_era: [u8; 5] = [1u8, 0u8, 50u8, 1u8, 9u8];
+    let truncated: [u8; 3] = [0u8, 0u8, 50u8];
+    let noncanonical: [u8; 6] = [0u8, 0u8, 178u8, 0u8, 1u8, 9u8];
+    transition CompactBinary::read_scalar_fields(&bytes[..], &mut fields[..], 2u64, 0u64, 100u64) {
+        FrameRead::Read { next } -> inspect(&fields[..], next, &signed_overflow[..], &unsigned_overflow[..], &wrong_tag[..], &wrong_era[..], &truncated[..], &noncanonical[..])
+        _ -> bad()
+    }
+    machine inspect(fields: &[ScalarSlot], next: u64, signed_overflow: &[u8], unsigned_overflow: &[u8], wrong_tag: &[u8], wrong_era: &[u8], truncated: &[u8], noncanonical: &[u8]) crashes Trap
+    requires fields.len == 3u64
+    {
+        transition next == 5u64 && fields[0u64].signed == (0i64 - 5i64)
+            && fields[1u64].unsigned == 50u64 && fields[2u64].number == 999u64
+            && fields[2u64].unsigned == 0u64 && invalid(signed_overflow)
+            && invalid(unsigned_overflow) && invalid(wrong_tag) && invalid(wrong_era)
+            && invalid(truncated) && invalid(noncanonical) {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

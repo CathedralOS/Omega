@@ -322,6 +322,7 @@ impl Retirement<'_> {
     /// candidate storage deaths: the existing ownership continuation graph
     /// selects actual births before emitting exact descriptor releases.
     pub(super) fn backing_releases(&self) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+        let _profile = phase_profile::guard("05.unit.reference_retirement.backing_releases");
         let state = unique_borrow_state(self.facts, self.machine, self.state.symbol)?;
         let Some(state) = state else {
             return Some(Vec::new());
@@ -449,11 +450,13 @@ impl Retirement<'_> {
     /// An immediate child must have ended its actual carrier, not merely
     /// reached its parent's lexical last use. Each child's own schedule obeys
     /// this same rule, so reverse production closes a chain deepest first.
-    pub(super) fn children_retired(&self, parent: Handle<BorrowLoanFact>) -> bool {
+    pub(super) fn children_retired(&self, parent: arena::Handle<BorrowLoanFact>) -> bool {
+        let _profile = phase_profile::guard("05.unit.reference_retirement.loan_children");
         let Some(Some(state)) = unique_borrow_state(self.facts, self.machine, self.state.symbol)
         else {
             return false;
         };
+        let capturing_operations = self.capturing_operations(state);
         let mut pending = vec![(parent, false)];
         let mut active = Vec::new();
         let mut completed = Vec::new();
@@ -480,7 +483,7 @@ impl Retirement<'_> {
                 if self
                     .order
                     .precedes(loan.statement_index, self.statement_index as usize)
-                    && self.retains_parent(handle, parent, &mut Vec::new())
+                    && self.retains_parent(handle, parent, &mut Vec::new(), &capturing_operations)
                 {
                     if !self.holder_retired(handle) {
                         return false;
@@ -496,9 +499,13 @@ impl Retirement<'_> {
 
     fn retains_parent(
         &self,
-        child: Handle<BorrowLoanFact>,
-        parent: Handle<BorrowLoanFact>,
-        active: &mut Vec<Handle<BorrowLoanFact>>,
+        child: arena::Handle<BorrowLoanFact>,
+        parent: arena::Handle<BorrowLoanFact>,
+        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+        capturing_operations: &std::collections::BTreeMap<
+            (u32, u32),
+            Vec<&CheckedUnitEffectOperationPlan>,
+        >,
     ) -> bool {
         if child == parent || active.contains(&child) {
             return false;
@@ -508,16 +515,94 @@ impl Retirement<'_> {
             == (BorrowLoanLineage::Reborrow {
                 parent_loan: parent,
             })
-            || self.captures_holder(child, parent)
+            || self.captures_holder(child, parent, capturing_operations)
         {
             return true;
         }
         active.push(child);
         let retained = self.transported_loans.iter().any(|(receiver, supplier)| {
-            *receiver == child && self.retains_parent(*supplier, parent, active)
+            *receiver == child
+                && self.retains_parent(*supplier, parent, active, capturing_operations)
         });
         active.pop();
         retained
+    }
+
+    /// Rejoin each descriptor to its exact producer once for this immutable
+    /// operation prefix. Parent queries still perform the original source and
+    /// path checks; this roster carries no expiry or liveness judgment. Without
+    /// the producer association, every (child, parent) query scans every earlier
+    /// operation and reconstructs the same captured loan groups again.
+    fn capturing_operations(
+        &self,
+        state: &checked_trees::StateBorrowFact,
+    ) -> std::collections::BTreeMap<(u32, u32), Vec<&CheckedUnitEffectOperationPlan>> {
+        let _profile = phase_profile::guard("05.unit.reference_retirement.capture_producers");
+        let mut capturing = std::collections::BTreeMap::<_, Vec<_>>::new();
+        for operation in self
+            .operations
+            .iter()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        {
+            let loans = if let Some(call) = operation.call() {
+                call.structural_result().and_then(|result| {
+                    carrier_loans(
+                        self.facts,
+                        self.machine,
+                        self.state.symbol,
+                        result,
+                        self.results,
+                    )
+                })
+            } else if let CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
+            ) = operation
+            {
+                carrier_loans(
+                    self.facts,
+                    self.machine,
+                    self.state.symbol,
+                    result,
+                    self.results,
+                )
+            } else if let CheckedUnitEffectOperationPlan::EstablishReference { result, .. } =
+                operation
+            {
+                local_reference_loans(
+                    self.facts,
+                    self.machine,
+                    self.state.symbol,
+                    result,
+                    self.results,
+                )
+            } else {
+                // Stores select their receiving leaf inside the existing exact
+                // construction query. Keep every possible child for a store
+                // that installs a value; ordinary releases and scalar stores
+                // cannot produce a descriptor.
+                if matches!(operation, CheckedUnitEffectOperationPlan::Store(store)
+                    if store.installed_value().is_some())
+                    && let Some(loans) = self.facts.borrow.loan_group(state.loans)
+                {
+                    for (child, _) in loans {
+                        capturing
+                            .entry((child.arena_index(), child.generation()))
+                            .or_default()
+                            .push(operation);
+                    }
+                }
+                continue;
+            };
+            if let Some(loans) = loans.and_then(|loans| self.facts.borrow.loan_group(loans)) {
+                for (child, _) in loans {
+                    capturing
+                        .entry((child.arena_index(), child.generation()))
+                        .or_default()
+                        .push(operation);
+                }
+            }
+        }
+        capturing
     }
 
     /// Materialized descriptors retain their supplying carrier even when the
@@ -526,32 +611,27 @@ impl Retirement<'_> {
     /// not a new reborrow permission or an initializer reconstruction.
     fn captures_holder(
         &self,
-        child: Handle<BorrowLoanFact>,
-        parent: Handle<BorrowLoanFact>,
+        child: arena::Handle<BorrowLoanFact>,
+        parent: arena::Handle<BorrowLoanFact>,
+        capturing_operations: &std::collections::BTreeMap<
+            (u32, u32),
+            Vec<&CheckedUnitEffectOperationPlan>,
+        >,
     ) -> bool {
+        let Some(operations) = capturing_operations.get(&(child.arena_index(), child.generation()))
+        else {
+            return false;
+        };
         let parent = self.facts.borrow.loans.get(parent);
-        let mut operations = self
-            .operations
-            .iter()
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls);
-        operations.any(|operation| {
+        operations.iter().copied().any(|operation| {
             if let Some(call) = operation.call() {
                 // Root-reference custody owns a whole descriptor release;
                 // record results instead retire their stored leaf groups.
                 // Both pin the actual source holder. Join the registered
                 // receiving binding, not the root-only call release roster.
                 // This is disposal order, not new reborrow authority.
-                return call.structural_result().is_some_and(|result| {
-                    carrier_loans(
-                        self.facts,
-                        self.machine,
-                        self.state.symbol,
-                        result,
-                        self.results,
-                    )
-                    .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
-                        && self.facts.borrow.loans.get(child).source_owner_symbol
-                            == parent.owner_symbol
+                return call.structural_result().is_some_and(|_| {
+                    self.facts.borrow.loans.get(child).source_owner_symbol == parent.owner_symbol
                         && call.structural_arguments.iter().any(|source| {
                             source.access.borrow_access_kind().is_some()
                                 && self.source_captures_holder(source, parent)
@@ -562,17 +642,6 @@ impl Retirement<'_> {
                 CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
             ) = operation
             {
-                if !carrier_loans(
-                    self.facts,
-                    self.machine,
-                    self.state.symbol,
-                    result,
-                    self.results,
-                )
-                .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
-                {
-                    return false;
-                }
                 let loan = self.facts.borrow.loans.get(child);
                 let Some(reference) = storage_owner_type_reference(
                     self.program,
@@ -659,22 +728,10 @@ impl Retirement<'_> {
                         })
                 });
             }
-            let CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } =
-                operation
+            let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
             else {
                 return false;
             };
-            if !local_reference_loans(
-                self.facts,
-                self.machine,
-                self.state.symbol,
-                result,
-                self.results,
-            )
-            .is_some_and(|loans| self.facts.borrow.loans_contain(loans, child))
-            {
-                return false;
-            }
             self.source_captures_holder(source, parent)
         })
     }

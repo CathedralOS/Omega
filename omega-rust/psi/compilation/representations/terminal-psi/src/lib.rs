@@ -32,6 +32,10 @@ pub use prepared_roots::{
 
 mod callback_application;
 mod calling_policies;
+mod native_layouts;
+pub use native_layouts::{
+    NativeLayoutCatalog, NativeLayoutFieldIdentity, NativeLayoutRealization, NativeRecordLayout,
+};
 mod unoptimized_behavior;
 pub use callback_application::TerminalCallbackApplication;
 pub use calling_policies::{
@@ -58,8 +62,9 @@ pub use terminal_module::*;
 mod target_layouts;
 pub use target_layouts::{
     LayoutApplicationId, StructuralRecordStorage, TargetLayoutApplication,
-    TargetLayoutFieldStorage, TargetLayoutInput, TargetLayoutRealization,
-    TargetLayoutSchemaArgument, TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
+    TargetLayoutFieldLayoutSource, TargetLayoutFieldStorage, TargetLayoutInput,
+    TargetLayoutRealization, TargetLayoutSchemaArgument, TargetLayoutSchemaField,
+    TargetLayoutSchemaFieldKind,
 };
 
 pub use terminal_module::quotients::{

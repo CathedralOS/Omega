@@ -1622,7 +1622,7 @@ impl<'program> Engine<'program> {
                                 self.normalize(*argument)
                                     .map(IntegerApplicationInput::Scalar)
                             } else {
-                                self.captured_owned_call_input(*argument)
+                                self.captured_record_call_input(*argument)
                             }
                         })
                         .collect::<Option<Vec<_>>>()?;

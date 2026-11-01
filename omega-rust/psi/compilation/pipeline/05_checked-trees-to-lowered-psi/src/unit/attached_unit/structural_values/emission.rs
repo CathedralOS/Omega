@@ -2220,7 +2220,11 @@ impl Emission<'_, '_, '_> {
                 return Ok(arrived);
             }
             CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
-                let argument = self.copied_place_argument(identities, node.expression, &source)?;
+                if source.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+                    return unsupported("copied value requires shared source custody");
+                }
+                let argument =
+                    self.readable_place_argument(identities, node.expression, &source)?;
                 let place = self.copied_leaf_place(
                     identities,
                     &argument,

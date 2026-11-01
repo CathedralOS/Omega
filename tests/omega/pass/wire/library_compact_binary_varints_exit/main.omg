@@ -1,0 +1,68 @@
+// Expected exit: 0
+use omega_language_std::wire;
+
+machine roundtrip(value: u64, expected_end: u64) crashes Trap {
+    let mut bytes: [u8; 12] = [77u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 99u8];
+    transition CompactBinary::write_unsigned(&mut bytes[..], 1u64, value) {
+        EncodeResult::Encoded { next } -> inspect(&bytes[..], value, next, expected_end)
+        _ -> bad()
+    }
+    machine inspect(bytes: &[u8], expected: u64, end: u64, expected_end: u64) crashes Trap
+    requires bytes.len == 12u64
+    {
+        transition CompactBinary::read_unsigned(bytes, 1u64) {
+            UnsignedRead::Read { value, next } -> compare(bytes, expected, end, value, next, expected_end)
+            _ -> bad()
+        }
+    }
+    machine compare(bytes: &[u8], expected: u64, end: u64, value: u64, next: u64, expected_end: u64) crashes Trap
+    requires bytes.len == 12u64
+    {
+        transition value == expected && next == end && end == expected_end && bytes[0u64] == 77u8 && bytes[11u64] == 99u8 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine invalid(bytes: &[u8]) crashes Trap {
+    transition CompactBinary::read_unsigned(bytes, 0u64) {
+        UnsignedRead::Invalid -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine canonical_300() crashes Trap {
+    let mut bytes: [u8; 4] = [77u8, 0u8, 0u8, 99u8];
+    let encoded: EncodeResult = CompactBinary::write_unsigned(&mut bytes[..], 1u64, 300u64);
+    transition bytes[0u64] == 77u8 && bytes[1u64] == 172u8 && bytes[2u64] == 2u8 && bytes[3u64] == 99u8 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    canonical_300();
+    roundtrip(0u64, 2u64);
+    roundtrip(1u64, 2u64);
+    roundtrip(127u64, 2u64);
+    roundtrip(128u64, 3u64);
+    roundtrip(300u64, 3u64);
+    roundtrip(16383u64, 3u64);
+    roundtrip(16384u64, 4u64);
+    roundtrip(0xFFFF_FFFF_FFFF_FFFFu64, 11u64);
+    let overlong: [u8; 2] = [128u8, 0u8];
+    let truncated: [u8; 1] = [128u8];
+    let overflow: [u8; 10] = [255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 2u8];
+    let eleventh: [u8; 11] = [128u8, 128u8, 128u8, 128u8, 128u8, 128u8, 128u8, 128u8, 128u8, 128u8, 1u8];
+    invalid(&overlong[..]);
+    invalid(&truncated[..]);
+    invalid(&overflow[..]);
+    invalid(&eleventh[..]);
+}

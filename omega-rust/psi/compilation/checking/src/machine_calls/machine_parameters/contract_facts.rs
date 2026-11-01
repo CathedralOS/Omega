@@ -7,6 +7,36 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 
+/// The already admitted source occurrence and its selected provider tuple.
+/// Neither an actual requires clause nor its own entry scope supplies a premise.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct CallableProofScope<'a> {
+    pub(crate) site: Option<super::ValidatedNominalMachineUseSite>,
+    pub(crate) types: &'a [(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+}
+impl CallableProofScope<'_> {
+    fn proves_type_fact(
+        self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> bool {
+        if program.applied_static_type_predicate_value(expression, self.types) == Some(true) {
+            return true;
+        }
+        match self.site {
+            Some(super::ValidatedNominalMachineUseSite::Expression(context)) => {
+                program.static_type_requirement_entailed(expression, context, self.types)
+            }
+            Some(super::ValidatedNominalMachineUseSite::Statement(context)) => program
+                .static_type_requirement_entailed_at_statement(expression, context, self.types),
+            None => false,
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_contract_facts(
     program: &dyn crate::CheckingInput,
@@ -16,8 +46,12 @@ pub(super) fn validate_contract_facts(
     actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
-    actual_owner: SymbolHandle,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    actual_owner: symbols::SymbolHandle,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+    proof_scope: CallableProofScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_contracts = program.state_signature_contracts(requirement);
@@ -32,6 +66,7 @@ pub(super) fn validate_contract_facts(
         requirement.symbol,
         actual_owner,
         substitutions,
+        proof_scope,
         diagnostics,
     );
 }
@@ -45,15 +80,29 @@ pub(crate) fn validate_callable_contract_refinement(
     actual_contracts: &[SignatureContract],
     required_parameters: &[StateParameter],
     actual_parameters: &[StateParameter],
-    required_owner: SymbolHandle,
-    actual_owner: SymbolHandle,
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    required_owner: symbols::SymbolHandle,
+    actual_owner: symbols::SymbolHandle,
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+    proof_scope: CallableProofScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for kind in [
         SignatureContractKind::Requires,
         SignatureContractKind::Ensures,
     ] {
+        // Reflection's callback covers the selected subject's fields. An
+        // open subject has no concrete field roster yet; retain that coverage
+        // obligation until closed elaboration produces every ordinary call.
+        // This does not defer shape, access, effects, regions or body checking,
+        // and no executable query may retain an open subject.
+        if kind == SignatureContractKind::Requires
+            && super::reflection_coverage::is_open_field_query(program, proof_scope.site)
+        {
+            continue;
+        }
         let required = normalized_facts(
             program,
             required_contracts,
@@ -61,7 +110,14 @@ pub(crate) fn validate_callable_contract_refinement(
             required_parameters,
             substitutions,
         );
-        let actual = normalized_facts(program, actual_contracts, &kind, actual_parameters, &[]);
+        let actual = normalized_facts_in(
+            program,
+            actual_contracts,
+            &kind,
+            actual_parameters,
+            &[],
+            proof_scope,
+        );
         let valid = match &kind {
             // Required preconditions may be stronger: callers of the generic
             // already prove them, so the selected implementation may demand a
@@ -209,6 +265,30 @@ fn normalized_facts(
     parameters: &[StateParameter],
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Vec<String> {
+    normalized_facts_in(
+        program,
+        contracts,
+        kind,
+        parameters,
+        substitutions,
+        CallableProofScope {
+            site: None,
+            types: substitutions,
+        },
+    )
+}
+
+fn normalized_facts_in(
+    program: &dyn crate::CheckingInput,
+    contracts: &[SignatureContract],
+    kind: &SignatureContractKind,
+    parameters: &[StateParameter],
+    substitutions: &[(
+        symbols::SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
+    proof_scope: CallableProofScope<'_>,
+) -> Vec<String> {
     let mut facts = Vec::new();
     for contract in contracts.iter().filter(|contract| &contract.kind == kind) {
         for fact in program.tables.proof_facts.span_or_empty(contract.facts) {
@@ -218,7 +298,8 @@ fn normalized_facts(
                     if matches!(
                         expression_table(program).expression(*expression),
                         ExpressionNode::Boolean(true)
-                    )
+                    ) || matches!(fact, ProofFact::Expression(expression)
+                        if proof_scope.proves_type_fact(program, *expression))
             ) {
                 // `true` contributes no precondition or postcondition. Treat
                 // it as the identity element so an implementation need not

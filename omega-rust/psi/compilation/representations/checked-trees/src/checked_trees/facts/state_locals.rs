@@ -25,6 +25,8 @@ pub struct CheckedStateLocal {
     /// The declaration spells no type; `declared_type` is the inferred one.
     pub type_is_inferred: bool,
     pub is_mutable: bool,
+    /// Erased locals never contribute resident task-frame storage.
+    pub is_erased: bool,
     /// An immutable, initialized primitive local: its value is a scalar SSA
     /// value keyed by its `LocalInitializer` ordinal
     /// (`StateLocalFacts::scalar_locals_before` its statement).

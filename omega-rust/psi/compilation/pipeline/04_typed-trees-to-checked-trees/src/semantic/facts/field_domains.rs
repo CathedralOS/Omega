@@ -316,6 +316,38 @@ pub(super) fn append_state_parameter_domain_facts(
                 // Keep the existing root qualification/resource permission
                 // rule separate from default-domain fields of nominal values.
                 if parameter.is_mutable {
+                    // An exclusive referent may retire an input predicate, but
+                    // it must return routed membership that its caller lent.
+                    // Seed the same exact root obligation as declared fields;
+                    // ordinary writes retire it and an authorized completed
+                    // producer must establish any replacement occurrence.
+                    if validation::reference_shell(program, parameter.type_reference)
+                        .is_some_and(|shell| shell.access.is_exclusive())
+                    {
+                        for (domain_symbol, semantic_domain) in
+                            validation::field_domains::domain_constraint_identities(
+                                program,
+                                parameter.type_reference,
+                            )
+                        {
+                            if validation::field_domains::domain_requires_provenance(
+                                program,
+                                domain_symbol,
+                            ) {
+                                append_state_parameter_domain_fact(
+                                    facts,
+                                    machine.symbol,
+                                    state.symbol,
+                                    parameter.symbol,
+                                    obligation_origin,
+                                    &[],
+                                    domain_symbol,
+                                    semantic_domain,
+                                    &mut refs,
+                                );
+                            }
+                        }
+                    }
                     continue;
                 }
                 let mut predicates = Vec::new();

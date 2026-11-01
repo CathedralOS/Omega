@@ -7,8 +7,8 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{
-    StructuralRecordStorage, StructuralTypeShape, TargetLayoutSchemaFieldKind,
-    TerminalIdentityIndex, TerminalModule,
+    StructuralRecordStorage, StructuralTypeShape, TargetLayoutFieldLayoutSource,
+    TargetLayoutSchemaFieldKind, TerminalIdentityIndex, TerminalModule,
 };
 use terminal_semantics::{reference_storage_byte_width, reference_storage_layout};
 
@@ -100,7 +100,7 @@ pub(super) fn validate(
             {
                 return malformed("layout realization changed its independent issuer target input");
             }
-            if realization.schema_argument.abi_version != 3
+            if realization.schema_argument.abi_version != 4
                 || realization.schema_argument.fields.len() > 32
                 || live_fields.len() != realization.schema_argument.fields.len()
                 || live_schema.len() != live_fields.len()
@@ -163,6 +163,10 @@ pub(super) fn validate(
                             TargetLayoutSchemaFieldKind::Scalar,
                         )
                     })
+                } else if let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
+                    source.field_type.byte_sequence_carrier()
+                {
+                    Some((capacity, 1, TargetLayoutSchemaFieldKind::Repeated))
                 } else {
                     source
                         .field_type
@@ -195,6 +199,11 @@ pub(super) fn validate(
                     return malformed(
                         "layout schema argument differs from invariant field geometry",
                     );
+                }
+                if schema_layout_source(module, &source.field_type, realization)?
+                    != input.layout_source
+                {
+                    return malformed("layout schema argument changed its field geometry source");
                 }
             }
             if realization.target.is_empty()
@@ -279,14 +288,10 @@ fn schema_storage_layout(
                 Some((size.checked_mul(length.literal()?)?, align))
             }
             StructuralTypeShape::Record { fields, storage } => match storage {
-                StructuralRecordStorage::TargetLayout(id) => module
-                    .target_layout_applications
-                    .iter()
-                    .find(|application| application.id == *id && application.record == identity)?
-                    .realizations
-                    .iter()
-                    .find(|row| row.target == target.target)
-                    .map(|row| (row.storage.byte_size, row.storage.byte_alignment)),
+                StructuralRecordStorage::TargetLayout(id) => {
+                    selected_layout_realization(module, identity, *id, target)
+                        .map(|row| (row.storage.byte_size, row.storage.byte_alignment))
+                }
                 StructuralRecordStorage::Authored(storage) => {
                     Some((storage.byte_size, storage.byte_alignment))
                 }
@@ -327,4 +332,73 @@ fn schema_storage_layout(
     })();
     visiting.remove(&identity);
     result
+}
+
+/// An origin describes the exact child storage selection, never equal geometry
+/// or a selected descendant hidden inside an ordinary aggregate/reference.
+fn schema_layout_source(
+    module: &TerminalModule,
+    field: &terminal_psi::StructuralFieldType,
+    target: &terminal_psi::TargetLayoutRealization,
+) -> Result<TargetLayoutFieldLayoutSource, CodecError> {
+    use terminal_psi::ByteSequenceCarrier;
+    if field.scalar_type().is_some()
+        || matches!(
+            field.byte_sequence_carrier(),
+            Some(ByteSequenceCarrier::BoundedOwned { .. })
+        )
+    {
+        return Ok(TargetLayoutFieldLayoutSource::Scalar);
+    }
+    let Some(mut identity) = field.as_structural() else {
+        return Ok(TargetLayoutFieldLayoutSource::Default);
+    };
+    let mut visiting = BTreeSet::new();
+    loop {
+        if !visiting.insert(identity) {
+            return malformed("layout schema geometry source contains an array cycle");
+        }
+        let Some(declaration) = module.structural_type(identity) else {
+            return malformed("layout schema geometry source has an absent child");
+        };
+        match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
+                return Ok(TargetLayoutFieldLayoutSource::Scalar);
+            }
+            StructuralTypeShape::FixedArray { element, length } if length.literal().is_some() => {
+                identity = *element;
+            }
+            StructuralTypeShape::Record {
+                storage: StructuralRecordStorage::TargetLayout(id),
+                ..
+            } => {
+                if selected_layout_realization(module, identity, *id, target).is_none() {
+                    return malformed("layout schema explicit child has no matching issuer target");
+                }
+                return Ok(TargetLayoutFieldLayoutSource::Explicit);
+            }
+            _ => return Ok(TargetLayoutFieldLayoutSource::Default),
+        }
+    }
+}
+
+fn selected_layout_realization<'module>(
+    module: &'module TerminalModule,
+    record: StructuralTypeId,
+    id: terminal_psi::LayoutApplicationId,
+    target: &terminal_psi::TargetLayoutRealization,
+) -> Option<&'module terminal_psi::TargetLayoutRealization> {
+    module
+        .target_layout_applications
+        .iter()
+        .find(|application| application.id == id && application.record == record)?
+        .realizations
+        .iter()
+        .find(|row| {
+            row.target == target.target
+                && row.pointer_size == target.pointer_size
+                && row.pointer_alignment == target.pointer_alignment
+                && row.little_endian == target.little_endian
+        })
 }

@@ -1,4 +1,8 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<Countdown, CountdownCode>(builder, windows_x86_64);
+    Build::select_provider<Countdown, CountdownCode>(builder, linux_x86_64);
+    Build::select_provider<Countdown, CountdownCode>(builder, macos_arm64);
+    Build::select_provider<Countdown, CountdownCode>(builder, linux_arm64);
     Build::application(builder, "target_recursive_bound_local");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

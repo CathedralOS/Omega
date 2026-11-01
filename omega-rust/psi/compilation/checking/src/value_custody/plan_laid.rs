@@ -191,7 +191,7 @@ fn schema_argument_rows_match(
     argument: typed_trees::PlanLaidSchemaArgument,
     schema_fields: &[&DataField],
 ) -> bool {
-    if argument.abi_version != 3 {
+    if argument.abi_version != 4 {
         return false;
     }
     let Some(rows) = program.plan_laid_schema_fields.span(argument.fields) else {
@@ -235,6 +235,10 @@ fn schema_argument_rows_match(
                 && !rows[..index].iter().any(|previous| {
                     previous.key == row.key || previous.schema_field == row.schema_field
                 })
+                && row.layout_source
+                    == program
+                        .typed_program()
+                        .field_layout_source(field.type_reference)
                 && row.byte_size != 0
                 && row.byte_alignment.is_power_of_two()
                 && row.kind

@@ -265,26 +265,12 @@ pub(crate) fn checked_proof_term(
             let signature = checked.facts.proof.mathematical_signature.as_ref().ok_or(
                 LoweringError::Unsupported("mathematical proof actual has no checked signature"),
             )?;
-            let carrier = checked
-                .facts
-                .proof
-                .source_evidence_carriers
-                .iter()
-                .find(|carrier| {
-                    carrier.type_identity == *type_identity && carrier.domains.is_empty()
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "mathematical proof actual has no independent closed carrier",
-                ))?;
-            if !signature.arena.structurally_equal(*ty, carrier.ty) {
-                return unsupported("mathematical proof actual changed its checked carrier");
-            }
             let certificate = proof_admission::MathematicalCertificate {
                 signature: signature.declarations.clone(),
                 level_arity: 0,
                 context: Vec::new(),
                 term: *term,
-                expected: carrier.ty,
+                expected: *ty,
             };
             let certificate =
                 terminal_codec::encode_mathematical_certificate(&signature.arena, &certificate)

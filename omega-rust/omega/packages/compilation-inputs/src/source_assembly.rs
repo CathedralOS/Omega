@@ -461,7 +461,7 @@ impl ImmutableSourceParseCheckpoint {
         for source in source_storage.sources.selected_files() {
             imports.mark_loaded(&source.path, source.dependency_scope);
         }
-        let mut generated_source_custody = match package_inputs {
+        let generated_source_custody = match package_inputs {
             Some(package_inputs) => append_dependency_build_handoffs_to_storage(
                 &mut source_storage,
                 &mut imports,
@@ -619,57 +619,6 @@ impl ImmutableSourceParseCheckpoint {
             timings,
             catalogue,
         )?;
-        // Wire codec machines are compiler-generated source, admitted by the
-        // ordinary pipeline like the build prelude above them. They load as a
-        // package source under the product root so generated machines carry
-        // the product package identity — toolchain-custody provenance would
-        // leave package-private selections (every `Schema::encode` call site)
-        // without an owner to match against. Nothing is emitted when no call
-        // site is generatable.
-        if let Some(codec_source) = crate::wire_codec_sources::generated_wire_codec_source(
-            &source_storage.syntax_trees,
-            &source_storage.sources,
-        ) {
-            let codec_root = match package_inputs {
-                Some(inputs) => inputs
-                    .package_root(inputs.root())
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| self.root_path.clone()),
-                None => self
-                    .root_path
-                    .parent()
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| PathBuf::from(".")),
-            };
-            // Package-generated custody mirrors the `.omega/generated/`
-            // convention `admit_generated_extension` admits: the join path
-            // stays virtual, while the retained bytes answer the
-            // consumption-commitment re-read instead of a physical file.
-            let codec_path = codec_root.join(".omega/generated/wire-codec.omg");
-            let admitted = source_storage.admit_source(
-                SourceContents {
-                    path: codec_path,
-                    source: Arc::from(codec_source.as_str()),
-                    scope: source::DependencyScope::Product,
-                },
-                Some(SourceOrigin::User),
-                SourceResolutionStratum::Base,
-                catalogue,
-            )?;
-            let codec_source_id = admitted.source_id;
-            let parsed = SourceInput([admitted].into_iter().collect()).append(
-                &mut source_storage.syntax_trees,
-                &mut ParsingTimings(timings),
-            )?;
-            source_storage.attach_parsed(parsed);
-            generated_source_custody.push((
-                codec_source_id,
-                build_output::PackageGeneratedSource::from_retained_parts(
-                    b"wire-codec.omg".to_vec(),
-                    std::sync::Arc::from(codec_source.as_bytes()),
-                ),
-            ));
-        }
         source_scoped_top_level_bindings.extend(
             crate::source_imports::retain_module_import_bindings(&source_storage)?,
         );

@@ -1,0 +1,3 @@
+// Expected error contains: cannot prove ensures
+machine same(value: &f64) ensures value == value {}
+machine main() {}

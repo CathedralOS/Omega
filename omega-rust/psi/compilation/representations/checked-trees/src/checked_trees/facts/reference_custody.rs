@@ -43,6 +43,8 @@ pub struct ReferenceCustodyRow {
     /// Whether closed aggregate construction of this type carries real
     /// reference leaves.
     pub is_reference_record: bool,
+    /// Exact checked source-copy judgment, independent of descriptor cleanup.
+    pub source_value_is_copied: bool,
     /// Custody of a structural binding that denotes the referent directly.
     pub binding_multiplicity: Multiplicity,
     /// Custody of a materialized carrier of this type.
@@ -61,6 +63,7 @@ impl Default for ReferenceCustodyRow {
             mutable_borrow_referent: TypeReferenceHandle::invalid(),
             shared_borrow_referent: TypeReferenceHandle::invalid(),
             is_reference_record: false,
+            source_value_is_copied: false,
             binding_multiplicity: Multiplicity::Affine,
             result_multiplicity: Multiplicity::Affine,
         }

@@ -335,14 +335,6 @@ pub fn type_satisfies_declared_property(
     type_reference: typed_trees::types::TypeReferenceHandle,
     property: DeclaredPropertyRequirement,
 ) -> bool {
-    if let Some(storage) = program.layout_storage_arguments(type_reference) {
-        return type_satisfies_declared_property(
-            program,
-            type_parameters,
-            storage.semantic_type,
-            property,
-        );
-    }
     match property {
         DeclaredPropertyRequirement::Carry(required) => {
             CarryDerivation::new(program, type_parameters)
@@ -364,6 +356,17 @@ fn type_satisfies_structural_property(
     type_reference: typed_trees::types::TypeReferenceHandle,
     property: &str,
 ) -> bool {
+    // Representation preserves the semantic property's obligation at every
+    // recursive step, including array elements and qualified fields. Handling
+    // the lens only at the public entrance misses these nested applications.
+    if let Some(storage) = program.layout_storage_arguments(type_reference) {
+        return type_satisfies_structural_property(
+            program,
+            type_parameters,
+            storage.semantic_type,
+            property,
+        );
+    }
     if program
         .type_reference_table
         .primitive_type(type_reference)

@@ -31,12 +31,18 @@ enum ByteStorage {
         offset: usize,
     },
     Immutable(ByteSequenceView),
+    Typed {
+        source: ElementView,
+        layout: RepresentationElementLayout,
+    },
 }
 
 impl RepresentationView {
     pub(super) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
-        if let ByteStorage::Array { storage, .. } = &self.storage {
-            retained.array_storage(storage);
+        match &self.storage {
+            ByteStorage::Array { storage, .. } => retained.array_storage(storage),
+            ByteStorage::Typed { source, .. } => source.retain_storage(retained),
+            ByteStorage::Immutable(_) => {}
         }
     }
 
@@ -44,6 +50,7 @@ impl RepresentationView {
         match &self.storage {
             ByteStorage::Immutable(view) => Some(view),
             ByteStorage::Array { .. } => None,
+            ByteStorage::Typed { source, .. } => source.retained_bytes(),
         }
     }
 
@@ -183,16 +190,73 @@ impl TerminalExecution<'_> {
         let mut bits = 0_u64;
         for byte_index in 0..scalar_width(expected)? {
             let index = position.checked_add(byte_index).ok_or_else(malformed)?;
-            let byte = match &representation.storage {
-                ByteStorage::Array { storage, offset } => self.stored_byte_array_read(
-                    storage,
-                    offset.checked_add(index).ok_or_else(malformed)?,
-                )?,
-                ByteStorage::Immutable(bytes) => *bytes.get(index).ok_or_else(malformed)?,
-            };
+            let byte = self.representation_storage_byte(&representation.storage, index)?;
             bits |= u64::from(byte) << (byte_index * 8);
         }
         decode_scalar(expected, bits)
+    }
+
+    fn representation_storage_byte(
+        &self,
+        storage: &ByteStorage,
+        index: usize,
+    ) -> Result<u8, TerminalInterpretError> {
+        match storage {
+            ByteStorage::Array { storage, offset } => self
+                .stored_byte_array_read(storage, offset.checked_add(index).ok_or_else(malformed)?),
+            ByteStorage::Immutable(bytes) => bytes.get(index).copied().ok_or_else(malformed),
+            ByteStorage::Typed { source, layout } => {
+                let stride = usize::try_from(layout.size).map_err(|_| malformed())?;
+                if stride == 0 {
+                    return Err(malformed());
+                }
+                let element = index / stride;
+                let offset = index % stride;
+                let leaf = layout
+                    .leaves
+                    .iter()
+                    .find(|leaf| {
+                        usize::try_from(leaf.offset)
+                            .ok()
+                            .zip(scalar_width(leaf.scalar_type).ok())
+                            .is_some_and(|(start, width)| offset >= start && offset - start < width)
+                    })
+                    .ok_or_else(malformed)?;
+                let scalar =
+                    self.read_element_view_scalar(source, element, &leaf.path, leaf.scalar_type)?;
+                let shift = offset - usize::try_from(leaf.offset).map_err(|_| malformed())?;
+                Ok((encode_scalar(scalar)? >> (shift * 8)) as u8)
+            }
+        }
+    }
+
+    /// Reinterpret the captured window, retaining the original typed cells.
+    /// The geometry owner has established total validity and exact no-padding tiling.
+    pub(super) fn whole_representation_view(
+        &self,
+        source: ElementView,
+        source_layout: RepresentationElementLayout,
+        target_layout: RepresentationElementLayout,
+    ) -> Result<RepresentationView, TerminalInterpretError> {
+        if source.access() != StructuralAccess::SharedBorrow
+            || source_layout.size == 0
+            || target_layout.size == 0
+            || source_layout.size % target_layout.size != 0
+        {
+            return Err(malformed());
+        }
+        let ratio =
+            usize::try_from(source_layout.size / target_layout.size).map_err(|_| malformed())?;
+        let length = source.len().checked_mul(ratio).ok_or_else(malformed)?;
+        Ok(RepresentationView {
+            storage: ByteStorage::Typed {
+                source: source.detached_descriptor(),
+                layout: source_layout,
+            },
+            start: 0,
+            length,
+            layout: target_layout,
+        })
     }
 
     pub(super) fn write_representation_element(

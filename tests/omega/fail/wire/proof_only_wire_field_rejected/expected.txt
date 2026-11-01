@@ -1,1 +1,1 @@
-mentions proof-only `Nat`, which has no wire encoding
+machine `CompactBinary::plan_scalar` requires type predicate does not hold for the supplied arguments

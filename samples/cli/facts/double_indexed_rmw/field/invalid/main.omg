@@ -6,13 +6,13 @@ data Holder { grid: [[i32 in Wrapping; 4]; 3]; rows: [Row; 3]; }
 
 machine main() crashes Trap {
     let mut holder: Holder;
-    transition { _ -> rmw(&mut holder, 1, 2, 2, 1) }
+    transition { _ -> rmw(&mut holder, 1, 4, 2, 1) }
     machine rmw(holder: &mut Holder, i: u64, j: u64, ri: u64, rj: u64)
     requires i <= 2
     requires j <= 3
     requires ri <= 2
     requires rj <= 1 {
-        holder.grid[1][2] = 40;
+        holder.grid[1][2] = 41;
         holder.grid[i][j] = holder.grid[i][j] + 1;
         let grid_got: i32 in Wrapping = holder.grid[1][2];
         holder.rows[2].data[1] = 41;

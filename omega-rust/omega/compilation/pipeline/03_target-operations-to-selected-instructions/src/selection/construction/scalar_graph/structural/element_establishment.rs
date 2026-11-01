@@ -1,4 +1,4 @@
-//! Establish an element-view descriptor over resolved fixed-array storage.
+//! Establish an element-view descriptor over resolved collection storage.
 use super::local_storage::{address, store};
 use super::runtime_address::{cross_references, footprint, projection_origin, scale};
 use super::{
@@ -161,8 +161,11 @@ pub(super) fn establish(
     // stack slot. Read that exact captured window through the same owner as
     // descriptor operands; ordinary storage still follows its address path.
     let completed = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
-    {
+        && matches!(
+            region,
+            terminal_psi::ElementViewRegion::WholeCollection
+                | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
+        ) {
         None
     } else {
         super::descriptor_operands::completed_view_words(function, builder, row, source, indices)?
@@ -179,8 +182,11 @@ pub(super) fn establish(
     } else {
         let mut pointer_slots = geometry.pointer_slots.as_slice();
         let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
-        {
+            && matches!(
+                region,
+                terminal_psi::ElementViewRegion::WholeCollection
+                    | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
+            ) {
             constant(builder, row, 0, 0)?
         } else if !geometry.pointer_slots.is_empty() {
             let (base, slots) = projection_origin(
@@ -239,8 +245,11 @@ pub(super) fn establish(
             address(builder, row, home.id, 0, home.byte_size, false)?
         };
         let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
-        {
+            && matches!(
+                region,
+                terminal_psi::ElementViewRegion::WholeCollection
+                    | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
+            ) {
             base
         } else {
             let (base, leaf_index) =
@@ -273,7 +282,11 @@ pub(super) fn establish(
     } else {
         let base = base.ok_or_else(invalid)?;
         if element_count == terminal_semantics::CollectionExtent::Fixed(0)
-            && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+            && matches!(
+                region,
+                terminal_psi::ElementViewRegion::WholeCollection
+                    | terminal_psi::ElementViewRegion::WholeRepresentation { .. }
+            )
         {
             base
         } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
@@ -346,6 +359,40 @@ pub(super) fn establish(
                         count
                     }
                 }
+            };
+            (backing, length)
+        }
+        terminal_psi::ElementViewRegion::WholeRepresentation {
+            source_length,
+            obligation,
+        } => {
+            if accepted_fact.is_none() || geometry.length_scale == 0 {
+                return Err(invalid());
+            }
+            let (_, count, _, count_type) = builder.resolve(*source_length).ok_or_else(invalid)?;
+            if !matches!(count_type,
+                semantic_vocabulary::ScalarType::Integer(integer)
+                    if Ok(integer) == semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned, 64))
+            {
+                return Err(invalid());
+            }
+            // Admission authenticates this SSA read against the identical source
+            // descriptor and requires count <= U64::MAX / factor. Consequently
+            // the machine multiply is exact, including the 2^64 endpoint cut.
+            // Backing geometry or a foreign pointer supplies no count-fit proof.
+            let length = if geometry.length_scale == 1 {
+                count
+            } else {
+                let factor = constant(builder, row, 8, geometry.length_scale)?;
+                let scaled = transport_register(builder, *destination, 8)?;
+                builder.emit(
+                    SelectedInstructionKind::WrappingMultiplyI64,
+                    builder.constraints.keys.multiply_i64,
+                    &[count, factor, scaled],
+                    obligation_provenance(row, &[*source_length], &[*obligation]),
+                )?;
+                scaled
             };
             (backing, length)
         }

@@ -1,0 +1,7 @@
+// The source count fits u64; the byte count equals 2^64 and does not.
+// A mathematical whole-address-space backing envelope cannot narrow it.
+machine inspect(pixels: &[i32])
+requires pixels.len == 0x4000_0000_0000_0000u64
+{
+    let bytes: &[u8] = pixels as &[u8];
+}

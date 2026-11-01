@@ -17,10 +17,10 @@ extent and alignment. Every observed discrepancy traps.
 
 `invalid/wrong_policy` substitutes a distinct named policy with identical geometry;
 transparent aliases do not erase policy identity. The other controls reject a
-nested native record, numbered fields and a sum. The current policy supports
-complete nonempty, unnumbered scalar records only; it refuses repeated or nested
-shapes, empty records and sum cases rather than claiming their native Omega
-geometry is C ABI evidence. Ordinary scalar domains and access obligations remain
+nested native record, numbered fields and a sum. The policy now also composes scalar arrays and explicitly selected child
+representations, covered by the [nested representation row](../c_layout_nested_representation/README.md).
+Bare native aggregates, empty records and sum cases still reject; their native
+geometry is not evidence of a selected child representation. Ordinary scalar domains and access obligations remain
 in force; policy geometry grants no atomic or concurrent access permission.
 
 `controls/static_type_argument` independently passes an alias as an ordinary
@@ -76,8 +76,8 @@ remain historical failures, repaired by the later producer.
 Validation uses the focused runtime and refusal cases; no full Rust suite was run. Earlier query-free Mac ARM64
 diagnostics are historical, not qualification of this complete root.
 
-The nine transport places, complete nested C records/platform migration,
-other-host execution and the parent capability remain open. The installed
+Complete nested C records/platform migration, other-host execution and the
+parent capability remain open. The installed
 SDK15.5 arm64 oracle confirms Darwin stat 144/8 and timespec 16/8, including
 nanoseconds and reserved fields; no platform source migration is claimed here.
 
@@ -100,3 +100,63 @@ arithmetic controls reject with their exact expected bounds. Preparation took
 seconds. Historical observations above retain their actual producer identities;
 the unchanged source alias and schema/policy controls are reused as described.
 No further compiler build is required for documentation or queue revisions.
+
+## Transport evidence
+
+The local, owned-field and by-value parameter places preserve the same fact.
+Their twins change only the receiving policy to a distinct named implementation
+that delegates to the public C policy method and produces identical geometry.
+Both native and Terminal execution exit 0 for all three positives, and all three
+twins reject their policy mismatch in
+[pilot 41294262072](https://github.com/CathedralOS/Omega/actions/runs/41294262072).
+The optimized Linux producer is `c3f4afa6474b746e08b92358ba96ee24db40a614`, image
+`916d7eb79e2479f18f957710b7963d724e8022b4e8f7282fa620234440f474e8`.
+Preparation took 495.891 seconds and the six cases took 30.690 seconds.
+
+The integration conflict retains main's new derived layout-dependency visits in
+the shared data traversal; authored replay disables derived references. The
+sample/library sources, member visibility lookup and constructor receiving check
+retain their tested meaning. Incoming main changes are covered by normal queue
+admission, without relabeling the earlier runtime observations as a new producer.
+
+Call results, both arms of a match join, and a named constant materializing the
+complete record also pass native/Terminal execution with exit 0. Their three
+policy twins reject in [pilot 41300391077](https://github.com/CathedralOS/Omega/actions/runs/41300391077),
+including the independently run corpus mirrors. The optimized producer is
+`cb12b89db5655e90baf284096fa6cd6ac4461c69`, image
+`0f71437986860cea454a86772caf1dbdeec1dd3f837fd968ce77b1c7b70bb7de`.
+Preparation took 714.492 seconds; corpus checking took 29.051 seconds, corpus
+native/Terminal execution 24.036 seconds, and samples 47.666 seconds. Native
+execution was on Linux x86_64; the separate corpus checking leg records its
+actual default `macos_arm64` check target. The six checking rows are copied from
+the runner's raw observations with that source stamp. No other host was executed.
+
+Constant preparation retains alias ownership, declared-type readiness, and
+transparent alias expansions during canonical payload replay. Projected source
+replay uses the same declaration visitors as current roots, retaining original
+constant inputs independently from evaluated/materialized results. This restores
+policy evidence without rooting a runtime constant or granting body authority.
+
+The remaining nested-machine, other-machine and Build-selected implementation
+places pass in [pilot 41303478559](https://github.com/CathedralOS/Omega/actions/runs/41303478559).
+All three sample positives and their independent corpus mirrors execute with
+Linux x86_64 native/Terminal exit 0; all three one-type policy twins reject.
+Nested invocation receives the complete record explicitly and allocates its
+independent backing in the child, so it relies on no runtime capture. Selected
+providers carry distinct 17/29 markers independently of the identical record,
+so the target-body oracle also checks the selected implementation.
+
+The optimized source is `035d82f9f4c1559d694f5b0238f60c178a4ff0c6`, CLI image
+`7bfe79bbaf3c6954d6b87cff5d298ff571e3b5541db2cd9b04e57a72ef96659c`, verified
+`opt_level=1`. Preparation took 1096.214 seconds, authentication 1.824 seconds,
+corpus checking 33.635 seconds, corpus native/Terminal execution 26.374 seconds,
+and samples 52.310 seconds. Six canonical checking records retain the runner's
+raw diagnostics, timings and actual default `macos_arm64` check target under
+that source stamp; native observations remain Linux x86_64 evidence. The source
+and raw JSON reports are retained with the pilot artifacts. This batch changes
+no compiler or library mechanism and needs no further build for these records.
+
+The complete nine-place transport row and policy twins now have focused
+observations. Broader schema composition, complete platform ABI records,
+other-host execution and the parent acceptance remain open. These observations
+do not qualify the full compiler.

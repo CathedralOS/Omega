@@ -748,6 +748,26 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// Exact reference sources at the same statement prefix, retaining every
+    /// recast and representation boundary. Backing equality alone is not a
+    /// scalar-value interpretation; value consumers must inspect these rows.
+    pub fn reference_expression_sources_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
+        super::reference_subjects::expression_sources_before_statement(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            statement,
+            expression,
+            &self.caches.state_write_shared_collections,
+        )
+        .map(|origins| origins.into_iter().map(Into::into).collect())
+    }
+
     /// Complete exact storage sources for an already selected coordinate.
     /// Matched frozen loads authenticate each supported reference boundary;
     /// declaration geometry alone cannot. Consumers compare typed namespaces
@@ -1246,26 +1266,6 @@ impl<'program> CallFrameResolver<'program> {
                             .program
                             .statement_table
                             .expression_handles(call.arguments);
-                        // A synthesized wire codec frames from its borrowed
-                        // arguments; its type-name receiver is not a place the
-                        // ownership floor may poison. A divergent argument is
-                        // resolved rather than refused: the resolver takes the
-                        // candidate set and unions every proven referent, and
-                        // its own name arm keeps an UNPROVEN binding opaque, so
-                        // refusing here only discarded sets it could resolve.
-                        if super::wire_codecs::is_wire_codec_call(self.program, call) {
-                            return super::wire_codecs::known_wire_codec_call_written_paths(
-                                self.program,
-                                current_machine,
-                                call,
-                                prefix.parameters,
-                                prefix.isolated_locals,
-                                prefix.aliases,
-                                prefix.divergent,
-                                &self.tables.symbols,
-                                inference,
-                            );
-                        }
                         let receiver = crate::machine_calls::calls::signature_queries::call_receiver_member_names(
                             self.program,
                             call,

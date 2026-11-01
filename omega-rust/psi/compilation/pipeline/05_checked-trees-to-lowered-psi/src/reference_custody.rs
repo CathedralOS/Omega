@@ -24,6 +24,14 @@ fn custody(
     checked.facts.reference_custody.custody(reference)
 }
 
+/// Source copying retains the checking-time declared Copy judgment.
+pub(crate) fn source_value_is_copied(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    custody(checked, reference).source_value_is_copied
+}
+
 /// Custody of a materialized carrier of this type.
 pub(crate) fn result_multiplicity(
     checked: &CheckedTrees,

@@ -137,6 +137,29 @@ pub fn selected_value_call_requirement_entailed(
     else {
         return false;
     };
+    // Pure type obligations do not require a runtime observation of a generic
+    // referent. Authenticate the selected tuple and the original contract first,
+    // then discharge it in the caller's established type worlds. Inherited
+    // clauses retain their independent correspondence path below.
+    let type_context = if call_expression.is_valid() {
+        call_expression
+    } else {
+        crate::call_site_argument_expressions(program, &site)
+            .first()
+            .copied()
+            .unwrap_or_default()
+    };
+    if inherited.is_none()
+        && let Some(application) = super::specification_calls::AppliedProofBindings::for_call_site(
+            program,
+            machine.symbol,
+            &owner,
+            site,
+        )
+        && program.static_type_requirement_entailed(expression, type_context, &application.types)
+    {
+        return true;
+    }
     // The physical invocation telescope remains with capture/reference
     // authentication. A migrated clause independently binds its public
     // declaration through the exact call-owned contract reference.
@@ -269,11 +292,13 @@ fn structural_requirement_at_prefix(
             || callee_machine.is_some_and(|machine| {
                 program
                     .state_in_machine(machine, callee_owner)
-                    .is_some_and(|state| runtime_equality_fact(program, machine, state, expression))
+                    .is_some_and(|state| {
+                        runtime_predicate_fact(program, machine, state, expression)
+                    })
             }))
             || (!case_facts_only
                 && !requires.iter().all(|fact| {
-                    runtime_equality_fact(
+                    runtime_predicate_fact(
                         program,
                         machine,
                         if state_prefix { caller_state } else { entry },
@@ -291,7 +316,7 @@ fn structural_requirement_at_prefix(
                     .iter()
                     .map(|fact| (
                         expression_table(program).display_name(*fact),
-                        runtime_equality_fact(
+                        runtime_predicate_fact(
                             program,
                             machine,
                             if state_prefix { caller_state } else { entry },
@@ -669,6 +694,18 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 };
                 substitution.push((predicate_parameter.name.as_str().to_owned(), value));
             }
+            let type_context = if self.call_expression.is_valid() {
+                self.call_expression
+            } else {
+                self.arguments.first().copied().unwrap_or_default()
+            };
+            if program.static_type_requirement_entailed(
+                self.expression,
+                type_context,
+                &type_substitution,
+            ) {
+                continue;
+            }
             self.proven &= matches!(
                 instantiated_selected_fact_judgment(
                     program,
@@ -689,10 +726,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
     }
 }
 
-/// Runtime facts retain exact case membership or builtin Boolean/integer
-/// equality, not arbitrary selected operators or IEEE floating equality. Check
-/// assumptions as well as goals: misreading one could manufacture vacuity.
-fn runtime_equality_fact(
+/// Runtime facts retain authenticated predicate meaning, including checked
+/// mathematical aliases. This classifies a premise for the prefix observer;
+/// it grants no truth or operand-identity law. The same reader handles a
+/// nonbinary alias and its reduced inline proposition, so source shape cannot
+/// discard an admitted invocation hypothesis.
+fn runtime_predicate_fact(
     program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
@@ -702,6 +741,11 @@ fn runtime_equality_fact(
         return matches!(
             expression_table(program).expression(expression),
             ExpressionNode::Boolean(_)
+        ) || runtime_fact_for_parameters(
+            program,
+            machine.symbol,
+            program.state_parameters(state),
+            expression,
         );
     };
     // Authored membership retains its selected meaning on an equality node;
@@ -718,8 +762,8 @@ fn runtime_equality_fact(
     }
     match binary.operator {
         BinaryOperator::And | BinaryOperator::Or => {
-            runtime_equality_fact(program, machine, state, binary.left)
-                && runtime_equality_fact(program, machine, state, binary.right)
+            runtime_predicate_fact(program, machine, state, binary.left)
+                && runtime_predicate_fact(program, machine, state, binary.right)
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
             super::structural_terms::has_identity_equality_meaning(
@@ -776,7 +820,7 @@ fn runtime_fact_for_parameters(
     );
     if term
         .as_ref()
-        .is_some_and(StructuralTerm::is_mathematical_predicate)
+        .is_some_and(StructuralTerm::is_checked_predicate)
     {
         return true;
     }

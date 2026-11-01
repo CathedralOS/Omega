@@ -8,25 +8,32 @@ use arena::Handle;
 use language_semantics::boundary_values::{
     BoundaryFieldRecipe, BoundaryRecordStorage, BoundaryValueRecipe, BoundaryValueRecipes,
 };
-use semantic_vocabulary::{ScalarType, StructuralTypeId};
+use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage, StructuralTypeShape,
     TerminalModule,
 };
+use terminal_semantics::StorageGeometryError;
 
 pub struct TerminalBoundaryRecipes<'module> {
     module: &'module TerminalModule,
     target: &'module str,
+    extents: &'module dyn Fn(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
     visiting: Vec<StructuralTypeId>,
     closed: Vec<(StructuralTypeId, Handle<BoundaryValueRecipe>)>,
     recipes: BoundaryValueRecipes,
 }
 
 impl<'module> TerminalBoundaryRecipes<'module> {
-    pub fn new(module: &'module TerminalModule, target: &'module str) -> Self {
+    pub fn new(
+        module: &'module TerminalModule,
+        target: &'module str,
+        extents: &'module dyn Fn(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+    ) -> Self {
         Self {
             module,
             target,
+            extents,
             visiting: Vec::new(),
             closed: Vec::new(),
             recipes: BoundaryValueRecipes::default(),
@@ -116,9 +123,12 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                 StructuralTypeShape::FixedArray { element, length } => {
                     BoundaryValueRecipe::FixedArray {
                         element: self.value(*element)?,
-                        length: length
-                            .literal()
-                            .ok_or("boundary array extent is not closed")?,
+                        length: match length {
+                            terminal_psi::ArrayExtent::Literal(count) => *count,
+                            terminal_psi::ArrayExtent::Application(application) => {
+                                (self.extents)(*application).map_err(|error| error.to_string())?
+                            }
+                        },
                     }
                 }
                 StructuralTypeShape::Record { fields, storage } => {

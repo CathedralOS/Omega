@@ -416,6 +416,9 @@ impl<'program> ShapeCollector<'program> {
         };
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
+            native_identity: None,
+            native_policy_identity: None,
+            native_semantic_identity: None,
             scalar_restriction: None,
             owns_linear_claim: data.properties.multiplicity == Multiplicity::Linear,
             no_code_affine_cleanup: false,
@@ -534,12 +537,18 @@ impl<'program> ShapeCollector<'program> {
         access: CheckedStructuralAccess,
         foreign_descriptor: bool,
     ) -> Option<TypeIdentityId> {
-        let identity = self.program.type_identity(TypeIdentityRequest {
-            binders,
-            substitutions,
-            ..TypeIdentityRequest::ordinary(reference)
-        });
+        // Descriptor registration and every stored-value consumer use the
+        // same storage identity. Full source identity retains runtime value
+        // subjects that this identity may erase only after proving every
+        // complete member type independent. Registering under that different
+        // source identity leaves a checked descriptor absent from its catalog.
+        // Source application equality and formation/loan custody stay separate.
+        let identity =
+            stored_structural_type_identity(self.program, reference, binders, substitutions);
         let plan = CheckedUnitStructuralTypePlan {
+            native_identity: None,
+            native_policy_identity: None,
+            native_semantic_identity: None,
             scalar_restriction: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
@@ -785,6 +794,9 @@ impl<'program> ShapeCollector<'program> {
                 }
             }
             let plan = CheckedUnitStructuralTypePlan {
+                native_identity: None,
+                native_policy_identity: None,
+                native_semantic_identity: None,
                 scalar_restriction: None,
                 // A borrowed byte carrier owns only its descriptor. As with
                 // Reference shapes, replacement may retire that descriptor,
@@ -814,6 +826,9 @@ impl<'program> ShapeCollector<'program> {
             let element_type_identity = self.add_type(element, binders, substitutions);
             self.in_progress.remove(&identity);
             let plan = CheckedUnitStructuralTypePlan {
+                native_identity: None,
+                native_policy_identity: None,
+                native_semantic_identity: None,
                 scalar_restriction: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -866,6 +881,9 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    native_identity: None,
+                    native_policy_identity: None,
+                    native_semantic_identity: None,
                     scalar_restriction,
                     owns_linear_claim: false,
                     no_code_affine_cleanup,
@@ -950,6 +968,9 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    native_identity: None,
+                    native_policy_identity: None,
+                    native_semantic_identity: None,
                     scalar_restriction: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup,
@@ -1105,6 +1126,9 @@ impl<'program> ShapeCollector<'program> {
                 self.types.insert(
                     identity,
                     CheckedUnitStructuralTypePlan {
+                        native_identity: None,
+                        native_policy_identity: None,
+                        native_semantic_identity: None,
                         scalar_restriction: None,
                         owns_linear_claim: true,
                         no_code_affine_cleanup: false,
@@ -1237,6 +1261,9 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    native_identity: None,
+                    native_policy_identity: None,
+                    native_semantic_identity: None,
                     scalar_restriction: None,
                     owns_linear_claim,
                     no_code_affine_cleanup,
@@ -1345,9 +1372,24 @@ impl<'program> ShapeCollector<'program> {
             }
             fields.push(field_plan);
         }
+        let native_policy_identity = authored_layout
+            .and_then(|plan| plan.native_policy_identity(program.typed_program()).ok());
         self.types.insert(
             identity,
             CheckedUnitStructuralTypePlan {
+                native_policy_identity: native_policy_identity.clone(),
+                native_semantic_identity: authored_layout
+                    .and_then(|plan| plan.native_semantic_identity(program.typed_program()).ok()),
+                native_identity: match authored_layout {
+                    Some(plan) => native_policy_identity.as_deref().and_then(|policy| {
+                        plan.native_data_identity(program.typed_program(), &data, policy)
+                            .ok()
+                    }),
+                    None => program
+                        .typed_program()
+                        .native_data_declaration_identity(&data)
+                        .ok(),
+                },
                 scalar_restriction: None,
                 owns_linear_claim,
                 no_code_affine_cleanup,
@@ -1508,6 +1550,11 @@ impl<'program> ShapeCollector<'program> {
             }
         }
         Some(CheckedUnitStructuralFieldPlan {
+            native_identity: self
+                .program
+                .typed_program()
+                .normalized_hermetic_symbol_identity(field.symbol)
+                .ok(),
             type_reference: field_type_reference,
             receiving_type_identity,
             identity: CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
@@ -1538,6 +1585,9 @@ impl<'program> ShapeCollector<'program> {
             ..TypeIdentityRequest::ordinary(type_reference)
         });
         let plan = CheckedUnitStructuralTypePlan {
+            native_identity: None,
+            native_policy_identity: None,
+            native_semantic_identity: None,
             scalar_restriction: None,
             owns_linear_claim: self.program.type_multiplicity(type_reference)
                 == Multiplicity::Linear,

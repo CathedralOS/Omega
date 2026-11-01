@@ -89,6 +89,14 @@ impl TerminalExecution<'_> {
                         Vec::new(),
                     )
                     && bytes.matches_bound_descriptor_home(previous, previous) => {}
+            (Some(previous), Some(binding @ ByteSequenceBinding::Representation(_)))
+                if *previous
+                    == TerminalStructuralValue::minted(
+                        previous.opaque_identity,
+                        result.structural_type,
+                        Vec::new(),
+                    )
+                    && binding.matches_shared_home(previous) => {}
             _ => return Err(malformed()),
         }
         let mut identity_cursor = self.local_structural_identities.cursor();
@@ -149,6 +157,19 @@ impl TerminalExecution<'_> {
             binding
         };
         let narrowed = match binding {
+            ByteSequenceBinding::Representation(view)
+                if access == StructuralAccess::SharedBorrow =>
+            {
+                if !view.matches_descriptor_home(source) {
+                    return Err(malformed());
+                }
+                let narrowed = view
+                    .subslice(window.start, window.end, access)
+                    .ok_or_else(malformed)?;
+                ByteSequenceBinding::Representation(std::sync::Arc::new(
+                    narrowed.with_descriptor_home(destination.clone()),
+                ))
+            }
             ByteSequenceBinding::Immutable(bytes) if access == StructuralAccess::SharedBorrow => {
                 if !bytes.matches_descriptor_home(source) {
                     return Err(malformed());
@@ -216,6 +237,7 @@ impl TerminalExecution<'_> {
                 binding.clone().with_descriptor_home(destination.clone())
             }
             ByteSequenceBinding::Immutable(_)
+            | ByteSequenceBinding::Representation(_)
             | ByteSequenceBinding::MutableField { .. }
             | ByteSequenceBinding::MutableOwner { .. } => {
                 return Err(malformed());

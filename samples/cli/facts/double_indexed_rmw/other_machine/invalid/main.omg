@@ -11,7 +11,7 @@ machine Writer::run(writer: &mut Writer, grid: &mut [[i32 in Wrapping; 4]; 3], r
     requires ri <= 2
     requires rj <= 1
     crashes Trap {
-        grid[1][2] = 40;
+        grid[1][2] = 41;
         grid[i][j] = grid[i][j] + 1;
         let grid_got: i32 in Wrapping = grid[1][2];
         rows[2].data[1] = 41;
@@ -27,5 +27,5 @@ machine main() crashes Trap {
     let mut writer: Writer;
     let mut grid: [[i32 in Wrapping; 4]; 3];
     let mut rows: [Row; 3];
-    Writer::run(&mut writer, &mut grid, &mut rows, 1, 2, 2, 1)
+    Writer::run(&mut writer, &mut grid, &mut rows, 1, 4, 2, 1)
 }

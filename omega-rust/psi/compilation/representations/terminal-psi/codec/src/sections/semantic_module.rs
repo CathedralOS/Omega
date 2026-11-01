@@ -147,9 +147,13 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // This union differs from both upstream 204 and the scalar-only 211 format.
 // Callback uses retain missing entry admission as an explicit native obligation.
 // Fixed representation applications retain exact semantic and policy inputs.
-// Schema ABI3 retains every target input and retired field identity.
+// Schema ABI4 also retains each field's scalar/default/explicit geometry source.
 // Identity-only referents retain their checked foreign pointer/descriptor role.
-pub(crate) const FORMAT_MARKER: u16 = 224;
+// Native layout provenance includes invariant and target-member reports,
+// nominal data/field associations and selected Source-v4 slot applications.
+// Record applications also retain the independent semantic-argument identity;
+// private slots cannot infer their owner from another slot's claimed role.
+pub(crate) const FORMAT_MARKER: u16 = 227;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

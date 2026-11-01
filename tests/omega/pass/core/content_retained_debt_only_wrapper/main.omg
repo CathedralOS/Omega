@@ -1,0 +1,32 @@
+// Wrapping the same retained carrier preserves its loan without owned sibling backing.
+use omega::language::core::content;
+public data ByteUnit {}
+public data Buffer [linear] { value: u64; }
+public domain Buffer::Owned;
+machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Pending<'source> [linear] { slot: u64; }
+public domain Pending::Retained established by Reader::register;
+machine Retained::content<'source>(pending: &Pending<'source>) -> CountedQuantity<ByteUnit>
+satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+}
+public data Capacity [linear] { token: u64; }
+public domain Capacity::Available established by Reader::acquire, Reader::complete;
+public boundary trait Reader {
+    machine acquire() -> Capacity reaches ensures result in Capacity::Available crashes Trap;
+    machine register<'source>(capacity: Capacity in Capacity::Available, buffer: &'source Buffer in Buffer::Owned) -> Pending<'source>
+    reaches
+    ensures result in Pending::Retained crashes Trap;
+    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
+    reaches
+    ensures result in Capacity::Available crashes Trap;
+    machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
+}
+public data DebtOnly<'scope> [linear] { debt: Pending<'scope> in Pending::Retained; }
+public boundary trait Echo {
+    machine wrap<'scope>(pending: Pending<'scope> in Pending::Retained) -> DebtOnly<'scope> reaches;
+}
+machine main() {}

@@ -165,6 +165,7 @@ pub(crate) fn extend_normalization_owners(
                 let name = match syntax.root_item(*item) {
                     syntax_trees::item::Item::Const(definition) => &definition.name,
                     syntax_trees::item::Item::Data(definition) => &definition.name,
+                    syntax_trees::item::Item::TypeAlias(definition) => &definition.name,
                     syntax_trees::item::Item::Machine(definition) => &definition.name,
                     syntax_trees::item::Item::Conformance(definition) => {
                         let Some(alias) = &definition.alias else {

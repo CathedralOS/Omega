@@ -91,7 +91,9 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
             }
             | O::EstablishElementView {
                 psi_operation,
-                region: terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. },
+                region:
+                    terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. }
+                    | terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
                 ..
             }
             | abstract_operations::element_view_read_write_pair_pattern!(

@@ -136,6 +136,7 @@ fn append_contract_clause_facts(
                 owner,
                 fact,
                 evidence_term,
+                nominal_argument_roots: None,
                 qualification_authorization,
                 inherited_scope: None,
             });
@@ -250,6 +251,7 @@ pub(crate) fn append_operator_declaration_contract_facts(
                 owner,
                 fact,
                 evidence_term: None,
+                nominal_argument_roots: None,
                 qualification_authorization: None,
                 inherited_scope: None,
             });

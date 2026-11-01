@@ -455,6 +455,65 @@ fn validate_structural_field_range_authority(
                 source,
                 element,
                 region:
+                    region @ terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    },
+                ..
+            } => {
+                let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                let root =
+                    super::operation_contracts::structural_source_contract(function, source.place)
+                        .ok_or_else(|| invalid.clone())?;
+                let collection = terminal_semantics::runtime_structural_path_tip(
+                    types.values().copied(),
+                    root.structural_type,
+                    &source.path,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let Some(terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+                    source: source_layout,
+                    target: target_layout,
+                    ..
+                }) = terminal_semantics::element_view_shape_region_geometry(
+                    types.values().copied(),
+                    &collection.shape,
+                    *element,
+                    *region,
+                    source.access,
+                )
+                else {
+                    return Err(invalid);
+                };
+                let factor = source_layout
+                    .size
+                    .checked_div(target_layout.size)
+                    .ok_or_else(|| invalid.clone())?;
+                let goal =
+                    terminal_semantics::whole_representation_count_goal(*source_length, factor)
+                        .ok_or_else(|| invalid.clone())?;
+                // The immutable source cut commits this goal. A coordinate
+                // alone cannot authorize another count or another layout ratio.
+                require_operation!(psi_operation, obligation, &goal);
+                let expected = terminal_codec::canonical_proposition_order_key(&goal)
+                    .map_err(|_| invalid.clone())?;
+                if unit
+                    .accepted_obligation_fact(
+                        function.machine,
+                        optimization_unit::PsiProvenance::Operation(*psi_operation),
+                        Some(*obligation),
+                    )
+                    .map(|fact| fact.proposition.as_slice())
+                    != Some(expected.as_slice())
+                {
+                    return Err(invalid);
+                }
+            }
+            O::EstablishElementView {
+                psi_operation,
+                source,
+                element,
+                region:
                     terminal_psi::ElementViewRegion::RepresentationBytes {
                         start,
                         end,

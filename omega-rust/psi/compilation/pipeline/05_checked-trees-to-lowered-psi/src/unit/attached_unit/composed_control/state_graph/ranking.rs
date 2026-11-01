@@ -39,68 +39,6 @@ use terminal_psi::{
     TerminalNaturalRankComparison, TerminalNaturalRankEdge,
 };
 
-/// Retain every observation required by the exact admitted source body.
-/// A terminating wrapper can have no local cycle: its terminating callees
-/// own their own ranks. An authored witness alone therefore does not imply
-/// that this graph must contain a rank. Fused bodies retain their own judgment
-/// and each required cyclic-state observation, not just the dispatch owner's.
-pub(super) fn require_witness_ranks(
-    checked: &checked_trees::CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-) -> Result<(), LoweringError> {
-    let arrivals = &checked.facts.termination.rank_arrivals;
-    for state in &plan.states {
-        let (owner, _) = crate::declarations::state_declaration(checked, state.state)?;
-        if owner.termination_plan.implementation_witness.is_none() {
-            continue;
-        }
-        let judgment = arrivals
-            .judgment_for_body(owner.symbol, owner.states)
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph lost its exact termination judgment",
-            ))?;
-        if !judgment.local_terminates {
-            return unsupported("Unit graph has no admitted local termination judgment");
-        }
-        let observations =
-            arrivals
-                .observations
-                .span(judgment.observations)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph lost its required rank observations",
-                ))?;
-        for required in observations.iter().filter(|rank| rank.state == state.state) {
-            let wanted = arrivals
-                .observation_components
-                .span(required.components)
-                .ok_or(LoweringError::Unsupported(
-                    "required rank lost its complete component span",
-                ))?;
-            let retained = plan
-                .natural_ranks
-                .iter()
-                .find(|rank| rank.state == required.state)
-                .and_then(|rank| plan.rank_components.span(rank.components))
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph ranking certificate is not retained",
-                ))?;
-            if wanted.is_empty()
-                || wanted.len() != retained.len()
-                || !wanted.iter().zip(retained).all(|(wanted, actual)| {
-                    wanted.parameter == actual.parameter
-                        && wanted.parameter_position == actual.parameter_position
-                        && wanted.measure == actual.measure
-                        && wanted.function == actual.function
-                        && actual.observation.is_valid()
-                })
-            {
-                return unsupported("Unit graph ranking tuple is incomplete or substituted");
-            }
-        }
-    }
-    Ok(())
-}
-
 /// Find the retained executable observation, independent of the source measure's
 /// proof/order descriptor. Its arena node keeps the signed integer carrier.
 pub(super) fn observations<'a>(

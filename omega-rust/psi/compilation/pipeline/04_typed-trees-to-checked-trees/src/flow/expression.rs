@@ -725,8 +725,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         {
             self.retain_copy_use(expression, &capture);
             if self.is_view_type(capture.type_reference) {
-                capture.referents =
-                    self.complete_reference_formation(expression, *constraints, capture.referents);
+                capture.referents = self.complete_reference_formation(
+                    expression,
+                    *constraints,
+                    capture.referents,
+                    capture.case_access,
+                );
             } else {
                 capture.referents = HandleSpan::empty();
             }
@@ -743,8 +747,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         if let Some(mut capture) = self.dispatch_copy_value(expression, *constraints) {
             self.retain_copy_use(expression, &capture);
             if self.is_view_type(capture.type_reference) {
-                capture.referents =
-                    self.complete_reference_formation(expression, *constraints, capture.referents);
+                capture.referents = self.complete_reference_formation(
+                    expression,
+                    *constraints,
+                    capture.referents,
+                    capture.case_access,
+                );
             } else {
                 capture.referents = HandleSpan::empty();
             }
@@ -818,7 +826,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             HandleSpan::empty()
         };
         let referents = if binds_view {
-            self.complete_reference_formation(expression, *constraints, referents)
+            self.complete_reference_formation(
+                expression,
+                *constraints,
+                referents,
+                completed.case_access,
+            )
         } else {
             referents
         };
@@ -964,8 +977,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             && matches!(capture.completion, checked_trees::FlowOperandCompletion::Copied { path, .. } if path.is_empty())
         {
             if self.is_view_type(capture.type_reference) {
-                capture.referents =
-                    self.complete_reference_formation(expression, *constraints, capture.referents);
+                capture.referents = self.complete_reference_formation(
+                    expression,
+                    *constraints,
+                    capture.referents,
+                    capture.case_access,
+                );
             }
             self.retain_copy_use(expression, &capture);
             return EvaluatedOperand {
@@ -983,8 +1000,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         );
         if let Some(mut capture) = self.dispatch_copy_value(expression, *constraints) {
             if self.is_view_type(capture.type_reference) {
-                capture.referents =
-                    self.complete_reference_formation(expression, *constraints, capture.referents);
+                capture.referents = self.complete_reference_formation(
+                    expression,
+                    *constraints,
+                    capture.referents,
+                    capture.case_access,
+                );
             }
             self.retain_copy_use(expression, &capture);
             return EvaluatedOperand {
@@ -1055,7 +1076,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.append_referent_places(&[place])
         });
         let referents = if expression != self.reference_slot_target && produces_view {
-            self.complete_reference_formation(expression, constraints, referents)
+            self.complete_reference_formation(
+                expression,
+                constraints,
+                referents,
+                completed.case_access,
+            )
         } else {
             referents
         };

@@ -1,3 +1,5 @@
+use omega_language_std::wire;
+use omega::language::core::reflect;
 // CANONICAL LEB128 ESTABLISHMENT. Overlong encodings and payload bits beyond
 // u64 must reject, while the canonical ten-group representation of u64::MAX
 // remains valid.
@@ -12,25 +14,25 @@ data ScalarValue {
     value: u64;
 }
 
-data WireVerdict {
+data OwnerVerdict {
     case Invalid;
     case Sound;
 }
 
 data Main {
     overlong_read: u64;
-    overlong_verdict: WireVerdict;
+    overlong_verdict: OwnerVerdict;
     overflow_read: u64;
-    overflow_verdict: WireVerdict;
+    overflow_verdict: OwnerVerdict;
     good_read: u64;
-    good_verdict: WireVerdict;
+    good_verdict: OwnerVerdict;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     // Era 0, tag 0, then zero encoded with two groups instead of one.
     let overlong_payload: [u8; 4] = [0, 0, 128, 0];
     let overlong: ScalarValue = ScalarValue { value: 7 };
-    Scalar::decode(
+    ScalarCodec::decode(
         &mut overlong,
         &overlong_payload,
         &mut main.overlong_read,
@@ -44,7 +46,7 @@ machine Main::main(main: &mut Main) reaches Console {
         128, 128, 128, 128, 128, 128, 128, 128, 128, 2
     ];
     let overflow: ScalarValue = ScalarValue { value: 9 };
-    Scalar::decode(
+    ScalarCodec::decode(
         &mut overflow,
         &overflow_payload,
         &mut main.overflow_read,
@@ -57,7 +59,7 @@ machine Main::main(main: &mut Main) reaches Console {
         255, 255, 255, 255, 255, 255, 255, 255, 255, 1
     ];
     let good: ScalarValue = ScalarValue { value: 0 };
-    Scalar::decode(
+    ScalarCodec::decode(
         &mut good,
         &good_payload,
         &mut main.good_read,
@@ -65,9 +67,9 @@ machine Main::main(main: &mut Main) reaches Console {
     );
 
     transition {
-        main.overlong_verdict == WireVerdict::Sound -> accepted_overlong(main)
-        main.overflow_verdict == WireVerdict::Sound -> accepted_overflow(main)
-        main.good_verdict == WireVerdict::Sound
+        main.overlong_verdict == OwnerVerdict::Sound -> accepted_overlong(main)
+        main.overflow_verdict == OwnerVerdict::Sound -> accepted_overflow(main)
+        main.good_verdict == OwnerVerdict::Sound
             && good.value == 18446744073709551615 -> proven(main)
         _ -> broken(main)
     }
@@ -82,4 +84,28 @@ machine Main::main(main: &mut Main) reaches Console {
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
+}
+
+// The source-owned constructor receives carrier-validated words only.
+data ScalarCodec {}
+machine ScalarCodec::plan(context: &mut ScalarPlanContext) {
+    reflect::inspect_record_fields<Scalar, CompactBinary::plan_scalar>(context);
+}
+machine ScalarCodec::construct(bytes: &[u8], fields: &[ScalarSlot]) -> DecodeResult<ScalarValue> {
+    transition fields.len == 1u64 { true -> create(fields) false -> DecodeResult::Invalid }
+    machine create(fields: &[ScalarSlot]) -> DecodeResult<ScalarValue>
+    requires fields.len == 1u64
+    { DecodeResult::Sound { value: ScalarValue { value: fields[0u64].unsigned as u64 } } }
+}
+machine ScalarCodec::decode<const N: u64>(value: &mut ScalarValue, bytes: &[u8; N], read: &mut u64, verdict: &mut OwnerVerdict) {
+    let mut fields: [ScalarSlot; 1];
+    transition CompactBinary::decode_record<ScalarValue, ScalarCodec::plan, ScalarCodec::construct>(&bytes[..], &mut fields[..], read, 10000u64) {
+        DecodeResult::Sound { value as decoded } -> commit(value, decoded, verdict)
+        _ -> invalid(verdict)
+    }
+    machine commit(value: &mut ScalarValue, decoded: ScalarValue, verdict: &mut OwnerVerdict) {
+        value = decoded;
+        verdict = OwnerVerdict::Sound;
+    }
+    machine invalid(verdict: &mut OwnerVerdict) { verdict = OwnerVerdict::Invalid; }
 }

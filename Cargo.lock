@@ -492,6 +492,7 @@ dependencies = [
  "image-emission",
  "installation-evidence",
  "language-semantics",
+ "layout",
  "libc",
  "lowered-psi",
  "mimalloc",
@@ -1086,6 +1087,7 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-psi",
+ "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
 ]
@@ -1825,6 +1827,7 @@ dependencies = [
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2574,6 +2577,7 @@ dependencies = [
  "compiler-storage",
  "language-core",
  "language-semantics",
+ "layout-plans",
  "numerics",
  "optimization",
  "semantic-vocabulary",

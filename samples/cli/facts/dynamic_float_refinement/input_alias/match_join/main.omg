@@ -1,0 +1,46 @@
+// Inline exact IEEE value 0.25 guarantee refines public inclusive f64 interval [0, 0.5]; the dyn call preserves the public interval for a precondition and observes 0.25.
+// Expected exit: 0
+public let public_interval(value: f64, lower: f64, upper: f64): core::Strict<0> = value >= lower && value <= upper;
+public let quarter(value: f64): core::Strict<0> = value >= 0.25 && value <= 0.25;
+trait Fraction {
+    machine get(input: f64) -> f64
+    requires public_interval(input, 0.0, 0.5)
+    ensures public_interval(result, 0.0, 0.5);
+    machine marker() -> u64;
+}
+Quarter satisfies Fraction {
+    machine get(input: f64) -> f64
+    requires public_interval(input, 0.0, 0.5)
+    ensures result >= 0.25 && result <= 0.25 { 0.25 }
+    machine marker() -> u64 { 11 }
+}
+OtherQuarter satisfies Fraction {
+    machine get(input: f64) -> f64
+    requires public_interval(input, 0.0, 0.5)
+    ensures result >= 0.25 && result <= 0.25 { 0.25 }
+    machine marker() -> u64 { 13 }
+}
+machine accept(value: f64) requires public_interval(value, 0.0, 0.5) {}
+machine probe(selected: dyn Fraction, input: f64) -> f64
+requires quarter(input)
+ensures public_interval(result, 0.0, 0.5)
+{ Fraction::get(selected, input) }
+machine choose(choice: u64) -> dyn Fraction {
+    match choice { 1 -> Quarter as dyn Fraction _ -> OtherQuarter as dyn Fraction }
+}
+machine main() crashes Trap {
+    let first: dyn Fraction = choose(1);
+    let second: dyn Fraction = choose(2);
+    let observed_first: f64 = probe(first, 0.25);
+    let observed_second: f64 = probe(second, 0.25);
+    accept(observed_first);
+    accept(observed_second);
+    let first_marker: u64 = Fraction::marker(first);
+    let second_marker: u64 = Fraction::marker(second);
+    transition observed_first == 0.25 && observed_second == 0.25 && first_marker == 11 && second_marker == 13 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

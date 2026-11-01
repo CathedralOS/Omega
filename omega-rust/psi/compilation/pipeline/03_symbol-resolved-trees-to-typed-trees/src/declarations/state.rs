@@ -246,6 +246,7 @@ fn proof_output_runtime_call(
         discards_result: false,
         source_span,
         authored_call_selection,
+        reflected_field_origin: None,
     })
 }
 

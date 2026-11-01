@@ -4,9 +4,9 @@
 //! profile's two-element type, relevant identity type, and W-type with
 //! their dependent eliminators.
 
-use super::conversion::{Budget, convertible, weak_head_normalize};
+use super::conversion::{Budget, weak_head_normalize};
 use super::signature::Signature;
-use super::substitution::{instantiate_levels, shift, substitute};
+use super::substitution::{instantiate_levels, shift};
 use super::term::{Level, Sort, Term, TermArena, TermHandle};
 
 macro_rules! row {
@@ -307,6 +307,16 @@ pub fn infer_sort(
     budget: &mut Budget,
 ) -> Result<Sort, CoreError> {
     let inferred = infer_type(arena, context, term, budget)?;
+    inferred_sort(arena, context, term, inferred, budget)
+}
+
+fn inferred_sort(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    inferred: TermHandle,
+    budget: &mut Budget,
+) -> Result<Sort, CoreError> {
     let head = weak_head_normalize(arena, context.signature(), inferred, budget)?;
     match arena.get(head) {
         Term::Sort(sort) => Ok(sort),
@@ -319,21 +329,51 @@ pub fn infer_sort(
 
 /// The type of `term` under `context`, computed without search.
 ///
-/// Binder trees, curried application spines, right-nested tuples and projection
-/// chains use handle worklists. Π/Σ formation visits both domains and codomains
-/// under exact prefixes; Box/Squash formation retains its layer rules. Other
-/// branching judgments, including eliminator
-/// motives and branches, still recurse through their ordinary rules. These
-/// remaining paths and recursive universe syntax still require the general
-/// verification worker. Binder contexts push onto one cloned bindings vector
-/// instead of cloning the full prefix at every link.
+/// Ordinary constructor trees share one handle continuation owner, including
+/// binder domains, application arguments, pair components and projections.
+/// Exact binder prefixes return with their completed child judgments. Inductive
+/// and strict-layer typing premises use the same continuation owner. Typed
+/// conversion still owns its separate recursive comparison rules, so the
+/// verification worker remains until that route is converted too.
 pub fn infer_type(
     arena: &mut TermArena,
     context: &Context,
     term: TermHandle,
     budget: &mut Budget,
 ) -> Result<TermHandle, CoreError> {
-    match arena.get(term) {
+    let node = arena.get(term);
+    match node {
+        Term::Pi { .. }
+        | Term::Sigma { .. }
+        | Term::Squash { .. }
+        | Term::Box { .. }
+        | Term::Lambda { .. }
+        | Term::Apply { .. }
+        | Term::Pair { .. }
+        | Term::Fst { .. }
+        | Term::Snd { .. }
+        | Term::Id { .. }
+        | Term::Refl { .. }
+        | Term::SquashIntro { .. }
+        | Term::BoxIntro { .. }
+        | Term::EmptyElim { .. }
+        | Term::W { .. }
+        | Term::Sup { .. }
+        | Term::CaseTwo { .. }
+        | Term::IndW { .. }
+        | Term::BoxElim { .. }
+        | Term::SquashElim { .. }
+        | Term::IdElim { .. } => judgments::infer(arena, context, term, budget),
+        node => infer_leaf_type(arena, context, node),
+    }
+}
+
+fn infer_leaf_type(
+    arena: &mut TermArena,
+    context: &Context,
+    node: Term,
+) -> Result<TermHandle, CoreError> {
+    match node {
         Term::Dummy => Err(CoreError::DummyTerm),
         Term::Variable(index) => context
             .lookup(arena, index)
@@ -351,346 +391,34 @@ pub fn infer_type(
             let level = sort.level().successor().ok_or(CoreError::LevelOverflow)?;
             Ok(arena.insert(Term::Sort(Sort::Type(level))))
         }
-        Term::Pi { .. } | Term::Sigma { .. } | Term::Squash { .. } | Term::Box { .. } => {
-            infer_formation(arena, context, term, budget)
-        }
-        Term::Lambda { .. } => infer_lambda_spine(arena, context, term, budget),
-        Term::Apply { .. } => infer_apply_spine(arena, context, term, budget),
-        Term::Pair { .. } => infer_pair_spine(arena, context, term, budget),
-        Term::Fst { .. } | Term::Snd { .. } => infer_projection_spine(arena, context, term, budget),
+        Term::Pi { .. }
+        | Term::Sigma { .. }
+        | Term::Squash { .. }
+        | Term::Box { .. }
+        | Term::Lambda { .. }
+        | Term::Apply { .. }
+        | Term::Pair { .. }
+        | Term::Fst { .. }
+        | Term::Snd { .. }
+        | Term::Id { .. }
+        | Term::Refl { .. }
+        | Term::SquashIntro { .. }
+        | Term::BoxIntro { .. }
+        | Term::EmptyElim { .. }
+        | Term::W { .. }
+        | Term::Sup { .. }
+        | Term::CaseTwo { .. }
+        | Term::IndW { .. }
+        | Term::BoxElim { .. }
+        | Term::SquashElim { .. }
+        | Term::IdElim { .. } => unreachable!("constructor inference owns these nodes"),
         Term::Two => Ok(arena.insert(Term::Sort(Sort::Type(Level::Constant(0))))),
         Term::TwoZero | Term::TwoOne => Ok(arena.insert(Term::Two)),
-        Term::CaseTwo {
-            motive,
-            zero_branch,
-            one_branch,
-            scrutinee,
-        } => {
-            // `caseTwo(C, d0, d1, t) : C t` for `C : Π(_ : Two). Type w`,
-            // `d0 : C zero`, `d1 : C one` and `t : Two`. The motive's
-            // codomain must normalize to a relevant universe: the
-            // profile's eliminators target `Type`, and a `Strict`
-            // codomain is a strict target owned by the reference core's
-            // boxing rules, not this eliminator. The level `w` is read
-            // off the checked codomain — elimination is not confined to
-            // the scrutinee's level.
-            let two = arena.insert(Term::Two);
-            let (_, codomain) = admit_eliminator_motive(arena, context, motive, two, budget)?;
-            let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
-            match arena.get(codomain_head) {
-                Term::Sort(Sort::Type(_)) => {}
-                Term::Sort(Sort::Strict(_)) => {
-                    return Err(CoreError::StrictCaseMotiveCodomain { codomain });
-                }
-                _ => {
-                    return Err(CoreError::CaseMotiveCodomainNotAUniverse { codomain });
-                }
-            }
-            let two = arena.insert(Term::Two);
-            check_type(arena, context, scrutinee, two, budget)?;
-            let zero = arena.insert(Term::TwoZero);
-            let zero_type = arena.insert(row!(Apply => motive => zero));
-            check_type(arena, context, zero_branch, zero_type, budget)?;
-            let one = arena.insert(Term::TwoOne);
-            let one_type = arena.insert(row!(Apply => motive => one));
-            check_type(arena, context, one_branch, one_type, budget)?;
-            Ok(arena.insert(row!(Apply => motive => scrutinee)))
-        }
-        Term::Id { ty, left, right } => {
-            // `Id A x y : Type u` for `A : Type u` and `x, y : A`. The
-            // carrier must be a relevant type: over a strict proposition
-            // there is no proof-relevant distinction for `Id` to carry.
-            let domain_sort = infer_sort(arena, context, ty, budget)?;
-            if domain_sort.is_strict() {
-                return Err(CoreError::StrictIdentityDomain { domain: ty });
-            }
-            check_type(arena, context, left, ty, budget)?;
-            check_type(arena, context, right, ty, budget)?;
-            Ok(arena.insert(Term::Sort(domain_sort)))
-        }
-        Term::Refl { ty, value } => {
-            // `refl A x : Id A x x`. The `ty` annotation is checked, not
-            // trusted: `x` must inhabit `A` — through `check_type`, so a
-            // dependent-pair endpoint still checks componentwise — and
-            // `A` must be a relevant type, exactly as `Id` formation
-            // requires.
-            let domain_sort = infer_sort(arena, context, ty, budget)?;
-            if domain_sort.is_strict() {
-                return Err(CoreError::StrictIdentityDomain { domain: ty });
-            }
-            check_type(arena, context, value, ty, budget)?;
-            Ok(arena.insert(Term::Id {
-                ty,
-                left: value,
-                right: value,
-            }))
-        }
-        Term::IdElim {
-            motive,
-            base,
-            endpoint,
-            proof,
-        } => {
-            // `J(C, d, y, p) : C y p` for `p : Id A x y`,
-            // `C : Π(y : A). Π(_ : Id A x y). Type w`, and
-            // `d : C x (refl A x)`. The proof's inferred identity type
-            // supplies the fixed carrier `A` and fixed left endpoint
-            // `x`; the supplied `y` must be the proof's recorded right
-            // endpoint, so an elimination never silently relocates its
-            // target.
-            let proof_type = infer_type(arena, context, proof, budget)?;
-            let proof_head = weak_head_normalize(arena, context.signature(), proof_type, budget)?;
-            let (ty, fixed, recorded) = match arena.get(proof_head) {
-                Term::Id { ty, left, right } => (ty, left, right),
-                _ => {
-                    return Err(CoreError::NotAnIdentity {
-                        proof,
-                        actual_type: proof_head,
-                    });
-                }
-            };
-            check_type(arena, context, endpoint, ty, budget)?;
-            if !convertible(arena, context, recorded, endpoint, ty, budget)? {
-                return Err(row!(TypeMismatch => recorded => endpoint));
-            }
-            let (domain, first_codomain) =
-                admit_eliminator_motive(arena, context, motive, ty, budget)?;
-            // Under the endpoint binder the motive must still be a
-            // function of the identity proof, at `Id A x y` with `A`
-            // and `x` shifted under the binder and `y` naming it.
-            let extended = context.extend(domain);
-            let first_codomain_head =
-                weak_head_normalize(arena, context.signature(), first_codomain, budget)?;
-            let (proof_domain, motive_codomain) = match arena.get(first_codomain_head) {
-                Term::Pi { domain, codomain } => (domain, codomain),
-                _ => {
-                    return Err(CoreError::IdentityMotiveCodomainNotAFunction {
-                        codomain: first_codomain,
-                    });
-                }
-            };
-            let shifted_ty = shift(arena, ty, 0, 1);
-            let shifted_fixed = shift(arena, fixed, 0, 1);
-            let bound = arena.insert(Term::Variable(0));
-            let expected_domain = arena.insert(Term::Id {
-                ty: shifted_ty,
-                left: shifted_fixed,
-                right: bound,
-            });
-            let proof_domain_sort = infer_sort(arena, &extended, proof_domain, budget)?;
-            let shared_proof_domain = arena.insert(Term::Sort(proof_domain_sort));
-            if !convertible(
-                arena,
-                &extended,
-                proof_domain,
-                expected_domain,
-                shared_proof_domain,
-                budget,
-            )? {
-                return Err(row!(TypeMismatch => expected_domain => proof_domain));
-            }
-            // The motive level `w` is read off the checked codomain —
-            // elimination is not confined to the carrier's level — but
-            // it must be a relevant universe: strict targets belong to
-            // the reference core's boxing rules.
-            let codomain_head =
-                weak_head_normalize(arena, context.signature(), motive_codomain, budget)?;
-            match arena.get(codomain_head) {
-                Term::Sort(Sort::Type(_)) => {}
-                Term::Sort(Sort::Strict(_)) => {
-                    return Err(CoreError::StrictIdentityMotiveCodomain {
-                        codomain: motive_codomain,
-                    });
-                }
-                _ => {
-                    return Err(CoreError::IdentityMotiveCodomainNotAUniverse {
-                        codomain: motive_codomain,
-                    });
-                }
-            }
-            // The base case supplies the reflexive instance at the
-            // fixed endpoint: `d : C x (refl A x)`.
-            let refl = arena.insert(Term::Refl { ty, value: fixed });
-            let at_fixed = arena.insert(row!(Apply => motive => fixed));
-            let base_type = arena.insert(row!(Apply => at_fixed => refl));
-            check_type(arena, context, base, base_type, budget)?;
-            let at_endpoint = arena.insert(row!(Apply => motive => endpoint));
-            Ok(arena.insert(row!(Apply => at_endpoint => proof)))
-        }
-        Term::W { carrier, children } => {
-            // `W A B : Type max(u, v)` — one shared formation rule,
-            // also run for every `sup` annotation.
-            let level = check_w_formation(arena, context, carrier, children, budget)?;
-            Ok(arena.insert(Term::Sort(Sort::Type(level))))
-        }
-        Term::Sup {
-            carrier,
-            children,
-            label,
-            function,
-        } => {
-            // `sup A B a k : W A B`. The annotation re-runs the
-            // formation rule — checked, never trusted — then the label
-            // and the child function check at their places in it:
-            // `k : Π(b : B a). W A B` with the `W` type shifted under
-            // the new `b` binder.
-            check_w_formation(arena, context, carrier, children, budget)?;
-            check_type(arena, context, label, carrier, budget)?;
-            let domain = arena.insert(row!(Apply => children => label));
-            let w_type = arena.insert(Term::W { carrier, children });
-            let codomain = shift(arena, w_type, 0, 1);
-            let function_type = arena.insert(Term::Pi { domain, codomain });
-            check_type(arena, context, function, function_type, budget)?;
-            Ok(w_type)
-        }
-        Term::IndW { motive, step, tree } => {
-            // `indW(P, step, t) : P t` for `t : W A B`,
-            // `P : Π(_ : W A B). Type w`, and the induction step at
-            // `w_step_type`. The tree's inferred `W` type supplies the
-            // carrier and branching family — an elimination can never
-            // relocate to a different `W`. The motive's codomain must
-            // normalize to a relevant universe: strict targets belong
-            // to the reference core's boxing rules, and the level `w`
-            // is read off the checked codomain rather than confined to
-            // the tree's level.
-            let tree_type = infer_type(arena, context, tree, budget)?;
-            let tree_head = weak_head_normalize(arena, context.signature(), tree_type, budget)?;
-            let (carrier, children) = match arena.get(tree_head) {
-                Term::W { carrier, children } => (carrier, children),
-                _ => {
-                    return Err(CoreError::NotAW {
-                        tree,
-                        actual_type: tree_head,
-                    });
-                }
-            };
-            let (_, codomain) = admit_eliminator_motive(arena, context, motive, tree_head, budget)?;
-            let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
-            match arena.get(codomain_head) {
-                Term::Sort(Sort::Type(_)) => {}
-                Term::Sort(Sort::Strict(_)) => {
-                    return Err(CoreError::StrictInductionMotiveCodomain { codomain });
-                }
-                _ => {
-                    return Err(CoreError::InductionMotiveCodomainNotAUniverse { codomain });
-                }
-            }
-            let step_type = w_step_type(arena, carrier, children, motive);
-            check_type(arena, context, step, step_type, budget)?;
-            Ok(arena.insert(row!(Apply => motive => tree)))
-        }
         Term::Empty => {
             // `sEmpty : Strict 0` — the strict empty proposition sits at
             // level 0 like `Two` sits at `Type 0`: it carries no data,
             // and its eliminator reaches into every universe.
             Ok(arena.insert(Term::Sort(Sort::Strict(Level::Constant(0)))))
-        }
-        Term::EmptyElim { ty, scrutinee } => {
-            // `sEmpty_rect A e : A` for `e : sEmpty`. The target is
-            // checked to be a type at either sort — the reference core
-            // eliminates the empty proposition into `Ty` and `P`
-            // alike, since no closed scrutinee exists for the result
-            // to depend on.
-            infer_sort(arena, context, ty, budget)?;
-            let empty = arena.insert(Term::Empty);
-            check_type(arena, context, scrutinee, empty, budget)?;
-            Ok(ty)
-        }
-        Term::SquashIntro { ty, value } => {
-            // `sq_A x : Squash A` for `x : A`. The annotation re-runs
-            // the formation requirement — `A` must be a relevant type —
-            // and the value checks at `A` through `check_type`, so a
-            // dependent-pair witness still checks componentwise.
-            let domain_sort = infer_sort(arena, context, ty, budget)?;
-            if domain_sort.is_strict() {
-                return Err(CoreError::StrictSquashDomain { domain: ty });
-            }
-            check_type(arena, context, value, ty, budget)?;
-            Ok(arena.insert(Term::Squash { ty }))
-        }
-        Term::SquashElim {
-            proposition,
-            function,
-            scrutinee,
-        } => {
-            // `unsq P f x : P` for `x : Squash A`, `P : Strict v` and
-            // `f : Π(_ : A). P`. The scrutinee's inferred squash type
-            // supplies the carrier `A` — an elimination never relocates
-            // to a different squash. The target must be a strict
-            // proposition: squashed existence proves propositions, and
-            // the reference core's dependent eliminator is derived
-            // through irrelevance rather than primitive.
-            let scrutinee_type = infer_type(arena, context, scrutinee, budget)?;
-            let scrutinee_head =
-                weak_head_normalize(arena, context.signature(), scrutinee_type, budget)?;
-            let carrier = match arena.get(scrutinee_head) {
-                Term::Squash { ty } => ty,
-                _ => {
-                    return Err(CoreError::NotASquash {
-                        scrutinee,
-                        actual_type: scrutinee_head,
-                    });
-                }
-            };
-            match infer_sort(arena, context, proposition, budget)? {
-                Sort::Strict(_) => {}
-                Sort::Type(_) => {
-                    return Err(CoreError::SquashTargetNotStrict { proposition });
-                }
-            }
-            let codomain = shift(arena, proposition, 0, 1);
-            let function_type = arena.insert(row!(Pi => carrier => codomain));
-            check_type(arena, context, function, function_type, budget)?;
-            Ok(proposition)
-        }
-        Term::BoxIntro { ty, value } => {
-            // `box_A x : Box A` for `x : A`. The annotation re-runs the
-            // formation requirement — `A` must be a strict proposition —
-            // and the value checks at `A` through `check_type`.
-            let domain_sort = infer_sort(arena, context, ty, budget)?;
-            if !domain_sort.is_strict() {
-                return Err(CoreError::NonStrictBoxDomain { domain: ty });
-            }
-            check_type(arena, context, value, ty, budget)?;
-            Ok(arena.insert(Term::Box { ty }))
-        }
-        Term::BoxElim {
-            motive,
-            body,
-            scrutinee,
-        } => {
-            // `unbox P f x : P x` for `x : Box A`,
-            // `P : Π(_ : Box A). s_v` at either sort — the reference
-            // core's eliminator lands in `Ty_j` or `P_j` alike — and
-            // `f : Π(a : A). P (box a)`. The scrutinee's inferred box
-            // supplies the payload `A`; the motive's domain must
-            // convert to exactly that `Box A`.
-            let scrutinee_type = infer_type(arena, context, scrutinee, budget)?;
-            let scrutinee_head =
-                weak_head_normalize(arena, context.signature(), scrutinee_type, budget)?;
-            let payload = match arena.get(scrutinee_head) {
-                Term::Box { ty } => ty,
-                _ => {
-                    return Err(CoreError::NotABox {
-                        scrutinee,
-                        actual_type: scrutinee_head,
-                    });
-                }
-            };
-            let (_, codomain) =
-                admit_eliminator_motive(arena, context, motive, scrutinee_head, budget)?;
-            let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
-            match arena.get(codomain_head) {
-                Term::Sort(_) => {}
-                _ => {
-                    return Err(CoreError::BoxMotiveCodomainNotAUniverse { codomain });
-                }
-            }
-            // The body sees `P` instantiated at the boxed canonical
-            // inhabitant: `f : Π(a : A). P (box a)`.
-            let body_type = box_body_type(arena, payload, motive);
-            check_type(arena, context, body, body_type, budget)?;
-            Ok(arena.insert(row!(Apply => motive => scrutinee)))
         }
         Term::Constant {
             declaration: index,
@@ -731,6 +459,18 @@ pub fn infer_type(
     }
 }
 
+pub(super) fn convert_retaining(
+    arena: &mut TermArena,
+    context: &Context,
+    left: TermHandle,
+    right: TermHandle,
+    shared_type: TermHandle,
+    budget: &mut Budget,
+    retained: &impl Fn(u32) -> bool,
+) -> Result<bool, CoreError> {
+    judgments::convert(arena, context, left, right, shared_type, budget, retained)
+}
+
 /// The closed-level scope rule: a level is well-formed under `arity` when
 /// every `Parameter(i)` names one of the judgment's `arity` universe
 /// parameters. Constant, successor and maximum levels introduce no scope
@@ -763,93 +503,6 @@ fn check_level(arity: u32, level: &Level) -> Result<(), CoreError> {
             Some(next) => current = next,
             None => return Ok(()),
         }
-    }
-}
-
-/// The `max(u, v)` level of a checked `W carrier children` formation:
-/// `carrier : Type u` relevant and `children` a `Π(_ : carrier). Type v`
-/// family into a relevant universe. `sup` annotations run through this
-/// same rule — checked, never trusted.
-fn check_w_formation(
-    arena: &mut TermArena,
-    context: &Context,
-    carrier: TermHandle,
-    children: TermHandle,
-    budget: &mut Budget,
-) -> Result<Level, CoreError> {
-    let carrier_sort = infer_sort(arena, context, carrier, budget)?;
-    let carrier_level = match carrier_sort {
-        Sort::Type(level) => level,
-        Sort::Strict(_) => return Err(CoreError::StrictWCarrier { carrier }),
-    };
-    let children_type = infer_type(arena, context, children, budget)?;
-    let children_head = weak_head_normalize(arena, context.signature(), children_type, budget)?;
-    let (domain, codomain) = match arena.get(children_head) {
-        Term::Pi { domain, codomain } => (domain, codomain),
-        _ => {
-            return Err(CoreError::NotAFunction {
-                function: children,
-                actual_type: children_head,
-            });
-        }
-    };
-    let domain_sort = infer_sort(arena, context, domain, budget)?;
-    let shared_domain = arena.insert(Term::Sort(domain_sort));
-    if !convertible(arena, context, domain, carrier, shared_domain, budget)? {
-        return Err(row!(TypeMismatch => carrier => domain));
-    }
-    let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
-    let children_level = match arena.get(codomain_head) {
-        Term::Sort(Sort::Type(level)) => level,
-        Term::Sort(Sort::Strict(_)) => {
-            return Err(CoreError::StrictWChildrenCodomain { codomain });
-        }
-        _ => {
-            return Err(CoreError::WChildrenCodomainNotAUniverse { codomain });
-        }
-    };
-    Ok(carrier_level.maximum(children_level))
-}
-
-/// An eliminator motive, admitted once. `motive`'s inferred type must
-/// weak-head normalize to a `Π` whose domain converts to the scrutinee's
-/// own type — an elimination never relocates to a different carrier — and
-/// the `Π`'s domain and codomain are returned: the codomain is the
-/// motive's result type, which each eliminator then sorts under its own
-/// universe rule, and the domain is what the identity eliminator binds
-/// its endpoint under. `caseTwo`, `J`, `indW` and `unbox` all read their
-/// motive through this one premise; the `NotAFunction` and `TypeMismatch`
-/// payloads name the offending motive subterm exactly as each arm's own
-/// rule did.
-fn admit_eliminator_motive(
-    arena: &mut TermArena,
-    context: &Context,
-    motive: TermHandle,
-    scrutinee_type: TermHandle,
-    budget: &mut Budget,
-) -> Result<(TermHandle, TermHandle), CoreError> {
-    let motive_type = infer_type(arena, context, motive, budget)?;
-    let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
-    match arena.get(motive_head) {
-        Term::Pi { domain, codomain } => {
-            let domain_sort = infer_sort(arena, context, domain, budget)?;
-            let shared_domain = arena.insert(Term::Sort(domain_sort));
-            if !convertible(
-                arena,
-                context,
-                domain,
-                scrutinee_type,
-                shared_domain,
-                budget,
-            )? {
-                return Err(row!(TypeMismatch => scrutinee_type => domain));
-            }
-            Ok((domain, codomain))
-        }
-        _ => Err(CoreError::NotAFunction {
-            function: motive,
-            actual_type: motive_head,
-        }),
     }
 }
 
@@ -925,293 +578,7 @@ pub(super) fn box_body_type(
     arena.insert(row!(Pi => payload => body_codomain))
 }
 
-/// Which formation rule produced one link of a `Π`/`Σ` codomain chain:
-/// `Pi` takes the codomain's layer at the maximum level, `Sigma` is a
-/// strict proposition only while both components are.
-enum Formation {
-    Pi,
-    Sigma,
-}
-
-/// Infer Π/Σ and relevant/strict layer formations using one local context.
-/// Domains are checked under the preceding prefix, then codomains under the
-/// added binder. Returning from either child restores the exact prefix; no
-/// branch borrows a sibling's declarations or reuses a judgment by depth.
-/// Both binder branches and Box/Squash payloads use handle work. Layer
-/// changes retain their exact domain refusal, and no link clones the full context.
-fn infer_formation(
-    arena: &mut TermArena,
-    context: &Context,
-    term: TermHandle,
-    budget: &mut Budget,
-) -> Result<TermHandle, CoreError> {
-    enum Layer {
-        Squash,
-        Box,
-    }
-    enum Work {
-        Visit(TermHandle),
-        Layer {
-            layer: Layer,
-            domain: TermHandle,
-        },
-        Domain {
-            formation: Formation,
-            domain: TermHandle,
-            codomain: TermHandle,
-        },
-        Codomain {
-            formation: Formation,
-            domain_sort: Sort,
-            prefix: usize,
-        },
-    }
-    let mut extended = context.clone();
-    let mut pending = vec![Work::Visit(term)];
-    let mut sorts = Vec::new();
-    let mut result = None;
-    while let Some(work) = pending.pop() {
-        match work {
-            Work::Visit(term) => match arena.node(term) {
-                Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
-                    let formation = if matches!(arena.node(term), Term::Pi { .. }) {
-                        Formation::Pi
-                    } else {
-                        Formation::Sigma
-                    };
-                    pending.push(Work::Domain {
-                        formation,
-                        domain: *domain,
-                        codomain: *codomain,
-                    });
-                    pending.push(Work::Visit(*domain));
-                }
-                Term::Squash { ty } | Term::Box { ty } => {
-                    let layer = if matches!(arena.node(term), Term::Squash { .. }) {
-                        Layer::Squash
-                    } else {
-                        Layer::Box
-                    };
-                    pending.push(Work::Layer { layer, domain: *ty });
-                    pending.push(Work::Visit(*ty));
-                }
-                _ => sorts.push(infer_sort(arena, &extended, term, budget)?),
-            },
-            Work::Layer { layer, domain } => {
-                let domain_sort = sorts.pop().expect("the layer domain has one inferred sort");
-                let sort = match (layer, domain_sort) {
-                    (Layer::Squash, Sort::Type(level)) => Sort::Strict(level),
-                    (Layer::Squash, Sort::Strict(_)) => {
-                        return Err(CoreError::StrictSquashDomain { domain });
-                    }
-                    (Layer::Box, Sort::Strict(level)) => Sort::Type(level),
-                    (Layer::Box, Sort::Type(_)) => {
-                        return Err(CoreError::NonStrictBoxDomain { domain });
-                    }
-                };
-                result = Some(arena.insert(Term::Sort(sort.clone())));
-                sorts.push(sort);
-            }
-            Work::Domain {
-                formation,
-                domain,
-                codomain,
-            } => {
-                let domain_sort = sorts.pop().expect("the domain has one inferred sort");
-                let prefix = extended.bindings.len();
-                extended.bindings.push(domain);
-                pending.push(Work::Codomain {
-                    formation,
-                    domain_sort,
-                    prefix,
-                });
-                pending.push(Work::Visit(codomain));
-            }
-            Work::Codomain {
-                formation,
-                domain_sort,
-                prefix,
-            } => {
-                let codomain_sort = sorts.pop().expect("the codomain has one inferred sort");
-                extended.bindings.truncate(prefix);
-                let level = domain_sort.level().maximum(codomain_sort.level());
-                let sort = match formation {
-                    // Π's codomain selects its layer; Σ is strict only when
-                    // both components are. Both retain the predicative maximum.
-                    Formation::Pi => match codomain_sort {
-                        Sort::Strict(_) => Sort::Strict(level),
-                        Sort::Type(_) => Sort::Type(level),
-                    },
-                    Formation::Sigma => match (domain_sort, codomain_sort) {
-                        (Sort::Strict(_), Sort::Strict(_)) => Sort::Strict(level),
-                        _ => Sort::Type(level),
-                    },
-                };
-                result = Some(arena.insert(Term::Sort(sort.clone())));
-                sorts.push(sort);
-            }
-        }
-    }
-    debug_assert_eq!(sorts.len(), 1);
-    debug_assert_eq!(extended.bindings.len(), context.bindings.len());
-    Ok(result.expect("formation starts at a Π, Σ, Box or Squash"))
-}
-
-/// `infer_type` over a `λx₁. λx₂. … body` binder spine. Each domain is
-/// checked under the accumulated context, then the body's inferred type
-/// wraps back into the same `Π` chain inside-out — off the call stack.
-fn infer_lambda_spine(
-    arena: &mut TermArena,
-    context: &Context,
-    term: TermHandle,
-    budget: &mut Budget,
-) -> Result<TermHandle, CoreError> {
-    let mut extended = context.clone();
-    let mut domains: Vec<TermHandle> = Vec::new();
-    let mut tail = term;
-    while let Term::Lambda { domain, body } = arena.get(tail) {
-        infer_sort(arena, &extended, domain, budget)?;
-        extended.bindings.push(domain);
-        domains.push(domain);
-        tail = body;
-    }
-    let mut inferred = infer_type(arena, &extended, tail, budget)?;
-    for domain in domains.into_iter().rev() {
-        inferred = arena.insert(row!(Pi => domain => inferred));
-    }
-    Ok(inferred)
-}
-
-/// `infer_type` over an application spine `f a₁ … aₙ`. The links gather
-/// outermost-first and fold innermost-first — the judgment consumes the
-/// arguments in application order — and each step's `NotAFunction` still
-/// names the exact `function` subterm whose type failed to be a `Π`.
-fn infer_apply_spine(
-    arena: &mut TermArena,
-    context: &Context,
-    term: TermHandle,
-    budget: &mut Budget,
-) -> Result<TermHandle, CoreError> {
-    let mut spine: Vec<(TermHandle, TermHandle)> = Vec::new();
-    let mut head = term;
-    while let Term::Apply { function, argument } = arena.get(head) {
-        spine.push((function, argument));
-        head = function;
-    }
-    let mut inferred = infer_type(arena, context, head, budget)?;
-    for (function, argument) in spine.into_iter().rev() {
-        let function_head = weak_head_normalize(arena, context.signature(), inferred, budget)?;
-        match arena.get(function_head) {
-            Term::Pi { domain, codomain } => {
-                if let Term::Pair { .. } = arena.get(argument) {
-                    // A dependent pair checks componentwise against a
-                    // `Sigma` domain; its non-dependent inference could
-                    // never convert there.
-                    check_type(arena, context, argument, domain, budget)?;
-                } else {
-                    let argument_type = infer_type(arena, context, argument, budget)?;
-                    let domain_sort = infer_sort(arena, context, domain, budget)?;
-                    let shared_type = arena.insert(Term::Sort(domain_sort));
-                    if !convertible(arena, context, argument_type, domain, shared_type, budget)? {
-                        return Err(CoreError::ArgumentTypeMismatch {
-                            expected: domain,
-                            actual: argument_type,
-                        });
-                    }
-                }
-                inferred = substitute(arena, codomain, argument);
-            }
-            _ => {
-                return Err(CoreError::NotAFunction {
-                    function,
-                    actual_type: function_head,
-                });
-            }
-        }
-    }
-    Ok(inferred)
-}
-
-/// `infer_type` over a `pair`-in-`second` tuple chain. Inference is
-/// non-dependent: nothing records how the codomain should mention the
-/// first component — `check_type` admits a dependent pair componentwise
-/// against an expected `Sigma`. The `first` types infer top-down, then
-/// the `Σ` results fold inside-out, each codomain the shifted type of
-/// the link's `second`.
-fn infer_pair_spine(
-    arena: &mut TermArena,
-    context: &Context,
-    term: TermHandle,
-    budget: &mut Budget,
-) -> Result<TermHandle, CoreError> {
-    let mut first_types: Vec<TermHandle> = Vec::new();
-    let mut tail = term;
-    while let Term::Pair { first, second } = arena.get(tail) {
-        first_types.push(infer_type(arena, context, first, budget)?);
-        tail = second;
-    }
-    let mut inferred = infer_type(arena, context, tail, budget)?;
-    for first_type in first_types.into_iter().rev() {
-        let codomain = shift(arena, inferred, 0, 1);
-        inferred = arena.insert(Term::Sigma {
-            domain: first_type,
-            codomain,
-        });
-    }
-    Ok(inferred)
-}
-
-/// `infer_type` over a `fst`/`snd` projection chain `fst (snd (fst p))`.
-/// The projections gather outermost-first and fold innermost-first:
-/// each step weak-head normalizes the current pair type and takes the
-/// `Σ` domain for `fst` or substitutes the reconstructed `fst` for
-/// `snd`. The stored pair handle keeps each link's operand for the
-/// `NotAPair` payload and the `snd` substitution.
-fn infer_projection_spine(
-    arena: &mut TermArena,
-    context: &Context,
-    term: TermHandle,
-    budget: &mut Budget,
-) -> Result<TermHandle, CoreError> {
-    let mut spine: Vec<(bool, TermHandle)> = Vec::new();
-    let mut tail = term;
-    loop {
-        match arena.get(tail) {
-            Term::Fst { pair } => {
-                spine.push((true, pair));
-                tail = pair;
-            }
-            Term::Snd { pair } => {
-                spine.push((false, pair));
-                tail = pair;
-            }
-            _ => break,
-        }
-    }
-    let mut inferred = infer_type(arena, context, tail, budget)?;
-    for (is_fst, pair) in spine.into_iter().rev() {
-        let head = weak_head_normalize(arena, context.signature(), inferred, budget)?;
-        match arena.get(head) {
-            Term::Sigma { domain, codomain } => {
-                inferred = if is_fst {
-                    domain
-                } else {
-                    // `snd p : B[fst p]` — the dependent result keeps the
-                    // projected first component.
-                    let projected = arena.insert(Term::Fst { pair });
-                    substitute(arena, codomain, projected)
-                };
-            }
-            _ => {
-                return Err(CoreError::NotAPair {
-                    pair,
-                    actual_type: head,
-                });
-            }
-        }
-    }
-    Ok(inferred)
-}
+mod judgments;
 
 /// Check `term` against `expected`. The two types are compared at
 /// `Sort(s)` where `s` is `expected`'s own sort — a universe, whose own
@@ -1219,9 +586,10 @@ fn infer_projection_spine(
 /// *types* themselves even when `expected` is a strict proposition such
 /// as `sEmpty` or a squash's payload.
 ///
-/// The componentwise descents — a `Pair` against a `Sigma`, a `Lambda`
-/// against a `Pi` — loop instead of returning through recursion, so a
-/// right-nested tuple witness or a telescope body adds no call depth.
+/// Componentwise descents use one mutable context and handle continuations.
+/// Both pair branches and lambda bodies stay off the Rust call stack. A pair
+/// continuation restores its exact ambient prefix before substituting the
+/// successfully checked first component into the second component's type.
 pub fn check_type(
     arena: &mut TermArena,
     context: &Context,
@@ -1229,61 +597,7 @@ pub fn check_type(
     expected: TermHandle,
     budget: &mut Budget,
 ) -> Result<(), CoreError> {
-    let mut extended = context.clone();
-    let mut term = term;
-    let mut expected = expected;
-    loop {
-        let expected_sort = infer_sort(arena, &extended, expected, budget)?;
-        // A pair against a `Sigma` checks componentwise, so the second
-        // component sees the dependent codomain instantiated by the first.
-        if let Term::Pair { first, second } = arena.get(term) {
-            let head = weak_head_normalize(arena, extended.signature(), expected, budget)?;
-            if let Term::Sigma { domain, codomain } = arena.get(head) {
-                check_type(arena, &extended, first, domain, budget)?;
-                term = second;
-                expected = substitute(arena, codomain, first);
-                continue;
-            }
-        }
-        // A lambda against a `Pi` checks componentwise, so the body sees the
-        // dependent codomain rather than the lambda's non-dependent
-        // inference — the dual of the pair rule above. The annotation must
-        // still denote the expected domain, and the body is checked under
-        // the binder, so a nested pair can meet a dependent `Sigma`
-        // componentwise instead of comparing whole inferred types.
-        if let Term::Lambda { domain, body } = arena.get(term) {
-            let head = weak_head_normalize(arena, extended.signature(), expected, budget)?;
-            if let Term::Pi {
-                domain: expected_domain,
-                codomain,
-            } = arena.get(head)
-            {
-                let domain_sort = infer_sort(arena, &extended, expected_domain, budget)?;
-                let shared_domain = arena.insert(Term::Sort(domain_sort));
-                if !convertible(
-                    arena,
-                    &extended,
-                    domain,
-                    expected_domain,
-                    shared_domain,
-                    budget,
-                )? {
-                    return Err(row!(TypeMismatch => expected_domain => domain));
-                }
-                extended.bindings.push(domain);
-                term = body;
-                expected = codomain;
-                continue;
-            }
-        }
-        let shared_type = arena.insert(Term::Sort(expected_sort));
-        let actual = infer_type(arena, &extended, term, budget)?;
-        return if convertible(arena, &extended, actual, expected, shared_type, budget)? {
-            Ok(())
-        } else {
-            Err(CoreError::TypeMismatch { expected, actual })
-        };
-    }
+    judgments::check(arena, context, term, expected, budget)
 }
 
 /// The two argument-count error spellings consumers reject together.

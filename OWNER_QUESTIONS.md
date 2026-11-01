@@ -91,3 +91,66 @@ treats the CLI as a library client. These establish independent interpretation
 but do not settle a standalone CLI selection surface or a future JIT trigger
 policy. Any future automatic JIT policy would be an explicit new design choice,
 not an implicit requirement of the existing interpreter contract.
+
+### 2. Must a guard on a copy of an array element be rejected after the element is overwritten and restored?
+
+`tests/omega/fail/contracts/scalar_copy_guard_after_source_restore` is a reject
+twin that main now accepts. Its `inspect` machine reads `main.items[selector]`
+twice (`copied`, then `saved`), writes `0` to the element, writes `saved` back,
+and only then tests `copied >= 48 && copied <= 49` before transitioning to
+`bounded`, which `requires main.items[selector] >= 48` and `<= 49`. The twin
+expects `cannot prove requires contract`. On base `60f7e3cd4ee` a focused corpus
+run of the fixture reports `checked`, not `rejected`. The investigation traced
+this to #985 (`0020604823c`, 2026-10-31): the checker proves both requirements
+because `copied`, `saved` and `main.items[selector]` all denote the stored
+contents at state entry, and the restore writes back exactly that value. The program meets `bounded`'s
+requirements on every execution. Must it still be rejected? Is the twin's oracle
+a language rule, or a limit of the earlier analysis that the stronger one
+legitimately lifted?
+
+Option A, the twin is stale: accepting is correct. The fixture moves out of
+`fail/contracts/` (to `pass/` or deleted) and its golden rows are re-recorded.
+The language then admits a guard on a scalar copy across a write that restores
+the source, when the written value is provably the copied one. Sibling controls
+that change the stored value (`scalar_copy_guard_after_source_write`,
+`scalar_copy_guard_after_selector_write`) keep rejecting; four soundness probes
+still reject too (aliasing write through another index, restore of a different
+value, re-read after a write, store of a late read into `main.saved`).
+
+Option B, the twin states a rule: the program must be rejected. The analysis
+must stop relating `copied` to the element once any write to the element
+intervenes, even a value-equal restore. That requires deliberately weakening
+the stored-value tracking in the scalar copy guard route
+(`current_values::proves_call`, `guard_observations.rs`) for restored values,
+rejecting a program that provably satisfies its contracts, and a written rule
+to cite.
+
+Evidence, from the investigation on base `661760196df`: the call-site proof is
+`captured_boolean::judgment` -> `captured_contract_proven` ->
+`current_values::proves_call`, where the three values share one atom,
+`completed-scalar:IndexedValue{main.items, selector}`. #985 switched
+`numeric_observations` from `declared_integer_field_read` (declared fields only)
+to `integer_storage_read` (any fixed-integer storage read, array elements
+included). The golden row (`rejected`, `@ccdb99ca2214`) was recorded by #889
+(`c64728d90e8`) before #985 merged. The twin's shape comes from `10aeeb04a5b`,
+whose `guard_observations.rs` header says "a write followed by restoration
+still breaks the relation". That sentence is implementation commentary on
+the guard copy-relation route, not a language rule.
+
+Contracts checked:
+[primitive reads](wiki/spec/terminal-psi/fact_validity.md) (line 28) allow
+an equality between a copied result and an exact reaching stored value and
+say later writes cannot change either captured value, but name "missing
+stores" as preventing introduction; `copied` and `saved` have no reaching
+store, only state-entry contents. [Entry hypotheses](wiki/spec/terminal-psi/fact_validity.md)
+(line 67) bind "structural entry paths" and say current body values are not
+entry snapshots; whether a body read of an unchanged entry path may be
+identified with that path is not stated. [Mutation and subject
+identity](wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
+(lines 175-198) says copies "transport facts about the captured value" and
+that overlapping destination facts are invalidated at a write, then the new
+value is established; it does not say a value-equal restore must lose facts
+about the copy. [Lifetimes](wiki/spec/language/lifetimes.md) (line 101) says
+integer snapshots are not live storage. No passage names scalar copy guards or
+requires a restore to break a relation. These establish that facts follow
+captured values and storage footprints but leave the restore case open.

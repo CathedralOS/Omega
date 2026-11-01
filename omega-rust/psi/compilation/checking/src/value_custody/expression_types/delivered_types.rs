@@ -470,7 +470,7 @@ fn delivered_type_conflict(
 }
 
 /// A value received into storage the program names -- a local, an assigned
-/// place, a transition's returned value -- keeps the type it was delivered
+/// place, a constructed field, a transition's returned value -- keeps the type it was delivered
 /// with. `scope` is the machine whose body performs the store.
 pub(crate) fn report_delivered_type_mismatch(
     program: &dyn crate::CheckingInput,

@@ -13,7 +13,7 @@
 //! by subject: `const_evaluation/`, `layouts/`, and `machine_execution/`.
 //! `const_evaluation/selected_constants.rs` owns deferred evaluation order;
 //! layout providers answer geometry without choosing source checks or mutations.
-//! `syntax_probes.rs` owns their temporary frontend work; `reflection/` owns
+//! `syntax_probes.rs` owns their temporary frontend work; `validation::reflection` owns
 //! semantic schema, selection, and visitation plans and their independent replay.
 //! `product_declarations.rs` admits executed audits, runtime assumed bindings
 //! and wire demands against their source-issued requests. Wire compatibility
@@ -64,7 +64,6 @@ pub use const_evaluation::const_lengths::{
 };
 pub use const_evaluation::data_layout_queries::{
     LayoutApplicationTargetInput, LayoutQueryMeasurements, LayoutQueryProvider,
-    fold_data_layout_queries,
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;

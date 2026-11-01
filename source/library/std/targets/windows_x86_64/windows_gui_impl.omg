@@ -242,18 +242,18 @@ reaches
     let outer_width: i64 = (rectangle.right as i64) - (rectangle.left as i64);
     let outer_height: i64 = (rectangle.bottom as i64) - (rectangle.top as i64);
     transition adjusted != 0 && width > 0 && height > 0
-        && outer_width > 0 && outer_width <= 2147483647
-        && outer_height > 0 && outer_height <= 2147483647 {
+        && outer_width > 0 && outer_width <= 0x7fff_ffff
+        && outer_height > 0 && outer_height <= 0x7fff_ffff {
         true -> create(class_name, title, style, x, y, outer_width, outer_height)
         _ -> (0)
     }
     machine create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i64, height: i64) -> u64
-    requires width > 0 && width <= 2147483647 && height > 0 && height <= 2147483647 {
+    requires width > 0 && width <= 0x7fff_ffff && height > 0 && height <= 0x7fff_ffff {
         WindowsGuiNativeProvider::window_create(class_name, title, style, x, y, width as i32, height as i32)
     }
 }
 
-// Complete explicit provider map; concrete bodies retain their own namespace.
+// Complete explicit provider map; members forward to the existing native adapters.
 NativeWindowsGui satisfies WindowsGuiHost {
     machine window_create(class_name: &[u8], title: &[u8], style: u32,
         x: i32, y: i32, width: i32, height: i32) -> u64 reaches
@@ -289,16 +289,6 @@ NativeWindowsGui satisfies WindowsGuiHost {
         ProcessOutput + ProcessExit {
         WindowsGuiNativeProvider::pump_message(message)
     }
-    machine window_create_client(class_name: &[u8], title: &[u8], style: u32,
-        x: i32, y: i32, width: i32, height: i32) -> u64 reaches
-            NativeCodeExecution + WindowManagement + SurfacePresentation +
-            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-            ClockObservation + ExecutionDelay + FilesystemContentRead +
-            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-            ProcessOutput + ProcessExit {
-        WindowsGuiNativeProvider::window_create_client(class_name, title, style, x, y, width, height)
-    }
     machine get_dc(window: u64) -> u64 reaches
         SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
@@ -321,9 +311,17 @@ NativeWindowsGui satisfies WindowsGuiHost {
             SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
             FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
             FilesystemNamespaceMutation {
-        WindowsGuiNativeProvider::stretch_dibits(device, destination_x, destination_y,
-            destination_width, destination_height, source_x, source_y,
-            source_width, source_height, pixels, info, usage, raster_operation)
+        WindowsGuiNativeProvider::stretch_dibits(device, destination_x, destination_y, destination_width, destination_height, source_x, source_y, source_width, source_height, pixels, info, usage, raster_operation)
+    }
+    machine window_create_client(class_name: &[u8], title: &[u8], style: u32,
+        x: i32, y: i32, width: i32, height: i32) -> u64 reaches
+            NativeCodeExecution + WindowManagement + SurfacePresentation +
+            WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+            ClockObservation + ExecutionDelay + FilesystemContentRead +
+            FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+            ProcessOutput + ProcessExit {
+        WindowsGuiNativeProvider::window_create_client(class_name, title, style, x, y, width, height)
     }
     machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation {
         WindowsGuiNativeProvider::key_state(virtual_key)

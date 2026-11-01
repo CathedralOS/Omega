@@ -43,9 +43,7 @@ pub use boundary_signatures::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
 };
 pub(crate) use boundary_signatures::{BoundaryDirectCallbackParameter, BoundaryNativeParameter};
-pub use callback_bindings::{
-    BoundaryCallingPlanRealization, close_outbound_callback_materializations,
-};
+pub use callback_bindings::BoundaryCallingPlanRealization;
 pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
 pub use opaque_representations::{
     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,

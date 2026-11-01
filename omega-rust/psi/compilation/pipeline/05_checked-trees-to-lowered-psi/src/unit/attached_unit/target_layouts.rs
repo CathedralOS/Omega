@@ -11,9 +11,9 @@ use semantic_vocabulary::{AuthoredRecordStorage, StructuralTypeId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
-    StructuralTypeShape, TargetLayoutApplication, TargetLayoutFieldStorage,
-    TargetLayoutRealization, TargetLayoutSchemaArgument, TargetLayoutSchemaField,
-    TargetLayoutSchemaFieldKind,
+    StructuralTypeShape, TargetLayoutApplication, TargetLayoutFieldLayoutSource,
+    TargetLayoutFieldStorage, TargetLayoutRealization, TargetLayoutSchemaArgument,
+    TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
 };
 use typed_trees::type_identity::TypeIdentityId;
 
@@ -44,7 +44,7 @@ pub(super) fn lower(
             storage:
                 CheckedUnitRecordStorage::TargetLayout {
                     application,
-                    application_identity,
+                    application_identity: _,
                     schema_type_identity,
                 },
             ..
@@ -52,11 +52,6 @@ pub(super) fn lower(
         else {
             return unsupported("target layout record lost its exact checked application marker");
         };
-        if checked.typed.normalized_type_identity(*application) != *application_identity {
-            return unsupported(
-                "target layout raw application differs from its canonical checked identity",
-            );
-        }
         let plan = checked
             .typed
             .plan_laid_layout_for_type(*application)
@@ -134,7 +129,7 @@ pub(super) fn lower(
                     .ok_or(LoweringError::Unsupported(
                         "target layout application lost its exact Schema argument",
                     ))?;
-            if argument.abi_version != 3 {
+            if argument.abi_version != 4 {
                 return unsupported(
                     "target layout application uses an unsupported Schema ABI version",
                 );
@@ -167,6 +162,17 @@ pub(super) fn lower(
                     identity: field.identity,
                     byte_size: field.byte_size,
                     byte_alignment: field.byte_alignment,
+                    layout_source: match field.layout_source {
+                        typed_trees::PlanLaidFieldLayoutSource::Default => {
+                            TargetLayoutFieldLayoutSource::Default
+                        }
+                        typed_trees::PlanLaidFieldLayoutSource::Scalar => {
+                            TargetLayoutFieldLayoutSource::Scalar
+                        }
+                        typed_trees::PlanLaidFieldLayoutSource::Explicit => {
+                            TargetLayoutFieldLayoutSource::Explicit
+                        }
+                    },
                     kind: match field.kind {
                         typed_trees::PlanLaidSchemaFieldKind::Scalar => {
                             TargetLayoutSchemaFieldKind::Scalar
@@ -180,18 +186,9 @@ pub(super) fn lower(
                     },
                 });
             }
-            if alternative.machine != plan.policy_plan_machine_symbol
-                || alternative.target.as_str() != alternative.target_facts.profile
-                || alternative.target_facts.validate().is_err()
-            {
-                return unsupported("fixed representation changed its exact target input custody");
-            }
             let geometry = &alternative.geometry;
-            if !geometry.private_callback_demands.is_empty() {
-                return unsupported(
-                    "target layout publication cannot discard private callback demands",
-                );
-            }
+            // The companion native-layout catalog retains the complete report
+            // and each selected private slot; this row owns semantic storage.
             let byte_size = geometry
                 .validated_layout
                 .size

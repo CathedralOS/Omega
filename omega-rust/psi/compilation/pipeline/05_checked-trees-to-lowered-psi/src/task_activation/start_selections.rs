@@ -1,10 +1,8 @@
 //! Task start selections and activation targets.
 
 use super::entry_report_fingerprint;
-use checked_trees::typed_trees::static_applications::StaticMachineBindingValue;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::Fnv1a;
-use symbols::JoinedPath;
 use terminal_psi::TerminalTaskStartOperation as TaskStartOperation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,37 +83,18 @@ pub(crate) fn exact_task_activation_target<'program>(
 }
 
 pub(crate) fn task_start_selections(
-    typed: &checked_trees::typed_trees::TypedTrees,
+    checked: &checked_trees::CheckedTrees,
 ) -> Result<Vec<TaskStartSelection>, Vec<Diagnostic>> {
     let mut selections = Vec::new();
     let mut diagnostics = Vec::new();
-    for (_, expression) in typed.expression_table.iter_expressions() {
-        let checked_trees::expression::ExpressionNode::Call(call) = expression else {
-            continue;
-        };
+    for call in &checked.facts.executable_bindings.calls {
         append_task_start_selection(
-            typed,
-            call.target_symbol,
-            call.target.as_str(),
+            checked,
+            call.target,
+            &call.diagnostic_name,
             &mut selections,
             &mut diagnostics,
         );
-    }
-    for machine in typed.machines() {
-        for state in typed.machine_states(machine) {
-            for statement in typed.statement_table.statements(state.statement_nodes) {
-                let checked_trees::statement::StatementNode::Call(call) = statement else {
-                    continue;
-                };
-                append_task_start_selection(
-                    typed,
-                    call.target_symbol,
-                    call.target.as_str(),
-                    &mut selections,
-                    &mut diagnostics,
-                );
-            }
-        }
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -126,12 +105,13 @@ pub(crate) fn task_start_selections(
 }
 
 fn append_task_start_selection(
-    typed: &checked_trees::typed_trees::TypedTrees,
+    checked: &checked_trees::CheckedTrees,
     requirement: symbols::SymbolHandle,
     target_name: &str,
     selections: &mut Vec<TaskStartSelection>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let typed = &checked.typed;
     let Some((definition, signature, operation)) = typed.traits().iter().find_map(|definition| {
         if !definition.is_boundary
             || definition.name.as_str() != "TaskRuntime"
@@ -154,21 +134,19 @@ fn append_task_start_selection(
     // The closed requirement retains the complete typed application even
     // after specialization erases its executable telescope. Machine bindings
     // select execution; type and value bindings keep their own identities.
-    let Some(application) = typed.closed_requirement_application(requirement) else {
+    let Some(application) = checked
+        .facts
+        .executable_bindings
+        .requirements
+        .iter()
+        .find(|application| application.requirement == requirement)
+    else {
         diagnostics.push(Diagnostic::error(format!(
             "TaskRuntime requirement `{target_name}` has no retained checked static application"
         )));
         return;
     };
-    let targets = typed
-        .expression_table
-        .static_machine_application_bindings(application.application)
-        .iter()
-        .filter_map(|binding| match &binding.value {
-            StaticMachineBindingValue::Machine(target) => Some(target),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let targets = &application.machines;
     let [target] = targets.as_slice() else {
         diagnostics.push(Diagnostic::error(format!(
             "TaskRuntime requirement `{target_name}` must select exactly one static target machine, got {}",
@@ -193,7 +171,7 @@ fn append_task_start_selection(
         Err(TaskActivationTargetError::MissingEntry) => {
             diagnostics.push(Diagnostic::error(format!(
                 "TaskRuntime requirement `{target_name}` selects an unresolved static target `{}`",
-                target.path.joined_path()
+                target.diagnostic_path
             )));
             return;
         }

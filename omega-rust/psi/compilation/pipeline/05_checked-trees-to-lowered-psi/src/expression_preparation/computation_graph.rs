@@ -670,8 +670,8 @@ pub(crate) fn produced_value_root<'checked>(
     })?;
     let values = &checked.facts.values.structural_values;
     let root = values
-        .completed_expression_dependency(
-            &checked.expression_table,
+        .completed_checked_expression_dependency(
+            &checked.facts.executable_bindings,
             state.state_symbol,
             Some(statement),
             expression,

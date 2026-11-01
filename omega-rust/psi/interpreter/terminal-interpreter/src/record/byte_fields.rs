@@ -33,7 +33,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         if carrier.is_shared_readable_view() {
-            let bytes = binding.immutable()?;
+            let bytes = binding.snapshot(self)?;
             if !self
                 .structural_types()
                 .get(&child.structural_type)
@@ -78,7 +78,10 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             if byte_carrier_field_declaration(declaration_type.values(), carrier)
                 .is_none_or(|expected| expected.id != actual.id)
-                || matches!(binding, ByteSequenceBinding::Immutable(_))
+                || matches!(
+                    binding,
+                    ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_)
+                )
                 || !child.projected_qualifications.is_empty()
                 || !terminal_semantics::byte_qualification_predicates_in(
                     self.program.catalogs.structural_domains.iter(),

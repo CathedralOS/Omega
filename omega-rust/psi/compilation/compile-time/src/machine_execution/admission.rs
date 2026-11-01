@@ -174,6 +174,7 @@ struct BuildTimeBlockingRow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BuildTimeCallEdge {
     source_machine_symbol: SymbolHandle,
+    static_machine_parameter: SymbolHandle,
     target_machine_symbol: SymbolHandle,
     target_state_symbol: SymbolHandle,
     target_operator_symbol: SymbolHandle,
@@ -293,6 +294,7 @@ impl BuildTimeAdmissionPlan {
             };
             call_edges.push(BuildTimeCallEdge {
                 source_machine_symbol: owner,
+                static_machine_parameter: SymbolHandle::invalid(),
                 target_machine_symbol: candidate.realization_machine_symbol,
                 target_state_symbol: candidate.realization_state_symbol,
                 target_operator_symbol: candidate.trait_requirement_symbol,
@@ -1243,6 +1245,7 @@ fn project_operational_axes(
             for call in operational.calls.span_or_empty(state.calls) {
                 call_edges.push(BuildTimeCallEdge {
                     source_machine_symbol: machine.symbol,
+                    static_machine_parameter: call.static_machine_parameter,
                     target_machine_symbol: call.target_machine_symbol,
                     target_state_symbol: call.target_state_symbol,
                     target_operator_symbol: call.target_operator_symbol,

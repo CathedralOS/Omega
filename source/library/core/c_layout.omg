@@ -1,12 +1,13 @@
-// C ABI storage for complete, nonempty scalar records. Nested records and sums
-// are deliberately rejected: their native Omega geometry is not C ABI evidence.
+// C ABI placement for complete nonempty records. Scalars and their arrays use
+// target scalar geometry; nested fields require an explicitly selected child
+// representation. Native aggregate geometry alone is not C ABI evidence.
 use omega::language::core::layout;
 use omega::language::core::option;
 
 public data CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>;
 
 public CAbiPolicy<T> satisfies FixedLayout<T> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
         let mut entries: [FieldEntry; 64];
         let initial: LayoutPlan = LayoutPlan { entries: entries, entry_count: 0, size_fixed: 0, size_is_dynamic: false, align: 1 };
         match schema.case_count == 0 && schema.field_count > 0 {
@@ -32,7 +33,7 @@ ensures result < alignment
     match remainder == 0 { true -> 0u64, _ -> alignment - remainder }
 }
 
-// One scalar per step, then trailing padding. Bounds include the final step;
+// One represented field per step, then trailing padding. Bounds include the final step;
 // checked arithmetic rejects unrepresentable extents rather than wrapping them.
 machine c_abi_fields(schema: Schema, mut plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64) -> LayoutPlan
 reaches terminates by fuel
@@ -50,17 +51,18 @@ requires index <= 32 && alignment >= 1 && alignment <= 16 && fuel >= 1 && fuel <
         let padding: u64 = c_abi_padding(offset, field_align);
         let next_align: u64 = match field_align > alignment { true -> field_align, _ -> alignment };
         transition schema.fields[index].identity in Optional::None {
-            true -> scalar(schema, plan, index, offset, next_align, fuel, padding, field_size)
+            true -> represented(schema, plan, index, offset, next_align, fuel, padding, field_size)
             _ -> c_abi_unsupported(plan)
         }
     }
     // Numbered schemas are canonically ordered by identity rather than authored
     // declaration order. They require an explicit policy instead of guessed C order.
-    machine scalar(schema: Schema, plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64, padding: u64, size: u64) -> LayoutPlan
+    machine represented(schema: Schema, plan: LayoutPlan, index: u64, offset: u64, alignment: u64, fuel: u64, padding: u64, size: u64) -> LayoutPlan
     requires index < 32 && alignment >= 1 && alignment <= 16 && fuel >= 1 && fuel <= 32
     {
-        match schema.fields[index].kind {
-            FieldKind::Scalar -> checked(schema, plan, index, offset, alignment, fuel, padding, size),
+        match schema.fields[index].layout_source {
+            FieldLayoutSource::Scalar -> checked(schema, plan, index, offset, alignment, fuel, padding, size),
+            FieldLayoutSource::Explicit -> checked(schema, plan, index, offset, alignment, fuel, padding, size),
             _ -> c_abi_unsupported(plan)
         }
     }

@@ -342,6 +342,10 @@ impl ElementView {
         descriptor
     }
 
+    pub(crate) fn descriptor_home(&self) -> Option<&TerminalStructuralValue> {
+        self.descriptor_home.as_ref()
+    }
+
     pub(crate) fn matches_descriptor_home(&self, value: &TerminalStructuralValue) -> bool {
         self.descriptor_home.as_ref().map_or_else(
             || value.path.is_empty(),
@@ -363,7 +367,7 @@ impl ElementView {
 
     /// A descriptor without an explicit home inherits only its keyed frame
     /// binding. An empty selected path cannot identify some other whole view.
-    fn matches_bound_descriptor_home(
+    pub(crate) fn matches_bound_descriptor_home(
         &self,
         binding: &TerminalStructuralValue,
         selected: &TerminalStructuralValue,
@@ -814,6 +818,101 @@ impl TerminalExecution<'_> {
             root_type,
             declared_backing_path,
         )?;
+        if let ElementViewRegion::WholeRepresentation { source_length, .. } = region {
+            let source_length = count(&source_length, &self.values)?;
+            self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
+            let terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+                backing,
+                source: source_layout,
+                target: target_layout,
+            } = terminal_semantics::element_view_shape_region_geometry(
+                self.structural_types().values(),
+                &collection_shape,
+                element,
+                region,
+                access,
+            )
+            .ok_or_else(malformed)?
+            else {
+                return Err(malformed());
+            };
+            let captured = match backing.extent {
+                terminal_semantics::CollectionExtent::StoredLength => {
+                    let selected =
+                        self.resolve_live_projection(source.place, &source.path, source.access)?;
+                    let view = self.element_view_argument(source, &selected)?;
+                    view.subslice(0, view.len(), StructuralAccess::SharedBorrow)
+                        .ok_or_else(malformed)?
+                }
+                terminal_semantics::CollectionExtent::Fixed(length) => {
+                    let (collection, home) = self.element_collection_storage(source)?;
+                    let collection = match collection {
+                        Some(collection) => collection,
+                        None => {
+                            let mut cursor = self.local_structural_identities.cursor();
+                            let (root, _) = self.array_storage_root_staged(
+                                source.place,
+                                &mut cursor,
+                                &mut RuntimeRows::new(self.account.as_ref()),
+                            )?;
+                            let selected = crate::custody::project_structural_value(
+                                &self.structural_types(),
+                                &root,
+                                &source.path,
+                            )?;
+                            self.local_structural_identities.commit_cursor(cursor);
+                            selected
+                        }
+                    };
+                    ElementView::structural(
+                        collection,
+                        usize::try_from(length).map_err(|_| malformed())?,
+                        access,
+                        home,
+                        source.place,
+                    )
+                }
+                _ => return Err(malformed()),
+            };
+            if captured.len() != source_length {
+                return Err(malformed());
+            }
+            // Admission owns the count-fit obligation. Match its observed SSA
+            // count to this exact captured window; checked scaling below is a
+            // defensive runtime check, not evidence establishing that proof.
+            let representation =
+                self.whole_representation_view(captured, source_layout, target_layout)?;
+            let length = representation.length;
+            let value = TerminalStructuralValue {
+                opaque_identity: self.local_structural_identities.allocate()?,
+                structural_type: result.structural_type,
+                qualifications: Vec::new(),
+                projected_qualifications: result.projected_qualifications.clone(),
+                path: Vec::new(),
+            };
+            let view = ElementView {
+                diagnostic_source: source.place,
+                backing: ElementViewBacking::Representation(Arc::new(representation)),
+                window: 0..length,
+                home: None,
+                descriptor_home: Some(value.clone()),
+                access,
+            };
+            if descriptor.is_borrowed_byte_view() {
+                self.byte_sequence_values.insert(
+                    result.place,
+                    crate::byte_sequences::binding::ByteSequenceBinding::Representation(Arc::new(
+                        view,
+                    )),
+                )?;
+            } else if matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
+                self.element_view_values.insert(result.place, view)?;
+            } else {
+                return Err(malformed());
+            }
+            self.structural_values.insert(result.place, value)?;
+            return Ok(OperationFlow::Advance);
+        }
         let collection = terminal_semantics::element_view_shape_region_geometry(
             self.structural_types().values(),
             &collection_shape,
@@ -825,7 +924,8 @@ impl TerminalExecution<'_> {
             terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => {
                 Some(backing)
             }
-            terminal_semantics::ElementViewRegionGeometry::RepresentationBytes { .. } => None,
+            terminal_semantics::ElementViewRegionGeometry::RepresentationBytes { .. }
+            | terminal_semantics::ElementViewRegionGeometry::WholeRepresentation { .. } => None,
         });
         let extent = collection.map(|backing| backing.extent);
         terminal_semantics::collection_view_descriptor(
@@ -1044,12 +1144,7 @@ impl TerminalExecution<'_> {
                     // must never prune the retained referent's storage.
                     binding.with_descriptor_home(descriptor_value.clone())
                 } else {
-                    crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                        binding
-                            .immutable()?
-                            .clone()
-                            .with_descriptor_home(descriptor_value.clone()),
-                    )
+                    binding.with_descriptor_home(descriptor_value.clone())
                 };
                 self.local_structural_identities.commit_cursor(cursor);
                 self.byte_sequence_values.insert(result.place, binding)?;
