@@ -756,12 +756,6 @@ fn rejects_malformed_operator_tokens_on_machine_declarations() {
             "machine + add(left: i32, right: i32) -> i32 satisfies Math::add via ForeignBinding::CompilerIntrinsic;",
             "cannot declare an operator token",
         ),
-        // `boundary requirement` is the tokenless requirement form; a
-        // token-bearing requirement is spelled bodyless `boundary machine +`.
-        (
-            "boundary requirement + add(left: i32, right: i32) -> i32;",
-            "does not take a fixed operator token",
-        ),
         // Conformance members supply implementations; they never introduce
         // token bindings.
         (
@@ -904,156 +898,21 @@ fn parses_installation_bound_reach_on_bodyless_boundary_requirement() {
 }
 
 #[test]
-fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_machine() {
-    let source = r#"
-        public boundary requirement InterruptAcknowledgement::complete<T>(acknowledgement: T) -> bool
-        reaches <= MachineControl + PortIo
-        requires acknowledgement == acknowledgement;
-        boundary requirement Task::finish(task: u64);
-        boundary machine Transitional::claim();
-    "#;
-    let parsed = super::parse_source(source, "top-level boundary requirements should parse");
-    let machines = super::root_machines(&parsed);
-    assert_eq!(machines.len(), 3);
-
-    let requirement = machines[0];
-    assert_eq!(
-        requirement.name.as_str(&parsed),
-        "InterruptAcknowledgement::complete"
-    );
-    assert_eq!(
-        requirement
-            .attached_data
-            .as_ref()
-            .expect("qualified requirement owner")
-            .as_str(&parsed),
-        "InterruptAcknowledgement"
-    );
-    assert!(requirement.is_public);
-    assert!(requirement.is_top_level_boundary_requirement);
-    assert!(!requirement.boundary);
-    assert!(requirement.bodyless);
-    assert!(requirement.satisfies.is_empty());
-    assert_eq!(requirement.type_parameters.len(), 1);
-    assert!(requirement.service_reach_is_installation_bound);
-    assert_eq!(requirement.service_reaches.len(), 2);
-    assert_eq!(requirement.contracts.len(), 1);
-    let entry = parsed
-        .items
-        .state(parsed.items.state_handles(requirement.states)[0]);
-    assert_eq!(entry.parameters.len(), 1);
-    assert!(entry.return_type.is_valid());
-
-    let private_requirement = machines[1];
-    assert!(!private_requirement.is_public);
-    assert!(private_requirement.is_top_level_boundary_requirement);
-    assert!(!private_requirement.boundary);
-    assert!(private_requirement.bodyless);
-
-    let transitional = machines[2];
-    assert!(transitional.boundary);
-    assert!(!transitional.is_top_level_boundary_requirement);
-    assert!(transitional.bodyless);
-
-    let snapshot = parsed
-        .snapshot_json()
-        .expect("boundary requirement snapshot");
-    assert!(
-        snapshot.contains("\"is_top_level_boundary_requirement\":true"),
-        "{snapshot}"
-    );
-    assert!(snapshot.contains("\"is_public\":true"), "{snapshot}");
-    assert!(snapshot.contains("MachineControl"), "{snapshot}");
-    assert!(snapshot.contains("PortIo"), "{snapshot}");
-}
-
-#[test]
-fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
-    let source = r#"
-        public boundary requirement InterruptMaskGuard::restore(guard: InterruptMaskGuard)
-        requires guard in InterruptMaskGuard::Active;
-
-        public boundary requirement InterruptAcknowledgement::complete(acknowledgement: InterruptAcknowledgement);
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize consecutive requirements");
-    let parsed = parse_syntax_trees(&tokens)
-        .expect("a contract-final semicolon must also terminate the first requirement");
-    let requirements = super::root_machines(&parsed);
-    assert_eq!(requirements.len(), 2);
-    assert_eq!(
-        requirements[0].name.as_str(&parsed),
-        "InterruptMaskGuard::restore"
-    );
-    assert_eq!(requirements[0].contracts.len(), 1);
-    assert!(requirements[0].bodyless);
-    assert!(requirements[0].is_top_level_boundary_requirement);
-    assert_eq!(
-        requirements[1].name.as_str(&parsed),
-        "InterruptAcknowledgement::complete"
-    );
-    assert!(requirements[1].bodyless);
-    assert!(requirements[1].is_top_level_boundary_requirement);
-}
-
-#[test]
-fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
-    let source = r#"
-        public boundary requirement Task::finish<T>(task: Task<T>) -> T
-        suspends blocks;
-
-        boundary trait TaskRuntime {}
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize operational requirement");
-    let parsed = parse_syntax_trees(&tokens)
-        .expect("the final operational semicolon must terminate the requirement");
-    let requirement = parsed
-        .root_items()
-        .find_map(|item| match item {
-            Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("top-level requirement");
-    assert_eq!(requirement.name.as_str(&parsed), "Task::finish");
-    assert!(requirement.bodyless);
-    assert!(requirement.is_top_level_boundary_requirement);
-    assert!(requirement.suspends);
-    assert!(requirement.blocks);
-    assert!(parsed.root_items().any(|item| matches!(
-        item,
-        Item::Trait(definition)
-            if definition.name.as_str(&parsed) == "TaskRuntime"
-    )));
-}
-
-#[test]
-fn rejects_invalid_explicit_top_level_boundary_requirement_forms() {
-    for (source, expected) in [
-        (
-            "boundary requirement Package::operation() {}",
-            "is bodyless and must end with `;`",
-        ),
-        (
-            "boundary requirement Package::operation() satisfies Contract::operation;",
-            "cannot itself carry a `satisfies` clause",
-        ),
+fn rejects_retired_standalone_boundary_requirement() {
+    for source in [
+        "public boundary requirement InterruptAcknowledgement::complete<T>(acknowledgement: T) -> bool reaches <= MachineControl;",
+        "boundary requirement Task::finish(task: u64);",
+        "boundary requirement Package::operation() {}",
+        "boundary requirement Package::operation() satisfies Contract::operation;",
     ] {
         let error = super::parse_source_error(
             source,
-            "tokenize invalid boundary requirement",
-            "invalid explicit top-level boundary requirement must reject",
+            "tokenize retired boundary requirement",
+            "a standalone boundary requirement must reject",
         );
-        assert!(error.message.contains(expected), "got: {}", error.message);
+        super::expect_error(&error, "are retired");
+        super::expect_error(&error, "boundary trait");
     }
-
-    let tokens = Lexer::new("trait Nested { boundary requirement Package::operation(); }")
-        .tokenize()
-        .expect("tokenize nested boundary requirement");
-    parse_syntax_trees(&tokens)
-        .expect_err("an explicit boundary requirement must remain top-level");
 }
 
 #[test]

@@ -132,9 +132,7 @@ linux_x86_64 machine posix_realpath_binding() -> ForeignBinding<9, 8, 9> {
 }
 
 linux_x86_64 machine PosixCanonicalImports::provider_defaults(defaults: &mut PosixCanonicalImports) {
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::resolve, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::error_location, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::copy_error, PosixCanonicalImports>(defaults);
+    PosixCanonicalImports::select_provider<PosixCanonicalLibc, PosixCanonicalImports>(defaults);
 }
 
 linux_x86_64 machine posix_errno_location_binding() -> ForeignBinding<9, 16, 11> {

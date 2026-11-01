@@ -8,18 +8,55 @@
 use windows_gui_host;
 use omega::language::core::external_binding;
 
-data WindowsGuiIo { }
+// Providers call the exact `WindowsGuiImports` leaves: a call to a member of
+// this trait is an invocation edge `WindowsGuiHost` does not publish.
+boundary trait WindowsGuiIo {
+    machine create_window(extended_style: u32, class_name: &u8, title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine foreground_window() -> u64
+    reaches WindowManagement;
+    machine is_window(window: u64) -> i32
+    reaches WindowManagement;
+    machine destroy_window(window: u64) -> i32
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine translate_message(message: &WindowsMessage) -> i32
+    reaches WindowEventDispatch;
+    machine dispatch_message(message: &WindowsMessage) -> i64
+    reaches
+        NativeCodeExecution + WindowManagement + SurfacePresentation +
+        WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+        ClockObservation + ExecutionDelay + FilesystemContentRead +
+        FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+        ProcessOutput + ProcessExit;
+    machine key_state(virtual_key: u32) -> i32
+    reaches GlobalInputObservation;
+    machine adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
+    reaches WindowManagement;
+}
 data WindowsGuiImports { }
 data WindowsGuiNativeProvider { }
 
-boundary requirement WindowsGuiIo::create_window(extended_style: u32, class_name: &u8, title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, creation_data: u64) -> u64
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit;
 windows_x86_64 machine windows_gui_create_window_binding() -> ForeignBinding<10, 15, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "CreateWindowExA" } }
 }
@@ -27,8 +64,6 @@ windows_x86_64 machine WindowsGuiImports::create_window(extended_style: u32, cla
 satisfies WindowsGuiIo::create_window
 via windows_gui_create_window_binding();
 
-boundary requirement WindowsGuiIo::foreground_window() -> u64
-reaches WindowManagement;
 windows_x86_64 machine windows_gui_foreground_window_binding() -> ForeignBinding<10, 19, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetForegroundWindow" } }
 }
@@ -36,8 +71,6 @@ windows_x86_64 machine WindowsGuiImports::foreground_window() -> u64
 satisfies WindowsGuiIo::foreground_window
 via windows_gui_foreground_window_binding();
 
-boundary requirement WindowsGuiIo::is_window(window: u64) -> i32
-reaches WindowManagement;
 windows_x86_64 machine windows_gui_is_window_binding() -> ForeignBinding<10, 8, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "IsWindow" } }
 }
@@ -45,14 +78,6 @@ windows_x86_64 machine WindowsGuiImports::is_window(window: u64) -> i32
 satisfies WindowsGuiIo::is_window
 via windows_gui_is_window_binding();
 
-boundary requirement WindowsGuiIo::destroy_window(window: u64) -> i32
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit;
 windows_x86_64 machine windows_gui_destroy_window_binding() -> ForeignBinding<10, 13, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DestroyWindow" } }
 }
@@ -60,14 +85,6 @@ windows_x86_64 machine WindowsGuiImports::destroy_window(window: u64) -> i32
 satisfies WindowsGuiIo::destroy_window
 via windows_gui_destroy_window_binding();
 
-boundary requirement WindowsGuiIo::peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit;
 windows_x86_64 machine windows_gui_peek_message_binding() -> ForeignBinding<10, 12, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "PeekMessageA" } }
 }
@@ -75,8 +92,6 @@ windows_x86_64 machine WindowsGuiImports::peek_message(message: &mut WindowsMess
 satisfies WindowsGuiIo::peek_message
 via windows_gui_peek_message_binding();
 
-boundary requirement WindowsGuiIo::translate_message(message: &WindowsMessage) -> i32
-reaches WindowEventDispatch;
 windows_x86_64 machine windows_gui_translate_message_binding() -> ForeignBinding<10, 16, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "TranslateMessage" } }
 }
@@ -84,14 +99,6 @@ windows_x86_64 machine WindowsGuiImports::translate_message(message: &WindowsMes
 satisfies WindowsGuiIo::translate_message
 via windows_gui_translate_message_binding();
 
-boundary requirement WindowsGuiIo::dispatch_message(message: &WindowsMessage) -> i64
-reaches
-    NativeCodeExecution + WindowManagement + SurfacePresentation +
-    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
-    ClockObservation + ExecutionDelay + FilesystemContentRead +
-    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit;
 windows_x86_64 machine windows_gui_dispatch_message_binding() -> ForeignBinding<10, 16, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "DispatchMessageA" } }
 }
@@ -99,8 +106,6 @@ windows_x86_64 machine WindowsGuiImports::dispatch_message(message: &WindowsMess
 satisfies WindowsGuiIo::dispatch_message
 via windows_gui_dispatch_message_binding();
 
-boundary requirement WindowsGuiIo::key_state(virtual_key: u32) -> i32
-reaches GlobalInputObservation;
 windows_x86_64 machine windows_gui_key_state_binding() -> ForeignBinding<10, 16, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetAsyncKeyState" } }
 }
@@ -113,7 +118,7 @@ satisfies WindowsGuiHost::key_state
 reaches GlobalInputObservation {
     // SHORT's high bit marks the key down; the low-bit pressed-latch is noise
     // for a live-state query and is dropped by the mask.
-    let raw: i32 = WindowsGuiIo::key_state(virtual_key);
+    let raw: i32 = WindowsGuiImports::key_state(virtual_key);
     transition (raw & 32768) != 0 { true -> (1) _ -> (0) }
 }
 
@@ -133,7 +138,7 @@ reaches
     machine terminated(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
     requires class_name.len > 0 && title.len > 0 {
         transition class_name[class_name.len - 1] == 0 && title[title.len - 1] == 0 {
-            true -> (WindowsGuiIo::create_window(0, &class_name[0], &title[0], style, x, y, width, height, 0, 0, 0, 0))
+            true -> (WindowsGuiImports::create_window(0, &class_name[0], &title[0], style, x, y, width, height, 0, 0, 0, 0))
             _ -> (0)
         }
     }
@@ -141,12 +146,12 @@ reaches
 windows_x86_64 machine WindowsGuiNativeProvider::foreground_window() -> u64
 satisfies WindowsGuiHost::foreground_window
 reaches WindowManagement {
-    WindowsGuiIo::foreground_window()
+    WindowsGuiImports::foreground_window()
 }
 windows_x86_64 machine WindowsGuiNativeProvider::is_window(window: u64) -> bool
 satisfies WindowsGuiHost::is_window
 reaches WindowManagement {
-    let answer: i32 = WindowsGuiIo::is_window(window);
+    let answer: i32 = WindowsGuiImports::is_window(window);
     answer != 0
 }
 windows_x86_64 machine WindowsGuiNativeProvider::window_destroy(window: u64) -> bool
@@ -158,7 +163,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit {
-    let answer: i32 = WindowsGuiIo::destroy_window(window);
+    let answer: i32 = WindowsGuiImports::destroy_window(window);
     answer != 0
 }
 windows_x86_64 machine WindowsGuiNativeProvider::pump_message(message: &mut WindowsMessage) -> bool
@@ -170,25 +175,16 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit {
-    let answer: i32 = WindowsGuiIo::peek_message(message, 0, 0, 0, 1);
+    let answer: i32 = WindowsGuiImports::peek_message(message, 0, 0, 0, 1);
     transition answer != 0 { true -> dispatch(message) _ -> (false) }
     machine dispatch(message: &WindowsMessage) -> bool {
-        let translated: i32 = WindowsGuiIo::translate_message(message);
-        let result: i64 = WindowsGuiIo::dispatch_message(message);
+        let translated: i32 = WindowsGuiImports::translate_message(message);
+        let result: i64 = WindowsGuiImports::dispatch_message(message);
         true
     }
 }
 windows_x86_64 machine WindowsGuiNativeProvider::provider_defaults(defaults: &mut WindowsGuiNativeProvider) {
     WindowsGuiNativeProvider::select_provider<WindowsGuiHost, NativeWindowsGui>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::create_window, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::foreground_window, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::is_window, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::destroy_window, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::peek_message, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::translate_message, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::dispatch_message, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::key_state, WindowsGuiImports>(defaults);
-    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::adjust_rectangle, WindowsGuiImports>(defaults);
 }
 
 windows_x86_64 machine windows_gui_get_dc_binding() -> ForeignBinding<10, 5, 0> {
@@ -219,8 +215,6 @@ windows_x86_64 machine WindowsGuiNativeProvider::stretch_dibits(device: u64, des
 satisfies WindowsGuiHost::stretch_dibits
 via windows_gui_stretch_dibits_binding();
 
-boundary requirement WindowsGuiIo::adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
-reaches WindowManagement;
 windows_x86_64 machine windows_gui_adjust_rectangle_binding() -> ForeignBinding<10, 18, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "AdjustWindowRectEx" } }
 }
@@ -238,7 +232,7 @@ reaches
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit {
     let mut rectangle: WindowsRectangle = WindowsRectangle { left: 0, top: 0, right: width, bottom: height };
-    let adjusted: i32 = WindowsGuiIo::adjust_rectangle(&mut rectangle, style, 0, 0);
+    let adjusted: i32 = WindowsGuiImports::adjust_rectangle(&mut rectangle, style, 0, 0);
     let outer_width: i64 = (rectangle.right as i64) - (rectangle.left as i64);
     let outer_height: i64 = (rectangle.bottom as i64) - (rectangle.top as i64);
     transition adjusted != 0 && width > 0 && height > 0

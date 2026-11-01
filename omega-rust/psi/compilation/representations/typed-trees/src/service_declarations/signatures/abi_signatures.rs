@@ -224,6 +224,70 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
         });
     }
 
+    // An opaque `satisfies Requirement via binding` leaf inherits its governing
+    // requirement's admitted contract, declaration ABI included
+    // (language/effects.md, "Opaque supplies inherit"). A provider that calls
+    // the leaf directly, rather than the trait member whose invocation edge its
+    // own requirement does not publish, reaches the same exact ABI row. A
+    // target family's synthesized interface is the boundary its callers see;
+    // it takes the one row every member's governing requirement agrees on.
+    let governing_application = |machine: &crate::machine::Machine| {
+        let mut applications = typed
+            .machine_trait_conformances(machine)
+            .iter()
+            .filter_map(|conformance| {
+                crate::machine::resolve_satisfied_declaration(typed, machine, conformance)
+            })
+            .filter_map(|declaration| {
+                boundaries
+                    .iter()
+                    .find(|(symbol, _)| *symbol == declaration.symbol())
+                    .map(|(_, application)| application.clone())
+            });
+        match (applications.next(), applications.next()) {
+            (Some(application), None) => Some(application),
+            _ => None,
+        }
+    };
+    let mut inherited = Vec::new();
+    for machine in typed.machines() {
+        if machine.body_is_present
+            || boundaries
+                .iter()
+                .any(|(symbol, _)| *symbol == machine.symbol)
+        {
+            continue;
+        }
+        let application = if machine.target_family_interface {
+            let members = typed
+                .target_machine_families
+                .iter()
+                .find(|family| family.canonical == machine.symbol)
+                .map_or(&[][..], |family| family.members.as_slice());
+            let mut applications = members
+                .iter()
+                .filter_map(|member| typed.machine_by_symbol(member.machine))
+                .map(governing_application);
+            match applications.next() {
+                Some(Some(first)) if applications.all(|other| other.as_ref() == Some(&first)) => {
+                    Some(first)
+                }
+                _ => None,
+            }
+        } else if matches!(
+            machine.supply_mode,
+            language_semantics::MachineSupplyMode::ExternalRealization { .. }
+        ) {
+            governing_application(machine)
+        } else {
+            None
+        };
+        if let Some(application) = application {
+            inherited.push((machine.symbol, application));
+        }
+    }
+    boundaries.extend(inherited);
+
     let mut applications = Vec::new();
     for (handle, application) in catalog.calling.applications() {
         let prepared = (|| {

@@ -93,7 +93,6 @@ pub(crate) fn machine_interface_exposure(
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
     if machine.is_public
         || (machine.boundary
-            && !machine.is_top_level_boundary_requirement
             && !crate::lowering::operator::is_token_bearing_boundary_signature(machine))
     {
         AuthoredDeclarationSelectionExposure::PublicInterface
@@ -291,9 +290,7 @@ fn lower_lexical_machine_parts(
             .any(|clause| clause.via_expression.is_valid());
         if machine.target_family_interface {
             language_semantics::MachineSupplyMode::Requirement
-        } else if machine.is_top_level_boundary_requirement
-            || crate::lowering::operator::is_token_bearing_boundary_signature(machine)
-        {
+        } else if crate::lowering::operator::is_token_bearing_boundary_signature(machine) {
             language_semantics::MachineSupplyMode::TopLevelRequirement
         } else if machine.bodyless && (via_binding.is_some() || has_via_expression) {
             let (binding, mechanism) = via_binding

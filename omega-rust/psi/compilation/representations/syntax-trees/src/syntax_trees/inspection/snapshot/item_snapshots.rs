@@ -133,7 +133,6 @@ pub enum ItemSnapshot {
         #[serde(skip_serializing_if = "Option::is_none")]
         authored_target: Option<IdentifierSnapshot>,
         boundary: bool,
-        is_top_level_boundary_requirement: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
@@ -646,7 +645,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .as_ref()
                 .map(|value| snapshot_identifier(syntax_trees, value)),
             boundary: value.boundary,
-            is_top_level_boundary_requirement: value.is_top_level_boundary_requirement,
             lifetime_parameters: snapshot_identifier_slice(
                 syntax_trees,
                 &value.lifetime_parameters,
