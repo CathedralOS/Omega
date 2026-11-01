@@ -1888,30 +1888,64 @@ impl Scope<'_> {
                     .unconstrained_type_reference(required.reference);
                 let data = self
                     .program
-                    .data_application_definition(reference)
-                    .or_else(|| {
-                        self.program
-                            .type_reference_table
-                            .type_head_symbol(reference)
-                            .and_then(|symbol| self.program.data_definition_by_symbol(symbol))
-                    });
+                    .data_constructor_definition(reference, literal.type_symbol);
                 if let Some(data) = data {
                     let fields = self.program.expression_table.struct_fields(literal.fields);
+                    let selected_case = match literal.case_symbol {
+                        Some(retained) => {
+                            let Some(case) = self.program.data_constructor_case(
+                                reference,
+                                literal.type_symbol,
+                                retained,
+                            ) else {
+                                diagnostics.push(Diagnostic::error(
+                                    "runtime indexed construction has no exact substituted case",
+                                ));
+                                return;
+                            };
+                            Some(case.symbol)
+                        }
+                        None => None,
+                    };
                     // One authored roster for both obligations below: the
                     // construction's common fields and the payload fields of
                     // the case it selects.
-                    let declared = self.program.data_construction_fields(
-                        self.program.data_members(data),
-                        literal.case_symbol,
-                    );
+                    let declared = self
+                        .program
+                        .data_construction_fields(self.program.data_members(data), selected_case);
+                    // A prepared application can retain its template's field
+                    // selectors. Rejoin them through the same exact origin and
+                    // member coordinates as the constructor; spelling supplies
+                    // neither field types nor descriptor authority.
+                    let mut provided = Vec::with_capacity(fields.len());
+                    for field in fields {
+                        let selected = self.program.data_constructor_field(
+                            reference,
+                            literal.type_symbol,
+                            field.field_symbol,
+                        );
+                        let Some(selected) = selected.filter(|selected| {
+                            declared.iter().any(|field| field.symbol == selected.symbol)
+                        }) else {
+                            diagnostics.push(
+                                Diagnostic::error(format!(
+                                    "runtime indexed construction has no exact substituted field telescope for `{}::{}`",
+                                    literal.type_name.as_str(), field.name.as_str(),
+                                ))
+                                .with_source_span(self.program.expression_table.source_span(field.value)),
+                            );
+                            return;
+                        };
+                        provided.push((field, selected));
+                    }
                     for declared in &declared {
                         if self
                             .program
                             .type_application_value_indices(declared.type_reference)
                             .has_runtime_values()
-                            && !fields
+                            && !provided
                                 .iter()
-                                .any(|field| field.field_symbol == declared.symbol)
+                                .any(|(_, field)| field.symbol == declared.symbol)
                         {
                             diagnostics.push(Diagnostic::error(
                                 "runtime indexed field requires an explicit captured construction",
@@ -1919,9 +1953,16 @@ impl Scope<'_> {
                         }
                     }
                     for (symbol, argument) in self.descriptor_arguments(&required) {
-                        if let Some(field) =
-                            fields.iter().find(|field| field.field_symbol == symbol)
-                        {
+                        let selected = self.program.data_constructor_field(
+                            reference,
+                            literal.type_symbol,
+                            symbol,
+                        );
+                        if let Some((field, _)) = selected.and_then(|selected| {
+                            provided
+                                .iter()
+                                .find(|(_, field)| field.symbol == selected.symbol)
+                        }) {
                             self.check_descriptor(field.value, argument, &required, diagnostics);
                         } else {
                             diagnostics.push(Diagnostic::error(
@@ -1929,23 +1970,15 @@ impl Scope<'_> {
                             ));
                         }
                     }
-                    for field in fields {
-                        let field_type = declared
-                            .iter()
-                            .find(|declared| declared.symbol == field.field_symbol)
-                            .map(|declared| declared.type_reference);
-                        if let Some(reference) = field_type {
-                            self.check(
-                                field.value,
-                                Application {
-                                    reference,
-                                    ..required.clone()
-                                },
-                                diagnostics,
-                            );
-                        } else {
-                            diagnostics.push(Diagnostic::error("runtime indexed construction has no exact substituted field telescope"));
-                        }
+                    for (field, declared) in provided {
+                        self.check(
+                            field.value,
+                            Application {
+                                reference: declared.type_reference,
+                                ..required.clone()
+                            },
+                            diagnostics,
+                        );
                     }
                     return;
                 }
