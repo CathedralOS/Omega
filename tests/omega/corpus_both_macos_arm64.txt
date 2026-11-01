@@ -47,6 +47,7 @@ pass/collections/runtime_owned_array_projection_snapshot_exit built 5859ms exit:
 pass/collections/runtime_whole_array_value_copy_exit built 5604ms exit:70 interpreter-exit:70 interpreter:agrees @27c558b731f4
 pass/control_flow/arm_pattern_rest_optout_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @daa14c70b1c0+wt
 pass/control_flow/case_pattern_rename_waive_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @daa14c70b1c0+wt
+pass/core/content_retained_custody_round_trip built 6738ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @8ce11b402e09+wt
 pass/core/independent_content_checked_factory_exit built 1804ms exit:0 interpreter-exit:0 interpreter:agrees @767215d6ee2d
 pass/core/independent_content_closed_carrier_factory_exit built 1720ms exit:0 interpreter-exit:0 interpreter:agrees @767215d6ee2d
 pass/core/independent_content_factory_exit built 1446ms exit:0 interpreter-exit:0 interpreter:agrees @767215d6ee2d
@@ -3603,15 +3604,15 @@ pass/facts/scalar_tag_field_loan_through_other_machine_exit built 844ms exit:0 i
 pass/facts/scalar_tag_field_loan_through_other_state_exit built 874ms exit:0 interpreter-exit:0 interpreter:agrees @3cdf6784ca76+wt
 pass/facts/scalar_tag_field_loan_through_parameter_exit built 874ms exit:0 interpreter-exit:0 interpreter:agrees @3cdf6784ca76+wt
 pass/facts/scalar_tag_field_loan_through_target_body_exit built 834ms exit:0 interpreter-exit:0 interpreter:agrees @3cdf6784ca76+wt
-pass/facts/selected_provider_issuance_through_call_result_exit built 1566ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/facts/selected_provider_issuance_through_const_name_exit built 1541ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/facts/selected_provider_issuance_through_field_exit built 1572ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/facts/selected_provider_issuance_through_local_exit built 1532ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/facts/selected_provider_issuance_through_match_join_exit built 1563ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/facts/selected_provider_issuance_through_other_machine_exit built 1572ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/facts/selected_provider_issuance_through_other_state_exit built 1546ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/facts/selected_provider_issuance_through_parameter_exit built 1536ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/facts/selected_provider_issuance_through_target_body_exit built 1536ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
+pass/facts/selected_provider_issuance_through_call_result_exit built 3554ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_const_name_exit built 3555ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_field_exit built 3549ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_local_exit built 3614ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_match_join_exit built 3585ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_other_machine_exit built 3491ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_other_state_exit built 3688ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_parameter_exit built 3648ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_target_body_exit built 3566ms exit:0 interpreter-exit:0 interpreter:agrees @8ce11b402e09+wt
 pass/facts/selected_scalar_initializer_through_call_result_exit built 21327ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d
 pass/facts/selected_scalar_initializer_through_const_name_exit built 21322ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d
 pass/facts/selected_scalar_initializer_through_field_exit built 21825ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d

@@ -1,8 +1,7 @@
 # macOS application publication
 
-This is the required contract; implementation remains under
-MACOS-APPLICATION-PUBLICATION in [TASKS.md](../../../TASKS.md). Current macOS
-output is flat, with std requesting foreground activation. A flat executable
+This is the required contract; MACOS-APPLICATION-PUBLICATION in
+[TASKS.md](../../../TASKS.md) owns implementation. A flat executable
 can display a window: bundling is delivery, not GUI execution authority.
 [Component publication](component_publication.md) owns the separate
 native/installed-product boundary.

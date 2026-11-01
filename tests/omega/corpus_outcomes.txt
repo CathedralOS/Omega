@@ -3424,7 +3424,7 @@ pass/core/content_owned_sibling_in_loan_carrier checked 1755ms @65452511bb0e
 pass/core/content_projection_exact_integer_arithmetic checked 2330ms @ccdb99ca2214
 pass/core/content_projection_readable_reference_observation checked 2354ms @ccdb99ca2214
 pass/core/content_projection_signed_integer_cancellation checked 2974ms @ccdb99ca2214
-pass/core/content_retained_custody_round_trip checked 8812ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
+pass/core/content_retained_custody_round_trip checked 6476ms check-target:macos_arm64 terminal-inspections:match @8ce11b402e09+wt
 pass/core/content_retained_debt_only_wrapper checked 1768ms @65452511bb0e
 pass/core/content_transform_empty_array checked 2456ms @ccdb99ca2214
 pass/core/content_transform_ended_parent_loan checked 2520ms @ccdb99ca2214
@@ -8784,15 +8784,15 @@ pass/facts/selected_native_code_layout_through_other_state_exit checked 3866ms c
 pass/facts/selected_native_code_layout_through_parameter_exit rejected 3209ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	native artifact target lowering failed: InvalidOwnedStructuralArgument { source: PlaceId(10), parameter: PlaceId(10), structural_type: StructuralTypeId(1), reason: "source home multiplicity differs from its formal" }
 pass/facts/selected_native_code_layout_through_target_body_exit checked 3329ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_call_result_exit checked 5777ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_const_name_exit checked 4881ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_field_exit checked 4655ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_local_exit checked 4461ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_match_join_exit checked 4580ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_other_machine_exit checked 4362ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_other_state_exit checked 5076ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_parameter_exit checked 4657ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_provider_issuance_through_target_body_exit checked 4456ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/selected_provider_issuance_through_call_result_exit checked 3159ms check-target:macos_arm64 @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_const_name_exit checked 3166ms check-target:macos_arm64 @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_field_exit checked 3774ms check-target:macos_arm64 @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_local_exit checked 3478ms check-target:macos_arm64 @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_match_join_exit checked 3304ms check-target:macos_arm64 @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_other_machine_exit checked 3225ms check-target:macos_arm64 @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_other_state_exit checked 3660ms check-target:macos_arm64 @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_parameter_exit checked 3433ms check-target:macos_arm64 @8ce11b402e09+wt
+pass/facts/selected_provider_issuance_through_target_body_exit checked 3180ms check-target:macos_arm64 @8ce11b402e09+wt
 pass/facts/selected_scalar_initializer_through_call_result_exit checked 4741ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/selected_scalar_initializer_through_const_name_exit checked 3727ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/selected_scalar_initializer_through_field_exit checked 3593ms check-target:macos_arm64 @ccdb99ca2214
@@ -10927,7 +10927,7 @@ pass/host/runtime_descriptor_case_replacement_exit rejected 2500ms check-target:
 	call to `empty` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `check_empty` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `refill` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/host/runtime_descriptor_direct_array_exit checked 3800ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_direct_array_exit checked 61127ms check-target:macos_arm64 @33592c4ca518
 pass/host/runtime_descriptor_exclusive_atomic_record_exit checked 3569ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_float_loan_input_exit rejected 3954ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
@@ -10935,10 +10935,10 @@ pass/host/runtime_descriptor_immutable_primitive_loans_exit rejected 4381ms chec
 	call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 pass/host/runtime_descriptor_local_array_loan_input_exit checked 3340ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_mutable_view_input_exit checked 16886ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_nested_array_window_exit checked 4245ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_nested_array_window_exit checked 54664ms check-target:macos_arm64 @33592c4ca518
 pass/host/runtime_descriptor_nested_case_array_exit checked 15417ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_nested_record_loan_input_exit checked 4388ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_descriptor_output_streams_exit checked 3194ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_descriptor_output_streams_exit checked 53751ms check-target:macos_arm64 @33592c4ca518
 pass/host/runtime_descriptor_padded_prefix_loans_exit checked 3191ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_record_array_input_exit checked 16834ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_record_loan_input_exit checked 3182ms check-target:macos_arm64 @ccdb99ca2214
@@ -27509,38 +27509,39 @@ fail/facts/selected_native_code_layout_through_parameter_rejected rejected 393ms
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/selected_native_code_layout_through_target_body_rejected rejected 450ms expected @ccdb99ca2214
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/facts/selected_provider_issuance_through_call_result_ordinary_call rejected 4038ms expected @ccdb99ca2214
+fail/facts/selected_provider_issuance_through_call_result_ordinary_call rejected 2279ms expected @8ce11b402e09+wt
 	cannot prove default-domain field requirement for return from deliver, state entry, at statement 0: InitialSupplyProvider.acquire() requires Buffer::Owned
-fail/facts/selected_provider_issuance_through_const_name_ordinary_call rejected 3530ms expected @ccdb99ca2214
+fail/facts/selected_provider_issuance_through_const_name_ordinary_call rejected 2214ms expected @8ce11b402e09+wt
 	cannot prove requires contract for call round_trip from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
 	linear state-call result buffer in Main::main::main at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `Main::main` state `main` statement 0 call 0 to `acquire`: callee return frontier correspondence is unavailable; return state `acquire` statement 3 TransitionTarget: outgoing edge has no completed value capture
-fail/facts/selected_provider_issuance_through_field_ordinary_call rejected 4427ms expected @ccdb99ca2214
+fail/facts/selected_provider_issuance_through_field_ordinary_call rejected 2266ms expected @8ce11b402e09+wt
 	cannot prove requires contract for call round_trip from Main::main: envelope.buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
 	construction of `Envelope` field `buffer` is not proven in domain `Buffer::Owned` in Main::main state `main` at statement 1; a construction value must establish the domain's predicates and any required provenance
 	linear state-call result buffer in Main::main::main at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `Main::main` state `main` statement 0 call 0 to `acquire`: callee return frontier correspondence is unavailable; return state `acquire` statement 3 TransitionTarget: outgoing edge has no completed value capture
-fail/facts/selected_provider_issuance_through_local_ordinary_call rejected 3989ms expected @ccdb99ca2214
+fail/facts/selected_provider_issuance_through_local_ordinary_call rejected 2229ms expected @8ce11b402e09+wt
 	cannot prove requires contract for call round_trip from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
 	linear state-call result buffer in Main::main::main at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `Main::main` state `main` statement 0 call 0 to `acquire`: callee return frontier correspondence is unavailable; return state `acquire` statement 3 TransitionTarget: outgoing edge has no completed value capture
-fail/facts/selected_provider_issuance_through_match_join_ordinary_call rejected 3872ms expected @ccdb99ca2214
-	cannot prove default-domain field requirement for return from choose_initial, state entry, at statement 1: InitialSupplyProvider.acquire() requires Buffer::Owned
-	cannot prove default-domain field requirement for return from choose_initial, state entry, at statement 2: InitialSupplyProvider.acquire() requires Buffer::Owned
-fail/facts/selected_provider_issuance_through_other_machine_ordinary_call rejected 3915ms expected @ccdb99ca2214
+fail/facts/selected_provider_issuance_through_match_join_ordinary_call rejected 2248ms expected @8ce11b402e09+wt
+	cannot prove requires contract for call mark_initial from choose_initial: InitialSupplyProvider.acquire() in Buffer::Owned in state `entry`
+	cannot prove requires contract for call mark_initial from choose_initial: InitialSupplyProvider.acquire() in Buffer::Owned in state `entry`
+fail/facts/selected_provider_issuance_through_other_machine_ordinary_call rejected 2235ms expected @8ce11b402e09+wt
 	cannot prove requires contract for call transport from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
 	linear state-call result buffer in Main::main::main at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `Main::main` state `main` statement 0 call 0 to `acquire`: callee return frontier correspondence is unavailable; return state `acquire` statement 3 TransitionTarget: outgoing edge has no completed value capture
-fail/facts/selected_provider_issuance_through_other_state_ordinary_call rejected 4351ms expected @ccdb99ca2214
+fail/facts/selected_provider_issuance_through_other_state_ordinary_call rejected 2299ms expected @8ce11b402e09+wt
 	cannot prove requires contract for call supplied from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
 	linear state-call result buffer in Main::main::main at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `Main::main` state `main` statement 0 call 0 to `acquire`: callee return frontier correspondence is unavailable; return state `acquire` statement 3 TransitionTarget: outgoing edge has no completed value capture
-fail/facts/selected_provider_issuance_through_parameter_ordinary_call rejected 4665ms expected @ccdb99ca2214
+fail/facts/selected_provider_issuance_through_parameter_ordinary_call rejected 2195ms expected @8ce11b402e09+wt
 	cannot prove requires contract for call exercise from Main::main: InitialSupplyProvider.acquire() in Buffer::Owned in state `main`
-fail/facts/selected_provider_issuance_through_target_body_ordinary_call rejected 4040ms expected @ccdb99ca2214
+fail/facts/selected_provider_issuance_through_target_body_ordinary_call rejected 2244ms expected @8ce11b402e09+wt
 	cannot prove requires contract for call transport from Main::main: buffer in Buffer::Owned in state `main`
 	cannot prove initializer of `buffer` in Main::main is in domain `Buffer::Owned`; an annotation cannot establish routed qualification
 	linear state-call result buffer in Main::main::main at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `Main::main` state `main` statement 0 call 0 to `acquire`: callee return frontier correspondence is unavailable; return state `acquire` statement 3 TransitionTarget: outgoing edge has no completed value capture
+	cannot establish call-result qualification `Buffer::Owned` in `Main::main`, state `main` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
 fail/facts/selected_scalar_initializer_through_call_result_rejected rejected 1946ms expected @ccdb99ca2214
 	array literal element is not proven in domain `i32::Selected` in make state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from make, state entry, at statement 0: [1, 2][1] requires i32::Selected

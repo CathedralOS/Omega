@@ -140,49 +140,6 @@ Identity-only retention is a stable keepalive claim lending no view. Typed
 construction into storage with no live `T` is a separate feature, not another
 interpretation of `&write`.
 
-## Status
-
-This records current implementation evidence against the sections above; it is
-a status annotation, not a contract amendment. Surveyed at `500878c473`
-(linux x86-64).
-
-Enforced today:
-
-- Foreign calls carry a normalized shape end to end: `normalized_foreign`/
-  `normalized_foreign_call` surfaces run through
-  `native-realization` (`providers/settlements`, `terminal_authority_policy` —
-  `validate_boundary_entry_plan` validates the boundary entry plan against the
-  call signature), `post-allocation-machine-to-selected-form-encoding` row
-  encoding and validation, `target-operations-to-selected-instructions`
-  legalization, both ISA encoders (`isa-x86_64`, `isa-aarch64`
-  `selected_form_encoding`), and `image-emission` `object_artifact`
-  `normalized_foreign_calls`.
-- Provider-backed field classification and foreign-receipt rejection sit in the
-  checked-content suite (`typed-trees-to-checked-trees` `checks::content`;
-  recorded 14/14 green on the board at `a0591618c7ba`/later re-verifications).
-- Authored rejections are pinned by corpus fixtures:
-  `tests/omega/fail/expressions/token_bound_machine_foreign_family_rejected`,
-  `tests/omega/fail/core/content_projection_foreign_owner`, and the
-  termination `*_foreign*` rejection rows. The former
-  `tests/omega/fail/entry/service_foreign_domain_rejected` was retired with the
-  `Binding<R>` carrier it asserted on (`component_publication.md`, "Source-visible
-  `Binding<R>` values are retired"); the rule that a source-visible carrier
-  admits no authored domain qualification has no subject left, and the retired
-  name itself stays pinned by `fail/calls/retired_core_binding_{field,local,parameter}`.
-- Write-only foreign access leans on the ordinary write-only enforcement
-  surfaces (`checks/multiplicity/borrowed_windows.rs`,
-  `checks/multiplicity/linear_validation/recorded_events.rs`,
-  `checks/contracts/exits/scalars/write_transport.rs`,
-  `checks/ranges/facts/call_writes.rs`).
-
-Open frontier, unchanged:
-
-- The source-to-native join for lifetime-borrowed, moved and permitted-snapshot
-  dispositions is not landed; **FOREIGN-RETAINED-ARGUMENT-BACKING** owns it.
-  No compiler-side runtime ledger substitutes for the selected provider's
-  actual retention and completion contract.
-- The provider-planning to native-settlement join for the installed occurrence
-  is not landed; the surviving lane records live on the board under
-  `PROVIDER-ATTACHMENT-MACHINE-PLAN`.
-- The boundary-ABI lane for opaque-by-value carriers is open under
-  `OPAQUE-BY-VALUE-BOUNDARY-ABI`.
+No compiler-side runtime ledger substitutes for the selected provider's actual
+retention and completion contract for lifetime-borrowed, moved and
+permitted-snapshot dispositions.

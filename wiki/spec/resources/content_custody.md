@@ -5,9 +5,8 @@
 Checking establishes the corresponding evidence under the
 [fact-validity rules](../terminal-psi/fact_validity.md).
 [Authority establishment](authority.md) defines qualified claim origins.
-These contracts are not a claim of complete source/native integration;
-[production limits](../../../omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs)
-remain beside the implementation.
+[Production limits](../../../omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs)
+live beside the implementation.
 
 ## Library resources and language mechanisms
 
@@ -38,8 +37,7 @@ external issuance merely because several inputs become one output. Any genuinely
 new backing or external authority still needs its authorized boundary evidence.
 
 This boundary introduces no new lineage predicate, runtime token or content
-algebra. It does not assert that every library contract is already expressible
-or implemented by the current compiler.
+algebra.
 
 ## Content terms
 
