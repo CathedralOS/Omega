@@ -23,6 +23,12 @@ shapes, empty records and sum cases rather than claiming their native Omega
 geometry is C ABI evidence. Ordinary scalar domains and access obligations remain
 in force; policy geometry grants no atomic or concurrent access permission.
 
+`controls/static_type_argument` independently passes an alias as an ordinary
+generic call's static type argument. Its twin changes only an erased alias
+argument from copyable `u64` to affine `Resource`; the alias still owes `[copy]`
+when its expansion is simply `u64`. This checks ordinary formation rather than
+introducing a layout-query exception.
+
 ## Current evidence
 
 Full root execution is pending the measured general alias-static-operand and
